@@ -108,7 +108,7 @@ AU-Contractors
 | SG-PAM-Users | EntraGroup | EntraID | PAM access |
 | Global Administrator | EntraDirectoryRole | EntraID | Entra directory role |
 | SharePoint Admin | EntraDirectoryRole | EntraID | Entra directory role |
-| FortigiGraph-App | EntraAppRole | EntraID | App role for this product |
+| IdentityAtlas-App | EntraAppRole | EntraID | App role for this product |
 | SAP-Finance-Role | EntraAppRole | EntraID | SAP financial access |
 | BR-Employee-Base | BusinessRole | Omada | Base employee access package |
 | BR-Engineering-Tools | BusinessRole | Omada | Dev tools access package |
@@ -136,7 +136,7 @@ AU-Contractors
 | Parent | Child | Type | Notes |
 |---|---|---|---|
 | BR-Employee-Base | SG-AllEmployees | Contains | Business role grants group |
-| BR-Employee-Base | FortigiGraph-App | Contains | Business role grants app role |
+| BR-Employee-Base | IdentityAtlas-App | Contains | Business role grants app role |
 | BR-Engineering-Tools | SG-Engineering | Contains | |
 | BR-Engineering-Tools | SG-VPN-Access | Contains | |
 | BR-Finance-Systems | SG-Finance | Contains | |
@@ -172,7 +172,7 @@ AU-Contractors
 
 The dataset is a single JSON file that maps directly to the Ingest API endpoints. The nightly test script reads it and POSTs each section to the appropriate endpoint.
 
-**File:** `_Test/DemoDataset/demo-company.json`
+**File:** `test/demo-dataset/demo-company.json`
 
 ```json
 {
@@ -284,13 +284,13 @@ After ingesting the demo dataset, the nightly runner executes these verification
 
 ### Step 1: Generate the Dataset
 
-**Script:** `_Test/DemoDataset/Generate-DemoDataset.ps1`
+**Script:** `test/demo-dataset/Generate-DemoDataset.ps1`
 
 Generates `demo-company.json` with all entities. Uses deterministic GUIDs so the same IDs are generated every time, allowing tests to assert on specific values.
 
 ### Step 2: Ingest Script
 
-**Script:** `_Test/DemoDataset/Ingest-DemoDataset.ps1`
+**Script:** `test/demo-dataset/Ingest-DemoDataset.ps1`
 
 Reads `demo-company.json` and POSTs each section to the Ingest API in dependency order:
 1. Systems
@@ -305,13 +305,13 @@ Reads `demo-company.json` and POSTs each section to the Ingest API in dependency
 
 ### Step 3: Verification Script
 
-**Script:** `_Test/DemoDataset/Verify-DemoDataset.ps1`
+**Script:** `test/demo-dataset/Verify-DemoDataset.ps1`
 
 Runs all row count, relationship integrity, business logic, and API verification checks. Returns pass/fail per check with details.
 
 ### Step 4: Playwright E2E Specs
 
-**Specs:** `UI/frontend/e2e/demo-dataset/`
+**Specs:** `app/ui/e2e/`
 
 Browser-based checks that verify the ingested data shows up correctly in the UI.
 

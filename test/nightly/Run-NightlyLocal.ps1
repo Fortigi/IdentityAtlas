@@ -841,6 +841,28 @@ if (-not $SkipIntegration) {
         } else {
             Write-Result 'Risk-Scoring-LLM-Tests' $true 'skipped (script missing)'
         }
+
+        # ── Phase 4k: API benchmark + regression check ────────────
+        # Hits the key read endpoints a few times, compares p95 against the
+        # stored baseline, and writes test/benchmark/results/BENCHMARK.md.
+        # Fails the phase if any endpoint regresses more than 25%.
+        Write-Phase "Phase 4k: API Benchmark (regression check)"
+        $benchScript = Join-Path $RepoRoot 'test/benchmark/Run-Benchmark.ps1'
+        if (Test-Path $benchScript) {
+            try {
+                & $benchScript -ApiBaseUrl $apiBaseUrl `
+                    -OutputFolder (Join-Path $LogFolder 'benchmark') `
+                    -BaselineFile (Join-Path $RepoRoot 'test/benchmark/baseline.json') `
+                    -Runs 5 -RegressionPct 25 -FailOnRegression 2>&1 |
+                    Tee-Object -FilePath (Join-Path $LogFolder 'benchmark.log') | Out-Host
+                $benchExit = $LASTEXITCODE
+                Write-Result 'API-Benchmark' ($benchExit -eq 0) $(if ($benchExit -ne 0) { "regression detected (exit $benchExit)" })
+            } catch {
+                Write-Result 'API-Benchmark' $false $_.Exception.Message
+            }
+        } else {
+            Write-Result 'API-Benchmark' $true 'skipped (script missing)'
+        }
     }
 }
 

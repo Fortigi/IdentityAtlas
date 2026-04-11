@@ -162,7 +162,7 @@ router.post('/tags/:id/assign', async (req, res) => {
       INSERT INTO "GraphTagAssignments" ("tagId", "entityId")
       SELECT @tagId, eid FROM (VALUES ${valueParams.map(p => `(${p})`).join(',')}) AS t(eid)
       WHERE NOT EXISTS (
-        SELECT 1 FROM GraphTagAssignments WHERE tagId = @tagId AND entityId = t.eid
+        SELECT 1 FROM "GraphTagAssignments" WHERE "tagId" = @tagId AND "entityId" = t.eid
       );
       SELECT @@ROWCOUNT AS inserted;
     `);

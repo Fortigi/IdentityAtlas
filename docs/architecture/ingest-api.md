@@ -1,28 +1,22 @@
-# Ingest API Layer
+# Ingest API
 
-> **Status:** Draft | **Date:** 2026-03-30
-
-The Ingest API decouples data ingestion from the FortigiGraph core. Instead of crawlers writing directly to the database, they POST data to REST endpoints. The API handles all complexity: validation, bulk merge, scoped delete detection, audit history, and sync logging.
+The Ingest API is how every record gets into Identity Atlas. Crawlers — in any language — authenticate with an API key and POST batches of data to REST endpoints; the API handles validation, bulk merge, scoped delete detection, audit history, and sync logging. The worker container has no direct database access; everything flows through this layer.
 
 ---
 
-## Motivation
+## Why a separate ingest layer
 
-Today, FortigiGraph has two tightly-coupled sync paths:
+Before v5, Identity Atlas (then shipped as the FortigiGraph PowerShell module) had two tightly-coupled sync paths that both ran *inside* the module with direct SQL access: `Start-FGSync` for the Entra ID path and `Start-FGCSVSync` for CSV imports. That design had real problems:
 
-1. **`Start-FGSync`** — runs inside the PowerShell module, calls Graph API directly, writes to the database via `Invoke-FGSQLBulkMerge` (legacy) or the Ingest API (v5).
-2. **`Start-FGCSVSync`** — runs inside the PowerShell module, reads CSV files from disk, writes to SQL via the same bulk merge.
+| Problem (pre-v5) | Impact |
+|---|---|
+| Crawlers needed SQL credentials | Security risk; credentials spread across environments |
+| Couldn't write crawlers in Python, Go, or anything non-PowerShell | Locked into PowerShell for all integrations |
+| CSV files had to be on the same machine as the module | No remote ingestion; no wizard uploads; limited deployment flexibility |
+| Adding a new source system meant adding a new `Sync-FG*` function in the module | High coupling; slow to extend |
+| No way for third parties to push data | Only pull-based; no webhook path |
 
-Both paths require the crawler logic to run **inside** the PowerShell module with direct SQL access.
-
-| Problem | Impact |
-|---------|--------|
-| Crawlers need SQL credentials | Security risk; credentials spread across environments |
-| Can't write crawlers in Python, Go, etc. | Locked into PowerShell for all integrations |
-| CSV files must be on the same machine | No remote ingestion; limits deployment flexibility |
-| Adding a new source system requires a new `Sync-FG*` function in the module | High coupling; slow to extend |
-| Azure Automation sandbox limits (400 MB) force batching workarounds | Complexity pushed into every crawler |
-| No way for third parties to push data | Only pull-based; can't receive webhooks |
+v5 replaced both paths with this Ingest API. Crawlers are now standalone processes (in the worker container or anywhere else with network access to the web container) that speak HTTP, not SQL. Adding a new source is a matter of writing a small crawler that targets the endpoints below — no module changes.
 
 ---
 
@@ -235,7 +229,7 @@ erDiagram
     Crawlers ||--o{ CrawlerAuditLog : "tracked by"
 ```
 
-**Key format:** `fgc_<random-32-chars>` — prefix `fgc_` makes keys recognizable (FortigiGraph Crawler). Only the hash is stored; the plaintext key is shown once at creation time.
+**Key format:** `fgc_<random-32-chars>` — the `fgc_` prefix makes keys recognisable in logs and auth middleware as crawler tokens (distinct from JWTs used for the read API). Only the hash is stored; the plaintext key is shown once at creation time.
 
 ### Admin Endpoints (Entra ID Auth)
 
@@ -357,138 +351,19 @@ npx @openapitools/openapi-generator-cli generate \
 
 ---
 
-## Impact Analysis
+## Observed performance
 
-### Files That Change
+Measured against the committed load-test dataset (~2.17 M records, ~97 MB of CSV) on a VM with 6 cores / 16 GB RAM:
 
-| Area | Changes | Effort |
-|------|---------|--------|
-| **UI Backend** | New routes (`ingest.js`, `crawlers.js`), new middleware (`crawlerAuth.js`), new engine (`ingest/`), OpenAPI spec | XL |
-| **SQL** | New `Initialize-FGCrawlerTables.ps1` | M |
-| **Crawlers** | New `Crawlers/` folder with EntraID, CSV, and example crawlers | XL |
-| **UI Frontend** | New `CrawlersPage.jsx` admin page | L |
-| **Removed** | `Start-FGSync`, `Start-FGCSVSync`, all 35 `Sync-FG*` functions | — |
+| Phase | Records | Duration | Throughput |
+|---|---|---|---|
+| Identities | 25,000 | 9 s | ~2,800 rows/s |
+| Identity members | 76,000 | 40 s | ~1,900 rows/s |
+| Certification decisions | 300,000 | 4 min 12 s (1 batch) | ~1,190 rows/s |
+| Resource assignments | 1,500,000 | ~20 min (20 batches × 75 k) | ~1,250 rows/s sustained |
+| **Full run** | **~2.17 M** | **~30 min** | **~1,200 rows/s overall** |
 
-### What Stays Unchanged
-
-- All existing SQL tables, views, indexes
-- All UI frontend components (except new admin page)
-- All UI backend read routes
-- All `Functions/Generic/*.ps1`, `Functions/RiskScoring/*.ps1`
-- Tags, categories, risk scores
-
-### Breaking Changes
-
-| Change | Who is Affected | Migration Path |
-|--------|----------------|----------------|
-| `Start-FGSync` **removed** | Users with scheduled syncs | Use `Crawlers/EntraID/Start-EntraIDCrawler.ps1` |
-| `Start-FGCSVSync` **removed** | Users doing CSV imports | Use `Crawlers/CSV/Start-CSVCrawler.ps1` |
-| All `Sync-FG*` functions **removed** | Users calling individual sync functions | Call ingest API endpoints directly |
-| New `Crawlers` table | Fresh deployments | Auto-created on first API start |
-
----
-
-## Implementation Plan
-
-### Phase 0: Foundation
-
-- Create `Crawlers` and `CrawlerAuditLog` tables
-- Create `crawlerAuth.js` middleware
-- Create crawler admin routes and self-service endpoints
-- Add Crawlers admin page in frontend
-
-### Phase 1: Ingest Engine Core
-
-- Port `Invoke-FGSQLBulkMerge` pattern to JavaScript (PostgreSQL `INSERT ... ON CONFLICT`)
-- Implement JSON Schema validation, normalization, sync sessions
-
-### Phase 2: Ingest Endpoints
-
-- All 12 entity type endpoints
-- Optional view refresh trigger
-
-### Phase 3: OpenAPI Spec & Swagger
-
-- Hand-written OpenAPI 3.0 spec
-- Swagger UI at `/api/docs`
-
-### Phase 4: EntraID Crawler
-
-- Refactor `Start-FGSync` into standalone crawler scripts
-- Validate parity with old sync output
-
-### Phase 5: CSV Crawler
-
-- Refactor `Start-FGCSVSync` into standalone crawler
-- Validate parity with old CSV sync output
-
-### Phase 6: Deprecate Old Sync Path
-
-- Mark old functions as deprecated
-- Update Azure Automation runbooks
-
----
-
-## Validation Plan
-
-### Regression Tests (Old vs New)
-
-The most critical validation: **the new path must produce identical results to the old path.**
-
-```sql
--- Compare table states after old and new sync:
-SELECT 'Resources' AS [Table], COUNT(*) AS [Count],
-       CHECKSUM_AGG(CHECKSUM(*)) AS [Checksum]
-FROM dbo.Resources WHERE ValidTo = '9999-12-31 23:59:59.9999999'
-UNION ALL
-SELECT 'Principals', COUNT(*), CHECKSUM_AGG(CHECKSUM(*))
-FROM dbo.Principals WHERE ValidTo = '9999-12-31 23:59:59.9999999'
-```
-
-### Performance Targets
-
-| Test | Target |
-|------|--------|
-| 10,000 principals in single batch | < 10 seconds |
-| 100,000 resources in 10 chunks | < 60 seconds |
-| 500,000 assignments in 50 chunks | < 5 minutes |
-| Full sync with delete detection (100K records) | < 2 minutes |
-
-### Security Tests
-
-| Test | Expected |
-|------|----------|
-| No auth header | 401 |
-| Invalid API key | 401 |
-| Valid key, wrong system scope | 403 |
-| SQL injection in fields | Parameterized; no injection |
-| Oversized payload (> 10 MB) | 413 |
-| Rate limit exceeded | 429 |
-
----
-
-## Open Questions
-
-| # | Question | Recommendation |
-|---|----------|----------------|
-| 1 | Same server or separate microservice? | **Same server** — avoids operational complexity |
-| 2 | Keep old `Start-FGSync` as fallback? | **Yes, deprecated** — remove in v4.0 |
-| 3 | Where do crawlers live? | **Separate `Crawlers/` folder** |
-| 4 | Validate foreign keys? | **Strict for systemId**, lenient for others |
-| 5 | Support NDJSON streaming? | **Not in v1** — add later if needed |
-| 6 | OpenAPI spec: YAML or JSDoc? | **Hand-written YAML** — source of truth for client generation |
-
----
-
-## Risks & Mitigations
-
-| Risk | Mitigation |
-|------|------------|
-| JS bulk merge slower than PowerShell | Benchmark early; PostgreSQL `COPY` via `pg-copy-streams` is the native fast path |
-| Data corruption during migration | Never run both paths against same system |
-| Deadlocks from concurrent crawlers | Each crawler scoped to own system; row-level locks |
-| Secret leakage | Never log keys; only store hashes |
-| Breaking existing automation | Deprecation period; clear migration docs |
+See [Scaling & Load Testing](scaling.md) for the full analysis, including hardware utilisation (CPU 73 %, memory 87 %, disk 1 % — memory is the limiting factor) and reproduction instructions.
 
 ---
 

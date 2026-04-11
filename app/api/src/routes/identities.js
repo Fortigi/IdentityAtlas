@@ -47,16 +47,19 @@ router.get('/identities', async (req, res) => {
     const pageLimit = Math.min(parseInt(limit) || 50, 500);
     const pageOffset = parseInt(offset) || 0;
 
-    // Build summary
-    // Check if HR columns exist (schema may be pre-1.1)
+    // Column-existence check runs first because it determines the shape of
+    // the summary query below. It's a tiny catalog lookup — keeping it out
+    // of the parallel batch is cheap.
     const colCheck = await p.request().query(`
       SELECT column_name AS "COLUMN_NAME" FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'Identities' AND column_name IN ('isHrAnchored', 'orphanStatus')
     `);
     const hasHrCols = colCheck.recordset.length >= 2;
 
-    const summaryResult = await timedRequest(p, 'identity-summary', res)
-      .query(`
+    // The three big queries are independent — run them in parallel so
+    // postgres can schedule them on separate backends.
+    const [summaryResult, typeDistResult] = await Promise.all([
+      timedRequest(p, 'identity-summary', res).query(`
         SELECT
           COUNT(*) AS totalIdentities,
           SUM(CASE WHEN "accountCount" > 1 THEN 1 ELSE 0 END) AS multiAccountIdentities,
@@ -68,17 +71,15 @@ router.get('/identities', async (req, res) => {
           ${hasHrCols ? `, SUM(CASE WHEN "isHrAnchored" = true THEN 1 ELSE 0 END) AS "hrAnchoredCount",
           SUM(CASE WHEN "orphanStatus" IS NOT NULL THEN 1 ELSE 0 END) AS "orphanCount"` : ''}
         FROM "Identities"
-      `);
-    const summary = summaryResult.recordset[0];
-
-    // Account type distribution
-    const typeDistResult = await timedRequest(p, 'identity-type-dist', res)
-      .query(`
+      `),
+      timedRequest(p, 'identity-type-dist', res).query(`
         SELECT "accountType", COUNT(*) AS cnt
         FROM "IdentityMembers"
         GROUP BY "accountType"
         ORDER BY cnt DESC
-      `);
+      `),
+    ]);
+    const summary = summaryResult.recordset[0];
     summary.accountTypeDistribution = typeDistResult.recordset;
 
     // Build filtered query
@@ -126,12 +127,6 @@ router.get('/identities', async (req, res) => {
       }
     }
 
-    // Count
-    const countReq = timedRequest(p, 'identity-count', res);
-    for (const [k, v] of Object.entries(inputs)) countReq.input(k, v);
-    const countResult = await countReq.query(`SELECT COUNT(*) AS total FROM "Identities" ${where}`);
-    const total = countResult.recordset[0].total;
-
     // Sort
     const ALLOWED_SORTS = {
       'accountCount': '"accountCount" DESC',
@@ -142,25 +137,33 @@ router.get('/identities', async (req, res) => {
     };
     const orderBy = ALLOWED_SORTS[sort] || '"displayName" ASC';
 
-    // Paginated data
+    // Count + paginated data are independent — run them in parallel too.
+    const countReq = timedRequest(p, 'identity-count', res);
+    for (const [k, v] of Object.entries(inputs)) countReq.input(k, v);
+
     const dataReq = timedRequest(p, 'identity-list', res);
     for (const [k, v] of Object.entries(inputs)) dataReq.input(k, v);
     dataReq.input('pageOffset', pageOffset);
     dataReq.input('pageLimit', pageLimit);
-    const dataResult = await dataReq.query(`
-      SELECT id, "displayName", "primaryPrincipalId" AS primaryAccountId, email AS primaryAccountUpn,
-        "accountCount", NULL AS "accountTypes",
-        "correlationConfidence", NULL AS "correlationSignals", NULL AS department, "jobTitle",
-        NULL AS "managerId", email AS mail,
-        "givenName", surname, "employeeId", NULL AS "companyName", NULL AS employeeType,
-        NULL AS city, NULL AS country, NULL AS "officeLocation",
-        NULL AS "accountEnabled", "correlatedAt", "analystVerified", "analystNotes"
-        ${hasHrCols ? ', "isHrAnchored", NULL AS "hrAccountId", "orphanStatus"' : ''}
-      FROM "Identities"
-      ${where}
-      ORDER BY ${orderBy}
-      LIMIT @pageLimit OFFSET @pageOffset
-    `);
+
+    const [countResult, dataResult] = await Promise.all([
+      countReq.query(`SELECT COUNT(*) AS total FROM "Identities" ${where}`),
+      dataReq.query(`
+        SELECT id, "displayName", "primaryPrincipalId" AS primaryAccountId, email AS primaryAccountUpn,
+          "accountCount", NULL AS "accountTypes",
+          "correlationConfidence", NULL AS "correlationSignals", NULL AS department, "jobTitle",
+          NULL AS "managerId", email AS mail,
+          "givenName", surname, "employeeId", NULL AS "companyName", NULL AS employeeType,
+          NULL AS city, NULL AS country, NULL AS "officeLocation",
+          NULL AS "accountEnabled", "correlatedAt", "analystVerified", "analystNotes"
+          ${hasHrCols ? ', "isHrAnchored", NULL AS "hrAccountId", "orphanStatus"' : ''}
+        FROM "Identities"
+        ${where}
+        ORDER BY ${orderBy}
+        LIMIT @pageLimit OFFSET @pageOffset
+      `),
+    ]);
+    const total = countResult.recordset[0].total;
 
     res.json({
       available: true,
