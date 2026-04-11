@@ -211,8 +211,8 @@ The API response keys stay in camelCase (the frontend doesn't change). The DAO l
 
 **Goal:** Node API talks to Postgres.
 
-1. **Replace `mssql` with `pg`** in [app/api/package.json](app/api/package.json). Add `pg-copy-streams`.
-2. **Rewrite [app/api/src/db/connection.js](app/api/src/db/connection.js)** to export a `pg.Pool` instead. Same `getPool()` signature so callers don't all need updating.
+1. **Replace `mssql` with `pg`** in [app/api/package.json](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/package.json). Add `pg-copy-streams`.
+2. **Rewrite [app/api/src/db/connection.js](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/connection.js)** to export a `pg.Pool` instead. Same `getPool()` signature so callers don't all need updating.
 3. **Add a small DAO helper layer** that translates between `snake_case` DB columns and `camelCase` API response keys. Keep it simple — just `toCamel(row)` and `toSnake(obj)` utility functions, used in route handlers.
 4. **Translate query strings** in each route file. This is the bulk of the work. Approach:
    - Pick the simplest route first (`/api/systems`)
@@ -230,7 +230,7 @@ The API response keys stay in camelCase (the frontend doesn't change). The DAO l
 
 **Goal:** crawlers can write data via the existing `/api/ingest/*` endpoints, with the same JSON contract.
 
-1. **Rewrite [app/api/src/ingest/engine.js](app/api/src/ingest/engine.js)**:
+1. **Rewrite [app/api/src/ingest/engine.js](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/ingest/engine.js)**:
    - Replace MERGE with `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING (xmax = 0) AS inserted`.
    - Replace `bulkRequest.bulk(table)` with `pg-copy-streams` writing to a `TEMPORARY` table.
    - Keep the same input/output shape so the crawlers don't have to change.
@@ -282,7 +282,7 @@ The API response keys stay in camelCase (the frontend doesn't change). The DAO l
    - Add `DATABASE_URL=postgres://identity_atlas:identity_atlas_local@postgres:5432/identity_atlas`
 4. **Rename volume** `sql_data` → `postgres_data`.
 5. **Update worker env vars** — drop SQL-related ones; the worker doesn't need DB access anymore.
-6. **Update [setup/config/.env.example](setup/config/.env.example)** to match.
+6. **Update [setup/config/.env.example](https://github.com/Fortigi/IdentityAtlas/blob/main/setup/config/.env.example)** to match.
 7. **Test:** `docker compose down -v && docker compose up -d` — verify clean start.
 
 **Deliverable:** Postgres image is what runs, no SQL Server image referenced anywhere in the repo.
@@ -291,7 +291,7 @@ The API response keys stay in camelCase (the frontend doesn't change). The DAO l
 
 **Goal:** every existing test still passes against Postgres, plus new tests for the migration logic.
 
-1. **Pester unit tests** ([test/unit/IdentityAtlas.Tests.ps1](test/unit/IdentityAtlas.Tests.ps1)):
+1. **Pester unit tests** ([test/unit/IdentityAtlas.Tests.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/test/unit/IdentityAtlas.Tests.ps1)):
    - Remove file-existence checks for deleted PowerShell files (`Initialize-FGSyncTable`, `Invoke-FGSQLQuery`, etc.).
    - Update function-availability lists to drop SQL helpers.
    - Update function counts.
@@ -300,11 +300,11 @@ The API response keys stay in camelCase (the frontend doesn't change). The DAO l
    - Update mocks from `mssql` to `pg`.
    - Add a new test suite for the migrations runner: empty DB → run migrations → verify expected tables exist.
    - Add a test for the ingest engine that inserts, updates, and full-sync deletes a small set of records.
-3. **Docker integration tests** ([test/run-docker-tests.ps1](test/run-docker-tests.ps1)):
+3. **Docker integration tests** ([test/run-docker-tests.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/test/run-docker-tests.ps1)):
    - Rewrite the SQL connection setup to use Postgres.
    - All 87 existing checks should pass with minor query syntax updates.
    - Add a new check: "schema migration count matches expected".
-4. **Nightly Entra ID crawler tests** ([test/nightly/Test-EntraIdCrawler.ps1](test/nightly/Test-EntraIdCrawler.ps1)):
+4. **Nightly Entra ID crawler tests** ([test/nightly/Test-EntraIdCrawler.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/test/nightly/Test-EntraIdCrawler.ps1)):
    - Should work with no changes — it talks to the API, not SQL directly.
 5. **Nightly auth tests**: same — API only.
 6. **Playwright E2E tests**: should work with no changes — UI only.

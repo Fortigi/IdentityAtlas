@@ -12,25 +12,25 @@ The migration is **structurally complete** but **not fully tested end-to-end**. 
 
 ## What works (high confidence)
 
-- **Schema migration files** in [app/api/src/db/migrations/](../../app/api/src/db/migrations/) — five files covering the universal resource model, governance, crawler infrastructure, risk scoring, and views. Hand-written, syntactically valid postgres SQL with double-quoted camelCase identifiers (matching v4 column names exactly so route SQL can stay close to v4).
-- **Migrations runner** at [app/api/src/db/migrate.js](../../app/api/src/db/migrate.js) — 80 lines, no dependency, tracks applied migrations in a `_migrations` table, transactional.
-- **Connection layer** at [app/api/src/db/connection.js](../../app/api/src/db/connection.js) — exposes both native pg helpers (`db.query`, `db.queryOne`, `db.tx`) AND a thin mssql-compatibility shim (`pool.request().input(...).query(...)`) so v4 routes don't all need rewriting at once. The shim converts `@name` placeholders to `$N` and translates the result shape.
-- **Ingest engine** at [app/api/src/ingest/engine.js](../../app/api/src/ingest/engine.js) — postgres-native bulk-load via `pg-copy-streams` (`COPY FROM STDIN`), upsert via `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING (xmax = 0)`. Same external API as v4 so the route handlers don't change.
-- **Sessions** at [app/api/src/ingest/sessions.js](../../app/api/src/ingest/sessions.js) — multi-batch sync, keeps a connection checked out for the temp table's lifetime.
-- **Bootstrap** at [app/api/src/bootstrap.js](../../app/api/src/bootstrap.js) — runs migrations, creates the built-in worker crawler, writes the API key to `/data/uploads/.builtin-worker-key` (a file inside the shared `job_data` volume so the worker container can read it without needing DB access).
+- **Schema migration files** in [app/api/src/db/migrations/](https://github.com/Fortigi/IdentityAtlas/tree/main/) — five files covering the universal resource model, governance, crawler infrastructure, risk scoring, and views. Hand-written, syntactically valid postgres SQL with double-quoted camelCase identifiers (matching v4 column names exactly so route SQL can stay close to v4).
+- **Migrations runner** at [app/api/src/db/migrate.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — 80 lines, no dependency, tracks applied migrations in a `_migrations` table, transactional.
+- **Connection layer** at [app/api/src/db/connection.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — exposes both native pg helpers (`db.query`, `db.queryOne`, `db.tx`) AND a thin mssql-compatibility shim (`pool.request().input(...).query(...)`) so v4 routes don't all need rewriting at once. The shim converts `@name` placeholders to `$N` and translates the result shape.
+- **Ingest engine** at [app/api/src/ingest/engine.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — postgres-native bulk-load via `pg-copy-streams` (`COPY FROM STDIN`), upsert via `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING (xmax = 0)`. Same external API as v4 so the route handlers don't change.
+- **Sessions** at [app/api/src/ingest/sessions.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — multi-batch sync, keeps a connection checked out for the temp table's lifetime.
+- **Bootstrap** at [app/api/src/bootstrap.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — runs migrations, creates the built-in worker crawler, writes the API key to `/data/uploads/.builtin-worker-key` (a file inside the shared `job_data` volume so the worker container can read it without needing DB access).
 - **docker-compose.yml** — `sql`, `sql-init`, `sql-table-init` services replaced with a single `postgres:16-alpine` service. The web container reads `DATABASE_URL` instead of `SQL_*` env vars.
 - **Dockerfile.powershell** — no longer installs `SqlServer` PowerShell module. Worker image is significantly smaller.
-- **Worker scheduler** at [setup/docker/scheduler.ps1](../../setup/docker/scheduler.ps1) — rewritten to discover the API key from the shared volume file, claim jobs via `POST /api/crawlers/jobs/claim`, complete via `POST /api/crawlers/jobs/:id/complete`, fail via `POST /api/crawlers/jobs/:id/fail`. Three new endpoints added to [crawlers.js](../../app/api/src/routes/crawlers.js).
-- **Job dispatcher** at [setup/docker/Invoke-CrawlerJob.ps1](../../setup/docker/Invoke-CrawlerJob.ps1) — `Update-JobProgress` rewritten to call the existing `/api/crawlers/job-progress` endpoint instead of direct SQL.
-- **Pester tests** at [test/unit/IdentityAtlas.Tests.ps1](../../test/unit/IdentityAtlas.Tests.ps1) — rewritten for v5. New "Postgres Schema Files" describe block asserts no v4 SQL Server syntax leaks into migrations. The "Removed Functions" list grew to include all the dropped SQL helpers.
-- **Module loader** at [setup/IdentityAtlas.psm1](../../setup/IdentityAtlas.psm1) — drops the `app/db` dot-source.
+- **Worker scheduler** at [setup/docker/scheduler.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/) — rewritten to discover the API key from the shared volume file, claim jobs via `POST /api/crawlers/jobs/claim`, complete via `POST /api/crawlers/jobs/:id/complete`, fail via `POST /api/crawlers/jobs/:id/fail`. Three new endpoints added to [crawlers.js](https://github.com/Fortigi/IdentityAtlas/blob/main/).
+- **Job dispatcher** at [setup/docker/Invoke-CrawlerJob.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/) — `Update-JobProgress` rewritten to call the existing `/api/crawlers/job-progress` endpoint instead of direct SQL.
+- **Pester tests** at [test/unit/IdentityAtlas.Tests.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/) — rewritten for v5. New "Postgres Schema Files" describe block asserts no v4 SQL Server syntax leaks into migrations. The "Removed Functions" list grew to include all the dropped SQL helpers.
+- **Module loader** at [setup/IdentityAtlas.psm1](https://github.com/Fortigi/IdentityAtlas/blob/main/) — drops the `app/db` dot-source.
 - **PowerShell SQL helpers deleted** — `app/db/` is gone (36 files). The risk scoring functions in `tools/riskscoring/` are stubbed out (16 files print a "not yet implemented in v5" warning).
 
 ## What's stubbed (intentionally incomplete)
 
-- **Risk scoring + account correlation** ([tools/riskscoring/](../../tools/riskscoring/)) — All 16 functions are stubs. They each contain a single function body that prints `"not yet implemented in v5"` and returns. This was a deliberate trade-off: risk scoring is opt-in and not load-bearing, and the v4 versions all wrote directly to SQL Server. Replacing them needs new API endpoints and a careful port. **Risk scoring will be unavailable in v5 until someone does that work.**
-- **Build-FGContexts** ([setup/docker/Build-FGContexts.ps1](../../setup/docker/Build-FGContexts.ps1)) — Replaced with a stub. The dispatcher still calls it, the call is now a no-op. The "OrgUnit context calculation" feature is disabled until we add a `POST /api/admin/refresh-contexts` endpoint.
-- **`refresh-views`** in [routes/ingest.js](../../app/api/src/routes/ingest.js) — Returns success without doing anything. v4 had a materialised table that the crawler refreshed; postgres doesn't need it (MVCC + recursive CTE views are fast enough at our scale). The crawler scripts still call this endpoint, so it's left as a no-op for backward compat.
+- **Risk scoring + account correlation** ([tools/riskscoring/](https://github.com/Fortigi/IdentityAtlas/tree/main/)) — All 16 functions are stubs. They each contain a single function body that prints `"not yet implemented in v5"` and returns. This was a deliberate trade-off: risk scoring is opt-in and not load-bearing, and the v4 versions all wrote directly to SQL Server. Replacing them needs new API endpoints and a careful port. **Risk scoring will be unavailable in v5 until someone does that work.**
+- **Build-FGContexts** ([setup/docker/Build-FGContexts.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/)) — Replaced with a stub. The dispatcher still calls it, the call is now a no-op. The "OrgUnit context calculation" feature is disabled until we add a `POST /api/admin/refresh-contexts` endpoint.
+- **`refresh-views`** in [routes/ingest.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — Returns success without doing anything. v4 had a materialised table that the crawler refreshed; postgres doesn't need it (MVCC + recursive CTE views are fast enough at our scale). The crawler scripts still call this endpoint, so it's left as a no-op for backward compat.
 
 ## What probably needs fixing in the morning (medium confidence — guesses)
 
@@ -38,20 +38,20 @@ These are the routes I expect to surface issues. The translation script handled 
 
 ### Routes that almost certainly need attention
 
-1. **[admin.js](../../app/api/src/routes/admin.js)** — has a custom `tableExists()` helper that the script broke (it now references a `'${tableName}'` literal that's a string, not a variable interpolation). Lines around 44-50 — search for `tableExists`. **Likely 5-min fix:** restore the original variable interpolation, switch from `OBJECT_ID` to `to_regclass`.
-2. **[crawlers.js](../../app/api/src/routes/crawlers.js)** — `ensureCrawlerTables` was reduced to a no-op stub by me, but there are still UPDATE statements with column names built dynamically into the SET clause (e.g. `'rateLimit = @rateLimit'`). These won't be quoted, so postgres will treat them as identifiers in lowercase and fail to find the column. Search for `sets.push(` — about 6 places. **Likely 10-min fix:** wrap the column name in double quotes inside the JS string.
-3. **[jobs.js](../../app/api/src/routes/jobs.js)** — same dynamic-SET pattern in the PATCH crawler-config endpoint. Plus the `INSERT INTO crawler_audit_log` query at line 124 still uses snake_case columns from when I was in snake_case mode — search for `crawler_audit_log` and quote the columns properly (or use the camelCase table name). **Fix: 10 min.**
-4. **[permissions.js](../../app/api/src/routes/permissions.js)** — the matrix query is the most complex SQL in the codebase. The recursive view it depends on (`vw_ResourceUserPermissionAssignments`) is in `005_views.sql` but the query plan and column names need real-world testing.
-5. **[details.js](../../app/api/src/routes/details.js)** — the largest route file, used for user/resource/AP detail pages. Lots of joins. Likely several edge cases the script missed. The "version history" sections that referenced temporal tables will return empty arrays since v5 has no history.
-6. **[csvUploads.js](../../app/api/src/routes/csvUploads.js)** — this one I wrote myself mostly in snake_case but the script went over it. Should still work because I left the table queries in camelCase, but the `r.recordset[0].crawlerType` access was `crawler_type` in my version. Verify.
+1. **[admin.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)** — has a custom `tableExists()` helper that the script broke (it now references a `'${tableName}'` literal that's a string, not a variable interpolation). Lines around 44-50 — search for `tableExists`. **Likely 5-min fix:** restore the original variable interpolation, switch from `OBJECT_ID` to `to_regclass`.
+2. **[crawlers.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)** — `ensureCrawlerTables` was reduced to a no-op stub by me, but there are still UPDATE statements with column names built dynamically into the SET clause (e.g. `'rateLimit = @rateLimit'`). These won't be quoted, so postgres will treat them as identifiers in lowercase and fail to find the column. Search for `sets.push(` — about 6 places. **Likely 10-min fix:** wrap the column name in double quotes inside the JS string.
+3. **[jobs.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)** — same dynamic-SET pattern in the PATCH crawler-config endpoint. Plus the `INSERT INTO crawler_audit_log` query at line 124 still uses snake_case columns from when I was in snake_case mode — search for `crawler_audit_log` and quote the columns properly (or use the camelCase table name). **Fix: 10 min.**
+4. **[permissions.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)** — the matrix query is the most complex SQL in the codebase. The recursive view it depends on (`vw_ResourceUserPermissionAssignments`) is in `005_views.sql` but the query plan and column names need real-world testing.
+5. **[details.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)** — the largest route file, used for user/resource/AP detail pages. Lots of joins. Likely several edge cases the script missed. The "version history" sections that referenced temporal tables will return empty arrays since v5 has no history.
+6. **[csvUploads.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)** — this one I wrote myself mostly in snake_case but the script went over it. Should still work because I left the table queries in camelCase, but the `r.recordset[0].crawlerType` access was `crawler_type` in my version. Verify.
 
 ### Routes that are probably fine
 
-- [preferences.js](../../app/api/src/routes/preferences.js) — rewritten by hand
-- [perf.js](../../app/api/src/routes/perf.js) — doesn't touch SQL
-- [systems.js](../../app/api/src/routes/systems.js) — small, mostly straight SELECTs
-- [ingest.js](../../app/api/src/routes/ingest.js) — rewritten by hand
-- The new worker endpoints in [crawlers.js](../../app/api/src/routes/crawlers.js) — written by hand using native pg helpers
+- [preferences.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — rewritten by hand
+- [perf.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — doesn't touch SQL
+- [systems.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — small, mostly straight SELECTs
+- [ingest.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — rewritten by hand
+- The new worker endpoints in [crawlers.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) — written by hand using native pg helpers
 
 ## Critical caveats
 
@@ -116,39 +116,39 @@ The mssql-compat shim hides the actual SQL being executed. If a route is broken:
 
 These I either wrote from scratch or carefully reviewed:
 
-- [app/api/src/db/migrations/*.sql](../../app/api/src/db/migrations/) (all 5)
-- [app/api/src/db/migrate.js](../../app/api/src/db/migrate.js)
-- [app/api/src/db/connection.js](../../app/api/src/db/connection.js)
-- [app/api/src/ingest/engine.js](../../app/api/src/ingest/engine.js)
-- [app/api/src/ingest/sessions.js](../../app/api/src/ingest/sessions.js)
-- [app/api/src/bootstrap.js](../../app/api/src/bootstrap.js)
-- [app/api/src/routes/preferences.js](../../app/api/src/routes/preferences.js)
-- [app/api/src/routes/ingest.js](../../app/api/src/routes/ingest.js) (the worker job-claim parts in crawlers.js)
-- [docker-compose.yml](../../docker-compose.yml)
-- [setup/docker/Dockerfile.powershell](../../setup/docker/Dockerfile.powershell)
-- [setup/docker/scheduler.ps1](../../setup/docker/scheduler.ps1)
-- [setup/docker/Invoke-CrawlerJob.ps1](../../setup/docker/Invoke-CrawlerJob.ps1) (just the helper functions at the top)
-- [setup/IdentityAtlas.psm1](../../setup/IdentityAtlas.psm1)
-- [test/unit/IdentityAtlas.Tests.ps1](../../test/unit/IdentityAtlas.Tests.ps1)
+- [app/api/src/db/migrations/*.sql](https://github.com/Fortigi/IdentityAtlas/tree/main/) (all 5)
+- [app/api/src/db/migrate.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/db/connection.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/ingest/engine.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/ingest/sessions.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/bootstrap.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/preferences.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/ingest.js](https://github.com/Fortigi/IdentityAtlas/blob/main/) (the worker job-claim parts in crawlers.js)
+- [docker-compose.yml](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [setup/docker/Dockerfile.powershell](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [setup/docker/scheduler.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [setup/docker/Invoke-CrawlerJob.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/) (just the helper functions at the top)
+- [setup/IdentityAtlas.psm1](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [test/unit/IdentityAtlas.Tests.ps1](https://github.com/Fortigi/IdentityAtlas/blob/main/)
 
 ## Files that were auto-translated and may have issues
 
-- [app/api/src/routes/admin.js](../../app/api/src/routes/admin.js)
-- [app/api/src/routes/categories.js](../../app/api/src/routes/categories.js)
-- [app/api/src/routes/clusters.js](../../app/api/src/routes/clusters.js)
-- [app/api/src/routes/contexts.js](../../app/api/src/routes/contexts.js)
-- [app/api/src/routes/crawlers.js](../../app/api/src/routes/crawlers.js)
-- [app/api/src/routes/csvUploads.js](../../app/api/src/routes/csvUploads.js)
-- [app/api/src/routes/details.js](../../app/api/src/routes/details.js)
-- [app/api/src/routes/governance.js](../../app/api/src/routes/governance.js)
-- [app/api/src/routes/identities.js](../../app/api/src/routes/identities.js)
-- [app/api/src/routes/jobs.js](../../app/api/src/routes/jobs.js)
-- [app/api/src/routes/orgChart.js](../../app/api/src/routes/orgChart.js)
-- [app/api/src/routes/permissions.js](../../app/api/src/routes/permissions.js)
-- [app/api/src/routes/resources.js](../../app/api/src/routes/resources.js)
-- [app/api/src/routes/riskScores.js](../../app/api/src/routes/riskScores.js)
-- [app/api/src/routes/systems.js](../../app/api/src/routes/systems.js)
-- [app/api/src/routes/tags.js](../../app/api/src/routes/tags.js)
+- [app/api/src/routes/admin.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/categories.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/clusters.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/contexts.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/crawlers.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/csvUploads.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/details.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/governance.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/identities.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/jobs.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/orgChart.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/permissions.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/resources.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/riskScores.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/systems.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
+- [app/api/src/routes/tags.js](https://github.com/Fortigi/IdentityAtlas/blob/main/)
 
 ## Summary of effort
 
