@@ -94,4 +94,4 @@ WHERE "tableName" = 'Resources'
 ORDER BY "changedAt" DESC;
 ```
 
-For more on audit history usage and query patterns, see [Audit History & Historical Queries](temporal-tables.md).
+For more on audit history usage and query patterns, see [Audit History](../architecture/audit-history.md).

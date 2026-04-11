@@ -74,31 +74,29 @@ nav:
       - Data Model: concepts/data-model.md
       - Governance Model: concepts/governance-model.md
       - Risk Scoring Model: concepts/risk-scoring-model.md
-  - Architecture:
-      - Ingest API: architecture/ingest-api.md
-      - Implementation Plan: architecture/implementation-plan.md
-      - Testing Plan: architecture/testing-plan.md
-      - Demo Dataset: architecture/demo-dataset.md
-      - Docker Setup: architecture/docker-setup.md
-      - Scaling & Load Testing: architecture/scaling.md
-      - CSV Import Schema: architecture/csv-import-schema.md
-      - LLM & Risk Scoring: architecture/llm-and-risk-scoring.md
-      - PostgreSQL Migration: architecture/postgres-migration.md
-      - Postgres Migration Status: architecture/postgres-migration-status.md
-  - Sync:
+  - Data Sources:
       - Entra ID: sync/entra-id.md
       - CSV Import: sync/csv-import.md
+      - CSV Schema Reference: architecture/csv-import-schema.md
+  - Using Identity Atlas:
+      - Role Mining UI: ui/overview.md
+      - Local Development: ui/local-dev.md
   - Risk Scoring:
       - Overview: risk-scoring/overview.md
       - Classifiers: risk-scoring/classifiers.md
       - AI Agents: risk-scoring/ai-agents.md
       - Engine Design: risk-scoring/design.md
       - Plugin Architecture: risk-scoring/plugin-architecture.md
-  - Role Mining UI:
-      - Overview: ui/overview.md
-      - Local Development: ui/local-dev.md
+  - Architecture:
+      - Docker Setup: architecture/docker-setup.md
+      - Ingest API: architecture/ingest-api.md
+      - Audit History: architecture/audit-history.md
+      - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
   - Operations:
+      - Scaling & Load Testing: architecture/scaling.md
+      - Demo Dataset: architecture/demo-dataset.md
       - Nightly Review: operations/nightly-review.md
+      - Troubleshooting: reference/troubleshooting.md
   - API Reference:
       - Overview: api/index.md
       - Matrix & Permissions: api/matrix.md
@@ -106,10 +104,8 @@ nav:
       - Governance & Business Roles: api/governance.md
       - Risk Scores: api/risk-scores.md
   - Reference:
-      - Config File: reference/config.md
-      - SQL Views: reference/sql-views.md
-      - Temporal Tables: reference/temporal-tables.md
-      - Troubleshooting: reference/troubleshooting.md
+      - Configuration: reference/config.md
+      - Database Views: reference/sql-views.md
   - About:
       - About Identity Atlas: about.md
       - History: history.md

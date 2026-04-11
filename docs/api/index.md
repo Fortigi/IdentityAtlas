@@ -48,9 +48,9 @@ Two endpoints are exempt and do not require a token:
 | `TENANT_ID` | Yes (auth mode) | Entra ID tenant ID — used to validate JWT `tid` claim |
 | `CLIENT_ID` | Yes (auth mode) | App registration client ID — returned to frontend via `/api/auth-config` |
 | `AUTH_ENABLED` | Yes | Set to `true` to enable JWT validation. A startup warning is logged if unset in production. |
-| `AUTH_REQUIRED_ROLES` | No | Comma-separated list of required app roles (e.g. `FortigiGraph.Read`) |
+| `AUTH_REQUIRED_ROLES` | No | Comma-separated list of required app roles (e.g. `IdentityAtlas.Read`) |
 | `ALLOWED_ORIGINS` | No | Comma-separated allowed CORS origins. Defaults to same-origin in production. |
-| `USE_MOCK` | No | Set to `true` to use mock data instead of Azure SQL (local dev only) |
+| `USE_MOCK` | No | Set to `true` to use mock data instead of PostgreSQL (local dev only) |
 
 ---
 
