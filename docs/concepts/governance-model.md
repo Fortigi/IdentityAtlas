@@ -203,57 +203,28 @@ The UI differentiates two states that might otherwise appear identical:
 
 ---
 
-## Sync Functions
+## How governance data is ingested
 
-### Entra ID (built-in sync)
+You don't call any sync functions by hand. In v5, every governance-related table is populated by a **crawler** — configured in the browser, running in the worker container, and posting its data through the [Ingest API](../architecture/ingest-api.md). The UI does the orchestration for you; there is no PowerShell command to memorise.
 
-These functions sync Entra ID governance data to the unified tables. Run them as part of `Start-FGSync` or individually.
+### Entra ID
 
-| Function | Target Table | What it syncs |
-|---|---|---|
-| `Sync-FGCatalog` | `GovernanceCatalogs` | Entra ID access package catalogs |
-| `Sync-FGAccessPackage` | `Resources` (`BusinessRole`) | Access packages as business roles |
-| `Sync-FGAccessPackageAssignment` | `ResourceAssignments` (`Governed`) | Active access package assignments |
-| `Sync-FGAccessPackageResourceRoleScope` | `ResourceRelationships` (`Contains`) | Which groups each access package grants |
-| `Sync-FGAccessPackageAssignmentPolicy` | `AssignmentPolicies` | Assignment rules and ABAC conditions |
-| `Sync-FGAccessPackageAssignmentRequest` | `AssignmentRequests` | Request and approval workflow history |
-| `Sync-FGAccessPackageAccessReview` | `CertificationDecisions` | Access review decisions |
+The built-in Entra ID crawler (**Admin → Crawlers → Add Crawler → Entra ID**) pulls the full governance graph from Microsoft Graph in one pass:
 
-### CSV-based import (Omada, SailPoint, custom)
+| Graph resource | Target table (`filter`) |
+|---|---|
+| Access package catalogs | `GovernanceCatalogs` |
+| Access packages | `Resources` (`resourceType = BusinessRole`) |
+| Access package assignments | `ResourceAssignments` (`assignmentType = Governed`) |
+| Access package resource scopes | `ResourceRelationships` (`relationshipType = Contains`) |
+| Access package assignment policies | `AssignmentPolicies` |
+| Access package assignment requests | `AssignmentRequests` |
+| Access package access reviews | `CertificationDecisions` |
 
-These functions import governance data from CSV files produced by any IGA platform.
+The crawler requires the `EntitlementManagement.Read.All` and `AccessReview.Read.All` Graph permissions; the wizard validates both during setup. See [Entra ID sync](../sync/entra-id.md) for the step-by-step flow.
 
-| Function | Target Table | What it imports |
-|---|---|---|
-| `Sync-FGCSVBusinessRole` | `Resources` (`BusinessRole`) | Business roles from any IGA system |
-| `Sync-FGCSVResourceAssignment` | `ResourceAssignments` (`Governed`) | Governed assignments from any IGA system |
-| `Sync-FGCSVCertification` | `CertificationDecisions` | Certification or CRA results from any system |
+### Other IGA platforms (Omada, SailPoint, etc.)
 
-!!! example "Running a full governance sync for Entra ID"
-    ```powershell
-    # Authenticate first
-    Get-FGAccessToken -ConfigFile '.\Config\mycompany.json'
-    Connect-FGSQLServer -ConfigFile '.\Config\mycompany.json'
+For any non-Entra source, the **CSV crawler** imports data against the canonical Identity Atlas CSV schema. Each IGA platform gets a small transform script that converts its native export to the canonical schema, which is then uploaded through the wizard (**Admin → Crawlers → Add Crawler → CSV**). The CSV crawler writes to the same governance tables as the Entra ID crawler — the only difference is the `System.Name` column identifying the source system.
 
-    # Initialize governance tables (idempotent — safe to re-run)
-    Initialize-FGGovernanceTables
-
-    # Sync governance data
-    Sync-FGCatalog
-    Sync-FGAccessPackage
-    Sync-FGAccessPackageAssignment
-    Sync-FGAccessPackageResourceRoleScope
-    Sync-FGAccessPackageAssignmentPolicy
-    Sync-FGAccessPackageAssignmentRequest
-    Sync-FGAccessPackageAccessReview
-    ```
-
-!!! example "Importing business roles from a CSV (Omada / SailPoint)"
-    ```powershell
-    Connect-FGSQLServer -ConfigFile '.\Config\mycompany.json'
-    Initialize-FGGovernanceTables
-
-    Sync-FGCSVBusinessRole   -Path '.\export\business-roles.csv'   -SystemId 2
-    Sync-FGCSVResourceAssignment -Path '.\export\assignments.csv'  -SystemId 2 -AssignmentType 'Governed'
-    Sync-FGCSVCertification  -Path '.\export\certifications.csv'   -SystemId 2
-    ```
+Canonical CSV schemas and an Omada-to-Identity-Atlas transform are both in the repo: see [CSV Import Schema](../architecture/csv-import-schema.md) and [CSV Import](../sync/csv-import.md).

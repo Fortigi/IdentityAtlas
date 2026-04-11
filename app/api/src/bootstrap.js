@@ -230,6 +230,20 @@ export async function bootstrapWorker() {
         console.log(`Reaped ${reaped.rowCount} stale running job(s)`);
       }
     } catch { /* CrawlerJobs table may not exist on first boot */ }
+
+    // Initial matrix-view refresh. Migration 013 creates the matrix
+    // materialized views WITH NO DATA, so they're empty on first boot
+    // after the migration runs. Any request to /api/permissions would
+    // return zero rows until something triggers a refresh. Kick it off
+    // here so the UI is usable immediately. If the data is already
+    // populated, CONCURRENTLY makes this cheap (incremental).
+    try {
+      const { refreshMatrixViews } = await import('./routes/ingest.js');
+      await refreshMatrixViews();
+      console.log('Matrix views refreshed');
+    } catch (err) {
+      console.warn('Matrix-view refresh skipped:', err.message);
+    }
     console.log('Bootstrap complete');
   } catch (err) {
     console.error('Bootstrap failed (will retry on next request):', err.message);

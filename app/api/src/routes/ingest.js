@@ -244,6 +244,25 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   try {
+    // The primary key includes assignmentType, so a naive UPDATE to 'Governed'
+    // fails with a pk collision when a (resourceId, principalId, 'Governed')
+    // row already exists. We handle that in two passes:
+    //   1. Delete Direct rows that already have a matching Governed row — they
+    //      are redundant after classification.
+    //   2. Promote the remaining Direct rows to Governed.
+    const dup = await db.query(`
+      DELETE FROM "ResourceAssignments" ra
+       USING "Resources" r
+       WHERE ra."resourceId" = r.id
+         AND r."resourceType" = 'BusinessRole'
+         AND ra."assignmentType" = 'Direct'
+         AND EXISTS (
+           SELECT 1 FROM "ResourceAssignments" ra2
+            WHERE ra2."resourceId" = ra."resourceId"
+              AND ra2."principalId" = ra."principalId"
+              AND ra2."assignmentType" = 'Governed'
+         )
+    `);
     const r = await db.query(`
       UPDATE "ResourceAssignments" ra
          SET "assignmentType" = 'Governed'
@@ -252,7 +271,24 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
          AND r."resourceType" = 'BusinessRole'
          AND ra."assignmentType" = 'Direct'
     `);
-    return res.json({ ok: true, reclassified: r.rowCount || 0 });
+    // After re-classifying, the matrix materialized views are stale —
+    // refresh them before returning so the UI sees the new data. This is
+    // also cheaper than a separate /refresh-views call because we've
+    // already warmed the tables.
+    let viewRefresh = 'skipped';
+    try {
+      await refreshMatrixViews();
+      viewRefresh = 'ok';
+    } catch (err) {
+      console.error('classify: view refresh failed (non-critical):', err.message);
+      viewRefresh = 'failed';
+    }
+    return res.json({
+      ok: true,
+      reclassified: r.rowCount || 0,
+      duplicatesRemoved: dup.rowCount || 0,
+      viewRefresh,
+    });
   } catch (err) {
     console.error('classify-business-role-assignments failed:', err.message);
     return res.status(500).json({ error: err.message });
@@ -287,11 +323,56 @@ router.post('/ingest/refresh-contexts', async (req, res) => {
   }
 });
 
-router.post('/ingest/refresh-views', (req, res) => {
+// POST /api/ingest/refresh-views — refresh the matrix materialized views.
+//
+// Called by the CSV crawler at end-of-sync (and by classify-business-role-
+// assignments after promoting Direct → Governed). Uses REFRESH MATERIALIZED
+// VIEW CONCURRENTLY so reads during the refresh see the old data rather
+// than blocking — the unique index created in migration 013 is required
+// for CONCURRENTLY to work.
+//
+// REFRESH cannot run inside a transaction, so each matview is refreshed
+// on a fresh connection.
+router.post('/ingest/refresh-views', async (req, res) => {
   if (!crawlerHasPermission(req, 'refreshViews') && !crawlerHasPermission(req, 'admin')) {
     return res.status(403).json({ error: 'Insufficient permissions (requires refreshViews)' });
   }
-  res.json({ message: 'No materialized views in v5 — recursive CTEs are computed on read' });
+  if (!useSql) {
+    return res.json({ message: 'SQL disabled — nothing to refresh' });
+  }
+  try {
+    await refreshMatrixViews();
+    res.json({ message: 'Materialized views refreshed' });
+  } catch (err) {
+    console.error('refresh-views failed:', err.message);
+    res.status(500).json({ error: 'refresh-views failed: ' + err.message });
+  }
 });
+
+// Shared helper used by /ingest/refresh-views, the classify endpoint, and
+// bootstrap's initial refresh. CONCURRENTLY falls back to a plain REFRESH
+// on the very first run (CONCURRENTLY requires the matview to already have
+// data, which it doesn't on first boot).
+async function refreshMatrixViews() {
+  const views = [
+    '"vw_ResourceUserPermissionAssignments"',
+    '"vw_UserPermissionAssignmentViaBusinessRole"',
+  ];
+  for (const v of views) {
+    try {
+      await db.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${v}`);
+    } catch (err) {
+      // First-time refresh on an empty matview fails with "cannot refresh
+      // materialized view ... concurrently" — retry without CONCURRENTLY.
+      if (/concurrently/i.test(err.message)) {
+        await db.query(`REFRESH MATERIALIZED VIEW ${v}`);
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
+export { refreshMatrixViews };
 
 export default router;

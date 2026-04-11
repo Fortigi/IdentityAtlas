@@ -328,15 +328,15 @@ Risk scoring also uses several supporting tables for inputs (org context, classi
 
 The `principalType` column on the Principals table uses these standard values across all sync and scoring functions.
 
-| Value | What it covers | Source |
+| Value | What it covers | Populated by |
 |---|---|---|
-| `User` | Interactive human user accounts | `Sync-FGPrincipal`, CSV |
-| `ServicePrincipal` | App registration service principals | `Sync-FGServicePrincipal` |
-| `ManagedIdentity` | Azure resource-attached identities (system or user-assigned) | `Sync-FGServicePrincipal` |
-| `WorkloadIdentity` | Federated credential identities (GitHub Actions, AKS workloads) | `Sync-FGServicePrincipal`, CSV |
-| `AIAgent` | AI agents: Copilot Studio, Azure OpenAI, custom bots | `Sync-FGServicePrincipal` auto-detection, CSV |
-| `ExternalUser` | Guest / B2B accounts from another tenant | CSV import |
-| `SharedMailbox` | Shared mailboxes and room/equipment accounts | CSV import |
+| `User` | Interactive human user accounts | Entra ID crawler, CSV crawler |
+| `ServicePrincipal` | App registration service principals | Entra ID crawler |
+| `ManagedIdentity` | Azure resource-attached identities (system or user-assigned) | Entra ID crawler |
+| `WorkloadIdentity` | Federated credential identities (GitHub Actions, AKS workloads) | Entra ID crawler, CSV crawler |
+| `AIAgent` | AI agents: Copilot Studio, Azure OpenAI, custom bots | Entra ID crawler (tag/name auto-detection), CSV crawler |
+| `ExternalUser` | Guest / B2B accounts from another tenant | CSV crawler |
+| `SharedMailbox` | Shared mailboxes and room/equipment accounts | CSV crawler |
 
 !!! note "Risk scoring behavior by principalType"
     `User` principals receive the full set of stale sign-in, never-signed-in, and guest-account checks. Non-human types (`ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`) receive structural signals only — no stale sign-in checks. All types participate in direct classifier matching, membership analysis, and risk propagation.
@@ -378,17 +378,17 @@ The `assignmentType` column on ResourceAssignments describes how the assignment 
 
 ## Source System Mapping
 
-The same three tables (Resources, Principals, ResourceAssignments) absorb data from any source. The sync function and the `resourceType` / `assignmentType` values are the only things that differ.
+The same three tables (Resources, Principals, ResourceAssignments) absorb data from any source. The crawler that writes the data and the `resourceType` / `assignmentType` values are the only things that differ.
 
-| Source System | Sync Method | resourceType | principalType | assignmentType |
+| Source System | Crawler | resourceType | principalType | assignmentType |
 |---|---|---|---|---|
-| Entra ID groups | `Sync-FGGroup` | `EntraGroup` | `User` | `Direct` / `Owner` / `Eligible` |
-| Entra ID directory roles | `Sync-FGEntraDirectoryRole` | `EntraDirectoryRole` | `User` | `Direct` |
-| Entra ID app roles | `Sync-FGEntraAppRoleAssignment` | `EntraAppRole` | `User` / `ServicePrincipal` | `Direct` |
-| Entra ID access packages | `Sync-FGAccessPackage` | `BusinessRole` | — | `Governed` (via assignments sync) |
-| Omada / SailPoint | CSV import via `Sync-FGCSVBusinessRole` | `BusinessRole` | Any | `Governed` |
-| SAP / Pathlock | CSV import via `Sync-FGCSVResource` | Any | Any | Any |
-| Custom system | `Sync-FGCSVResource` + `Sync-FGCSVResourceAssignment` | Any | Any | Any |
+| Entra ID groups | Entra ID crawler | `EntraGroup` | `User` | `Direct` / `Owner` / `Eligible` |
+| Entra ID directory roles | Entra ID crawler | `EntraDirectoryRole` | `User` | `Direct` |
+| Entra ID app roles | Entra ID crawler | `EntraAppRole` | `User` / `ServicePrincipal` | `Direct` |
+| Entra ID access packages | Entra ID crawler | `BusinessRole` | — | `Governed` |
+| Omada / SailPoint | CSV crawler | `BusinessRole` | Any | `Governed` |
+| SAP / Pathlock | CSV crawler | Any | Any | Any |
+| Custom system | CSV crawler (or your own via the [Ingest API](../architecture/ingest-api.md)) | Any | Any | Any |
 
 ---
 

@@ -230,12 +230,58 @@ router.get('/permissions', async (req, res) => {
         filterWhere = '';
         groupFilterWhere = '';
 
+        // ── Filter pushdown ──────────────────────────────────────────
+        // If the request carries a __userTag filter, resolve it up front
+        // and pass the principalId list as a `= ANY(@principalIds)` clause
+        // so the planner can index-scan the matrix matview instead of
+        // materializing 1.5M rows and throwing most of them away.
+        //
+        // The old code put the tag join at the top of the main query,
+        // which forced a full-view scan before the filter could apply.
+        let preFilteredUserIds = null;
+        if (userTagFilter) {
+          const tagUsersRes = await timedRequest(p, 'perm-tag-resolve', res)
+            .input('__userTag', userTagFilter)
+            .input('userLimit', userLimit)
+            .query(`
+              SELECT DISTINCT u.id
+                FROM "Principals" u
+                INNER JOIN "GraphTagAssignments" ta ON ta."entityId" = UPPER(u.id::text)
+                INNER JOIN "GraphTags" t ON ta."tagId" = t.id
+                 AND t."name" = @__userTag
+                 AND t."entityType" = 'user'
+               LIMIT @userLimit
+            `);
+          preFilteredUserIds = tagUsersRes.recordset.map(r => r.id);
+          if (preFilteredUserIds.length === 0) {
+            // No users match the tag — return empty rather than running
+            // the expensive main query.
+            return res.json({ data: [], totalUsers: 0, managedByPackages: [] });
+          }
+        }
+
         const request = timedRequest(p, 'perm-combined-limited', res);
         request.input('userLimit', userLimit);
         addParams(request);
 
-        // Postgres-native: subquery selects the top N users by assignment count.
-        // No temp tables — just an inline subquery in WHERE.
+        // Build the "which user ids to include" clause.
+        // With a tag filter: direct `= ANY(@principalIds)` index-lookup.
+        // Without one: inline `ORDER BY COUNT(*) DESC LIMIT @userLimit` against
+        // the (now-materialized) matrix view.
+        let userIdClause;
+        if (preFilteredUserIds) {
+          request.input('principalIds', preFilteredUserIds);
+          userIdClause = `p."principalId" = ANY(@principalIds)`;
+        } else {
+          userIdClause = `p."principalId" IN (
+            SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
+            WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
+            GROUP BY "principalId"
+            ORDER BY COUNT(*) DESC
+            LIMIT @userLimit
+          )`;
+        }
+
         const result = await request.query(`
           SELECT
             p."resourceId" AS "resourceId",
@@ -261,33 +307,35 @@ router.get('/permissions', async (req, res) => {
           LEFT JOIN "Systems" sys ON r."systemId" = sys.id
           ${groupTagJoin}
           WHERE (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
-            AND p."principalId" IN (
-              SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
-              WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
-              GROUP BY "principalId"
-              ORDER BY COUNT(*) DESC
-              LIMIT @userLimit
-            )
+            AND ${userIdClause}
             ${groupFilterWhere}
         `);
 
-        // Total user count separately
+        // Total user count — cheap from Principals, no need to scan the view.
         const totalResult = await timedRequest(p, 'perm-total-users', res).query(`
-          SELECT COUNT(DISTINCT "principalId")::int AS "totalUsers"
-          FROM "vw_ResourceUserPermissionAssignments"
-          WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
+          SELECT COUNT(*)::int AS "totalUsers"
+          FROM "Principals"
+          WHERE "principalType" IS NULL OR "principalType" != '#microsoft.graph.group'
         `);
 
-        // AP mapping for the same users
+        // AP mapping — only for the users we actually returned. With the
+        // materialized view + userId index this is near-instant.
         let apMapping = [];
         try {
-          const apRes = await timedRequest(p, 'perm-ap-mapping', res).query(`
+          const apReq = timedRequest(p, 'perm-ap-mapping', res);
+          let apWhere = '';
+          if (preFilteredUserIds) {
+            apReq.input('apPrincipalIds', preFilteredUserIds);
+            apWhere = `WHERE ap."userId" = ANY(@apPrincipalIds)`;
+          }
+          const apRes = await apReq.query(`
             SELECT
               ap."userId" AS "memberId",
               ap."resourceId",
               ap."resourceId" AS "groupId",
               string_agg(ap."businessRoleId"::text, ',') AS "accessPackageIds"
             FROM "vw_UserPermissionAssignmentViaBusinessRole" ap
+            ${apWhere}
             GROUP BY ap."userId", ap."resourceId"
           `);
           apMapping = apRes.recordset;
@@ -415,39 +463,89 @@ async function accessPackageResourcesHandler(req, res) {
     if (useSql) {
       const p = await db.getPool();
       try { await ensureCategoryTables(p); } catch { /* category tables optional */ }
+      // Performance notes:
+      //  - Previous version returned one row per (AP, resource) pair and
+      //    let Node de-normalize it. On the load-test dataset that was
+      //    ~100k rows × 15 columns → 30 MB of JSON and ~15 s in Express
+      //    serialization alone, even though the SQL itself was ~2 s.
+      //  - We now aggregate server-side into one row per AP with a
+      //    json_agg'd array of resources. Same data, ~100× fewer rows,
+      //    ~100× less JSON work in Node.
+      //  - The client side is responsible for flattening if it needs a
+      //    (ap, resource) row shape — most callers want the grouped view.
       const result = await timedRequest(p, 'ap-groups', res).query(`
+        WITH ac AS (
+          SELECT "resourceId", COUNT(*)::int AS cnt
+            FROM "ResourceAssignments"
+           WHERE ("state" = 'delivered' OR "state" IS NULL)
+             AND "assignmentType" = 'Governed'
+           GROUP BY "resourceId"
+        )
         SELECT
-          rrs."parentResourceId" AS "businessRoleId",
-          rrs."parentResourceId" AS "accessPackageId",
-          ap."displayName" AS "accessPackageName",
-          c."displayName"  AS "catalogName",
-          rrs."childResourceId" AS "resourceId",
-          rrs."childResourceId" AS "groupId",
-          r."displayName"  AS "resourceName",
-          r."displayName"  AS "groupName",
-          r."resourceType",
-          r."systemId",
-          rrs."roleName",
-          COALESCE(ac.cnt, 0) AS "totalAssignments",
-          cat.id AS "categoryId",
-          cat."name" AS "categoryName",
-          cat."color" AS "categoryColor"
-        FROM "ResourceRelationships" rrs
-        INNER JOIN "Resources" ap ON rrs."parentResourceId" = ap.id
-                   AND ap."resourceType" = 'BusinessRole'
-        LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
+          ap.id                            AS "accessPackageId",
+          ap.id                            AS "businessRoleId",
+          ap."displayName"                 AS "accessPackageName",
+          ap."systemId"                    AS "systemId",
+          c."displayName"                  AS "catalogName",
+          COALESCE(ac.cnt, 0)              AS "totalAssignments",
+          cat.id                           AS "categoryId",
+          cat."name"                       AS "categoryName",
+          cat."color"                      AS "categoryColor",
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'resourceId',   rrs."childResourceId",
+                'groupId',      rrs."childResourceId",
+                'resourceName', r."displayName",
+                'groupName',    r."displayName",
+                'resourceType', r."resourceType",
+                'systemId',     r."systemId",
+                'roleName',     rrs."roleName"
+              )
+              ORDER BY r."displayName"
+            ) FILTER (WHERE rrs."childResourceId" IS NOT NULL),
+            '[]'::json
+          ) AS resources
+        FROM "Resources" ap
+        LEFT JOIN "ResourceRelationships" rrs
+               ON rrs."parentResourceId" = ap.id
+              AND rrs."relationshipType" = 'Contains'
         LEFT JOIN "Resources" r ON rrs."childResourceId" = r.id
-        LEFT JOIN (
-          SELECT "resourceId", COUNT(*) AS cnt
-          FROM "ResourceAssignments"
-          WHERE ("state" = 'delivered' OR "state" IS NULL) AND "assignmentType" = 'Governed'
-          GROUP BY "resourceId"
-        ) ac ON rrs."parentResourceId" = ac."resourceId"
-        LEFT JOIN "GovernanceCategoryAssignments" ca ON rrs."parentResourceId"::text = ca."resourceId"
+        LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
+        LEFT JOIN ac ON ac."resourceId" = ap.id
+        LEFT JOIN "GovernanceCategoryAssignments" ca ON ap.id::text = ca."resourceId"
         LEFT JOIN "GovernanceCategories" cat ON ca."categoryId" = cat.id
-        WHERE rrs."relationshipType" = 'Contains'
+        WHERE ap."resourceType" = 'BusinessRole'
+        GROUP BY ap.id, ap."displayName", ap."systemId", c."displayName",
+                 ac.cnt, cat.id, cat."name", cat."color"
+        ORDER BY ap."displayName"
       `);
-      return res.json(result.recordset);
+
+      // Callers historically expected a flat (ap, resource) shape. Flatten
+      // on the Node side — cheap because postgres already did the join.
+      const flat = [];
+      for (const row of result.recordset) {
+        const base = {
+          accessPackageId:   row.accessPackageId,
+          businessRoleId:    row.businessRoleId,
+          accessPackageName: row.accessPackageName,
+          systemId:          row.systemId,
+          catalogName:       row.catalogName,
+          totalAssignments:  row.totalAssignments,
+          categoryId:        row.categoryId,
+          categoryName:      row.categoryName,
+          categoryColor:     row.categoryColor,
+        };
+        const resources = Array.isArray(row.resources) ? row.resources : [];
+        if (resources.length === 0) {
+          flat.push({ ...base, resourceId: null, groupId: null, resourceName: null, groupName: null, resourceType: null, roleName: null });
+          continue;
+        }
+        for (const r of resources) {
+          flat.push({ ...base, ...r });
+        }
+      }
+      return res.json(flat);
     }
     res.json([]);
   } catch (err) {

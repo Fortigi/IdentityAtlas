@@ -67,7 +67,7 @@ happens inside the web container at startup via the migrations runner
 ## Quick Start (Developer)
 
 ```powershell
-cd c:\Source\GitHub\FortigiGraph
+cd c:\Source\GitHub\IdentityAtlas
 
 # Start the stack (first time takes ~3 min to build)
 docker compose up -d --build
@@ -134,7 +134,7 @@ Progress is updated in SQL during execution and displayed in the UI with a progr
 
 ## Crawler Configuration
 
-Crawler configs are stored persistently in `dbo.CrawlerConfigs` and managed through the UI wizard. Each config stores:
+Crawler configs are stored persistently in the `CrawlerConfigs` table and managed through the UI wizard. Each config stores:
 
 - **Credentials** (Tenant ID, Client ID, Client Secret — secret is write-only, never readable via API)
 - **Object types** to sync (Identity, Context, Users & Groups, Governance, Apps, Directory Roles, PIM)
@@ -188,10 +188,10 @@ The worker container runs PowerShell 7 with the Identity Atlas module pre-loaded
 
 ```powershell
 # Open an interactive PowerShell session in the worker
-docker exec -it fortigigraph-worker-1 pwsh
+docker compose exec worker pwsh
 
 # Run a one-off command
-docker exec fortigigraph-worker-1 pwsh -Command "Import-Module /app/setup/IdentityAtlas.psd1; Get-Command *FG*"
+docker compose exec worker pwsh -Command "Import-Module /app/setup/IdentityAtlas.psd1; Get-Command *FG*"
 ```
 
 ### Legacy Crontab (for non-crawler jobs)
@@ -218,7 +218,7 @@ cp setup/config/.env.example .env
 
 | Variable | Purpose |
 |---|---|
-| `POSTGRES_PASSWORD` | PostgreSQL password (dev compose). Production compose still uses `SQL_PASSWORD` for SQL Server. |
+| `POSTGRES_PASSWORD` | PostgreSQL password. Both `docker-compose.yml` and `docker-compose.prod.yml` use PostgreSQL — SQL Server was dropped in v5. |
 | `CRAWLER_API_KEY` | API key for the worker's crawler |
 | `GRAPH_TENANT_ID` / `CLIENT_ID` / `CLIENT_SECRET` | For EntraID crawler |
 | `LLM_PROVIDER` / `LLM_API_KEY` | For risk scoring (Anthropic or OpenAI) |

@@ -4,8 +4,6 @@
 
 Identity Atlas is created by **[Maatschap Fortigi](https://www.fortigi.nl)**, a Dutch identity and access management consultancy based in the Netherlands.
 
-**Lead developer:** [Wim van den Heijkant](https://www.linkedin.com/in/wimvdheijkant/) — architect and maintainer since the original FortigiGraph PowerShell toolkit in 2022.
-
 Fortigi specialises in identity governance, privileged access, and Microsoft Entra ID deployments for enterprise customers across Europe. Identity Atlas started as an internal tool and grew into the product you're looking at.
 
 ## What is Identity Atlas?
