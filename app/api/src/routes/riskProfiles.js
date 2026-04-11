@@ -116,11 +116,29 @@ router.post('/risk-profiles/generate', async (req, res) => {
     }
 
     const { system, messages } = profileGenerationPrompt({ domain, organizationName, hints, scrapedContext });
-    const llmResp = await chatWithSavedConfig({ system, messages, temperature: 0.3, maxTokens: 4096 });
+    // 8192 tokens — full profile responses for large organisations (15+ critical
+    // roles, 10+ known systems, multiple regulations) routinely exceed 4k tokens,
+    // causing truncation and "non-JSON" parse failures on the closing brace.
+    const llmResp = await chatWithSavedConfig({ system, messages, temperature: 0.3, maxTokens: 8192 });
     const parsed = extractJson(llmResp.text);
     if (!parsed) {
       console.error('Profile generation: LLM returned non-JSON. Raw:', llmResp.text.slice(0, 500));
-      return res.status(502).json({ error: 'LLM returned non-JSON response. Try again.', raw: llmResp.text.slice(0, 1000) });
+      // Detect the most common cause (truncation) and give a useful hint.
+      // If the response ends without a closing brace, the LLM hit the token cap.
+      const tail = llmResp.text.trim().slice(-50);
+      const looksTruncated = !tail.endsWith('}') && tail.length > 20;
+      const usage = llmResp.usage;
+      const hitCap = usage && usage.outputTokens && usage.outputTokens >= 8000;
+      const isTruncation = looksTruncated || hitCap;
+      const errorMsg = isTruncation
+        ? `The LLM response was truncated at ${usage?.outputTokens ?? '?'} output tokens. This usually means the profile is too large for the current token budget. Try again, or switch to a smaller model in Admin → LLM Settings.`
+        : 'LLM returned a malformed JSON response. Try again — or check the server logs for the parse error.';
+      return res.status(502).json({
+        error: errorMsg,
+        truncated: isTruncation,
+        outputTokens: usage?.outputTokens ?? null,
+        raw: llmResp.text.slice(0, 1000),
+      });
     }
     const profile = parsed.customer_profile || parsed;
 
@@ -149,13 +167,43 @@ router.post('/risk-profiles/refine', async (req, res) => {
 
   try {
     const { system, messages } = profileRefinementPrompt({ currentProfile: profile, transcript, userMessage });
-    const llmResp = await chatWithSavedConfig({ system, messages, temperature: 0.3, maxTokens: 4096 });
+    const llmResp = await chatWithSavedConfig({ system, messages, temperature: 0.3, maxTokens: 8192 });
     const parsed = extractJson(llmResp.text);
-    if (!parsed) {
-      return res.status(502).json({ error: 'LLM returned non-JSON response. Try again.', raw: llmResp.text.slice(0, 1000) });
+
+    // Primary path: the new prompt asks for { assistantMessage, profile, profileChanged }
+    // Fallback: if the LLM forgot the wrapper and returned just a profile JSON,
+    // treat the whole thing as a profile update with a generic message.
+    // Last resort: if we can't parse anything structured, return the raw text as
+    // an assistant message without a profile change — the user still gets a reply.
+    let assistantMessage = null;
+    let updatedProfile = null;
+    let profileChanged = false;
+
+    if (parsed && parsed.assistantMessage && parsed.profile) {
+      assistantMessage = parsed.assistantMessage;
+      updatedProfile = parsed.profile.customer_profile || parsed.profile;
+      profileChanged = parsed.profileChanged !== false;
+    } else if (parsed) {
+      // Unwrapped profile response (old-style)
+      updatedProfile = parsed.customer_profile || parsed;
+      assistantMessage = '(profile updated)';
+      profileChanged = true;
+    } else {
+      // Couldn't parse JSON at all — return the raw text as a chat message.
+      // The profile stays unchanged. This way the user sees the LLM's answer
+      // instead of a cryptic "non-JSON response" error.
+      assistantMessage = llmResp.text.trim().slice(0, 2000);
+      updatedProfile = profile; // unchanged
+      profileChanged = false;
     }
-    const updated = parsed.customer_profile || parsed;
-    res.json({ profile: updated, llmModel: llmResp.model, usage: llmResp.usage });
+
+    res.json({
+      profile: updatedProfile,
+      profileChanged,
+      assistantMessage,
+      llmModel: llmResp.model,
+      usage: llmResp.usage,
+    });
   } catch (err) {
     console.error('profile refine failed:', err.message);
     res.status(500).json({ error: 'Profile refinement failed', message: err.message });
@@ -324,10 +372,28 @@ router.post('/risk-classifiers/generate', async (req, res) => {
     const prof = await db.queryOne(`SELECT * FROM "RiskProfiles" WHERE id = $1`, [profileId]);
     if (!prof) return res.status(404).json({ error: 'Profile not found' });
     const { system, messages } = classifierGenerationPrompt({ profile: prof.profile });
-    const llmResp = await chatWithSavedConfig({ system, messages, temperature: 0.2, maxTokens: 6000 });
+    // 16384 tokens — classifier sets for large orgs produce many regex patterns
+    // per category (groups + users + agents). Profiles with 10+ regulations and
+    // 15+ critical roles routinely push past 8k output tokens. Claude Opus/Sonnet
+    // support up to 32k output, so 16k is a safe headroom without hitting the cap.
+    const llmResp = await chatWithSavedConfig({ system, messages, temperature: 0.2, maxTokens: 16384 });
     const parsed = extractJson(llmResp.text);
     if (!parsed) {
-      return res.status(502).json({ error: 'LLM returned non-JSON response. Try again.', raw: llmResp.text.slice(0, 1000) });
+      console.error('Classifier generation: LLM returned non-JSON. Raw:', llmResp.text.slice(0, 500));
+      const tail = llmResp.text.trim().slice(-50);
+      const looksTruncated = !tail.endsWith('}') && tail.length > 20;
+      const usage = llmResp.usage;
+      const hitCap = usage && usage.outputTokens && usage.outputTokens >= 8000;
+      const isTruncation = looksTruncated || hitCap;
+      const errorMsg = isTruncation
+        ? `The LLM response was truncated at ${usage?.outputTokens ?? '?'} output tokens. The classifier set is too large for the current token budget. Try again, or switch to a smaller/faster model in Admin → LLM Settings.`
+        : 'LLM returned a malformed JSON response. Try again — or check the server logs for the parse error.';
+      return res.status(502).json({
+        error: errorMsg,
+        truncated: isTruncation,
+        outputTokens: usage?.outputTokens ?? null,
+        raw: llmResp.text.slice(0, 1000),
+      });
     }
     res.json({ classifiers: parsed, llmModel: llmResp.model, usage: llmResp.usage });
   } catch (err) {

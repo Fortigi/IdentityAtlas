@@ -240,6 +240,19 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
   );
   const [identityAttrs, setIdentityAttrs] = useState(initialConfig?.identityAttributes || []);
 
+  // When the user picks a Boolean attribute (and isn't using an empty-string
+  // operator), default the value state to 'true'. Without this the Boolean
+  // <select> displays "true" via `value={idFilterValue || 'true'}` but the
+  // underlying state stays '' — which saves as {"value": ""} and matches no
+  // rows, silently producing an empty Identities table. Discovered April 2026.
+  useEffect(() => {
+    if (idFilterCondition === 'isNotNull' || idFilterCondition === 'inValues') return;
+    const filterType = userAttrCatalog?.dataTypes?.[idFilterAttr];
+    if (filterType === 'Boolean' && (idFilterValue === '' || idFilterValue == null)) {
+      setIdFilterValue('true');
+    }
+  }, [idFilterAttr, idFilterCondition, userAttrCatalog, idFilterValue]);
+
   // User/group attributes
   const [customUserAttrs, setCustomUserAttrs] = useState(initialConfig?.customUserAttributes || []);
   const [customGroupAttrs, setCustomGroupAttrs] = useState(initialConfig?.customGroupAttributes || []);

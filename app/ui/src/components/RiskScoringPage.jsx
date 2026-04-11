@@ -34,276 +34,6 @@ function ScoreBar({ score, maxScore = 100 }) {
   );
 }
 
-// ─── Override Control ─────────────────────────────────────────────────
-
-function OverrideControl({ entity, entityType, authFetch, onOverrideChange }) {
-  const [showForm, setShowForm] = useState(false);
-  const [adjustment, setAdjustment] = useState(entity.riskOverride || 0);
-  const [reason, setReason] = useState(entity.riskOverrideReason || '');
-  const [saving, setSaving] = useState(false);
-
-  const typeMap = { user: 'users', group: 'groups', 'business-role': 'business-roles', 'context': 'contexts', identity: 'identities' };
-  const type = typeMap[entityType] || 'groups';
-
-  const handleSave = async () => {
-    if (!reason.trim() || reason.trim().length < 3) return;
-    if (adjustment === 0) return;
-    setSaving(true);
-    try {
-      const res = await authFetch(`/api/risk-scores/${type}/${entity.id}/override`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adjustment, reason: reason.trim() }),
-      });
-      if (res.ok) {
-        setShowForm(false);
-        onOverrideChange?.();
-      }
-    } catch (err) {
-      console.error('Failed to save override:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRemove = async () => {
-    setSaving(true);
-    try {
-      const res = await authFetch(`/api/risk-scores/${type}/${entity.id}/override`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        setShowForm(false);
-        setAdjustment(0);
-        setReason('');
-        onOverrideChange?.();
-      }
-    } catch (err) {
-      console.error('Failed to remove override:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!showForm) {
-    return (
-      <div className="flex items-center gap-2">
-        {entity.riskOverride != null && (
-          <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-            entity.riskOverride > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-          }`}>
-            {entity.riskOverride > 0 ? '+' : ''}{entity.riskOverride}
-          </span>
-        )}
-        <button
-          onClick={() => setShowForm(true)}
-          className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded px-2 py-0.5 hover:bg-gray-50"
-        >
-          {entity.riskOverride != null ? 'Edit Override' : 'Adjust Score'}
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <h5 className="text-xs font-semibold text-gray-700">Analyst Override</h5>
-        <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
-      </div>
-
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">Score Adjustment ({adjustment > 0 ? '+' : ''}{adjustment})</label>
-        <input
-          type="range"
-          min={-50}
-          max={50}
-          value={adjustment}
-          onChange={e => setAdjustment(parseInt(e.target.value))}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-        />
-        <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
-          <span>-50 (lower risk)</span>
-          <span className={`font-mono font-bold ${adjustment > 0 ? 'text-red-600' : adjustment < 0 ? 'text-green-600' : 'text-gray-500'}`}>
-            {adjustment > 0 ? '+' : ''}{adjustment}
-          </span>
-          <span>+50 (higher risk)</span>
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">Reason (required)</label>
-        <textarea
-          value={reason}
-          onChange={e => setReason(e.target.value)}
-          placeholder="Explain why you're adjusting this score..."
-          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 placeholder-gray-400 resize-none"
-          rows={2}
-          maxLength={500}
-        />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleSave}
-          disabled={saving || adjustment === 0 || !reason.trim() || reason.trim().length < 3}
-          className="px-3 py-1 text-xs font-medium text-white bg-gray-900 rounded-lg disabled:opacity-40 hover:bg-gray-800"
-        >
-          {saving ? 'Saving...' : 'Save Override'}
-        </button>
-        {entity.riskOverride != null && (
-          <button
-            onClick={handleRemove}
-            disabled={saving}
-            className="px-3 py-1 text-xs font-medium text-red-700 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-40"
-          >
-            Remove Override
-          </button>
-        )}
-        {adjustment !== 0 && (
-          <span className="text-xs text-gray-400">
-            Effective: {entity.riskScore} {adjustment > 0 ? '+' : ''}{adjustment} = {Math.max(0, Math.min(100, (entity.riskScore || 0) + adjustment))}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Score Breakdown Panel ───────────────────────────────────────────
-
-function ScoreBreakdown({ entity, entityType, authFetch, onClose, onOverrideChange }) {
-  if (!entity) return null;
-
-  const explanation = entity.explanation;
-  const layers = [
-    { key: 'direct',     label: 'Direct (Classifier Match)', score: entity.riskDirectScore, weight: '50%' },
-    { key: 'membership', label: 'Membership Analysis',       score: entity.riskMembershipScore, weight: '20%' },
-    { key: 'structural', label: 'Structural / Hygiene',      score: entity.riskStructuralScore, weight: '10%' },
-    { key: 'propagated', label: 'Risk Propagation',          score: entity.riskPropagatedScore, weight: '20%' },
-  ];
-
-  const hasOverride = entity.riskOverride != null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 bg-black/30" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">{entity.displayName}</h3>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {entity.userPrincipalName || entity.catalogName || entity.managerName || entity.department || entity.description || ''}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="flex items-center gap-2">
-                <div className="text-2xl font-bold text-gray-800">{entity.riskScore}</div>
-                {hasOverride && (
-                  <>
-                    <span className="text-lg text-gray-400">&rarr;</span>
-                    <div className={`text-2xl font-bold ${entity.effectiveScore >= 70 ? 'text-red-600' : entity.effectiveScore >= 40 ? 'text-orange-600' : 'text-gray-600'}`}>
-                      {entity.effectiveScore}
-                    </div>
-                  </>
-                )}
-              </div>
-              <TierBadge tier={entity.riskTier} />
-            </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="px-6 py-4 space-y-5">
-          {/* Score Layers with Explanations */}
-          <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Score Breakdown</h4>
-            <div className="space-y-3">
-              {layers.map(layer => {
-                const layerExplanation = explanation?.[layer.key];
-                const reasons = layerExplanation?.reasons || [];
-                return (
-                  <div key={layer.key} className="bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-gray-700">{layer.label}</span>
-                      <span className="text-[10px] text-gray-400">weight: {layer.weight}</span>
-                    </div>
-                    <ScoreBar score={layer.score || 0} />
-                    {reasons.length > 0 && (
-                      <ul className="mt-2 space-y-0.5">
-                        {reasons.map((r, i) => (
-                          <li key={i} className="text-xs text-gray-600 flex gap-1.5">
-                            <span className={`mt-0.5 flex-shrink-0 w-1.5 h-1.5 rounded-full ${
-                              r.includes('[+') ? 'bg-orange-400' : 'bg-gray-300'
-                            }`} />
-                            {r}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Classifier Matches */}
-          {entity.classifierMatches?.length > 0 && (
-            <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Classifier Matches</h4>
-              <div className="space-y-2">
-                {entity.classifierMatches.map((m, i) => (
-                  <div key={i} className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-blue-900">{m.id}</span>
-                      <span className="text-xs font-mono text-blue-700">+{m.score} pts</span>
-                    </div>
-                    <p className="text-xs text-blue-700 mt-1">{m.rationale}</p>
-                    <span className="text-[10px] text-blue-500 mt-1 inline-block">Category: {m.category}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Existing Override */}
-          {hasOverride && (
-            <div className={`border rounded-lg p-3 ${entity.riskOverride > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-semibold text-gray-700">Analyst Override</span>
-                <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                  entity.riskOverride > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                }`}>
-                  {entity.riskOverride > 0 ? '+' : ''}{entity.riskOverride}
-                </span>
-              </div>
-              <p className="text-xs text-gray-600">{entity.riskOverrideReason}</p>
-            </div>
-          )}
-
-          {/* Override Control */}
-          <OverrideControl
-            entity={entity}
-            entityType={entityType}
-            authFetch={authFetch}
-            onOverrideChange={onOverrideChange}
-          />
-
-          {/* Scored timestamp */}
-          {entity.riskScoredAt && (
-            <div className="text-xs text-gray-400 pt-2 border-t border-gray-100">
-              Scored at: {new Date(entity.riskScoredAt).toLocaleString()}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Distribution Chart ──────────────────────────────────────────────
 
 function DistributionChart({ label, byTier, total }) {
@@ -334,8 +64,14 @@ function DistributionChart({ label, byTier, total }) {
 }
 
 // ─── Entity Table ────────────────────────────────────────────────────
+//
+// Rows navigate to the full detail page (UserDetailPage / GroupDetailPage /
+// AccessPackageDetailPage / etc.) when clicked. The detail page shows the
+// same score breakdown this page used to show in a local modal, plus all the
+// entity's attributes, memberships, and history — which is what the user
+// actually wants when drilling into a flagged entity.
 
-function EntityTable({ entities, entityType, onSelect, onOpenDetail }) {
+function EntityTable({ entities, entityType, onOpenDetail }) {
   if (!entities || entities.length === 0) {
     return <div className="py-8 text-center text-gray-400">No entities match the current filters</div>;
   }
@@ -368,6 +104,10 @@ function EntityTable({ entities, entityType, onSelect, onOpenDetail }) {
   const detailTypeMap = { user: 'user', group: 'group', 'business-role': 'access-package', 'context': 'context', identity: 'identity' };
   const detailType = detailTypeMap[entityType] || entityType;
 
+  const openDetail = (entity) => {
+    if (onOpenDetail) onOpenDetail(detailType, entity.id, entity.displayName);
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm">
@@ -379,58 +119,73 @@ function EntityTable({ entities, entityType, onSelect, onOpenDetail }) {
             ))}
             <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase w-20">Score</th>
             <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase w-24">Tier</th>
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase w-16">Direct</th>
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase w-16">Memb.</th>
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase w-16">Struct.</th>
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase w-16">Prop.</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">Why</th>
             <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase w-20">Override</th>
           </tr>
         </thead>
         <tbody>
-          {entities.map(entity => (
-            <tr
-              key={entity.id}
-              className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-              onClick={() => onSelect(entity)}
-            >
-              <td className="py-2 px-3">
-                <button
-                  className="text-blue-600 hover:underline text-left font-medium"
-                  onClick={e => {
-                    e.stopPropagation();
-                    if (onOpenDetail) onOpenDetail(detailType, entity.id, entity.displayName);
-                  }}
-                >
-                  {entity.displayName}
-                </button>
-                {(entityType === 'group' || entityType === 'business-role') && entity.description && (
-                  <p className="text-xs text-gray-400 truncate max-w-xs">{entity.description}</p>
-                )}
-              </td>
-              {cols.map(c => (
-                <td key={c.key} className="py-2 px-3 text-gray-600">{c.render(entity)}</td>
-              ))}
-              <td className="py-2 px-3">
-                <ScoreBar score={entity.effectiveScore ?? entity.riskScore} />
-              </td>
-              <td className="py-2 px-3"><TierBadge tier={entity.riskTier} /></td>
-              <td className="py-2 px-3 text-xs font-mono text-gray-500">{entity.riskDirectScore}</td>
-              <td className="py-2 px-3 text-xs font-mono text-gray-500">{entity.riskMembershipScore}</td>
-              <td className="py-2 px-3 text-xs font-mono text-gray-500">{entity.riskStructuralScore}</td>
-              <td className="py-2 px-3 text-xs font-mono text-gray-500">{entity.riskPropagatedScore}</td>
-              <td className="py-2 px-3">
-                {entity.riskOverride != null ? (
-                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                    entity.riskOverride > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-                  }`} title={entity.riskOverrideReason}>
-                    {entity.riskOverride > 0 ? '+' : ''}{entity.riskOverride}
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-300">&mdash;</span>
-                )}
-              </td>
-            </tr>
-          ))}
+          {entities.map(entity => {
+            const matches = Array.isArray(entity.classifierMatches)
+              ? entity.classifierMatches
+              : (typeof entity.classifierMatches === 'string'
+                  ? (() => { try { return JSON.parse(entity.classifierMatches); } catch { return []; } })()
+                  : []);
+            return (
+              <tr
+                key={entity.id}
+                className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                onClick={() => openDetail(entity)}
+                title="Open detail page"
+              >
+                <td className="py-2 px-3">
+                  <span className="text-blue-600 hover:underline font-medium">{entity.displayName}</span>
+                  {(entityType === 'group' || entityType === 'business-role') && entity.description && (
+                    <p className="text-xs text-gray-400 truncate max-w-xs">{entity.description}</p>
+                  )}
+                </td>
+                {cols.map(c => (
+                  <td key={c.key} className="py-2 px-3 text-gray-600">{c.render(entity)}</td>
+                ))}
+                <td className="py-2 px-3">
+                  <ScoreBar score={entity.effectiveScore ?? entity.riskScore} />
+                </td>
+                <td className="py-2 px-3"><TierBadge tier={entity.riskTier} /></td>
+                <td className="py-2 px-3">
+                  {matches.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {matches.slice(0, 3).map((m, i) => (
+                        <span
+                          key={i}
+                          title={`${m.label || m.id} (${m.tier || '?'}) — score ${m.score ?? '?'}`}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100"
+                        >
+                          {m.label || m.id}
+                        </span>
+                      ))}
+                      {matches.length > 3 && (
+                        <span className="text-[10px] text-gray-400">+{matches.length - 3}</span>
+                      )}
+                    </div>
+                  ) : entity.riskMembershipScore > 0 ? (
+                    <span className="text-[10px] text-gray-400">small-group bonus</span>
+                  ) : (
+                    <span className="text-[10px] text-gray-300">—</span>
+                  )}
+                </td>
+                <td className="py-2 px-3">
+                  {entity.riskOverride != null ? (
+                    <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
+                      entity.riskOverride > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+                    }`} title={entity.riskOverrideReason}>
+                      {entity.riskOverride > 0 ? '+' : ''}{entity.riskOverride}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-300">&mdash;</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -796,7 +551,6 @@ export default function RiskScoringPage({ onOpenDetail }) {
   const [entityData, setEntityData] = useState({ data: [], total: 0 });
   const [entityLoading, setEntityLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const [selectedEntity, setSelectedEntity] = useState(null);
   const [clusterData, setClusterData] = useState({ available: false, data: [], total: 0 });
   const [clusterLoading, setClusterLoading] = useState(false);
   const [clusterSummary, setClusterSummary] = useState(null);
@@ -884,13 +638,6 @@ export default function RiskScoringPage({ onOpenDetail }) {
       console.error('Failed to fetch cluster summary:', err);
     }
   }, [authFetch]);
-
-  // Refresh after override change
-  const handleOverrideChange = useCallback(() => {
-    fetchEntities();
-    fetchSummary();
-    setSelectedEntity(null);
-  }, [fetchEntities, fetchSummary]);
 
   // Toggle cluster sort column
   const handleClusterSort = useCallback((field) => {
@@ -1205,7 +952,6 @@ export default function RiskScoringPage({ onOpenDetail }) {
             <EntityTable
               entities={entityData.data}
               entityType={viewToEntityType[view] || 'group'}
-              onSelect={setSelectedEntity}
               onOpenDetail={onOpenDetail}
             />
           )
@@ -1226,16 +972,6 @@ export default function RiskScoringPage({ onOpenDetail }) {
           </div>
         )}
       </div>
-
-      {selectedEntity && (
-        <ScoreBreakdown
-          entity={selectedEntity}
-          entityType={viewToEntityType[view] || 'group'}
-          authFetch={authFetch}
-          onClose={() => setSelectedEntity(null)}
-          onOverrideChange={handleOverrideChange}
-        />
-      )}
 
       {selectedCluster && (
         <ClusterDetail

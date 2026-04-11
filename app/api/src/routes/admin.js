@@ -1,7 +1,4 @@
 import { Router } from 'express';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import http from 'http';
 import rateLimit from 'express-rate-limit';
 import * as db from '../db/connection.js';
@@ -15,36 +12,6 @@ const adminDestructiveLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Universal classifiers bundled with the module (same file Invoke-FGRiskScoring falls back to)
-let _universalClassifiers = null;
-function getUniversalClassifiers() {
-  if (!_universalClassifiers) {
-    try {
-      const p = join(__dirname, '../risk/classifiers/universal.json');
-      _universalClassifiers = JSON.parse(readFileSync(p, 'utf-8'));
-    } catch { _universalClassifiers = null; }
-  }
-  return _universalClassifiers;
-}
-
-// Hardcoded resource-type multiplier defaults (mirrors Invoke-FGRiskScoring defaults)
-const DEFAULT_MULTIPLIERS = {
-  EntraGroup:         1.0,
-  EntraDirectoryRole: 1.5,
-  EntraAppRole:       1.2,
-  AzureRBACRole:      1.4,
-  SharePointSite:     0.8,
-  DevOpsPermission:   1.1,
-  FileShare:          0.7,
-};
-const DEFAULT_PROPAGATION = {
-  EntraDirectoryRole: 0.40,
-  EntraAppRole:       0.35,
-  EntraGroup:         0.30,
-};
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -67,87 +34,84 @@ function safeParseJson(str) {
 }
 
 // ── GET /api/admin/risk-profile ───────────────────────────────────
-// Returns the most recently saved risk profile. In v5 the schema only has
-// id/profileJson/generatedAt/llmProvider/llmModel/version columns; the legacy
-// domain/industry/country fields live inside profileJson now.
+// Returns the active v5 risk profile (or the most recent one if none is active).
+// v5 moved off the legacy GraphRiskProfiles table — profiles now live in
+// RiskProfiles and are created by the in-browser wizard (Admin → Risk Scoring →
+// New profile). The response shape is kept compatible with the existing
+// AdminPage renderer: domain/industry/country are promoted to top-level fields,
+// `profile` carries the full structured customer_profile object.
 router.get('/admin/risk-profile', async (req, res) => {
   if (!useSql) return res.json({ available: false });
 
   try {
     const r = await db.query(`
-      SELECT id, "llmProvider", "llmModel", "version", "generatedAt", "profileJson"
-        FROM "GraphRiskProfiles"
-        ORDER BY "generatedAt" DESC
+      SELECT id, "displayName", domain, industry, country, "llmProvider", "llmModel",
+             version, "isActive", "createdAt", "updatedAt", profile
+        FROM "RiskProfiles"
+        ORDER BY "isActive" DESC, "createdAt" DESC
         LIMIT 1
     `);
 
     if (r.rows.length === 0) {
-      return res.json({ available: true, source: 'defaults', multipliers: DEFAULT_MULTIPLIERS, propagation: DEFAULT_PROPAGATION });
+      return res.json({ available: false });
     }
 
     const row = r.rows[0];
-    const profile = row.profileJson; // jsonb returns parsed object directly
     res.json({
       available: true,
       source: 'sql',
       id: row.id,
-      domain: profile?.domain || null,
-      industry: profile?.industry || null,
-      country: profile?.country || null,
+      displayName: row.displayName,
+      domain: row.domain || row.profile?.domain || null,
+      industry: row.industry || row.profile?.industry || null,
+      country: row.country || row.profile?.country || null,
       llmProvider: row.llmProvider,
       llmModel: row.llmModel,
       version: row.version,
-      generatedAt: row.generatedAt,
-      profile,
+      isActive: row.isActive,
+      generatedAt: row.createdAt,
+      profile: row.profile, // jsonb parsed by pg
     });
   } catch (err) {
-    // Fall back to defaults on any error (table empty, schema drift, etc.)
     console.error('Error fetching risk profile:', err.message);
-    res.json({ available: true, source: 'defaults', multipliers: DEFAULT_MULTIPLIERS, propagation: DEFAULT_PROPAGATION });
+    res.json({ available: false });
   }
 });
 
 // ── GET /api/admin/classifiers ────────────────────────────────────
-// Returns the most recently saved classifier ruleset from GraphRiskClassifiers.
-// Falls back to the universal classifiers bundled with the module (same fallback
-// that Invoke-FGRiskScoring uses when no custom classifiers are saved).
+// Returns the active v5 classifier set (or the most recent one if none active).
+// Like /admin/risk-profile, this reads from the v5 RiskClassifiers table used
+// by the wizard, not the retired GraphRiskClassifiers table.
 router.get('/admin/classifiers', async (req, res) => {
-  if (!useSql) {
-    const uc = getUniversalClassifiers();
-    if (uc) return res.json({ available: true, source: 'universal', classifiers: uc });
-    return res.json({ available: false });
-  }
+  if (!useSql) return res.json({ available: false });
 
   try {
     const r = await db.query(`
-      SELECT id, "version", "generatedAt", "llmProvider", "llmModel", "classifiersJson"
-        FROM "GraphRiskClassifiers"
-        ORDER BY "generatedAt" DESC
+      SELECT id, "profileId", "displayName", "llmProvider", "llmModel", version,
+             "isActive", "createdAt", "updatedAt", classifiers
+        FROM "RiskClassifiers"
+        ORDER BY "isActive" DESC, "createdAt" DESC
         LIMIT 1
     `);
-    if (r.rows.length > 0) {
-      const row = r.rows[0];
-      return res.json({
-        available: true,
-        source: 'sql',
-        id: row.id,
-        version: row.version,
-        generatedAt: row.generatedAt,
-        llmProvider: row.llmProvider,
-        llmModel: row.llmModel,
-        classifiers: row.classifiersJson, // jsonb returns parsed object
-      });
-    }
+    if (r.rows.length === 0) return res.json({ available: false });
 
-    // Fall back to universal classifiers
-    const uc = getUniversalClassifiers();
-    if (uc) return res.json({ available: true, source: 'universal', classifiers: uc });
-    return res.json({ available: false });
+    const row = r.rows[0];
+    res.json({
+      available: true,
+      source: 'sql',
+      id: row.id,
+      profileId: row.profileId,
+      displayName: row.displayName,
+      version: row.version,
+      isActive: row.isActive,
+      generatedAt: row.createdAt,
+      llmProvider: row.llmProvider,
+      llmModel: row.llmModel,
+      classifiers: row.classifiers, // jsonb parsed by pg
+    });
   } catch (err) {
     console.error('Error fetching classifiers:', err.message);
-    const uc = getUniversalClassifiers();
-    if (uc) return res.json({ available: true, source: 'universal', classifiers: uc });
-    return res.json({ available: false });
+    res.json({ available: false });
   }
 });
 

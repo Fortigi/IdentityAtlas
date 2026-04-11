@@ -48,6 +48,19 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
   const [refining, setRefining] = useState(false);
   const [llmModel, setLlmModel] = useState(null);
   const [genError, setGenError] = useState(null);
+  // Elapsed-time tracker for long LLM calls. Updated every 500ms while any
+  // long-running action is in progress so the user sees "12s elapsed" instead
+  // of wondering whether the request is stuck.
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const isWorking = generating || refining;
+  useEffect(() => {
+    if (!isWorking) { setElapsedMs(0); return; }
+    const start = Date.now();
+    const interval = setInterval(() => setElapsedMs(Date.now() - start), 500);
+    return () => clearInterval(interval);
+  }, [isWorking]);
+  const elapsedSec = Math.floor(elapsedMs / 1000);
+
 
   // ── Step 3 state: save ──
   const [profileName, setProfileName] = useState('');
@@ -69,6 +82,17 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
   const [scoringRun, setScoringRun] = useState(null);
   const [scoringError, setScoringError] = useState(null);
   const pollRef = useRef(null);
+
+  // Elapsed-time tracker for the classifier generation step (separate from
+  // the Step 2 chat counter so they can run independently).
+  const [classifierElapsedMs, setClassifierElapsedMs] = useState(0);
+  useEffect(() => {
+    if (!genClassifiers) { setClassifierElapsedMs(0); return; }
+    const start = Date.now();
+    const interval = setInterval(() => setClassifierElapsedMs(Date.now() - start), 500);
+    return () => clearInterval(interval);
+  }, [genClassifiers]);
+  const classifierElapsedSec = Math.floor(classifierElapsedMs / 1000);
 
   // Check whether the LLM is configured at mount
   useEffect(() => {
@@ -121,14 +145,29 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
           urls: urls.filter(u => u.url).map(u => ({ url: u.url, credentialId: u.credentialId || undefined })),
         }),
       });
-      const j = await r.json();
-      if (!r.ok) { setGenError(j.error || `HTTP ${r.status}`); return; }
+      let j;
+      try { j = await r.json(); }
+      catch (e) {
+        const text = await r.text().catch(() => '');
+        setGenError(`Server returned non-JSON (HTTP ${r.status}): ${text.slice(0, 300) || e.message}`);
+        return;
+      }
+      if (!r.ok) {
+        setGenError(j.error || j.message || `HTTP ${r.status}`);
+        return;
+      }
+      if (!j.profile) {
+        setGenError('Response had no profile field — check server logs');
+        return;
+      }
       setProfile(j.profile);
       setLlmModel(j.llmModel);
       setScrapedSummary(j.scraped || []);
       // Default profile name from the generated profile
       if (!profileName && j.profile?.name) setProfileName(j.profile.name);
       setStepIdx(1);
+    } catch (err) {
+      setGenError(`Network error: ${err.message}`);
     } finally { setGenerating(false); }
   }
 
@@ -147,12 +186,17 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
       });
       const j = await r.json();
       if (r.ok) {
-        setProfile(j.profile);
-        setTranscript([...newTranscript, { role: 'assistant', content: '[updated profile applied]' }]);
+        // Show the AI's natural-language reply in the chat. The profile on
+        // the left updates silently — the message tells the user what changed.
+        const reply = j.assistantMessage || '(profile updated)';
+        setTranscript([...newTranscript, { role: 'assistant', content: reply }]);
+        if (j.profile) setProfile(j.profile);
         setLlmModel(j.llmModel);
       } else {
-        setTranscript([...newTranscript, { role: 'assistant', content: `[error: ${j.error || r.status}]` }]);
+        setTranscript([...newTranscript, { role: 'assistant', content: `[error: ${j.error || j.message || r.status}]` }]);
       }
+    } catch (err) {
+      setTranscript([...newTranscript, { role: 'assistant', content: `[network error: ${err.message}]` }]);
     } finally { setRefining(false); }
   }
 
@@ -189,13 +233,21 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileId: savedProfileId }),
       });
-      const j = await r.json();
+      let j;
+      try { j = await r.json(); }
+      catch (e) {
+        const text = await r.text().catch(() => '');
+        setClassifierError(`Server returned non-JSON (HTTP ${r.status}): ${text.slice(0, 300) || e.message}`);
+        return;
+      }
       if (r.ok) {
         setClassifiers(j.classifiers);
         if (!classifierName) setClassifierName(`${profileName} classifiers`);
       } else {
-        setClassifierError(j.error || `HTTP ${r.status}`);
+        setClassifierError(j.error || j.message || `HTTP ${r.status}`);
       }
+    } catch (err) {
+      setClassifierError(`Network error: ${err.message}`);
     } finally { setGenClassifiers(false); }
   }
 
@@ -314,9 +366,26 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={onClose} className="px-4 py-1.5 text-sm border rounded dark:border-gray-600">Cancel</button>
               <button onClick={handleGenerate} disabled={!domain || generating} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300">
-                {generating ? 'Generating…' : 'Generate profile →'}
+                {generating ? `Generating… (${elapsedSec}s)` : 'Generate profile →'}
               </button>
             </div>
+            {generating && (
+              <div className="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded text-sm">
+                <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" className="opacity-75" />
+                  </svg>
+                  <span className="font-medium">The AI is researching the organisation…</span>
+                  <span className="text-xs text-indigo-700 dark:text-indigo-300 ml-auto">{elapsedSec}s elapsed</span>
+                </div>
+                <div className="text-xs text-indigo-700 dark:text-indigo-300 mt-2 space-y-1">
+                  <div>1. {urls.filter(u => u.url).length > 0 ? `Scraping ${urls.filter(u => u.url).length} URL${urls.filter(u => u.url).length === 1 ? '' : 's'}` : 'Skipping URL scraping'}</div>
+                  <div>2. Calling the LLM to generate the profile JSON</div>
+                  <div className="opacity-70 mt-2">This typically takes 20–60 seconds depending on the model. Opus/GPT-4 are slower but produce better industry-specific profiles.</div>
+                </div>
+              </div>
+            )}
             {genError && <div className="text-sm text-red-700 mt-2">{genError}</div>}
           </div>
         )}
@@ -350,18 +419,27 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
                 <div className="text-xs font-medium mb-1">Refinement chat</div>
                 <div className="flex-1 border rounded p-2 bg-white dark:bg-gray-900 max-h-96 overflow-auto space-y-2">
                   {transcript.length === 0 && (
-                    <div className="text-xs text-gray-500">Ask the AI to adjust anything: "drop NIS2 — we're US-only", "add critical role for Customs Officer", "we don't actually use SAP"…</div>
+                    <div className="text-xs text-gray-500">Ask the AI to adjust anything or ask a question: "drop NIS2 — we're US-only", "what software does this org use?", "add critical role for Customs Officer"…</div>
                   )}
                   {transcript.map((m, i) => (
                     <div key={i} className={`text-xs ${m.role === 'user' ? 'text-gray-900 dark:text-gray-100' : 'text-indigo-700 dark:text-indigo-300'}`}>
                       <span className="font-semibold">{m.role === 'user' ? 'You' : 'AI'}:</span> {m.content}
                     </div>
                   ))}
+                  {refining && (
+                    <div className="text-xs text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" className="opacity-75" />
+                      </svg>
+                      <span className="font-semibold">AI:</span> <em>thinking… ({elapsedSec}s)</em>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 mt-2">
-                  <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleRefine()} disabled={refining} placeholder="Ask for a change…" className="flex-1 px-3 py-1.5 text-sm border rounded dark:bg-gray-700 dark:border-gray-600" />
+                  <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleRefine()} disabled={refining} placeholder="Ask for a change or a question…" className="flex-1 px-3 py-1.5 text-sm border rounded dark:bg-gray-700 dark:border-gray-600" />
                   <button onClick={handleRefine} disabled={!chatInput.trim() || refining} className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300">
-                    {refining ? '…' : 'Send'}
+                    {refining ? `${elapsedSec}s` : 'Send'}
                   </button>
                 </div>
               </div>
@@ -406,12 +484,28 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
             {!classifiers && (
               <div className="flex gap-2">
                 <button onClick={handleGenerateClassifiers} disabled={genClassifiers} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300">
-                  {genClassifiers ? 'Generating…' : 'Generate classifiers'}
+                  {genClassifiers ? `Generating… (${classifierElapsedSec}s)` : 'Generate classifiers'}
                 </button>
-                <button onClick={() => { onSaved?.(); onClose(); }} className="px-4 py-1.5 text-sm border rounded dark:border-gray-600">Skip — done for now</button>
+                <button onClick={() => { onSaved?.(); onClose(); }} disabled={genClassifiers} className="px-4 py-1.5 text-sm border rounded dark:border-gray-600 disabled:opacity-50">Skip — done for now</button>
               </div>
             )}
-            {classifierError && <div className="text-sm text-red-700">{classifierError}</div>}
+            {genClassifiers && (
+              <div className="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded text-sm">
+                <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" className="opacity-75" />
+                  </svg>
+                  <span className="font-medium">Generating regex classifiers from the profile…</span>
+                  <span className="text-xs text-indigo-700 dark:text-indigo-300 ml-auto">{classifierElapsedSec}s elapsed</span>
+                </div>
+                <div className="text-xs text-indigo-700 dark:text-indigo-300 mt-2 space-y-1">
+                  <div>The LLM is translating the profile's regulations, critical roles, and known systems into regex patterns that will match high-risk principals during scoring.</div>
+                  <div className="opacity-70 mt-2">This typically takes 30–90 seconds with Opus — classifiers are larger than profiles. Switch to Sonnet or Haiku in Admin → LLM Settings for faster (but less nuanced) output.</div>
+                </div>
+              </div>
+            )}
+            {classifierError && <div className="text-sm text-red-700 mt-2">{classifierError}</div>}
             {classifiers && (
               <>
                 <pre className="text-[11px] bg-gray-50 dark:bg-gray-900 border rounded p-2 overflow-auto max-h-80 font-mono">{JSON.stringify(classifiers, null, 2)}</pre>
