@@ -1,8 +1,8 @@
 site_name: Identity Atlas
 site_description: Universal authorization intelligence — sync, analyze, and govern permissions from any identity system
-site_url: https://fortigi.github.io/FortigiGraph
-repo_url: https://github.com/Fortigi/FortigiGraph
-repo_name: Fortigi/FortigiGraph
+site_url: https://fortigi.github.io/IdentityAtlas
+repo_url: https://github.com/Fortigi/IdentityAtlas
+repo_name: Fortigi/IdentityAtlas
 edit_uri: edit/main/docs/
 
 theme:
@@ -73,10 +73,13 @@ nav:
       - Testing Plan: architecture/testing-plan.md
       - Demo Dataset: architecture/demo-dataset.md
       - Docker Setup: architecture/docker-setup.md
+      - CSV Import Schema: architecture/csv-import-schema.md
+      - LLM & Risk Scoring: architecture/llm-and-risk-scoring.md
+      - PostgreSQL Migration: architecture/postgres-migration.md
+      - Postgres Migration Status: architecture/postgres-migration-status.md
   - Sync:
       - Entra ID: sync/entra-id.md
       - CSV Import: sync/csv-import.md
-      - Scheduling: sync/scheduling.md
   - Risk Scoring:
       - Overview: risk-scoring/overview.md
       - Classifiers: risk-scoring/classifiers.md
@@ -85,8 +88,9 @@ nav:
       - Plugin Architecture: risk-scoring/plugin-architecture.md
   - Role Mining UI:
       - Overview: ui/overview.md
-      - Deployment: ui/deployment.md
       - Local Development: ui/local-dev.md
+  - Operations:
+      - Nightly Review: operations/nightly-review.md
   - API Reference:
       - Overview: api/index.md
       - Matrix & Permissions: api/matrix.md
@@ -105,7 +109,7 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/Fortigi/FortigiGraph
+      link: https://github.com/Fortigi/IdentityAtlas
     - icon: fontawesome/brands/linkedin
       link: https://www.linkedin.com/in/wimvdheijkant/
       name: Wim van den Heijkant (lead developer)

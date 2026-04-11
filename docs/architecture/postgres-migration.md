@@ -316,17 +316,17 @@ The API response keys stay in camelCase (the frontend doesn't change). The DAO l
 
 **Goal:** every doc that mentions SQL Server is updated.
 
-1. **[CLAUDE.md](CLAUDE.md)**: rewrite the architecture section. Drop temporal table mentions. Drop SQL Server mentions. Drop the `app/db/*.ps1` references. Update function counts (down ~36 files).
-2. **[docs/architecture/docker-setup.md](docs/architecture/docker-setup.md)**: replace SQL Server section with Postgres. Update the folder mapping table.
-3. **[docs/architecture/demo-dataset.md](docs/architecture/demo-dataset.md)**: schema references.
-4. **[docs/reference/sql-views.md](docs/reference/sql-views.md)**: rewrite for Postgres syntax (or rename to `database-views.md`).
-5. **[docs/reference/troubleshooting.md](docs/reference/troubleshooting.md)**: replace `sqlcmd` examples with `psql` examples.
-6. **[docs/reference/config.md](docs/reference/config.md)**: replace `SQL_*` env vars with `DATABASE_URL`.
-7. **[docs/quickstart.md](docs/quickstart.md)**: should largely Just Work — only env vars change.
-8. **[docs/index.md](docs/index.md)**: drop "SQL Server" from any feature list.
-9. **[docs/architecture/testing-plan.md](docs/architecture/testing-plan.md)**: update to mention Postgres.
-10. **[test/TESTING-GUIDE.md](test/TESTING-GUIDE.md)**: same.
-11. **[README.md](README.md)** if it mentions SQL Server.
+1. **[CLAUDE.md](https://github.com/Fortigi/IdentityAtlas/blob/main/CLAUDE.md)**: rewrite the architecture section. Drop temporal table mentions. Drop SQL Server mentions. Drop the `app/db/*.ps1` references. Update function counts (down ~36 files).
+2. **[docs/architecture/docker-setup.md](docker-setup.md)**: replace SQL Server section with Postgres. Update the folder mapping table.
+3. **[docs/architecture/demo-dataset.md](demo-dataset.md)**: schema references.
+4. **[docs/reference/sql-views.md](../reference/sql-views.md)**: rewrite for Postgres syntax (or rename to `database-views.md`).
+5. **[docs/reference/troubleshooting.md](../reference/troubleshooting.md)**: replace `sqlcmd` examples with `psql` examples.
+6. **[docs/reference/config.md](../reference/config.md)**: replace `SQL_*` env vars with `DATABASE_URL`.
+7. **[docs/quickstart.md](../quickstart.md)**: should largely Just Work — only env vars change.
+8. **[docs/index.md](../index.md)**: drop "SQL Server" from any feature list.
+9. **[docs/architecture/testing-plan.md](testing-plan.md)**: update to mention Postgres.
+10. **[test/TESTING-GUIDE.md](https://github.com/Fortigi/IdentityAtlas/blob/main/test/TESTING-GUIDE.md)**: same.
+11. **[README.md](https://github.com/Fortigi/IdentityAtlas/blob/main/README.md)** if it mentions SQL Server.
 12. **New doc**: `docs/architecture/database.md` — short explainer of the Postgres schema, the migrations directory, the rationale for dropping temporal tables.
 13. **New doc**: `docs/reference/migrations.md` — how to add a new migration file, naming convention, dos and don'ts.
 
