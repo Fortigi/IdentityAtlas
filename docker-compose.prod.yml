@@ -1,0 +1,97 @@
+# ─── Identity Atlas — Production Docker Compose ─────────────────────────────
+#
+# For end users: no git clone needed, pulls pre-built images from ghcr.io.
+#
+# Quick start:
+#   curl -O https://raw.githubusercontent.com/Fortigi/FortigiGraph/main/docker-compose.prod.yml
+#   docker compose -f docker-compose.prod.yml up
+#
+# Then open http://localhost:3001 and click "Load Demo Data" to get started.
+#
+# Configuration:
+#   Copy .env.example to .env and set your values, or pass them inline:
+#   GRAPH_TENANT_ID=... GRAPH_CLIENT_ID=... GRAPH_CLIENT_SECRET=... docker compose -f docker-compose.prod.yml up
+#
+# SECURITY: The default POSTGRES_PASSWORD is for local evaluation only.
+#   For any networked or production deployment, set a strong password and an
+#   explicit master key for the secrets vault:
+#     POSTGRES_PASSWORD=... IDENTITY_ATLAS_MASTER_KEY=... docker compose -f docker-compose.prod.yml up
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL 16 ───────────────────────────────────────────────────────────
+  # Replaced SQL Server in v5. The migrations runner inside the web container
+  # creates all tables on first startup, so there is no separate init step.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB:       "${POSTGRES_DB:-identity_atlas}"
+      POSTGRES_USER:     "${POSTGRES_USER:-identity_atlas}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-identity_atlas_local}"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-identity_atlas} -d ${POSTGRES_DB:-identity_atlas}"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Web (serves built frontend + API) ────────────────────────────────────────
+  web:
+    image: ghcr.io/fortigi/identity-atlas:latest
+    environment:
+      NODE_ENV:    production
+      USE_SQL:     "true"  # legacy flag — still used by routes to enable DB-backed mode
+      DATABASE_URL: "postgres://${POSTGRES_USER:-identity_atlas}:${POSTGRES_PASSWORD:-identity_atlas_local}@postgres:5432/${POSTGRES_DB:-identity_atlas}"
+      AUTH_ENABLED: "${AUTH_ENABLED:-false}"
+      PORT:         "3001"
+      # Master key for the secrets vault (LLM API keys, scraper credentials).
+      # If unset, the bootstrap auto-generates one and persists it to
+      # /data/uploads/.master-key inside the job_data volume. For real production
+      # deployments, set this explicitly so the key can be backed up alongside
+      # other root secrets.
+      IDENTITY_ATLAS_MASTER_KEY: "${IDENTITY_ATLAS_MASTER_KEY:-}"
+      # Optional Entra ID auth for the UI (set AUTH_ENABLED=true to activate)
+      # AUTH_TENANT_ID: "${AUTH_TENANT_ID:-}"
+      # AUTH_CLIENT_ID: "${AUTH_CLIENT_ID:-}"
+    ports:
+      - "${PORT:-3001}:3001"
+    volumes:
+      - job_data:/data/uploads
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Worker (PowerShell — crawlers, risk scoring, account correlation) ───────
+  # In v5 the worker container has NO database driver. It talks to the API
+  # for everything (job pickup, ingest, progress reporting).
+  worker:
+    image: ghcr.io/fortigi/identity-atlas-worker:latest
+    environment:
+      WEB_API_URL: "http://web:3001/api"
+      # Optional global crawler API key — overridden per-job via WorkerConfig.
+      CRAWLER_API_KEY:     "${CRAWLER_API_KEY:-}"
+      # Entra ID Graph API credentials (optional — configure via UI or set here)
+      GRAPH_TENANT_ID:     "${GRAPH_TENANT_ID:-}"
+      GRAPH_CLIENT_ID:     "${GRAPH_CLIENT_ID:-}"
+      GRAPH_CLIENT_SECRET: "${GRAPH_CLIENT_SECRET:-}"
+      # LLM for risk scoring (optional — also configurable via Admin → LLM Settings)
+      LLM_PROVIDER:        "${LLM_PROVIDER:-}"
+      LLM_API_KEY:         "${LLM_API_KEY:-}"
+    volumes:
+      - job_data:/data/uploads
+    depends_on:
+      web:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  job_data:

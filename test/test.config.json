@@ -1,0 +1,13 @@
+{
+  "api": {
+    "baseUrl": "http://localhost:3001/api",
+    "uiUrl": "http://localhost:3001"
+  },
+  "sql": {
+    "server": "localhost",
+    "port": 1433,
+    "database": "GraphData",
+    "username": "sa",
+    "password": "FortigiGraph_Local1!"
+  }
+}

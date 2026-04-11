@@ -1,0 +1,501 @@
+openapi: 3.0.3
+info:
+  title: Identity Atlas Ingest API
+  version: 3.4.0
+  description: |
+    REST API for ingesting authorization data from any source system into Identity Atlas.
+    Crawlers authenticate with API keys (Bearer token) and POST batches of records.
+    The API handles validation, bulk merge, scoped delete detection, and temporal versioning.
+  contact:
+    name: Fortigi
+    url: https://github.com/Fortigi/FortigiGraph
+
+servers:
+  - url: /api
+    description: Relative to deployment root
+
+security:
+  - CrawlerApiKey: []
+
+tags:
+  - name: Ingest
+    description: Data ingestion endpoints — one per entity type
+  - name: Crawlers
+    description: Crawler self-service (API key rotation, identity)
+  - name: Admin
+    description: Crawler management (requires Entra ID auth)
+
+paths:
+  # ─── Ingest Endpoints ──────────────────────────────────────────
+  /ingest/systems:
+    post:
+      tags: [Ingest]
+      summary: Ingest systems
+      description: Upsert system records. Systems don't require a systemId in the envelope.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          description: Ingest successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /ingest/principals:
+    post:
+      tags: [Ingest]
+      summary: Ingest principals
+      description: Upsert principal records (users, service principals, etc.). Scope by principalType for full sync deletes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /ingest/resources:
+    post:
+      tags: [Ingest]
+      summary: Ingest resources
+      description: Upsert resource records (groups, roles, apps, business roles). Scope by resourceType.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/resource-assignments:
+    post:
+      tags: [Ingest]
+      summary: Ingest resource assignments
+      description: Upsert assignments (who has access to what). Composite key (resourceId, principalId, assignmentType). Scope by assignmentType.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/resource-relationships:
+    post:
+      tags: [Ingest]
+      summary: Ingest resource relationships
+      description: Upsert resource-to-resource links (Contains, GrantsAccessTo). Scope by relationshipType.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/identities:
+    post:
+      tags: [Ingest]
+      summary: Ingest identities
+      description: Upsert real-person identity records.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/identity-members:
+    post:
+      tags: [Ingest]
+      summary: Ingest identity members
+      description: Upsert identity-to-principal links.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/contexts:
+    post:
+      tags: [Ingest]
+      summary: Ingest contexts
+      description: Upsert organizational contexts (departments, OUs, classifications). Scope by contextType.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/governance/catalogs:
+    post:
+      tags: [Ingest]
+      summary: Ingest governance catalogs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/governance/policies:
+    post:
+      tags: [Ingest]
+      summary: Ingest assignment policies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/governance/requests:
+    post:
+      tags: [Ingest]
+      summary: Ingest assignment requests
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/governance/certifications:
+    post:
+      tags: [Ingest]
+      summary: Ingest certification decisions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestEnvelope'
+      responses:
+        '201':
+          $ref: '#/components/responses/IngestSuccess'
+
+  /ingest/refresh-views:
+    post:
+      tags: [Ingest]
+      summary: Refresh materialized views
+      description: Triggers a refresh of cached SQL views. Requires refreshViews permission.
+      responses:
+        '200':
+          description: Views refreshed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ─── Crawler Self-Service ───────────────────────────────────────
+  /crawlers/whoami:
+    get:
+      tags: [Crawlers]
+      summary: Get own identity
+      description: Returns the authenticated crawler's metadata.
+      responses:
+        '200':
+          description: Crawler metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrawlerInfo'
+
+  /crawlers/rotate:
+    post:
+      tags: [Crawlers]
+      summary: Rotate own API key
+      description: Generates a new key and immediately invalidates the current one.
+      responses:
+        '200':
+          description: New key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotateResult'
+
+  # ─── Admin Crawler Management ───────────────────────────────────
+  /admin/crawlers:
+    get:
+      tags: [Admin]
+      summary: List all crawlers
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: List of crawlers
+    post:
+      tags: [Admin]
+      summary: Register a new crawler
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCrawler'
+      responses:
+        '201':
+          description: Crawler created with one-time API key
+
+  /admin/crawlers/{id}:
+    patch:
+      tags: [Admin]
+      summary: Update crawler
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [Admin]
+      summary: Disable crawler
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Disabled
+
+  /admin/crawlers/{id}/reset:
+    post:
+      tags: [Admin]
+      summary: Admin-initiated key reset
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: New key returned
+
+  /admin/crawlers/{id}/audit:
+    get:
+      tags: [Admin]
+      summary: Get crawler audit log
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated audit log
+
+components:
+  securitySchemes:
+    CrawlerApiKey:
+      type: http
+      scheme: bearer
+      description: "Crawler API key (format: fgc_<random>)"
+    EntraIdBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Entra ID JWT token
+
+  schemas:
+    IngestEnvelope:
+      type: object
+      required: [records]
+      properties:
+        systemId:
+          type: integer
+          description: Target system ID (required for all entity types except systems)
+        syncMode:
+          type: string
+          enum: [full, delta]
+          default: delta
+          description: "full: merge + delete missing records. delta: merge only."
+        scope:
+          type: object
+          description: Narrow delete scope (e.g., { resourceType: "Group" })
+          additionalProperties:
+            type: string
+        idGeneration:
+          type: string
+          enum: [native, deterministic]
+          default: native
+        idPrefix:
+          type: string
+          description: Namespace for deterministic GUID generation
+        syncSession:
+          type: string
+          enum: [start, continue, end]
+          description: For chunked uploads across multiple requests
+        syncId:
+          type: string
+          format: uuid
+          description: Session ID (required for continue/end)
+        records:
+          type: array
+          maxItems: 50000
+          items:
+            type: object
+            additionalProperties: true
+
+    IngestResult:
+      type: object
+      properties:
+        table:
+          type: string
+        inserted:
+          type: integer
+        updated:
+          type: integer
+        deleted:
+          type: integer
+        records:
+          type: integer
+        durationMs:
+          type: integer
+
+    CrawlerInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+        displayName:
+          type: string
+        systemIds:
+          type: array
+          items:
+            type: integer
+          nullable: true
+        permissions:
+          type: array
+          items:
+            type: string
+
+    RotateResult:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          description: New API key (shown once)
+        apiKeyPrefix:
+          type: string
+        rotatedAt:
+          type: string
+          format: date-time
+
+    CreateCrawler:
+      type: object
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        systemIds:
+          type: array
+          items:
+            type: integer
+          nullable: true
+          description: Allowed system IDs (null = all)
+        permissions:
+          type: array
+          items:
+            type: string
+          default: [ingest]
+        rateLimit:
+          type: integer
+          default: 100
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+  responses:
+    IngestSuccess:
+      description: Ingest successful
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IngestResult'
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: array
+                items:
+                  type: string
+    Unauthorized:
+      description: Missing or invalid API key
+    Forbidden:
+      description: Insufficient permissions or system access

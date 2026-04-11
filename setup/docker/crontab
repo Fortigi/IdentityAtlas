@@ -1,0 +1,20 @@
+# FortigiGraph Docker Scheduler — edit this file and restart the scheduler container.
+# Uses supercronic syntax (same as standard cron).
+# Environment variables are substituted at runtime.
+#
+# ┌───────────── minute (0-59)
+# │ ┌───────────── hour (0-23)
+# │ │ ┌───────────── day of month (1-31)
+# │ │ │ ┌───────────── month (1-12)
+# │ │ │ │ ┌───────────── day of week (0-6, Sunday=0)
+# │ │ │ │ │
+# │ │ │ │ │
+
+# Risk scoring — runs nightly at 03:00 (requires SQL connection + optionally LLM key)
+# 0 3 * * * /usr/bin/pwsh -File /app/docker/run-risk-scoring.ps1
+
+# Account correlation — runs weekly on Sunday at 04:00
+# 0 4 * * 0 /usr/bin/pwsh -File /app/docker/run-account-correlation.ps1
+
+# CSV crawler — runs nightly at 02:00 (uncomment and set CRAWLER_API_KEY + CSV path)
+# 0 2 * * * /usr/bin/pwsh -File /app/Crawlers/CSV/Start-CSVCrawler.ps1 -ApiBaseUrl http://backend:3001/api -ApiKey $CRAWLER_API_KEY -CsvFolder /data/csv -SystemName "Scheduled CSV" -SystemType "CSV"

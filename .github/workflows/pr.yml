@@ -1,0 +1,211 @@
+# ─── Pull Request Pipeline ────────────────────────────────────────────────────
+# Fast checks that run on every PR. No Docker, no Azure credentials needed.
+#
+# Stages:
+#   1. lint-ps    — PSScriptAnalyzer on all PowerShell files
+#   2. lint-js    — ESLint on the frontend (app/ui)
+#   3. unit-tests — Pester tests with code coverage report
+#   4. unit-js    — Vitest tests for the API (validation, middleware)
+#   5. openapi    — Spectral lint on app/api/src/openapi.yaml
+#   6. audit      — npm audit on frontend and API packages
+#
+# Target branches: PRs into main or dev
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+env:
+  DOTNET_NOLOGO: true
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+
+jobs:
+  # ── Stage 1: PowerShell linting ──────────────────────────────────────────
+  lint-ps:
+    name: 'Lint: PSScriptAnalyzer'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+
+      - name: Analyse PowerShell files
+        shell: pwsh
+        run: |
+          # Scan all function roots (Docker-only project: no setup/azure folder)
+          # Error severity only — Write-Host and global vars are intentional patterns in this module
+          $paths = @(
+            'tools/powershell-sdk/graph',
+            'tools/powershell-sdk/helpers',
+            'tools/riskscoring',
+            'app/db'
+          )
+          $results = @()
+          foreach ($p in $paths) {
+            if (Test-Path $p) {
+              $results += Invoke-ScriptAnalyzer -Path $p -Recurse -Severity Error
+            }
+          }
+          if ($results) {
+            $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize
+            Write-Host "::error::PSScriptAnalyzer found $($results.Count) error(s)"
+            exit 1
+          }
+          Write-Host "PSScriptAnalyzer: no errors found" -ForegroundColor Green
+
+  # ── Stage 2: JavaScript linting ──────────────────────────────────────────
+  lint-js:
+    name: 'Lint: ESLint'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/ui
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: app/ui
+        run: npm run lint
+
+  # ── Stage 3: Pester unit tests ───────────────────────────────────────────
+  unit-tests:
+    name: 'Unit Tests: Pester'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
+
+      - name: Run Pester tests with coverage
+        shell: pwsh
+        run: |
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'test/unit/IdentityAtlas.Tests.ps1'
+          $cfg.Output.Verbosity = 'Detailed'
+          $cfg.TestResult.Enabled = $true
+          $cfg.TestResult.OutputPath = 'pester-results.xml'
+          $cfg.TestResult.OutputFormat = 'JUnitXml'
+          $cfg.CodeCoverage.Enabled = $true
+          $cfg.CodeCoverage.Path = @(
+            'tools/powershell-sdk/graph',
+            'tools/powershell-sdk/helpers',
+            'tools/riskscoring',
+            'app/db'
+          )
+          $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
+          $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
+          $result = Invoke-Pester -Configuration $cfg
+          Write-Host "Coverage: $([Math]::Round($result.CodeCoverage.CoveragePercent, 1))%"
+          if ($result.FailedCount -gt 0) { exit 1 }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pester-results
+          path: |
+            pester-results.xml
+            pester-coverage.xml
+          retention-days: 14
+
+  # ── Stage 4: API unit tests (Vitest) ────────────────────────────────────
+  unit-js:
+    name: 'Unit Tests: Vitest (API)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/api
+        run: npm ci
+
+      - name: Run Vitest
+        working-directory: app/api
+        run: npm test
+
+  # ── Stage 5: OpenAPI spec linting ───────────────────────────────────────
+  openapi:
+    name: 'Lint: OpenAPI spec'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Spectral
+        run: npm install -g @stoplight/spectral-cli
+
+      - name: Lint openapi.yaml
+        run: spectral lint app/api/src/openapi.yaml --ruleset @stoplight/spectral-oas
+
+  # ── Stage 6: Dependency audit ────────────────────────────────────────────
+  audit:
+    name: 'Audit: npm audit'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Audit frontend dependencies
+        working-directory: app/ui
+        run: npm audit --audit-level=high
+
+      - name: Audit API dependencies
+        working-directory: app/api
+        run: npm audit --audit-level=high
+
+  # ── Summary ─────────────────────────────────────────────────────────────
+  pr-summary:
+    name: 'PR Summary'
+    runs-on: ubuntu-latest
+    needs: [lint-ps, lint-js, unit-tests, unit-js, openapi, audit]
+    if: always()
+    steps:
+      - name: Report results
+        run: |
+          echo "## PR Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for job in lint-ps lint-js unit-tests unit-js openapi audit; do
+            result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('$job', {}).get('result','unknown'))")
+            if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
+            echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
+          done
+
+      - name: Fail if any check failed
+        if: |
+          needs.lint-ps.result == 'failure' ||
+          needs.lint-js.result == 'failure' ||
+          needs.unit-tests.result == 'failure' ||
+          needs.unit-js.result == 'failure' ||
+          needs.openapi.result == 'failure' ||
+          needs.audit.result == 'failure'
+        run: exit 1

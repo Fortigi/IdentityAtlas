@@ -1,0 +1,161 @@
+{
+  "version": "1.0.0",
+  "id": "universal",
+  "name": "Universal Classifiers",
+  "description": "Default classifiers applicable to all organizations. Detects common privilege patterns, network access, and infrastructure groups.",
+
+  "groups": [
+    {
+      "id": "univ-domain-admins",
+      "category": "privilege-tier0",
+      "name_patterns": ["domain.?admin", "domein.?beheer", "DA[-_\\s]", "tier.?0"],
+      "description_patterns": ["domain.?admin", "full.?control.?directory"],
+      "base_score": 95,
+      "rationale": "Direct domain administration — Tier 0 asset"
+    },
+    {
+      "id": "univ-global-admins",
+      "category": "privilege-tier0",
+      "name_patterns": ["global.?admin", "GA[-_\\s]", "tenant.?admin", "GlobalAdmin"],
+      "base_score": 95,
+      "rationale": "Entra ID Global Administrator equivalent"
+    },
+    {
+      "id": "univ-privileged-access",
+      "category": "privilege",
+      "name_patterns": ["privileged", "PAM", "PIM", "break.?glass", "emergency.?access", "noodtoegang", "PAG[-_]"],
+      "base_score": 90,
+      "rationale": "Privileged or emergency access groups"
+    },
+    {
+      "id": "univ-vpn-remote",
+      "category": "network-access",
+      "name_patterns": ["VPN", "remote.?access", "always.?on", "directaccess", "SSLVPN", "ZTNA"],
+      "base_score": 70,
+      "rationale": "Remote network access — perimeter boundary"
+    },
+    {
+      "id": "univ-firewall-network",
+      "category": "network-infrastructure",
+      "name_patterns": ["firewall", "network.?admin", "switch.?admin", "router.?admin", "VLAN.?admin"],
+      "base_score": 80,
+      "rationale": "Network infrastructure management"
+    },
+    {
+      "id": "univ-sap",
+      "category": "erp",
+      "name_patterns": ["SAP", "S4.?HANA", "SAP.?basis", "SAP.?admin"],
+      "description_patterns": ["SAP", "enterprise.?resource"],
+      "base_score": 75,
+      "rationale": "ERP system access — typically financial/operational data"
+    },
+    {
+      "id": "univ-exchange-mail",
+      "category": "communication",
+      "name_patterns": ["exchange.?admin", "mail.?admin", "transport.?rule", "journaling"],
+      "base_score": 65,
+      "rationale": "Email infrastructure administration"
+    },
+    {
+      "id": "univ-backup-recovery",
+      "category": "data-protection",
+      "name_patterns": ["backup", "disaster.?recovery", "DR[-_\\s]", "veeam", "commvault", "recovery"],
+      "base_score": 75,
+      "rationale": "Backup systems — compromise enables ransomware impact"
+    },
+    {
+      "id": "univ-security-ops",
+      "category": "security",
+      "name_patterns": ["SOC", "SIEM", "sentinel", "security.?operations", "incident.?response", "SecurityReader"],
+      "base_score": 80,
+      "rationale": "Security operations — visibility and response capability"
+    },
+    {
+      "id": "univ-certificate-pki",
+      "category": "trust-infrastructure",
+      "name_patterns": ["PKI", "certificate", "CA[-_\\s]admin", "cert.?auth"],
+      "base_score": 85,
+      "rationale": "PKI/certificate infrastructure — trust anchor"
+    },
+    {
+      "id": "univ-helpdesk",
+      "category": "privilege",
+      "name_patterns": ["helpdesk.?admin", "HelpdeskAdmin", "servicedesk.?admin", "password.?reset"],
+      "base_score": 55,
+      "rationale": "Helpdesk administration — can reset passwords and unlock accounts"
+    },
+    {
+      "id": "univ-user-admin",
+      "category": "privilege",
+      "name_patterns": ["user.?admin", "UserAdmin", "account.?admin", "identity.?admin"],
+      "base_score": 75,
+      "rationale": "User account administration — can create/modify user accounts"
+    },
+    {
+      "id": "univ-conditional-access",
+      "category": "security",
+      "name_patterns": ["conditional.?access", "CA[-_]exclu", "MFA.?exclu", "MFA.?bypass"],
+      "base_score": 85,
+      "rationale": "Conditional Access exclusion groups — bypass security controls"
+    },
+    {
+      "id": "univ-azure-subscription",
+      "category": "cloud-infrastructure",
+      "name_patterns": ["subscription.?owner", "subscription.?contrib", "azure.?admin", "cloud.?admin"],
+      "base_score": 80,
+      "rationale": "Azure subscription-level access — cloud infrastructure control"
+    }
+  ],
+
+  "users": [
+    {
+      "id": "univ-c-suite",
+      "category": "high-value-target",
+      "title_patterns": ["CEO", "CFO", "CTO", "CISO", "COO", "CIO", "CRO",
+                          "chief.?executive", "chief.?financial", "chief.?technology",
+                          "directeur", "bestuurder", "bestuursvoorzitter"],
+      "base_score": 85,
+      "rationale": "C-suite accounts are primary targets for BEC and account takeover"
+    },
+    {
+      "id": "univ-it-admin",
+      "category": "privilege",
+      "title_patterns": ["system.?admin", "systeembeheerder", "IT.?manager",
+                          "infrastructure.?engineer", "platform.?engineer", "Sysadmin"],
+      "base_score": 70,
+      "rationale": "IT administrators typically hold elevated privileges"
+    },
+    {
+      "id": "univ-service-account",
+      "category": "non-human",
+      "name_patterns": ["^svc[-_]", "^sa[-_]", "service.?account", "^app[-_]"],
+      "upn_patterns": ["^svc", "^sa[-_]", "noreply"],
+      "base_score": 65,
+      "rationale": "Service accounts often have broad persistent access with weak controls"
+    },
+    {
+      "id": "univ-security-role",
+      "category": "security",
+      "title_patterns": ["security.?engineer", "security.?analyst", "security.?architect",
+                          "SOC.?analyst", "CISO", "DPO", "data.?protection"],
+      "base_score": 60,
+      "rationale": "Security personnel with access to security tooling and sensitive data"
+    },
+    {
+      "id": "univ-finance-role",
+      "category": "financial",
+      "title_patterns": ["controller", "treasurer", "financial.?analyst",
+                          "accountant", "finance.?manager", "CFO"],
+      "base_score": 50,
+      "rationale": "Finance roles with access to financial systems and data"
+    },
+    {
+      "id": "univ-compliance-role",
+      "category": "compliance",
+      "title_patterns": ["compliance.?officer", "auditor", "risk.?manager",
+                          "legal.?counsel", "DPO", "privacy.?officer"],
+      "base_score": 45,
+      "rationale": "Compliance and legal roles with access to sensitive regulatory data"
+    }
+  ]
+}
