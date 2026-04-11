@@ -44,7 +44,7 @@ General-purpose envelope-encrypted secret store for any secret the app needs
 (LLM API keys, scraper credentials, future Vault/AWS-SM-backed secrets all live
 here).
 
-- **Schema**: [`Secrets`](../../app/api/src/db/migrations/010_secrets_and_risk.sql) — id, scope, label, ciphertext, iv, authTag + per-row encryptedKey/keyIv/keyAuthTag.
+- **Schema**: [`Secrets`](https://github.com/Fortigi/IdentityAtlas/blob/main/) — id, scope, label, ciphertext, iv, authTag + per-row encryptedKey/keyIv/keyAuthTag.
 - **Encryption**: AES-256-GCM. Per-row 32-byte data key. The data key is wrapped by a master key from `IDENTITY_ATLAS_MASTER_KEY` (32 bytes, base64).
 - **Master key bootstrap**:
   1. `IDENTITY_ATLAS_MASTER_KEY` env var (preferred — back this up like any other root secret)
