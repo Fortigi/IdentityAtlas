@@ -35,7 +35,9 @@ Param(
     [switch]$Unregister
 )
 
-$repoRoot = Split-Path $PSScriptRoot -Parent
+# $PSScriptRoot is test\nightly — go up two levels to reach the repo root.
+# Used for the task's WorkingDirectory and for printing report paths below.
+$repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $scriptPath = Join-Path $PSScriptRoot 'Run-NightlyLocal.ps1'
 
 if ($Unregister) {
