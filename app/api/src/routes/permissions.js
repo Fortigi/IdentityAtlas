@@ -318,15 +318,29 @@ router.get('/permissions', async (req, res) => {
           WHERE "principalType" IS NULL OR "principalType" != '#microsoft.graph.group'
         `);
 
-        // AP mapping — only for the users we actually returned. With the
-        // materialized view + userId index this is near-instant.
+        // AP mapping — constrain to just the users we're about to return.
+        // In the tag-filtered branch we already have the principal ID list.
+        // In the top-N branch we pull the same top-N subquery so the
+        // materialized view is hit on its (userId) index instead of a
+        // full 410k-row scan. The data we return only needs AP entries for
+        // the users in the result set; filtering here is both faster and
+        // smaller.
         let apMapping = [];
         try {
           const apReq = timedRequest(p, 'perm-ap-mapping', res);
-          let apWhere = '';
+          let apWhere;
           if (preFilteredUserIds) {
             apReq.input('apPrincipalIds', preFilteredUserIds);
             apWhere = `WHERE ap."userId" = ANY(@apPrincipalIds)`;
+          } else {
+            apReq.input('apUserLimit', userLimit);
+            apWhere = `WHERE ap."userId" IN (
+              SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
+              WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
+              GROUP BY "principalId"
+              ORDER BY COUNT(*) DESC
+              LIMIT @apUserLimit
+            )`;
           }
           const apRes = await apReq.query(`
             SELECT

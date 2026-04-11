@@ -59,9 +59,34 @@ function Invoke-Api {
     $uri = "$ApiBaseUrl$Path"
     $h = @{ 'Content-Type' = 'application/json' }
     if ($Body) {
-        Invoke-RestMethod -Method $Method -Uri $uri -Headers $h -Body ($Body | ConvertTo-Json -Depth 10 -Compress) -TimeoutSec 120
+        Invoke-RestMethod -Method $Method -Uri $uri -Headers $h -Body ($Body | ConvertTo-Json -Depth 10 -Compress) -TimeoutSec 600
     } else {
-        Invoke-RestMethod -Method $Method -Uri $uri -Headers $h -TimeoutSec 120
+        Invoke-RestMethod -Method $Method -Uri $uri -Headers $h -TimeoutSec 600
+    }
+}
+
+# Raw HTTP timing that bypasses Invoke-RestMethod's JSON parser.
+# Invoke-RestMethod parses the response body into PSCustomObjects, which for
+# large responses (the matrix endpoint can return 80+ MB of JSON) takes
+# hundreds of seconds — far longer than the server itself. We want to measure
+# *server* performance, so we use Invoke-WebRequest with -UseBasicParsing
+# and ignore the parsed content. Returns elapsed milliseconds and response size.
+function Measure-RawGet {
+    param([string]$Path)
+    $uri = "$ApiBaseUrl$Path"
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $r = Invoke-WebRequest -Uri $uri -Method GET -UseBasicParsing -TimeoutSec 600
+        $sw.Stop()
+        return @{
+            ok     = $true
+            ms     = $sw.Elapsed.TotalMilliseconds
+            bytes  = $r.RawContentLength
+            status = $r.StatusCode
+        }
+    } catch {
+        $sw.Stop()
+        return @{ ok = $false; ms = $sw.Elapsed.TotalMilliseconds; error = $_.Exception.Message }
     }
 }
 
@@ -185,11 +210,12 @@ $targets = @(
 $clientTimings = @{}
 foreach ($t in $targets) {
     $samples = [System.Collections.Generic.List[double]]::new()
+    $lastBytes = 0
     for ($i = 0; $i -lt $Runs; $i++) {
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        try { Invoke-Api -Path $t.path | Out-Null } catch { Write-Host "    $($t.name) run $($i+1): $($_.Exception.Message)" -ForegroundColor Yellow }
-        $sw.Stop()
-        $samples.Add($sw.Elapsed.TotalMilliseconds) | Out-Null
+        $r = Measure-RawGet -Path $t.path
+        if (-not $r.ok) { Write-Host "    $($t.name) run $($i+1): $($r.error)" -ForegroundColor Yellow }
+        $samples.Add($r.ms) | Out-Null
+        if ($r.bytes) { $lastBytes = $r.bytes }
     }
     $sorted = @($samples | Sort-Object)
     $n = $sorted.Count
@@ -197,13 +223,17 @@ foreach ($t in $targets) {
     $p50 = $sorted[[Math]::Floor($n * 0.5)]
     $p95 = $sorted[[Math]::Min($n - 1, [Math]::Floor($n * 0.95))]
     $clientTimings[$t.name] = @{
-        path  = $t.path
-        avgMs = [Math]::Round($avg, 1)
-        p50Ms = [Math]::Round($p50, 1)
-        p95Ms = [Math]::Round($p95, 1)
-        runs  = $n
+        path      = $t.path
+        avgMs     = [Math]::Round($avg, 1)
+        p50Ms     = [Math]::Round($p50, 1)
+        p95Ms     = [Math]::Round($p95, 1)
+        runs      = $n
+        respBytes = [int64]$lastBytes
     }
-    Write-Host ("  {0,-26} avg {1,6:N1} ms  p50 {2,6:N1} ms  p95 {3,6:N1} ms" -f $t.name, $avg, $p50, $p95) -ForegroundColor Gray
+    $sizeStr = if ($lastBytes -gt 1048576) { "{0:N1} MB" -f ($lastBytes / 1MB) }
+               elseif ($lastBytes -gt 1024) { "{0:N1} KB" -f ($lastBytes / 1KB) }
+               else { "$lastBytes B" }
+    Write-Host ("  {0,-26} avg {1,8:N1} ms  p50 {2,8:N1} ms  p95 {3,8:N1} ms  [{4}]" -f $t.name, $avg, $p50, $p95, $sizeStr) -ForegroundColor Gray
 }
 
 # ─── 6. Collect server perf data + write report ─────────────────
@@ -265,13 +295,17 @@ $md = New-Object System.Text.StringBuilder
 [void]$md.AppendLine("")
 [void]$md.AppendLine("## Client-side timings")
 [void]$md.AppendLine("")
-[void]$md.AppendLine("Wall-clock over $($Runs) runs per endpoint, as seen from the benchmark client.")
+[void]$md.AppendLine("Wall-clock over $($Runs) runs per endpoint, measured via Invoke-WebRequest without JSON parsing (server-side HTTP time only).")
 [void]$md.AppendLine("")
-[void]$md.AppendLine("| Endpoint | avg | p50 | p95 |")
-[void]$md.AppendLine("|---|---:|---:|---:|")
+[void]$md.AppendLine("| Endpoint | avg | p50 | p95 | Response size |")
+[void]$md.AppendLine("|---|---:|---:|---:|---:|")
 foreach ($k in ($clientTimings.Keys | Sort-Object)) {
     $t = $clientTimings[$k]
-    [void]$md.AppendLine("| ``$k`` | $($t.avgMs) ms | $($t.p50Ms) ms | $($t.p95Ms) ms |")
+    $b = [int64]$t.respBytes
+    $sz = if ($b -gt 1048576) { "{0:N1} MB" -f ($b / 1MB) }
+          elseif ($b -gt 1024) { "{0:N1} KB" -f ($b / 1KB) }
+          else { "$b B" }
+    [void]$md.AppendLine("| ``$k`` | $($t.avgMs) ms | $($t.p50Ms) ms | $($t.p95Ms) ms | $sz |")
 }
 [void]$md.AppendLine("")
 [void]$md.AppendLine("## Server-side timings (from /api/perf)")
