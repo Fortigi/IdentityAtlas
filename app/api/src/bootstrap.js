@@ -165,17 +165,26 @@ function ensureVaultKey() {
     return;
   }
   if (existsSync(MASTER_KEY_FILE)) {
+    // File exists — it MUST be readable. Falling through to generate a new key
+    // would silently corrupt any secrets encrypted with the old one (LLM API
+    // keys, scraper credentials). A hard error is the only safe option.
+    let key;
     try {
-      const key = readFileSync(MASTER_KEY_FILE, 'utf8').trim();
-      if (key) {
-        process.env.IDENTITY_ATLAS_MASTER_KEY = key;
-        if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed — master key file is corrupt');
-        console.log(`Master key loaded from ${MASTER_KEY_FILE}`);
-        return;
-      }
+      key = readFileSync(MASTER_KEY_FILE, 'utf8').trim();
     } catch (err) {
-      console.warn(`Failed to read ${MASTER_KEY_FILE}: ${err.message}`);
+      throw new Error(
+        `Master key file exists at ${MASTER_KEY_FILE} but could not be read: ${err.message}. ` +
+        `This usually means the file is owned by a different user than the web container. ` +
+        `Fix with: docker compose exec -u 0 web chown -R node:node /data`
+      );
     }
+    if (!key) {
+      throw new Error(`Master key file ${MASTER_KEY_FILE} is empty. Delete it and restart the web container to regenerate.`);
+    }
+    process.env.IDENTITY_ATLAS_MASTER_KEY = key;
+    if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed — master key file is corrupt');
+    console.log(`Master key loaded from ${MASTER_KEY_FILE}`);
+    return;
   }
   // First boot — generate a key and persist it
   const key = crypto.randomBytes(32).toString('base64');
@@ -186,8 +195,12 @@ function ensureVaultKey() {
     console.log(`Master key generated and persisted to ${MASTER_KEY_FILE}`);
     console.log('For production, prefer setting IDENTITY_ATLAS_MASTER_KEY explicitly so the key can be backed up.');
   } catch (err) {
-    console.warn(`Could not persist master key (${MASTER_KEY_FILE}): ${err.message}`);
-    console.warn('Generated an ephemeral master key — secrets will be lost on container restart.');
+    // Can't persist → refuse to continue. Running with an ephemeral key would
+    // silently lose all secrets on the next container restart.
+    throw new Error(
+      `Could not persist master key to ${MASTER_KEY_FILE}: ${err.message}. ` +
+      `Set IDENTITY_ATLAS_MASTER_KEY explicitly in the compose env, or fix the volume permissions.`
+    );
   }
   if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed after key generation');
 }

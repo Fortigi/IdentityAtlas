@@ -182,5 +182,161 @@ export async function chat(config, args) {
   }
 }
 
+// ─── Model discovery ────────────────────────────────────────────────
+//
+// Lists the models available for a given provider + credentials. Used by the
+// Admin → LLM Settings page to populate the model dropdown instead of making
+// the user type the exact model ID.
+//
+// Each provider has a different shape and different "model" semantics:
+//   - anthropic:    GET /v1/models → {data: [{id, display_name, created_at}]}
+//   - openai:       GET /v1/models → {data: [{id, created, owned_by}]}
+//   - azure-openai: GET {endpoint}/openai/deployments?api-version=... — returns
+//                   deployments (the user-chosen name), not underlying models.
+//                   The user still needs to know which deployment to use.
+//
+// Return shape: { models: [{id, label?}] } — `id` is what gets passed to
+// chat() as the `model` field, `label` is an optional human-friendly name.
+
+// Rank Anthropic Claude models by capability tier (biggest/most expensive first).
+// Opus > Sonnet > Haiku. Within a family, higher version + newer date wins.
+// Returns a negative number for "more capable" (sorts first in ascending order).
+function rankAnthropicModel(id) {
+  const lower = id.toLowerCase();
+  // Family tier: lower = more capable / more expensive
+  let family = 9;
+  if      (lower.includes('opus'))   family = 0;
+  else if (lower.includes('sonnet')) family = 1;
+  else if (lower.includes('haiku'))  family = 2;
+  // Version number (claude-4, claude-3.7, etc.) — higher version = better
+  const versionMatch = lower.match(/claude[- ]?(\d+(?:[.-]\d+)?)/);
+  const version = versionMatch ? parseFloat(versionMatch[1].replace('-', '.')) : 0;
+  // Date suffix (YYYYMMDD) — newer = better tiebreaker
+  const dateMatch = lower.match(/(\d{8})/);
+  const date = dateMatch ? parseInt(dateMatch[1], 10) : 0;
+  // Compose a sortable tuple: family * 1e12 - version * 1e9 - date
+  // Lower result = more capable model → appears first in ascending sort
+  return family * 1e12 - version * 1e9 - date;
+}
+
+// Speed/cost hint for Anthropic models — shown in the dropdown so the user
+// understands the tradeoff. Opus is slow+expensive+highest quality, Haiku is
+// fast+cheap+lower quality. These are rough heuristics, not exact numbers.
+function anthropicSpeedHint(id) {
+  const lower = id.toLowerCase();
+  if (lower.includes('opus'))   return 'slow · highest quality';
+  if (lower.includes('sonnet')) return 'balanced';
+  if (lower.includes('haiku'))  return 'fast · lower quality';
+  return '';
+}
+
+async function listModelsAnthropic({ apiKey }) {
+  const r = await fetch('https://api.anthropic.com/v1/models', {
+    headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+  });
+  if (!r.ok) {
+    const err = await r.text().catch(() => '');
+    throw new Error(`Anthropic models API error ${r.status}: ${err.slice(0, 300)}`);
+  }
+  const json = await r.json();
+  const models = (json.data || [])
+    .filter(m => m.id)
+    .map(m => {
+      const base = m.display_name || m.id;
+      const hint = anthropicSpeedHint(m.id);
+      return { id: m.id, label: hint ? `${base} — ${hint}` : base };
+    })
+    .sort((a, b) => rankAnthropicModel(a.id) - rankAnthropicModel(b.id));
+  return { models };
+}
+
+// Rank OpenAI models by capability tier (biggest first).
+// GPT-5 > GPT-4.5 > o-series (reasoning) > GPT-4o > GPT-4 > GPT-3.5.
+// "mini" and "nano" variants rank below their full counterparts.
+function rankOpenAIModel(id) {
+  const lower = id.toLowerCase();
+  let family = 9;
+  if      (lower.startsWith('gpt-5'))        family = 0;
+  else if (lower.startsWith('gpt-4.5'))      family = 1;
+  else if (/^o[1-9]/i.test(lower))           family = 2;  // o1, o3, o4 reasoning models
+  else if (lower.startsWith('gpt-4o'))       family = 3;
+  else if (lower.startsWith('gpt-4-turbo'))  family = 4;
+  else if (lower.startsWith('gpt-4'))        family = 5;
+  else if (lower.startsWith('gpt-3.5'))      family = 6;
+  // Mini/nano variants drop one tier below the base
+  let variant = 0;
+  if      (lower.includes('nano'))  variant = 2;
+  else if (lower.includes('mini'))  variant = 1;
+  // Date suffix for tiebreak (newest first)
+  const dateMatch = lower.match(/(\d{4}-?\d{2}-?\d{2})/);
+  const date = dateMatch ? parseInt(dateMatch[1].replace(/-/g, ''), 10) : 0;
+  return family * 1e12 + variant * 1e10 - date;
+}
+
+// Speed/cost hint for OpenAI models
+function openAISpeedHint(id) {
+  const lower = id.toLowerCase();
+  if (lower.includes('nano'))                    return 'fastest · lowest quality';
+  if (lower.includes('mini'))                    return 'fast · balanced';
+  if (/^o[1-9]/i.test(lower))                    return 'slow · reasoning (thinks before answering)';
+  if (lower.startsWith('gpt-5'))                 return 'slow · highest quality';
+  if (lower.startsWith('gpt-4.5'))               return 'slow · high quality';
+  if (lower.startsWith('gpt-4o'))                return 'balanced';
+  if (lower.startsWith('gpt-4-turbo'))           return 'balanced';
+  if (lower.startsWith('gpt-4'))                 return 'slower · high quality';
+  if (lower.startsWith('gpt-3.5'))               return 'fast · lower quality';
+  return '';
+}
+
+async function listModelsOpenAI({ apiKey }) {
+  const r = await fetch('https://api.openai.com/v1/models', {
+    headers: { 'authorization': `Bearer ${apiKey}` },
+  });
+  if (!r.ok) {
+    const err = await r.text().catch(() => '');
+    throw new Error(`OpenAI models API error ${r.status}: ${err.slice(0, 300)}`);
+  }
+  const json = await r.json();
+  // Filter to chat-capable models
+  const models = (json.data || [])
+    .filter(m => m.id && /^(gpt-|o[1-9])/i.test(m.id))
+    .map(m => {
+      const hint = openAISpeedHint(m.id);
+      return { id: m.id, label: hint ? `${m.id} — ${hint}` : m.id };
+    })
+    .sort((a, b) => rankOpenAIModel(a.id) - rankOpenAIModel(b.id));
+  return { models };
+}
+
+async function listModelsAzureOpenAI({ apiKey, endpoint, apiVersion }) {
+  if (!endpoint) throw new Error('azure-openai: endpoint is required');
+  const ver = apiVersion || '2024-08-01-preview';
+  const clean = endpoint.replace(/\/+$/, '');
+  const url = `${clean}/openai/deployments?api-version=${encodeURIComponent(ver)}`;
+  const r = await fetch(url, { headers: { 'api-key': apiKey } });
+  if (!r.ok) {
+    const err = await r.text().catch(() => '');
+    throw new Error(`Azure OpenAI deployments API error ${r.status}: ${err.slice(0, 300)}`);
+  }
+  const json = await r.json();
+  // Azure returns deployments — each `id` is the deployment name to use as `model`
+  const models = (json.data || [])
+    .filter(d => d.id)
+    .map(d => ({ id: d.id, label: d.model ? `${d.id} (${d.model})` : d.id }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  return { models };
+}
+
+export async function listModels(config) {
+  if (!config || !config.provider) throw new Error('LLM config missing provider');
+  if (!config.apiKey)              throw new Error('LLM config missing apiKey');
+  switch (config.provider) {
+    case 'anthropic':    return listModelsAnthropic(config);
+    case 'openai':       return listModelsOpenAI(config);
+    case 'azure-openai': return listModelsAzureOpenAI(config);
+    default: throw new Error(`Unknown LLM provider: ${config.provider}`);
+  }
+}
+
 export const SUPPORTED_PROVIDERS = ['anthropic', 'openai', 'azure-openai'];
 export { DEFAULT_MODELS };

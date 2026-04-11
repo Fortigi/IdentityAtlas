@@ -442,8 +442,17 @@ if ($SyncPrincipals) {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing principals (users)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing users' -Pct 12 -Detail 'Fetching from Microsoft Graph...'
 
-    # Build $select dynamically — core attributes + custom
-    $coreUserAttrs = @('id','displayName','mail','userPrincipalName','accountEnabled','givenName','surname','department','jobTitle','companyName','employeeId','createdDateTime')
+    # Build $select dynamically — core attributes + custom.
+    # signInActivity and userType are included so the risk scoring engine can
+    # compute "stale account" and "guest user" signals. signInActivity requires
+    # AuditLog.Read.All (already in the base permission set). `manager` is
+    # expanded inline so we get managerId in one round trip — the alternative
+    # (/users/{id}/manager per user) is ~4,500 requests for a mid-size tenant.
+    $coreUserAttrs = @(
+        'id','displayName','mail','userPrincipalName','accountEnabled',
+        'givenName','surname','department','jobTitle','companyName','employeeId',
+        'createdDateTime','userType','signInActivity','externalUserState'
+    )
 
     # If any custom attribute is extensionAttributeN, add onPremisesExtensionAttributes to the select
     $extraSelectAttrs = @()
@@ -464,7 +473,9 @@ if ($SyncPrincipals) {
     }
     $allUserAttrs = $coreUserAttrs + $extraSelectAttrs | Select-Object -Unique
     $userSelect = $allUserAttrs -join ','
-    $users = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/users?`$select=$userSelect&`$top=999"
+    # $expand=manager($select=id) pulls the manager reference inline — only the
+    # id is needed on the Principals side, the ingest endpoint resolves it.
+    $users = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/users?`$select=$userSelect&`$expand=manager(`$select=id)&`$top=999"
     Update-CrawlerProgress -Detail "Building $($users.Count) user records..."
 
     $records = @($users | ForEach-Object {
@@ -482,15 +493,33 @@ if ($SyncPrincipals) {
             employeeId       = $_.employeeId
             createdDateTime  = $_.createdDateTime
         }
-        # Add custom attributes to extendedAttributes (handles extensionAttribute* lookup)
+        # Manager relationship (from $expand=manager)
+        if ($_.manager -and $_.manager.id) {
+            $rec['managerId'] = $_.manager.id
+        }
+
+        # Build extendedAttributes: signInActivity, userType, externalUserState
+        # plus any custom attributes the operator asked for. We put hygiene
+        # signals in extendedAttributes because there are no first-class
+        # columns for them on Principals — the scoring engine reads them from
+        # the jsonb blob at scoring time.
+        $ext = @{}
+        if ($_.userType)          { $ext['userType']          = $_.userType }
+        if ($_.externalUserState) { $ext['externalUserState'] = $_.externalUserState }
+        if ($_.signInActivity) {
+            $sia = @{}
+            if ($_.signInActivity.lastSignInDateTime)                     { $sia['lastSignInDateTime']                     = $_.signInActivity.lastSignInDateTime }
+            if ($_.signInActivity.lastNonInteractiveSignInDateTime)       { $sia['lastNonInteractiveSignInDateTime']       = $_.signInActivity.lastNonInteractiveSignInDateTime }
+            if ($_.signInActivity.lastSuccessfulSignInDateTime)           { $sia['lastSuccessfulSignInDateTime']           = $_.signInActivity.lastSuccessfulSignInDateTime }
+            if ($sia.Count -gt 0) { $ext['signInActivity'] = $sia }
+        }
         if ($CustomUserAttributes.Count -gt 0) {
-            $ext = @{}
             foreach ($attr in $CustomUserAttributes) {
                 $val = Get-UserAttrValue -User $_ -AttrName $attr
                 if ($null -ne $val -and $val -ne '') { $ext[$attr] = $val }
             }
-            if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
         }
+        if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
         $rec
     })
 
