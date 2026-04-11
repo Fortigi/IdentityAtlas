@@ -45,6 +45,7 @@
 Param(
     [string]$RepoRoot = (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),
     [string]$CsvDataset = '',
+    [switch]$SkipStaticChecks,
     [switch]$SkipPowerShellUnit,
     [switch]$SkipBackendUnit,
     [switch]$SkipFrontendUnit,
@@ -124,6 +125,146 @@ try {
     Pop-Location
 } catch {
     Write-Host "Git pull skipped: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# PHASE 0: STATIC CHECKS (linting + dependency audit + spec lint)
+# ═══════════════════════════════════════════════════════════════════
+# Mirrors the pr.yml GitHub Actions checks so we catch the same issues
+# locally before pushing. Fast fail gate — all four checks together run
+# in well under a minute on a machine that has PSScriptAnalyzer + npm,
+# and cleanly skip (marked PASS with "skipped: …") when a tool is missing.
+#
+# Why these live in the nightly runner even though CI runs them too:
+#   1. Different environment — CI runs on ubuntu-latest, the nightly
+#      runner on Windows. Catches line-ending / path-casing surprises.
+#   2. Fast feedback for unattended runs — fail early before spending
+#      ~10 minutes on Docker integration + Playwright.
+#   3. Self-contained: a local dev can run this phase in isolation via
+#      `-SkipPowerShellUnit -SkipBackendUnit -SkipFrontendUnit
+#       -SkipIntegration -SkipE2E` to get "did I break lint?" in seconds.
+#
+# When npm is missing on the host we fall back to a one-shot
+# `node:20-slim` container (same pattern as Phase 2 / Phase 3).
+if (-not $SkipStaticChecks) {
+    Write-Phase "Phase 0: Static Checks"
+
+    $hasNpm = $null -ne (Get-Command npm -ErrorAction SilentlyContinue)
+
+    # ── 0a: PSScriptAnalyzer ────────────────────────────────────────
+    # Error-severity only. Write-Host / global vars are intentional
+    # patterns in the PowerShell SDK and would drown out real issues.
+    try {
+        $hasPSSA = $null -ne (Get-Module -ListAvailable PSScriptAnalyzer)
+        if (-not $hasPSSA) {
+            Write-Result 'Static-PSScriptAnalyzer' $true 'skipped: PSScriptAnalyzer not installed'
+        } else {
+            Import-Module PSScriptAnalyzer -Force
+            $scanPaths = @(
+                'tools/powershell-sdk/graph',
+                'tools/powershell-sdk/helpers',
+                'tools/riskscoring',
+                'app/db'
+            ) | ForEach-Object { Join-Path $RepoRoot $_ } |
+                Where-Object { Test-Path $_ }
+
+            $pssaResults = @()
+            foreach ($p in $scanPaths) {
+                $pssaResults += Invoke-ScriptAnalyzer -Path $p -Recurse -Severity Error
+            }
+            $pssaLog = Join-Path $LogFolder 'static-psscriptanalyzer.log'
+            if ($pssaResults) {
+                $pssaResults | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize |
+                    Out-String | Out-File -FilePath $pssaLog -Encoding UTF8
+                Write-Result 'Static-PSScriptAnalyzer' $false "$($pssaResults.Count) error(s) — see static-psscriptanalyzer.log"
+            } else {
+                "PSScriptAnalyzer: 0 errors across $($scanPaths.Count) scan paths" |
+                    Out-File -FilePath $pssaLog -Encoding UTF8
+                Write-Result 'Static-PSScriptAnalyzer' $true "0 errors across $($scanPaths.Count) paths"
+            }
+        }
+    } catch {
+        Write-Result 'Static-PSScriptAnalyzer' $false $_.Exception.Message
+    }
+
+    # ── 0b: ESLint on app/ui ───────────────────────────────────────
+    try {
+        $eslintLog = Join-Path $LogFolder 'static-eslint.log'
+        if ($hasNpm) {
+            Push-Location $frontendDir
+            $null = & npm run lint 2>&1 | Tee-Object -FilePath $eslintLog
+            $eslintExit = $LASTEXITCODE
+            Pop-Location
+        } else {
+            $uiPath = $frontendDir -replace '\\','/' -replace '^([A-Za-z]):','/$1'
+            $null = & docker run --rm -v "${uiPath}:/work" -w /work node:20-slim sh -c "npm ci --omit=dev >/dev/null 2>&1; npm run lint" 2>&1 |
+                Tee-Object -FilePath $eslintLog
+            $eslintExit = $LASTEXITCODE
+        }
+        Write-Result 'Static-ESLint' ($eslintExit -eq 0) $(if ($eslintExit -ne 0) { "exit code $eslintExit — see static-eslint.log" })
+    } catch {
+        Write-Result 'Static-ESLint' $false $_.Exception.Message
+        try { Pop-Location } catch {}
+    }
+
+    # ── 0c: Spectral lint on openapi.yaml ──────────────────────────
+    # Static lint of the spec file itself, not a runtime check. Phase 6
+    # already hits /openapi.json on the running API but only verifies it
+    # returns valid JSON — a broken spec that happens to still serialise
+    # would slip through. This catches schema errors at the source.
+    try {
+        $specFile = Join-Path $RepoRoot 'app/api/src/openapi.yaml'
+        $spectralLog = Join-Path $LogFolder 'static-spectral.log'
+        if (-not (Test-Path $specFile)) {
+            Write-Result 'Static-Spectral' $false "spec file not found: $specFile"
+        } elseif ($hasNpm) {
+            # `npx -y` fetches @stoplight/spectral-cli on demand. The oas
+            # ruleset ships with the CLI so no extra config file is needed.
+            $null = & npx -y @stoplight/spectral-cli lint $specFile --ruleset @stoplight/spectral-oas 2>&1 |
+                Tee-Object -FilePath $spectralLog
+            $spectralExit = $LASTEXITCODE
+            Write-Result 'Static-Spectral' ($spectralExit -eq 0) $(if ($spectralExit -ne 0) { "exit code $spectralExit — see static-spectral.log" })
+        } else {
+            # Docker fallback: mount the whole repo read-only so the spec
+            # file and any $ref targets remain resolvable.
+            $repoPath = $RepoRoot -replace '\\','/' -replace '^([A-Za-z]):','/$1'
+            $null = & docker run --rm -v "${repoPath}:/work:ro" -w /work node:20-slim sh -c "npx -y @stoplight/spectral-cli lint app/api/src/openapi.yaml --ruleset @stoplight/spectral-oas" 2>&1 |
+                Tee-Object -FilePath $spectralLog
+            $spectralExit = $LASTEXITCODE
+            Write-Result 'Static-Spectral' ($spectralExit -eq 0) $(if ($spectralExit -ne 0) { "exit code $spectralExit (via docker)" })
+        }
+    } catch {
+        Write-Result 'Static-Spectral' $false $_.Exception.Message
+    }
+
+    # ── 0d: npm audit (app/ui and app/api) ─────────────────────────
+    # --audit-level=high matches pr.yml: we only fail on high/critical
+    # CVEs so that a new moderate advisory doesn't flip the whole
+    # nightly run red overnight. The full audit output is logged so
+    # lower-severity findings are still visible for review.
+    foreach ($pkg in @(
+        @{ Name = 'UI';  Dir = $frontendDir; TestName = 'Static-NpmAudit-UI' },
+        @{ Name = 'API'; Dir = $backendDir;  TestName = 'Static-NpmAudit-API' }
+    )) {
+        try {
+            $auditLog = Join-Path $LogFolder "static-npm-audit-$($pkg.Name.ToLower()).log"
+            if ($hasNpm) {
+                Push-Location $pkg.Dir
+                $null = & npm audit --audit-level=high 2>&1 | Tee-Object -FilePath $auditLog
+                $auditExit = $LASTEXITCODE
+                Pop-Location
+            } else {
+                $pkgPath = $pkg.Dir -replace '\\','/' -replace '^([A-Za-z]):','/$1'
+                $null = & docker run --rm -v "${pkgPath}:/work" -w /work node:20-slim sh -c "npm ci --omit=dev >/dev/null 2>&1; npm audit --audit-level=high" 2>&1 |
+                    Tee-Object -FilePath $auditLog
+                $auditExit = $LASTEXITCODE
+            }
+            Write-Result $pkg.TestName ($auditExit -eq 0) $(if ($auditExit -ne 0) { "exit code $auditExit — see $(Split-Path $auditLog -Leaf)" })
+        } catch {
+            Write-Result $pkg.TestName $false $_.Exception.Message
+            try { Pop-Location } catch {}
+        }
+    }
 }
 
 # ═══════════════════════════════════════════════════════════════════
