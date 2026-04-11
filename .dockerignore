@@ -1,0 +1,19 @@
+# Root .dockerignore — applies to worker container build context (repo root)
+.git
+.github
+.vscode
+.idea
+node_modules
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/*.log
+**/coverage
+**/playwright-report
+**/test-results
+docs
+*.md
+!setup/**
+!tools/**
+!test/demo-dataset/**

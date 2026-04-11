@@ -1,0 +1,49 @@
+**********************
+PowerShell transcript start
+Start time: 20260407215910
+Username: DESKTOP-QI4M99P\wim
+RunAs User: DESKTOP-QI4M99P\wim
+Configuration Name: 
+Machine: DESKTOP-QI4M99P (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\Program Files\PowerShell\7\pwsh.dll -File C:\source\FortigiGraph\test\unit\Test-Unit.ps1
+Process ID: 1680
+PSVersion: 7.6.0
+PSEdition: Core
+GitCommitId: 7.6.0
+OS: Microsoft Windows 10.0.26200
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.4
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+
+========================================
+FortigiGraph Unit Test Suite
+========================================
+No Azure connection required
+
+1. Module Import
+================
+PS>TerminatingError(Import-Module): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: The specified module 'C:\source\FortigiGraph\test\IdentityAtlas.psd1' was not loaded because no valid module file was found in any module directory."
+  ✗ Module imports without errors — The specified module 'C:\source\FortigiGraph\test\IdentityAtlas.psd1' was not loaded because no valid module file was found in any module directory.
+PS>TerminatingError(Test-ModuleManifest): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: The specified module 'C:\source\FortigiGraph\test\IdentityAtlas.psd1' was not loaded because no valid module file was found in any module directory."
+  ✗ Module manifest is valid — The specified module 'C:\source\FortigiGraph\test\IdentityAtlas.psd1' was not loaded because no valid module file was found in any module directory.
+Get-Content: C:\source\FortigiGraph\test\unit\Test-Unit.ps1:83
+Line |
+  83 |  $psdContent = Get-Content $modulePath -Raw
+     |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Cannot find path 'C:\source\FortigiGraph\test\IdentityAtlas.psd1' because it does not exist.
+Get-Content: C:\source\FortigiGraph\test\unit\Test-Unit.ps1:83
+Line |
+  83 |  $psdContent = Get-Content $modulePath -Raw
+     |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Cannot find path 'C:\source\FortigiGraph\test\IdentityAtlas.psd1' because it does not exist.
+
+  ✗ Version format is Major.Minor.yyyyMMdd.HHmm — Could not match expected pattern
+
+Module failed to load — cannot run remaining tests.
+**********************
+PowerShell transcript end
+End time: 20260407215911
+**********************

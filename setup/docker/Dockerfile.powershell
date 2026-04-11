@@ -1,0 +1,24 @@
+# PowerShell runner for Identity Atlas crawlers, risk scoring, and account
+# correlation.
+#
+# In v5 (postgres) the worker container does NOT install any database driver.
+# All persistence happens via the Identity Atlas REST API; the worker only
+# needs PowerShell + Microsoft Graph access. This removes the SqlServer
+# PowerShell module dependency and shrinks the image substantially.
+#
+# Build context: repo root
+
+FROM mcr.microsoft.com/powershell:7.4-ubuntu-22.04
+
+WORKDIR /app
+
+# Copy module loader (manifest + module file).
+COPY setup/IdentityAtlas.psd1 setup/IdentityAtlas.psm1 ./setup/
+
+# Copy crawler scripts and the worker scheduler.
+COPY tools/ ./tools/
+COPY setup/ ./setup/
+COPY test/demo-dataset/ ./test/demo-dataset/
+
+# Default: run the scheduler loop (also accepts ad-hoc commands via docker exec)
+CMD ["pwsh", "-File", "/app/setup/docker/scheduler.ps1"]

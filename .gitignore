@@ -1,0 +1,14 @@
+setup/config/*.json
+!setup/config/*.template
+.claude/
+.env
+test/nightly/results/
+test/test-results.md
+test/test.secrets.json
+test/demo-dataset/demo-company.json
+test/demo-dataset/verify-results.json
+node_modules/
+tools/csv-templates/demodata/
+tools/csv-templates/demodataTransformed/
+.claude/settings.local.json
+Config/

@@ -1,0 +1,74 @@
+services:
+
+  # ── PostgreSQL 16 ───────────────────────────────────────────────────────────
+  # Replaced SQL Server in v5. Postgres has no licensing issues, no DB size cap,
+  # and no per-core licensing. The migrations runner inside the web container
+  # creates all tables on first startup, so there is no separate init step.
+  # NOTE: Default credentials are for local development only.
+  #       For networked/production use, override via .env file.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB:       "${POSTGRES_DB:-identity_atlas}"
+      POSTGRES_USER:     "${POSTGRES_USER:-identity_atlas}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-identity_atlas_local}"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-identity_atlas} -d ${POSTGRES_DB:-identity_atlas}"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # ── Web (serves built frontend + API) ───────────────────────────────────────
+  web:
+    build:
+      context: ./app
+      dockerfile: api/Dockerfile
+    environment:
+      NODE_ENV:    production
+      USE_SQL:     "true"  # legacy flag — still used by routes to enable DB-backed mode
+      DATABASE_URL: "postgres://${POSTGRES_USER:-identity_atlas}:${POSTGRES_PASSWORD:-identity_atlas_local}@postgres:5432/${POSTGRES_DB:-identity_atlas}"
+      AUTH_ENABLED: "false"
+      PORT:         "3001"
+    ports:
+      - "3001:3001"
+    volumes:
+      - job_data:/data/uploads
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Worker (PowerShell — crawlers, risk scoring, account correlation) ──────
+  # In v5 the worker container has NO database driver. It talks to the API
+  # for everything (job pickup, ingest, progress reporting).
+  worker:
+    build:
+      context: .
+      dockerfile: setup/docker/Dockerfile.powershell
+    environment:
+      # API URL for the worker scheduler. The web container is reachable via
+      # the docker network DNS name `web` on its internal port.
+      WEB_API_URL: "http://web:3001/api"
+      # Optional global crawler API key — overridden per-job via WorkerConfig.
+      CRAWLER_API_KEY:     "${CRAWLER_API_KEY:-}"
+      GRAPH_TENANT_ID:     "${GRAPH_TENANT_ID:-}"
+      GRAPH_CLIENT_ID:     "${GRAPH_CLIENT_ID:-}"
+      GRAPH_CLIENT_SECRET: "${GRAPH_CLIENT_SECRET:-}"
+      LLM_PROVIDER:        "${LLM_PROVIDER:-}"
+      LLM_API_KEY:         "${LLM_API_KEY:-}"
+    volumes:
+      - ./setup/docker/crontab:/app/setup/docker/crontab:ro
+      - job_data:/data/uploads
+    depends_on:
+      web:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  job_data:
