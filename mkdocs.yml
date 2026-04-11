@@ -80,6 +80,7 @@ nav:
       - Testing Plan: architecture/testing-plan.md
       - Demo Dataset: architecture/demo-dataset.md
       - Docker Setup: architecture/docker-setup.md
+      - Scaling & Load Testing: architecture/scaling.md
       - CSV Import Schema: architecture/csv-import-schema.md
       - LLM & Risk Scoring: architecture/llm-and-risk-scoring.md
       - PostgreSQL Migration: architecture/postgres-migration.md
