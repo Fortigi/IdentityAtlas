@@ -125,9 +125,16 @@ function Read-CsvFile {
 
 # Streaming CSV reader — returns a List[object[]] plus a hashtable mapping
 # column name to index. 5-10× faster than Import-Csv for files with >100k
-# rows because it skips PSCustomObject allocation entirely. Only supports
-# simple CSVs (no quoted fields spanning lines and no embedded delimiters) —
-# which matches the Identity Atlas canonical schema.
+# rows because it skips PSCustomObject allocation entirely.
+#
+# Supported quoting: each field MAY be wrapped in plain double quotes
+# ("foo";"bar"), which PowerShell's Export-Csv does by default. Surrounding
+# quotes are stripped from both headers and data cells. NOT supported:
+# embedded delimiters inside a quoted field ("foo;bar"), embedded newlines,
+# or "" escape sequences. If your data needs any of those, use the slow
+# path (Read-CsvFile / Import-Csv) — Resources.csv is the only file that
+# uses Read-CsvFast and the canonical schema doesn't put delimiters inside
+# Resource descriptions.
 function Read-CsvFast {
     param([string]$FileName)
     $path = Join-Path $CsvFolder $FileName
@@ -137,6 +144,7 @@ function Read-CsvFast {
     # a tight loop is catastrophic — for 1.5M lines the scope lookup alone is
     # 30+ minutes. Locals are resolved in microseconds.
     [char[]]$delim = @([char]($Delimiter[0]))
+    [char]$dq = '"'
     $reader = [System.IO.StreamReader]::new($path, [System.Text.Encoding]::UTF8)
     $rows = [System.Collections.Generic.List[object]]::new()
     $colIdx = @{}
@@ -145,12 +153,25 @@ function Read-CsvFast {
         if (-not $headerLine) { return $null }
         if ($headerLine[0] -eq [char]0xFEFF) { $headerLine = $headerLine.Substring(1) }
         $headers = $headerLine.Split($delim)
-        for ($i = 0; $i -lt $headers.Length; $i++) { $colIdx[$headers[$i]] = $i }
+        for ($i = 0; $i -lt $headers.Length; $i++) {
+            $h = $headers[$i]
+            if ($h.Length -ge 2 -and $h[0] -eq $dq -and $h[$h.Length - 1] -eq $dq) {
+                $h = $h.Substring(1, $h.Length - 2)
+            }
+            $colIdx[$h] = $i
+        }
         while ($true) {
             $line = $reader.ReadLine()
             if ($null -eq $line) { break }
             if ($line.Length -eq 0) { continue }
-            [void]$rows.Add($line.Split($delim))
+            $cells = $line.Split($delim)
+            for ($j = 0; $j -lt $cells.Length; $j++) {
+                $c = $cells[$j]
+                if ($c.Length -ge 2 -and $c[0] -eq $dq -and $c[$c.Length - 1] -eq $dq) {
+                    $cells[$j] = $c.Substring(1, $c.Length - 2)
+                }
+            }
+            [void]$rows.Add($cells)
         }
     } finally { $reader.Dispose() }
     Write-Host "  $FileName`: $($rows.Count) rows (fast path)" -ForegroundColor Gray
