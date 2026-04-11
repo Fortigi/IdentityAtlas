@@ -63,8 +63,8 @@ For thorough testing, your tenant should have:
 ### Step 1: Clone the repo (developers only)
 
 ```bash
-git clone https://github.com/Fortigi/FortigiGraph.git
-cd FortigiGraph
+git clone https://github.com/Fortigi/IdentityAtlas.git
+cd IdentityAtlas
 ```
 
 End users can skip cloning entirely — see [docker-compose.prod.yml](../docker-compose.prod.yml).
