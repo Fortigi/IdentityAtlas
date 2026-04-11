@@ -3,7 +3,7 @@
 # For end users: no git clone needed, pulls pre-built images from ghcr.io.
 #
 # Quick start:
-#   curl -O https://raw.githubusercontent.com/Fortigi/FortigiGraph/main/docker-compose.prod.yml
+#   curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
 #   docker compose -f docker-compose.prod.yml up
 #
 # Then open http://localhost:3001 and click "Load Demo Data" to get started.

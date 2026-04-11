@@ -12,7 +12,7 @@
 RootModule = '.\IdentityAtlas.psm1'
 
 # Version number of this module.
-ModuleVersion = '5.0.20260411.1714'
+ModuleVersion = '5.0.20260411.1913'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -30,7 +30,7 @@ CompanyName = 'Fortigi'
 Copyright = '(c) 2026 Wim van den Heijkant / Fortigi. Licensed under the MIT License.'
 
 # Description of the functionality provided by this module
-Description = 'PowerShell Module to assist with scripting against the Microsoft Graph. The sources for this module, including versioning can be found on GitHub: https://github.com/Fortigi/FortigiGraph'
+Description = 'PowerShell Module to assist with scripting against the Microsoft Graph. The sources for this module, including versioning can be found on GitHub: https://github.com/Fortigi/IdentityAtlas'
 
 # Minimum version of the PowerShell engine required by this module
 # PowerShellVersion = ''
@@ -99,10 +99,10 @@ PrivateData = @{
                'IdentityGovernance'
 
         # A URL to the license for this module.
-        LicenseUri = 'https://github.com/Fortigi/FortigiGraph/blob/main/LICENSE'
+        LicenseUri = 'https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE'
 
         # A URL to the main website for this project.
-        ProjectUri = 'https://github.com/Fortigi/FortigiGraph'
+        ProjectUri = 'https://github.com/Fortigi/IdentityAtlas'
 
         # A URL to an icon representing this module.
         # IconUri = ''

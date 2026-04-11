@@ -1,0 +1,284 @@
+/* ─────────────────────────────────────────────────────────────────
+   Identity Atlas — docs site theme
+   Matches the Identity Atlas React UI (Tailwind lime + gray palette).
+   Loaded by mkdocs-material via `extra_css` in mkdocs.yml.
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Tailwind lime palette as CSS vars ──────────────────────────── */
+:root {
+  --ia-lime-50:  #f7fee7;
+  --ia-lime-100: #ecfccb;
+  --ia-lime-200: #d9f99d;
+  --ia-lime-300: #bef264;
+  --ia-lime-500: #84cc16;
+  --ia-lime-600: #65a30d;
+  --ia-lime-700: #4d7c0f;
+  --ia-lime-800: #3f6212;
+
+  --ia-gray-50:  #fafafa;
+  --ia-gray-100: #f5f5f5;
+  --ia-gray-200: #e5e7eb;
+  --ia-gray-400: #9ca3af;
+  --ia-gray-500: #6b7280;
+  --ia-gray-700: #374151;
+  --ia-gray-800: #1f2937;
+  --ia-gray-900: #111827;
+}
+
+/* ── Primary/accent overrides for the `custom` palette ─────────── */
+/* mkdocs-material emits `data-md-color-primary=custom` when
+   `primary: custom` is set in mkdocs.yml. */
+[data-md-color-primary=custom] {
+  --md-primary-fg-color:               var(--ia-lime-700);
+  --md-primary-fg-color--light:        var(--ia-lime-600);
+  --md-primary-fg-color--dark:         var(--ia-lime-800);
+  --md-primary-bg-color:               #ffffff;
+  --md-primary-bg-color--light:        #ffffffcc;
+  --md-typeset-a-color:                var(--ia-lime-700);
+}
+
+[data-md-color-accent=custom] {
+  --md-accent-fg-color:                var(--ia-lime-600);
+  --md-accent-fg-color--transparent:   rgba(101, 163, 13, 0.1);
+  --md-accent-bg-color:                #ffffff;
+  --md-accent-bg-color--light:         #ffffffcc;
+}
+
+/* Dark (slate) scheme — slightly lighter lime so contrast stays readable */
+[data-md-color-scheme=slate][data-md-color-primary=custom] {
+  --md-primary-fg-color:               var(--ia-lime-600);
+  --md-primary-fg-color--light:        var(--ia-lime-500);
+  --md-primary-fg-color--dark:         var(--ia-lime-700);
+  --md-typeset-a-color:                var(--ia-lime-300);
+}
+
+/* ── Page background: soft off-white like the UI ───────────────── */
+body,
+.md-main {
+  background-color: var(--ia-gray-50);
+}
+.md-content {
+  background-color: #ffffff;
+}
+[data-md-color-scheme=slate] body,
+[data-md-color-scheme=slate] .md-main {
+  background-color: #0f172a;
+}
+
+/* ── Typography: match the UI's tight headings ─────────────────── */
+.md-typeset h1 {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--ia-gray-900);
+}
+.md-typeset h2 {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ia-gray-900);
+  margin-top: 2rem;
+}
+.md-typeset h3 {
+  font-weight: 600;
+  color: var(--ia-gray-800);
+}
+
+/* Uppercase-tracked section labels — the UI uses this heavily
+   (e.g. "LOADED DATA" above the stats card). Apply to any
+   element with the `label` class or to h6 as a convention. */
+.md-typeset .label,
+.md-typeset h6 {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ia-lime-700);
+  margin-bottom: 0.5rem;
+}
+
+/* ── Header bar ────────────────────────────────────────────────── */
+.md-header {
+  background-color: var(--ia-lime-700);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.md-header__title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Tabs row — same lime so it reads as one unit */
+.md-tabs {
+  background-color: var(--ia-lime-700);
+}
+.md-tabs__link {
+  opacity: 0.8;
+  font-weight: 500;
+}
+.md-tabs__link:hover,
+.md-tabs__link--active {
+  opacity: 1;
+}
+.md-tabs__link--active {
+  border-bottom: 2px solid #ffffff;
+}
+
+/* ── Logo: don't let mkdocs squish it too much ─────────────────── */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2rem;
+  width: auto;
+}
+
+/* ── Cards / admonitions — rounded-2xl + lime ring + soft gradient
+   Matches the UI's "rounded-2xl p-6 shadow-lg ring-1 ring-lime-200"
+   card style on the dashboard. ─────────────────────────────────── */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 1rem;
+  border: 1px solid var(--ia-lime-200);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+  background: linear-gradient(180deg, #ffffff 0%, var(--ia-lime-50) 100%);
+  padding: 0;
+  overflow: hidden;
+}
+.md-typeset .admonition > .admonition-title,
+.md-typeset details > summary {
+  background-color: var(--ia-lime-50);
+  border-bottom: 1px solid var(--ia-lime-100);
+  color: var(--ia-lime-800);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.75rem 1rem 0.75rem 2.25rem;
+}
+.md-typeset .admonition > .admonition-title::before,
+.md-typeset details > summary::before {
+  background-color: var(--ia-lime-700);
+  top: 0.75rem;
+  left: 0.85rem;
+}
+.md-typeset .admonition > p,
+.md-typeset .admonition > ul,
+.md-typeset .admonition > ol,
+.md-typeset details > p,
+.md-typeset details > ul,
+.md-typeset details > ol {
+  padding: 0.75rem 1rem;
+  margin: 0;
+}
+
+/* Variant colors — let warnings/danger keep their semantic hues */
+.md-typeset .admonition.warning,
+.md-typeset .admonition.caution {
+  border-color: #fcd34d;
+  background: linear-gradient(180deg, #ffffff 0%, #fffbeb 100%);
+}
+.md-typeset .admonition.warning > .admonition-title,
+.md-typeset .admonition.caution > .admonition-title {
+  background-color: #fffbeb;
+  border-bottom-color: #fef3c7;
+  color: #92400e;
+}
+.md-typeset .admonition.warning > .admonition-title::before,
+.md-typeset .admonition.caution > .admonition-title::before {
+  background-color: #d97706;
+}
+.md-typeset .admonition.danger,
+.md-typeset .admonition.error {
+  border-color: #fecaca;
+  background: linear-gradient(180deg, #ffffff 0%, #fef2f2 100%);
+}
+.md-typeset .admonition.danger > .admonition-title,
+.md-typeset .admonition.error > .admonition-title {
+  background-color: #fef2f2;
+  border-bottom-color: #fee2e2;
+  color: #991b1b;
+}
+.md-typeset .admonition.danger > .admonition-title::before,
+.md-typeset .admonition.error > .admonition-title::before {
+  background-color: #dc2626;
+}
+
+/* ── Code blocks — subtle ring like the UI ─────────────────────── */
+.md-typeset pre > code,
+.md-typeset .highlight pre {
+  border-radius: 0.75rem;
+  border: 1px solid var(--ia-gray-200);
+}
+.md-typeset code {
+  border-radius: 0.25rem;
+}
+
+/* Inline code — lime tint on the UI's preferred gray-100 bg */
+.md-typeset :not(pre) > code {
+  background-color: var(--ia-lime-50);
+  color: var(--ia-lime-800);
+  border: 1px solid var(--ia-lime-100);
+  padding: 0.1rem 0.35rem;
+  font-size: 0.85em;
+}
+
+/* ── Tables — clean borders + lime header row ──────────────────── */
+.md-typeset table:not([class]) {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid var(--ia-gray-200);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.md-typeset table:not([class]) th {
+  background-color: var(--ia-lime-50);
+  color: var(--ia-lime-800);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  border-bottom: 1px solid var(--ia-lime-200);
+}
+.md-typeset table:not([class]) tr:hover td {
+  background-color: var(--ia-lime-50);
+}
+
+/* ── Links — lime-700 with underline on hover (matches the UI) ─── */
+.md-typeset a {
+  color: var(--ia-lime-700);
+  text-decoration: none;
+}
+.md-typeset a:hover {
+  color: var(--ia-lime-800);
+  text-decoration: underline;
+}
+
+/* ── Navigation side rail — active item in lime ────────────────── */
+.md-nav__item .md-nav__link--active {
+  color: var(--ia-lime-700);
+  font-weight: 600;
+}
+.md-nav__item .md-nav__link:hover {
+  color: var(--ia-lime-700);
+}
+
+/* ── Search bar ────────────────────────────────────────────────── */
+.md-search__input {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+.md-search__input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── Footer — softer on light background ───────────────────────── */
+.md-footer-meta {
+  background-color: var(--ia-gray-900);
+}
+
+/* ── Scrollbar styling for a cleaner Material feel ─────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--ia-gray-200);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ia-lime-300);
+}

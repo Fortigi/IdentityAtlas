@@ -17,7 +17,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 - **Primary Purpose:** Microsoft Graph API wrapper with PostgreSQL data persistence (Docker-hosted)
 - **Author:** Wim van den Heijkant
 - **Company:** Fortigi
-- **GitHub:** https://github.com/Fortigi/FortigiGraph
+- **GitHub:** https://github.com/Fortigi/IdentityAtlas
 - **Distribution:** PowerShell Gallery
 - **Current Version:** 3.1.yyyyMMdd.HHmm (run `_Build/CreatePSD.ps1` to update)
 
@@ -739,7 +739,7 @@ The recommended flow for new users:
 
 ```bash
 # 1. Download the production compose file
-curl -O https://raw.githubusercontent.com/Fortigi/FortigiGraph/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
 
 # 2. Start the stack
 docker compose -f docker-compose.prod.yml up -d

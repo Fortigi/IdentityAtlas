@@ -14,8 +14,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 
-const GITHUB_BASE = 'https://github.com/Fortigi/FortigiGraph';
-const DOCS_URL = 'https://fortigi.github.io/FortigiGraph';
+const GITHUB_BASE = 'https://github.com/Fortigi/IdentityAtlas';
+const DOCS_URL = 'https://fortigi.github.io/IdentityAtlas';
 const SUPPORT_EMAIL = 'support@identityatlas.io';
 
 function formatNumber(n) {
@@ -171,7 +171,7 @@ export default function DashboardPage({ onNavigate }) {
             <li><a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Documentation</a></li>
             <li><a href={GITHUB_BASE} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>GitHub repository</a></li>
             <li><a href={`${GITHUB_BASE}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>License</a></li>
-            <li><a href={`${GITHUB_BASE}/blob/main/CHANGELOG.md`} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Changelog</a></li>
+            <li><a href={`${GITHUB_BASE}/releases`} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Releases</a></li>
           </ul>
         </div>
 

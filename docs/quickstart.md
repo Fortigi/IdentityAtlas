@@ -4,7 +4,7 @@ Identity Atlas runs as a Docker stack — no Azure subscription, no PowerShell, 
 
 ```bash
 # Download the compose file
-curl -O https://raw.githubusercontent.com/Fortigi/FortigiGraph/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
 
 # Start everything
 docker compose -f docker-compose.prod.yml up -d

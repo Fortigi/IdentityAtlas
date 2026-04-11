@@ -10,7 +10,7 @@ Permissions are scattered across identity systems, directories, and SaaS platfor
 
 ```bash
 # 1. Download the production compose file
-curl -O https://raw.githubusercontent.com/Fortigi/FortigiGraph/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
 
 # 2. Start the stack
 docker compose -f docker-compose.prod.yml up -d
@@ -75,7 +75,7 @@ See [tools/powershell-sdk/](tools/powershell-sdk/) for the Graph API wrapper fun
 
 ## Documentation
 
-Full docs at **[https://fortigi.github.io/FortigiGraph](https://fortigi.github.io/FortigiGraph)** (available once GitHub Pages is enabled).
+Full docs at **[https://fortigi.github.io/IdentityAtlas](https://fortigi.github.io/IdentityAtlas)** (available once GitHub Pages is enabled).
 Browse locally in the [`docs/`](docs/) folder.
 
 | Section | Link |
@@ -95,4 +95,4 @@ Browse locally in the [`docs/`](docs/) folder.
 ## Contributing / License
 
 Identity Atlas is open source under the [MIT License](LICENSE).
-Contributions are welcome — see the [GitHub repository](https://github.com/Fortigi/FortigiGraph) to open issues or pull requests.
+Contributions are welcome — see the [GitHub repository](https://github.com/Fortigi/IdentityAtlas) to open issues or pull requests.

@@ -1,7 +1,7 @@
 $Author = "Wim van den Heijkant"
 $Company = "Fortigi"
 $Copyright = "(c) 2026 Wim van den Heijkant / Fortigi. Licensed under the MIT License."
-$Description = "PowerShell Module to assist with scripting against the Microsoft Graph. The sources for this module, including versioning can be found on GitHub: https://github.com/Fortigi/FortigiGraph"
+$Description = "PowerShell Module to assist with scripting against the Microsoft Graph. The sources for this module, including versioning can be found on GitHub: https://github.com/Fortigi/IdentityAtlas"
 
 $VersionMajor = "2"
 $VersionMinor = "1"
@@ -21,8 +21,8 @@ $manifestParams = @{
     Description = $Description
     RootModule = '.\IdentityAtlas.psm1'
     Tags = @('MicrosoftGraph', 'Graph', 'AzureAD', 'EntraID', 'SQL', 'Azure', 'IdentityGovernance')
-    LicenseUri = 'https://github.com/Fortigi/FortigiGraph/blob/main/LICENSE'
-    ProjectUri = 'https://github.com/Fortigi/FortigiGraph'
+    LicenseUri = 'https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE'
+    ProjectUri = 'https://github.com/Fortigi/IdentityAtlas'
 }
 
 New-ModuleManifest @manifestParams
