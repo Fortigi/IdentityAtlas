@@ -1,6 +1,6 @@
 # Identity Atlas — API Benchmark
 
-_Run at_ `2026-04-11T19:34:57.6263037+02:00`
+_Run at_ `2026-04-11T19:59:46.7855282+02:00`
 
 ## Dataset inventory
 
@@ -11,7 +11,7 @@ _Run at_ `2026-04-11T19:34:57.6263037+02:00`
 | Resources (all) | 80000 |
 | Business roles | 13225 |
 | Principals (users) | 80000 |
-| ResourceAssignments | 1499932 |
+| ResourceAssignments | 1500221 |
 | Governed assignments | 437354 |
 | ResourceRelationships | 99998 |
 | Identities | 25000 |
@@ -19,21 +19,21 @@ _Run at_ `2026-04-11T19:34:57.6263037+02:00`
 
 ## Client-side timings
 
-Wall-clock over 5 runs per endpoint, as seen from the benchmark client.
+Wall-clock over 5 runs per endpoint, measured via Invoke-WebRequest without JSON parsing (server-side HTTP time only).
 
-| Endpoint | avg | p50 | p95 |
-|---|---:|---:|---:|
-| `access-packages` | 26186.2 ms | 24344.4 ms | 29977.1 ms |
-| `dashboard-stats` | 1108 ms | 903.3 ms | 1493.3 ms |
-| `identities-page1` | 570.4 ms | 293.7 ms | 1718.7 ms |
-| `matrix-benchmark-tag` | 1563.7 ms | 1008.2 ms | 4051.2 ms |
-| `matrix-unfiltered` | 247845.7 ms | 258658.4 ms | 294986.2 ms |
-| `resources-business` | 165.4 ms | 122 ms | 258.1 ms |
-| `resources-page1` | 366.5 ms | 261.6 ms | 845.3 ms |
-| `sync-log` | 135.7 ms | 143.4 ms | 160.5 ms |
-| `systems` | 7680.4 ms | 4911.7 ms | 19240.2 ms |
-| `users-page1` | 140.3 ms | 136.7 ms | 165.2 ms |
-| `users-search` | 315.6 ms | 303 ms | 421 ms |
+| Endpoint | avg | p50 | p95 | Response size |
+|---|---:|---:|---:|---:|
+| `access-packages` | 3493.4 ms | 3211.5 ms | 4451.3 ms | 7,4 MB |
+| `dashboard-stats` | 654.8 ms | 566.6 ms | 1106.1 ms | 396 B |
+| `identities-page1` | 266.3 ms | 212.7 ms | 498.4 ms | 15,9 KB |
+| `matrix-benchmark-tag` | 257.6 ms | 214.5 ms | 402.1 ms | 195,3 KB |
+| `matrix-unfiltered` | 3630.3 ms | 2637.7 ms | 5895.2 ms | 583,8 KB |
+| `resources-business` | 70.8 ms | 75.4 ms | 89.2 ms | 10,5 KB |
+| `resources-page1` | 146.2 ms | 142.2 ms | 160.9 ms | 10,4 KB |
+| `sync-log` | 49.2 ms | 47.2 ms | 60.8 ms | 6,7 KB |
+| `systems` | 1825.1 ms | 1227.6 ms | 4288.7 ms | 46,8 KB |
+| `users-page1` | 132.4 ms | 125.7 ms | 147.9 ms | 7,7 KB |
+| `users-search` | 292.7 ms | 271.2 ms | 399.8 ms | 7,7 KB |
 
 ## Server-side timings (from /api/perf)
 
@@ -41,23 +41,16 @@ Per-route aggregates from the API's own middleware. `count` is the number of req
 
 | Route | count | avg | p50 | p95 | p99 | max |
 |---|---:|---:|---:|---:|---:|---:|
-| `GET /api/permissions` | 10 | 12261.1 ms | 3200.6 ms | 33452.1 ms | 33452.1 ms | 33452.1 ms |
-| `GET /api/systems` | 5 | 7559.7 ms | 4768.1 ms | 19123.4 ms | 19123.4 ms | 19123.4 ms |
-| `GET /api/access-package-resources` | 5 | 7841.6 ms | 6817.5 ms | 12344.4 ms | 12344.4 ms | 12344.4 ms |
-| `GET /api/admin/history-retention` | 1 | 5600.7 ms | 5600.7 ms | 5600.7 ms | 5600.7 ms | 5600.7 ms |
-| `POST /crawlers/jobs/claim` | 1 | 5310.4 ms | 5310.4 ms | 5310.4 ms | 5310.4 ms | 5310.4 ms |
-| `GET /api/admin/status` | 2 | 951.8 ms | 274.7 ms | 1628.8 ms | 1628.8 ms | 1628.8 ms |
-| `GET /api/identities` | 5 | 469.4 ms | 199.8 ms | 1616.1 ms | 1616.1 ms | 1616.1 ms |
-| `GET /api/admin/dashboard-stats` | 5 | 1049.2 ms | 852 ms | 1433.6 ms | 1433.6 ms | 1433.6 ms |
-| `GET /api/features` | 5 | 356.3 ms | 252.6 ms | 1119.6 ms | 1119.6 ms | 1119.6 ms |
-| `POST /api/crawlers/jobs/claim` | 46 | 322.1 ms | 217.8 ms | 876.1 ms | 1747.4 ms | 1747.4 ms |
-| `GET /api/resources` | 10 | 166 ms | 80.5 ms | 797 ms | 797 ms | 797 ms |
-| `GET /api/admin/crawler-configs` | 2 | 504.8 ms | 235.6 ms | 774 ms | 774 ms | 774 ms |
-| `GET /api/users` | 10 | 176 ms | 109.1 ms | 368.6 ms | 368.6 ms | 368.6 ms |
-| `GET /api/sync-log` | 8 | 88.9 ms | 24.9 ms | 285.8 ms | 285.8 ms | 285.8 ms |
-| `GET /api/admin/crawlers` | 2 | 119.6 ms | 56.9 ms | 182.3 ms | 182.3 ms | 182.3 ms |
-| `GET /api/admin/crawler-jobs` | 2 | 73.8 ms | 23.7 ms | 124 ms | 124 ms | 124 ms |
-| `POST /api/perf/clear` | 1 | 2.2 ms | 2.2 ms | 2.2 ms | 2.2 ms | 2.2 ms |
+| `GET /api/permissions` | 10 | 1863.5 ms | 264.6 ms | 5802 ms | 5802 ms | 5802 ms |
+| `GET /api/systems` | 5 | 1773.4 ms | 1185.7 ms | 4207.7 ms | 4207.7 ms | 4207.7 ms |
+| `GET /api/access-package-resources` | 5 | 3102.8 ms | 2717.6 ms | 4025.4 ms | 4025.4 ms | 4025.4 ms |
+| `GET /api/admin/dashboard-stats` | 5 | 610.7 ms | 509.3 ms | 1060.2 ms | 1060.2 ms | 1060.2 ms |
+| `GET /api/identities` | 5 | 209.4 ms | 163.2 ms | 453.6 ms | 453.6 ms | 453.6 ms |
+| `GET /api/users` | 10 | 176 ms | 120.3 ms | 363.3 ms | 363.3 ms | 363.3 ms |
+| `POST /api/crawlers/jobs/claim` | 2 | 100.6 ms | 53.5 ms | 147.7 ms | 147.7 ms | 147.7 ms |
+| `GET /api/resources` | 10 | 74.2 ms | 57.4 ms | 128.3 ms | 128.3 ms | 128.3 ms |
+| `GET /api/sync-log` | 5 | 13.8 ms | 12.1 ms | 23.9 ms | 23.9 ms | 23.9 ms |
+| `POST /api/perf/clear` | 1 | 3.4 ms | 3.4 ms | 3.4 ms | 3.4 ms | 3.4 ms |
 
 ## Server-side SQL query breakdown (slowest endpoints)
 
@@ -65,22 +58,31 @@ Per-route aggregates from the API's own middleware. `count` is the number of req
 
 | SQL label | count | avg | p50 | p95 | max |
 |---|---:|---:|---:|---:|---:|
-| `perm-ap-mapping` | 10 | 3381.2 ms | 71.2 ms | 10267.6 ms | 10267.6 ms |
-| `perm-combined-limited` | 10 | 2160.9 ms | 840.6 ms | 5978.9 ms | 5978.9 ms |
-| `perm-tag-resolve` | 5 | 618.8 ms | 266.7 ms | 2149.1 ms | 2149.1 ms |
-| `perm-total-users` | 10 | 50.7 ms | 43.1 ms | 103 ms | 103 ms |
-| `perm-mat-check` | 10 | 9 ms | 6.3 ms | 21.1 ms | 21.1 ms |
+| `perm-combined-limited` | 10 | 918.3 ms | 61.3 ms | 3344.2 ms | 3344.2 ms |
+| `perm-ap-mapping` | 10 | 840.4 ms | 28.5 ms | 2663.4 ms | 2663.4 ms |
+| `perm-tag-resolve` | 5 | 105.4 ms | 105 ms | 112.1 ms | 112.1 ms |
+| `perm-total-users` | 10 | 29.4 ms | 19.8 ms | 62.8 ms | 62.8 ms |
+| `perm-mat-check` | 10 | 3.4 ms | 3.2 ms | 5.2 ms | 5.2 ms |
 
 ### `GET /api/systems`
 
 | SQL label | count | avg | p50 | p95 | max |
 |---|---:|---:|---:|---:|---:|
-| `systems-list` | 5 | 7556.6 ms | 4765 ms | 19118.8 ms | 19118.8 ms |
+| `systems-list` | 5 | 1770.5 ms | 1183 ms | 4202.7 ms | 4202.7 ms |
 
 ### `GET /api/access-package-resources`
 
 | SQL label | count | avg | p50 | p95 | max |
 |---|---:|---:|---:|---:|---:|
-| `ap-groups` | 5 | 6575 ms | 5738.8 ms | 10349 ms | 10349 ms |
+| `ap-groups` | 5 | 2468.9 ms | 2136.6 ms | 3224.2 ms | 3224.2 ms |
+
+### `GET /api/identities`
+
+| SQL label | count | avg | p50 | p95 | max |
+|---|---:|---:|---:|---:|---:|
+| `identity-type-dist` | 5 | 114.1 ms | 66.4 ms | 313.7 ms | 313.7 ms |
+| `identity-list` | 5 | 67.9 ms | 49.1 ms | 105.2 ms | 105.2 ms |
+| `identity-summary` | 5 | 40.6 ms | 40.3 ms | 61.5 ms | 61.5 ms |
+| `identity-count` | 5 | 15.9 ms | 10.7 ms | 34.9 ms | 34.9 ms |
 
 
