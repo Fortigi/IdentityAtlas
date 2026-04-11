@@ -625,25 +625,48 @@ function isAdminRequest(req) {
 router.get('/admin/dashboard-stats', async (_req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
   try {
+    // Two-pass approach to keep the Home page snappy on large datasets:
+    //  1. Use `pg_class.reltuples` for the big tables where an exact count
+    //     would require a sequential scan (ResourceAssignments is 1.5M rows
+    //     in the load-test dataset and `SELECT COUNT(*)` takes ~1 second
+    //     per query — 15 of these in a row is the bottleneck). reltuples
+    //     is an estimate maintained by ANALYZE and is accurate to within
+    //     a few percent for a dashboard. Good enough for Home.
+    //  2. Use exact COUNT(*) only for the small tables and for filtered
+    //     counts that can go through an index.
+    //
+    // The dashboard is never treated as a source of truth — detail pages
+    // compute their own exact counts. For the landing page, fast + close
+    // beats slow + perfect.
     const stats = await db.queryOne(`
+      WITH estimates AS (
+        SELECT relname, reltuples::bigint AS est
+          FROM pg_class
+         WHERE relname IN (
+           'Systems','Resources','Principals','Identities',
+           'ResourceAssignments','ResourceRelationships','Contexts',
+           'CertificationDecisions','GraphSyncLog','RiskScores'
+         )
+           AND relkind = 'r'
+      )
       SELECT
-        (SELECT COUNT(*)::int FROM "Systems")                                 AS "systems",
-        (SELECT COUNT(*)::int FROM "Resources")                               AS "resources",
-        (SELECT COUNT(*)::int FROM "Resources" WHERE "resourceType"='BusinessRole') AS "businessRoles",
-        (SELECT COUNT(*)::int FROM "Principals")                              AS "users",
-        (SELECT COUNT(*)::int FROM "Identities")                              AS "identities",
-        (SELECT COUNT(*)::int FROM "ResourceAssignments")                     AS "assignments",
-        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "assignmentType"='Governed') AS "governedAssignments",
-        (SELECT COUNT(*)::int FROM "ResourceRelationships")                   AS "relationships",
-        (SELECT COUNT(*)::int FROM "Contexts")                                AS "contexts",
-        (SELECT COUNT(*)::int FROM "CertificationDecisions")                  AS "certifications",
-        (SELECT COUNT(*)::int FROM "GraphSyncLog")                            AS "syncLogEntries",
-        (SELECT MAX("StartTime") FROM "GraphSyncLog")                         AS "lastSyncAt",
-        (SELECT COUNT(*)::int FROM "RiskScores")                              AS "riskScores",
-        (SELECT COUNT(*)::int FROM "RiskProfiles" WHERE "isActive")           AS "activeRiskProfile",
-        (SELECT COUNT(*)::int FROM "RiskClassifiers" WHERE "isActive")        AS "activeClassifiers",
-        (SELECT COUNT(*)::int FROM "CrawlerConfigs" WHERE enabled)            AS "enabledCrawlers",
-        (SELECT COUNT(*)::int FROM "CrawlerJobs" WHERE status='running')      AS "runningJobs"
+        COALESCE((SELECT est FROM estimates WHERE relname = 'Systems'), 0)::int                AS "systems",
+        COALESCE((SELECT est FROM estimates WHERE relname = 'Resources'), 0)::int              AS "resources",
+        (SELECT COUNT(*)::int FROM "Resources" WHERE "resourceType" = 'BusinessRole')          AS "businessRoles",
+        COALESCE((SELECT est FROM estimates WHERE relname = 'Principals'), 0)::int             AS "users",
+        COALESCE((SELECT est FROM estimates WHERE relname = 'Identities'), 0)::int             AS "identities",
+        COALESCE((SELECT est FROM estimates WHERE relname = 'ResourceAssignments'), 0)::int    AS "assignments",
+        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "assignmentType" = 'Governed')  AS "governedAssignments",
+        COALESCE((SELECT est FROM estimates WHERE relname = 'ResourceRelationships'), 0)::int  AS "relationships",
+        COALESCE((SELECT est FROM estimates WHERE relname = 'Contexts'), 0)::int               AS "contexts",
+        COALESCE((SELECT est FROM estimates WHERE relname = 'CertificationDecisions'), 0)::int AS "certifications",
+        COALESCE((SELECT est FROM estimates WHERE relname = 'GraphSyncLog'), 0)::int           AS "syncLogEntries",
+        (SELECT MAX("StartTime") FROM "GraphSyncLog")                                          AS "lastSyncAt",
+        COALESCE((SELECT est FROM estimates WHERE relname = 'RiskScores'), 0)::int             AS "riskScores",
+        (SELECT COUNT(*)::int FROM "RiskProfiles" WHERE "isActive")                            AS "activeRiskProfile",
+        (SELECT COUNT(*)::int FROM "RiskClassifiers" WHERE "isActive")                         AS "activeClassifiers",
+        (SELECT COUNT(*)::int FROM "CrawlerConfigs" WHERE enabled)                             AS "enabledCrawlers",
+        (SELECT COUNT(*)::int FROM "CrawlerJobs" WHERE status = 'running')                     AS "runningJobs"
     `);
 
     // Is the LLM configured? (needed for risk-scoring readiness)

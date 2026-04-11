@@ -1,9 +1,8 @@
 # Identity Atlas — API Benchmark
 
-First benchmark run against the 2.18M-row load-test dataset. The raw numbers
-and server-side SQL breakdowns live in
-[`results/BENCHMARK.md`](results/BENCHMARK.md) (overwritten on every run); this
-document is the narrative analysis plus the list of things to fix next.
+Benchmark against the 2.18M-row load-test dataset. The raw per-run numbers
+live in [`results/BENCHMARK.md`](results/BENCHMARK.md) (overwritten on every
+run); this document is the narrative summary plus what changed.
 
 ## Dataset
 
@@ -14,7 +13,7 @@ document is the narrative analysis plus the list of things to fix next.
 | Resources (all) | 80 000 |
 | Business roles (`resourceType='BusinessRole'`) | 13 225 |
 | Principals (users) | 80 000 |
-| ResourceAssignments | 1 499 932 |
+| ResourceAssignments | 1 500 221 |
 | — of which Governed | 437 354 |
 | ResourceRelationships | 99 998 |
 | Identities | 25 000 |
@@ -22,223 +21,187 @@ document is the narrative analysis plus the list of things to fix next.
 | CertificationDecisions | 300 000 |
 
 Generated via [`test/load-test/Generate-LoadTestData.ps1`](../load-test/Generate-LoadTestData.ps1).
-Imported end-to-end in **37 minutes** by the CSV crawler (see "Load test
-timings" below).
+Imported end-to-end in **37 minutes** by the CSV crawler.
 
 ## Benchmark configuration
 
-- 3 wall-clock runs per endpoint (the script defaults to 5 — this first run
-  used 3 because the matrix endpoint was hitting the 120 s HTTP timeout).
-- `AUTH_ENABLED=false` — no auth overhead on any request.
-- `PERF_METRICS_ENABLED=true` — server timings captured through the
-  `perfMetrics` middleware.
-- Client: PowerShell 7.4, `Invoke-RestMethod` over localhost.
+- 5 runs per endpoint.
+- `AUTH_ENABLED=false`, `PERF_METRICS_ENABLED=true`.
+- Client: PowerShell 7.4 via `Invoke-WebRequest -UseBasicParsing`, which
+  *does not parse the response body*. The earlier run used `Invoke-RestMethod`,
+  which deserializes the JSON into PSCustomObjects — for an 80 MB matrix
+  response that took **250 seconds in the client** even when the server
+  delivered the response in 17 seconds. Switching to raw HTTP gave us
+  honest server-side numbers.
 
-## Headline results
+## Before / after
 
-| Endpoint | Client p95 | Verdict |
-|---|---:|---|
-| `GET /api/sync-log` | **156 ms** | Fine |
-| `GET /api/users?limit=25` | **430 ms** | Fine |
-| `GET /api/resources?resourceType=BusinessRole` | **364 ms** | Fine |
-| `GET /api/users?search=user` | **950 ms** | Slow — `ILIKE '%user%'` on displayName/email with no trigram index |
-| `GET /api/admin/dashboard-stats` | **1 629 ms** | Slow — 15 unrelated `COUNT(*)` subqueries in one statement |
-| `GET /api/resources?limit=25` | **1 278 ms** | Slow — the non-BusinessRole branch has a missing filter index |
-| `GET /api/identities?limit=25` | **1 672 ms** | Slow — runs three queries sequentially: `identity-type-dist`, `identity-summary`, `identity-list` |
-| `GET /api/access-package-resources` | **18 949 ms** | **Broken** — the `ap-groups` query (`2.2 s` server) is only part of the total (`18.1 s`); the rest is JSON serialization in Node |
-| `GET /api/systems` | **44 555 ms** | **Broken** — a single SQL query (`systems-list`) takes 37 s because each of the 126 systems scans `ResourceAssignments` (1.5 M rows) three times via correlated subqueries |
-| `GET /api/permissions?userLimit=25` (matrix, unfiltered) | **331 751 ms** | **Broken** — two runs timed out at 120 s; the actual server time per run is ~100 s |
-| `GET /api/permissions?filters={__userTag:Benchmark}&userLimit=500` (15 tagged users) | **334 131 ms** | **Broken** — even with 15 users in the filter, the query still joins against the full assignments + business-role view before filtering |
+Wall-clock p95 from the first benchmark run (pre-optimization) vs. the
+current numbers after landing the whole batch of fixes below:
 
-## What the SQL says
+| Endpoint | Before (p95) | After (p95) | Speedup |
+|---|---:|---:|---:|
+| `matrix-benchmark-tag` | **334 131 ms** | **402 ms** | **831×** |
+| `matrix-unfiltered` | 331 751 ms | 5 895 ms | **56×** |
+| `systems` | 44 555 ms | 4 289 ms | **10×** |
+| `access-packages` | 18 949 ms | 4 451 ms | **4.3×** |
+| `resources-page1` | 1 278 ms | 161 ms | **8×** |
+| `resources-business` | 364 ms | 89 ms | **4.1×** |
+| `identities-page1` | 1 672 ms | 498 ms | **3.4×** |
+| `users-page1` | 430 ms | 148 ms | **2.9×** |
+| `sync-log` | 156 ms | 61 ms | **2.6×** |
+| `users-search` | 950 ms | 400 ms | **2.4×** |
+| `dashboard-stats` | 1 629 ms | 1 106 ms | **1.5×** |
 
-The numbers in brackets below come from `Server-Timing` headers (collected by
-the `perfMetrics` middleware), not from client timings, so they exclude
-network and JSON serialization.
+Raw after-numbers (current run):
 
-### `GET /api/permissions` — ~100 s average, 3 SQL queries per call
+| Endpoint | avg | p50 | p95 | Response size |
+|---|---:|---:|---:|---:|
+| `sync-log` | 49 ms | 47 ms | 61 ms | 6.7 KB |
+| `resources-business` | 71 ms | 75 ms | 89 ms | 10.5 KB |
+| `users-page1` | 132 ms | 126 ms | 148 ms | 7.7 KB |
+| `resources-page1` | 146 ms | 142 ms | 161 ms | 10.4 KB |
+| `matrix-benchmark-tag` | 258 ms | 215 ms | 402 ms | 195 KB |
+| `identities-page1` | 266 ms | 213 ms | 498 ms | 15.9 KB |
+| `users-search` | 293 ms | 271 ms | 400 ms | 7.7 KB |
+| `dashboard-stats` | 655 ms | 567 ms | 1 106 ms | 396 B |
+| `systems` | 1 825 ms | 1 228 ms | 4 289 ms | 46.8 KB |
+| `access-packages` | 3 493 ms | 3 212 ms | 4 451 ms | 7.4 MB |
+| `matrix-unfiltered` | 3 630 ms | 2 638 ms | 5 895 ms | 584 KB |
 
-```
-perm-combined-limited   65.5 s   — main join over vw_ResourceUserPermissionAssignments
-perm-total-users        14.5 s   — SELECT COUNT(DISTINCT ...) FROM the same view
-perm-ap-mapping         10.7 s   — vw_UserPermissionAssignmentViaBusinessRole join
-```
+## What changed
 
-The matrix endpoint executes three independent queries back-to-back. Each of
-them scans the full `ResourceAssignments` table (1.5 M rows) via
-`vw_ResourceUserPermissionAssignments`, which is a non-materialized view.
-When the user filter is a tag with 15 users, the view still materializes all
-1.5 M rows before the outer `WHERE` narrows it down.
+### 1. Materialized matrix views
 
-### `GET /api/systems` — 37.8 s, 1 SQL query
+Migration [`013_matrix_matviews_and_indexes.sql`](../../app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql)
+converts `vw_ResourceUserPermissionAssignments` and
+`vw_UserPermissionAssignmentViaBusinessRole` to `MATERIALIZED VIEW`s and
+adds unique + covering indexes. The old plain-view versions forced every
+`/api/permissions` request to rebuild the 1.5 M-row join from scratch —
+100+ seconds per call.
 
-```
-systems-list            37.8 s   — SELECT s.*, (corr), (corr), (corr), (json_agg), (json_agg)
-```
+Refresh strategy:
 
-Six correlated subqueries per row × 126 rows = 756 scans of the child tables.
-With 1.5 M rows in `ResourceAssignments` and a join back to `Resources` inside
-the subquery, this is quadratic on the biggest table.
+- `refreshMatrixViews()` in [`app/api/src/routes/ingest.js`](../../app/api/src/routes/ingest.js)
+  wraps `REFRESH MATERIALIZED VIEW CONCURRENTLY` (with a plain-refresh
+  fallback for the first-run empty-matview case) plus `ANALYZE` of the
+  big base tables so `pg_class.reltuples` stays accurate.
+- Called from `/api/ingest/refresh-views` (the crawler hits it at
+  end-of-sync), from `/api/ingest/classify-business-role-assignments`
+  (after Direct → Governed promotion), and from [`bootstrap.js`](../../app/api/src/bootstrap.js)
+  on web container startup.
 
-### `GET /api/admin/dashboard-stats` — 1.2 s, 1 SQL query
+### 2. Push `__userTag` filter down before the matrix join
 
-```
-(no explicit label) — 15 COUNT(*) subqueries joined as columns of a single row
-```
+[`permissions.js`](../../app/api/src/routes/permissions.js): when the
+request carries `filters={"__userTag":"Benchmark"}`, the tag is resolved
+up-front to a concrete principal-ID list which is then passed to the
+main query as `WHERE p."principalId" = ANY(@principalIds)`. The old
+implementation joined the full matrix view first and applied the tag
+filter on top — for the 15-user benchmark case it was materializing
+1.5 M rows and throwing 1 499 917 of them away. 334 s → 0.4 s.
 
-None of the 15 counts have a supporting partial index. Postgres does 15 full
-table scans sequentially. Every tab change on the Dashboard triggers this.
+### 3. Narrow `perm-ap-mapping` to the same user set
 
-### `GET /api/access-package-resources` — 2.7 s server / 18 s client
+[`permissions.js`](../../app/api/src/routes/permissions.js): the AP
+mapping query used to run `GROUP BY userId, resourceId` over the full
+410 k-row business-role mapping matview. We now pass the same user-ID
+list (or re-resolve the top-N subquery) as an IN-clause so the index
+scan does the work instead of a full aggregation.
 
-```
-ap-groups               2.2 s
-```
+### 4. Systems list — CTEs instead of correlated subqueries
 
-The SQL side is tolerable (2.2 s on a 1.5 M × 13 k join) but the API spends
-another **15 seconds in Node** building the response. Almost certainly the
-`json_agg` on a 13 k × 80 k join is returning a gigantic result set that is
-then being re-shaped in JavaScript. Serializing 15 MB of JSON through Express
-is where the time goes.
+[`systems.js`](../../app/api/src/routes/systems.js): the old implementation
+ran six correlated subqueries per system row — six scans of
+`ResourceAssignments` × 126 systems × 1.5 M rows. Replaced with three
+CTEs (one per child table) aggregated once and LEFT JOINed. Also drops
+the `LEFT JOIN "Resources"` fallback path, because `ResourceAssignments`
+has a denormalized `systemId` column in v5. 45 s → 4 s.
 
-## Performance — what to fix first
+### 5. `access-package-resources` — let postgres build the JSON
 
-Ranked by impact for this dataset.
+[`permissions.js`](../../app/api/src/routes/permissions.js): rewrote the
+endpoint to `json_agg` the resource list per business role at the
+database, so postgres returns 13 k rows instead of ~100 k. The flat
+shape is still computed in Node for backward compat with the frontend,
+but the SQL side is now much faster. 19 s → 4.5 s.
 
-### 1. Matrix — materialize `vw_ResourceUserPermissionAssignments`
+### 6. Identities — Promise.all the independent queries
 
-**Impact:** ~100× on the matrix endpoint.
+[`identities.js`](../../app/api/src/routes/identities.js): the `summary`,
+`type-dist`, `count`, and `list` queries have no dependencies between
+them. Running them in a single `Promise.all` lets postgres schedule
+them on separate backends. 1.7 s → 0.5 s.
 
-The matrix view is the only screen users land on in the current UI and it
-dominates every benchmark. Three separate passes of a 1.5 M-row view is
-unworkable.
+### 7. Dashboard stats — reltuples estimates for the big counts
 
-Concrete steps:
-1. Convert `vw_ResourceUserPermissionAssignments` and
-   `vw_UserPermissionAssignmentViaBusinessRole` to **materialized views**
-   (postgres `MATERIALIZED VIEW`).
-2. Add a `REFRESH MATERIALIZED VIEW CONCURRENTLY` call at the end of every
-   CSV crawler run and at the end of any Entra sync.
-3. Index the materialized view on `(principalId)` and `(principalId, resourceId)`
-   so the user filter can push down before any join.
-4. Replace the three separate SQL calls in
-   [`app/api/src/routes/permissions.js:121-410`](../../app/api/src/routes/permissions.js#L121-L410)
-   with one joined query against the materialized view.
+[`admin.js`](../../app/api/src/routes/admin.js): the `/admin/dashboard-stats`
+endpoint ran 15 unrelated `COUNT(*)` subqueries in one statement. On the
+load-test dataset that was ~4 seconds of sequential scans of
+`ResourceAssignments` etc. We now use `pg_class.reltuples` for the six
+biggest tables (Resources, Principals, ResourceAssignments, Contexts,
+Identities, ResourceRelationships, CertificationDecisions) and keep
+exact counts only for the small tables and for filtered/indexed counts
+(BusinessRole, Governed, active RiskProfiles, etc.). Accurate enough for
+a home page, near-instant.
 
-Sanity check: the matrix view over the demo dataset (9 k users, 27 k groups)
-runs in ~200 ms today, so the view query shape is fine — the problem is
-that it's computed from scratch for every request.
+`refreshMatrixViews()` runs `ANALYZE` at the end so the reltuples
+estimates stay within a few percent of reality. 1.6 s → 1.1 s; first
+run after the matview refresh is faster still.
 
-### 2. `/api/systems` — stop doing correlated subqueries per row
+### 8. pg_trgm indexes for ILIKE search
 
-**Impact:** 44 s → expected ~1 s.
+Migration 013 installs `pg_trgm` and creates GIN indexes on
+`Principals.displayName`, `Principals.email`, and `Resources.displayName`.
+`ILIKE '%term%'` queries now hit index scans instead of sequential
+scans. `users-search` went from 950 ms → 400 ms.
 
-Rewrite [`app/api/src/routes/systems.js:15-42`](../../app/api/src/routes/systems.js#L15-L42)
-to use GROUP BY instead of correlated subqueries:
+### 9. Partial indexes for filtered counts
 
-```sql
-WITH res_counts AS (
-  SELECT "systemId", COUNT(*) AS "resourceCount",
-         json_agg(DISTINCT "resourceType") FILTER (WHERE "resourceType" IS NOT NULL) AS "computedResourceTypes"
-  FROM "Resources" GROUP BY "systemId"
-),
-princ_counts AS (
-  SELECT "systemId", COUNT(*) AS "principalCount"
-  FROM "Principals" GROUP BY "systemId"
-),
-ra_counts AS (
-  SELECT r."systemId",
-         COUNT(*) AS "assignmentCount",
-         json_agg(DISTINCT ra."assignmentType") FILTER (WHERE ra."assignmentType" IS NOT NULL) AS "computedAssignmentTypes"
-  FROM "ResourceAssignments" ra
-  INNER JOIN "Resources" r ON ra."resourceId" = r.id
-  GROUP BY r."systemId"
-)
-SELECT s.*, COALESCE(rc."resourceCount", 0) AS "resourceCount",
-       COALESCE(pc."principalCount", 0) AS "principalCount",
-       COALESCE(rac."assignmentCount", 0) AS "assignmentCount",
-       rc."computedResourceTypes", rac."computedAssignmentTypes"
-  FROM "Systems" s
-  LEFT JOIN res_counts rc  ON rc."systemId"  = s.id
-  LEFT JOIN princ_counts pc ON pc."systemId" = s.id
-  LEFT JOIN ra_counts rac  ON rac."systemId" = s.id
- ORDER BY s."displayName";
-```
+Migration 013 adds:
 
-One scan per child table instead of 126 per query.
+- `ix_Resources_businessRole` — partial index on
+  `Resources(id) WHERE resourceType = 'BusinessRole'`
+- `ix_RA_governed` — partial index on
+  `ResourceAssignments(resourceId, principalId) WHERE assignmentType = 'Governed'`
 
-### 3. `/api/permissions` — narrow the filter **before** the view, not after
+These back the filtered counts in dashboard-stats and the access-packages
+assignment-count CTE without having to scan the parent table.
 
-**Impact:** filtered matrix 322 s → expected < 2 s.
+## Remaining work
 
-When the request carries `filters={"__userTag":"Benchmark"}`, the permissions
-endpoint currently joins the full permissions view and then applies the tag
-filter at the top. The 15-user case is extreme: the server materializes
-1.5 M rows and then throws 1 499 997 of them away.
+### `access-packages` is still 3–4 seconds on the load-test dataset
 
-Fix in [`app/api/src/routes/permissions.js`](../../app/api/src/routes/permissions.js):
-- If a `__userTag` or `__principalSearch` filter is present, resolve it to a
-  concrete `principalId` list first (one quick query against
-  `GraphTagAssignments`).
-- Push that list down as `WHERE u.id = ANY(@principalIds)` in the main query
-  so the planner can index-scan instead of full-scanning the view.
+The server-side SQL (`ap-groups`) is 2.5 s and the total response is
+7.4 MB. At localhost speeds that's ~2 s of HTTP transfer, so the math
+works. For a real deployment with 13 k business roles the response
+should probably be paginated — the frontend shows at most ~50 business
+roles at a time anyway. Kept flat for now to avoid breaking the current
+consumer; split into `/api/access-packages?limit=N` + a detail endpoint
+when the frontend is reshaped.
 
-### 4. `/api/access-package-resources` — don't `json_agg` the whole join
+### `systems` p95 still has a ~4 s outlier
 
-**Impact:** 18 s → expected ~1 s.
+The CTE version runs in ~1.2 s warm but cold-cache it scans the 1.5 M-row
+`ResourceAssignments` table once to build `ra_counts`. A parallel seq
+scan that takes 3-4 s first time and stays hot afterwards. Fixable by
+materializing the per-system counts (similar to the matrix views) but
+the current numbers are acceptable for a tab that's not on the critical
+path.
 
-The 15 s difference between the SQL time (2.2 s) and the client time (18 s) is
-Node building the response. Two cheap fixes in [`app/api/src/routes/permissions.js`](../../app/api/src/routes/permissions.js):
-- Return only the aggregate counts per access package on this endpoint;
-  stream the resource lists through a separate `/api/access-package/:id/resources`
-  endpoint when the user clicks a row.
-- Or keep the current shape but use `json_build_object` at the DB level and
-  let postgres build the JSON, so Express just forwards the string.
+### First-request warmup is visible
 
-### 5. `/api/admin/dashboard-stats` — add partial-count indexes
+Several endpoints show a p95 that's 2-10× the p50. Postgres has to
+page-fault the relevant matview pages on the first query after startup
+or refresh. Options:
 
-**Impact:** 1.6 s → expected < 50 ms.
-
-For each subquery with a WHERE clause, add a partial index. For the plain
-`COUNT(*)` ones, the numbers are still cheap enough that this isn't urgent —
-but postgres planners can answer `COUNT(*)` very fast when there's an
-`indexonlyscan` path available. Candidates:
-
-```sql
-CREATE INDEX IF NOT EXISTS "ix_Resources_businessRole"
-    ON "Resources"("id") WHERE "resourceType" = 'BusinessRole';
-CREATE INDEX IF NOT EXISTS "ix_RA_governed"
-    ON "ResourceAssignments"("resourceId") WHERE "assignmentType" = 'Governed';
-```
-
-### 6. `/api/users?search=X` — trigram index on `displayName` / `email`
-
-**Impact:** 950 ms → expected ~80 ms.
-
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX IF NOT EXISTS "ix_Principals_displayName_trgm"
-    ON "Principals" USING GIN ("displayName" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "ix_Principals_email_trgm"
-    ON "Principals" USING GIN ("email" gin_trgm_ops);
-```
-
-With a trigram index, `ILIKE '%term%'` queries go from sequential scan to
-index scan.
-
-### 7. `/api/identities?limit=25` — parallelize the three queries
-
-**Impact:** 632 ms → expected ~350 ms.
-
-`identity-type-dist`, `identity-summary`, `identity-list` run sequentially
-in [`app/api/src/routes/identities.js`](../../app/api/src/routes/identities.js).
-They're independent — wrap them in `await Promise.all([...])` so postgres
-can run them in parallel.
+- Add a tiny "touch the matview" query at the end of bootstrap's
+  `refreshMatrixViews()` to prime the page cache.
+- Accept the first-hit cost and keep the container warm in production.
 
 ## Load test timings
 
-For reference, the CSV crawler import times on this machine with the
-post-fix (fast-path) crawler build:
+For reference, the CSV crawler import times on this machine:
 
 | Step | Rows | Time |
 |---|---:|---:|
@@ -253,22 +216,6 @@ post-fix (fast-path) crawler build:
 | 9. Certifications | 300 000 | 7 min 9 s |
 | **Total** | **~2.18 M** | **~37 min** |
 
-Before the crawler fixes the 1.5 M assignments step never completed (it got
-stuck in an O(N²) PowerShell array-append loop for >2 hours before being
-killed). The relevant commits:
-
-- `Send-GroupedBySystem` now uses `List[object]` and a Dictionary-based
-  dedup with an ordinal string comparer (PowerShell hashtables degrade
-  badly past ~500 k entries).
-- `Read-CsvFast` replaces `Import-Csv` for large files — 5-10× faster
-  because it skips PSCustomObject allocation entirely.
-- Every `$list.Add(...) | Out-Null` was rewritten to `[void]$list.Add(...)`.
-  The `Out-Null` cmdlet call overhead was a surprise dominant cost for 1.5 M
-  iterations.
-- The classify-business-role-assignments endpoint was split into a DELETE
-  pass + UPDATE pass to avoid the "ON CONFLICT cannot affect row a second
-  time" postgres error on redundant (Direct, Governed) pairs.
-
 ## Running the benchmark yourself
 
 ```powershell
@@ -276,21 +223,24 @@ pwsh -File test/benchmark/Run-Benchmark.ps1              # 5 runs per endpoint
 pwsh -File test/benchmark/Run-Benchmark.ps1 -Runs 3      # quick pass
 ```
 
-The script writes a fresh `results/BENCHMARK.md` (raw numbers) plus a
-timestamped `results/benchmark-YYYY-MM-DD_HHmm.json`. The nightly runner
-calls it with `-FailOnRegression` and fails the phase if any endpoint's
-p95 goes more than 25 % above `baseline.json`.
+The script uses `Invoke-WebRequest -UseBasicParsing` so the client
+doesn't parse the JSON body — measurements reflect server + HTTP time,
+not PowerShell deserialization cost.
+
+A fresh `results/BENCHMARK.md` and timestamped `benchmark-YYYY-MM-DD_HHmm.json`
+are written on every run. The nightly runner ([`test/nightly/Run-NightlyLocal.ps1`](../nightly/Run-NightlyLocal.ps1),
+Phase 4k) runs it with `-FailOnRegression` and fails if any endpoint's
+p95 goes more than 25% above `baseline.json`.
 
 ## Establishing the baseline
 
-The first benchmark against this dataset is useful for *finding* problems
-but a terrible *baseline* — several endpoints are known-broken and
-committing those numbers would immunize us against regression. The baseline
-should be established **after** at least items 1 and 2 above are fixed:
+Now that the matrix + systems + access-packages endpoints are fixed, the
+current numbers are a reasonable baseline. Commit one:
 
 ```powershell
-pwsh -File test/benchmark/Run-Benchmark.ps1
-cp test/benchmark/results/benchmark-<latest>.json test/benchmark/baseline.json
+Copy-Item test/benchmark/results/benchmark-<latest>.json test/benchmark/baseline.json
+git add test/benchmark/baseline.json
 ```
 
-Then commit `baseline.json` and enable `-FailOnRegression` nightly.
+Re-baseline any time you intentionally change dataset shape, view
+definitions, or endpoint contracts.

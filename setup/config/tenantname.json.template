@@ -1,0 +1,31 @@
+{
+  "_INFO": "Identity Atlas configuration template (Docker deployment).",
+  "_NOTE": "Most settings are now configured via the UI (Admin → Crawlers wizard). This file is only needed when running crawlers outside Docker via the script-download path.",
+  "_USAGE": "Copy this to config.production.json and customize for your environment.",
+
+  "Graph": {
+    "_NOTE": "Microsoft Graph credentials for the Entra ID crawler. Only needed when running the crawler script outside the Docker worker.",
+    "TenantId": "yourtenant.onmicrosoft.com",
+    "ClientId": "your-clientid-guid",
+    "ClientSecret": ""
+  },
+
+  "_LLM_NOTE": "LLM section configures the AI provider used by New-FGRiskProfile, New-FGRiskClassifiers, and New-FGCorrelationRuleset. Only anonymized structural data is sent to the LLM — no user names, emails, or identity data.",
+  "LLM": {
+    "Provider": "",
+    "Model": "",
+    "ApiKey": "",
+    "_ApiKey_NOTE": "Set ApiKey here or use ApiKey_Encrypted for DPAPI encryption, or set ANTHROPIC_API_KEY / OPENAI_API_KEY env var"
+  },
+
+  "_RISKSCORING_NOTE": "RiskScoring section configures the identity risk scoring engine (New-FGRiskProfile / New-FGRiskClassifiers). Profiles and classifiers are stored in SQL by default. Use Export-FGRiskProfile / Export-FGRiskClassifiers to export to file for sharing.",
+  "RiskScoring": {
+    "Enabled": true,
+    "CustomerDomain": "yourtenant.onmicrosoft.com"
+  },
+
+  "_ACCOUNTCORRELATION_NOTE": "AccountCorrelation section configures the daily account correlation run (Invoke-FGAccountCorrelation). The correlation ruleset is generated once with New-FGCorrelationRuleset and stored in SQL.",
+  "AccountCorrelation": {
+    "Enabled": true
+  }
+}

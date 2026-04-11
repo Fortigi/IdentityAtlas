@@ -352,7 +352,10 @@ router.post('/ingest/refresh-views', async (req, res) => {
 // Shared helper used by /ingest/refresh-views, the classify endpoint, and
 // bootstrap's initial refresh. CONCURRENTLY falls back to a plain REFRESH
 // on the very first run (CONCURRENTLY requires the matview to already have
-// data, which it doesn't on first boot).
+// data, which it doesn't on first boot). After refreshing we ANALYZE both
+// matviews and the big base tables so the planner has accurate row counts
+// (dashboard-stats uses pg_class.reltuples for its fast-path counts and
+// that field is only updated by ANALYZE).
 async function refreshMatrixViews() {
   const views = [
     '"vw_ResourceUserPermissionAssignments"',
@@ -370,6 +373,22 @@ async function refreshMatrixViews() {
         throw err;
       }
     }
+  }
+  // Refresh planner statistics on the matviews and the big base tables.
+  // Cheap (milliseconds) and gives dashboard-stats fast reltuples-based
+  // counts that stay close to reality.
+  const tables = [
+    '"vw_ResourceUserPermissionAssignments"',
+    '"vw_UserPermissionAssignmentViaBusinessRole"',
+    '"ResourceAssignments"',
+    '"Resources"',
+    '"Principals"',
+    '"ResourceRelationships"',
+    '"Contexts"',
+    '"Identities"',
+  ];
+  for (const t of tables) {
+    try { await db.query(`ANALYZE ${t}`); } catch { /* best effort */ }
   }
 }
 

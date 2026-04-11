@@ -36,16 +36,16 @@ router.get('/systems', async (req, res) => {
          GROUP BY "systemId"
       ),
       ra_counts AS (
-        -- Prefer the denormalized systemId on ResourceAssignments (added in
-        -- migration 001) to avoid a join back to Resources. Fallback is the
-        -- join path for any rows where systemId is null.
-        SELECT COALESCE(ra."systemId", r."systemId") AS "systemId",
+        -- ResourceAssignments has a denormalized systemId column (migration
+        -- 001) so we group directly on it — no join back to Resources. Rows
+        -- with a null systemId simply don't contribute to any system's count.
+        SELECT ra."systemId",
                COUNT(*) AS "assignmentCount",
                json_agg(DISTINCT ra."assignmentType") FILTER (WHERE ra."assignmentType" IS NOT NULL)
                  AS "computedAssignmentTypes"
           FROM "ResourceAssignments" ra
-          LEFT JOIN "Resources" r ON ra."systemId" IS NULL AND ra."resourceId" = r.id
-         GROUP BY COALESCE(ra."systemId", r."systemId")
+         WHERE ra."systemId" IS NOT NULL
+         GROUP BY ra."systemId"
       )
       SELECT s.*,
              COALESCE(rc."resourceCount", 0)  AS "resourceCount",
