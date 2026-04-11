@@ -160,14 +160,16 @@ app.get('/api/version', publicLimiter, (req, res) => {
 async function getFeatureOverride(key) {
   if (process.env.USE_SQL !== 'true') return null;
   try {
-    const { getPool } = await import('./db/connection.js');
-    const pool = await getPool();
-    const r = await pool.request().input('k', `FEATURE_${key}`)
-      .query(`SELECT configValue FROM dbo.WorkerConfig WHERE configKey = @k`);
-    if (r.recordset.length === 0) return null;
-    const v = r.recordset[0].configValue;
+    const db = await import('./db/connection.js');
+    const r = await db.queryOne(
+      `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = $1`,
+      [`FEATURE_${key}`]
+    );
+    if (!r) return null;
+    const v = r.configValue;
     return v === 'true' ? true : v === 'false' ? false : null;
-  } catch {
+  } catch (err) {
+    console.warn(`getFeatureOverride(${key}) failed: ${err.message}`);
     return null;
   }
 }

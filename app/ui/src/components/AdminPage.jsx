@@ -84,6 +84,12 @@ function NotConfigured({ message }) {
 }
 
 // ── Risk Profile section ──────────────────────────────────────────
+//
+// Renders the currently active v5 RiskProfiles row. The profile JSON shape
+// comes from the in-browser wizard (Admin → Risk Scoring → New profile) and
+// maps directly to the `customer_profile` fields produced by the classifier
+// generation prompt: name, domain, industry, country, description, regulations,
+// critical_business_processes, known_systems, critical_roles, risk_domains.
 
 function RiskProfileSection() {
   const [data, setData] = useState(null);
@@ -100,97 +106,122 @@ function RiskProfileSection() {
 
   const content = () => {
     if (loading) return <p className="mt-4 text-sm text-gray-400">Loading...</p>;
-    if (!data?.available) return <NotConfigured message="No risk profile saved yet. Run New-FGRiskProfile and Save-FGRiskProfile to generate one." />;
-
-    // Defaults mode — no LLM profile, show the hardcoded multipliers that were used
-    if (data.source === 'defaults') {
+    if (!data?.available) {
       return (
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            No LLM-generated profile saved. Risk scoring used hardcoded defaults. Run <code className="bg-amber-100 px-1 rounded mx-1">New-FGRiskProfile</code> + <code className="bg-amber-100 px-1 rounded">Save-FGRiskProfile</code> to get org-specific multipliers.
-          </div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resource Type Multipliers (defaults used)</p>
-          <div className="overflow-x-auto rounded border border-gray-200">
-            <table className="w-full text-xs">
-              <thead><tr className="bg-gray-50 text-left text-gray-500 uppercase tracking-wide">
-                <th className="px-3 py-2 font-semibold">Resource Type</th>
-                <th className="px-3 py-2 font-semibold text-center">Multiplier</th>
-                <th className="px-3 py-2 font-semibold text-center">Propagation</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-100">
-                {Object.entries(data.multipliers).sort((a, b) => b[1] - a[1]).map(([type, mult]) => (
-                  <tr key={type} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-medium text-gray-800">{type}</td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${mult >= 1.3 ? 'bg-red-100 text-red-700' : mult <= 0.8 ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700'}`}>
-                        {mult}×
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-center text-gray-500">
-                      {data.propagation[type] ? `${Math.round(data.propagation[type] * 100)}%` : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="mt-4">
+          <NotConfigured message="No risk profile saved yet. Open Admin → Risk Scoring → New profile to generate one via the wizard." />
         </div>
       );
     }
 
-    const cp = data.profile?.customer_profile || data.profile || {};
-    const sensitiveDepts = cp.sensitive_departments || [];
-    const privRoles = cp.privileged_roles || [];
-    const externalTrust = cp.external_trust_relationships || [];
+    const cp = data.profile || {};
+    const regulations = cp.regulations || [];
+    const criticalRoles = cp.critical_roles || [];
+    const knownSystems = cp.known_systems || [];
+    const criticalProcesses = cp.critical_business_processes || [];
+    const riskDomains = cp.risk_domains || [];
 
     return (
       <div className="mt-4 space-y-4">
         <div className="flex flex-wrap gap-2">
+          {!data.isActive && (
+            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full border border-amber-200">
+              Not active — showing most recent
+            </span>
+          )}
+          <MetaBadge label="Name" value={data.displayName || cp.name} />
           <MetaBadge label="Domain" value={data.domain} />
           <MetaBadge label="Industry" value={data.industry} />
           <MetaBadge label="Country" value={data.country} />
-          <MetaBadge label="LLM" value={data.llmProvider} />
+          <MetaBadge label="LLM" value={`${data.llmProvider || '—'} ${data.llmModel || ''}`.trim()} />
+          <MetaBadge label="Version" value={`v${data.version}`} />
           <MetaBadge label="Generated" value={fmt(data.generatedAt)} />
         </div>
 
-        {cp.organization_description && (
+        {cp.description && (
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Organization Description</p>
-            <p className="text-sm text-gray-700 leading-relaxed">{cp.organization_description}</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{cp.description}</p>
           </div>
         )}
 
-        {sensitiveDepts.length > 0 && (
+        {regulations.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Sensitive Departments ({sensitiveDepts.length})</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Applicable Regulations ({regulations.length})</p>
             <div className="flex flex-wrap gap-1.5">
-              {sensitiveDepts.map((d, i) => (
-                <span key={i} className="px-2 py-0.5 bg-orange-50 text-orange-700 text-xs rounded-full border border-orange-200">{d}</span>
+              {regulations.map((r, i) => (
+                <span
+                  key={i}
+                  title={r.relevance || ''}
+                  className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-200"
+                >
+                  {r.name || r.id || String(r)}
+                </span>
               ))}
             </div>
           </div>
         )}
 
-        {privRoles.length > 0 && (
+        {criticalRoles.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Privileged Roles ({privRoles.length})</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Critical Roles ({criticalRoles.length})</p>
+            <div className="space-y-1">
+              {criticalRoles.map((r, i) => {
+                const titles = Array.isArray(r.title_patterns) ? r.title_patterns.join(', ') : (r.title || String(r));
+                return (
+                  <div key={i} className="text-xs text-gray-700 flex gap-2">
+                    <span className="font-mono text-gray-500 shrink-0">{titles}</span>
+                    {r.rationale && <span className="text-gray-500">— {r.rationale}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {knownSystems.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Known Systems ({knownSystems.length})</p>
             <div className="flex flex-wrap gap-1.5">
-              {privRoles.map((r, i) => (
-                <span key={i} className="px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded-full border border-red-200">{r}</span>
+              {knownSystems.map((s, i) => (
+                <span
+                  key={i}
+                  title={s.description || s.type || ''}
+                  className={`px-2 py-0.5 text-xs rounded-full border ${
+                    s.criticality === 'critical' ? 'bg-red-50 text-red-700 border-red-200' :
+                    s.criticality === 'high' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                    'bg-gray-50 text-gray-700 border-gray-200'
+                  }`}
+                >
+                  {s.name || String(s)}
+                </span>
               ))}
             </div>
           </div>
         )}
 
-        {externalTrust.length > 0 && (
+        {criticalProcesses.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">External Trust Relationships ({externalTrust.length})</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Critical Business Processes ({criticalProcesses.length})</p>
+            <ul className="text-xs text-gray-700 space-y-0.5 list-disc list-inside">
+              {criticalProcesses.map((p, i) => <li key={i}>{typeof p === 'string' ? p : (p.name || JSON.stringify(p))}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {riskDomains.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Risk Domains ({riskDomains.length})</p>
             <div className="flex flex-wrap gap-1.5">
-              {externalTrust.map((t, i) => (
-                <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-200">{t}</span>
+              {riskDomains.map((d, i) => (
+                <span
+                  key={i}
+                  title={d.description || ''}
+                  className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs rounded-full border border-purple-200"
+                >
+                  {d.domain || d.name || String(d)}
+                  {d.weight != null && <span className="ml-1 text-[10px] text-purple-500">{d.weight}</span>}
+                </span>
               ))}
             </div>
           </div>
@@ -205,6 +236,17 @@ function RiskProfileSection() {
 }
 
 // ── Classifiers section ───────────────────────────────────────────
+//
+// v5 classifier shape (matches riskPrompts.js classifierGenerationPrompt):
+//   { version, groupClassifiers:[], userClassifiers:[], agentClassifiers:[] }
+// each classifier: { id, label, description, patterns:[], score, tier, domain }
+
+const TIER_STYLES_SMALL = {
+  critical: 'bg-red-100 text-red-700',
+  high:     'bg-orange-100 text-orange-700',
+  medium:   'bg-yellow-100 text-yellow-700',
+  low:      'bg-blue-100 text-blue-700',
+};
 
 function ClassifierTable({ rules, emptyMsg }) {
   if (!rules?.length) return <p className="text-xs text-gray-400 mt-2">{emptyMsg}</p>;
@@ -213,36 +255,47 @@ function ClassifierTable({ rules, emptyMsg }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="bg-gray-50 text-left text-gray-500 uppercase tracking-wide">
-            <th className="px-3 py-2 font-semibold">Name</th>
-            <th className="px-3 py-2 font-semibold">Pattern(s)</th>
-            <th className="px-3 py-2 font-semibold w-16">Score</th>
-            <th className="px-3 py-2 font-semibold">Category</th>
+            <th className="px-3 py-2 font-semibold">Label</th>
+            <th className="px-3 py-2 font-semibold">Patterns</th>
+            <th className="px-3 py-2 font-semibold w-16 text-center">Score</th>
+            <th className="px-3 py-2 font-semibold w-20 text-center">Tier</th>
+            <th className="px-3 py-2 font-semibold">Domain</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
           {rules.map((rule, i) => {
-            // Support both SQL-saved format (pattern/weight) and universal format (name_patterns/base_score)
-            const patterns = rule.name_patterns
-              ? rule.name_patterns.join(', ')
-              : (rule.pattern || rule.regex || '—');
-            const score = rule.base_score ?? rule.weight;
+            const patterns = Array.isArray(rule.patterns) ? rule.patterns : (rule.patterns ? [rule.patterns] : []);
+            const tier = (rule.tier || '').toLowerCase();
             return (
-              <tr key={i} className="hover:bg-gray-50">
+              <tr key={rule.id || i} className="hover:bg-gray-50 align-top">
                 <td className="px-3 py-2 font-medium text-gray-800">
-                  {rule.name || '—'}
-                  {rule.rationale && (
-                    <p className="text-gray-400 font-normal mt-0.5 leading-relaxed">{rule.rationale}</p>
+                  {rule.label || rule.id || '—'}
+                  {rule.description && (
+                    <p className="text-gray-400 font-normal mt-0.5 leading-relaxed">{rule.description}</p>
                   )}
                 </td>
-                <td className="px-3 py-2 text-gray-600 font-mono">{patterns}</td>
+                <td className="px-3 py-2 text-gray-600 font-mono">
+                  {patterns.length === 0 ? '—' : (
+                    <div className="space-y-0.5">
+                      {patterns.map((p, pi) => <div key={pi}>{p}</div>)}
+                    </div>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-center">
                   <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
-                    (score || 0) >= 70 ? 'bg-red-100 text-red-700' :
-                    (score || 0) >= 40 ? 'bg-orange-100 text-orange-700' :
+                    (rule.score || 0) >= 70 ? 'bg-red-100 text-red-700' :
+                    (rule.score || 0) >= 40 ? 'bg-orange-100 text-orange-700' :
                     'bg-gray-100 text-gray-600'
-                  }`}>{score ?? '—'}</span>
+                  }`}>{rule.score ?? '—'}</span>
                 </td>
-                <td className="px-3 py-2 text-gray-600">{rule.category || rule.type || '—'}</td>
+                <td className="px-3 py-2 text-center">
+                  {tier ? (
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${TIER_STYLES_SMALL[tier] || 'bg-gray-100 text-gray-500'}`}>
+                      {tier}
+                    </span>
+                  ) : '—'}
+                </td>
+                <td className="px-3 py-2 text-gray-600">{rule.domain || '—'}</td>
               </tr>
             );
           })}
@@ -268,36 +321,43 @@ function ClassifiersSection() {
 
   const content = () => {
     if (loading) return <p className="mt-4 text-sm text-gray-400">Loading...</p>;
-    if (!data?.available) return <NotConfigured message="No classifiers saved yet. Run New-FGRiskClassifiers and Save-FGRiskClassifiers to generate them." />;
+    if (!data?.available) {
+      return (
+        <div className="mt-4">
+          <NotConfigured message="No classifiers saved yet. Open Admin → Risk Scoring → New profile to generate a profile and classifier set via the wizard." />
+        </div>
+      );
+    }
 
     const cls = data.classifiers || {};
-    const groupRules = cls.groups || [];
-    const userRules = cls.users || [];
-    const isUniversal = data.source === 'universal';
+    const groupRules = cls.groupClassifiers || [];
+    const userRules  = cls.userClassifiers  || [];
+    const agentRules = cls.agentClassifiers || [];
 
     return (
       <div className="mt-4 space-y-3">
-        {isUniversal && (
-          <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            No custom classifiers saved — showing built-in universal classifiers. Run <code className="bg-blue-100 px-1 rounded mx-1">New-FGRiskClassifiers</code> + <code className="bg-blue-100 px-1 rounded">Save-FGRiskClassifiers</code> to get org-specific patterns.
-          </div>
-        )}
         <div className="flex flex-wrap gap-2">
-          {!isUniversal && <MetaBadge label="Version" value={data.version} />}
-          {!isUniversal && <MetaBadge label="Customer" value={data.customer} />}
-          {!isUniversal && <MetaBadge label="LLM" value={data.llmProvider} />}
-          {!isUniversal && <MetaBadge label="Generated" value={fmt(data.generatedAt)} />}
-          {isUniversal && <MetaBadge label="Source" value={`Universal v${cls.version || '—'}`} />}
-          <MetaBadge label="Group rules" value={groupRules.length} />
-          <MetaBadge label="User rules" value={userRules.length} />
+          {!data.isActive && (
+            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full border border-amber-200">
+              Not active — showing most recent
+            </span>
+          )}
+          <MetaBadge label="Name" value={data.displayName} />
+          <MetaBadge label="Version" value={`v${data.version}`} />
+          <MetaBadge label="LLM" value={`${data.llmProvider || '—'} ${data.llmModel || ''}`.trim()} />
+          <MetaBadge label="Generated" value={fmt(data.generatedAt)} />
+          <MetaBadge label="Groups" value={groupRules.length} />
+          <MetaBadge label="Users"  value={userRules.length} />
+          <MetaBadge label="Agents" value={agentRules.length} />
         </div>
 
         {/* Sub-tabs */}
         <div className="flex gap-2 border-b border-gray-200 mt-2">
-          {[['groups', `Groups (${groupRules.length})`], ['users', `Users (${userRules.length})`]].map(([key, label]) => (
+          {[
+            ['groups', `Groups (${groupRules.length})`],
+            ['users',  `Users (${userRules.length})`],
+            ['agents', `Agents (${agentRules.length})`],
+          ].map(([key, label]) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
@@ -313,7 +373,8 @@ function ClassifiersSection() {
         </div>
 
         {activeTab === 'groups' && <ClassifierTable rules={groupRules} emptyMsg="No group classifiers." />}
-        {activeTab === 'users' && <ClassifierTable rules={userRules} emptyMsg="No user classifiers." />}
+        {activeTab === 'users'  && <ClassifierTable rules={userRules}  emptyMsg="No user classifiers." />}
+        {activeTab === 'agents' && <ClassifierTable rules={agentRules} emptyMsg="No agent classifiers." />}
 
         <JsonViewer data={data.classifiers} />
       </div>
@@ -982,6 +1043,11 @@ function LLMSettingsSection() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [message, setMessage] = useState(null);
+  // Model discovery state. `models` is null until the user clicks "Refresh models"
+  // (or until auto-discovery fires). `modelsLoading` gates the button.
+  const [models, setModels] = useState(null);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -1069,8 +1135,41 @@ function LLMSettingsSection() {
     await authFetch('/api/admin/llm/config', { method: 'DELETE' });
     setConfig({ provider: 'anthropic', model: '', endpoint: '', deployment: '', apiVersion: '', apiKey: '' });
     setApiKeySet(false);
+    setModels(null);
     setMessage({ kind: 'ok', text: 'LLM configuration cleared' });
   };
+
+  // Fetch the list of models for the current provider. Uses the typed API key
+  // if present, otherwise the server falls back to the saved vault key.
+  const handleRefreshModels = async () => {
+    setModelsLoading(true);
+    setModelsError(null);
+    try {
+      const body = { provider: config.provider };
+      if (config.apiKey)    body.apiKey    = config.apiKey;
+      if (config.endpoint)  body.endpoint  = config.endpoint;
+      if (config.apiVersion) body.apiVersion = config.apiVersion;
+      const r = await authFetch('/api/admin/llm/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setModels(j.models || []);
+      } else {
+        setModelsError(j.error || 'Failed to fetch models');
+        setModels(null);
+      }
+    } catch (err) {
+      setModelsError(err.message);
+      setModels(null);
+    } finally { setModelsLoading(false); }
+  };
+
+  // Reset the discovered model list whenever the provider changes — a model
+  // list for Anthropic is not valid for OpenAI.
+  useEffect(() => { setModels(null); setModelsError(null); }, [config.provider]);
 
   if (loading) return <div className="text-sm text-gray-500 p-6">Loading…</div>;
 
@@ -1098,18 +1197,48 @@ function LLMSettingsSection() {
             </select>
           </div>
 
-          {/* Model */}
+          {/* Model — dropdown after discovery, otherwise free-text input */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {isAzure ? 'Deployment name (model field for Azure)' : 'Model'}
-            </label>
-            <input
-              type="text"
-              value={config.model}
-              onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
-              placeholder={placeholderModel || (isAzure ? 'e.g. gpt-4o-prod' : '')}
-              className="w-full px-3 py-1.5 text-sm border rounded font-mono dark:bg-gray-700 dark:border-gray-600"
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                {isAzure ? 'Deployment' : 'Model'}
+              </label>
+              <button
+                type="button"
+                onClick={handleRefreshModels}
+                disabled={modelsLoading || (!config.apiKey && !apiKeySet)}
+                className="text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400"
+                title={(!config.apiKey && !apiKeySet) ? 'Enter an API key first' : 'Fetch available models from the provider'}
+              >
+                {modelsLoading ? 'Loading…' : models ? 'Refresh' : 'Discover models'}
+              </button>
+            </div>
+            {models && models.length > 0 ? (
+              <select
+                value={config.model || ''}
+                onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
+                className="w-full px-3 py-1.5 text-sm border rounded font-mono dark:bg-gray-700 dark:border-gray-600"
+              >
+                <option value="">— select a model —</option>
+                {models.map(m => (
+                  <option key={m.id} value={m.id}>{m.label || m.id}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={config.model}
+                onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
+                placeholder={placeholderModel || (isAzure ? 'e.g. gpt-4o-prod' : '')}
+                className="w-full px-3 py-1.5 text-sm border rounded font-mono dark:bg-gray-700 dark:border-gray-600"
+              />
+            )}
+            {modelsError && (
+              <div className="text-xs text-red-600 mt-1">Model discovery failed: {modelsError}</div>
+            )}
+            {models && models.length === 0 && (
+              <div className="text-xs text-amber-600 mt-1">No models returned — check your API key permissions.</div>
+            )}
           </div>
 
           {/* Azure-only fields */}

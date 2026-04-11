@@ -15,6 +15,7 @@ import {
   clearLLMConfig,
   testLLMConfig,
   isLLMConfigured,
+  listModelsForConfig,
   SUPPORTED_PROVIDERS,
   DEFAULT_MODELS,
 } from '../llm/service.js';
@@ -102,6 +103,27 @@ router.post('/admin/llm/test', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('POST /admin/llm/test failed:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/admin/llm/models — discover available models for the given
+// provider + credentials. If the body omits `apiKey`, the saved vault key is
+// used (so the user can refresh the list after saving). Returns
+// `{ ok: true, models: [{id, label}] }` or `{ ok: false, error }`.
+//
+// Used by the LLM Settings page to populate the model dropdown instead of
+// making the user type the exact model ID.
+router.post('/admin/llm/models', async (req, res) => {
+  try {
+    const { provider, apiKey, endpoint, apiVersion } = req.body || {};
+    if (!provider || !SUPPORTED_PROVIDERS.includes(provider)) {
+      return res.status(400).json({ ok: false, error: `provider must be one of: ${SUPPORTED_PROVIDERS.join(', ')}` });
+    }
+    const result = await listModelsForConfig({ provider, apiKey, endpoint, apiVersion });
+    res.json(result);
+  } catch (err) {
+    console.error('POST /admin/llm/models failed:', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

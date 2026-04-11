@@ -15,17 +15,60 @@ const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv'];
 const MAX_RECENT_JOBS = 50;
 const SECRET_MASK = '••••••••';
 
-// Graph API permission IDs → human-readable names
+// Graph API permission IDs → human-readable names.
+//
+// IDs verified against the live Microsoft Graph service principal
+// (00000003-0000-0000-c000-000000000000) appRoles list — do NOT trust the
+// docs pages, they occasionally print delegated-scope IDs by mistake. When
+// adding a new permission, verify with:
+//   GET /v1.0/servicePrincipals(appId='00000003-0000-0000-c000-000000000000')?$select=appRoles
+//
+// For each required permission we also list any *superset* app-role that
+// should count as "granted" — e.g. AccessReview.ReadWrite.All implies
+// AccessReview.Read.All, so an admin who granted the broader one shouldn't
+// see a red ✗ next to Read.All.
 const GRAPH_PERMISSION_MAP = {
+  // id → canonical name
   'df021288-bdef-4463-88db-98f22de89214': 'User.Read.All',
   '5b567255-7703-4780-807c-7be8301ae99b': 'Group.Read.All',
   '98830695-27a2-44f7-8c18-0c3ebc9698f6': 'GroupMember.Read.All',
   '7ab1d382-f21e-4acd-a863-ba3e13f7da61': 'Directory.Read.All',
   '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30': 'Application.Read.All',
-  'b3a539c9-59be-4c8d-b62c-11ae8c4f2a37': 'PrivilegedEligibilitySchedule.Read.AzureADGroup',
+  // PrivilegedEligibilitySchedule.Read.AzureADGroup — previous ID
+  // (b3a539c9-59be-4c8d-b62c-11ae8c4f2a37) was the delegated scope id, not the
+  // application app-role id. That's why the wizard kept showing the PIM
+  // permission as ungranted even when it had been consented. Fixed 2026-04-11.
+  'edb419d6-7edc-42a3-9345-509bfdf5d87c': 'PrivilegedEligibilitySchedule.Read.AzureADGroup',
   'c74fd47d-ed3c-45c3-9a9e-b8676de685d2': 'EntitlementManagement.Read.All',
   'd07a8cc0-3d51-4b77-b3b0-32704d1f69fa': 'AccessReview.Read.All',
   'b0afded3-3588-46d8-8b3d-9842eff778da': 'AuditLog.Read.All',
+  // Role-management / PIM directory. Not strictly required but nice to surface
+  // so the admin can see whether PIM-for-roles is available to the crawler.
+  '483bed4a-2ad3-4361-a73b-c83ccdbdc53c': 'RoleManagement.Read.Directory',
+  'ff278e11-4a33-4d0c-83d2-d01dc58929a5': 'RoleEligibilitySchedule.Read.Directory',
+};
+
+// Supersets — if the admin consented to the broader permission, the narrower
+// one should count as granted. The key is an app-role id the admin might have
+// consented to, the value is the canonical name of the *implied* narrower
+// permission. Applied when computing the `permissions` response.
+const GRAPH_PERMISSION_ALIASES = {
+  // AccessReview.ReadWrite.All → AccessReview.Read.All
+  'ef5f7d5c-338f-44b0-86c3-351f46c8bb5f': 'AccessReview.Read.All',
+  // Directory.ReadWrite.All → Directory.Read.All
+  '19dbc75e-c2e2-444c-a770-ec69d8559fc7': 'Directory.Read.All',
+  // Group.ReadWrite.All → Group.Read.All
+  '62a82d76-70ea-41e2-9197-370581804d09': 'Group.Read.All',
+  // GroupMember.ReadWrite.All → GroupMember.Read.All
+  'dbaae8cf-10b5-4b86-a4a1-f871c94c6695': 'GroupMember.Read.All',
+  // User.ReadWrite.All → User.Read.All
+  '741f803b-c850-494e-b5df-cde7c675a1ca': 'User.Read.All',
+  // Application.ReadWrite.All → Application.Read.All
+  '1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9': 'Application.Read.All',
+  // EntitlementManagement.ReadWrite.All → EntitlementManagement.Read.All
+  '9acd699f-1e81-4958-b001-93b1d2506e19': 'EntitlementManagement.Read.All',
+  // RoleManagement.ReadWrite.Directory → RoleManagement.Read.Directory
+  '9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8': 'RoleManagement.Read.Directory',
 };
 
 // Which permissions enable which object types
@@ -39,6 +82,8 @@ const PERMISSION_OBJECT_MAP = {
   'EntitlementManagement.Read.All': ['identityGovernance'],
   'AccessReview.Read.All': ['identityGovernance'],
   'AuditLog.Read.All': ['identity'],
+  'RoleManagement.Read.Directory': ['directoryRoles'],
+  'RoleEligibilitySchedule.Read.Directory': ['pim'],
 };
 
 // All known object types for the Entra ID crawler
@@ -261,25 +306,35 @@ router.post('/admin/validate-graph-credentials', async (req, res) => {
 
       if (spRes.ok) {
         const sp = await spRes.json();
-        // Get app role assignments for this service principal
-        const assignRes = await fetch(
-          `https://graph.microsoft.com/v1.0/servicePrincipals/${sp.id}/appRoleAssignments`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
 
-        if (assignRes.ok) {
-          const assignments = await assignRes.json();
-          for (const assignment of assignments.value || []) {
-            const permName = GRAPH_PERMISSION_MAP[assignment.appRoleId];
-            if (permName) {
-              permissions[permName] = true;
-            }
+        // Walk paginated appRoleAssignments — Graph can return fewer than the
+        // full set per page. Follow @odata.nextLink to be safe.
+        let url = `https://graph.microsoft.com/v1.0/servicePrincipals/${sp.id}/appRoleAssignments?$top=999`;
+        const allAssignments = [];
+        while (url) {
+          const page = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+          if (!page.ok) break;
+          const data = await page.json();
+          for (const a of data.value || []) allAssignments.push(a);
+          url = data['@odata.nextLink'] || null;
+        }
+
+        for (const a of allAssignments) {
+          // Direct match (canonical app-role id → name)
+          const direct = GRAPH_PERMISSION_MAP[a.appRoleId];
+          if (direct) { permissions[direct] = true; continue; }
+          // Superset match (e.g. AccessReview.ReadWrite.All satisfies Read.All)
+          const alias = GRAPH_PERMISSION_ALIASES[a.appRoleId];
+          if (alias && permissions[alias] !== undefined) {
+            permissions[alias] = true;
           }
         }
       }
-    } catch {
-      // Permission check failed — credentials work but can't read own permissions
-      // This can happen if Application.Read.All is not granted
+    } catch (err) {
+      // Permission check failed — credentials work but we couldn't read the
+      // SP's roles. Fall through with permissions all false rather than
+      // failing the wizard step.
+      console.warn('appRoleAssignments lookup failed:', err.message);
     }
 
     res.json({

@@ -14,7 +14,7 @@
 
 import * as db from '../db/connection.js';
 import { putSecret, getSecret, hasSecret, deleteSecret } from '../secrets/vault.js';
-import { chat, SUPPORTED_PROVIDERS, DEFAULT_MODELS } from './providers.js';
+import { chat, listModels, SUPPORTED_PROVIDERS, DEFAULT_MODELS } from './providers.js';
 
 const CONFIG_KEY    = 'LLM_CONFIG';
 const SECRET_ID     = 'llm.apikey';
@@ -112,6 +112,37 @@ export async function testLLMConfig({ provider, model, endpoint, deployment, api
       temperature: 0,
     });
     return { ok: true, model: r.model, latencyMs: Date.now() - start, sample: r.text.slice(0, 80) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// List available models for the given provider + credentials. When apiKey is
+// omitted, uses the saved config's key. Returns { models: [{id, label}] } or
+// { error: string } on failure.
+export async function listModelsForConfig({ provider, apiKey, endpoint, apiVersion }) {
+  try {
+    let resolvedKey = apiKey;
+    let resolvedEndpoint = endpoint;
+    let resolvedVersion = apiVersion;
+    let resolvedProvider = provider;
+    if (!resolvedKey) {
+      // Load from the saved config
+      const saved = await getLLMConfig();
+      if (!saved) return { ok: false, error: 'No saved config and no apiKey provided' };
+      resolvedKey = await getSecret(SECRET_ID);
+      if (!resolvedKey) return { ok: false, error: 'API key not in vault — re-save the config' };
+      resolvedProvider = resolvedProvider || saved.provider;
+      resolvedEndpoint = resolvedEndpoint || saved.endpoint;
+      resolvedVersion  = resolvedVersion  || saved.apiVersion;
+    }
+    const r = await listModels({
+      provider: resolvedProvider,
+      apiKey: resolvedKey,
+      endpoint: resolvedEndpoint,
+      apiVersion: resolvedVersion,
+    });
+    return { ok: true, models: r.models };
   } catch (err) {
     return { ok: false, error: err.message };
   }

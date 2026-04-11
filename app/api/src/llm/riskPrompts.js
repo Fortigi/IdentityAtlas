@@ -87,23 +87,41 @@ For title patterns, use regex that works case-insensitively. Be specific to THIS
 // transcript.
 
 export function profileRefinementPrompt({ currentProfile, transcript, userMessage }) {
-  const system = `You are an identity security consultant helping refine a customer's organisational risk profile.
+  const system = `You are an identity security consultant helping refine a customer's organisational risk profile through a conversation.
 
-The user has an existing profile (provided below as JSON) and wants to adjust it based on the conversation. Your job is to apply the user's feedback and respond with the COMPLETE updated profile JSON.
+You must respond with ONLY a valid JSON object in this exact shape:
 
-You must respond with ONLY a valid JSON object — the same schema as the existing profile. No markdown fencing, no commentary outside the JSON. If the user is asking a question rather than requesting a change, embed your answer as a "description" or in an existing field rather than producing prose.
+{
+  "assistantMessage": "Your conversational reply to the user in plain prose (1-4 sentences). Answer questions, acknowledge changes, explain what you updated.",
+  "profile": { ...the complete updated customer_profile object... },
+  "profileChanged": true
+}
+
+RULES:
+- "assistantMessage" is ALWAYS present and contains your natural-language reply to the user.
+- "profile" is the COMPLETE customer_profile schema — same shape as the current profile below. Include ALL fields even if unchanged.
+- "profileChanged" is true if you modified anything in the profile, false if the user just asked a question and you didn't change the profile.
+- If the user asks a question (e.g. "what software does HBR use?"), research the answer, include it in assistantMessage, and also add any relevant facts to the profile (e.g. known_systems, critical_business_processes). Set profileChanged=true if you added anything.
+- If the user requests a change (e.g. "drop NIS2"), apply it, describe what you changed in assistantMessage, and set profileChanged=true.
+- NEVER respond with prose outside the JSON object. NEVER use markdown fences. The output must start with { and end with }.
 
 CURRENT PROFILE:
 ${JSON.stringify(currentProfile, null, 2)}`;
 
   // Replay the conversation history so the model has context about earlier
-  // refinements. We don't include the model's previous JSON dumps verbatim —
-  // they're the same structure as the current profile and would just bloat the
-  // context. Instead, summarise as "[updated profile]".
+  // refinements. Prior assistant messages are summarised to avoid bloating
+  // context with duplicated profile JSON.
   const messages = [];
   for (const turn of (transcript || [])) {
-    if (turn.role === 'user')      messages.push({ role: 'user',      content: turn.content });
-    else if (turn.role === 'assistant') messages.push({ role: 'assistant', content: '[updated profile applied]' });
+    if (turn.role === 'user') {
+      messages.push({ role: 'user', content: turn.content });
+    } else if (turn.role === 'assistant') {
+      // Use the stored assistantMessage if present, otherwise the old placeholder
+      const text = turn.content && turn.content !== '[updated profile applied]'
+        ? turn.content
+        : '(profile updated)';
+      messages.push({ role: 'assistant', content: text });
+    }
   }
   messages.push({ role: 'user', content: userMessage });
 
@@ -125,7 +143,15 @@ ${JSON.stringify(currentProfile, null, 2)}`;
 export function classifierGenerationPrompt({ profile }) {
   const system = `You are an identity security consultant generating regex-based risk classifiers for identity governance scoring.
 
-Given a customer's risk profile, produce a set of regular expressions that detect high-risk principals (users, groups, service principals) by name. The classifiers will be applied case-insensitively to the displayName / email / sAMAccountName / group name.
+Given a customer's risk profile, produce a set of regular expressions that detect high-risk principals (users, groups, service principals, and resources).
+
+WHAT THE PATTERNS ARE MATCHED AGAINST:
+The scoring engine runs each pattern (case-insensitive, as a JavaScript RegExp) against every one of the following fields and records a match if ANY field contains the pattern:
+  - For groups/resources: displayName, description, mail, externalId, and every flattened string value in extendedAttributes (samAccountName, OU path, etc.)
+  - For users:            displayName, email, jobTitle, department, companyName, givenName, surname, employeeId, externalId, plus flattened extendedAttributes
+  - For agents (service principals / managed identities / AI agents): displayName, and extendedAttributes (tags, servicePrincipalType, etc.)
+
+Because every field is tested, patterns you produce must be DISCRIMINATING. A generic word that appears in many non-risky contexts WILL fire on hundreds of irrelevant entities. The single most common failure mode is the LLM producing a pattern that reads like a title in isolation but matches common prefixes or parts of unrelated names.
 
 You must respond with ONLY a valid JSON object (no markdown fencing). Schema:
 
@@ -135,53 +161,51 @@ You must respond with ONLY a valid JSON object (no markdown fencing). Schema:
     {
       "id": "slug",
       "label": "Human-readable label",
-      "description": "Why this group is risky",
+      "description": "Why this group is risky — one sentence, plain English",
       "patterns": ["regex1", "regex2"],
       "score": 0,
       "tier": "critical|high|medium|low",
       "domain": "regulation or risk-domain slug from the profile"
     }
   ],
-  "userClassifiers": [
-    {
-      "id": "slug",
-      "label": "Human-readable label",
-      "description": "Why this person is risky",
-      "patterns": ["regex matching displayName, email or job title"],
-      "score": 0,
-      "tier": "critical|high|medium|low",
-      "domain": "slug"
-    }
-  ],
-  "agentClassifiers": [
-    {
-      "id": "slug",
-      "label": "Service principal / agent label",
-      "description": "Why this agent is risky",
-      "patterns": ["regex"],
-      "score": 0,
-      "tier": "critical|high|medium|low",
-      "domain": "slug"
-    }
-  ]
+  "userClassifiers": [ /* same shape, targets user attributes */ ],
+  "agentClassifiers": [ /* same shape, targets service principals */ ]
 }
 
-Score guidelines:
-  - 90–100 → critical (e.g. domain admin equivalents, regulation-specific privileged roles)
-  - 70–89  → high     (e.g. broad write access, security-sensitive system admins)
-  - 40–69  → medium   (e.g. data stewards, financial approvers)
-  - 20–39  → low      (e.g. read-only privileged roles)
+SCORE GUIDELINES:
+  - 90–100 → critical (domain admin equivalents, regulation-specific privileged roles, SCADA/OT plant operators, payment approvers)
+  - 70–89  → high     (broad write access, security-sensitive system admins, data protection leads)
+  - 40–69  → medium   (data stewards, financial approvers, GRC contributors)
+  - 20–39  → low      (read-only privileged roles, audit viewers)
 
-Pattern guidelines:
-  - Case-insensitive regex (caller applies it that way).
-  - Use the profile's local-language variants where applicable.
-  - Prefer specific patterns over generic ones (avoid matching every group with "admin").
-  - Include both anglicised and original terms if the profile is non-English.
-  - Each classifier should have 1–6 patterns. Keep them tight.
+HARD RULES FOR PATTERNS — follow all of them:
 
-Be specific to THIS organisation. For a port authority, include port-system roles. For a hospital, include medical-system roles. For a bank, include trading-system roles.`;
+  1. Anchor with word boundaries. Always use \\b on both sides of the main keyword, e.g. \`\\bdomain\\s*admin(istrator)?s?\\b\`, never bare \`admin\`. Without \\b you will match substrings inside unrelated names.
 
-  const user = `CUSTOMER PROFILE:\n${JSON.stringify(profile, null, 2)}\n\nGenerate the classifiers JSON object.`;
+  2. Require a qualifier with common words. Words like "admin", "operator", "user", "manager", "engineer", "owner", "access", "read", "write" are too broad alone. Combine them with a specific system, regulation, domain, or role noun from the profile — e.g. \`\\b(scada|ics|process[\\s_-]?control)\\s+engineer\\b\`, not \`\\bengineer\\b\`.
+
+  3. Never use the bare characters "ot" or "ics" as keywords. Inside JavaScript regex \\b treats underscores as word characters, so "\\bot\\b" in an org with groups like "GG_ROL_PROD_OT_ADMINS" will match, but "\\b(ot|ics)\\b" also fires on any name containing the letters "ot" or "ics" adjacent to a non-word char. Prefer "operational[\\s_-]technology", "ot[\\s_-]?(admin|engineer|operator)", or an explicit system code from the profile.
+
+  4. Exclude news/communications/training/room/mailbox naming conventions. Specifically, make sure your patterns do NOT fire on entities whose name contains any of: "nieuws", "news", "newsletter", "communicatie", "communication", "lokaal", "leslokaal", "room", "meeting", "mailbox", "postbus", "kalender", "calendar", "distributielijst", "distribution list", "shared mailbox". If your keyword is literally the same as one of these (e.g. "room operator"), rewrite the pattern to require additional context.
+
+  5. Prefer system-specific nouns from the profile over generic job categories. If the profile mentions HAMIS, Portbase, SAP-S/4HANA, Dynamics, Pronto, PortXchange, Navigate, ISPS, SOC, etc., build patterns around those exact names. Generic "infrastructure admin" catches too much; "\\bHAMIS[\\s_-]?admin\\b" catches exactly what matters.
+
+  6. Separate role-name patterns from descriptive terms. Patterns like "robot" or "autopilot" or "dynamics" will fire on Azure Autopilot device groups, Microsoft Dynamics CRM administrators, and Hadoop Robot Engineer service accounts — none of which are OT/SCADA. Don't produce patterns that match those words unless you also require a genuine OT/ICS keyword beside them.
+
+  7. Each classifier should have 1–6 patterns. Each pattern must stand alone — the engine OR's them together, so adding patterns NEVER reduces matches. If you can't write a tight pattern for a rule, omit that rule entirely.
+
+  8. Include local-language variants where the profile indicates a non-English organisation (e.g. Dutch + English for a Dutch customer). Put them in the same classifier, not separate ones.
+
+  9. Use \\b anchors, character classes, and non-capturing groups \`(?:...)\`. Do NOT use \`(?i)\`, \`(?s)\`, or other Perl/Python inline flag groups — JavaScript strips them before compile, so relying on them is silently broken.
+
+ 10. Be specific to THIS organisation. For a port authority, include port-system roles. For a hospital, include medical-system roles. For a bank, include trading-system roles. Generic "cyber security team" is worse than "\\bSOC[\\s_-]?(Tier[\\s_-]?[1-3]|analyst|team|lead)\\b".
+
+SELF-CHECK BEFORE YOU RESPOND:
+  - Mentally run each pattern against "news", "nieuws", "room", "mailbox", "robot", "autopilot", "dynamics crm" — if any pattern matches any of those words standalone, tighten it.
+  - Check that every "admin/operator/engineer/user" pattern has a qualifying keyword (system name, regulation, or explicit role).
+  - Make sure you did not emit any patterns beginning with \`(?i)\`.`;
+
+  const user = `CUSTOMER PROFILE:\n${JSON.stringify(profile, null, 2)}\n\nGenerate the classifiers JSON object following every hard rule above. Prefer fewer, tighter classifiers over many loose ones.`;
 
   return {
     system,
@@ -195,14 +219,16 @@ export function extractJson(text) {
   let cleaned = text.trim();
   // Strip ```json ... ``` or ``` ... ``` fences
   cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  // Some models prepend an apology before the JSON. Find the first { and the
-  // matching closing brace.
   const firstBrace = cleaned.indexOf('{');
   if (firstBrace === -1) return null;
-  // Naive but effective: find the last } and try parsing what's between.
   const lastBrace = cleaned.lastIndexOf('}');
   if (lastBrace === -1 || lastBrace < firstBrace) return null;
   const candidate = cleaned.slice(firstBrace, lastBrace + 1);
   try { return JSON.parse(candidate); }
-  catch { return null; }
+  catch (err) {
+    // Log the parse error + the first 300 chars of the tail — common failure
+    // modes are token-limit truncation (no closing brace) or unescaped chars.
+    console.warn(`extractJson parse failed: ${err.message}. Tail: ${candidate.slice(-300)}`);
+    return null;
+  }
 }

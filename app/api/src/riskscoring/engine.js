@@ -1,38 +1,74 @@
 // Identity Atlas v5 — Risk scoring engine (postgres-native).
 //
-// Port of the v4 PowerShell scoring logic. The full v4 engine had four layers
-// (direct match, membership analysis, structural hygiene, cross-entity
-// propagation). v1 of the postgres port focuses on the highest-impact two:
+// Direct port of the v4 PowerShell scoring engine (Functions/RiskScoring/
+// Invoke-FGRiskScoring.ps1 on the `dev` branch). The v4 engine produced much
+// better results than the first lightweight v5 port because it layered four
+// independent signal sources; this file restores that design on top of
+// postgres.
 //
 //   Layer 1 — Direct classifier match
 //     For each Principal and Resource, run every classifier pattern against
-//     the displayName / email / jobTitle / description. The best matching
-//     classifier's score becomes the directScore (0-100). Multiple matches are
-//     all recorded in classifierMatches for the UI to show.
+//     the displayName / email / jobTitle / department / description / mail /
+//     externalId / flattened extendedAttributes. The best matching classifier's
+//     score becomes the directScore (0-100). All matches are recorded in
+//     classifierMatches for the UI to show.
 //
-//   Layer 2 — Lightweight membership signal
-//     For groups (Resources where resourceType in 'EntraGroup','BusinessRole'),
-//     count the number of distinct active assignees. Small groups (<=5 members)
-//     score +5 (concentrated risk). Owner-heavy groups score +5.
+//     Non-production environment discount: if the group's name matches one of
+//     the OTAP / acc / tst / dev patterns, the direct score is multiplied by
+//     0.25 (75% reduction, floor of 5). Mirrors v4's handling of dev/test
+//     groups so they don't dominate the "risky" list.
 //
-// Final score = round(0.6*direct + 0.25*membership + 0.15*structural), capped at 100.
-// Membership and structural are placeholders for now (set to 0 unless layer 2
-// fires) so the formula stays the same shape as v4 — easier to extend later.
+//   Layer 2 — Membership / relationship analysis
+//     For GROUPS: small-group bonus (+5 when 1-5 members, concentrated risk),
+//     no-owner penalty (+5 when group has members but no owner, ungoverned).
+//     For USERS: high membership count (+3-15 when user is in >15 groups),
+//     member-of-high-risk-group (+15 when the user is a member of a group whose
+//     *direct* score is ≥70), many-ownerships (+5 when user owns >3 groups).
+//     Both sides cap at 40.
 //
-// Tier thresholds match v4: Critical 90+, High 70+, Medium 40+, Low 20+, Minimal 1+.
+//   Layer 3 — Structural / hygiene
+//     For GROUPS: no description (+3), mail-enabled security group (+3),
+//     role-assignable group (+15), dynamic membership rule on (+3). Cap 25.
+//     For USERS: account disabled but still has memberships (+5), guest user
+//     (+5). We do NOT score stale sign-in because v5's Entra sync doesn't
+//     pull signInActivity yet (gracefully degrades to 0). Cap 25.
 //
-// The runner is invoked via POST /api/risk-scoring/runs (see riskScoring routes).
-// It writes a row into ScoringRuns first, then runs in the background while the
-// HTTP response returns 202 + the run id. The wizard UI polls for progress.
+//   Layer 4 — Cross-entity propagation (one pass)
+//     Compute each entity's pre-propagation score from layers 1-3. Then:
+//       - each USER inherits 30% of the max pre-propagation score among the
+//         groups they're a member of
+//       - each GROUP inherits 25% of the max pre-propagation score among its
+//         members
+//     One pass only — no recursion — which matches v4 and avoids runaway
+//     amplification.
+//
+// Weights match v4 exactly: 0.50 direct, 0.20 membership, 0.10 structural,
+// 0.20 propagated. Final score is capped at 100. Tier thresholds: Critical 90+,
+// High 70+, Medium 40+, Low 20+, Minimal 1+, None 0.
+//
+// The runner is invoked via POST /api/risk-scoring/runs (see riskScoring
+// routes). It writes a row into ScoringRuns first, then runs in the background
+// while the HTTP response returns 202 + the run id. The wizard UI polls for
+// progress.
 
 import * as db from '../db/connection.js';
 
-const W_DIRECT = 0.60;
-const W_MEMBERSHIP = 0.25;
-const W_STRUCTURAL = 0.15;
-const W_PROPAGATED = 0.00; // not yet implemented
+// v4 weights (Invoke-FGRiskScoring.ps1 lines 885-888)
+const W_DIRECT      = 0.50;
+const W_MEMBERSHIP  = 0.20;
+const W_STRUCTURAL  = 0.10;
+const W_PROPAGATED  = 0.20;
 
-function tierFor(score) {
+// v4 layer caps (Invoke-FGRiskScoring.ps1 lines 631, 713, 756, 786)
+const CAP_MEMBERSHIP = 40;
+const CAP_STRUCTURAL = 25;
+
+// v4 propagation dampening factors (Invoke-FGRiskScoring.ps1 lines 827, 851)
+const PROP_GROUP_TO_USER = 0.30;
+const PROP_USER_TO_GROUP = 0.25;
+
+// Exported for unit tests.
+export function tierFor(score) {
   if (score >= 90) return 'Critical';
   if (score >= 70) return 'High';
   if (score >= 40) return 'Medium';
@@ -41,40 +77,164 @@ function tierFor(score) {
   return 'None';
 }
 
-// Compile a single classifier's patterns to RegExp objects, lowercasing the
-// regex source string is wrong (case-insensitive should be a flag). We use the
-// 'i' flag and rely on the LLM to produce sane regex.
-function compileClassifier(c) {
-  const compiled = [];
-  for (const p of (c.patterns || [])) {
-    try { compiled.push(new RegExp(p, 'i')); }
-    catch { /* malformed regex from the LLM — skip it */ }
-  }
-  return { ...c, _compiled: compiled };
-}
+// ─── Non-production detection ─────────────────────────────────────────
+// Direct port of v4's $nonProdPatterns (Invoke-FGRiskScoring.ps1 lines 463-467).
+// A group whose name matches any of these is considered dev/test/acc and its
+// layer-1 direct score gets multiplied by 0.25 (75% reduction, floor 5).
+const NON_PROD_PATTERNS = [
+  /[-_](ACC|TST|DEV|ONT|STG|SBX|UAT|QA)(?:[-_\s]|$)/i,
+  /[-_][ATDO][-_]/,
+  /[-_][ATDO]$/,
+  /\b(acceptat|develop|ontwikkel|staging|sandbox|non.?prod|pre.?prod)/i,
+];
 
-// Test text against a classifier's compiled patterns. Returns true on first match.
-function classifierMatches(classifier, ...textFields) {
-  for (const re of classifier._compiled) {
-    for (const t of textFields) {
-      if (t && re.test(t)) return true;
-    }
+export function isNonProduction(name) {
+  if (!name) return false;
+  for (const re of NON_PROD_PATTERNS) {
+    if (re.test(name)) return true;
   }
   return false;
 }
 
+// ─── Match exclusions ─────────────────────────────────────────────────
+// The LLM prompt asks the generator to avoid patterns that match news
+// bulletins, meeting rooms, calendars, distribution lists etc. — but the
+// LLM doesn't always obey, and those classifiers fire on group DESCRIPTIONS
+// that legitimately mention "harbour master" (e.g. a room booking group
+// named "17.128 Harbour Master room (leslokaal)"). This guard runs AFTER
+// the pattern matches and drops matches whose matched-text contains any of
+// these hard-exclusion keywords, regardless of which pattern fired.
+//
+// Add keywords here when you discover new systematic false positives. The
+// cost of a false exclusion is tiny compared to the cost of a privileged
+// role being buried under dozens of meeting-room false positives.
+const MATCH_EXCLUSION_KEYWORDS = [
+  // Communications / news
+  /\b(nieuws|news|newsletter|nieuwsbrief|bulletin|announcement|mededeling)\b/i,
+  // Rooms / meeting spaces
+  /\b(room[\s_-]?mailbox|vergader(ruimte|zaal)|meeting[\s_-]?room|leslokaal|lokaal|classroom|klaslokaal)\b/i,
+  // Calendar / booking
+  /\b(calendar[\s_-]?(editor|viewer|reader)|kalender|agenda[\s_-]?beheer|room[\s_-]?reservation|zaalreservering)\b/i,
+  // Mailbox admin
+  /\b(shared[\s_-]?mailbox|postbus[\s_-]?(beheer|delen)|mailbox[\s_-]?delegat)/i,
+  // Distribution lists (not privileged access)
+  /\b(distribution[\s_-]?list|distributielijst|mail[\s_-]?group|email[\s_-]?only)\b/i,
+];
+
+export function isExcludedMatch(matchedText) {
+  if (!matchedText) return false;
+  for (const re of MATCH_EXCLUSION_KEYWORDS) {
+    if (re.test(matchedText)) return true;
+  }
+  return false;
+}
+
+// Compile a single classifier's patterns to RegExp objects.
+//
+// Two gotchas from LLM-generated patterns:
+//   1. `(?i)` inline flag — Perl/Python syntax, NOT supported by JavaScript.
+//      We strip it before compile since we pass the `i` flag explicitly anyway.
+//   2. Other Perl-isms like `(?s)` (dot-matches-newline) — we strip them too
+//      and let the default JS behaviour apply.
+//
+// Compilation failures are logged so we don't silently skip patterns.
+// Exported for unit tests.
+export function compileClassifier(c) {
+  const compiled = [];
+  for (const p of (c.patterns || [])) {
+    if (typeof p !== 'string' || !p.trim()) continue;
+    // Strip unsupported inline flag groups (Perl/Python syntax)
+    const cleaned = p.replace(/^\(\?[imsx]+\)/, '').replace(/\(\?[imsx]+\)/g, '');
+    try {
+      compiled.push(new RegExp(cleaned, 'i'));
+    } catch (err) {
+      console.warn(`Classifier '${c.id || '(unknown)'}': skipping invalid regex '${p}' — ${err.message}`);
+    }
+  }
+  return { ...c, _compiled: compiled };
+}
+
+// Flatten an `extendedAttributes` jsonb value (if any) to a small set of plain
+// strings the regex engine can match against. We deliberately skip very large
+// values (>200 chars) — they're almost always JSON blobs, base64 blobs, or
+// arbitrary descriptions whose presence in a regex match is meaningless and
+// creates false positives.
+function flattenExtended(obj) {
+  if (!obj || typeof obj !== 'object') return [];
+  const out = [];
+  const walk = (v) => {
+    if (v == null) return;
+    if (typeof v === 'string') {
+      if (v.length > 0 && v.length <= 200) out.push(v);
+    } else if (typeof v === 'number' || typeof v === 'boolean') {
+      out.push(String(v));
+    } else if (Array.isArray(v)) {
+      for (const item of v) walk(item);
+    } else if (typeof v === 'object') {
+      for (const k of Object.keys(v)) walk(v[k]);
+    }
+  };
+  walk(obj);
+  return out;
+}
+
+// Test text against a classifier's compiled patterns. Returns the matching
+// pattern string and the field that matched (for UI "why" display).
+function classifierMatches(classifier, textFields) {
+  for (const re of classifier._compiled) {
+    for (const [field, value] of textFields) {
+      if (value && re.test(value)) {
+        return { pattern: re.source, field, value };
+      }
+    }
+  }
+  return null;
+}
+
 // Score a single entity against a list of compiled classifiers.
+// textFields is an array of [fieldName, stringValue] tuples — the field name
+// is persisted alongside the match so the UI can show *where* a pattern hit.
 // Returns { directScore, matches: [...] }
-function scoreOne(textFields, classifiers) {
+//
+// Post-filter: any match whose matchedText hits MATCH_EXCLUSION_KEYWORDS is
+// dropped (meeting rooms, news bulletins, calendar editors, distribution
+// lists, etc.). This is a defensive guard — the LLM's classifier generator
+// is *asked* to avoid these but doesn't always obey.
+// Exported for unit tests.
+export function scoreOne(textFields, classifiers) {
+  // Normalise legacy call style: scoreOne([str1, str2], cls) → treat as 'text' field
+  const normalised = Array.isArray(textFields) && textFields.length > 0 && !Array.isArray(textFields[0])
+    ? textFields.map((v, i) => [`field${i}`, v])
+    : textFields;
+
   const matches = [];
+  const excludedMatches = [];
   let best = 0;
   for (const c of classifiers) {
-    if (classifierMatches(c, ...textFields)) {
-      matches.push({ id: c.id, label: c.label, score: c.score, tier: c.tier, domain: c.domain });
+    const hit = classifierMatches(c, normalised);
+    if (hit) {
+      const matchedText = hit.value.length > 120 ? hit.value.slice(0, 117) + '...' : hit.value;
+      const record = {
+        id: c.id,
+        label: c.label,
+        score: c.score,
+        tier: c.tier,
+        domain: c.domain,
+        matchedField: hit.field,
+        matchedText,
+        matchedPattern: hit.pattern,
+      };
+      if (isExcludedMatch(hit.value)) {
+        // Record for debugging but don't count toward score
+        record.excludedByGuardrail = true;
+        excludedMatches.push(record);
+        continue;
+      }
+      matches.push(record);
       if (c.score > best) best = c.score;
     }
   }
-  return { directScore: best, matches };
+  return { directScore: best, matches, excludedMatches };
 }
 
 // ─── Main entry point ─────────────────────────────────────────────────
@@ -111,107 +271,478 @@ export async function runScoring(runId, classifierId = null) {
     // ── Load principals ──
     await updateRun({ step: 'Loading principals', pct: 5 });
     const principals = await db.query(
-      `SELECT id, "displayName", email, "jobTitle", department, "principalType"
+      `SELECT id, "displayName", email, "jobTitle", department, "principalType",
+              "companyName", "givenName", "surname", "employeeId", "externalId",
+              "accountEnabled", "managerId", "extendedAttributes"
          FROM "Principals"`
     );
-    // ── Load resources (groups + business roles + roles + apps) ──
+
+    // Build manager → direct reports index for hierarchy analysis. Only used
+    // when the Entra crawler has populated managerId — if the column is empty
+    // across the board, hierarchy signals gracefully degrade to 0.
+    const directReports = new Map(); // managerId -> Set<reportPid>
+    for (const p of principals.rows) {
+      if (p.managerId) {
+        const mid = String(p.managerId);
+        if (!directReports.has(mid)) directReports.set(mid, new Set());
+        directReports.get(mid).add(String(p.id));
+      }
+    }
+    const hierarchyAvailable = directReports.size > 0;
+    // ── Load resources ──
     await updateRun({ step: 'Loading resources', pct: 8 });
     const resources = await db.query(
-      `SELECT id, "displayName", description, "resourceType"
+      `SELECT id, "displayName", description, "resourceType", mail, "externalId",
+              "extendedAttributes"
          FROM "Resources"`
     );
 
-    const totalEntities = principals.rows.length + resources.rows.length;
-    await updateRun({ totalEntities, scoredEntities: 0, step: 'Scoring principals', pct: 10 });
+    // ── Load assignment-derived structural data ──
+    // One round-trip per signal; the data is small compared to the scoring loop.
+    await updateRun({ step: 'Loading memberships', pct: 12 });
 
-    // ── Score principals ──
-    const principalScores = [];
-    let counter = 0;
-    for (const p of principals.rows) {
-      const isAgent = ['ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent'].includes(p.principalType);
-      const activeCls = isAgent && agentClassifiers.length > 0 ? agentClassifiers : userClassifiers;
-      const { directScore, matches } = scoreOne(
-        [p.displayName, p.email, p.jobTitle, p.department],
-        activeCls
-      );
-      const final = Math.min(100, Math.round(W_DIRECT * directScore + W_MEMBERSHIP * 0 + W_STRUCTURAL * 0 + W_PROPAGATED * 0));
-      principalScores.push({
-        entityId: p.id,
-        entityType: 'Principal',
-        riskScore: final,
-        riskTier: tierFor(final),
-        riskDirectScore: directScore,
-        riskMembershipScore: 0,
-        riskStructuralScore: 0,
-        riskPropagatedScore: 0,
-        riskClassifierMatches: matches,
-        riskExplanation: { direct: { score: directScore, matchCount: matches.length } },
-      });
-      counter++;
-      if (counter % 500 === 0) {
-        await updateRun({ scoredEntities: counter, pct: 10 + Math.floor((counter / totalEntities) * 50) });
-      }
-    }
-
-    // ── Score resources (groups + business roles + ...) ──
-    await updateRun({ step: 'Scoring resources', pct: 60 });
-
-    // Pre-compute member counts for the small-group bonus.
-    // One query: assignment counts per resourceId, only Direct/Owner.
-    const memberCounts = await db.query(
+    // Member counts per resource (Direct + Governed for total headcount)
+    const memberCountRows = await db.query(
       `SELECT "resourceId"::text AS rid, COUNT(*)::int AS cnt
          FROM "ResourceAssignments"
-        WHERE "assignmentType" IN ('Direct','Owner','Governed')
+        WHERE "assignmentType" IN ('Direct','Governed')
         GROUP BY "resourceId"`
     );
-    const memberMap = new Map(memberCounts.rows.map(r => [r.rid, r.cnt]));
+    const memberCountMap = new Map(memberCountRows.rows.map(r => [r.rid, r.cnt]));
 
-    const resourceScores = [];
-    counter = 0;
+    // Owner counts per resource
+    const ownerCountRows = await db.query(
+      `SELECT "resourceId"::text AS rid, COUNT(*)::int AS cnt
+         FROM "ResourceAssignments"
+        WHERE "assignmentType" = 'Owner'
+        GROUP BY "resourceId"`
+    );
+    const ownerCountMap = new Map(ownerCountRows.rows.map(r => [r.rid, r.cnt]));
+
+    // Build bidirectional index: principal → list of resource ids (memberships)
+    //                           resource  → list of principal ids (members)
+    // We only follow Direct and Governed for membership propagation — Owner is
+    // a different relationship (admin control, not "has access to") and
+    // propagating through it double-counts privileged users.
+    const assignmentRows = await db.query(
+      `SELECT "principalId"::text AS pid, "resourceId"::text AS rid
+         FROM "ResourceAssignments"
+        WHERE "assignmentType" IN ('Direct','Governed')`
+    );
+    const principalMemberships = new Map(); // pid -> Set<rid>
+    const resourceMembers      = new Map(); // rid -> Set<pid>
+    for (const a of assignmentRows.rows) {
+      if (!principalMemberships.has(a.pid)) principalMemberships.set(a.pid, new Set());
+      principalMemberships.get(a.pid).add(a.rid);
+      if (!resourceMembers.has(a.rid)) resourceMembers.set(a.rid, new Set());
+      resourceMembers.get(a.rid).add(a.pid);
+    }
+
+    // Ownerships: principal → list of resource ids they own
+    const ownerRows = await db.query(
+      `SELECT "principalId"::text AS pid, "resourceId"::text AS rid
+         FROM "ResourceAssignments"
+        WHERE "assignmentType" = 'Owner'`
+    );
+    const principalOwnerships = new Map();
+    for (const a of ownerRows.rows) {
+      if (!principalOwnerships.has(a.pid)) principalOwnerships.set(a.pid, new Set());
+      principalOwnerships.get(a.pid).add(a.rid);
+    }
+
+    const totalEntities = principals.rows.length + resources.rows.length;
+    await updateRun({ totalEntities, scoredEntities: 0, step: 'Scoring resources (direct)', pct: 15 });
+
+    // ── Pass 1: Score resources (groups, business roles, etc.) ──
+    // Done first because user membership analysis below needs group directScores.
+    const resourceState = new Map(); // rid -> { directScore, membershipScore, structuralScore, propagatedScore, matches, reasons, isNonProd }
+    let counter = 0;
     for (const r of resources.rows) {
-      const { directScore, matches } = scoreOne(
-        [r.displayName, r.description],
+      const extFields = flattenExtended(r.extendedAttributes).map((v, i) => [`ext[${i}]`, v]);
+
+      // ── Layer 1: direct classifier match ──
+      let { directScore, matches } = scoreOne(
+        [
+          ['displayName', r.displayName],
+          ['description', r.description],
+          ['mail',        r.mail],
+          ['externalId',  r.externalId],
+          ...extFields,
+        ],
         groupClassifiers
       );
 
-      // Layer 2 (lightweight): small group bonus
-      let membershipScore = 0;
-      const memCount = memberMap.get(String(r.id)) || 0;
-      if (memCount > 0 && memCount <= 5) membershipScore += 5;
+      // Non-production discount (v4 lines 495-500). Applied to directScore only.
+      const nonProd = isNonProduction(r.displayName);
+      const directReasons = [];
+      if (matches.length > 0) {
+        const top = matches.reduce((a, b) => (b.score > a.score ? b : a));
+        directReasons.push(`Matched '${top.label || top.id}' on ${top.matchedField} [+${top.score}]`);
+      }
+      if (nonProd && directScore > 0) {
+        const before = directScore;
+        directScore = Math.max(5, Math.round(directScore * 0.25));
+        directReasons.push(`Non-production environment detected — direct score ${before} → ${directScore} (×0.25)`);
+      }
 
-      const final = Math.min(
-        100,
-        Math.round(
-          W_DIRECT * directScore +
-          W_MEMBERSHIP * membershipScore +
-          W_STRUCTURAL * 0 +
-          W_PROPAGATED * 0
-        )
-      );
-      resourceScores.push({
-        entityId: r.id,
-        entityType: 'Resource',
-        riskScore: final,
-        riskTier: tierFor(final),
-        riskDirectScore: directScore,
-        riskMembershipScore: membershipScore,
-        riskStructuralScore: 0,
-        riskPropagatedScore: 0,
-        riskClassifierMatches: matches,
-        riskExplanation: {
-          direct: { score: directScore, matchCount: matches.length },
-          membership: { score: membershipScore, memberCount: memCount },
-        },
+      // ── Layer 2: membership analysis (groups) ──
+      // v4 lines 609-630
+      let membershipScore = 0;
+      const membershipReasons = [];
+      const memCount = memberCountMap.get(String(r.id)) || 0;
+      const ownCount = ownerCountMap.get(String(r.id)) || 0;
+
+      if (memCount > 0 && memCount <= 5) {
+        membershipScore += 5;
+        membershipReasons.push(`Small group with ${memCount} member(s) — concentrated access risk [+5]`);
+      }
+      if (memCount > 0 && ownCount === 0) {
+        membershipScore += 5;
+        membershipReasons.push(`No owner assigned while having ${memCount} member(s) — ungoverned group [+5]`);
+      }
+      membershipScore = Math.min(CAP_MEMBERSHIP, membershipScore);
+
+      // ── Layer 3: structural hygiene (groups) ──
+      // v4 lines 730-756
+      let structuralScore = 0;
+      const structuralReasons = [];
+      const ext = r.extendedAttributes || {};
+
+      if (!r.description || String(r.description).trim() === '') {
+        structuralScore += 3;
+        structuralReasons.push('No description set — poor documentation hygiene [+3]');
+      }
+      const mailEnabled = ext.mailEnabled === true || ext.mailEnabled === 'true';
+      const securityEnabled = ext.securityEnabled === true || ext.securityEnabled === 'true';
+      if (mailEnabled && securityEnabled) {
+        structuralScore += 3;
+        structuralReasons.push('Mail-enabled security group — dual-purpose increases attack surface [+3]');
+      }
+      const roleAssignable = ext.isAssignableToRole === true || ext.isAssignableToRole === 'true';
+      if (roleAssignable) {
+        structuralScore += 15;
+        structuralReasons.push('Role-assignable group — can be assigned Entra ID directory roles [+15]');
+      }
+      if (ext.membershipRuleProcessingState === 'On') {
+        structuralScore += 3;
+        structuralReasons.push('Dynamic membership rule active — membership changes automatically [+3]');
+      }
+      structuralScore = Math.min(CAP_STRUCTURAL, structuralScore);
+
+      resourceState.set(String(r.id), {
+        row: r,
+        directScore,
+        membershipScore,
+        structuralScore,
+        propagatedScore: 0, // filled in by pass 3
+        matches,
+        isNonProd: nonProd,
+        directReasons,
+        membershipReasons,
+        structuralReasons,
+        propagatedReasons: [],
+        memCount,
+        ownCount,
       });
+
       counter++;
       if (counter % 500 === 0) {
-        await updateRun({ scoredEntities: principals.rows.length + counter, pct: 60 + Math.floor((counter / resources.rows.length) * 30) });
+        await updateRun({ scoredEntities: counter, pct: 15 + Math.floor((counter / totalEntities) * 25) });
       }
     }
 
+    // ── Pass 2: Score principals ──
+    await updateRun({ step: 'Scoring principals (direct + structural)', pct: 45 });
+    const principalState = new Map(); // pid -> { ... same shape ... }
+    counter = 0;
+    for (const p of principals.rows) {
+      const isAgent = ['ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent'].includes(p.principalType);
+      const activeCls = isAgent && agentClassifiers.length > 0 ? agentClassifiers : userClassifiers;
+      const extFields = flattenExtended(p.extendedAttributes).map((v, i) => [`ext[${i}]`, v]);
+
+      // ── Layer 1: direct classifier match ──
+      const { directScore, matches } = scoreOne(
+        [
+          ['displayName', p.displayName],
+          ['email',       p.email],
+          ['jobTitle',    p.jobTitle],
+          ['department',  p.department],
+          ['companyName', p.companyName],
+          ['givenName',   p.givenName],
+          ['surname',     p.surname],
+          ['employeeId',  p.employeeId],
+          ['externalId',  p.externalId],
+          ...extFields,
+        ],
+        activeCls
+      );
+      const directReasons = [];
+      if (matches.length > 0) {
+        const top = matches.reduce((a, b) => (b.score > a.score ? b : a));
+        directReasons.push(`Matched '${top.label || top.id}' on ${top.matchedField} [+${top.score}]`);
+      }
+
+      // ── Layer 2 (partial): ownerships + hierarchy. High-risk-group-
+      // membership signals need group scores, so we finish user membership
+      // in pass 3. Hierarchy signals are only meaningful when Entra sync has
+      // populated Principals.managerId; they gracefully degrade to 0 when it
+      // hasn't (see hierarchyAvailable flag above). v4 lines 684-710.
+      let membershipScore = 0;
+      const membershipReasons = [];
+      const ownCount = (principalOwnerships.get(String(p.id)) || new Set()).size;
+      if (ownCount > 3) {
+        membershipScore += 5;
+        membershipReasons.push(`Owner of ${ownCount} groups — high administrative responsibility [+5]`);
+      }
+
+      // Span of control — number of direct reports
+      if (hierarchyAvailable) {
+        const directCount = (directReports.get(String(p.id)) || new Set()).size;
+        if (directCount >= 5) {
+          // v4 formula: min(15, 3 + floor((directCount - 5) / 3) * 3)
+          const points = Math.min(15, 3 + Math.floor((directCount - 5) / 3) * 3);
+          membershipScore += points;
+          membershipReasons.push(`${directCount} direct reports — wide span of control [+${points}]`);
+        }
+      }
+
+      // ── Layer 3: structural hygiene (users) ──
+      // v4 lines 764-786
+      let structuralScore = 0;
+      const structuralReasons = [];
+      const pext = p.extendedAttributes || {};
+      const memSet = principalMemberships.get(String(p.id)) || new Set();
+      const memCount = memSet.size;
+
+      if (p.accountEnabled === false && memCount > 0) {
+        structuralScore += 5;
+        structuralReasons.push(`Account is disabled but still has ${memCount} group membership(s) [+5]`);
+      }
+      const userType = pext.userType || pext.UserType;
+      if (userType === 'Guest') {
+        structuralScore += 5;
+        structuralReasons.push('External guest account — higher risk for data exfiltration [+5]');
+      }
+      // Stale sign-in: v4 checks lastSignInDateTime. v5 Entra crawler doesn't
+      // currently pull signInActivity so this gracefully degrades to 0. When
+      // the crawler starts pulling it, look for 'lastSignInDateTime' or
+      // 'signInActivity.lastSignInDateTime' inside extendedAttributes.
+      const lastSignIn = pext.lastSignInDateTime
+        || (pext.signInActivity && pext.signInActivity.lastSignInDateTime);
+      if (lastSignIn) {
+        const days = Math.floor((Date.now() - new Date(lastSignIn).getTime()) / 86400000);
+        if (days > 90) {
+          structuralScore += 10;
+          structuralReasons.push(`Last sign-in ${days} days ago — stale account with active permissions [+10]`);
+        }
+      }
+      structuralScore = Math.min(CAP_STRUCTURAL, structuralScore);
+
+      principalState.set(String(p.id), {
+        row: p,
+        isAgent,
+        directScore,
+        membershipScore,
+        structuralScore,
+        propagatedScore: 0,
+        matches,
+        directReasons,
+        membershipReasons,
+        structuralReasons,
+        propagatedReasons: [],
+        memCount,
+        ownCount,
+      });
+
+      counter++;
+      if (counter % 500 === 0) {
+        await updateRun({ scoredEntities: resources.rows.length + counter, pct: 45 + Math.floor((counter / totalEntities) * 15) });
+      }
+    }
+
+    // ── Pass 3: User membership analysis (needs resource direct scores) ──
+    // v4 lines 650-710. Includes: broad access footprint, member-of-high-risk
+    // group, org subtree size (hierarchy), and manager-of-high-risk-reports.
+    await updateRun({ step: 'Scoring principals (membership)', pct: 62 });
+
+    // Build subtree size map once if hierarchy is available. Walks the
+    // directReports graph iteratively (BFS) to avoid PowerShell v4's recursion.
+    const subtreeCount = new Map();
+    if (hierarchyAvailable) {
+      for (const [pid, state] of principalState) {
+        if (!directReports.has(pid)) { subtreeCount.set(pid, 0); continue; }
+        const seen = new Set();
+        const queue = [...directReports.get(pid)];
+        while (queue.length > 0) {
+          const next = queue.shift();
+          if (seen.has(next)) continue;
+          seen.add(next);
+          const reports = directReports.get(next);
+          if (reports) for (const r of reports) queue.push(r);
+        }
+        subtreeCount.set(pid, seen.size);
+      }
+    }
+
+    for (const [pid, state] of principalState) {
+      const memSet = principalMemberships.get(pid) || new Set();
+      const totalGroups = memSet.size + state.ownCount;
+
+      // Broad access footprint: in >15 groups → +3 per 3 above, capped at 15
+      if (totalGroups > 15) {
+        const points = Math.min(15, Math.floor((totalGroups - 15) / 3) * 3);
+        if (points > 0) {
+          state.membershipScore += points;
+          state.membershipReasons.push(`Member of ${totalGroups} groups (above threshold of 15) — broad access footprint [+${points}]`);
+        }
+      }
+
+      // Member of any high-risk group (direct score ≥ 70): +15, once only
+      let highRiskMembership = null;
+      let highRiskGroupScore = 0;
+      for (const rid of memSet) {
+        const rs = resourceState.get(rid);
+        if (rs && rs.directScore >= 70 && rs.directScore > highRiskGroupScore) {
+          highRiskGroupScore = rs.directScore;
+          highRiskMembership = rs;
+        }
+      }
+      if (highRiskMembership) {
+        state.membershipScore += 15;
+        state.membershipReasons.push(
+          `Member of high-risk group '${highRiskMembership.row.displayName}' ` +
+          `(direct score ${highRiskMembership.directScore}) — elevated privilege exposure [+15]`
+        );
+      }
+
+      // Hierarchy signals (only if managerId is populated in the tenant)
+      if (hierarchyAvailable) {
+        // Large org subtree: v4 ≥100→+15, ≥50→+12, ≥25→+10, ≥10→+5
+        const subtree = subtreeCount.get(pid) || 0;
+        if (subtree >= 10) {
+          const subtreePoints = subtree >= 100 ? 15 : subtree >= 50 ? 12 : subtree >= 25 ? 10 : 5;
+          state.membershipScore += subtreePoints;
+          state.membershipReasons.push(`${subtree} total reports in org subtree — large blast radius [+${subtreePoints}]`);
+        }
+
+        // Manager of high-risk direct reports: +5 per high-risk report, cap 15
+        const reports = directReports.get(pid) || new Set();
+        let highRiskReports = 0;
+        for (const reportPid of reports) {
+          const rs = principalState.get(reportPid);
+          if (rs && rs.directScore >= 70) highRiskReports++;
+        }
+        if (highRiskReports > 0) {
+          const mgrPoints = Math.min(15, highRiskReports * 5);
+          state.membershipScore += mgrPoints;
+          state.membershipReasons.push(`Manager of ${highRiskReports} high-risk direct report(s) — inherited responsibility [+${mgrPoints}]`);
+        }
+      }
+
+      state.membershipScore = Math.min(CAP_MEMBERSHIP, state.membershipScore);
+    }
+
+    // ── Pass 4: Cross-entity propagation (one pass) ──
+    // v4 lines 814-872. Compute pre-propagation scores, then propagate max
+    // group score to users (*0.30) and max user score to groups (*0.25).
+    await updateRun({ step: 'Propagating risk across memberships', pct: 75 });
+
+    const preProp = (s) => Math.round(
+      W_DIRECT * s.directScore + W_MEMBERSHIP * s.membershipScore + W_STRUCTURAL * s.structuralScore
+    );
+    const resourcePre = new Map();
+    for (const [rid, rs] of resourceState) resourcePre.set(rid, preProp(rs));
+    const principalPre = new Map();
+    for (const [pid, ps] of principalState) principalPre.set(pid, preProp(ps));
+
+    // Group → User: user inherits 30% of their riskiest group's pre-prop score
+    for (const [pid, state] of principalState) {
+      const memSet = principalMemberships.get(pid) || new Set();
+      let maxGroup = 0;
+      let maxGroupName = null;
+      for (const rid of memSet) {
+        const pre = resourcePre.get(rid) || 0;
+        if (pre > maxGroup) {
+          maxGroup = pre;
+          maxGroupName = resourceState.get(rid)?.row?.displayName;
+        }
+      }
+      if (maxGroup > 0) {
+        const prop = Math.round(maxGroup * PROP_GROUP_TO_USER);
+        state.propagatedScore = prop;
+        if (prop > 0) {
+          state.propagatedReasons.push(
+            `Inherits ${Math.round(PROP_GROUP_TO_USER * 100)}% of riskiest group ` +
+            `'${maxGroupName}' (score ${maxGroup}) = ${prop} [+${prop}]`
+          );
+        }
+      }
+    }
+
+    // User → Group: group inherits 25% of its riskiest member's pre-prop score
+    for (const [rid, state] of resourceState) {
+      const memberSet = resourceMembers.get(rid) || new Set();
+      let maxUser = 0;
+      let maxUserName = null;
+      for (const pid of memberSet) {
+        const pre = principalPre.get(pid) || 0;
+        if (pre > maxUser) {
+          maxUser = pre;
+          maxUserName = principalState.get(pid)?.row?.displayName;
+        }
+      }
+      if (maxUser > 0) {
+        const prop = Math.round(maxUser * PROP_USER_TO_GROUP);
+        state.propagatedScore = prop;
+        if (prop > 0) {
+          state.propagatedReasons.push(
+            `Inherits ${Math.round(PROP_USER_TO_GROUP * 100)}% of riskiest member ` +
+            `'${maxUserName}' (score ${maxUser}) = ${prop} [+${prop}]`
+          );
+        }
+      }
+    }
+
+    // ── Pass 5: Final score assembly ──
+    await updateRun({ step: 'Finalising scores', pct: 88 });
+
+    const finalScore = (s) => Math.min(
+      100,
+      Math.round(
+        W_DIRECT * s.directScore +
+        W_MEMBERSHIP * s.membershipScore +
+        W_STRUCTURAL * s.structuralScore +
+        W_PROPAGATED * s.propagatedScore
+      )
+    );
+
+    const makeRow = (entityType, id, s) => {
+      const final = finalScore(s);
+      return {
+        entityId: id,
+        entityType,
+        riskScore: final,
+        riskTier: tierFor(final),
+        riskDirectScore: s.directScore,
+        riskMembershipScore: s.membershipScore,
+        riskStructuralScore: s.structuralScore,
+        riskPropagatedScore: s.propagatedScore,
+        riskClassifierMatches: s.matches,
+        riskExplanation: {
+          direct:     { score: s.directScore,     reasons: s.directReasons },
+          membership: { score: s.membershipScore, reasons: s.membershipReasons },
+          structural: { score: s.structuralScore, reasons: s.structuralReasons },
+          propagated: { score: s.propagatedScore, reasons: s.propagatedReasons },
+        },
+      };
+    };
+
+    const allScores = [];
+    for (const [rid, s] of resourceState)  allScores.push(makeRow('Resource',  rid, s));
+    for (const [pid, s] of principalState) allScores.push(makeRow('Principal', pid, s));
+
     // ── Persist into RiskScores ──
     await updateRun({ step: 'Writing RiskScores', pct: 92, scoredEntities: totalEntities });
-    const allScores = principalScores.concat(resourceScores);
 
     // Wipe and bulk-insert. Postgres ON CONFLICT keeps it idempotent across reruns.
     await db.tx(async (client) => {
@@ -258,6 +789,23 @@ export async function runScoring(runId, classifierId = null) {
       }
     });
 
+    // ── Pass 6: Build resource clusters ─────────────────────────────────
+    // Direct port of v4's Save-FGResourceClusters (dev branch). Two-pass:
+    //   Pass A — classifier clustering: all resources that matched the same
+    //            classifier form a cluster keyed on the classifier id.
+    //   Pass B — name-stem clustering: resources not already claimed by a
+    //            classifier cluster are grouped by a normalised name stem
+    //            (e.g. "SG_DomainAdmins_P" and "GRP-Domain-Admins-TST" both
+    //            normalise to "domain-admins"). Clusters of size < 2 are
+    //            dropped so we don't create a cluster for every unique name.
+    //
+    // Clusters give the UI a way to show related risky resources as a unit —
+    // a single "Harbour Master ops" cluster containing 12 groups is far more
+    // actionable than 12 separate rows in the Medium+ list. They also feed
+    // the future layer-5 signal ("cluster aggregate score").
+    await updateRun({ step: 'Building resource clusters', pct: 95 });
+    await buildClusters(resourceState, isNonProduction);
+
     await updateRun({
       status: 'completed',
       step: 'Complete',
@@ -271,4 +819,184 @@ export async function runScoring(runId, classifierId = null) {
     await updateRun({ status: 'failed', errorMessage: err.message, completedAt: new Date() });
     return { ok: false, error: err.message };
   }
+}
+
+// ─── Resource clustering ─────────────────────────────────────────────
+// Ported from v4's Save-FGResourceClusters.ps1. Groups related resources so
+// the UI can show them as a single actionable unit.
+
+// Normalise a group name to a "stem" for fallback clustering.
+// Strips common prefixes (SG_, DL_, AG_, M365_, ...), environment suffixes
+// (_P, _ACC, _TST, ...), and role-suffixes (Admin, Users, Owners, ...) so
+// that groups from the same logical business function cluster together.
+function getGroupStem(name) {
+  if (!name) return '';
+  let stem = name;
+  stem = stem.replace(/^(SG|DL|AG|SEC|M365|AAD|GRP|GG|CG|PS|TS)[-_]/i, '');
+  stem = stem.replace(/[-_](P|A|T|D|ACC|TST|DEV|ONT|STG|SBX|UAT|QA|PRD|PROD)$/i, '');
+  stem = stem.replace(/[-_](P|A|T|D|ACC|TST|DEV|ONT|STG|SBX|UAT|QA|PRD|PROD)$/i, '');
+  stem = stem.replace(/[-_](Admin|Admins|Users|Members|Owners|ReadOnly|FullAccess|Beheer|Gebruikers|Viewers|Readers|Writers|Contributors|Leden|Eigenaars)$/i, '');
+  stem = stem.replace(/[-_](Admin|Admins|Users|Members|Owners|ReadOnly|FullAccess|Beheer|Gebruikers|Viewers|Readers|Writers|Contributors|Leden|Eigenaars)$/i, '');
+  stem = stem.replace(/[_\-\s]+/g, '-');
+  stem = stem.replace(/^-+|-+$/g, '').toLowerCase();
+  return stem;
+}
+
+// Given the map of scored resources, compute clusters and upsert into
+// GraphResourceClusters + GraphResourceClusterMembers. Wipes both tables first
+// (full replace) — clusters are always recomputed from scratch to avoid stale
+// membership.
+async function buildClusters(resourceState, isNonProd) {
+  // Only cluster resources that actually have some signal (direct or propagated)
+  // — clustering every 0-score resource is noise.
+  const eligible = new Map();
+  for (const [rid, s] of resourceState) {
+    const final = Math.min(100, Math.round(
+      W_DIRECT * s.directScore + W_MEMBERSHIP * s.membershipScore +
+      W_STRUCTURAL * s.structuralScore + W_PROPAGATED * s.propagatedScore
+    ));
+    if (final > 0 || (s.matches && s.matches.length > 0)) {
+      eligible.set(rid, { ...s, finalScore: final });
+    }
+  }
+
+  // Pass A: classifier-based clusters. Group by the top match per resource
+  // (the one that drove the direct score). A resource can only belong to one
+  // cluster — v4 behaviour.
+  const byClassifier = new Map(); // classifierId -> [{rid, state}]
+  const claimed = new Set();
+  for (const [rid, s] of eligible) {
+    if (!s.matches || s.matches.length === 0) continue;
+    // Use the highest-scoring match
+    const top = s.matches.reduce((a, b) => (b.score > a.score ? b : a));
+    if (!byClassifier.has(top.id)) byClassifier.set(top.id, { topMatch: top, members: [] });
+    byClassifier.get(top.id).members.push({ rid, state: s });
+    claimed.add(rid);
+  }
+
+  // Pass B: name-stem fallback for unclaimed resources with a real score.
+  const byStem = new Map();
+  for (const [rid, s] of eligible) {
+    if (claimed.has(rid)) continue;
+    if (s.finalScore <= 0) continue;
+    const stem = getGroupStem(s.row.displayName || '');
+    if (!stem || stem.length < 3) continue;
+    if (!byStem.has(stem)) byStem.set(stem, []);
+    byStem.get(stem).push({ rid, state: s });
+  }
+
+  const clusters = [];
+
+  // Build classifier cluster rows
+  for (const [classifierId, group] of byClassifier) {
+    if (group.members.length === 0) continue;
+    const scores = group.members.map(m => m.state.finalScore);
+    const maxScore = Math.max(...scores);
+    const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    const aggregate = Math.round(0.6 * maxScore + 0.4 * avgScore);
+    const prodCount = group.members.filter(m => !isNonProd(m.state.row.displayName || '')).length;
+    const nonProdCount = group.members.length - prodCount;
+    const tierDist = {};
+    for (const s of scores) {
+      const t = tierFor(s);
+      tierDist[t] = (tierDist[t] || 0) + 1;
+    }
+
+    clusters.push({
+      clusterType: 'classifier',
+      displayName: group.topMatch.label || classifierId,
+      description: `Resources matching classifier "${group.topMatch.label || classifierId}" (${group.topMatch.domain || 'ungrouped'})`,
+      sourceClassifierId: classifierId,
+      sourceClassifierCategory: group.topMatch.domain || null,
+      matchPatterns: group.topMatch.matchedPattern ? JSON.stringify([group.topMatch.matchedPattern]) : null,
+      memberCount: group.members.length,
+      memberCountProd: prodCount,
+      memberCountNonProd: nonProdCount,
+      aggregateRiskScore: aggregate,
+      maxMemberRiskScore: maxScore,
+      avgMemberRiskScore: avgScore,
+      riskTier: tierFor(aggregate),
+      tierDistribution: JSON.stringify(tierDist),
+      members: group.members,
+    });
+  }
+
+  // Build stem cluster rows — skip stems that have only 1 member
+  for (const [stem, members] of byStem) {
+    if (members.length < 2) continue;
+    const scores = members.map(m => m.state.finalScore);
+    const maxScore = Math.max(...scores);
+    const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    const aggregate = Math.round(0.6 * maxScore + 0.4 * avgScore);
+    const prodCount = members.filter(m => !isNonProd(m.state.row.displayName || '')).length;
+    const nonProdCount = members.length - prodCount;
+    const tierDist = {};
+    for (const s of scores) {
+      const t = tierFor(s);
+      tierDist[t] = (tierDist[t] || 0) + 1;
+    }
+
+    clusters.push({
+      clusterType: 'stem',
+      displayName: stem,
+      description: `${members.length} related resources sharing name stem "${stem}"`,
+      sourceClassifierId: null,
+      sourceClassifierCategory: null,
+      matchPatterns: null,
+      memberCount: members.length,
+      memberCountProd: prodCount,
+      memberCountNonProd: nonProdCount,
+      aggregateRiskScore: aggregate,
+      maxMemberRiskScore: maxScore,
+      avgMemberRiskScore: avgScore,
+      riskTier: tierFor(aggregate),
+      tierDistribution: JSON.stringify(tierDist),
+      members,
+    });
+  }
+
+  // Wipe + insert. Wrapped in a transaction so the UI never sees a partial view.
+  await db.tx(async (client) => {
+    await client.query(`DELETE FROM "GraphResourceClusterMembers"`);
+    await client.query(`DELETE FROM "GraphResourceClusters"`);
+
+    for (const c of clusters) {
+      const ins = await client.query(
+        `INSERT INTO "GraphResourceClusters"
+           (id, "clusterType", "displayName", description,
+            "sourceClassifierId", "sourceClassifierCategory", "matchPatterns",
+            "memberCount", "memberCountProd", "memberCountNonProd",
+            "aggregateRiskScore", "maxMemberRiskScore", "avgMemberRiskScore",
+            "riskTier", "tierDistribution", "scoredAt",
+            "createdAt", "updatedAt")
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now(), now())
+         RETURNING id`,
+        [
+          c.clusterType, c.displayName, c.description,
+          c.sourceClassifierId, c.sourceClassifierCategory, c.matchPatterns,
+          c.memberCount, c.memberCountProd, c.memberCountNonProd,
+          c.aggregateRiskScore, c.maxMemberRiskScore, c.avgMemberRiskScore,
+          c.riskTier, c.tierDistribution,
+        ]
+      );
+      const clusterId = ins.rows[0].id;
+
+      // Bulk insert cluster members
+      if (c.members.length > 0) {
+        const values = [];
+        const params = [];
+        let pi = 1;
+        for (const m of c.members) {
+          values.push(`($${pi++}, $${pi++}, $${pi++}, $${pi++})`);
+          params.push(clusterId, m.rid, m.state.row.displayName, m.state.finalScore);
+        }
+        await client.query(
+          `INSERT INTO "GraphResourceClusterMembers"
+             ("clusterId", "resourceId", "resourceDisplayName", "resourceRiskScore")
+           VALUES ${values.join(',')}`,
+          params
+        );
+      }
+    }
+  });
 }

@@ -437,6 +437,38 @@ if (-not $SkipIntegration) {
     }
     Write-Result 'API-Ready' $apiReady $(if (-not $apiReady) { 'Timed out after 120 seconds' })
 
+    # ── Phase 4b2: Configure LLM (pre-flight for Phase 4j) ────────
+    # Reads credentials from test.secrets.json and POSTs them to
+    # /api/admin/llm/config. Runs BEFORE the data-dependent phases so any
+    # later phase can rely on LLM being available. Skips cleanly when no
+    # credentials are present.
+    if ($apiReady) {
+        Write-Phase "Phase 4b2: Configure LLM (pre-flight)"
+        $llmConfigScript = Join-Path $PSScriptRoot 'Configure-LLM.ps1'
+        if (Test-Path $llmConfigScript) {
+            $llmRunnerResults = $script:results
+            $llmFailedRef = @{ Count = 0 }
+            $llmConfigCallback = {
+                param($Name, $Passed, $Detail)
+                $llmRunnerResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                if (-not $Passed) {
+                    $llmFailedRef.Count++
+                    Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red
+                } else {
+                    Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green
+                }
+            }.GetNewClosure()
+            try {
+                & $llmConfigScript -ApiBaseUrl $apiBaseUrl -WriteResult $llmConfigCallback
+                $script:totalFailed += $llmFailedRef.Count
+            } catch {
+                Write-Result 'LLM-Config' $false $_.Exception.Message
+            }
+        } else {
+            Write-Result 'LLM-Config' $true 'skipped (script missing)'
+        }
+    }
+
     # ── Verify all expected postgres tables exist via psql ──────────
     # We shell into the postgres container and run a single SELECT against
     # pg_tables. PowerShell's `&` invocation can mangle docker compose's
@@ -745,6 +777,69 @@ if (-not $SkipIntegration) {
             }
         } else {
             Write-Result 'LLM-Substrate-Tests' $true 'skipped (script missing)'
+        }
+
+        # ── Phase 4i: Risk scoring end-to-end ──────────────────────
+        # Saves a hand-crafted profile + classifiers, triggers a scoring run,
+        # asserts the tier distribution. Skips the LLM generate/refine steps
+        # so it runs deterministically without burning tokens on every nightly.
+        # Doubles as a regression check for the regex-compile bug (April 2026).
+        Write-Phase "Phase 4i: Risk Scoring end-to-end"
+        $riskTestScript = Join-Path $PSScriptRoot 'Test-RiskScoring.ps1'
+        if (Test-Path $riskTestScript) {
+            $runnerResults3 = $script:results
+            $failedRef3 = @{ Count = 0 }
+            $riskCallback = {
+                param($Name, $Passed, $Detail)
+                $runnerResults3[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                if (-not $Passed) {
+                    $failedRef3.Count++
+                    Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red
+                } else {
+                    Write-Host "  PASS  $Name" -ForegroundColor Green
+                }
+            }.GetNewClosure()
+
+            try {
+                & $riskTestScript -ApiBaseUrl $apiBaseUrl -WriteResult $riskCallback
+                $script:totalFailed += $failedRef3.Count
+            } catch {
+                Write-Result 'Risk-Scoring-Tests' $false $_.Exception.Message
+            }
+        } else {
+            Write-Result 'Risk-Scoring-Tests' $true 'skipped (script missing)'
+        }
+
+        # ── Phase 4j: Risk scoring with a REAL LLM call ─────────────
+        # Full end-to-end with profile + classifier generation hitting the
+        # actual provider configured by Phase 4b2. Costs real tokens on every
+        # run (~$0.02 with Haiku, ~$0.50+ with Opus), so test.secrets.json
+        # should default to a cheap model. Skips cleanly when the LLM isn't
+        # configured — Phase 4i still runs regardless.
+        Write-Phase "Phase 4j: Risk Scoring with real LLM"
+        $riskLLMScript = Join-Path $PSScriptRoot 'Test-RiskScoringLLM.ps1'
+        if (Test-Path $riskLLMScript) {
+            $runnerResults4 = $script:results
+            $failedRef4 = @{ Count = 0 }
+            $riskLLMCallback = {
+                param($Name, $Passed, $Detail)
+                $runnerResults4[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                if (-not $Passed) {
+                    $failedRef4.Count++
+                    Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red
+                } else {
+                    Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green
+                }
+            }.GetNewClosure()
+
+            try {
+                & $riskLLMScript -ApiBaseUrl $apiBaseUrl -WriteResult $riskLLMCallback
+                $script:totalFailed += $failedRef4.Count
+            } catch {
+                Write-Result 'Risk-Scoring-LLM-Tests' $false $_.Exception.Message
+            }
+        } else {
+            Write-Result 'Risk-Scoring-LLM-Tests' $true 'skipped (script missing)'
         }
     }
 }
