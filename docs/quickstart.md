@@ -8,8 +8,9 @@ Identity Atlas runs as a Docker stack — no Azure subscription, no git clone re
     # Download the compose file
     curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
 
-    # Start everything
-    docker compose -f docker-compose.prod.yml up -d
+    # Start everything (--pull always forces Docker to fetch the newest
+    # :latest image from ghcr.io instead of reusing a cached copy)
+    docker compose -f docker-compose.prod.yml up -d --pull always
     ```
 
 === "Windows (PowerShell)"
@@ -20,9 +21,13 @@ Identity Atlas runs as a Docker stack — no Azure subscription, no git clone re
         -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml `
         -OutFile docker-compose.prod.yml
 
-    # Start everything
-    docker compose -f docker-compose.prod.yml up -d
+    # Start everything (--pull always forces Docker to fetch the newest
+    # :latest image from ghcr.io instead of reusing a cached copy)
+    docker compose -f docker-compose.prod.yml up -d --pull always
     ```
+
+!!! tip "Why `--pull always`?"
+    Without `--pull always`, `docker compose up` only pulls an image if it isn't already cached locally. If you ran Identity Atlas before, Docker will happily reuse yesterday's `:latest` — even though a newer `:latest` may be on ghcr.io. Adding `--pull always` forces a registry check on every start. Requires Docker Compose v2.22 or later; on older versions, run `docker compose pull` first and then `up -d`.
 
 Open [http://localhost:3001](http://localhost:3001). The app auto-navigates to the **Crawlers** page. Click **"Load Demo Data"** to explore with synthetic data (~30 seconds).
 
@@ -66,6 +71,64 @@ A few quick checks:
     ```
 
 Open the UI at [http://localhost:3001](http://localhost:3001) and the Admin → Crawlers page should show a "Welcome" card.
+
+---
+
+## Upgrading to a new version
+
+Identity Atlas publishes new images to `ghcr.io/fortigi/identity-atlas{,-worker}` on every push to `main`. The `:latest` tag always points at the newest build, and each build also gets a version-stamped tag (`5.0.yyyyMMdd.HHmm`) for reproducible deployments.
+
+To upgrade an existing deployment to the newest version:
+
+=== "Linux / macOS"
+
+    ```bash
+    # Pull the latest image from ghcr.io
+    docker compose -f docker-compose.prod.yml pull
+
+    # Recreate containers so they use the new image
+    docker compose -f docker-compose.prod.yml up -d
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    # Pull the latest image from ghcr.io
+    docker compose -f docker-compose.prod.yml pull
+
+    # Recreate containers so they use the new image
+    docker compose -f docker-compose.prod.yml up -d
+    ```
+
+The database volume is preserved across upgrades — any data you have loaded stays put. Schema migrations run automatically on container start; if a new version needs a new table or column, the web container will apply it before serving traffic.
+
+### Checking the running version
+
+Three ways to see which version is currently deployed:
+
+1. **Dashboard** — open [http://localhost:3001](http://localhost:3001); the Version card on the right shows `v5.0.yyyyMMdd.HHmm`.
+2. **API endpoint** — `Invoke-RestMethod http://localhost:3001/api/version` (or `curl` on Linux/macOS). Returns `{ "version": "5.0.yyyyMMdd.HHmm" }`.
+3. **Docker directly** — `docker compose -f docker-compose.prod.yml images` lists the image tag each container is running.
+
+Compare that against the newest tag on [ghcr.io/fortigi/identity-atlas](https://github.com/Fortigi/IdentityAtlas/pkgs/container/identity-atlas) to see whether an upgrade is available.
+
+### Pinning to a specific version
+
+If you want a reproducible deployment (e.g. production) instead of always tracking `:latest`, edit `docker-compose.prod.yml` and replace:
+
+```yaml
+image: ghcr.io/fortigi/identity-atlas:latest
+image: ghcr.io/fortigi/identity-atlas-worker:latest
+```
+
+with the explicit version tag:
+
+```yaml
+image: ghcr.io/fortigi/identity-atlas:5.0.20260411.1955
+image: ghcr.io/fortigi/identity-atlas-worker:5.0.20260411.1955
+```
+
+Both images are always published with the same version tag, so they'll stay in sync.
 
 ---
 
