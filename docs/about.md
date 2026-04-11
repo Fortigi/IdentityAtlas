@@ -22,8 +22,7 @@ See the [History](history.md) page for the full story of how Identity Atlas got 
 ## Contact
 
 - **Website:** [www.fortigi.nl](https://www.fortigi.nl)
-- **Lead developer:** [Wim van den Heijkant on LinkedIn](https://www.linkedin.com/in/wimvdheijkant/)
-- **Issues and pull requests:** [GitHub repository](https://github.com/Fortigi/FortigiGraph)
+- **Issues and pull requests:** [GitHub repository](https://github.com/Fortigi/IdentityAtlas)
 
 ## License
 

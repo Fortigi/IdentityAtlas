@@ -8,7 +8,7 @@ info:
     The API handles validation, bulk merge, scoped delete detection, and temporal versioning.
   contact:
     name: Fortigi
-    url: https://github.com/Fortigi/FortigiGraph
+    url: https://github.com/Fortigi/IdentityAtlas
 
 servers:
   - url: /api

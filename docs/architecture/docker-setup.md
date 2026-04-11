@@ -10,7 +10,7 @@ The fastest way to try Identity Atlas — pulls pre-built images, no source code
 
 ```bash
 # Download the production compose file
-curl -O https://raw.githubusercontent.com/Fortigi/FortigiGraph/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
 
 # Start everything (first run: ~2 min to pull images)
 docker compose -f docker-compose.prod.yml up -d

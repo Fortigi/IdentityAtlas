@@ -61,7 +61,7 @@ A 4-layer scoring engine that classifies principals by risk without sending sens
 
 ```bash
 # Download the production compose file
-curl -O https://raw.githubusercontent.com/Fortigi/FortigiGraph/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
 
 # Start the stack
 docker compose -f docker-compose.prod.yml up -d
@@ -78,4 +78,4 @@ Open [http://localhost:3001](http://localhost:3001) → click **"Load Demo Data"
 - [Data Model](concepts/data-model.md) — understand the unified schema and how systems map to it
 - [About](about.md) — creators, contact, and licensing
 - [History](history.md) — how Identity Atlas evolved from the FortigiGraph PowerShell toolkit through v5
-- [GitHub Repository](https://github.com/Fortigi/FortigiGraph) — source code, issue tracker, and releases
+- [GitHub Repository](https://github.com/Fortigi/IdentityAtlas) — source code, issue tracker, and releases
