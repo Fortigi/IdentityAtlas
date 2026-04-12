@@ -64,6 +64,9 @@ body,
 [data-md-color-scheme=slate] .md-main {
   background-color: #0f172a;
 }
+[data-md-color-scheme=slate] .md-content {
+  background-color: #1e293b;
+}
 
 /* ── Typography: match the UI's tight headings ─────────────────── */
 .md-typeset h1 {
@@ -236,6 +239,28 @@ body,
 }
 .md-typeset table:not([class]) tr:hover td {
   background-color: var(--ia-lime-50);
+}
+
+/* Dark mode table overrides */
+[data-md-color-scheme=slate] .md-typeset table:not([class]) {
+  border-color: #334155;
+}
+[data-md-color-scheme=slate] .md-typeset table:not([class]) th {
+  background-color: #0f172a;
+  color: var(--ia-lime-300);
+  border-bottom-color: #334155;
+}
+[data-md-color-scheme=slate] .md-typeset table:not([class]) tr:hover td {
+  background-color: #1e3a1e;
+}
+
+/* Dark mode heading colors */
+[data-md-color-scheme=slate] .md-typeset h1,
+[data-md-color-scheme=slate] .md-typeset h2 {
+  color: #f1f5f9;
+}
+[data-md-color-scheme=slate] .md-typeset h3 {
+  color: #cbd5e1;
 }
 
 /* ── Links — lime-700 with underline on hover (matches the UI) ─── */
