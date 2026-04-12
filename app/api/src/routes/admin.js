@@ -650,7 +650,7 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
            AND relkind = 'r'
       )
       SELECT
-        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Systems'), 0), 0)::int                AS "systems",
+        (SELECT COUNT(*)::int FROM "Systems")                                                              AS "systems",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Resources'), 0), 0)::int              AS "resources",
         (SELECT COUNT(*)::int FROM "Resources" WHERE "resourceType" = 'BusinessRole')          AS "businessRoles",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Principals'), 0), 0)::int             AS "users",
@@ -660,7 +660,7 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'ResourceRelationships'), 0), 0)::int  AS "relationships",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Contexts'), 0), 0)::int               AS "contexts",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'CertificationDecisions'), 0), 0)::int AS "certifications",
-        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'GraphSyncLog'), 0), 0)::int           AS "syncLogEntries",
+        (SELECT COUNT(*)::int FROM "GraphSyncLog")                                                         AS "syncLogEntries",
         (SELECT MAX("StartTime") FROM "GraphSyncLog")                                          AS "lastSyncAt",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'RiskScores'), 0), 0)::int             AS "riskScores",
         (SELECT COUNT(*)::int FROM "RiskProfiles" WHERE "isActive")                            AS "activeRiskProfile",
