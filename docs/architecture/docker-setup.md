@@ -19,7 +19,7 @@ docker compose -f docker-compose.prod.yml up -d
 open http://localhost:3001
 ```
 
-On first visit, the UI auto-navigates to the **Crawlers** page with a getting-started card. Click **"Load Demo Data"** to populate the system with synthetic data (~30 seconds). After that, explore the Matrix, Users, Resources, and other pages.
+On first visit, the UI opens to the Dashboard. If no data is loaded yet, click **"Configure a crawler"** to go to Admin → Crawlers, then click **"Load Demo Data"** to populate the system with synthetic data (~30 seconds). After that, explore the Matrix, Users, Resources, and other pages.
 
 To connect your own Entra ID tenant, click **"Connect Entra ID"** on the Crawlers page and enter your App Registration credentials (Tenant ID, Client ID, Client Secret).
 
