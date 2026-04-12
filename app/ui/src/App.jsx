@@ -112,7 +112,7 @@ export default function App() {
   const [managedFilter, setManagedFilter] = useState(initial.managed);
   const [filterText, setFilterText] = useState(initial.search);
 
-  const { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error } = usePermissions(userLimit, activeFilters);
+  const { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error, forceRefresh } = usePermissions(userLimit, activeFilters);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -239,6 +239,16 @@ export default function App() {
       });
     }
   }, [page]);
+
+  // When navigating TO the matrix tab with no data yet, re-fetch so demo data
+  // loaded on the Dashboard shows up without requiring a manual slider nudge.
+  const prevPageRef = useRef(null);
+  useEffect(() => {
+    if (page === 'matrix' && prevPageRef.current !== 'matrix' && data.length === 0 && !loading) {
+      forceRefresh();
+    }
+    prevPageRef.current = page;
+  }, [page, data.length, loading, forceRefresh]);
 
   // Sync URL when on matrix page (debounced replaceState — no history entry)
   useEffect(() => {
