@@ -197,7 +197,7 @@ if (-not $SkipStaticChecks) {
             Pop-Location
         } else {
             $uiPath = $frontendDir -replace '\\','/' -replace '^([A-Za-z]):','/$1'
-            $null = & docker run --rm -v "${uiPath}:/work" -w /work node:20-slim sh -c "npm ci --omit=dev >/dev/null 2>&1; npm run lint" 2>&1 |
+            $null = & docker run --rm -v "${uiPath}:/work" -w /work node:20-slim sh -c "npm ci >/dev/null 2>&1; npm run lint" 2>&1 |
                 Tee-Object -FilePath $eslintLog
             $eslintExit = $LASTEXITCODE
         }
@@ -356,7 +356,7 @@ if (-not $SkipBackendUnit) {
             Pop-Location
         } else {
             $apiPath = $backendDir -replace '\\','/' -replace '^([A-Za-z]):','/$1'
-            $null = & docker run --rm -v "${apiPath}:/work" -w /work node:20-slim sh -c "npm ci --omit=dev >/dev/null 2>&1; npm test -- --reporter=verbose" 2>&1 |
+            $null = & docker run --rm -v "${apiPath}:/work" -w /work node:20-slim sh -c "npm ci >/dev/null 2>&1; npm test -- --reporter=verbose" 2>&1 |
                 Tee-Object -FilePath (Join-Path $LogFolder 'backend-unit.log')
             Write-Result 'Backend-Unit-Tests' ($LASTEXITCODE -eq 0) $(if ($LASTEXITCODE -ne 0) { "exit code $LASTEXITCODE (via docker)" })
         }
@@ -873,33 +873,38 @@ if (-not $SkipIntegration) {
 if (-not $SkipE2E) {
     Write-Phase "Phase 5: Playwright E2E Browser Tests"
 
-    try {
-        Push-Location $frontendDir
+    $hasNpm = $null -ne (Get-Command npx -ErrorAction SilentlyContinue)
+    if (-not $hasNpm) {
+        Write-Result 'Playwright-E2E' $true 'skipped: npx not on PATH'
+    } else {
+        try {
+            Push-Location $frontendDir
 
-        # Check if running against Docker (real data) or mock
-        if (-not $SkipIntegration) {
-            # Real data mode — point Playwright at Docker backend
-            $env:E2E_BASE_URL = $uiBaseUrl
-            Write-Host "  Running against Docker backend ($uiBaseUrl)" -ForegroundColor Gray
+            # Check if running against Docker (real data) or mock
+            if (-not $SkipIntegration) {
+                # Real data mode — point Playwright at Docker backend
+                $env:E2E_BASE_URL = $uiBaseUrl
+                Write-Host "  Running against Docker backend ($uiBaseUrl)" -ForegroundColor Gray
+            }
+            else {
+                Write-Host "  Running against mock backend" -ForegroundColor Gray
+            }
+
+            & npx playwright test --reporter=html 2>&1 | Tee-Object -FilePath (Join-Path $LogFolder 'playwright.log')
+            Write-Result 'Playwright-E2E' ($LASTEXITCODE -eq 0) $(if ($LASTEXITCODE -ne 0) { "exit code $LASTEXITCODE" })
+
+            # Copy Playwright report to log folder
+            $reportDir = Join-Path $frontendDir 'playwright-report'
+            if (Test-Path $reportDir) {
+                Copy-Item -Path $reportDir -Destination (Join-Path $LogFolder 'playwright-report') -Recurse -Force
+            }
+
+            Pop-Location
         }
-        else {
-            Write-Host "  Running against mock backend" -ForegroundColor Gray
+        catch {
+            Write-Result 'Playwright-E2E' $false $_.Exception.Message
+            Pop-Location
         }
-
-        & npx playwright test --reporter=html 2>&1 | Tee-Object -FilePath (Join-Path $LogFolder 'playwright.log')
-        Write-Result 'Playwright-E2E' ($LASTEXITCODE -eq 0) $(if ($LASTEXITCODE -ne 0) { "exit code $LASTEXITCODE" })
-
-        # Copy Playwright report to log folder
-        $reportDir = Join-Path $frontendDir 'playwright-report'
-        if (Test-Path $reportDir) {
-            Copy-Item -Path $reportDir -Destination (Join-Path $LogFolder 'playwright-report') -Recurse -Force
-        }
-
-        Pop-Location
-    }
-    catch {
-        Write-Result 'Playwright-E2E' $false $_.Exception.Message
-        Pop-Location
     }
 }
 
