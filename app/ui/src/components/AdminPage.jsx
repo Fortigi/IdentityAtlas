@@ -816,16 +816,16 @@ function HistoryRetentionSection() {
   const valid = days !== '' && !isNaN(parseInt(days, 10)) && parseInt(days, 10) >= 0 && parseInt(days, 10) <= 3650;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border p-5 mb-4">
-      <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Version History Retention</h4>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+    <div className="bg-white rounded-lg border p-5 mb-4">
+      <h4 className="font-semibold text-gray-900 mb-1">Version History Retention</h4>
+      <p className="text-sm text-gray-600 mb-4">
         How long row-level change history is kept in the audit log. Older entries are pruned automatically every 6 hours.
         Set to <code>0</code> to disable pruning and keep history forever.
       </p>
 
       <div className="flex items-end gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Retention (days)</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Retention (days)</label>
           <input
             type="number"
             min="0"
@@ -833,7 +833,7 @@ function HistoryRetentionSection() {
             value={days}
             onChange={e => setDays(e.target.value)}
             disabled={loading}
-            className="w-32 px-3 py-1.5 text-sm border rounded dark:bg-gray-700 dark:border-gray-600"
+            className="w-32 px-3 py-1.5 text-sm border rounded"
           />
         </div>
         <button
@@ -846,7 +846,7 @@ function HistoryRetentionSection() {
         <button
           onClick={pruneNow}
           disabled={pruning || loading}
-          className="px-4 py-1.5 text-sm font-medium rounded border border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 disabled:opacity-50"
+          className="px-4 py-1.5 text-sm font-medium rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
         >
           {pruning ? 'Pruning…' : 'Prune now'}
         </button>
@@ -1175,9 +1175,9 @@ function LLMSettingsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg border p-5">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">LLM Provider</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      <div className="bg-white rounded-lg border p-5">
+        <h3 className="text-base font-semibold text-gray-900 mb-1">LLM Provider</h3>
+        <p className="text-sm text-gray-600 mb-4">
           Used by risk profiling, classifier generation and conversational refinement.
           The API key is encrypted at rest with envelope encryption — only the masked status is visible after saving.
         </p>
@@ -1185,11 +1185,11 @@ function LLMSettingsSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Provider */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Provider</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Provider</label>
             <select
               value={config.provider}
               onChange={e => setConfig(c => ({ ...c, provider: e.target.value }))}
-              className="w-full px-3 py-1.5 text-sm border rounded dark:bg-gray-700 dark:border-gray-600"
+              className="w-full px-3 py-1.5 text-sm border rounded"
             >
               {providers.map(p => (
                 <option key={p} value={p}>{p === 'azure-openai' ? 'Azure OpenAI' : p === 'anthropic' ? 'Anthropic Claude' : 'OpenAI'}</option>
@@ -1200,7 +1200,7 @@ function LLMSettingsSection() {
           {/* Model — dropdown after discovery, otherwise free-text input */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-xs font-medium text-gray-700">
                 {isAzure ? 'Deployment' : 'Model'}
               </label>
               <button
@@ -1217,7 +1217,7 @@ function LLMSettingsSection() {
               <select
                 value={config.model || ''}
                 onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
-                className="w-full px-3 py-1.5 text-sm border rounded font-mono dark:bg-gray-700 dark:border-gray-600"
+                className="w-full px-3 py-1.5 text-sm border rounded font-mono"
               >
                 <option value="">— select a model —</option>
                 {models.map(m => (
@@ -1230,7 +1230,7 @@ function LLMSettingsSection() {
                 value={config.model}
                 onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
                 placeholder={placeholderModel || (isAzure ? 'e.g. gpt-4o-prod' : '')}
-                className="w-full px-3 py-1.5 text-sm border rounded font-mono dark:bg-gray-700 dark:border-gray-600"
+                className="w-full px-3 py-1.5 text-sm border rounded font-mono"
               />
             )}
             {modelsError && (
@@ -1245,33 +1245,33 @@ function LLMSettingsSection() {
           {isAzure && (
             <>
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Azure endpoint</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Azure endpoint</label>
                 <input
                   type="text"
                   value={config.endpoint}
                   onChange={e => setConfig(c => ({ ...c, endpoint: e.target.value }))}
                   placeholder="https://my-resource.openai.azure.com"
-                  className="w-full px-3 py-1.5 text-sm border rounded font-mono dark:bg-gray-700 dark:border-gray-600"
+                  className="w-full px-3 py-1.5 text-sm border rounded font-mono"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Deployment</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Deployment</label>
                 <input
                   type="text"
                   value={config.deployment}
                   onChange={e => setConfig(c => ({ ...c, deployment: e.target.value }))}
                   placeholder="gpt-4o-prod"
-                  className="w-full px-3 py-1.5 text-sm border rounded font-mono dark:bg-gray-700 dark:border-gray-600"
+                  className="w-full px-3 py-1.5 text-sm border rounded font-mono"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">API version</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">API version</label>
                 <input
                   type="text"
                   value={config.apiVersion}
                   onChange={e => setConfig(c => ({ ...c, apiVersion: e.target.value }))}
                   placeholder="2024-08-01-preview"
-                  className="w-full px-3 py-1.5 text-sm border rounded font-mono dark:bg-gray-700 dark:border-gray-600"
+                  className="w-full px-3 py-1.5 text-sm border rounded font-mono"
                 />
               </div>
             </>
@@ -1279,7 +1279,7 @@ function LLMSettingsSection() {
 
           {/* API key */}
           <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs font-medium text-gray-700 mb-1">
               API key {apiKeySet && <span className="ml-2 text-green-600">• stored</span>}
             </label>
             <input
@@ -1288,7 +1288,7 @@ function LLMSettingsSection() {
               onChange={e => setConfig(c => ({ ...c, apiKey: e.target.value }))}
               placeholder={apiKeySet ? '••••••••  (leave blank to keep existing)' : 'sk-...'}
               autoComplete="new-password"
-              className="w-full px-3 py-1.5 text-sm border rounded font-mono dark:bg-gray-700 dark:border-gray-600"
+              className="w-full px-3 py-1.5 text-sm border rounded font-mono"
             />
           </div>
         </div>
@@ -1304,14 +1304,14 @@ function LLMSettingsSection() {
           <button
             onClick={handleTest}
             disabled={testing}
-            className="px-4 py-1.5 text-sm font-medium rounded border border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 disabled:opacity-50"
+            className="px-4 py-1.5 text-sm font-medium rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
           >
             {testing ? 'Testing…' : 'Test connection'}
           </button>
           {apiKeySet && (
             <button
               onClick={handleClear}
-              className="px-4 py-1.5 text-sm font-medium rounded border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900"
+              className="px-4 py-1.5 text-sm font-medium rounded border border-red-300 text-red-700 hover:bg-red-50"
             >
               Clear
             </button>
@@ -1324,7 +1324,7 @@ function LLMSettingsSection() {
           </div>
         )}
         {testResult && (
-          <div className={`mt-3 text-sm rounded border p-3 ${testResult.ok ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200' : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900 dark:border-red-700 dark:text-red-200'}`}>
+          <div className={`mt-3 text-sm rounded border p-3 ${testResult.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
             {testResult.ok ? (
               <>
                 <div className="font-medium">Connection OK</div>
@@ -1349,10 +1349,10 @@ function NewRiskProfileLauncher() {
   const [open, setOpen] = useState(false);
   const [bumpKey, setBumpKey] = useState(0);
   return (
-    <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg p-4 flex items-center justify-between">
+    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-center justify-between">
       <div>
-        <div className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Create a new risk profile</div>
-        <div className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
+        <div className="text-sm font-medium text-indigo-900">Create a new risk profile</div>
+        <div className="text-xs text-indigo-700 mt-0.5">
           Walks you through generating an organisational profile and classifier set with the LLM, then optionally runs a scoring pass.
         </div>
       </div>
