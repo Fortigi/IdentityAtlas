@@ -16,6 +16,8 @@ export function usePermissions(userLimit = 25, activeFilters = []) {
   const { authFetch } = useAuth();
   const [data, setData] = useState([]);
   const [totalUsers, setTotalUsers] = useState(0);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+  const forceRefresh = useCallback(() => setRefreshCounter(c => c + 1), []);
   const [accessPackageGroups, setAccessPackageGroups] = useState([]);
   const [managedByPackages, setManagedByPackages] = useState([]);
   const [userColumns, setUserColumns] = useState(null); // null = loading
@@ -170,7 +172,7 @@ export function usePermissions(userLimit = 25, activeFilters = []) {
       cancelled = true;
       controller.abort();
     };
-  }, [debouncedLimit, debouncedFilterKey, fetchPermissions, authFetch]);
+  }, [debouncedLimit, debouncedFilterKey, fetchPermissions, authFetch, refreshCounter]);
 
-  return { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error };
+  return { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error, forceRefresh };
 }

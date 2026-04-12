@@ -29,7 +29,7 @@ Identity Atlas runs as a Docker stack — no Azure subscription, no git clone re
 !!! tip "Why `--pull always`?"
     Without `--pull always`, `docker compose up` only pulls an image if it isn't already cached locally. If you ran Identity Atlas before, Docker will happily reuse yesterday's `:latest` — even though a newer `:latest` may be on ghcr.io. Adding `--pull always` forces a registry check on every start. Requires Docker Compose v2.22 or later; on older versions, run `docker compose pull` first and then `up -d`.
 
-Open [http://localhost:3001](http://localhost:3001). The app auto-navigates to the **Crawlers** page. Click **"Load Demo Data"** to explore with synthetic data (~30 seconds).
+Open [http://localhost:3001](http://localhost:3001). The app opens to the Dashboard. If no data is loaded yet, click **"Configure a crawler"** to go to Admin → Crawlers, then click **"Load Demo Data"** to explore with synthetic data (~30 seconds).
 
 To connect your own Entra ID tenant, click **"Connect Entra ID"** and enter your App Registration credentials directly in the browser. The wizard walks you through credential validation, object type selection, identity filtering, custom attributes, and scheduling.
 
