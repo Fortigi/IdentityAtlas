@@ -51,6 +51,8 @@ Param(
     [switch]$SkipFrontendUnit,
     [switch]$SkipIntegration,
     [switch]$SkipE2E,
+    [switch]$SkipLoadTest,
+    [switch]$SkipSoakTest,
     [switch]$KeepEnvironment,
     [string]$LogFolder = ''
 )
@@ -689,6 +691,109 @@ if (-not $SkipIntegration) {
             }
         }
 
+        # ── Read the built-in worker API key from the shared volume ────
+        # Needed by all phases that call ingest or crawler endpoints.
+        $builtinApiKey = $null
+        try {
+            $env:MSYS_NO_PATHCONV = '1'
+            $rawKey = & docker compose -f $composePath exec -T worker cat /data/uploads/.builtin-worker-key 2>$null
+            if ($rawKey) { $builtinApiKey = ([string]$rawKey).Trim() }
+            Remove-Item Env:MSYS_NO_PATHCONV -ErrorAction SilentlyContinue
+        } catch { }
+        if (-not $builtinApiKey) {
+            Write-Host "  WARNING: Could not read built-in worker API key — ingest tests will skip auth" -ForegroundColor Yellow
+        }
+
+        # ── Phase 4f2: Ingest API direct tests ────────────────────────
+        Write-Phase "Phase 4f2: Ingest API Direct Tests"
+        $ingestTestScript = Join-Path $PSScriptRoot 'Test-IngestAPI.ps1'
+        if (Test-Path $ingestTestScript) {
+            try {
+                $ingestCallback = {
+                    param($Name, $Passed, $Detail)
+                    $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                    if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                    else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
+                }
+                & $ingestTestScript -ApiBaseUrl $apiBaseUrl -ApiKey $builtinApiKey -WriteResult $ingestCallback
+            } catch {
+                Write-Result 'Ingest-API-Tests' $false $_.Exception.Message
+            }
+        }
+
+        # ── Phase 4f3: CSV edge case tests ────────────────────────────
+        Write-Phase "Phase 4f3: CSV Edge Case Tests"
+        $csvEdgeScript = Join-Path $PSScriptRoot 'Test-CSVEdgeCases.ps1'
+        if (Test-Path $csvEdgeScript) {
+            try {
+                $csvCallback = {
+                    param($Name, $Passed, $Detail)
+                    $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                    if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                    else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
+                }
+                & $csvEdgeScript -ApiBaseUrl $apiBaseUrl -ApiKey $builtinApiKey -LogFolder $LogFolder -WriteResult $csvCallback
+            } catch {
+                Write-Result 'CSV-Edge-Cases' $false $_.Exception.Message
+            }
+        }
+
+        # ── Phase 4f4: Account correlation ────────────────────────────
+        Write-Phase "Phase 4f4: Account Correlation Tests"
+        $corrScript = Join-Path $PSScriptRoot 'Test-AccountCorrelation.ps1'
+        if (Test-Path $corrScript) {
+            try {
+                $corrCallback = {
+                    param($Name, $Passed, $Detail)
+                    $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                    if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                    else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
+                }
+                & $corrScript -ApiBaseUrl $apiBaseUrl -ApiKey $builtinApiKey -WriteResult $corrCallback
+            } catch {
+                Write-Result 'Account-Correlation' $false $_.Exception.Message
+            }
+        }
+
+        # ── Phase 4f5: Secrets vault deep test ────────────────────────
+        Write-Phase "Phase 4f5: Secrets Vault Deep Tests"
+        $vaultScript = Join-Path $PSScriptRoot 'Test-SecretsVault.ps1'
+        if (Test-Path $vaultScript) {
+            try {
+                $vaultCallback = {
+                    param($Name, $Passed, $Detail)
+                    $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                    if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                    else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
+                }
+                & $vaultScript -ApiBaseUrl $apiBaseUrl -ComposePath $composePath -WriteResult $vaultCallback
+            } catch {
+                Write-Result 'Secrets-Vault' $false $_.Exception.Message
+            }
+        }
+
+        # ── Phase 4f6: Container stats live ───────────────────────────
+        Write-Phase "Phase 4f6: Container Stats Live"
+        try {
+            $stats = Invoke-RestMethod -Uri "$apiBaseUrl/admin/container-stats" -TimeoutSec 30
+            if ($stats.unavailable) {
+                Write-Result 'Container-Stats-Live' $true 'Docker socket not mounted (expected in some envs)'
+            } else {
+                $hasContainers = $stats.containers -and $stats.containers.Count -gt 0
+                Write-Result 'Container-Stats-Live' $hasContainers "containers=$($stats.containers.Count)"
+                if ($hasContainers) {
+                    $webC = $stats.containers | Where-Object { $_.service -eq 'web' }
+                    Write-Result 'Container-Stats-WebPresent' ($null -ne $webC) ''
+                    if ($webC) {
+                        Write-Result 'Container-Stats-HasCPU' ($webC.cpuPercent -ge 0) "cpu=$([math]::Round($webC.cpuPercent, 1))%"
+                        Write-Result 'Container-Stats-HasMem' ($webC.memUsageBytes -gt 0) "mem=$([math]::Round($webC.memUsageBytes / 1MB, 1))MB"
+                    }
+                }
+            }
+        } catch {
+            Write-Result 'Container-Stats-Live' $false $_.Exception.Message
+        }
+
         # ── Phase 4g: Entra ID crawler scenarios (optional) ──────────
         # Reads credentials from test/test.secrets.json. Skips itself when
         # creds are missing.
@@ -864,6 +969,33 @@ if (-not $SkipIntegration) {
             Write-Result 'API-Benchmark' $true 'skipped (script missing)'
         }
     }
+
+    # ── Phase 4l: Full-scale load test (1.5M rows) ────────────────
+    # Generates the synthetic 1.5M-row dataset, ingests via CSV crawler,
+    # benchmarks, and asserts performance. Runs LAST in integration because
+    # it takes 15-30 min and transforms the database.
+    if (-not $SkipLoadTest) {
+        Write-Phase "Phase 4l: Full-Scale Load Test (1.5M rows)"
+        $loadTestScript = Join-Path $PSScriptRoot 'Test-LoadAndBenchmark.ps1'
+        if (Test-Path $loadTestScript) {
+            $loadCallback = {
+                param($Name, $Passed, $Detail)
+                $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
+            }
+            try {
+                & $loadTestScript -ApiBaseUrl $apiBaseUrl -ApiKey $builtinApiKey `
+                    -RepoRoot $RepoRoot -LogFolder $LogFolder -WriteResult $loadCallback
+            } catch {
+                Write-Result 'LoadTest' $false $_.Exception.Message
+            }
+        } else {
+            Write-Result 'LoadTest' $true 'skipped (script missing)'
+        }
+    } else {
+        Write-Result 'LoadTest' $true 'skipped (-SkipLoadTest)'
+    }
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -929,6 +1061,30 @@ if (-not $SkipIntegration) {
     }
     catch {
         Write-Result 'OpenAPI-Spec-Valid' $false $_.Exception.Message
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# PHASE 7: SOAK TEST (sustained API load, memory leak detection)
+# ═══════════════════════════════════════════════════════════════════
+
+if (-not $SkipIntegration -and -not $SkipSoakTest) {
+    Write-Phase "Phase 7: Soak Test (15 min sustained load)"
+    $soakScript = Join-Path $PSScriptRoot 'Test-SoakTest.ps1'
+    if (Test-Path $soakScript) {
+        $soakCallback = {
+            param($Name, $Passed, $Detail)
+            $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+            if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+            else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
+        }
+        try {
+            & $soakScript -ApiBaseUrl $apiBaseUrl -DurationMinutes 15 -WriteResult $soakCallback
+        } catch {
+            Write-Result 'Soak-Test' $false $_.Exception.Message
+        }
+    } else {
+        Write-Result 'Soak-Test' $true 'skipped (script missing)'
     }
 }
 
