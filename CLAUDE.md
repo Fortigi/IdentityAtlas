@@ -744,7 +744,7 @@ curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-comp
 # 2. Start the stack
 docker compose -f docker-compose.prod.yml up -d
 
-# 3. Open http://localhost:3001 → click "Load Demo Data" or "Connect Entra ID"
+# 3. Open http://localhost:3001 → go to Admin → Crawlers, then click "Load Demo Data" or "Add Crawler" to connect Entra ID
 # 4. Configure crawlers via the in-browser wizard (Admin → Crawlers → Add Crawler)
 ```
 
