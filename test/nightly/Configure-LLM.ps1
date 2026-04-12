@@ -117,7 +117,14 @@ try {
         if (-not $WriteResult) { exit 1 } else { return }
     }
 } catch {
-    Report-Result 'LLM-Config/Save' $false $_.Exception.Message
+    # Extract the response body from the error so the nightly report includes
+    # the server's error message, not just "500 Internal Server Error".
+    $detail = $_.Exception.Message
+    try {
+        $stream = $_.Exception.Response.GetResponseStream()
+        if ($stream) { $reader = [System.IO.StreamReader]::new($stream); $detail += " — " + $reader.ReadToEnd(); $reader.Close() }
+    } catch { }
+    Report-Result 'LLM-Config/Save' $false $detail
     if (-not $WriteResult) { exit 1 } else { return }
 }
 
