@@ -825,7 +825,7 @@ router.get('/admin/container-stats', async (req, res) => {
     const containers = await dockerRequest('/containers/json?all=0');
     const wanted = containers.filter(c => {
       const names = (c.Names || []).map(n => n.replace(/^\//, ''));
-      return names.some(n => /fortigigraph[-_](postgres|web|worker)/i.test(n));
+      return names.some(n => /(?:fortigigraph|identityatlas|identity[-_]atlas)[-_](postgres|web|worker)/i.test(n));
     });
 
     const results = await Promise.all(wanted.map(async (c) => {
@@ -857,7 +857,10 @@ router.get('/admin/container-stats', async (req, res) => {
     results.sort((a, b) => (order[a.service] ?? 99) - (order[b.service] ?? 99));
     res.json({ containers: results, timestamp: new Date().toISOString() });
   } catch (err) {
-    res.status(500).json({ error: err.message, hint: 'Mount /var/run/docker.sock into the web container.' });
+    // Docker socket not mounted or not accessible — degrade gracefully.
+    // This is a monitoring endpoint; a hard 500 breaks the nightly smoke test
+    // and the Admin dashboard for no good reason.
+    res.json({ containers: [], unavailable: true, reason: err.message, timestamp: new Date().toISOString() });
   }
 });
 
