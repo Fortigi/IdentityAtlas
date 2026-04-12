@@ -386,6 +386,10 @@ async function refreshMatrixViews() {
     '"ResourceRelationships"',
     '"Contexts"',
     '"Identities"',
+    '"Systems"',
+    '"CertificationDecisions"',
+    '"GraphSyncLog"',
+    '"RiskScores"',
   ];
   for (const t of tables) {
     try { await db.query(`ANALYZE ${t}`); } catch { /* best effort */ }
