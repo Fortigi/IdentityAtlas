@@ -16,8 +16,8 @@ curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-comp
 docker compose -f docker-compose.prod.yml up -d
 
 # 3. Open http://localhost:3001
-#    Click "Load Demo Data" to explore with sample data, or
-#    go to Admin > Crawlers > Add Crawler to connect your Entra ID tenant.
+#    Go to Admin > Crawlers, then click "Load Demo Data" to explore with sample data, or
+#    click "Add Crawler" to connect your Entra ID tenant.
 ```
 
 The in-browser crawler wizard walks you through credentials, permission validation, object type selection, and scheduling — no PowerShell or command-line setup required.
