@@ -816,7 +816,7 @@ function HistoryRetentionSection() {
   const valid = days !== '' && !isNaN(parseInt(days, 10)) && parseInt(days, 10) >= 0 && parseInt(days, 10) <= 3650;
 
   return (
-    <div className="bg-white rounded-lg border p-5 mb-4">
+    <div className="bg-white rounded-lg border border-gray-200 p-5 mb-4">
       <h4 className="font-semibold text-gray-900 mb-1">Version History Retention</h4>
       <p className="text-sm text-gray-600 mb-4">
         How long row-level change history is kept in the audit log. Older entries are pruned automatically every 6 hours.
@@ -1175,7 +1175,7 @@ function LLMSettingsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-lg border p-5">
+      <div className="bg-white rounded-lg border border-gray-200 p-5">
         <h3 className="text-base font-semibold text-gray-900 mb-1">LLM Provider</h3>
         <p className="text-sm text-gray-600 mb-4">
           Used by risk profiling, classifier generation and conversational refinement.
