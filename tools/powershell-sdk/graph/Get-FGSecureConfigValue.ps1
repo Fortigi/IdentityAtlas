@@ -50,6 +50,9 @@ function Get-FGSecureConfigValue {
         - Config file is updated with encrypted values automatically
     #>
 
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingConvertToSecureStringWithPlainText', '',
+        Justification = 'Migrating existing plaintext config values to DPAPI-encrypted storage requires converting the in-memory string to SecureString')]
     [alias("Get-SecureConfigValue")]
     [cmdletbinding()]
     Param(
