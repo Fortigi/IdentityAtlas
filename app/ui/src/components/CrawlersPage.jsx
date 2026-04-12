@@ -1246,7 +1246,7 @@ function RecentJobs({ jobs, onForceStop }) {
   return (
     <div className="mb-6">
       <h3 className="text-lg font-semibold mb-3">Recent Jobs</h3>
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
@@ -1308,7 +1308,7 @@ function ExternalCrawlers({ crawlers, onToggle, onResetKey, onRemove, newKey, on
         </div>
       )}
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
