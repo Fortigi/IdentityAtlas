@@ -644,7 +644,22 @@ function Get-FGSQLResource {
 - Don't commit test configuration files (protected by .gitignore)
 - Don't modify database schema manually — use migration files in `app/api/src/db/migrations/`
 
-### 4. When Extending the Module
+### 4. No Duplicate Code
+
+Before writing any utility function, helper, constant, or component — **search first**.
+
+**PowerShell:** Check `Functions/` for an existing function that does the same thing. If it exists, call it. If it almost fits, extend it rather than copy it.
+
+**React/JS:** Check `app/ui/src/utils/` and `app/ui/src/hooks/` before writing any helper inline in a component. Known shared utilities:
+- `utils/formatters.js` — `formatDate`, `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
+- `utils/colors.js` — `TAG_COLORS` and AP color palette
+- `utils/exportToExcel.js` / `utils/exportAccessPackagesToExcel.js` — Excel export logic
+- `hooks/useEntityPage.js` — search, filter, tags, and pagination for list pages
+- `components/ConfidenceBar.jsx` — correlation confidence bar
+
+If the same logic already exists in one file and you are about to write it in a second file, stop and extract it to a shared location instead. Three or more files with the same code is a mandatory extraction — don't leave it for later.
+
+### 5. When Extending the Module
 
 1. **Check if function already exists:** Search `Functions/` folders first
 2. **Determine correct location:**
