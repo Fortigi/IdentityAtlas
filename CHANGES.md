@@ -14,6 +14,8 @@ on the upstream FortigiGraph repo.
 
 ---
 
+- **Extract `Section` and `CollapsibleSection` to `DetailSection.jsx`** — both components were defined identically inside four detail page files (UserDetailPage, GroupDetailPage, ResourceDetailPage, AccessPackageDetailPage), causing React to recreate them on every render. Extracted to a shared `components/DetailSection.jsx`. No behavior change.
+
 - **Extract `useDebouncedValue` hook** — the `useState` + `useEffect` debounce pattern was duplicated in four places (`useEntityPage`, `AccessPackagesPage`, `IdentitiesPage`, `OrgChartPage`). Extracted to `app/ui/src/hooks/useDebouncedValue.js`. No behavior change.
 
 - **Extract shared tier styles to `utils/tierStyles.js`** — `TIER_STYLES` (bg, text, border, dot, avatar, box, boxBorder per tier) and `tierClass(tier)` helper were duplicated across 7 files (RiskScoreSection, RiskScoringPage, OrgChartPage, DepartmentDetailPage, IdentityDetailPage, IdentitiesPage, UserDetailPage). All copies removed; each file now imports from `app/ui/src/utils/tierStyles.js`. No behavior change.

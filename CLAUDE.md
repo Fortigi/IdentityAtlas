@@ -658,6 +658,7 @@ Before writing any utility function, helper, constant, or component — **search
 - `hooks/useEntityPage.js` — search, filter, tags, and pagination for list pages
 - `hooks/useDebouncedValue.js` — `useDebouncedValue(value, delay)` hook
 - `components/ConfidenceBar.jsx` — correlation confidence bar
+- `components/DetailSection.jsx` — `Section` and `CollapsibleSection` used by detail pages
 
 If the same logic already exists in one file and you are about to write it in a second file, stop and extract it to a shared location instead. Three or more files with the same code is a mandatory extraction — don't leave it for later.
 
