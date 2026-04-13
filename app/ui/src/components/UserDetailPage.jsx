@@ -1,55 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
+import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
+import { tierClass } from '../utils/tierStyles';
+import { Section, CollapsibleSection } from './DetailSection';
 
 const HEADER_FIELDS = ['userPrincipalName', 'email', 'department', 'jobTitle', 'companyName'];
 const HIDDEN_FIELDS = new Set(['displayName', ...HEADER_FIELDS, ...RISK_FIELDS, 'ValidFrom', 'ValidTo', 'extendedAttributes', 'extendedAttributesParsed']);
-
-function formatDate(val) {
-  if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d)) return String(val);
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-function formatValue(val) {
-  if (val === null || val === undefined) return '\u2014';
-  if (val === true) return 'Yes';
-  if (val === false) return 'No';
-  if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}T/)) return formatDate(val);
-  return String(val);
-}
-
-function computeHistoryDiffs(history) {
-  if (!history || history.length <= 1) return [];
-  const diffs = [];
-  for (let i = 0; i < history.length - 1; i++) {
-    const newer = history[i];
-    const older = history[i + 1];
-    const changes = [];
-    const allKeys = new Set([...Object.keys(newer), ...Object.keys(older)]);
-    for (const key of allKeys) {
-      if (key === 'ValidFrom' || key === 'ValidTo' || key === 'id') continue;
-      const oldVal = formatValue(older[key]);
-      const newVal = formatValue(newer[key]);
-      if (oldVal !== newVal) {
-        changes.push({ field: key, from: oldVal, to: newVal });
-      }
-    }
-    if (changes.length > 0) {
-      diffs.push({ date: newer.ValidFrom, changes });
-    }
-  }
-  return diffs;
-}
-
-const TIER_COLORS = {
-  Critical: 'bg-red-100 text-red-800',
-  High: 'bg-orange-100 text-orange-800',
-  Medium: 'bg-yellow-100 text-yellow-800',
-  Low: 'bg-blue-100 text-blue-800',
-  Minimal: 'bg-gray-100 text-gray-600',
-};
 
 export default function UserDetailPage({ userId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
@@ -272,7 +229,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               </div>
             </div>
             {manager.riskTier && manager.riskTier !== 'None' && manager.riskTier !== 'Minimal' && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[manager.riskTier] || ''}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tierClass(manager.riskTier)}`}>
                 {manager.riskTier}
               </span>
             )}
@@ -311,7 +268,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                       </div>
                     </div>
                     {r.riskTier && r.riskTier !== 'None' && r.riskTier !== 'Minimal' && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[r.riskTier] || ''}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tierClass(r.riskTier)}`}>
                         {r.riskTier}
                       </span>
                     )}
@@ -506,44 +463,3 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
   );
 }
 
-function Section({ title, count, children }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        {title}
-        {count != null && <span className="text-xs font-normal text-gray-400">({count})</span>}
-      </h3>
-      {children}
-    </div>
-  );
-}
-
-function CollapsibleSection({ title, count, countLabel, open, onToggle, loading, children }) {
-  return (
-    <div>
-      <button
-        onClick={onToggle}
-        className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2 hover:text-gray-900"
-      >
-        <span className="text-xs">{open ? '\u25BC' : '\u25B6'}</span>
-        {title}
-        {count != null && (
-          <span className="text-xs font-normal text-gray-400">
-            ({count}{countLabel ? ` ${countLabel}` : ''})
-          </span>
-        )}
-        {loading && <span className="text-xs text-gray-400 animate-pulse">Loading...</span>}
-      </button>
-      {open && !loading && (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function friendlyLabel(key) {
-  if (key === 'id') return 'GUID';
-  return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
-}

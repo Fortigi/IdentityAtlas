@@ -1,19 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ConfidenceBar from './ConfidenceBar';
-
-// ─── Account type badge styles ──────────────────────────────────────────
-const RISK_TIER_STYLES = {
-  Critical: { bg: 'bg-red-100',    text: 'text-red-800',    dot: 'bg-red-500' },
-  High:     { bg: 'bg-orange-100', text: 'text-orange-800', dot: 'bg-orange-500' },
-  Medium:   { bg: 'bg-yellow-100', text: 'text-yellow-800', dot: 'bg-yellow-500' },
-  Low:      { bg: 'bg-blue-100',   text: 'text-blue-800',   dot: 'bg-blue-500' },
-  Minimal:  { bg: 'bg-gray-100',   text: 'text-gray-600',   dot: 'bg-gray-400' },
-};
+import { TIER_STYLES } from '../utils/tierStyles';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 function RiskTierBadge({ tier }) {
   if (!tier || tier === 'None') return null;
-  const s = RISK_TIER_STYLES[tier] || RISK_TIER_STYLES.Minimal;
+  const s = TIER_STYLES[tier] || TIER_STYLES.Minimal;
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`} title={`Risk: ${tier}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
@@ -448,7 +441,7 @@ export default function IdentitiesPage({ onOpenDetail }) {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [minAccounts, setMinAccounts] = useState(1); // Default: show all identities
   const [accountTypeFilter, setAccountTypeFilter] = useState('');
   const [verifiedFilter, setVerifiedFilter] = useState('');
@@ -458,11 +451,6 @@ export default function IdentitiesPage({ onOpenDetail }) {
   const [offset, setOffset] = useState(0);
   const [pageSize] = useState(50);
 
-  // Debounce search
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
