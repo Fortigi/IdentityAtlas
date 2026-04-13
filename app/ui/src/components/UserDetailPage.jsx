@@ -2,17 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
 import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
+import { tierClass } from '../utils/tierStyles';
 
 const HEADER_FIELDS = ['userPrincipalName', 'email', 'department', 'jobTitle', 'companyName'];
 const HIDDEN_FIELDS = new Set(['displayName', ...HEADER_FIELDS, ...RISK_FIELDS, 'ValidFrom', 'ValidTo', 'extendedAttributes', 'extendedAttributesParsed']);
-
-const TIER_COLORS = {
-  Critical: 'bg-red-100 text-red-800',
-  High: 'bg-orange-100 text-orange-800',
-  Medium: 'bg-yellow-100 text-yellow-800',
-  Low: 'bg-blue-100 text-blue-800',
-  Minimal: 'bg-gray-100 text-gray-600',
-};
 
 export default function UserDetailPage({ userId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
@@ -235,7 +228,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               </div>
             </div>
             {manager.riskTier && manager.riskTier !== 'None' && manager.riskTier !== 'Minimal' && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[manager.riskTier] || ''}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tierClass(manager.riskTier)}`}>
                 {manager.riskTier}
               </span>
             )}
@@ -274,7 +267,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                       </div>
                     </div>
                     {r.riskTier && r.riskTier !== 'None' && r.riskTier !== 'Minimal' && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[r.riskTier] || ''}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tierClass(r.riskTier)}`}>
                         {r.riskTier}
                       </span>
                     )}

@@ -652,6 +652,7 @@ Before writing any utility function, helper, constant, or component — **search
 
 **React/JS:** Check `app/ui/src/utils/` and `app/ui/src/hooks/` before writing any helper inline in a component. Known shared utilities:
 - `utils/formatters.js` — `formatDate`, `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
+- `utils/tierStyles.js` — `TIER_STYLES` (risk tier colors) and `tierClass(tier)` helper
 - `utils/colors.js` — `TAG_COLORS` and AP color palette
 - `utils/exportToExcel.js` / `utils/exportAccessPackagesToExcel.js` — Excel export logic
 - `hooks/useEntityPage.js` — search, filter, tags, and pagination for list pages
