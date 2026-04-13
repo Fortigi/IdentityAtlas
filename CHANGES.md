@@ -14,6 +14,8 @@ on the upstream FortigiGraph repo.
 
 ---
 
+- **Dashboard sync log entries link to Sync Log tab** — The "N sync log entries" text at the bottom of the stats card on the Dashboard is now a clickable link that navigates directly to the Sync Log tab.
+
 - **Extract `Section` and `CollapsibleSection` to `DetailSection.jsx`** — both components were defined identically inside four detail page files (UserDetailPage, GroupDetailPage, ResourceDetailPage, AccessPackageDetailPage), causing React to recreate them on every render. Extracted to a shared `components/DetailSection.jsx`. No behavior change.
 
 - **Extract `useDebouncedValue` hook** — the `useState` + `useEffect` debounce pattern was duplicated in four places (`useEntityPage`, `AccessPackagesPage`, `IdentitiesPage`, `OrgChartPage`). Extracted to `app/ui/src/hooks/useDebouncedValue.js`. No behavior change.
