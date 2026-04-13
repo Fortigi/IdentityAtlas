@@ -806,6 +806,30 @@ if (-not $SkipIntegration) {
             Write-Result 'Container-Stats-Live' $false $_.Exception.Message
         }
 
+        # ── Phase 4f7: Custom Connector round-trip ─────────────────────
+        Write-Phase "Phase 4f7: Custom Connector Round-Trip"
+        $customConnScript = Join-Path $PSScriptRoot 'Test-CustomConnector.ps1'
+        if (Test-Path $customConnScript) {
+            $ccRunnerResults = $script:results
+            $ccFailedRef = @{ Count = 0 }
+            $ccCallback = {
+                param($Name, $Passed, $Detail)
+                $ccRunnerResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                if (-not $Passed) {
+                    $ccFailedRef.Count++
+                    Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red
+                } else {
+                    Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green
+                }
+            }.GetNewClosure()
+            try {
+                & $customConnScript -ApiBaseUrl $apiBaseUrl -WriteResult $ccCallback
+                $script:totalFailed += $ccFailedRef.Count
+            } catch {
+                Write-Result 'Custom-Connector-Tests' $false $_.Exception.Message
+            }
+        }
+
         # ── Phase 4g: Entra ID crawler scenarios (optional) ──────────
         # Reads credentials from test/test.secrets.json. Skips itself when
         # creds are missing.
