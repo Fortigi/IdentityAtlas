@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { TAG_COLORS } from '../utils/colors';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 const PAGE_SIZE = 100;
 
@@ -37,7 +38,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
 
   // Filter state
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 400);
   const [page, setPage] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState(null); // null = all, number = categoryId, 'uncategorized' = no category
   const [typeFilter, setTypeFilter] = useState(null); // null = all, string = assignment type
@@ -63,11 +64,6 @@ export default function AccessPackagesPage({ onOpenDetail }) {
 
   const fetchVersion = useRef(0);
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Reset page & selection when filters or sort change
   useEffect(() => { setPage(0); setSelected(new Set()); }, [debouncedSearch, categoryFilter, typeFilter, sortCol, sortDir]);

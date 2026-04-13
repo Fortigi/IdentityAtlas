@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
+import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
+import { Section, CollapsibleSection } from './DetailSection';
 
 const RESOURCE_TYPE_COLORS = {
   EntraGroup: 'bg-blue-100 text-blue-700',
@@ -12,48 +14,10 @@ const RESOURCE_TYPE_COLORS = {
 const HEADER_FIELDS = ['description', 'resourceType', 'groupTypeCalculated'];
 const HIDDEN_FIELDS = new Set(['displayName', ...HEADER_FIELDS, ...RISK_FIELDS, 'ValidFrom', 'ValidTo', 'extendedAttributes', 'systemId']);
 
-function formatDate(val) {
-  if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d)) return String(val);
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-function formatValue(val) {
-  if (val === null || val === undefined) return '\u2014';
-  if (val === true) return 'Yes';
-  if (val === false) return 'No';
-  if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}T/)) return formatDate(val);
-  return String(val);
-}
-
 function parseExtendedAttributes(val) {
   if (!val) return null;
   if (typeof val === 'object' && !Array.isArray(val)) return val;
   try { return JSON.parse(val); } catch { return null; }
-}
-
-function computeHistoryDiffs(history) {
-  if (!history || history.length <= 1) return [];
-  const diffs = [];
-  for (let i = 0; i < history.length - 1; i++) {
-    const newer = history[i];
-    const older = history[i + 1];
-    const changes = [];
-    const allKeys = new Set([...Object.keys(newer), ...Object.keys(older)]);
-    for (const key of allKeys) {
-      if (key === 'ValidFrom' || key === 'ValidTo' || key === 'id') continue;
-      const oldVal = formatValue(older[key]);
-      const newVal = formatValue(newer[key]);
-      if (oldVal !== newVal) {
-        changes.push({ field: key, from: oldVal, to: newVal });
-      }
-    }
-    if (changes.length > 0) {
-      diffs.push({ date: newer.ValidFrom, changes });
-    }
-  }
-  return diffs;
 }
 
 const ASSIGNMENT_TYPE_COLORS = {
@@ -471,44 +435,4 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
   );
 }
 
-function Section({ title, count, children }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        {title}
-        {count != null && <span className="text-xs font-normal text-gray-400">({count})</span>}
-      </h3>
-      {children}
-    </div>
-  );
-}
 
-function CollapsibleSection({ title, count, countLabel, open, onToggle, loading, children }) {
-  return (
-    <div>
-      <button
-        onClick={onToggle}
-        className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2 hover:text-gray-900"
-      >
-        <span className="text-xs">{open ? '\u25BC' : '\u25B6'}</span>
-        {title}
-        {count != null && (
-          <span className="text-xs font-normal text-gray-400">
-            ({count}{countLabel ? ` ${countLabel}` : ''})
-          </span>
-        )}
-        {loading && <span className="text-xs text-gray-400 animate-pulse">Loading...</span>}
-      </button>
-      {open && !loading && (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function friendlyLabel(key) {
-  if (key === 'id') return 'GUID';
-  return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
-}
