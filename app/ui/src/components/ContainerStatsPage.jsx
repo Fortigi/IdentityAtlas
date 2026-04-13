@@ -85,6 +85,24 @@ export default function ContainerStatsPage() {
 
   if (!data) return <div className="text-sm text-gray-500 p-4">Loading container stats…</div>;
 
+  if (data.unavailable) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="font-semibold mb-1">Container stats unavailable</div>
+        <div>The web container cannot access the Docker socket to read container metrics.</div>
+        {data.reason && <div className="mt-1 font-mono text-xs bg-amber-100 px-2 py-1 rounded">{data.reason}</div>}
+        <div className="mt-3 text-xs text-amber-700 space-y-1">
+          <p>To enable container monitoring, the Docker socket must be readable by the web container. Common fixes:</p>
+          <ul className="list-disc list-inside ml-2 space-y-0.5">
+            <li><strong>Linux:</strong> <code>sudo chmod 666 /var/run/docker.sock</code> (or add the container user to the <code>docker</code> group)</li>
+            <li><strong>Docker Desktop (Windows/Mac):</strong> Usually works out of the box — restart Docker Desktop if needed</li>
+          </ul>
+          <p className="mt-2">This does not affect any other functionality — crawlers, sync, and the UI all work without container stats.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="text-xs text-gray-500">
