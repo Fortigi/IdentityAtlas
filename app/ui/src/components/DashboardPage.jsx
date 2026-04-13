@@ -123,7 +123,12 @@ export default function DashboardPage({ onNavigate }) {
                 <StatCard label="Relationships"  value={stats.relationships} />
               </div>
               <div className="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-400 text-right">
-                {stats.syncLogEntries || 0} sync log entries
+                <button
+                  onClick={() => onNavigate?.('sync-log')}
+                  className="hover:text-lime-700 hover:underline transition-colors"
+                >
+                  {stats.syncLogEntries || 0} sync log entries
+                </button>
               </div>
             </>
           )}
