@@ -343,7 +343,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="Identity Atlas" className="h-10 w-10" />
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Identity <span className="text-emerald-600">Atlas</span></h1>
+              <h1 className="text-xl font-semibold text-gray-900">Identity <span style={{ color: '#65b425' }}>Atlas</span></h1>
               <p className="text-xs text-gray-500">
                 Universal authorization intelligence
               </p>
