@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ConfidenceBar from './ConfidenceBar';
 import { TIER_STYLES } from '../utils/tierStyles';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 function RiskTierBadge({ tier }) {
   if (!tier || tier === 'None') return null;
@@ -440,7 +441,7 @@ export default function IdentitiesPage({ onOpenDetail }) {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [minAccounts, setMinAccounts] = useState(1); // Default: show all identities
   const [accountTypeFilter, setAccountTypeFilter] = useState('');
   const [verifiedFilter, setVerifiedFilter] = useState('');
@@ -450,11 +451,6 @@ export default function IdentitiesPage({ onOpenDetail }) {
   const [offset, setOffset] = useState(0);
   const [pageSize] = useState(50);
 
-  // Debounce search
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);

@@ -656,6 +656,7 @@ Before writing any utility function, helper, constant, or component — **search
 - `utils/colors.js` — `TAG_COLORS` and AP color palette
 - `utils/exportToExcel.js` / `utils/exportAccessPackagesToExcel.js` — Excel export logic
 - `hooks/useEntityPage.js` — search, filter, tags, and pagination for list pages
+- `hooks/useDebouncedValue.js` — `useDebouncedValue(value, delay)` hook
 - `components/ConfidenceBar.jsx` — correlation confidence bar
 
 If the same logic already exists in one file and you are about to write it in a second file, stop and extract it to a shared location instead. Three or more files with the same code is a mandatory extraction — don't leave it for later.
