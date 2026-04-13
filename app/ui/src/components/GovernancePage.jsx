@@ -143,7 +143,7 @@ export default function GovernancePage() {
     if (drilldown?.filter) {
       loadDrilldown(drilldown.filter, newCategory);
     }
-  }, [drilldown?.filter, loadDrilldown]);
+  }, [drilldown, loadDrilldown]);
 
   const handleTileClick = useCallback((filter) => {
     loadDrilldown(filter, selectedCategory);
