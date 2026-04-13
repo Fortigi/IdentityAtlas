@@ -194,20 +194,20 @@ function EntityTable({ entities, entityType, onOpenDetail }) {
 
 // ─── Cluster Table ──────────────────────────────────────────────────
 
-function ClusterTable({ clusters, onSelect, sortKey, sortDir, onSort }) {
-  const SortHeader = ({ label, field, className = '' }) => {
-    const active = sortKey === field;
-    return (
-      <th
-        className={`text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700 ${className}`}
-        onClick={() => onSort(field)}
-      >
-        {label}
-        {active && <span className="ml-1 text-gray-400">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>}
-      </th>
-    );
-  };
+function ClusterSortHeader({ label, field, className = '', sortKey, sortDir, onSort }) {
+  const active = sortKey === field;
+  return (
+    <th
+      className={`text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700 ${className}`}
+      onClick={() => onSort(field)}
+    >
+      {label}
+      {active && <span className="ml-1 text-gray-400">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>}
+    </th>
+  );
+}
 
+function ClusterTable({ clusters, onSelect, sortKey, sortDir, onSort }) {
   if (!clusters || clusters.length === 0) {
     return <div className="py-8 text-center text-gray-400">No clusters match the current filters</div>;
   }
@@ -217,13 +217,13 @@ function ClusterTable({ clusters, onSelect, sortKey, sortDir, onSort }) {
       <table className="min-w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200">
-            <SortHeader label="Name" field="name" />
-            <SortHeader label="Type" field="type" className="w-20" />
-            <SortHeader label="Members" field="members" className="w-20" />
+            <ClusterSortHeader label="Name" field="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <ClusterSortHeader label="Type" field="type" className="w-20" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <ClusterSortHeader label="Members" field="members" className="w-20" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase w-24">Prod / Non</th>
-            <SortHeader label="Score" field="score" className="w-20" />
-            <SortHeader label="Tier" field="tier" className="w-24" />
-            <SortHeader label="Owner" field="owner" />
+            <ClusterSortHeader label="Score" field="score" className="w-20" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <ClusterSortHeader label="Tier" field="tier" className="w-24" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <ClusterSortHeader label="Owner" field="owner" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
           </tr>
         </thead>
         <tbody>
