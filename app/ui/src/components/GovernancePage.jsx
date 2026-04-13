@@ -1,12 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
-
-function formatDate(val) {
-  if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d)) return String(val);
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-}
+import { formatDate } from '../utils/formatters';
 
 function formatNum(n) {
   if (n == null) return '0';
