@@ -789,16 +789,20 @@ if (-not $SkipIntegration) {
         try {
             $stats = Invoke-RestMethod -Uri "$apiBaseUrl/admin/container-stats" -TimeoutSec 30
             if ($stats.unavailable) {
-                Write-Result 'Container-Stats-Live' $true 'Docker socket not mounted (expected in some envs)'
+                Write-Result 'Container-Stats-Live' $false "Docker socket not accessible: $($stats.reason)"
             } else {
                 $hasContainers = $stats.containers -and $stats.containers.Count -gt 0
                 Write-Result 'Container-Stats-Live' $hasContainers "containers=$($stats.containers.Count)"
                 if ($hasContainers) {
-                    $webC = $stats.containers | Where-Object { $_.service -eq 'web' }
-                    Write-Result 'Container-Stats-WebPresent' ($null -ne $webC) ''
-                    if ($webC) {
-                        Write-Result 'Container-Stats-HasCPU' ($webC.cpuPercent -ge 0) "cpu=$([math]::Round($webC.cpuPercent, 1))%"
-                        Write-Result 'Container-Stats-HasMem' ($webC.memUsageBytes -gt 0) "mem=$([math]::Round($webC.memUsageBytes / 1MB, 1))MB"
+                    foreach ($svc in @('web', 'worker', 'postgres')) {
+                        $c = $stats.containers | Where-Object { $_.service -eq $svc }
+                        if ($c) {
+                            Write-Result "Container-Stats/$svc/Running" ($c.state -eq 'running') "state=$($c.state)"
+                            Write-Result "Container-Stats/$svc/HasCPU" ($c.cpuPercent -ge 0) "cpu=$([math]::Round($c.cpuPercent, 1))%"
+                            Write-Result "Container-Stats/$svc/HasMem" ($c.memUsageBytes -gt 0) "mem=$([math]::Round($c.memUsageBytes / 1MB, 1))MB"
+                        } else {
+                            Write-Result "Container-Stats/$svc/Running" $false 'not found in response'
+                        }
                     }
                 }
             }
