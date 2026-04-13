@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
+import ConfidenceBar from './ConfidenceBar';
 
 // ─── Account type badge styles ──────────────────────────────────────────
 const RISK_TIER_STYLES = {
@@ -40,17 +41,6 @@ function AccountTypeBadge({ type }) {
   );
 }
 
-function ConfidenceBar({ confidence }) {
-  const color = confidence >= 90 ? 'bg-green-500' : confidence >= 70 ? 'bg-blue-500' : confidence >= 50 ? 'bg-yellow-500' : 'bg-orange-500';
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${confidence}%` }} />
-      </div>
-      <span className="text-xs font-mono text-gray-600 w-8 text-right">{confidence}%</span>
-    </div>
-  );
-}
 
 function VerifiedBadge({ verified }) {
   if (!verified) return null;
@@ -65,7 +55,7 @@ function VerifiedBadge({ verified }) {
 // ─── Orphaned Accounts Notice ────────────────────────────────────────────
 
 function OrphanedAccountsNotice({ orphanCount, onShowOrphans, allVisible }) {
-  if (!orphanCount || orphanCount === 0) return null;
+  if (!Number(orphanCount)) return null;
   return (
     <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -695,7 +685,10 @@ export default function IdentitiesPage({ onOpenDetail }) {
                 </div>
 
                 {/* Confidence */}
-                <ConfidenceBar confidence={identity.correlationConfidence} />
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="text-xs text-gray-400 uppercase tracking-wide leading-none">Confidence</span>
+                  <ConfidenceBar confidence={identity.correlationConfidence} />
+                </div>
 
                 {/* Signals */}
                 <div className="text-xs text-gray-400 w-32 truncate" title={identity.correlationSignals}>

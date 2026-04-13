@@ -286,7 +286,7 @@ function NoDataState({ onNavigate }) {
   return (
     <div className="text-center py-8">
       <div className="text-5xl mb-3">📦</div>
-      <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      <div className="text-sm text-gray-600 mb-4">
         No data loaded yet.
       </div>
       <button

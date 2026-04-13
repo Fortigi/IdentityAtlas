@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
+import ConfidenceBar from './ConfidenceBar';
 
 // ─── Identity Detail Page ─────────────────────────────────────────────────────
 // Shows details for a single identity: properties, linked accounts, overrides.
@@ -46,17 +47,6 @@ function AccountTypeBadge({ type }) {
   );
 }
 
-function ConfidenceBar({ confidence }) {
-  const color = confidence >= 90 ? 'bg-green-500' : confidence >= 70 ? 'bg-blue-500' : confidence >= 50 ? 'bg-yellow-500' : 'bg-orange-500';
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${confidence}%` }} />
-      </div>
-      <span className="text-xs font-mono text-gray-600 w-8 text-right">{confidence}%</span>
-    </div>
-  );
-}
 
 function cleanAttributes(raw) {
   if (!raw) return {};
