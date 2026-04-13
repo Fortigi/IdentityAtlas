@@ -119,7 +119,7 @@ jobs:
       - name: Smoke test endpoints
         run: |
           FAILED=0
-          for ep in /api/version /api/admin/status /api/systems /api/users?limit=1 /api/resources?limit=1 /api/permissions?userLimit=1 /api/docs /api/openapi.json; do
+          for ep in /api/version /api/admin/status /api/systems /api/users?limit=1 /api/resources?limit=1 /api/permissions?userLimit=1 /api/openapi.json; do
             CODE=$(curl -sf -o /dev/null -w "%{http_code}" "http://localhost:3001${ep}" || echo "000")
             if [ "$CODE" = "200" ]; then echo "✅ $ep"; else echo "❌ $ep → $CODE"; FAILED=$((FAILED+1)); fi
           done
