@@ -709,13 +709,16 @@ if (-not $SkipIntegration) {
         $ingestTestScript = Join-Path $PSScriptRoot 'Test-IngestAPI.ps1'
         if (Test-Path $ingestTestScript) {
             try {
+                $ingestResults = $script:results
+                $ingestFailedRef = @{ Count = 0 }
                 $ingestCallback = {
                     param($Name, $Passed, $Detail)
-                    $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
-                    if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                    $ingestResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                    if (-not $Passed) { $ingestFailedRef.Count++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
                     else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
-                }
+                }.GetNewClosure()
                 & $ingestTestScript -ApiBaseUrl $apiBaseUrl -ApiKey $builtinApiKey -WriteResult $ingestCallback
+                $script:totalFailed += $ingestFailedRef.Count
             } catch {
                 Write-Result 'Ingest-API-Tests' $false $_.Exception.Message
             }
@@ -726,13 +729,16 @@ if (-not $SkipIntegration) {
         $csvEdgeScript = Join-Path $PSScriptRoot 'Test-CSVEdgeCases.ps1'
         if (Test-Path $csvEdgeScript) {
             try {
+                $csvResults = $script:results
+                $csvFailedRef = @{ Count = 0 }
                 $csvCallback = {
                     param($Name, $Passed, $Detail)
-                    $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
-                    if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                    $csvResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                    if (-not $Passed) { $csvFailedRef.Count++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
                     else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
-                }
+                }.GetNewClosure()
                 & $csvEdgeScript -ApiBaseUrl $apiBaseUrl -ApiKey $builtinApiKey -LogFolder $LogFolder -WriteResult $csvCallback
+                $script:totalFailed += $csvFailedRef.Count
             } catch {
                 Write-Result 'CSV-Edge-Cases' $false $_.Exception.Message
             }
@@ -743,13 +749,16 @@ if (-not $SkipIntegration) {
         $corrScript = Join-Path $PSScriptRoot 'Test-AccountCorrelation.ps1'
         if (Test-Path $corrScript) {
             try {
+                $corrResults = $script:results
+                $corrFailedRef = @{ Count = 0 }
                 $corrCallback = {
                     param($Name, $Passed, $Detail)
-                    $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
-                    if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                    $corrResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                    if (-not $Passed) { $corrFailedRef.Count++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
                     else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
-                }
+                }.GetNewClosure()
                 & $corrScript -ApiBaseUrl $apiBaseUrl -ApiKey $builtinApiKey -WriteResult $corrCallback
+                $script:totalFailed += $corrFailedRef.Count
             } catch {
                 Write-Result 'Account-Correlation' $false $_.Exception.Message
             }
@@ -760,13 +769,16 @@ if (-not $SkipIntegration) {
         $vaultScript = Join-Path $PSScriptRoot 'Test-SecretsVault.ps1'
         if (Test-Path $vaultScript) {
             try {
+                $vaultResults = $script:results
+                $vaultFailedRef = @{ Count = 0 }
                 $vaultCallback = {
                     param($Name, $Passed, $Detail)
-                    $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
-                    if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                    $vaultResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                    if (-not $Passed) { $vaultFailedRef.Count++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
                     else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
-                }
+                }.GetNewClosure()
                 & $vaultScript -ApiBaseUrl $apiBaseUrl -ComposePath $composePath -WriteResult $vaultCallback
+                $script:totalFailed += $vaultFailedRef.Count
             } catch {
                 Write-Result 'Secrets-Vault' $false $_.Exception.Message
             }
@@ -792,6 +804,30 @@ if (-not $SkipIntegration) {
             }
         } catch {
             Write-Result 'Container-Stats-Live' $false $_.Exception.Message
+        }
+
+        # ── Phase 4f7: Custom Connector round-trip ─────────────────────
+        Write-Phase "Phase 4f7: Custom Connector Round-Trip"
+        $customConnScript = Join-Path $PSScriptRoot 'Test-CustomConnector.ps1'
+        if (Test-Path $customConnScript) {
+            $ccRunnerResults = $script:results
+            $ccFailedRef = @{ Count = 0 }
+            $ccCallback = {
+                param($Name, $Passed, $Detail)
+                $ccRunnerResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                if (-not $Passed) {
+                    $ccFailedRef.Count++
+                    Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red
+                } else {
+                    Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green
+                }
+            }.GetNewClosure()
+            try {
+                & $customConnScript -ApiBaseUrl $apiBaseUrl -WriteResult $ccCallback
+                $script:totalFailed += $ccFailedRef.Count
+            } catch {
+                Write-Result 'Custom-Connector-Tests' $false $_.Exception.Message
+            }
         }
 
         # ── Phase 4g: Entra ID crawler scenarios (optional) ──────────
@@ -978,15 +1014,18 @@ if (-not $SkipIntegration) {
         Write-Phase "Phase 4l: Full-Scale Load Test (1.5M rows)"
         $loadTestScript = Join-Path $PSScriptRoot 'Test-LoadAndBenchmark.ps1'
         if (Test-Path $loadTestScript) {
+            $loadResults = $script:results
+            $loadFailedRef = @{ Count = 0 }
             $loadCallback = {
                 param($Name, $Passed, $Detail)
-                $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
-                if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                $loadResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                if (-not $Passed) { $loadFailedRef.Count++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
                 else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
-            }
+            }.GetNewClosure()
             try {
                 & $loadTestScript -ApiBaseUrl $apiBaseUrl -ApiKey $builtinApiKey `
                     -RepoRoot $RepoRoot -LogFolder $LogFolder -WriteResult $loadCallback
+                $script:totalFailed += $loadFailedRef.Count
             } catch {
                 Write-Result 'LoadTest' $false $_.Exception.Message
             }
@@ -1072,14 +1111,17 @@ if (-not $SkipIntegration -and -not $SkipSoakTest) {
     Write-Phase "Phase 7: Soak Test (15 min sustained load)"
     $soakScript = Join-Path $PSScriptRoot 'Test-SoakTest.ps1'
     if (Test-Path $soakScript) {
+        $soakResults = $script:results
+        $soakFailedRef = @{ Count = 0 }
         $soakCallback = {
             param($Name, $Passed, $Detail)
-            $script:results[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
-            if (-not $Passed) { $script:totalFailed++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+            $soakResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+            if (-not $Passed) { $soakFailedRef.Count++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
             else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
-        }
+        }.GetNewClosure()
         try {
             & $soakScript -ApiBaseUrl $apiBaseUrl -DurationMinutes 15 -WriteResult $soakCallback
+            $script:totalFailed += $soakFailedRef.Count
         } catch {
             Write-Result 'Soak-Test' $false $_.Exception.Message
         }
