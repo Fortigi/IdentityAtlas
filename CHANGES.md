@@ -14,6 +14,8 @@ on the upstream FortigiGraph repo.
 
 ---
 
+- **Extract shared formatter utilities to `utils/formatters.js`** — `formatDate`, `formatValue`, `computeHistoryDiffs`, and `friendlyLabel` were defined identically in four detail page components (UserDetailPage, ResourceDetailPage, GroupDetailPage, AccessPackageDetailPage) and `formatDate` again in GovernancePage. All five copies removed; each file now imports from the new shared `app/ui/src/utils/formatters.js`. No behavior change.
+
 - **Fix black borders on Crawlers page and Add Crawler wizard** — The Custom Connector wizard introduced 56 bare `border` classes without a color modifier, causing Tailwind to fall back to the current text color (black). Added `border-gray-200` to all uncolored borders, matching the fix applied to other Admin pages in PR #4.
 
 - **Fix orange confidence bar and malformed "null%" label on identities with no correlation run** — `ConfidenceBar` was not guarded against a null confidence value: null failed every threshold comparison and fell through to `bg-orange-500`, and `{null}%` rendered as a bare `%`. Now shows a solid grey bar with `—%` and a hover tooltip when confidence is null. Extracted `ConfidenceBar` to a shared component (`ConfidenceBar.jsx`) used by both `IdentitiesPage` and `IdentityDetailPage`.
