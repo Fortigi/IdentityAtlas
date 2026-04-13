@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useDebouncedValue } from './useDebouncedValue';
 
 const PAGE_SIZE = 100;
 
@@ -28,7 +29,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
 
   // Filter state
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 400);
   const [page, setPage] = useState(0);
 
   // Selection state
@@ -48,12 +49,6 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   const [busy, setBusy] = useState(false);
 
   const fetchVersion = useRef(0);
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Reset page & selection when filters change
   useEffect(() => { setPage(0); setSelected(new Set()); }, [debouncedSearch, activeFilters]);

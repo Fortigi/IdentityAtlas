@@ -14,6 +14,8 @@ on the upstream FortigiGraph repo.
 
 ---
 
+- **Extract `useDebouncedValue` hook** — the `useState` + `useEffect` debounce pattern was duplicated in four places (`useEntityPage`, `AccessPackagesPage`, `IdentitiesPage`, `OrgChartPage`). Extracted to `app/ui/src/hooks/useDebouncedValue.js`. No behavior change.
+
 - **Extract shared tier styles to `utils/tierStyles.js`** — `TIER_STYLES` (bg, text, border, dot, avatar, box, boxBorder per tier) and `tierClass(tier)` helper were duplicated across 7 files (RiskScoreSection, RiskScoringPage, OrgChartPage, DepartmentDetailPage, IdentityDetailPage, IdentitiesPage, UserDetailPage). All copies removed; each file now imports from `app/ui/src/utils/tierStyles.js`. No behavior change.
 
 - **Extract shared formatter utilities to `utils/formatters.js`** — `formatDate`, `formatValue`, `computeHistoryDiffs`, and `friendlyLabel` were defined identically in four detail page components (UserDetailPage, ResourceDetailPage, GroupDetailPage, AccessPackageDetailPage) and `formatDate` again in GovernancePage. All five copies removed; each file now imports from the new shared `app/ui/src/utils/formatters.js`. No behavior change.

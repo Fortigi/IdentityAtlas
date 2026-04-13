@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { TIER_STYLES } from '../utils/tierStyles';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -252,7 +253,7 @@ export default function OrgChartPage({ onOpenDetail, onCacheData }) {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search.trim().toLowerCase(), 250);
   const [expandedMap, setExpandedMap] = useState({});
   const initialExpandDone = useRef(false);
 
@@ -297,12 +298,6 @@ export default function OrgChartPage({ onOpenDetail, onCacheData }) {
   }, [authFetch]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  // ─── Debounce search ────────────────────────────────────────────
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim().toLowerCase()), 250);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // ─── Build department tree ──────────────────────────────────────
   const { rootNode, nodeMap } = useMemo(() => {
