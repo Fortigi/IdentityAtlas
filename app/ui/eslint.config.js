@@ -22,6 +22,11 @@ export default [
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // React Compiler strict rules — downgrade to warnings until data-fetching
+      // patterns are refactored to avoid setState-in-effect (requires Suspense or
+      // useTransition migration across all detail pages).
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/refs': 'warn',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },

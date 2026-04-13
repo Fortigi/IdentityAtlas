@@ -1150,13 +1150,12 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
 
 // ─── Job Progress Card ────────────────────────────────────────────────────────
 function JobProgress({ job, onNavigateToMatrix, onDismiss }) {
-  // Tick every second so the "last update Xs ago" line stays accurate even when
-  // the backend hasn't pushed a new poll yet. Cheap, just a setInterval that bumps
-  // a counter.
-  const [tick, setTick] = useState(0);
+  // Store current time in state so the "last update Xs ago" line stays accurate
+  // without calling impure Date.now() during render.
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!job || ['completed','failed','cancelled'].includes(job.status)) return;
-    const id = setInterval(() => setTick(t => t + 1), 1000);
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [job?.status]);
 
@@ -1166,9 +1165,7 @@ function JobProgress({ job, onNavigateToMatrix, onDismiss }) {
   const step = progress.step || 'Waiting...';
   const detail = progress.detail || '';
   const updatedAt = progress.updatedAt ? new Date(progress.updatedAt) : null;
-  const secondsSince = updatedAt ? Math.max(0, Math.round((Date.now() - updatedAt.getTime()) / 1000)) : null;
-  // Re-read tick to silence the "unused" lint warning — the interval is what we want
-  void tick;
+  const secondsSince = updatedAt ? Math.max(0, Math.round((now - updatedAt.getTime()) / 1000)) : null;
 
   if (job.status === 'completed') {
     return (

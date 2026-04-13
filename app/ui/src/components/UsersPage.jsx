@@ -39,7 +39,7 @@ export default function UsersPage({ onOpenDetail }) {
     tagFilterKey: '__userTag',
   });
 
-  const filterFields = useMemo(() => ep.getFilterFields(FIELD_LABELS), [ep.getFilterFields]);
+  const filterFields = useMemo(() => ep.getFilterFields(FIELD_LABELS), [ep]);
 
   return (
     <div className="max-w-7xl mx-auto">
