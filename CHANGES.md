@@ -14,6 +14,8 @@ on the upstream FortigiGraph repo.
 
 ---
 
+- **Fix slider snapping back when dragged to the maximum** — In the Matrix tab, dragging the Users slider to the right-most position (e.g. 28) and releasing it caused it to snap back to a lower number (e.g. 23). The "All" button also showed the amber "Showing 23 of 28 users" warning even though no limit was active. Root cause: the "no limit" branch of the permissions API counted `totalUsers` as distinct member IDs in the result set (only users with at least one assignment), while the limited branch counted all Principals — so `totalUsers` shrank when the limit was lifted, shrinking the slider max and snapping it. Fixed in two places: (1) the "no limit" API branch now runs the same `COUNT(*) FROM Principals` query as the limited branch so `totalUsers` is stable; (2) when showing All, the amber warning now reads "Showing 23 of 28 users (5 have no assignments)" so it's clear why those users are absent, rather than implying the slider is cutting them off.
+
 - **Dashboard sync log entries link to Sync Log tab** — The "N sync log entries" text at the bottom of the stats card on the Dashboard is now a clickable link that navigates directly to the Sync Log tab.
 
 - **Extract `Section` and `CollapsibleSection` to `DetailSection.jsx`** — both components were defined identically inside four detail page files (UserDetailPage, GroupDetailPage, ResourceDetailPage, AccessPackageDetailPage), causing React to recreate them on every render. Extracted to a shared `components/DetailSection.jsx`. No behavior change.
