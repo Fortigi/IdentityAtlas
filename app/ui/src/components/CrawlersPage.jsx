@@ -45,7 +45,7 @@ const CRAWLER_TYPES = [
 // ─── Step 1: Select Type ──────────────────────────────────────────────────────
 function SelectType({ onSelect, onCancel }) {
   return (
-    <div className="mb-6 p-5 bg-white border rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Add Crawler — Select Type</h3>
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
@@ -97,9 +97,9 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
         </h5>
         <input type="text" value={filter} onChange={e => setFilter(e.target.value)}
           placeholder="Filter..."
-          className="px-2 py-1 text-xs border rounded w-48" />
+          className="px-2 py-1 text-xs border border-gray-200 rounded w-48" />
       </div>
-      <div className="max-h-72 overflow-y-auto border rounded bg-white">
+      <div className="max-h-72 overflow-y-auto border border-gray-200 rounded bg-white">
         {visible.length === 0 ? (
           <div className="text-xs text-gray-400 italic p-2">No attributes match filter</div>
         ) : (
@@ -135,12 +135,12 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
 function ScheduleEditor({ schedule, onChange, onRemove }) {
   const update = (field, value) => onChange({ ...schedule, [field]: value });
   return (
-    <div className="p-3 bg-white border rounded mb-2">
+    <div className="p-3 bg-white border border-gray-200 rounded mb-2">
       <div className="grid grid-cols-5 gap-2 items-end">
         <div>
           <label className="block text-xs font-medium mb-1">Frequency</label>
           <select value={schedule.frequency || 'daily'} onChange={e => update('frequency', e.target.value)}
-            className="w-full p-2 border rounded text-sm">
+            className="w-full p-2 border border-gray-200 rounded text-sm">
             <option value="hourly">Hourly</option>
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
@@ -150,7 +150,7 @@ function ScheduleEditor({ schedule, onChange, onRemove }) {
           <div>
             <label className="block text-xs font-medium mb-1">Hour (UTC)</label>
             <select value={schedule.hour ?? 2} onChange={e => update('hour', parseInt(e.target.value, 10))}
-              className="w-full p-2 border rounded text-sm">
+              className="w-full p-2 border border-gray-200 rounded text-sm">
               {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>)}
             </select>
           </div>
@@ -158,7 +158,7 @@ function ScheduleEditor({ schedule, onChange, onRemove }) {
         <div>
           <label className="block text-xs font-medium mb-1">Minute</label>
           <select value={schedule.minute ?? 0} onChange={e => update('minute', parseInt(e.target.value, 10))}
-            className="w-full p-2 border rounded text-sm">
+            className="w-full p-2 border border-gray-200 rounded text-sm">
             {[0, 15, 30, 45].map(m => <option key={m} value={m}>:{String(m).padStart(2, '0')}</option>)}
           </select>
         </div>
@@ -166,7 +166,7 @@ function ScheduleEditor({ schedule, onChange, onRemove }) {
           <div>
             <label className="block text-xs font-medium mb-1">Day</label>
             <select value={schedule.day ?? 0} onChange={e => update('day', parseInt(e.target.value, 10))}
-              className="w-full p-2 border rounded text-sm">
+              className="w-full p-2 border border-gray-200 rounded text-sm">
               {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => <option key={i} value={i}>{d}</option>)}
             </select>
           </div>
@@ -457,7 +457,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
   };
 
   return (
-    <div className="mb-6 p-5 bg-white border rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">{isEdit ? 'Edit' : 'Add'} Microsoft Graph Crawler</h3>
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
@@ -475,20 +475,20 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
             <label className="block text-sm font-medium mb-1">Crawler Name *</label>
             <input type="text" value={crawlerName} onChange={e => setCrawlerName(e.target.value)}
               placeholder="e.g., Entra ID — Production"
-              className="w-full max-w-md p-2 border rounded text-sm" />
+              className="w-full max-w-md p-2 border border-gray-200 rounded text-sm" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium mb-1">Tenant ID *</label>
               <input type="text" value={tenantId} onChange={e => setTenantId(e.target.value)}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full p-2 border rounded font-mono text-sm" />
+                className="w-full p-2 border border-gray-200 rounded font-mono text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Client ID *</label>
               <input type="text" value={clientId} onChange={e => setClientId(e.target.value)}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full p-2 border rounded font-mono text-sm" />
+                className="w-full p-2 border border-gray-200 rounded font-mono text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
@@ -496,7 +496,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
               </label>
               <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)}
                 placeholder={isEdit ? '••••••••' : 'Enter client secret'}
-                className="w-full p-2 border rounded text-sm" />
+                className="w-full p-2 border border-gray-200 rounded text-sm" />
             </div>
           </div>
           {validationError && (
@@ -567,7 +567,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           <h4 className="text-sm font-semibold mb-3">Identity Configuration</h4>
 
           {/* Identity filter */}
-          <div className="mb-5 p-4 bg-gray-50 rounded border">
+          <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
             <div className="flex items-center gap-3 mb-3">
               <input type="checkbox" checked={idFilterEnabled} onChange={e => setIdFilterEnabled(e.target.checked)} className="rounded" />
               <h5 className="text-sm font-semibold">Identity Filter</h5>
@@ -582,20 +582,20 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
                     <div className="text-xs text-gray-500">Discovering...</div>
                   ) : userAttrCatalog?.attributes?.length > 0 ? (
                     <select value={idFilterAttr} onChange={e => setIdFilterAttr(e.target.value)}
-                      className="w-full p-2 border rounded text-sm">
+                      className="w-full p-2 border border-gray-200 rounded text-sm">
                       {userAttrCatalog.attributes.map(a => (
                         <option key={a} value={a}>{a}</option>
                       ))}
                     </select>
                   ) : (
                     <input type="text" value={idFilterAttr} onChange={e => setIdFilterAttr(e.target.value)}
-                      className="w-full p-2 border rounded text-sm" />
+                      className="w-full p-2 border border-gray-200 rounded text-sm" />
                   )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1">Condition</label>
                   <select value={idFilterCondition} onChange={e => setIdFilterCondition(e.target.value)}
-                    className="w-full p-2 border rounded text-sm">
+                    className="w-full p-2 border border-gray-200 rounded text-sm">
                     <option value="isNotNull">Is not empty</option>
                     <option value="equals">Equals</option>
                     <option value="notEquals">Not equals</option>
@@ -612,14 +612,14 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
                       </label>
                       {isBool && idFilterCondition !== 'inValues' ? (
                         <select value={idFilterValue || 'true'} onChange={e => setIdFilterValue(e.target.value)}
-                          className="w-full p-2 border rounded text-sm">
+                          className="w-full p-2 border border-gray-200 rounded text-sm">
                           <option value="true">true</option>
                           <option value="false">false</option>
                         </select>
                       ) : (
                         <input type="text" value={idFilterValue} onChange={e => setIdFilterValue(e.target.value)}
                           placeholder={idFilterCondition === 'inValues' ? 'a, b, c' : 'value'}
-                          className="w-full p-2 border rounded text-sm" />
+                          className="w-full p-2 border border-gray-200 rounded text-sm" />
                       )}
                     </div>
                   );
@@ -629,7 +629,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           </div>
 
           {/* Identity attributes to sync */}
-          <div className="mb-5 p-4 bg-gray-50 rounded border">
+          <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
             <h5 className="text-sm font-semibold mb-2">Identity Attributes to Sync</h5>
             <p className="text-xs text-gray-500 mb-3">Pick which user attributes get stored in extendedAttributes JSON for identities. Core fields (displayName, email, employeeId) are always included.</p>
             {discovering && !userAttrCatalog && <div className="text-sm text-gray-500">Discovering attributes from Microsoft Graph...</div>}
@@ -662,7 +662,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
             <div className="text-sm text-gray-500 mb-3">Discovering attributes from Microsoft Graph...</div>
           )}
           {userAttrCatalog?.attributes && (
-            <div className="mb-4 p-4 bg-gray-50 rounded border">
+            <div className="mb-4 p-4 bg-gray-50 rounded border border-gray-200">
               <AttributePicker
                 title="User attributes"
                 available={userAttrCatalog.attributes}
@@ -673,7 +673,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
             </div>
           )}
           {groupAttrCatalog?.attributes && (
-            <div className="mb-4 p-4 bg-gray-50 rounded border">
+            <div className="mb-4 p-4 bg-gray-50 rounded border border-gray-200">
               <AttributePicker
                 title="Group attributes"
                 available={groupAttrCatalog.attributes}
@@ -698,7 +698,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           <p className="text-xs text-gray-500 mb-3">Configure when this crawler runs automatically. You can add multiple schedules (e.g., a hourly delta + a daily full sync).</p>
 
           {schedules.length === 0 && (
-            <div className="mb-3 p-4 bg-gray-50 border rounded text-center text-sm text-gray-500">
+            <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500">
               No schedules configured. The crawler will only run when you click "Run Now".
             </div>
           )}
@@ -807,7 +807,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
   const permEntries = Object.entries(validation.permissions || {}).sort(([a], [b]) => a.localeCompare(b));
 
   return (
-    <div className="mb-6 p-5 bg-white border rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Microsoft Graph — Configure</h3>
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
@@ -861,7 +861,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
 
       {/* Identity filter (shown when Identity object type is selected) */}
       {selectedObjects.identity && (
-        <div className="mb-5 p-4 bg-gray-50 rounded border">
+        <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
           <div className="flex items-center gap-3 mb-3">
             <input type="checkbox" checked={idFilterEnabled} onChange={e => setIdFilterEnabled(e.target.checked)} className="rounded" />
             <h4 className="text-sm font-semibold">Identity Selection Filter</h4>
@@ -873,7 +873,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
                 <div>
                   <label className="block text-xs font-medium mb-1">Attribute</label>
                   <select value={idFilterAttr} onChange={e => setIdFilterAttr(e.target.value)}
-                    className="w-full p-2 border rounded text-sm">
+                    className="w-full p-2 border border-gray-200 rounded text-sm">
                     <option value="employeeId">employeeId</option>
                     <option value="employeeType">employeeType</option>
                     <option value="companyName">companyName</option>
@@ -886,7 +886,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
                 <div>
                   <label className="block text-xs font-medium mb-1">Condition</label>
                   <select value={idFilterCondition} onChange={e => setIdFilterCondition(e.target.value)}
-                    className="w-full p-2 border rounded text-sm">
+                    className="w-full p-2 border border-gray-200 rounded text-sm">
                     <option value="isNotNull">Is not empty</option>
                     <option value="equals">Equals</option>
                     <option value="notEquals">Not equals</option>
@@ -898,7 +898,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
                     <label className="block text-xs font-medium mb-1">Value</label>
                     <input type="text" value={idFilterValue} onChange={e => setIdFilterValue(e.target.value)}
                       placeholder={idFilterCondition === 'inValues' ? 'Employee, Intern, Contractor' : 'Employee'}
-                      className="w-full p-2 border rounded text-sm" />
+                      className="w-full p-2 border border-gray-200 rounded text-sm" />
                   </div>
                 )}
               </div>
@@ -908,7 +908,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
       )}
 
       {/* Custom attributes */}
-      <div className="mb-5 p-4 bg-gray-50 rounded border">
+      <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
         <h4 className="text-sm font-semibold mb-2">Custom Attributes (optional)</h4>
         <p className="text-xs text-gray-500 mb-3">Add extra attributes to sync from Microsoft Graph. Comma-separated. These will be stored in extendedAttributes.</p>
         <div className="grid grid-cols-2 gap-4">
@@ -916,19 +916,19 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
             <label className="block text-xs font-medium mb-1">User attributes</label>
             <input type="text" value={customUserAttrs} onChange={e => setCustomUserAttrs(e.target.value)}
               placeholder="e.g., employeeHireDate, onPremisesSyncEnabled, extension_abc123_costCenter"
-              className="w-full p-2 border rounded text-sm" />
+              className="w-full p-2 border border-gray-200 rounded text-sm" />
           </div>
           <div>
             <label className="block text-xs font-medium mb-1">Group attributes</label>
             <input type="text" value={customGroupAttrs} onChange={e => setCustomGroupAttrs(e.target.value)}
               placeholder="e.g., classification, resourceBehaviorOptions"
-              className="w-full p-2 border rounded text-sm" />
+              className="w-full p-2 border border-gray-200 rounded text-sm" />
           </div>
         </div>
       </div>
 
       {/* Schedule */}
-      <div className="mb-5 p-4 bg-gray-50 rounded border">
+      <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
         <div className="flex items-center gap-3 mb-3">
           <input type="checkbox" checked={schedEnabled} onChange={e => setSchedEnabled(e.target.checked)} className="rounded" />
           <h4 className="text-sm font-semibold">Schedule</h4>
@@ -938,7 +938,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
             <div>
               <label className="block text-xs font-medium mb-1">Frequency</label>
               <select value={schedFrequency} onChange={e => setSchedFrequency(e.target.value)}
-                className="w-full p-2 border rounded text-sm">
+                className="w-full p-2 border border-gray-200 rounded text-sm">
                 <option value="hourly">Hourly</option>
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
@@ -948,7 +948,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
               <div>
                 <label className="block text-xs font-medium mb-1">Hour (UTC)</label>
                 <select value={schedHour} onChange={e => setSchedHour(parseInt(e.target.value, 10))}
-                  className="w-full p-2 border rounded text-sm">
+                  className="w-full p-2 border border-gray-200 rounded text-sm">
                   {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>)}
                 </select>
               </div>
@@ -956,7 +956,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
             <div>
               <label className="block text-xs font-medium mb-1">Minute</label>
               <select value={schedMinute} onChange={e => setSchedMinute(parseInt(e.target.value, 10))}
-                className="w-full p-2 border rounded text-sm">
+                className="w-full p-2 border border-gray-200 rounded text-sm">
                 {[0, 15, 30, 45].map(m => <option key={m} value={m}>:{String(m).padStart(2, '0')}</option>)}
               </select>
             </div>
@@ -964,7 +964,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
               <div>
                 <label className="block text-xs font-medium mb-1">Day</label>
                 <select value={schedDay} onChange={e => setSchedDay(parseInt(e.target.value, 10))}
-                  className="w-full p-2 border rounded text-sm">
+                  className="w-full p-2 border border-gray-200 rounded text-sm">
                   {['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((d, i) => <option key={i} value={i}>{d}</option>)}
                 </select>
               </div>
@@ -978,7 +978,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
         <label className="block text-sm font-medium mb-1">Crawler Name</label>
         <input type="text" value={crawlerName} onChange={e => setCrawlerName(e.target.value)}
           placeholder={`Entra ID — ${validation.organization || 'Production'}`}
-          className="w-full max-w-md p-2 border rounded text-sm" />
+          className="w-full max-w-md p-2 border border-gray-200 rounded text-sm" />
       </div>
 
       {/* Deploy options */}
@@ -1036,7 +1036,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
   };
 
   return (
-    <div className="p-4 bg-white border rounded-lg">
+    <div className="p-4 bg-white border border-gray-200 rounded-lg">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h4 className="font-semibold text-gray-900">{config.displayName}</h4>
@@ -1299,7 +1299,7 @@ function ExternalCrawlers({ crawlers, onToggle, onResetKey, onRemove, newKey, on
           </div>
           <p className="text-sm text-green-700 mb-2">Store this key securely. It will not be shown again.</p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 p-2 bg-white border rounded font-mono text-sm break-all">{newKey}</code>
+            <code className="flex-1 p-2 bg-white border border-gray-200 rounded font-mono text-sm break-all">{newKey}</code>
             <button onClick={() => onCopy(newKey)} className="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700">Copy</button>
           </div>
         </div>
@@ -1539,7 +1539,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
   };
 
   return (
-    <div className="mb-6 p-5 bg-white border rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">{isEdit ? 'Edit CSV Crawler' : 'Add CSV Crawler'} — Step {step} of 3</h3>
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
@@ -1558,28 +1558,28 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Display name</label>
             <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)}
               placeholder="e.g. Omada Production"
-              className="w-full px-3 py-2 border rounded text-sm" />
+              className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
             <p className="text-xs text-gray-500 mt-1">Shown on the configured crawlers card.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">System name</label>
               <input type="text" value={systemName} onChange={e => setSystemName(e.target.value)}
-                className="w-full px-3 py-2 border rounded text-sm" />
+                className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
               <p className="text-xs text-gray-500 mt-1">Recorded in <code>dbo.Systems.displayName</code>.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">System type</label>
               <input type="text" value={systemType} onChange={e => setSystemType(e.target.value)}
                 placeholder="Omada / SailPoint / Custom"
-                className="w-full px-3 py-2 border rounded text-sm" />
+                className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
               <p className="text-xs text-gray-500 mt-1">Used for grouping in the UI.</p>
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">CSV delimiter</label>
             <select value={delimiter} onChange={e => setDelimiter(e.target.value)}
-              className="px-3 py-2 border rounded text-sm">
+              className="px-3 py-2 border border-gray-200 rounded text-sm">
               <option value=";">Semicolon (;)</option>
               <option value=",">Comma (,)</option>
               <option value="\t">Tab</option>
@@ -1623,7 +1623,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           {stagedFiles.length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-gray-700 mb-2">Staged files ({stagedFiles.length})</h4>
-              <div className="border rounded divide-y">
+              <div className="border border-gray-200 rounded divide-y">
                 {stagedFiles.map(s => (
                   <div key={s.file.name} className="flex items-center justify-between p-2 text-sm">
                     <div className="flex-1 min-w-0">
@@ -1631,7 +1631,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
                       <div className="text-xs text-gray-500">{fmtBytes(s.file.size)}</div>
                     </div>
                     <select value={s.slot || ''} onChange={e => setStagedSlot(s.file.name, e.target.value || null)}
-                      className="ml-2 text-xs border rounded px-1 py-0.5">
+                      className="ml-2 text-xs border border-gray-200 rounded px-1 py-0.5">
                       <option value="">— Ignore —</option>
                       {CSV_SLOTS.map(slot => (
                         <option key={slot.key} value={slot.key}>{slot.label}{slot.required ? ' *' : ''}</option>
@@ -1649,7 +1649,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           {serverFiles.length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-gray-700 mb-2">Already uploaded ({serverFiles.length})</h4>
-              <div className="border rounded divide-y">
+              <div className="border border-gray-200 rounded divide-y">
                 {serverFiles.map(f => {
                   const slot = matchSlot(f.name);
                   const slotLabel = CSV_SLOTS.find(s => s.key === slot)?.label || 'Unrecognized';
@@ -1670,7 +1670,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           )}
 
           {/* Required-slot coverage */}
-          <div className="bg-gray-50 border rounded p-3">
+          <div className="bg-gray-50 border border-gray-200 rounded p-3">
             <div className="text-xs font-semibold text-gray-700 mb-2">Required object types</div>
             <div className="flex flex-wrap gap-2">
               {CSV_SLOTS.map(slot => {
@@ -1704,7 +1704,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
       {/* ── Step 3: Review ──────────────────────────────────────────────── */}
       {step === 3 && (
         <div className="space-y-4">
-          <div className="bg-gray-50 border rounded p-4 space-y-2 text-sm">
+          <div className="bg-gray-50 border border-gray-200 rounded p-4 space-y-2 text-sm">
             <div><span className="text-gray-500">Display name:</span> <span className="font-medium">{displayName}</span></div>
             <div><span className="text-gray-500">System:</span> {systemName} ({systemType})</div>
             <div><span className="text-gray-500">Delimiter:</span> <code>{delimiter === '\t' ? '\\t' : delimiter}</code></div>
@@ -1842,7 +1842,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
 } | ConvertTo-Json -Depth 5)`;
 
   return (
-    <div className="mb-6 p-5 bg-white border rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">
           {step === 1 && 'Custom Connector — Register'}
@@ -1867,13 +1867,13 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
             <label className="block text-sm font-medium text-gray-700 mb-1">Connector name *</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder="e.g. SAP HR Export, ServiceNow CMDB, Okta Sync"
-              className="w-full px-3 py-2 border rounded-lg text-sm" />
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
             <input type="text" value={description} onChange={e => setDescription(e.target.value)}
               placeholder="What system does this connector pull data from?"
-              className="w-full px-3 py-2 border rounded-lg text-sm" />
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
           </div>
           <div className="flex justify-end gap-2">
             <button onClick={onCancel} className="px-4 py-2 bg-gray-100 rounded text-sm">Cancel</button>
@@ -1893,7 +1893,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
               Save this API key now — it will not be shown again.
             </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 px-3 py-2 bg-white border rounded text-sm font-mono break-all">{apiKey}</code>
+              <code className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded text-sm font-mono break-all">{apiKey}</code>
               <button onClick={() => copyToClipboard(apiKey, 'key')}
                 className="px-3 py-2 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 whitespace-nowrap">
                 {copied === 'key' ? 'Copied!' : 'Copy'}
@@ -1903,7 +1903,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">API Base URL</label>
             <div className="flex items-center gap-2">
-              <code className="flex-1 px-3 py-2 bg-gray-50 border rounded text-sm font-mono">{apiBaseUrl}</code>
+              <code className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm font-mono">{apiBaseUrl}</code>
               <button onClick={() => copyToClipboard(apiBaseUrl, 'url')}
                 className="px-3 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300">
                 {copied === 'url' ? 'Copied!' : 'Copy'}
@@ -1955,7 +1955,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
           </div>
 
           {/* Ingest flow explanation */}
-          <div className="p-4 bg-gray-50 border rounded-lg text-sm text-gray-700 space-y-2">
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 space-y-2">
             <p className="font-medium">How the Ingest API works:</p>
             <ol className="list-decimal list-inside space-y-1 text-gray-600">
               <li><strong>Systems</strong> — register your source system (once)</li>
@@ -1987,7 +1987,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
 function ExampleTabs({ examples, onCopy, copied }) {
   const [active, setActive] = useState(0);
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
       <div className="flex border-b bg-gray-50">
         {examples.map((ex, i) => (
           <button key={ex.label} onClick={() => setActive(i)}
