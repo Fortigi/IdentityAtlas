@@ -65,7 +65,7 @@ function VerifiedBadge({ verified }) {
 // ─── Orphaned Accounts Notice ────────────────────────────────────────────
 
 function OrphanedAccountsNotice({ orphanCount, onShowOrphans, allVisible }) {
-  if (!orphanCount || orphanCount === 0) return null;
+  if (!Number(orphanCount)) return null;
   return (
     <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
       <div className="flex items-center gap-3">
