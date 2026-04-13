@@ -14,6 +14,8 @@ on the upstream FortigiGraph repo.
 
 ---
 
+- **Extract shared tier styles to `utils/tierStyles.js`** — `TIER_STYLES` (bg, text, border, dot, avatar, box, boxBorder per tier) and `tierClass(tier)` helper were duplicated across 7 files (RiskScoreSection, RiskScoringPage, OrgChartPage, DepartmentDetailPage, IdentityDetailPage, IdentitiesPage, UserDetailPage). All copies removed; each file now imports from `app/ui/src/utils/tierStyles.js`. No behavior change.
+
 - **Extract shared formatter utilities to `utils/formatters.js`** — `formatDate`, `formatValue`, `computeHistoryDiffs`, and `friendlyLabel` were defined identically in four detail page components (UserDetailPage, ResourceDetailPage, GroupDetailPage, AccessPackageDetailPage) and `formatDate` again in GovernancePage. All five copies removed; each file now imports from the new shared `app/ui/src/utils/formatters.js`. No behavior change.
 
 - **Fix black borders on Crawlers page and Add Crawler wizard** — The Custom Connector wizard introduced 56 bare `border` classes without a color modifier, causing Tailwind to fall back to the current text color (black). Added `border-gray-200` to all uncolored borders, matching the fix applied to other Admin pages in PR #4.
