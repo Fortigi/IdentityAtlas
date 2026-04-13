@@ -1,13 +1,14 @@
 # ─── Docker Image Publishing ─────────────────────────────────────────────────
-# Builds and pushes container images to GitHub Container Registry (ghcr.io)
-# on every push to main. This enables the production docker-compose.prod.yml
-# which pulls pre-built images instead of building locally.
+# Builds container images, runs a basic smoke test, then pushes to GitHub
+# Container Registry. A broken image never reaches :latest.
 #
-# Images published:
+# Flow:  Build (local) → Start stack → Smoke test → Push
+#
+# Images published (only after smoke test passes):
 #   ghcr.io/fortigi/identity-atlas         — Node.js API + React frontend (web service)
 #   ghcr.io/fortigi/identity-atlas-worker  — PowerShell worker (crawlers, risk scoring)
 #
-# Tags: latest + version from IdentityAtlas.psd1 (e.g., 4.0.20260403.1730)
+# Tags: latest + version from IdentityAtlas.psd1 (e.g., 5.0.20260413.1530)
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Publish Docker Images
@@ -22,7 +23,7 @@ env:
 
 jobs:
   publish:
-    name: Build & Push Images
+    name: Build, Test & Push Images
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,8 +50,87 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ── Web image (Node.js API + React frontend) ─────────────────────
-      - name: Build and push web image
+      # ── Build images locally (don't push yet) ───────────────────────
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./app/api/Dockerfile
+          push: false
+          load: true
+          tags: identity-atlas-web:qa
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Build worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./setup/docker/Dockerfile.powershell
+          push: false
+          load: true
+          tags: identity-atlas-worker:qa
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+
+      # ── Smoke test: start the stack and verify it boots ─────────────
+      - name: Start stack
+        run: |
+          cat > docker-compose.qa.yml <<'EOF'
+          services:
+            postgres:
+              image: postgres:16-alpine
+              environment:
+                POSTGRES_DB: identity_atlas
+                POSTGRES_USER: identity_atlas
+                POSTGRES_PASSWORD: qa_test
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U identity_atlas"]
+                interval: 5s
+                timeout: 3s
+                retries: 20
+            web:
+              image: identity-atlas-web:qa
+              environment:
+                NODE_ENV: production
+                USE_SQL: "true"
+                DATABASE_URL: "postgres://identity_atlas:qa_test@postgres:5432/identity_atlas"
+                AUTH_ENABLED: "false"
+                PORT: "3001"
+              ports: ["3001:3001"]
+              depends_on:
+                postgres: { condition: service_healthy }
+          EOF
+          docker compose -f docker-compose.qa.yml up -d
+
+      - name: Wait for API ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3001/api/admin/status > /dev/null 2>&1; then
+              echo "✅ API ready after $((i*2))s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::API did not become ready within 120s"
+          docker compose -f docker-compose.qa.yml logs web
+          exit 1
+
+      - name: Smoke test endpoints
+        run: |
+          FAILED=0
+          for ep in /api/version /api/admin/status /api/systems /api/users?limit=1 /api/resources?limit=1 /api/permissions?userLimit=1 /api/docs /api/openapi.json; do
+            CODE=$(curl -sf -o /dev/null -w "%{http_code}" "http://localhost:3001${ep}" || echo "000")
+            if [ "$CODE" = "200" ]; then echo "✅ $ep"; else echo "❌ $ep → $CODE"; FAILED=$((FAILED+1)); fi
+          done
+          if [ $FAILED -gt 0 ]; then echo "::error::$FAILED endpoint(s) failed"; exit 1; fi
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.qa.yml down -v 2>/dev/null || true
+
+      # ── Push images (only reached if smoke test passed) ─────────────
+      - name: Push web image
         uses: docker/build-push-action@v6
         with:
           context: ./app
@@ -62,8 +142,7 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
-      # ── Worker image (PowerShell — crawlers, risk scoring) ───────────
-      - name: Build and push worker image
+      - name: Push worker image
         uses: docker/build-push-action@v6
         with:
           context: .
