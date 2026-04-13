@@ -240,6 +240,22 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
   );
   const [identityAttrs, setIdentityAttrs] = useState(initialConfig?.identityAttributes || []);
 
+  // User/group attributes
+  const [customUserAttrs, setCustomUserAttrs] = useState(initialConfig?.customUserAttributes || []);
+  const [customGroupAttrs, setCustomGroupAttrs] = useState(initialConfig?.customGroupAttributes || []);
+
+  // Schedules (array)
+  const [schedules, setSchedules] = useState(() => {
+    if (initialConfig?.schedules?.length) return initialConfig.schedules;
+    if (initialConfig?.schedule) return [initialConfig.schedule];
+    return [];
+  });
+
+  // Discovery state — must be declared before the useEffect below that references userAttrCatalog
+  const [userAttrCatalog, setUserAttrCatalog] = useState(null);
+  const [groupAttrCatalog, setGroupAttrCatalog] = useState(null);
+  const [discovering, setDiscovering] = useState(false);
+
   // When the user picks a Boolean attribute (and isn't using an empty-string
   // operator), default the value state to 'true'. Without this the Boolean
   // <select> displays "true" via `value={idFilterValue || 'true'}` but the
@@ -252,22 +268,6 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
       setIdFilterValue('true');
     }
   }, [idFilterAttr, idFilterCondition, userAttrCatalog, idFilterValue]);
-
-  // User/group attributes
-  const [customUserAttrs, setCustomUserAttrs] = useState(initialConfig?.customUserAttributes || []);
-  const [customGroupAttrs, setCustomGroupAttrs] = useState(initialConfig?.customGroupAttributes || []);
-
-  // Schedules (array)
-  const [schedules, setSchedules] = useState(() => {
-    if (initialConfig?.schedules?.length) return initialConfig.schedules;
-    if (initialConfig?.schedule) return [initialConfig.schedule];
-    return [];
-  });
-
-  // Discovery state
-  const [userAttrCatalog, setUserAttrCatalog] = useState(null);
-  const [groupAttrCatalog, setGroupAttrCatalog] = useState(null);
-  const [discovering, setDiscovering] = useState(false);
 
   const [saving, setSaving] = useState(false);
 
