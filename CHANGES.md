@@ -14,6 +14,8 @@ on the upstream FortigiGraph repo.
 
 ---
 
+- **Fix unquoted camelCase column names causing 500 errors** — Two more mssql-shim routes used unquoted camelCase identifiers that PostgreSQL folds to lowercase: `GovernanceCategoryAssignments.resourceId` (category unassign endpoint) and `SystemOwners.systemId`/`userId` (remove system owner endpoint). Both queries would 500 in production. Fixed by adding double-quotes around table and column names.
+
 - **Fix two mssql-shim SQL compatibility bugs** — (1) Toggling a crawler's enabled state passed `1`/`0` as the parameter value for a PostgreSQL `BOOLEAN` column — changed to `true`/`false`. (2) Updating a crawler config used `SYSUTCDATETIME()` (SQL Server only) — replaced with `now()`.
 
 - **Fix demo data load failing with 500 on contexts ingest** — Migration 014 added `DEFAULT gen_random_uuid()` to UUID primary key columns so callers can omit explicit IDs. The ingest engine's `discoverColumns()` query treated any column with a `gen_random_uuid()` default as an identity column and excluded it from `activeColumns`, so the temp table was built without the `id` column. That broke both the `ON CONFLICT ("id")` upsert and the `scopedDelete` index creation, producing a 500 on contexts, identities, principals, resources, and all governance tables. Fixed by removing `gen_random_uuid()` from the identity-detection query — only true sequence columns (`nextval(`) and `IS_IDENTITY` columns are auto-generated identities; UUID defaults are just fallbacks for when callers don't supply explicit IDs.
