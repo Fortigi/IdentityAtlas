@@ -236,11 +236,11 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   }
   if (!data) return null;
 
-  const { attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, hasHistory, policyCount, assignmentType, category } = data;
+  const { attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, historyCount, hasHistory, policyCount, assignmentType, category } = data;
   const catalogName = attributes.catalogName || null;
   const catalogId = attributes.catalogId || null;
   const apDisplayName = attributes.displayName || '';
-  const historyCount = history ? history.length : (hasHistory ? null : 1);
+  const resolvedHistoryCount = history ? history.length : historyCount;
   const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
   const entraUrl = catalogId
     ? `https://portal.azure.com/#view/Microsoft_Azure_ELMAdmin/EntitlementMenuBlade/~/overview/entitlementId/${accessPackageId.toLowerCase()}/catalogId/${catalogId}/catalogName/${encodeURIComponent(catalogName || '')}/entitlementName/${encodeURIComponent(apDisplayName)}`
@@ -551,7 +551,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       <div className="mt-4">
         <CollapsibleSection
           title="Pending Requests"
-          count={requests ? requests.length : null}
+          count={requests ? requests.length : pendingRequestCount}
           open={requestsOpen}
           onToggle={toggleRequests}
           loading={requestsLoading}
@@ -600,8 +600,8 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       <div className="mt-4">
         <CollapsibleSection
           title="Version History"
-          count={historyCount}
-          countLabel={historyCount === 1 ? 'version' : 'versions'}
+          count={resolvedHistoryCount}
+          countLabel={resolvedHistoryCount === 1 ? 'version' : 'versions'}
           open={historyOpen}
           onToggle={toggleHistory}
           loading={historyLoading}

@@ -123,8 +123,8 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   }
   if (!data) return null;
 
-  const { attributes, tags, hasHistory, lastActivity } = data;
-  const historyCount = history ? history.length : (hasHistory ? null : 1);
+  const { attributes, tags, historyCount, hasHistory, lastActivity } = data;
+  const resolvedHistoryCount = history ? history.length : historyCount;
   const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
   const isEntraSystem = (attributes.systemDisplayName || '').toLowerCase().includes('entra') ||
     (attributes.systemDisplayName || '').toLowerCase().includes('azure ad') ||
@@ -321,8 +321,8 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
       <div className="mt-6">
         <CollapsibleSection
           title="Version History"
-          count={historyCount}
-          countLabel={historyCount === 1 ? 'version' : 'versions'}
+          count={resolvedHistoryCount}
+          countLabel={resolvedHistoryCount === 1 ? 'version' : 'versions'}
           open={historyOpen}
           onToggle={toggleHistory}
           loading={historyLoading}

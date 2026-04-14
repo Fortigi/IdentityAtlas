@@ -57,6 +57,14 @@ async function rowExistsInHistory(tableName, rowId) {
   return r.rows.length > 0;
 }
 
+async function countHistory(tableName, rowId) {
+  const r = await db.query(
+    `SELECT COUNT(*)::int AS cnt FROM "_history" WHERE "tableName" = $1 AND "rowId" = $2`,
+    [tableName, rowId]
+  );
+  return r.rows[0]?.cnt ?? 0;
+}
+
 // ────────────────────────────────────────────────────────────────
 // GET /api/user/:id — Lightweight: attributes, tags, counts only
 // ────────────────────────────────────────────────────────────────
@@ -120,9 +128,9 @@ router.get('/user/:id', async (req, res) => {
       accessPackageCount = r.recordset[0].cnt;
     } catch { /* table may not exist */ }
 
-    let hasHistory = false;
-    try { hasHistory = await rowExistsInHistory('Principals', userId); } catch { /* _history may not exist */ }
-    res.json({ attributes, tags, membershipCount, accessPackageCount, hasHistory, lastActivity: null });
+    let historyCount = 0;
+    try { historyCount = await countHistory('Principals', userId); } catch { /* _history may not exist */ }
+    res.json({ attributes, tags, membershipCount, accessPackageCount, historyCount, hasHistory: historyCount > 0, lastActivity: null });
   } catch (err) {
     console.error('Error fetching user detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch user details' });
@@ -281,12 +289,10 @@ router.get('/group/:id', async (req, res) => {
       accessPackageCount = r.recordset[0].cnt;
     } catch { /* table may not exist */ }
 
-    let hasHistory = false;
-    try {
-      hasHistory = await rowExistsInHistory('Resources', groupId);
-    } catch { /* _history table may not exist on older deployments */ }
+    let historyCount = 0;
+    try { historyCount = await countHistory('Resources', groupId); } catch { /* _history table may not exist on older deployments */ }
 
-    res.json({ attributes, tags, memberCount, accessPackageCount, hasHistory });
+    res.json({ attributes, tags, memberCount, accessPackageCount, historyCount, hasHistory: historyCount > 0 });
   } catch (err) {
     console.error('Error fetching group detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch group details' });
@@ -443,9 +449,17 @@ router.get('/access-package/:id', async (req, res) => {
       reviewCount = r.recordset[0].cnt;
     } catch { /* table may not exist */ }
 
-    // 5. Pending request count — skipped (was 26-76s on large request tables).
-    // The Pending Requests section lazy-loads its own data when expanded.
-    const pendingRequestCount = null;
+    // 5. Pending request count — COUNT only (cheap); full rows are lazy-loaded.
+    let pendingRequestCount = null;
+    try {
+      const r = await timedRequest(pool, 'ap-pending-request-count', res)
+        .input('id', apId)
+        .query(`
+        SELECT COUNT(*) AS cnt FROM "AssignmentRequests"
+        WHERE "resourceId" = @id AND "requestState" = 'PendingApproval'
+      `);
+      pendingRequestCount = r.recordset[0].cnt;
+    } catch { /* table may not exist */ }
 
     // 5b. Last review date + reviewer
     let lastReviewDate = null;
@@ -516,11 +530,11 @@ router.get('/access-package/:id', async (req, res) => {
       }
     } catch { /* category tables may not exist */ }
 
-    // 7. History check (v5: queries the _history audit table)
-    let hasHistory = false;
-    try { hasHistory = await rowExistsInHistory('Resources', apId); } catch { /* _history may not exist */ }
+    // 7. History count (v5: queries the _history audit table)
+    let historyCount = 0;
+    try { historyCount = await countHistory('Resources', apId); } catch { /* _history may not exist */ }
 
-    res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, hasHistory, policyCount, autoAddPolicyCount, assignmentType, category });
+    res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, historyCount, hasHistory: historyCount > 0, policyCount, autoAddPolicyCount, assignmentType, category });
   } catch (err) {
     console.error('Error fetching access package detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch access package details' });

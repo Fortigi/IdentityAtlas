@@ -225,7 +225,7 @@ router.get('/resources/:id', async (req, res) => {
       } catch { /* view may not exist */ }
     }
 
-    // 4. Access package count
+    // 4. Access package count (business roles that contain this resource)
     let accessPackageCount = 0;
     try {
       const r = await timedRequest(pool, 'resource-ap-count', res)
@@ -233,23 +233,38 @@ router.get('/resources/:id', async (req, res) => {
         .query(`
           SELECT COUNT(DISTINCT rrs."parentResourceId") AS cnt
           FROM "ResourceRelationships" rrs
-          WHERE UPPER(rrs."childResourceId") = UPPER(@id)
+          INNER JOIN "Resources" br ON rrs."parentResourceId" = br.id AND br."resourceType" = 'BusinessRole'
+          WHERE rrs."childResourceId" = @id
             AND rrs."relationshipType" = 'Contains'
+            AND rrs."parentResourceId" IS NOT NULL
         `);
       accessPackageCount = r.recordset[0].cnt;
     } catch { /* table may not exist */ }
 
-    // 5. History check (v5: queries the _history audit table)
-    let hasHistory = false;
+    // 4b. Parent resource count (all parent resources via any relationship type)
+    let parentResourceCount = 0;
+    try {
+      const r = await timedRequest(pool, 'resource-parent-count', res)
+        .input('id', resourceId)
+        .query(`
+          SELECT COUNT(DISTINCT rrs."parentResourceId") AS cnt
+          FROM "ResourceRelationships" rrs
+          WHERE rrs."childResourceId" = @id
+        `);
+      parentResourceCount = r.recordset[0].cnt;
+    } catch { /* table may not exist */ }
+
+    // 5. History count (v5: queries the _history audit table)
+    let historyCount = 0;
     try {
       const r = await db.queryOne(
-        `SELECT 1 FROM "_history" WHERE "tableName" = 'Resources' AND "rowId" = $1 LIMIT 1`,
+        `SELECT COUNT(*)::int AS cnt FROM "_history" WHERE "tableName" = 'Resources' AND "rowId" = $1`,
         [resourceId]
       );
-      hasHistory = !!r;
+      historyCount = r?.cnt ?? 0;
     } catch { /* _history may not exist on older deployments */ }
 
-    res.json({ attributes, tags, memberCount, accessPackageCount, hasHistory });
+    res.json({ attributes, tags, memberCount, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0 });
   } catch (err) {
     console.error('Error fetching resource detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch resource details' });
@@ -290,12 +305,13 @@ router.get('/resources/:id/business-roles', async (req, res) => {
     const r = await timedRequest(pool, 'resource-business-roles', res)
       .input('id', req.params.id)
       .query(`
-        SELECT rr."parentResourceId" AS businessRoleId, br."displayName" AS businessRoleName,
+        SELECT DISTINCT rr."parentResourceId" AS businessRoleId, br."displayName" AS businessRoleName,
                rr."roleName", rr."relationshipType"
         FROM "ResourceRelationships" rr
         INNER JOIN "Resources" br ON rr."parentResourceId" = br.id
           AND br."resourceType" = 'BusinessRole'
         WHERE rr."childResourceId" = @id AND rr."relationshipType" = 'Contains'
+          AND rr."parentResourceId" IS NOT NULL
         ORDER BY br."displayName"
       `);
     res.json(r.recordset);
