@@ -149,11 +149,11 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
   }
   if (!data) return null;
 
-  const { attributes, tags, hasHistory } = data;
+  const { attributes, tags, memberCount, accessPackageCount, parentResourceCount, historyCount, hasHistory } = data;
   const resourceType = attributes.resourceType || attributes.groupTypeCalculated || '';
   const typeBadgeClass = RESOURCE_TYPE_COLORS[resourceType] || 'bg-gray-100 text-gray-700';
   const extAttrs = parseExtendedAttributes(attributes.extendedAttributes);
-  const historyCount = history ? history.length : (hasHistory ? null : 1);
+  const resolvedHistoryCount = history ? history.length : historyCount;
   const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
 
   // Build Entra URL if this is an Entra group
@@ -264,7 +264,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
       <div className="mt-6">
         <CollapsibleSection
           title="Assigned Users"
-          count={assignments ? assignments.length : null}
+          count={assignments ? assignments.length : memberCount}
           open={assignmentsOpen}
           onToggle={() => { if (!assignmentsOpen) loadAssignments(); setAssignmentsOpen(p => !p); }}
           loading={assignmentsLoading}
@@ -309,7 +309,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
       <div className="mt-6">
         <CollapsibleSection
           title="Business Roles"
-          count={businessRoles ? businessRoles.length : null}
+          count={businessRoles ? businessRoles.length : accessPackageCount}
           open={businessRolesOpen}
           onToggle={() => { if (!businessRolesOpen) loadBusinessRoles(); setBusinessRolesOpen(p => !p); }}
           loading={businessRolesLoading}
@@ -328,12 +328,16 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
                 {(businessRoles || []).map((br, i) => (
                   <tr key={i} className="border-b border-gray-50">
                     <td className="px-4 py-2">
-                      <button
-                        onClick={() => onOpenDetail?.('resource', br.businessRoleId, br.businessRoleName)}
-                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                      >{br.businessRoleName}</button>
+                      {br.businessRoleId ? (
+                        <button
+                          onClick={() => onOpenDetail?.('resource', br.businessRoleId, br.businessRoleName || 'Unnamed')}
+                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                        >{br.businessRoleName || <span className="text-gray-400 italic">Unnamed</span>}</button>
+                      ) : (
+                        <span className="text-gray-400 italic">{br.businessRoleName || 'Unnamed'}</span>
+                      )}
                     </td>
-                    <td className="px-4 py-2 text-gray-500">{br.roleName || '\u2014'}</td>
+                    <td className="px-4 py-2 text-gray-500">{(br.roleName && br.roleName !== '-') ? br.roleName : '\u2014'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -346,7 +350,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
       <div className="mt-6">
         <CollapsibleSection
           title="Member Of"
-          count={parentResources ? parentResources.length : null}
+          count={parentResources ? parentResources.length : parentResourceCount}
           open={parentResourcesOpen}
           onToggle={() => { if (!parentResourcesOpen) loadParentResources(); setParentResourcesOpen(p => !p); }}
           loading={parentResourcesLoading}
@@ -389,8 +393,8 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
       <div className="mt-6">
         <CollapsibleSection
           title="Version History"
-          count={historyCount}
-          countLabel={historyCount === 1 ? 'version' : 'versions'}
+          count={resolvedHistoryCount}
+          countLabel={resolvedHistoryCount === 1 ? 'version' : 'versions'}
           open={historyOpen}
           onToggle={toggleHistory}
           loading={historyLoading}
