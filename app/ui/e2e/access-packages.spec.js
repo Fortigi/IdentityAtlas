@@ -8,7 +8,7 @@ test.describe('Access Packages Page', () => {
   });
 
   test('page renders with title', async ({ page }) => {
-    await expect(page.locator('h2')).toContainText('Access Packages');
+    await expect(page.locator('h2')).toContainText('Business Roles');
   });
 
   test('access package table is visible', async ({ page }) => {
@@ -17,7 +17,7 @@ test.describe('Access Packages Page', () => {
   });
 
   test('search input is present', async ({ page }) => {
-    const searchInput = page.getByPlaceholder(/Search access packages/i);
+    const searchInput = page.getByPlaceholder(/Search by name or catalog/i);
     await expect(searchInput).toBeVisible();
   });
 
@@ -59,7 +59,7 @@ test.describe('Access Packages Page', () => {
         const submitButton = page.getByRole('button', { name: /Create/i });
         if (await submitButton.count() > 0) {
           await submitButton.first().click();
-          await expect(page.getByText('E2E-Test-Category')).toBeVisible({ timeout: 3000 });
+          await expect(page.getByText('E2E-Test-Category').first()).toBeVisible({ timeout: 3000 });
         }
       }
     }
