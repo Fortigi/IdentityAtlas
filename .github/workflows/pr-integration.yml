@@ -1,0 +1,696 @@
+# ─── PR Integration Tests ──────────────────────────────────────────────────────
+# Full Docker-based integration test suite that runs on PRs targeting main.
+# Builds the complete stack (postgres + web + worker), then exercises every
+# nightly test scenario so main stays stable.
+#
+# Three parallel jobs:
+#   1. integration  — core + secret-dependent tests (~20 min)
+#   2. e2e          — Playwright browser tests (~15 min)
+#   3. load-soak    — 1.5M-row load test + 15-min soak test (~50 min)
+#
+# Secret-dependent tests (Entra ID crawler, LLM risk scoring) skip gracefully
+# when GitHub Actions secrets are not configured. Set them in repo Settings →
+# Secrets and variables → Actions:
+#
+#   TEST_GRAPH_TENANT_ID      — Entra ID tenant for crawler tests
+#   TEST_GRAPH_CLIENT_ID      — App registration client ID
+#   TEST_GRAPH_CLIENT_SECRET  — App registration secret
+#   TEST_LLM_API_KEY          — Anthropic/OpenAI/Azure OpenAI API key
+#   TEST_LLM_PROVIDER         — "anthropic", "openai", or "azure-openai" (default: anthropic)
+#   TEST_LLM_MODEL            — Model name (default: claude-haiku-4-5-20251001)
+#   TEST_RISK_PROFILE_DOMAIN  — Public domain for profile generation test
+#
+# For Azure OpenAI, also set:
+#   TEST_LLM_ENDPOINT         — Azure OpenAI endpoint URL
+#   TEST_LLM_DEPLOYMENT       — Deployment name
+#   TEST_LLM_API_VERSION      — API version (e.g. 2024-02-15-preview)
+# ───────────────────────────────────────────────────────────────────────────────
+
+name: PR Integration Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  DOTNET_NOLOGO: true
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+
+# ── Shared build steps (YAML anchor) ────────────────────────────────────────
+# Each job builds its own Docker stack. GHA layer cache keeps rebuilds fast.
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════
+  # JOB 1: Core Integration Tests
+  # ═══════════════════════════════════════════════════════════════════
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TEST_GRAPH_TENANT_ID:     ${{ secrets.TEST_GRAPH_TENANT_ID }}
+      TEST_GRAPH_CLIENT_ID:     ${{ secrets.TEST_GRAPH_CLIENT_ID }}
+      TEST_GRAPH_CLIENT_SECRET: ${{ secrets.TEST_GRAPH_CLIENT_SECRET }}
+      TEST_LLM_API_KEY:         ${{ secrets.TEST_LLM_API_KEY }}
+      TEST_LLM_PROVIDER:        ${{ secrets.TEST_LLM_PROVIDER }}
+      TEST_LLM_MODEL:           ${{ secrets.TEST_LLM_MODEL }}
+      TEST_RISK_PROFILE_DOMAIN: ${{ secrets.TEST_RISK_PROFILE_DOMAIN }}
+      TEST_LLM_ENDPOINT:        ${{ secrets.TEST_LLM_ENDPOINT }}
+      TEST_LLM_DEPLOYMENT:      ${{ secrets.TEST_LLM_DEPLOYMENT }}
+      TEST_LLM_API_VERSION:     ${{ secrets.TEST_LLM_API_VERSION }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./app/api/Dockerfile
+          push: false
+          load: true
+          tags: identity-atlas-web:ci
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Build worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./setup/docker/Dockerfile.powershell
+          push: false
+          load: true
+          tags: identity-atlas-worker:ci
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+
+      - name: Start stack
+        run: |
+          cat > docker-compose.ci.yml <<'YAML'
+          services:
+            postgres:
+              image: postgres:16-alpine
+              environment:
+                POSTGRES_DB: identity_atlas
+                POSTGRES_USER: identity_atlas
+                POSTGRES_PASSWORD: ci_test
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U identity_atlas"]
+                interval: 5s
+                timeout: 3s
+                retries: 30
+                start_period: 10s
+            web:
+              image: identity-atlas-web:ci
+              group_add: ["0"]
+              environment:
+                NODE_ENV: production
+                USE_SQL: "true"
+                DATABASE_URL: "postgres://identity_atlas:ci_test@postgres:5432/identity_atlas"
+                AUTH_ENABLED: "false"
+                PORT: "3001"
+              ports: ["3001:3001"]
+              volumes:
+                - job_data:/data/uploads
+                - /var/run/docker.sock:/var/run/docker.sock:ro
+                - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
+              depends_on:
+                postgres: { condition: service_healthy }
+            worker:
+              image: identity-atlas-worker:ci
+              environment:
+                WEB_API_URL: "http://web:3001/api"
+              volumes:
+                - job_data:/data/uploads
+              depends_on:
+                web: { condition: service_started }
+              restart: "no"
+          volumes:
+            job_data:
+          YAML
+          docker compose -f docker-compose.ci.yml up -d
+
+      - name: Wait for API ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3001/api/admin/status > /dev/null 2>&1; then
+              echo "API ready after $((i*2))s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::API did not become ready within 120s"
+          docker compose -f docker-compose.ci.yml logs web
+          exit 1
+
+      - name: Get built-in worker API key
+        id: apikey
+        run: |
+          KEY=$(docker compose -f docker-compose.ci.yml exec -T worker cat /data/uploads/.builtin-worker-key 2>/dev/null | tr -d '\r\n')
+          if [ -z "$KEY" ]; then
+            echo "::error::Could not read built-in worker API key"
+            exit 1
+          fi
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+          echo "API key retrieved (${#KEY} chars)"
+
+      # ── Schema verification ──────────────────────────────────────
+      - name: 'Test: Verify Postgres schema'
+        run: |
+          TABLES=$(docker compose -f docker-compose.ci.yml exec -T postgres \
+            psql -U identity_atlas -d identity_atlas -tAc \
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';")
+          TABLES=$(echo "$TABLES" | tr -d '[:space:]')
+          echo "Tables found: $TABLES"
+          if [ "$TABLES" -lt 25 ]; then
+            echo "::error::Expected at least 25 tables, found $TABLES"
+            docker compose -f docker-compose.ci.yml exec -T postgres \
+              psql -U identity_atlas -d identity_atlas -tAc \
+              "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;"
+            exit 1
+          fi
+
+      # ── Demo data ────────────────────────────────────────────────
+      - name: 'Test: Load demo data'
+        run: |
+          # Queue demo job
+          JOB=$(curl -sf -X POST http://localhost:3001/api/admin/crawler-jobs \
+            -H "Content-Type: application/json" \
+            -d '{"type": "demo"}')
+          JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
+          echo "Demo job queued: $JOB_ID"
+          if [ -z "$JOB_ID" ]; then
+            echo "::error::Failed to queue demo job"
+            echo "$JOB"
+            exit 1
+          fi
+          # Poll until complete
+          for i in $(seq 1 40); do
+            STATUS=$(curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID" | \
+              python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+            if [ "$STATUS" = "completed" ]; then
+              echo "Demo job completed after $((i*3))s"
+              break
+            elif [ "$STATUS" = "failed" ]; then
+              echo "::error::Demo job failed"
+              curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID"
+              exit 1
+            fi
+            sleep 3
+          done
+          if [ "$STATUS" != "completed" ]; then
+            echo "::error::Demo job timed out (status: $STATUS)"
+            exit 1
+          fi
+
+      - name: 'Test: Verify demo data loaded'
+        run: |
+          FAILED=0
+          for ep in "/systems|1" "/users?limit=1|1" "/resources?limit=1|1" "/permissions?userLimit=1|1"; do
+            PATH_PART=$(echo "$ep" | cut -d'|' -f1)
+            MIN=$(echo "$ep" | cut -d'|' -f2)
+            BODY=$(curl -sf "http://localhost:3001/api${PATH_PART}")
+            # Check for non-empty array or object with data
+            HAS_DATA=$(echo "$BODY" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          if isinstance(d, list): print(len(d))
+          elif 'data' in d: print(len(d['data']))
+          elif 'users' in d: print(len(d['users']))
+          elif 'rows' in d: print(len(d['rows']))
+          else: print(len(d))
+          " 2>/dev/null || echo "0")
+            if [ "$HAS_DATA" -ge "$MIN" ]; then
+              echo "  $PATH_PART: $HAS_DATA records"
+            else
+              echo "::error::$PATH_PART returned $HAS_DATA records (expected >= $MIN)"
+              FAILED=$((FAILED+1))
+            fi
+          done
+          if [ $FAILED -gt 0 ]; then exit 1; fi
+
+      # ── Clean + verify empty ─────────────────────────────────────
+      - name: 'Test: Clean database and verify empty'
+        run: |
+          # Clean
+          CLEAN=$(curl -sf -X POST http://localhost:3001/api/admin/clean-database)
+          echo "Clean response: $CLEAN"
+          # Verify key tables are empty
+          USERS=$(curl -sf "http://localhost:3001/api/users?limit=1" | \
+            python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total', d.get('totalCount', len(d.get('data',d.get('users',[]))))))" 2>/dev/null || echo "-1")
+          if [ "$USERS" != "0" ]; then
+            echo "::error::Users table not empty after clean (count: $USERS)"
+            exit 1
+          fi
+          echo "Database clean verified"
+          # Reload demo data for remaining tests
+          JOB=$(curl -sf -X POST http://localhost:3001/api/admin/crawler-jobs \
+            -H "Content-Type: application/json" -d '{"type": "demo"}')
+          JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
+          for i in $(seq 1 40); do
+            S=$(curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID" | \
+              python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+            [ "$S" = "completed" ] && break
+            sleep 3
+          done
+
+      # ── Smoke test all read endpoints ────────────────────────────
+      - name: 'Test: Smoke test read endpoints'
+        run: |
+          FAILED=0
+          ENDPOINTS=(
+            /auth-config /features /admin/status /admin/auth-settings
+            /systems /users?limit=1 /resources?limit=1
+            /permissions?userLimit=1 /sync-log /categories
+            /tags /access-packages /risk-profiles
+            /correlation-rulesets /admin/crawler-configs
+            /version /openapi.json /admin/container-stats
+          )
+          for ep in "${ENDPOINTS[@]}"; do
+            CODE=$(curl -sf -o /dev/null -w "%{http_code}" "http://localhost:3001/api${ep}" || echo "000")
+            if [ "$CODE" = "200" ]; then
+              echo "  $ep: $CODE"
+            else
+              echo "::error::$ep returned $CODE"
+              FAILED=$((FAILED+1))
+            fi
+          done
+          if [ $FAILED -gt 0 ]; then
+            echo "::error::$FAILED endpoint(s) failed"
+            exit 1
+          fi
+
+      # ── Configure LLM (pre-flight for LLM-dependent tests) ──────
+      - name: 'Pre-flight: Configure LLM'
+        if: env.TEST_LLM_API_KEY != ''
+        shell: pwsh
+        run: |
+          & test/nightly/Configure-LLM.ps1 -ApiBaseUrl http://localhost:3001/api
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # ── Test scripts (PowerShell) ────────────────────────────────
+      - name: 'Test: Ingest API'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-IngestAPI.ps1 `
+            -ApiBaseUrl http://localhost:3001/api `
+            -ApiKey '${{ steps.apikey.outputs.key }}'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: CSV edge cases'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-CSVEdgeCases.ps1 `
+            -ApiBaseUrl http://localhost:3001/api `
+            -ApiKey '${{ steps.apikey.outputs.key }}'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: Detail page counts'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-DetailPageCounts.ps1 `
+            -ApiBaseUrl http://localhost:3001/api `
+            -ApiKey '${{ steps.apikey.outputs.key }}'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: Account correlation'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-AccountCorrelation.ps1 `
+            -ApiBaseUrl http://localhost:3001/api
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: Custom connector'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-CustomConnector.ps1 `
+            -ApiBaseUrl http://localhost:3001/api
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: Secrets vault'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-SecretsVault.ps1 `
+            -ApiBaseUrl http://localhost:3001/api `
+            -ComposePath docker-compose.ci.yml
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: LLM substrate'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-LLMSubstrate.ps1 `
+            -ApiBaseUrl http://localhost:3001/api `
+            -ApiKey '${{ steps.apikey.outputs.key }}'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: Risk scoring (deterministic)'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-RiskScoring.ps1 `
+            -ApiBaseUrl http://localhost:3001/api
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: Risk scoring with LLM'
+        if: env.TEST_LLM_API_KEY != ''
+        shell: pwsh
+        run: |
+          & test/nightly/Test-RiskScoringLLM.ps1 `
+            -ApiBaseUrl http://localhost:3001/api
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: Entra ID crawler'
+        if: env.TEST_GRAPH_TENANT_ID != ''
+        shell: pwsh
+        run: |
+          & test/nightly/Test-EntraIdCrawler.ps1 `
+            -ApiBaseUrl http://localhost:3001/api `
+            -ApiKey '${{ steps.apikey.outputs.key }}'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # ── API benchmark regression ─────────────────────────────────
+      - name: 'Test: API benchmark'
+        shell: pwsh
+        run: |
+          $benchScript = 'test/benchmark/Run-Benchmark.ps1'
+          if (Test-Path $benchScript) {
+            & $benchScript -ApiBaseUrl http://localhost:3001/api
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } else {
+            Write-Host "Benchmark script not found — skipping"
+          }
+
+      # ── Cleanup ──────────────────────────────────────────────────
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          mkdir -p ci-logs
+          docker compose -f docker-compose.ci.yml logs web    > ci-logs/web.log    2>&1 || true
+          docker compose -f docker-compose.ci.yml logs worker > ci-logs/worker.log  2>&1 || true
+          docker compose -f docker-compose.ci.yml logs postgres > ci-logs/postgres.log 2>&1 || true
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-logs
+          path: ci-logs/
+          retention-days: 7
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v 2>/dev/null || true
+
+  # ═══════════════════════════════════════════════════════════════════
+  # JOB 2: Playwright E2E Tests
+  # ═══════════════════════════════════════════════════════════════════
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./app/api/Dockerfile
+          push: false
+          load: true
+          tags: identity-atlas-web:ci
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Start stack
+        run: |
+          cat > docker-compose.ci.yml <<'YAML'
+          services:
+            postgres:
+              image: postgres:16-alpine
+              environment:
+                POSTGRES_DB: identity_atlas
+                POSTGRES_USER: identity_atlas
+                POSTGRES_PASSWORD: ci_test
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U identity_atlas"]
+                interval: 5s
+                timeout: 3s
+                retries: 30
+                start_period: 10s
+            web:
+              image: identity-atlas-web:ci
+              environment:
+                NODE_ENV: production
+                USE_SQL: "true"
+                DATABASE_URL: "postgres://identity_atlas:ci_test@postgres:5432/identity_atlas"
+                AUTH_ENABLED: "false"
+                PORT: "3001"
+              ports: ["3001:3001"]
+              volumes:
+                - job_data:/data/uploads
+                - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
+              depends_on:
+                postgres: { condition: service_healthy }
+          volumes:
+            job_data:
+          YAML
+          docker compose -f docker-compose.ci.yml up -d
+
+      - name: Wait for API ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3001/api/admin/status > /dev/null 2>&1; then
+              echo "API ready after $((i*2))s"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Load demo data
+        run: |
+          JOB=$(curl -sf -X POST http://localhost:3001/api/admin/crawler-jobs \
+            -H "Content-Type: application/json" -d '{"type": "demo"}')
+          JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
+          for i in $(seq 1 40); do
+            S=$(curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID" | \
+              python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+            [ "$S" = "completed" ] && break
+            sleep 3
+          done
+          echo "Demo data loaded"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/ui/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: app/ui
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: app/ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        working-directory: app/ui
+        env:
+          CI: true
+        run: |
+          npx playwright test \
+            --config=playwright.ci.config.js \
+            --project=chromium \
+            --reporter=html,list
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: app/ui/playwright-report/
+          retention-days: 14
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v 2>/dev/null || true
+
+  # ═══════════════════════════════════════════════════════════════════
+  # JOB 3: Load & Soak Tests
+  # ═══════════════════════════════════════════════════════════════════
+  load-soak:
+    name: Load & Soak Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./app/api/Dockerfile
+          push: false
+          load: true
+          tags: identity-atlas-web:ci
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Build worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./setup/docker/Dockerfile.powershell
+          push: false
+          load: true
+          tags: identity-atlas-worker:ci
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+
+      - name: Start stack
+        run: |
+          cat > docker-compose.ci.yml <<'YAML'
+          services:
+            postgres:
+              image: postgres:16-alpine
+              environment:
+                POSTGRES_DB: identity_atlas
+                POSTGRES_USER: identity_atlas
+                POSTGRES_PASSWORD: ci_test
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U identity_atlas"]
+                interval: 5s
+                timeout: 3s
+                retries: 30
+                start_period: 10s
+              # Give postgres more resources for load test
+              deploy:
+                resources:
+                  limits:
+                    memory: 2g
+            web:
+              image: identity-atlas-web:ci
+              group_add: ["0"]
+              environment:
+                NODE_ENV: production
+                USE_SQL: "true"
+                DATABASE_URL: "postgres://identity_atlas:ci_test@postgres:5432/identity_atlas"
+                AUTH_ENABLED: "false"
+                PORT: "3001"
+              ports: ["3001:3001"]
+              volumes:
+                - job_data:/data/uploads
+                - /var/run/docker.sock:/var/run/docker.sock:ro
+                - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
+              depends_on:
+                postgres: { condition: service_healthy }
+            worker:
+              image: identity-atlas-worker:ci
+              environment:
+                WEB_API_URL: "http://web:3001/api"
+              volumes:
+                - job_data:/data/uploads
+              depends_on:
+                web: { condition: service_started }
+              restart: "no"
+          volumes:
+            job_data:
+          YAML
+          docker compose -f docker-compose.ci.yml up -d
+
+      - name: Wait for API ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3001/api/admin/status > /dev/null 2>&1; then
+              echo "API ready after $((i*2))s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::API did not become ready within 120s"
+          docker compose -f docker-compose.ci.yml logs web
+          exit 1
+
+      - name: Get built-in worker API key
+        id: apikey
+        run: |
+          KEY=$(docker compose -f docker-compose.ci.yml exec -T worker cat /data/uploads/.builtin-worker-key 2>/dev/null | tr -d '\r\n')
+          if [ -z "$KEY" ]; then
+            echo "::error::Could not read built-in worker API key"
+            exit 1
+          fi
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
+      - name: 'Test: Load test (1.5M rows)'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-LoadAndBenchmark.ps1 `
+            -ApiBaseUrl http://localhost:3001/api `
+            -ApiKey '${{ steps.apikey.outputs.key }}'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 'Test: Soak test (15 min)'
+        shell: pwsh
+        run: |
+          & test/nightly/Test-SoakTest.ps1 `
+            -ApiBaseUrl http://localhost:3001/api `
+            -DurationMinutes 15
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          mkdir -p ci-logs
+          docker compose -f docker-compose.ci.yml logs web    > ci-logs/web.log    2>&1 || true
+          docker compose -f docker-compose.ci.yml logs worker > ci-logs/worker.log  2>&1 || true
+          docker compose -f docker-compose.ci.yml logs postgres > ci-logs/postgres.log 2>&1 || true
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-soak-logs
+          path: ci-logs/
+          retention-days: 7
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v 2>/dev/null || true
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Summary — blocks merge if any job failed
+  # ═══════════════════════════════════════════════════════════════════
+  pr-integration-summary:
+    name: Integration Summary
+    runs-on: ubuntu-latest
+    needs: [integration, e2e, load-soak]
+    if: always()
+    steps:
+      - name: Report results
+        run: |
+          echo "## PR Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for job in integration e2e load-soak; do
+            result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('${job}', d.get('$job', {})).get('result','unknown'))")
+            if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
+            echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
+          done
+
+      - name: Fail if any check failed
+        if: |
+          needs.integration.result == 'failure' ||
+          needs.e2e.result == 'failure' ||
+          needs.load-soak.result == 'failure'
+        run: exit 1
