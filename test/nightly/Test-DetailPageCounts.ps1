@@ -119,7 +119,7 @@ try {
     $r = Invoke-Api -Path '/ingest/systems' -Method Post -Body @{
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = "dpc-$ts"
+        idPrefix     = "dpc$ts-systems"
         records      = @(@{ displayName = "DPC-Test-$ts"; systemType = 'Test'; enabled = $true; syncEnabled = $true })
     }
     $systemId = @($r.systemIds)[0]
@@ -140,7 +140,7 @@ try {
         systemId     = $systemId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = "dpc-$ts"
+        idPrefix     = "dpc$ts-principals"
         records      = @(
             @{ externalId = $aliceExtId;   displayName = 'DPC Alice';   principalType = 'User'; accountEnabled = $true }
             @{ externalId = $bobExtId;     displayName = 'DPC Bob';     principalType = 'User'; accountEnabled = $true }
@@ -158,7 +158,7 @@ try {
         systemId     = $systemId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = "dpc-$ts"
+        idPrefix     = "dpc$ts-resources"
         records      = @(
             @{ externalId = $groupAExtId; displayName = 'DPC GroupA';        resourceType = 'Group' }
             @{ externalId = $brExtId;     displayName = 'DPC BusinessRoleA'; resourceType = 'BusinessRole' }
@@ -211,7 +211,7 @@ if ($groupAId -and $aliceId) {
             systemId     = $systemId
             syncMode     = 'delta'
             idGeneration = 'deterministic'
-            idPrefix     = "dpc-$ts"
+            idPrefix     = "dpc$ts-resource-assignments"
             records      = @(
                 @{ resourceExternalId = $groupAExtId; principalExternalId = $aliceExtId; assignmentType = 'Direct' }
                 @{ resourceExternalId = $groupAExtId; principalExternalId = $bobExtId;   assignmentType = 'Direct' }
@@ -230,7 +230,7 @@ if ($groupAId -and $brId -and $otherId) {
             systemId     = $systemId
             syncMode     = 'delta'
             idGeneration = 'deterministic'
-            idPrefix     = "dpc-$ts"
+            idPrefix     = "dpc$ts-resource-relationships"
             records      = @(
                 # GroupA is contained in the business role
                 @{ parentResourceExternalId = $brExtId;    childResourceExternalId = $groupAExtId; relationshipType = 'Contains' }

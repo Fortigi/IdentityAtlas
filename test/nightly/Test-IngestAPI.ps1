@@ -111,7 +111,7 @@ try {
         systemId     = $systemId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = 'ingest-test'
+        idPrefix     = 'itest-principals'
         records      = @(
             @{
                 externalId     = 'ingest-test-user-1'
@@ -138,7 +138,7 @@ try {
         systemId     = $systemId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = 'ingest-test'
+        idPrefix     = 'itest-resources'
         records      = @(
             @{
                 externalId   = 'ingest-test-res-1'
@@ -165,7 +165,7 @@ try {
         systemId     = $systemId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = 'ingest-test'
+        idPrefix     = 'itest-resource-assignments'
         records      = @(
             @{
                 resourceExternalId  = 'ingest-test-res-1'
