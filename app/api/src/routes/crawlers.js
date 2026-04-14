@@ -296,7 +296,7 @@ selfServiceCrawlersRouter.post('/crawlers/rotate', async (req, res) => {
 });
 
 // POST /api/crawlers/job-progress — Crawlers report fine-grained progress here.
-// The body merges into dbo.CrawlerJobs.progress so the UI can show what the crawler
+// The body merges into CrawlerJobs.progress so the UI can show what the crawler
 // is doing right now ("Group memberships: 1500 of 9633") instead of sitting on the
 // last big-step update from the worker dispatcher.
 selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
