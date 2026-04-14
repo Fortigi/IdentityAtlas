@@ -643,6 +643,21 @@ function Get-FGSQLResource {
 - Don't add comments in Dutch (use English only)
 - Don't commit test configuration files (protected by .gitignore)
 - Don't modify database schema manually — use migration files in `app/api/src/db/migrations/`
+- Don't commit or push a fix without first testing it locally against the running Docker stack (see below)
+
+### 3a. Always Test Locally Before Committing
+
+After any change to the API, rebuild the container and verify the fix before touching git:
+
+```bash
+docker compose build web && docker compose up -d web
+# then hit a representative endpoint, e.g.:
+curl -s -X POST http://localhost:3001/api/ingest/contexts \
+  -H "Authorization: Bearer <key>" -H "Content-Type: application/json" \
+  -d '{"records":[{"id":"...","contextType":"Department","displayName":"Test","systemId":1}],"syncMode":"full","systemId":1}'
+```
+
+Only proceed to branch/commit/push once the endpoint returns a 2xx response. The prod compose file (`docker-compose.prod.yml`) uses a pre-built image from ghcr.io — changes to source files have no effect until the image is rebuilt with `docker compose build`.
 
 ### 4. No Duplicate Code
 
