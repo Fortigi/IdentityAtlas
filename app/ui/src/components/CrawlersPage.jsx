@@ -2268,7 +2268,7 @@ export default function CrawlersPage({ onNavigate }) {
     if (!confirm(`Reset API key for "${c.displayName}"?`)) return;
     try {
       const r = await authFetch(`/api/admin/crawlers/${c.id}/reset`, { method: 'POST' });
-      if (r.ok) { const d = await r.json(); setNewKey(d.apiKey); }
+      if (r.ok) { const d = await r.json(); setNewKey(d.apiKey); fetchCrawlers(); }
     } catch (err) { setError(err.message); }
   };
 
