@@ -412,7 +412,7 @@ if (-not $SkipIntegration) {
 
     # Start fresh
     Write-Host "  Starting Docker Compose..." -ForegroundColor Gray
-    & docker compose -f $composePath up -d 2>&1 | Tee-Object -FilePath (Join-Path $LogFolder 'docker-up.log')
+    & docker compose -f $composePath up -d --build 2>&1 | Tee-Object -FilePath (Join-Path $LogFolder 'docker-up.log')
     Write-Result 'Docker-Compose-Up' ($LASTEXITCODE -eq 0)
 
     # ── Wait for postgres + table migrations + API readiness ────────
