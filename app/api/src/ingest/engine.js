@@ -29,7 +29,7 @@ export async function discoverColumns(_pool, tableName) {
 
   const r = await db.query(
     `SELECT column_name, data_type, is_nullable,
-            (column_default LIKE 'nextval(%' OR is_identity = 'YES') AS is_identity
+            (column_default LIKE 'nextval(%' OR column_default LIKE 'gen_random_uuid()%' OR is_identity = 'YES') AS is_identity
        FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = $1
       ORDER BY ordinal_position`,

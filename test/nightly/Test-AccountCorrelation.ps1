@@ -95,21 +95,12 @@ try {
         )
     }
 
-    # Extract system IDs from the response
-    if ($rA.created -and $rA.created.Count -gt 0) {
-        $systemAId = $rA.created[0].id
-    } elseif ($rA.updated -and $rA.updated.Count -gt 0) {
-        $systemAId = $rA.updated[0].id
-    } elseif ($rA.ids) {
-        $systemAId = $rA.ids[0]
+    # Extract system IDs from the response (ingest API returns systemIds array)
+    if ($rA.systemIds -and @($rA.systemIds).Count -gt 0) {
+        $systemAId = @($rA.systemIds)[0]
     }
-
-    if ($rB.created -and $rB.created.Count -gt 0) {
-        $systemBId = $rB.created[0].id
-    } elseif ($rB.updated -and $rB.updated.Count -gt 0) {
-        $systemBId = $rB.updated[0].id
-    } elseif ($rB.ids) {
-        $systemBId = $rB.ids[0]
+    if ($rB.systemIds -and @($rB.systemIds).Count -gt 0) {
+        $systemBId = @($rB.systemIds)[0]
     }
 
     if ($systemAId -and $systemBId) {
