@@ -20,6 +20,10 @@ export default defineConfig({
   workers: 1,
   reporter: [['html', { open: 'never' }], ['list']],
   timeout: 30000,
+  /* Create missing snapshots on first run instead of failing. Visual
+     regression baselines are platform-specific (chromium-linux in CI vs
+     chromium-win32 locally) so they won't exist until the first CI run. */
+  updateSnapshots: 'missing',
 
   use: {
     /* Docker web container serves frontend on port 3001 */
