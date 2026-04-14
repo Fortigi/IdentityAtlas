@@ -38,18 +38,18 @@ test.describe('Org Chart Page', () => {
     const searchInput = page.locator('input[type="text"], input[type="search"]');
     // Org chart may have a department search
     // Just verify page loaded without errors
-    const nav = page.locator('nav').first();
+    const nav = page.locator('nav');
     await expect(nav).toBeVisible();
   });
 
   test('page does not crash', async ({ page }) => {
     // Verify no uncaught errors by checking the page is still interactive
     await page.waitForTimeout(1000);
-    const nav = page.locator('nav').first();
+    const nav = page.locator('nav');
     await expect(nav).toBeVisible();
 
     // Can still navigate away
     await page.getByRole('button', { name: 'Matrix' }).click();
-    await expect(page.locator('nav').first()).toBeVisible();
+    await expect(page.locator('nav')).toBeVisible();
   });
 });
