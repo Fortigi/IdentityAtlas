@@ -54,13 +54,13 @@ test.describe('App Navigation', () => {
     // Matrix is the default / fallback route
     await page.goto('/');
     await page.waitForTimeout(300);
-    await expect(page.locator('nav').first()).toBeVisible();
+    await expect(page.locator('nav')).toBeVisible();
   });
 
   test('no auth gate shown when AUTH_ENABLED=false', async ({ page }) => {
     // Should not show any login prompt
     await expect(page.getByText('Sign in')).not.toBeVisible();
     // Content should be immediately available
-    await expect(page.locator('nav').first()).toBeVisible();
+    await expect(page.locator('nav')).toBeVisible();
   });
 });
