@@ -277,7 +277,8 @@ jobs:
         shell: pwsh
         run: |
           & test/nightly/Test-AccountCorrelation.ps1 `
-            -ApiBaseUrl http://localhost:3001/api
+            -ApiBaseUrl http://localhost:3001/api `
+            -ApiKey '${{ steps.apikey.outputs.key }}'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: 'Test: Custom connector'
