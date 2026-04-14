@@ -1,3 +1,7 @@
+## Changes in this branch
+
+- **Fix Identity Members showing 0 with demo data** — `IdentityMembers` was missing from the `ANALYZE` table list in `refreshMatrixViews()`, so `pg_class.reltuples` was never updated after demo data ingestion and the dashboard estimate stayed at 0.
+
 # Identity Atlas — Changes since v5
 
 Tracks user-visible changes to Identity Atlas since the v5 release on
