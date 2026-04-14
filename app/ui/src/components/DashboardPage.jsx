@@ -57,7 +57,7 @@ export default function DashboardPage({ onNavigate }) {
     ]).then(([s, v]) => {
       if (cancelled) return;
       setStats(s);
-      setVersion(v?.version || null);
+      setVersion(v);
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -82,6 +82,20 @@ export default function DashboardPage({ onNavigate }) {
             </p>
           </div>
         </div>
+
+      {/* Compose file outdated warning */}
+      {version?.composeFileOutdated && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+          <div className="font-semibold text-amber-800 mb-1">Your docker-compose file is outdated</div>
+          <p className="text-amber-700">
+            The running image expects compose file version {version.minComposeFileVersion} but your file is version {version.composeFileVersion || 'unknown'}.
+            Re-download the latest version to get new settings (volume mounts, security fixes, etc.):
+          </p>
+          <code className="block mt-2 px-3 py-2 bg-amber-100 rounded text-xs font-mono text-amber-900">
+            curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+          </code>
+        </div>
+      )}
 
       {/* Main 2-column layout: brain graph + stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -189,8 +203,8 @@ export default function DashboardPage({ onNavigate }) {
             </div>
             <h3 className="text-sm font-bold text-gray-900">Version</h3>
           </div>
-          <div className={`font-mono font-semibold text-gray-900 tabular-nums ${version && version.length > 10 ? 'text-lg' : 'text-3xl'}`}>
-            {version ? `v${version}` : 'v5.0'}
+          <div className={`font-mono font-semibold text-gray-900 tabular-nums ${version?.version?.length > 10 ? 'text-lg' : 'text-3xl'}`}>
+            {version?.version ? `v${version.version}` : 'v5.0'}
           </div>
           <div className="mt-3 text-xs">
             <a href={`${GITHUB_BASE}/blob/main/CHANGES.md`} target="_blank" rel="noopener noreferrer" className="text-lime-700 hover:text-lime-800 font-medium hover:underline inline-flex items-center gap-1">
