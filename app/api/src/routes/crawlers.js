@@ -160,7 +160,7 @@ adminCrawlersRouter.delete('/admin/crawlers/:id', async (req, res) => {
     if (permanent) {
       // Permanent delete — remove audit log entries first, then the crawler
       await pool.request().input('id', id)
-        .query('DELETE FROM "CrawlerAuditLog" WHERE crawlerId = @id');
+        .query('DELETE FROM "CrawlerAuditLog" WHERE "crawlerId" = @id');
       const result = await pool.request().input('id', id)
         .query('DELETE FROM "Crawlers" WHERE id = @id');
       if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Crawler not found' });
@@ -168,7 +168,7 @@ adminCrawlersRouter.delete('/admin/crawlers/:id', async (req, res) => {
     } else {
       // Soft delete — just disable
       const result = await pool.request().input('id', id)
-        .query('UPDATE "Crawlers" SET enabled = 0 WHERE id = @id');
+        .query('UPDATE "Crawlers" SET enabled = false WHERE id = @id');
       if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Crawler not found' });
       res.json({ message: 'Crawler disabled' });
     }

@@ -697,7 +697,8 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'RiskScores'), 0), 0)::int             AS "riskScores",
         (SELECT COUNT(*)::int FROM "RiskProfiles" WHERE "isActive")                            AS "activeRiskProfile",
         (SELECT COUNT(*)::int FROM "RiskClassifiers" WHERE "isActive")                         AS "activeClassifiers",
-        (SELECT COUNT(*)::int FROM "CrawlerConfigs" WHERE enabled)                             AS "enabledCrawlers",
+        (SELECT COUNT(*)::int FROM "CrawlerConfigs" WHERE enabled) +
+          (SELECT COUNT(*)::int FROM "Crawlers" WHERE enabled)                                   AS "enabledCrawlers",
         (SELECT COUNT(*)::int FROM "CrawlerJobs" WHERE status = 'running')                     AS "runningJobs"
     `);
 
