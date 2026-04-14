@@ -595,18 +595,19 @@ router.get('/access-package/:id/resource-roles', async (req, res) => {
       .input('id', req.params.id)
       .query(`
       SELECT
-        rrs.roleName, rrs.roleOriginSystem,
-        r."displayName" AS scopeDisplayName, rrs."childResourceId", rrs.roleOriginSystem AS scopeOriginSystem,
-        COALESCE(r."displayName", rrs.roleName) AS groupDisplayName,
-        COALESCE(r."displayName", rrs.roleName) AS "resourceDisplayName",
+        rrs."roleName", rrs."roleOriginSystem",
+        r."displayName" AS "scopeDisplayName", rrs."childResourceId", rrs."roleOriginSystem" AS "scopeOriginSystem",
+        COALESCE(r."displayName", rrs."roleName") AS "groupDisplayName",
+        COALESCE(r."displayName", rrs."roleName") AS "resourceDisplayName",
         r."resourceType", r."systemId"
       FROM "ResourceRelationships" rrs
       LEFT JOIN "Resources" r ON rrs."childResourceId" = r.id
       WHERE rrs."parentResourceId" = @id AND rrs."relationshipType" = 'Contains'
-      ORDER BY COALESCE(r."displayName", g."displayName"), rrs.roleName
+      ORDER BY r."displayName", rrs."roleName"
     `);
     res.json(r.recordset);
   } catch (err) {
+    console.error('ap-resource-roles failed:', err.message);
     res.json([]);
   }
 });
