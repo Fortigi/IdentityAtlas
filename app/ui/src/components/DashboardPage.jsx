@@ -119,8 +119,9 @@ export default function DashboardPage({ onNavigate }) {
                 <StatCard label="Business Roles" value={stats.businessRoles} onClick={() => onNavigate?.('access-packages')} />
                 <StatCard label="Identities"     value={stats.identities}    onClick={() => onNavigate?.('identities')} />
                 <StatCard label="Contexts"       value={stats.contexts}      onClick={() => onNavigate?.('org-chart')} />
-                <StatCard label="Assignments"    value={stats.assignments}   />
-                <StatCard label="Relationships"  value={stats.relationships} />
+                <StatCard label="Assignments"      value={stats.assignments}     />
+                <StatCard label="Relationships"    value={stats.relationships}  />
+                <StatCard label="Identity Members" value={stats.identityMembers} onClick={() => onNavigate?.('identities')} />
               </div>
               <div className="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-400 text-right">
                 <button
@@ -188,7 +189,7 @@ export default function DashboardPage({ onNavigate }) {
             </div>
             <h3 className="text-sm font-bold text-gray-900">Version</h3>
           </div>
-          <div className="text-3xl font-mono font-semibold text-gray-900 tabular-nums">
+          <div className={`font-mono font-semibold text-gray-900 tabular-nums ${version && version.length > 10 ? 'text-lg' : 'text-3xl'}`}>
             {version ? `v${version}` : 'v5.0'}
           </div>
           <div className="mt-3 text-xs">
@@ -221,11 +222,6 @@ export default function DashboardPage({ onNavigate }) {
         Created by{' '}
         <a href="https://www.fortigi.nl" target="_blank" rel="noopener noreferrer" className="hover:underline text-gray-500 hover:text-lime-700 transition-colors">
           Maatschap Fortigi
-        </a>
-        {' · '}
-        Lead developer{' '}
-        <a href="https://www.linkedin.com/in/wimvdheijkant/" target="_blank" rel="noopener noreferrer" className="hover:underline text-gray-500 hover:text-lime-700 transition-colors">
-          Wim van den Heijkant
         </a>
       </div>
       </div>
@@ -333,14 +329,16 @@ function BrainGraph({ stats, loading }) {
   // Resources/Roles on the left lobe, Assignments in the central core,
   // Contexts + Reviews at the bottom.
   const NODE_DEFS = [
-    { id: 'systems',     label: 'Systems',     key: 'systems',       x: 220, y: 58  },
-    { id: 'resources',   label: 'Resources',   key: 'resources',     x: 96,  y: 130 },
-    { id: 'users',       label: 'Users',       key: 'users',         x: 340, y: 120 },
-    { id: 'roles',       label: 'Roles',       key: 'businessRoles', x: 140, y: 220 },
-    { id: 'assignments', label: 'Assignments', key: 'assignments',   x: 220, y: 180 },
-    { id: 'identities',  label: 'Identities',  key: 'identities',    x: 370, y: 220 },
-    { id: 'contexts',    label: 'Contexts',    key: 'contexts',      x: 270, y: 285 },
-    { id: 'certs',       label: 'Reviews',     key: 'certifications', x: 80,  y: 285 },
+    { id: 'systems',        label: 'Systems',        key: 'systems',         x: 220, y: 50  },
+    { id: 'resources',      label: 'Resources',      key: 'resources',       x: 80,  y: 120 },
+    { id: 'users',          label: 'Users',          key: 'users',           x: 360, y: 110 },
+    { id: 'roles',          label: 'Roles',          key: 'businessRoles',   x: 110, y: 215 },
+    { id: 'assignments',    label: 'Assignments',    key: 'assignments',     x: 220, y: 170 },
+    { id: 'identities',     label: 'Identities',     key: 'identities',      x: 390, y: 210 },
+    { id: 'idMembers',      label: 'ID Members',     key: 'identityMembers', x: 380, y: 300 },
+    { id: 'relationships',  label: 'Relationships',  key: 'relationships',   x: 60,  y: 300 },
+    { id: 'contexts',       label: 'Contexts',       key: 'contexts',        x: 270, y: 310 },
+    { id: 'certs',          label: 'Reviews',        key: 'certifications',  x: 150, y: 310 },
   ];
 
   // Edges — many more than before so the graph looks like a dense brain net.
@@ -352,14 +350,19 @@ function BrainGraph({ stats, loading }) {
     ['systems', 'contexts'],
     ['systems', 'assignments'],
     ['resources', 'assignments'],
+    ['resources', 'relationships'],
     ['users', 'assignments'],
     ['users', 'identities'],
+    ['users', 'idMembers'],
     ['users', 'contexts'],
     ['resources', 'roles'],
     ['assignments', 'roles'],
     ['assignments', 'contexts'],
     ['assignments', 'identities'],
+    ['identities', 'idMembers'],
     ['identities', 'contexts'],
+    ['relationships', 'roles'],
+    ['relationships', 'certs'],
     ['resources', 'certs'],
     ['certs', 'roles'],
     ['certs', 'assignments'],
