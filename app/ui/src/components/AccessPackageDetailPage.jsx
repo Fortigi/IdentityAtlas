@@ -425,14 +425,14 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
                       </td>
                       <td className="px-4 py-2">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          rr.roleDisplayName === 'Owner' ? 'bg-purple-100 text-purple-800'
-                          : rr.roleDisplayName === 'Member' ? 'bg-blue-100 text-blue-800'
+                          rr.roleName === 'Owner' ? 'bg-purple-100 text-purple-800'
+                          : rr.roleName === 'Member' ? 'bg-blue-100 text-blue-800'
                           : 'bg-gray-100 text-gray-600'
                         }`}>
-                          {rr.roleDisplayName || '\u2014'}
+                          {rr.roleName || '\u2014'}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-gray-500 text-xs">{rr.roleOriginSystem || '\u2014'}</td>
+                      <td className="px-4 py-2 text-gray-500 text-xs">{rr.resourceType || '\u2014'}</td>
                       <td className="px-4 py-2 text-gray-500 text-xs whitespace-nowrap">{formatDate(rr.createdDateTime)}</td>
                     </tr>
                   ))}
