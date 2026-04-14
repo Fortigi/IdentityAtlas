@@ -744,6 +744,26 @@ if (-not $SkipIntegration) {
             }
         }
 
+        # ── Phase 4f3b: Detail-page counts + totalUsers regression ──────
+        Write-Phase "Phase 4f3b: Detail Page Counts + Permissions totalUsers"
+        $dpcScript = Join-Path $PSScriptRoot 'Test-DetailPageCounts.ps1'
+        if (Test-Path $dpcScript) {
+            try {
+                $dpcResults = $script:results
+                $dpcFailedRef = @{ Count = 0 }
+                $dpcCallback = {
+                    param($Name, $Passed, $Detail)
+                    $dpcResults[$Name] = @{ Passed = $Passed; Detail = $Detail; Timestamp = Get-Date }
+                    if (-not $Passed) { $dpcFailedRef.Count++; Write-Host "  FAIL  $Name  $Detail" -ForegroundColor Red }
+                    else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
+                }.GetNewClosure()
+                & $dpcScript -ApiBaseUrl $apiBaseUrl -ApiKey $builtinApiKey -WriteResult $dpcCallback
+                $script:totalFailed += $dpcFailedRef.Count
+            } catch {
+                Write-Result 'Detail-Page-Counts' $false $_.Exception.Message
+            }
+        }
+
         # ── Phase 4f4: Account correlation ────────────────────────────
         Write-Phase "Phase 4f4: Account Correlation Tests"
         $corrScript = Join-Path $PSScriptRoot 'Test-AccountCorrelation.ps1'
