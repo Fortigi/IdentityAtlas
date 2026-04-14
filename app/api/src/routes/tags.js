@@ -128,7 +128,7 @@ router.delete('/tags/:id', async (req, res) => {
     await ensureTagTables(p);
     await p.request()
       .input('id', id)
-      .query('DELETE FROM GraphTags WHERE id = @id');
+      .query('DELETE FROM "GraphTags" WHERE id = @id');
     res.json({ ok: true });
   } catch (err) {
     console.error('DELETE /tags failed:', err.message);
