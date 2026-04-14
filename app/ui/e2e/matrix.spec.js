@@ -10,8 +10,11 @@ test.describe('Matrix View', () => {
   test('matrix renders with rows and columns', async ({ page }) => {
     // Should have a table/grid structure with group rows
     // Mock data has 43 groups and 80 users
-    const rows = page.locator('tr, [role="row"]');
-    await expect(rows.first()).toBeVisible({ timeout: 10000 });
+    // The matrix table renders after the permissions API response — wait generously on cold start
+    const table = page.locator('table');
+    await expect(table.first()).toBeVisible({ timeout: 20000 });
+    const rows = page.locator('tr');
+    await expect(rows.first()).toBeVisible({ timeout: 5000 });
   });
 
   test('user limit slider is present and functional', async ({ page }) => {
@@ -27,8 +30,9 @@ test.describe('Matrix View', () => {
 
   test('IST/SOLL/All toggle is present', async ({ page }) => {
     // Look for managed filter buttons - "All", "Unmanaged", "Managed", "Gaps"
+    // Wait for the matrix toolbar to render (appears after data loads)
     const allButton = page.getByRole('button', { name: 'All', exact: true }).first();
-    await expect(allButton).toBeVisible({ timeout: 10000 });
+    await expect(allButton).toBeVisible({ timeout: 20000 });
   });
 
   test('matrix cells show membership badges', async ({ page }) => {

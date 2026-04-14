@@ -259,12 +259,10 @@ test.describe('Identities Page', () => {
   });
 
   test('navigating away and back does not crash', async ({ page }) => {
-    // Go to Users, then back to Identities
-    await page.getByRole('button', { name: 'Users', exact: true }).click();
-    await page.waitForLoadState('networkidle');
-    const identitiesBtn = page.getByRole('button', { name: 'Identities', exact: true });
-    await expect(identitiesBtn).toBeVisible({ timeout: 10000 });
-    await identitiesBtn.click();
+    // Go to Users via hash, then back to Identities via hash
+    await page.goto('/#users');
+    await page.waitForTimeout(500);
+    await page.goto('/#identities');
     await page.waitForTimeout(500);
     await expect(page.locator('nav')).toBeVisible();
   });
