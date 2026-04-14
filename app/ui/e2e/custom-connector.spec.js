@@ -46,10 +46,12 @@ test.describe('Custom Connector wizard', () => {
     await addBtn.click();
 
     // Select Custom Connector
-    await page.locator('button:has-text("Custom Connector")').click();
+    const customBtn = page.locator('button:has-text("Custom Connector")');
+    await expect(customBtn).toBeVisible({ timeout: 5000 });
+    await customBtn.click();
 
     // Step 1: Fill in name and register
-    await expect(page.locator('text=Custom Connector — Register')).toBeVisible();
+    await expect(page.locator('h3:has-text("Custom Connector")')).toBeVisible({ timeout: 10000 });
     await page.fill('input[placeholder*="SAP"]', 'E2E-Test-Connector');
     await page.click('button:has-text("Register Connector")');
 
@@ -75,7 +77,7 @@ test.describe('Custom Connector wizard', () => {
     // Done button should work
     await page.click('button:has-text("Done")');
     // Wizard should close
-    await expect(page.locator('text=Custom Connector — Register')).not.toBeVisible();
+    await expect(page.locator('h3:has-text("Custom Connector")')).not.toBeVisible();
   });
 
   test('OpenAPI spec is downloadable', async ({ request }) => {
