@@ -47,6 +47,7 @@ services:
     volumes:
       - job_data:/data/uploads
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
     depends_on:
       postgres:
         condition: service_healthy
