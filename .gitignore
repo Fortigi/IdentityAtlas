@@ -8,6 +8,7 @@ test/test.secrets.json
 test/demo-dataset/demo-company.json
 test/demo-dataset/verify-results.json
 node_modules/
+.last-run.json
 tools/csv-templates/demodata/
 tools/csv-templates/demodataTransformed/
 .claude/settings.local.json
