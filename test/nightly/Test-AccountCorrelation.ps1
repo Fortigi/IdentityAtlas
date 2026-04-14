@@ -118,7 +118,7 @@ try {
         systemId     = $systemAId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = 'corr'
+        idPrefix     = 'corr-principals'
         records      = @(
             @{
                 externalId     = 'corr-user-a1'
@@ -132,7 +132,7 @@ try {
         systemId     = $systemBId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = 'corr'
+        idPrefix     = 'corr-principals'
         records      = @(
             @{
                 externalId     = 'corr-user-b1'
@@ -153,7 +153,7 @@ try {
         systemId     = $systemAId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = 'corr'
+        idPrefix     = 'corr-identities'
         records      = @(
             @{
                 externalId  = 'corr-identity-1'
@@ -172,7 +172,7 @@ try {
         systemId     = $systemAId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
-        idPrefix     = 'corr'
+        idPrefix     = 'corr-identity-members'
         records      = @(
             @{
                 identityExternalId  = 'corr-identity-1'
