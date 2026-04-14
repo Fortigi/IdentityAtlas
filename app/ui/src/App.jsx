@@ -484,7 +484,7 @@ export default function App() {
           ) : page === 'performance' || page === 'crawlers' || page === 'admin' ? (
             // Crawlers and Performance now live under Admin as sub-tabs.
             // Legacy #crawlers and #performance hashes redirect to the matching sub-tab.
-            <AdminPage onNavigate={navigate} />
+            <AdminPage onNavigate={navigate} onRefresh={forceRefresh} />
           ) : loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-gray-500">Loading permission data...</div>
