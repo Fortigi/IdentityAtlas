@@ -1,14 +1,15 @@
-# ─── Automated Issue Fix ───────────────────────────────────────────────────────
-# When the `ready-to-fix` label is applied to an issue (either manually or by
-# the issue-triage.yml workflow), Claude Code analyses the issue, implements a
-# fix, and opens a draft PR targeting dev.
+# ─── Nightly Auto-fix ──────────────────────────────────────────────────────────
+# Runs on a nightly schedule (02:00 UTC) and processes all open issues that have
+# the `ready-to-fix` label but NOT `fix-in-progress`.
 #
-# The action:
-#   1. Checks out the repo and reads CLAUDE.md for project context
-#   2. Creates a feature branch (autofix/issue-{number}-{description})
-#   3. Implements the fix using Claude Code
-#   4. Runs lint + unit tests to verify
-#   5. Opens a draft PR linking the issue
+# For each eligible issue the workflow:
+#   1. Applies `fix-in-progress` label (so the next run skips it)
+#   2. Creates a bugfixes/ branch from main
+#   3. Uses Claude Code to analyse the issue and implement a fix
+#   4. Opens a draft PR linking the issue
+#
+# If Claude Code fails to produce a fix, the `fix-in-progress` label is removed
+# so the issue re-enters the queue on the next nightly run.
 #
 # The PR still requires human review before merge (branch protection enforces
 # this). The draft status makes it clear this is an AI-generated fix.
@@ -17,45 +18,108 @@
 #   TRIAGE_ANTHROPIC_API_KEY  — Anthropic API key for Claude Code
 #   TRIAGE_LLM_MODEL          — Model ID (e.g. claude-sonnet-4-5-20250929)
 #
-# Required labels:
-#   ready-to-fix              — triggers this workflow
+# Required labels (create manually in GitHub if they don't exist):
+#   ready-to-fix       — marks an issue as actionable
+#   fix-in-progress    — applied by this workflow to avoid double-processing
 # ───────────────────────────────────────────────────────────────────────────────
 
-name: Auto-fix Issue
+name: Nightly Auto-fix
 
 on:
-  issues:
-    types: [labeled]
+  schedule:
+    - cron: '0 2 * * *' # 02:00 UTC every night
+  workflow_dispatch: # allow manual trigger
 
 jobs:
-  autofix:
-    name: Fix issue with Claude Code
-    if: github.event.label.name == 'ready-to-fix'
+  # ── Job 1: Discover eligible issues ────────────────────────────────────────
+  find-issues:
+    name: Find ready-to-fix issues
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+    outputs:
+      matrix: ${{ steps.collect.outputs.matrix }}
+      has_issues: ${{ steps.collect.outputs.has_issues }}
+    steps:
+      - name: Collect eligible issues
+        id: collect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find issues with ready-to-fix but NOT fix-in-progress
+          ISSUES=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --label "ready-to-fix" \
+            --state open \
+            --json number,title,body,labels \
+            --limit 10)
+
+          # Filter out issues that already have fix-in-progress
+          ELIGIBLE=$(echo "$ISSUES" | jq -c '[
+            .[] | select(
+              [.labels[].name] | index("fix-in-progress") | not
+            ) | {
+              number: .number,
+              title: .title,
+              body: (.body // "" | .[0:2000])
+            }
+          ]')
+
+          COUNT=$(echo "$ELIGIBLE" | jq 'length')
+          echo "Found $COUNT eligible issue(s)"
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "has_issues=false" >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+          else
+            echo "has_issues=true" >> "$GITHUB_OUTPUT"
+            # Build matrix JSON
+            MATRIX=$(echo "$ELIGIBLE" | jq -c '{include: .}')
+            echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── Job 2: Fix each issue ──────────────────────────────────────────────────
+  fix-issue:
+    name: "Fix #${{ matrix.number }}"
+    needs: find-issues
+    if: needs.find-issues.outputs.has_issues == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
       issues: write
+    strategy:
+      matrix: ${{ fromJson(needs.find-issues.outputs.matrix) }}
+      max-parallel: 1 # process one issue at a time to avoid branch conflicts
+      fail-fast: false # don't skip remaining issues if one fails
 
     steps:
+      - name: Apply fix-in-progress label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --add-label "fix-in-progress"
+
       - uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: main
           fetch-depth: 0
 
-      - name: Run Claude Code Action
+      - name: Run Claude Code
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
-          claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }}"
-          base_branch: dev
-          branch_prefix: "autofix/"
-          prompt: |
-            You are fixing GitHub issue #${{ github.event.issue.number }}.
+          model: ${{ secrets.TRIAGE_LLM_MODEL }}
+          direct_prompt: |
+            You are fixing GitHub issue #${{ matrix.number }} for the Identity Atlas project.
 
-            **Issue title:** ${{ github.event.issue.title }}
-            **Issue body:** ${{ github.event.issue.body }}
+            **Issue title:** ${{ matrix.title }}
+            **Issue body:**
+            ${{ matrix.body }}
 
             Instructions:
             1. Read CLAUDE.md thoroughly — it contains the full project structure,
@@ -64,13 +128,13 @@ jobs:
             3. Implement a minimal, focused fix. Do not refactor surrounding code or
                add unrelated improvements.
             4. After making code changes:
-               a. Update the `ModuleVersion` timestamp in `setup/IdentityAtlas.psd1`
+               a. Update the `ModuleVersion` timestamp in `FortigiGraph.psd1`
                   (keep Major.Minor, update yyyyMMdd.HHmm to now).
                b. Add a bullet to the top of the changes list in `CHANGES.md`
                   describing the fix in user-facing language.
             5. Verify your fix by running relevant tests if available.
             6. Create a commit with a clear message referencing the issue number
-               (e.g., "Fix #${{ github.event.issue.number }}: description").
+               (e.g., "Fix #${{ matrix.number }}: description").
 
             Important rules from CLAUDE.md:
             - Follow existing naming conventions
@@ -80,3 +144,75 @@ jobs:
             - Don't add features beyond what's needed for the fix
             - Don't add comments, docstrings, or type annotations to unchanged code
             - English only in code comments
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,Agent"
+          timeout_minutes: 25
+
+      - name: Create branch and PR
+        id: create-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if Claude made any changes
+          if git diff --quiet HEAD; then
+            echo "No changes were made — skipping PR creation"
+            echo "pr_created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Create branch name from issue number + sanitised title
+          SLUG=$(echo "${{ matrix.title }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | head -c 40)
+          BRANCH="bugfixes/autofix-issue-${{ matrix.number }}-${SLUG}"
+
+          git checkout -b "$BRANCH"
+          git push -u origin "$BRANCH"
+
+          # Create draft PR
+          PR_URL=$(gh pr create \
+            --repo "${{ github.repository }}" \
+            --base main \
+            --head "$BRANCH" \
+            --draft \
+            --title "Fix #${{ matrix.number }}: ${{ matrix.title }}" \
+            --body "$(cat <<'EOF'
+          ## Summary
+
+          Automated fix for #${{ matrix.number }}.
+
+          This PR was generated by the nightly auto-fix workflow using Claude Code.
+          Please review carefully before merging.
+
+          ## Test plan
+
+          - [ ] Verify the fix addresses the issue
+          - [ ] Check for regressions in related functionality
+          - [ ] Confirm CHANGES.md and module version were updated
+
+          Closes #${{ matrix.number }}
+
+          🤖 Generated with [Claude Code](https://claude.ai/code)
+          EOF
+          )")
+
+          echo "Created draft PR: $PR_URL"
+          echo "pr_created=true" >> "$GITHUB_OUTPUT"
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on issue
+        if: steps.create-pr.outputs.pr_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --body "🔧 An automated fix has been created: ${{ steps.create-pr.outputs.pr_url }}
+
+          This draft PR was generated by the nightly auto-fix workflow. Please review before merging."
+
+      - name: Remove fix-in-progress on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --remove-label "fix-in-progress"
