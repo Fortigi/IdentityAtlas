@@ -338,21 +338,22 @@ function BrainGraph({ stats, loading }) {
   const GREEN_DARK = '#365314';   // text inside node body
   const GREEN_LABEL = '#4d7c0f';  // label text
 
-  // Hand-positioned to suggest the logo's brain outline:
-  // Systems at the "top of the brain", Users/Identities on the right lobe,
-  // Resources/Roles on the left lobe, Assignments in the central core,
-  // Contexts + Reviews at the bottom.
+  // Hand-positioned to suggest the logo's brain outline — a top-heavy oval
+  // with two lobes. Systems crowns the top, Assignments sits in the central
+  // core, and the remaining nodes are arranged symmetrically around them to
+  // form the brain silhouette. The two new nodes (ID Members, Relationships)
+  // are tucked into the lobes rather than dangling at the bottom.
   const NODE_DEFS = [
-    { id: 'systems',        label: 'Systems',        key: 'systems',         x: 220, y: 50  },
-    { id: 'resources',      label: 'Resources',      key: 'resources',       x: 80,  y: 120 },
-    { id: 'users',          label: 'Users',          key: 'users',           x: 360, y: 110 },
-    { id: 'roles',          label: 'Roles',          key: 'businessRoles',   x: 110, y: 215 },
-    { id: 'assignments',    label: 'Assignments',    key: 'assignments',     x: 220, y: 170 },
-    { id: 'identities',     label: 'Identities',     key: 'identities',      x: 390, y: 210 },
-    { id: 'idMembers',      label: 'ID Members',     key: 'identityMembers', x: 380, y: 300 },
-    { id: 'relationships',  label: 'Relationships',  key: 'relationships',   x: 60,  y: 300 },
-    { id: 'contexts',       label: 'Contexts',       key: 'contexts',        x: 270, y: 310 },
-    { id: 'certs',          label: 'Reviews',        key: 'certifications',  x: 150, y: 310 },
+    { id: 'systems',        label: 'Systems',        key: 'systems',         x: 220, y: 45  },
+    { id: 'resources',      label: 'Resources',      key: 'resources',       x: 75,  y: 110 },
+    { id: 'users',          label: 'Users',          key: 'users',           x: 365, y: 110 },
+    { id: 'relationships',  label: 'Relationships',  key: 'relationships',   x: 68,  y: 200 },
+    { id: 'assignments',    label: 'Assignments',    key: 'assignments',     x: 220, y: 165 },
+    { id: 'identities',     label: 'Identities',     key: 'identities',      x: 372, y: 200 },
+    { id: 'roles',          label: 'Roles',          key: 'businessRoles',   x: 110, y: 275 },
+    { id: 'idMembers',      label: 'ID Members',     key: 'identityMembers', x: 330, y: 275 },
+    { id: 'certs',          label: 'Reviews',        key: 'certifications',  x: 155, y: 335 },
+    { id: 'contexts',       label: 'Contexts',       key: 'contexts',        x: 285, y: 335 },
   ];
 
   // Edges — many more than before so the graph looks like a dense brain net.
