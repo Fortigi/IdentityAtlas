@@ -119,7 +119,7 @@ if (-not $abortRemaining) {
 # ─── 3. Verify encryption in DB ──────────────────────────────────
 if (-not $abortRemaining) {
     try {
-        $ciphertext = Invoke-Psql -Sql "SELECT ciphertext FROM ""Secrets"" WHERE id = 'llm-api-key'"
+        $ciphertext = Invoke-Psql -Sql "SELECT ciphertext FROM ""Secrets"" WHERE id = 'llm.apikey'"
         if ([string]::IsNullOrWhiteSpace($ciphertext)) {
             Report-Result 'Vault/EncryptionVerified' $false 'no ciphertext row found in Secrets table'
             $abortRemaining = $true
@@ -138,25 +138,23 @@ if (-not $abortRemaining) {
 # ─── 4. Tamper detection ─────────────────────────────────────────
 if (-not $abortRemaining) {
     try {
-        $updateResult = Invoke-Psql -Sql "UPDATE ""Secrets"" SET ""authTag"" = 'tampered' WHERE id = 'llm-api-key'"
+        $updateResult = Invoke-Psql -Sql "UPDATE ""Secrets"" SET ""authTag"" = 'tampered' WHERE id = 'llm.apikey'"
         # psql should return something like "UPDATE 1"
         if ($updateResult -notmatch 'UPDATE\s+1') {
             Report-Result 'Vault/TamperDetected' $false "psql UPDATE did not affect 1 row: $updateResult"
         } else {
-            # Now try to read — the API should detect the tampered authTag
+            # Try to USE the key — /admin/llm/test decrypts the secret to make
+            # an LLM call. With a tampered authTag, GCM decryption should fail.
+            # The /admin/llm/status endpoint only checks existence (hasSecret),
+            # it doesn't decrypt, so it can't detect tamper.
             try {
-                $r = Invoke-LocalApi -Path '/admin/llm/status'
-                # If it returns configured=false or apiKeySet=false, tamper was detected
-                $tamperDetected = ($r.configured -eq $false) -or ($r.apiKeySet -eq $false)
-                if ($tamperDetected) {
-                    Report-Result 'Vault/TamperDetected' $true 'API returned unconfigured after tamper (integrity check worked)'
-                } else {
-                    Report-Result 'Vault/TamperDetected' $false "API still reports configured after tamper: configured=$($r.configured) apiKeySet=$($r.apiKeySet)"
-                }
+                $null = Invoke-LocalApi -Path '/admin/llm/test' -Method Post
+                # If it somehow succeeds, tamper wasn't detected (bad)
+                Report-Result 'Vault/TamperDetected' $false 'LLM test succeeded after tamper — integrity check failed'
             } catch {
-                # An error/500 is also acceptable — it means decryption failed due to tamper
+                # Any error is good — it means decryption/use of the tampered key failed
                 $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-                Report-Result 'Vault/TamperDetected' $true "API returned error after tamper (status=$statusCode) — integrity check worked"
+                Report-Result 'Vault/TamperDetected' $true "LLM test failed after tamper (status=$statusCode) — integrity check worked"
             }
         }
     } catch {
@@ -175,7 +173,7 @@ try {
     } else {
         Report-Result 'Vault/Cleanup' $false "DELETE failed: $($_.Exception.Message)"
         # Best-effort: try to wipe via psql so we don't leave test data behind
-        try { Invoke-Psql -Sql "DELETE FROM ""Secrets"" WHERE id = 'llm-api-key'" | Out-Null } catch { }
+        try { Invoke-Psql -Sql "DELETE FROM ""Secrets"" WHERE id = 'llm.apikey'" | Out-Null } catch { }
     }
 }
 

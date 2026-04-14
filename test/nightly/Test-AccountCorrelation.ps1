@@ -115,9 +115,11 @@ try {
 # --- 2. Create 1 principal in each system via /ingest/principals ------
 try {
     $rPA = Invoke-LocalApi -Path '/ingest/principals' -Method Post -Body @{
-        systemId = $systemAId
-        syncMode = 'delta'
-        records  = @(
+        systemId     = $systemAId
+        syncMode     = 'delta'
+        idGeneration = 'deterministic'
+        idPrefix     = 'corr-principals'
+        records      = @(
             @{
                 externalId     = 'corr-user-a1'
                 displayName    = 'Alice Correlation'
@@ -127,9 +129,11 @@ try {
         )
     }
     $rPB = Invoke-LocalApi -Path '/ingest/principals' -Method Post -Body @{
-        systemId = $systemBId
-        syncMode = 'delta'
-        records  = @(
+        systemId     = $systemBId
+        syncMode     = 'delta'
+        idGeneration = 'deterministic'
+        idPrefix     = 'corr-principals'
+        records      = @(
             @{
                 externalId     = 'corr-user-b1'
                 displayName    = 'A. Correlation'
@@ -146,8 +150,11 @@ try {
 # --- 3. Create 1 identity via /ingest/identities ---------------------
 try {
     $rI = Invoke-LocalApi -Path '/ingest/identities' -Method Post -Body @{
-        syncMode = 'delta'
-        records  = @(
+        systemId     = $systemAId
+        syncMode     = 'delta'
+        idGeneration = 'deterministic'
+        idPrefix     = 'corr-identities'
+        records      = @(
             @{
                 externalId  = 'corr-identity-1'
                 displayName = 'Alice Correlation'
@@ -162,8 +169,11 @@ try {
 # --- 4. Link both principals to the identity via /ingest/identity-members
 try {
     $rM = Invoke-LocalApi -Path '/ingest/identity-members' -Method Post -Body @{
-        syncMode = 'delta'
-        records  = @(
+        systemId     = $systemAId
+        syncMode     = 'delta'
+        idGeneration = 'deterministic'
+        idPrefix     = 'corr-identity-members'
+        records      = @(
             @{
                 identityExternalId  = 'corr-identity-1'
                 principalExternalId = 'corr-user-a1'
