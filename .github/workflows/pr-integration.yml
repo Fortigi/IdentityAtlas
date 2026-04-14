@@ -136,7 +136,7 @@ jobs:
           # Queue demo job
           JOB=$(curl -sf -X POST http://localhost:3001/api/admin/crawler-jobs \
             -H "Content-Type: application/json" \
-            -d '{"type": "demo"}')
+            -d '{"jobType": "demo"}')
           JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
           echo "Demo job queued: $JOB_ID"
           if [ -z "$JOB_ID" ]; then
@@ -205,7 +205,7 @@ jobs:
           echo "Database clean verified"
           # Reload demo data for remaining tests
           JOB=$(curl -sf -X POST http://localhost:3001/api/admin/crawler-jobs \
-            -H "Content-Type: application/json" -d '{"type": "demo"}')
+            -H "Content-Type: application/json" -d '{"jobType": "demo"}')
           JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
           for i in $(seq 1 40); do
             S=$(curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID" | \
@@ -385,6 +385,17 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
+      - name: Build worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./setup/docker/Dockerfile.powershell
+          push: false
+          load: true
+          tags: identity-atlas-worker:ci
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+
       - name: Start stack
         run: docker compose -f docker-compose.ci.yml up -d
 
@@ -401,7 +412,7 @@ jobs:
       - name: Load demo data
         run: |
           JOB=$(curl -sf -X POST http://localhost:3001/api/admin/crawler-jobs \
-            -H "Content-Type: application/json" -d '{"type": "demo"}')
+            -H "Content-Type: application/json" -d '{"jobType": "demo"}')
           JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
           for i in $(seq 1 40); do
             S=$(curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID" | \
