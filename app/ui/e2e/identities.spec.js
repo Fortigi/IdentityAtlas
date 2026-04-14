@@ -23,7 +23,7 @@ test.describe('Identities Page', () => {
 
   test('page does not crash or show unhandled errors', async ({ page }) => {
     // Navigation bar must survive the render
-    await expect(page.locator('nav')).toBeVisible();
+    await expect(page.locator('nav').first()).toBeVisible();
     // No JS error dialogs
     await expect(page.getByText(/unhandled.*error|something went wrong/i)).not.toBeVisible();
   });
@@ -170,7 +170,7 @@ test.describe('Identities Page', () => {
 
     await input.fill('test');
     await page.waitForTimeout(400);
-    await expect(page.locator('nav')).toBeVisible(); // page still alive
+    await expect(page.locator('nav').first()).toBeVisible(); // page still alive
   });
 
   // ── Identity detail panel ──────────────────────────────────────────
@@ -187,7 +187,7 @@ test.describe('Identities Page', () => {
     await page.waitForTimeout(500);
 
     // Either a slide-in panel or a new detail tab opens — the nav should still be visible
-    await expect(page.locator('nav')).toBeVisible();
+    await expect(page.locator('nav').first()).toBeVisible();
   });
 
   // ── Verified badge ─────────────────────────────────────────────────
@@ -224,7 +224,7 @@ test.describe('Identities Page', () => {
   test('override action controls render without errors', async ({ page }) => {
     await page.waitForTimeout(1000);
     // Nav must still be intact
-    await expect(page.locator('nav')).toBeVisible();
+    await expect(page.locator('nav').first()).toBeVisible();
 
     // Look for override-related text
     const overrideControl = page.getByText(/override|confirmed|rejected|moved/i);
@@ -252,7 +252,7 @@ test.describe('Identities Page', () => {
     const start = Date.now();
     await page.goto('/#identities');
     await page.waitForTimeout(300);
-    await expect(page.locator('nav')).toBeVisible({ timeout: 4700 });
+    await expect(page.locator('nav').first()).toBeVisible({ timeout: 4700 });
     const elapsed = Date.now() - start;
     expect(elapsed).toBeLessThan(5000);
   });
@@ -263,6 +263,6 @@ test.describe('Identities Page', () => {
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: 'Identities', exact: true }).click();
     await page.waitForTimeout(500);
-    await expect(page.locator('nav')).toBeVisible();
+    await expect(page.locator('nav').first()).toBeVisible();
   });
 });
