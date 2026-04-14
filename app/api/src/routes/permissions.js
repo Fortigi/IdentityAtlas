@@ -409,6 +409,15 @@ router.get('/permissions', async (req, res) => {
           ${filterWhere}
           ${groupFilterWhere}
       `);
+      // Total user count — same query as the limited branch for consistency.
+      // Using Principals count (not distinct memberIds in the result) so the
+      // slider max stays stable whether or not a limit is applied.
+      const totalResult = await timedRequest(p, 'perm-total-users', res).query(`
+        SELECT COUNT(*)::int AS "totalUsers"
+        FROM "Principals"
+        WHERE "principalType" IS NULL OR "principalType" != '#microsoft.graph.group'
+      `);
+
       // AP mapping is optional — fetch separately, swallow errors.
       let apMapping = [];
       try {
@@ -435,7 +444,7 @@ router.get('/permissions', async (req, res) => {
 
       return res.json({
         data: result.recordset,
-        totalUsers: new Set(result.recordset.map(r => r.memberId)).size,
+        totalUsers: totalResult.recordset[0].totalUsers,
         managedByPackages,
       });
     }

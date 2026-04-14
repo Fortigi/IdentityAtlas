@@ -82,12 +82,17 @@ export default function MatrixToolbar({
         </div>
 
         <div className="text-xs text-gray-500 ml-auto">
-          {stats.users === stats.totalUsers ? (
-            <>{stats.users} users</>
-          ) : (
-            <span className="text-amber-600 font-medium">
+          {stats.users < stats.totalUsers ? (
+            <span className="text-amber-600 font-medium" title={
+              userLimit > 0 && stats.users >= userLimit
+                ? `Slider limits to ${userLimit} users`
+                : `${stats.totalUsers - stats.users} users have no assignments and are not shown`
+            }>
               Showing {stats.users} of {stats.totalUsers} users
+              {(userLimit <= 0 || stats.users < userLimit) && <> ({stats.totalUsers - stats.users} have no assignments)</>}
             </span>
+          ) : (
+            <>{stats.users} users</>
           )}
           {' '}&times; {stats.groups} resources &middot; {stats.memberships} assignments
         </div>
