@@ -1,0 +1,247 @@
+# ─── Nightly Test Coverage Review ─────────────────────────────────────────────
+# Runs nightly (04:00 UTC) and reviews recent code changes to identify gaps in
+# test coverage. If new or updated code lacks sufficient tests, Claude Code
+# writes the missing tests and opens a draft PR.
+#
+# If test coverage is already adequate, the workflow completes without creating
+# a branch or PR.
+#
+# Test infrastructure in this project:
+#   - Playwright E2E tests:  app/ui/e2e/*.spec.js
+#   - Jest unit tests:       app/api/src/**/*.test.js
+#   - PowerShell tests:      test/nightly/Test-*.ps1, test/Test-Unit.ps1
+#   - Master runner:          test/Run-AllTests.ps1
+#
+# Required secrets:
+#   TRIAGE_ANTHROPIC_API_KEY  — Anthropic API key for Claude Code
+#   TRIAGE_LLM_MODEL          — Model ID (e.g. claude-sonnet-4-5-20250929)
+# ───────────────────────────────────────────────────────────────────────────────
+
+name: Nightly Test Coverage Review
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # 04:00 UTC every night (1 hour after docs review)
+  workflow_dispatch:
+
+jobs:
+  review-coverage:
+    name: Review test coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Gather recent changes
+        id: changes
+        run: |
+          SINCE=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+              || date -u -v-24H '+%Y-%m-%dT%H:%M:%SZ')
+
+          COMMIT_LOG=$(git log --since="$SINCE" --pretty=format:"- %h %s" --no-merges)
+
+          if [ -z "$COMMIT_LOG" ]; then
+            echo "No commits in the last 24 hours — nothing to review"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+          # Get changed files, categorised
+          CHANGED_FILES=$(git diff --name-only "HEAD@{24 hours ago}" HEAD 2>/dev/null \
+              || git diff --name-only HEAD~10 HEAD)
+
+          # Filter to source files only (exclude tests, docs, config, workflows)
+          SOURCE_FILES=$(echo "$CHANGED_FILES" | grep -v -E '^(test/|_Test/|docs/|\.github/|CHANGES\.md|CLAUDE\.md|README\.md|mkdocs\.yml|setup/)' || true)
+
+          if [ -z "$SOURCE_FILES" ]; then
+            echo "Only non-source files changed (docs, config, CI) — no coverage review needed"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "$COMMIT_LOG" > /tmp/recent_commits.txt
+          echo "$CHANGED_FILES" > /tmp/changed_files.txt
+          echo "$SOURCE_FILES" > /tmp/source_files.txt
+
+          echo "Recent commits:"
+          cat /tmp/recent_commits.txt
+          echo ""
+          echo "Source files changed:"
+          cat /tmp/source_files.txt
+
+      - name: Set up Node.js
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install test dependencies
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          # Install backend deps (for Jest)
+          if [ -f app/api/package.json ]; then
+            cd app/api && npm ci --ignore-scripts && cd ../..
+          fi
+          # Install frontend deps (for Playwright)
+          if [ -f app/ui/package.json ]; then
+            cd app/ui && npm ci --ignore-scripts && cd ../..
+          fi
+
+      - name: Review coverage with Claude Code
+        if: steps.changes.outputs.has_changes == 'true'
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
+          model: ${{ secrets.TRIAGE_LLM_MODEL }}
+          direct_prompt: |
+            You are a test coverage reviewer for the Identity Atlas project.
+
+            ## Your task
+
+            Review recent code changes and determine whether they have sufficient
+            test coverage. If tests are missing, write them. If coverage is already
+            adequate, do nothing — do NOT write tests just for the sake of it.
+
+            ## Recent commits (last 24 hours)
+
+            ```
+            $(cat /tmp/recent_commits.txt)
+            ```
+
+            ## Source files changed (excluding docs, config, CI)
+
+            ```
+            $(cat /tmp/source_files.txt)
+            ```
+
+            ## All changed files
+
+            ```
+            $(cat /tmp/changed_files.txt)
+            ```
+
+            ## Instructions
+
+            1. Read CLAUDE.md to understand the project structure and conventions.
+
+            2. Understand the test infrastructure:
+               - **Jest unit tests** for Node.js API code: `app/api/src/**/*.test.js`
+                 Run with: `cd app/api && npx jest`
+               - **Playwright E2E tests** for React UI: `app/ui/e2e/*.spec.js`
+                 Config: `app/ui/playwright.config.js`
+               - **PowerShell nightly tests**: `test/nightly/Test-*.ps1`
+                 These are integration tests that run against a live Docker stack
+               - **PowerShell unit tests**: `test/Test-Unit.ps1`
+
+            3. For each changed source file, assess coverage:
+               a. Read the changed file to understand what was added or modified.
+               b. Find existing tests that cover this file or feature.
+               c. Determine if the existing tests cover the new/changed behavior.
+               d. If there's a gap, write new tests or extend existing ones.
+
+            4. Rules for writing tests:
+
+               **Jest tests** (for app/api/src/**):
+               - Place test files next to the source: `foo.js` → `foo.test.js`
+               - Follow existing test patterns in the codebase
+               - Mock external dependencies (database, HTTP) — don't require Docker
+               - Test edge cases: null inputs, empty arrays, error paths
+               - Use descriptive test names that explain the scenario
+
+               **Playwright tests** (for app/ui/src/**):
+               - Add to existing spec files in `app/ui/e2e/` when possible
+               - Only create new spec files for entirely new pages/features
+               - Follow existing patterns in the e2e/ directory
+
+               **PowerShell tests** (for Functions/**):
+               - Add to `test/nightly/` for integration tests
+               - Add to `test/Test-Unit.ps1` for unit tests
+               - Follow existing naming: `Test-<Feature>.ps1`
+
+            5. After writing tests, verify they are syntactically valid:
+               - For Jest: run `cd app/api && npx jest --testPathPattern="<your-test>" --passWithNoTests`
+               - Do NOT run Playwright or PowerShell tests (they need Docker)
+
+            6. Things that do NOT need additional tests:
+               - Documentation-only changes
+               - CSS/styling changes (unless they affect component logic)
+               - Configuration file changes
+               - Version bumps
+               - Changes that already have comprehensive test coverage
+               - Simple one-line fixes where the existing test suite covers the path
+
+            7. If after reviewing everything, no new tests are needed, create a file
+               called /tmp/no_tests_needed and write "true" in it. Do NOT make any
+               commits in this case.
+
+            8. If you do write tests, create a single commit with a clear message
+               summarizing what test coverage was added and for which changes.
+
+            Important: write focused, meaningful tests. One good test that validates
+            real behavior is worth more than ten superficial tests that just check
+            types. Do not pad coverage — only test what matters.
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,Agent"
+          timeout_minutes: 25
+
+      - name: Check for changes
+        if: steps.changes.outputs.has_changes == 'true'
+        id: check
+        run: |
+          if git diff --quiet HEAD; then
+            echo "Test coverage is adequate — no PR needed"
+            echo "needs_pr=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New tests were added"
+            echo "needs_pr=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create branch and PR
+        if: steps.check.outputs.needs_pr == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u '+%Y%m%d')
+          BRANCH="test/nightly-coverage-${DATE}"
+
+          git checkout -b "$BRANCH"
+          git push -u origin "$BRANCH"
+
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --draft \
+            --title "test: nightly coverage review ${DATE}" \
+            --body "$(cat <<EOF
+          ## Summary
+
+          Automated test coverage review triggered by recent code changes.
+
+          ${COMMIT_MSG}
+
+          ## Recent code changes reviewed
+
+          $(cat /tmp/recent_commits.txt)
+
+          ## Test plan
+
+          - [ ] Verify new tests are meaningful and test real behavior
+          - [ ] Run the full test suite to confirm no regressions
+          - [ ] Check that test files follow project conventions
+
+          :robot: Generated with [Claude Code](https://claude.ai/code)
+          EOF
+          )")
+
+          echo "Created draft PR: $PR_URL"
