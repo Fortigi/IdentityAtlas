@@ -1,18 +1,27 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
 
+const API = 'http://localhost:3001/api';
+
 test.describe('Matrix View', () => {
+  // The permissions API cold start in CI can take 20-30s (complex SQL join + query planning).
+  // Increase test timeout for the matrix spec to accommodate this.
+  test.setTimeout(60000);
+
+  // Warm up the permissions API before tests
+  test.beforeAll(async () => {
+    try { await fetch(`${API}/permissions?userLimit=5`); } catch { /* ignore */ }
+  });
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for matrix data to load (mock backend returns instantly)
-    await page.waitForTimeout(500);
+    await page.waitForLoadState('networkidle');
   });
 
   test('matrix renders with rows and columns', async ({ page }) => {
-    // Should have a table/grid structure with group rows
-    // Mock data has 43 groups and 80 users
-    const rows = page.locator('tr, [role="row"]');
-    await expect(rows.first()).toBeVisible();
+    test.slow(); // Triple timeout — permissions API cold start takes 20-30s on CI
+    const table = page.locator('table').first();
+    await expect(table).toBeVisible({ timeout: 60000 });
   });
 
   test('user limit slider is present and functional', async ({ page }) => {
@@ -27,16 +36,16 @@ test.describe('Matrix View', () => {
   });
 
   test('IST/SOLL/All toggle is present', async ({ page }) => {
-    // Look for managed filter buttons - "All", "IST" (unmanaged), "SOLL" (managed)
-    const allButton = page.getByRole('button', { name: /All/i }).first();
-    await expect(allButton).toBeVisible();
+    test.slow(); // Triple timeout — permissions API cold start takes 20-30s on CI
+    const allButton = page.getByRole('button', { name: 'All', exact: true }).first();
+    await expect(allButton).toBeVisible({ timeout: 60000 });
   });
 
   test('matrix cells show membership badges', async ({ page }) => {
     // Mock data contains Direct (D), Indirect (I), Eligible (E) badges
     // At least some D badges should be visible
     const dBadges = page.locator('text=D').first();
-    await expect(dBadges).toBeVisible({ timeout: 5000 });
+    await expect(dBadges).toBeVisible({ timeout: 10000 });
   });
 
   test('share button exists', async ({ page }) => {

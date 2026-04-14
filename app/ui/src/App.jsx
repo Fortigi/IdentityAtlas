@@ -215,16 +215,30 @@ export default function App() {
     const tabKey = `${type}:${id}`;
     setDetailTabs(prev => {
       if (prev.some(t => `${t.type}:${t.id}` === tabKey)) return prev;
-      return [...prev, { type, id, displayName: displayName || id }];
+      // Store the current page so closing this tab can return to where we came from
+      return [...prev, { type, id, displayName: displayName || id, returnPage: page }];
     });
     navigate(tabKey);
-  }, [navigate]);
+  }, [navigate, page]);
 
   const closeDetailTab = useCallback((type, id) => {
     const tabKey = `${type}:${id}`;
-    setDetailTabs(prev => prev.filter(t => `${t.type}:${t.id}` !== tabKey));
+    const isActive = window.location.hash.replace('#', '') === tabKey;
+    setDetailTabs(prev => {
+      const idx = prev.findIndex(t => `${t.type}:${t.id}` === tabKey);
+      const closing = prev[idx];
+      // Any tab that pointed back to this one inherits this tab's returnPage,
+      // so closing an intermediate tab doesn't resurrect it later.
+      const remaining = prev
+        .filter(t => `${t.type}:${t.id}` !== tabKey)
+        .map(t => t.returnPage === tabKey ? { ...t, returnPage: closing?.returnPage } : t);
+      // Only navigate when closing the active tab
+      if (isActive) {
+        navigate(closing?.returnPage ?? (type === 'department' || type === 'context' ? 'org-chart' : type === 'identity' ? 'identities' : type === 'resource' ? 'resources' : 'matrix'));
+      }
+      return remaining;
+    });
     delete detailCacheRef.current[tabKey];
-    navigate(type === 'department' || type === 'context' ? 'org-chart' : type === 'identity' ? 'identities' : type === 'resource' ? 'resources' : 'matrix');
   }, [navigate]);
 
   // When navigating to a detail tab via URL that isn't tracked yet, add it
