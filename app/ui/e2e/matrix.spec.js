@@ -4,15 +4,14 @@ import { test, expect } from '@playwright/test';
 test.describe('Matrix View', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for matrix data to load (mock backend returns instantly)
-    await page.waitForTimeout(500);
+    await page.waitForLoadState('networkidle');
   });
 
   test('matrix renders with rows and columns', async ({ page }) => {
     // Should have a table/grid structure with group rows
     // Mock data has 43 groups and 80 users
     const rows = page.locator('tr, [role="row"]');
-    await expect(rows.first()).toBeVisible();
+    await expect(rows.first()).toBeVisible({ timeout: 10000 });
   });
 
   test('user limit slider is present and functional', async ({ page }) => {
@@ -27,9 +26,9 @@ test.describe('Matrix View', () => {
   });
 
   test('IST/SOLL/All toggle is present', async ({ page }) => {
-    // Look for managed filter buttons - "All", "IST" (unmanaged), "SOLL" (managed)
-    const allButton = page.getByRole('button', { name: /All/i }).first();
-    await expect(allButton).toBeVisible();
+    // Look for managed filter buttons - "All", "Unmanaged", "Managed", "Gaps"
+    const allButton = page.getByRole('button', { name: 'All', exact: true }).first();
+    await expect(allButton).toBeVisible({ timeout: 10000 });
   });
 
   test('matrix cells show membership badges', async ({ page }) => {

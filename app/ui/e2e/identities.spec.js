@@ -30,13 +30,14 @@ test.describe('Identities Page', () => {
   test('shows data or a graceful empty / not-configured state', async ({ page }) => {
     await page.waitForTimeout(1000);
 
-    // Accept: table with rows, summary cards, OR an "not available" / "run correlation" message
-    const hasContent = page.locator('table, [class*="card"], [class*="summary"]');
+    // Accept: table with rows, summary stats, OR an "not available" / "run correlation" message
+    const hasContent = page.locator('table, [class*="rounded-lg"]');
     const hasEmpty   = page
       .getByText(/no identities/i)
       .or(page.getByText(/Invoke-FGAccountCorrelation/i))
-      .or(page.getByText(/not.*available/i))
-      .or(page.getByText(/account correlation/i));
+      .or(page.getByText(/Not Available/i))
+      .or(page.getByText(/account correlation/i))
+      .or(page.getByText(/No accounts match/i));
 
     const contentCount = await hasContent.count();
     const emptyCount   = await hasEmpty.count();
@@ -72,15 +73,16 @@ test.describe('Identities Page', () => {
     await page.waitForTimeout(1000);
 
     // If the feature is not available the page shows a message — skip gracefully
-    const notAvailable = await page.getByText(/not.*available|Invoke-FGAccountCorrelation/i).count();
+    const notAvailable = await page.getByText(/Not Available|Invoke-FGAccountCorrelation/i).count();
     if (notAvailable > 0) {
       test.skip();
       return;
     }
 
-    // At least one stat card (Total Identities, Multi-Account, etc.) should be visible
-    const cards = page.locator('[class*="card"], [class*="stat"], [class*="summary"]');
-    await expect(cards.first()).toBeVisible({ timeout: 3000 });
+    // At least one stat element (Total Identities, Multi-Account, etc.) should be visible
+    // The UI uses Tailwind classes like "rounded-lg border px-4 py-3" for stat cards
+    const stats = page.getByText(/Total Identities|Multi-Account|Single Account|Unmatched/i);
+    await expect(stats.first()).toBeVisible({ timeout: 5000 });
   });
 
   test('summary shows Total Identities label', async ({ page }) => {
@@ -259,8 +261,10 @@ test.describe('Identities Page', () => {
   test('navigating away and back does not crash', async ({ page }) => {
     // Go to Users, then back to Identities
     await page.getByRole('button', { name: 'Users', exact: true }).click();
-    await page.waitForTimeout(300);
-    await page.getByRole('button', { name: 'Identities', exact: true }).click();
+    await page.waitForLoadState('networkidle');
+    const identitiesBtn = page.getByRole('button', { name: 'Identities', exact: true });
+    await expect(identitiesBtn).toBeVisible({ timeout: 10000 });
+    await identitiesBtn.click();
     await page.waitForTimeout(500);
     await expect(page.locator('nav')).toBeVisible();
   });
