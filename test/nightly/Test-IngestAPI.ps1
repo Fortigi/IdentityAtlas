@@ -108,9 +108,11 @@ try {
 try {
     if (-not $systemId) { throw 'skipped — no systemId from previous step' }
     $r = Invoke-LocalApi -Path '/ingest/principals' -Method Post -Body @{
-        systemId = $systemId
-        syncMode = 'delta'
-        records  = @(
+        systemId     = $systemId
+        syncMode     = 'delta'
+        idGeneration = 'deterministic'
+        idPrefix     = 'ingest-test'
+        records      = @(
             @{
                 externalId     = 'ingest-test-user-1'
                 displayName    = 'Ingest Test User'
@@ -133,9 +135,11 @@ try {
 try {
     if (-not $systemId) { throw 'skipped — no systemId from previous step' }
     $r = Invoke-LocalApi -Path '/ingest/resources' -Method Post -Body @{
-        systemId = $systemId
-        syncMode = 'delta'
-        records  = @(
+        systemId     = $systemId
+        syncMode     = 'delta'
+        idGeneration = 'deterministic'
+        idPrefix     = 'ingest-test'
+        records      = @(
             @{
                 externalId   = 'ingest-test-res-1'
                 displayName  = 'Ingest Test Resource'
@@ -158,9 +162,11 @@ try {
 try {
     if (-not $systemId) { throw 'skipped — no systemId from previous step' }
     $r = Invoke-LocalApi -Path '/ingest/resource-assignments' -Method Post -Body @{
-        systemId = $systemId
-        syncMode = 'delta'
-        records  = @(
+        systemId     = $systemId
+        syncMode     = 'delta'
+        idGeneration = 'deterministic'
+        idPrefix     = 'ingest-test'
+        records      = @(
             @{
                 resourceExternalId  = 'ingest-test-res-1'
                 principalExternalId = 'ingest-test-user-1'
