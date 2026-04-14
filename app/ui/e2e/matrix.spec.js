@@ -11,8 +11,8 @@ test.describe('Matrix View', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for data to load — the toolbar shows "X resources · Y assignments" once ready
-    await expect(page.getByText(/resources/)).toBeVisible({ timeout: 30000 });
+    // Wait for data to load — the toolbar shows "N assignments" once the permissions API returns
+    await expect(page.getByText(/assignments/)).toBeVisible({ timeout: 30000 });
   });
 
   test('matrix renders with rows and columns', async ({ page }) => {
