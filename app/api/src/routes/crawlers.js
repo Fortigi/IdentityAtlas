@@ -112,7 +112,7 @@ adminCrawlersRouter.patch('/admin/crawlers/:id', async (req, res) => {
   }
   if (enabled !== undefined) {
     sets.push('"enabled" = @enabled');
-    request.input('enabled', enabled ? 1 : 0);
+    request.input('enabled', enabled ? true : false);
   }
   if (systemIds !== undefined) {
     sets.push('"systemIds" = @systemIds');
