@@ -1,0 +1,82 @@
+# ─── Automated Issue Fix ───────────────────────────────────────────────────────
+# When the `ready-to-fix` label is applied to an issue (either manually or by
+# the issue-triage.yml workflow), Claude Code analyses the issue, implements a
+# fix, and opens a draft PR targeting dev.
+#
+# The action:
+#   1. Checks out the repo and reads CLAUDE.md for project context
+#   2. Creates a feature branch (autofix/issue-{number}-{description})
+#   3. Implements the fix using Claude Code
+#   4. Runs lint + unit tests to verify
+#   5. Opens a draft PR linking the issue
+#
+# The PR still requires human review before merge (branch protection enforces
+# this). The draft status makes it clear this is an AI-generated fix.
+#
+# Required secrets:
+#   TRIAGE_ANTHROPIC_API_KEY  — Anthropic API key for Claude Code
+#   TRIAGE_LLM_MODEL          — Model ID (e.g. claude-sonnet-4-5-20250929)
+#
+# Required labels:
+#   ready-to-fix              — triggers this workflow
+# ───────────────────────────────────────────────────────────────────────────────
+
+name: Auto-fix Issue
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  autofix:
+    name: Fix issue with Claude Code
+    if: github.event.label.name == 'ready-to-fix'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Run Claude Code Action
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
+          claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }}"
+          base_branch: dev
+          branch_prefix: "autofix/"
+          prompt: |
+            You are fixing GitHub issue #${{ github.event.issue.number }}.
+
+            **Issue title:** ${{ github.event.issue.title }}
+            **Issue body:** ${{ github.event.issue.body }}
+
+            Instructions:
+            1. Read CLAUDE.md thoroughly — it contains the full project structure,
+               conventions, and rules you must follow.
+            2. Investigate the issue: find the relevant code, understand the root cause.
+            3. Implement a minimal, focused fix. Do not refactor surrounding code or
+               add unrelated improvements.
+            4. After making code changes:
+               a. Update the `ModuleVersion` timestamp in `setup/IdentityAtlas.psd1`
+                  (keep Major.Minor, update yyyyMMdd.HHmm to now).
+               b. Add a bullet to the top of the changes list in `CHANGES.md`
+                  describing the fix in user-facing language.
+            5. Verify your fix by running relevant tests if available.
+            6. Create a commit with a clear message referencing the issue number
+               (e.g., "Fix #${{ github.event.issue.number }}: description").
+
+            Important rules from CLAUDE.md:
+            - Follow existing naming conventions
+            - One function per file under Functions/
+            - Use Invoke-FG*Request wrappers for Graph API calls
+            - Use Invoke-FGSQLCommand for SQL operations
+            - Don't add features beyond what's needed for the fix
+            - Don't add comments, docstrings, or type annotations to unchanged code
+            - English only in code comments

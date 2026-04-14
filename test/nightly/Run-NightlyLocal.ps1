@@ -230,7 +230,7 @@ if (-not $SkipStaticChecks) {
             # Docker fallback: mount the whole repo read-only so the spec
             # file and any $ref targets remain resolvable.
             $repoPath = $RepoRoot -replace '\\','/' -replace '^([A-Za-z]):','/$1'
-            $null = & docker run --rm -v "${repoPath}:/work:ro" -w /work node:20-slim sh -c "npx -y @stoplight/spectral-cli lint app/api/src/openapi.yaml --ruleset spectral:oas" 2>&1 |
+            $null = & docker run --rm -v "${repoPath}:/work:ro" -w /work node:20-slim sh -c "npx -y @stoplight/spectral-cli lint app/api/src/openapi.yaml" 2>&1 |
                 Tee-Object -FilePath $spectralLog
             $spectralExit = $LASTEXITCODE
             Write-Result 'Static-Spectral' ($spectralExit -eq 0) $(if ($spectralExit -ne 0) { "exit code $spectralExit (via docker)" })
@@ -412,7 +412,7 @@ if (-not $SkipIntegration) {
 
     # Start fresh
     Write-Host "  Starting Docker Compose..." -ForegroundColor Gray
-    & docker compose -f $composePath up -d 2>&1 | Tee-Object -FilePath (Join-Path $LogFolder 'docker-up.log')
+    & docker compose -f $composePath up -d --build 2>&1 | Tee-Object -FilePath (Join-Path $LogFolder 'docker-up.log')
     Write-Result 'Docker-Compose-Up' ($LASTEXITCODE -eq 0)
 
     # ── Wait for postgres + table migrations + API readiness ────────
