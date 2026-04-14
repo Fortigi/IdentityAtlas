@@ -119,11 +119,10 @@ try {
 } catch {
     # Extract the response body from the error so the nightly report includes
     # the server's error message, not just "500 Internal Server Error".
+    # PowerShell 7's Invoke-RestMethod puts the body in ErrorDetails.Message;
+    # the older GetResponseStream() approach returns null in pwsh 7.
     $detail = $_.Exception.Message
-    try {
-        $stream = $_.Exception.Response.GetResponseStream()
-        if ($stream) { $reader = [System.IO.StreamReader]::new($stream); $detail += " — " + $reader.ReadToEnd(); $reader.Close() }
-    } catch { }
+    if ($_.ErrorDetails.Message) { $detail += " — $($_.ErrorDetails.Message)" }
     Report-Result 'LLM-Config/Save' $false $detail
     if (-not $WriteResult) { exit 1 } else { return }
 }
