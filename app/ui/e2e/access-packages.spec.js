@@ -59,7 +59,7 @@ test.describe('Access Packages Page', () => {
         const submitButton = page.getByRole('button', { name: /Create/i });
         if (await submitButton.count() > 0) {
           await submitButton.first().click();
-          await expect(page.getByText('E2E-Test-Category')).toBeVisible({ timeout: 3000 });
+          await expect(page.getByText('E2E-Test-Category').first()).toBeVisible({ timeout: 3000 });
         }
       }
     }

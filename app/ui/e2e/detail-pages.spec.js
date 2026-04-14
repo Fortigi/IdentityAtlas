@@ -10,7 +10,7 @@ test.describe('Entity Detail Pages', () => {
 
     // Should show user detail content or navigate there
     // Detail tabs appear in the nav bar
-    const nav = page.locator('nav');
+    const nav = page.locator('nav').first();
     await expect(nav).toBeVisible();
   });
 
@@ -18,7 +18,7 @@ test.describe('Entity Detail Pages', () => {
     await page.goto('/#group:g-0001');
     await page.waitForTimeout(1000);
 
-    const nav = page.locator('nav');
+    const nav = page.locator('nav').first();
     await expect(nav).toBeVisible();
   });
 
@@ -59,7 +59,7 @@ test.describe('Entity Detail Pages', () => {
     await page.waitForTimeout(500);
 
     // Both detail tabs should be in the nav
-    const nav = page.locator('nav');
+    const nav = page.locator('nav').first();
     await expect(nav).toBeVisible();
   });
 
@@ -73,7 +73,7 @@ test.describe('Entity Detail Pages', () => {
 
     // Find and click the close button on the detail tab
     // Close buttons are small × icons inside the tab
-    const closeButton = page.locator('nav').locator('button').filter({
+    const closeButton = page.locator('nav').first().locator('button').filter({
       has: page.locator('svg')
     }).last();
 
