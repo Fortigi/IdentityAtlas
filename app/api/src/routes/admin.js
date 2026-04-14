@@ -517,6 +517,37 @@ router.post('/admin/clean-database', adminDestructiveLimiter, async (req, res) =
       }
     }
 
+    // ANALYZE all wiped tables so pg_class.reltuples (used by dashboard-stats for
+    // fast estimates) resets to 0 immediately. Without this the dashboard keeps
+    // showing the old row counts after a clean until autovacuum runs.
+    for (const { table } of wiped) {
+      try { await db.query(`ANALYZE "${table}"`); } catch { /* non-critical */ }
+    }
+
+    // Reset SERIAL sequences for all wiped tables so re-inserted rows start from 1.
+    // Without this, Systems gets IDs like 10, 11, 12 after a clean, breaking
+    // demo data which hardcodes systemId references.
+    if (wiped.length > 0) {
+      try {
+        const wipedNames = wiped.map(w => w.table);
+        const seqResult = await db.query(
+          `SELECT t.relname AS table_name, s.relname AS seq_name
+           FROM pg_class t
+           JOIN pg_attribute a ON a.attrelid = t.oid
+           JOIN pg_depend d ON d.refobjid = t.oid AND d.refobjsubid = a.attnum
+           JOIN pg_class s ON s.oid = d.objid AND s.relkind = 'S'
+           WHERE t.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+             AND t.relname = ANY($1)`,
+          [wipedNames]
+        );
+        for (const row of seqResult.rows) {
+          await db.query(`SELECT setval(quote_ident($1), 1, false)`, [row.seq_name]);
+        }
+      } catch (err) {
+        console.warn('Could not reset sequences during cleanup:', err.message);
+      }
+    }
+
     // Reset lastRunAt on crawler configs so the UI shows them as "never run"
     try {
       await db.query(`UPDATE "CrawlerConfigs" SET "lastRunAt" = NULL, "lastRunStatus" = NULL`);
