@@ -40,6 +40,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 - All merges to `main` go through a Pull Request — no direct pushes ever.
 - Branch names: `feature/<short-descriptive-name>` or `bugfixes/<short-descriptive-name>` (lowercase, hyphens). Example: `feature/risk-score-export`, `bugfixes/fix-login-redirect`.
 - When starting work, always create a new `feature/` or `bugfixes/` branch. Never work directly on `main`.
+- **One issue per branch.** Each branch must fix exactly one issue or implement exactly one feature. Never combine fixes for separate, unrelated issues into a single branch or PR. Exception: if a single code change genuinely resolves more than one issue (e.g. the same root cause), both issue numbers may be referenced in the commit and PR — but this should be rare and the connection must be explicit.
 
 ### Version Number Scheme
 
