@@ -323,9 +323,12 @@ jobs:
         if: env.TEST_GRAPH_TENANT_ID != ''
         shell: pwsh
         run: |
+          $logDir = Join-Path $env:RUNNER_TEMP 'entra-logs'
+          New-Item -ItemType Directory -Path $logDir -Force | Out-Null
           & test/nightly/Test-EntraIdCrawler.ps1 `
             -ApiBaseUrl http://localhost:3001/api `
-            -ApiKey '${{ steps.apikey.outputs.key }}'
+            -ApiKey '${{ steps.apikey.outputs.key }}' `
+            -LogFolder $logDir
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       # ── API benchmark regression ─────────────────────────────────
