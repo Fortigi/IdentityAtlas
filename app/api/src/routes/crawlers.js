@@ -158,9 +158,7 @@ adminCrawlersRouter.delete('/admin/crawlers/:id', async (req, res) => {
     const pool = await db.getPool();
 
     if (permanent) {
-      // Permanent delete — remove audit log entries first, then the crawler
-      await pool.request().input('id', id)
-        .query('DELETE FROM "CrawlerAuditLog" WHERE "crawlerId" = @id');
+      // CrawlerAuditLog has ON DELETE CASCADE so deleting the parent is enough
       const result = await pool.request().input('id', id)
         .query('DELETE FROM "Crawlers" WHERE id = @id');
       if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Crawler not found' });

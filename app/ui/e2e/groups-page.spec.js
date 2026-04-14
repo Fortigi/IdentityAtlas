@@ -8,7 +8,7 @@ test.describe('Groups Page', () => {
   });
 
   test('page renders with title and group count', async ({ page }) => {
-    await expect(page.locator('h2')).toContainText('Groups');
+    await expect(page.locator('h2')).toContainText('Resources');
     const totalText = page.getByText(/total/i);
     await expect(totalText.first()).toBeVisible({ timeout: 5000 });
   });
@@ -24,7 +24,7 @@ test.describe('Groups Page', () => {
   });
 
   test('search filters groups', async ({ page }) => {
-    const searchInput = page.getByPlaceholder(/Search by group name/i);
+    const searchInput = page.getByPlaceholder(/Search by resource name/i);
     await expect(searchInput).toBeVisible();
 
     await searchInput.fill('Finance');
