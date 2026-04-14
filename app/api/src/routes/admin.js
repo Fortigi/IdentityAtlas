@@ -645,7 +645,7 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
          WHERE relname IN (
            'Systems','Resources','Principals','Identities',
            'ResourceAssignments','ResourceRelationships','Contexts',
-           'CertificationDecisions','GraphSyncLog','RiskScores'
+           'IdentityMembers','CertificationDecisions','GraphSyncLog','RiskScores'
          )
            AND relkind = 'r'
       )
@@ -659,6 +659,7 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
         (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "assignmentType" = 'Governed')  AS "governedAssignments",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'ResourceRelationships'), 0), 0)::int  AS "relationships",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Contexts'), 0), 0)::int               AS "contexts",
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'IdentityMembers'), 0), 0)::int       AS "identityMembers",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'CertificationDecisions'), 0), 0)::int AS "certifications",
         (SELECT COUNT(*)::int FROM "GraphSyncLog")                                                         AS "syncLogEntries",
         (SELECT MAX("StartTime") FROM "GraphSyncLog")                                          AS "lastSyncAt",
