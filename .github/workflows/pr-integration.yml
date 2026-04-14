@@ -88,50 +88,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=worker
 
       - name: Start stack
-        run: |
-          cat > docker-compose.ci.yml <<'YAML'
-          services:
-            postgres:
-              image: postgres:16-alpine
-              environment:
-                POSTGRES_DB: identity_atlas
-                POSTGRES_USER: identity_atlas
-                POSTGRES_PASSWORD: ci_test
-              healthcheck:
-                test: ["CMD-SHELL", "pg_isready -U identity_atlas"]
-                interval: 5s
-                timeout: 3s
-                retries: 30
-                start_period: 10s
-            web:
-              image: identity-atlas-web:ci
-              group_add: ["0"]
-              environment:
-                NODE_ENV: production
-                USE_SQL: "true"
-                DATABASE_URL: "postgres://identity_atlas:ci_test@postgres:5432/identity_atlas"
-                AUTH_ENABLED: "false"
-                PORT: "3001"
-              ports: ["3001:3001"]
-              volumes:
-                - job_data:/data/uploads
-                - /var/run/docker.sock:/var/run/docker.sock:ro
-                - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
-              depends_on:
-                postgres: { condition: service_healthy }
-            worker:
-              image: identity-atlas-worker:ci
-              environment:
-                WEB_API_URL: "http://web:3001/api"
-              volumes:
-                - job_data:/data/uploads
-              depends_on:
-                web: { condition: service_started }
-              restart: "no"
-          volumes:
-            job_data:
-          YAML
-          docker compose -f docker-compose.ci.yml up -d
+        run: docker compose -f docker-compose.ci.yml up -d
 
       - name: Wait for API ready
         run: |
@@ -429,39 +386,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=web
 
       - name: Start stack
-        run: |
-          cat > docker-compose.ci.yml <<'YAML'
-          services:
-            postgres:
-              image: postgres:16-alpine
-              environment:
-                POSTGRES_DB: identity_atlas
-                POSTGRES_USER: identity_atlas
-                POSTGRES_PASSWORD: ci_test
-              healthcheck:
-                test: ["CMD-SHELL", "pg_isready -U identity_atlas"]
-                interval: 5s
-                timeout: 3s
-                retries: 30
-                start_period: 10s
-            web:
-              image: identity-atlas-web:ci
-              environment:
-                NODE_ENV: production
-                USE_SQL: "true"
-                DATABASE_URL: "postgres://identity_atlas:ci_test@postgres:5432/identity_atlas"
-                AUTH_ENABLED: "false"
-                PORT: "3001"
-              ports: ["3001:3001"]
-              volumes:
-                - job_data:/data/uploads
-                - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
-              depends_on:
-                postgres: { condition: service_healthy }
-          volumes:
-            job_data:
-          YAML
-          docker compose -f docker-compose.ci.yml up -d
+        run: docker compose -f docker-compose.ci.yml up -d
 
       - name: Wait for API ready
         run: |
@@ -560,55 +485,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=worker
 
       - name: Start stack
-        run: |
-          cat > docker-compose.ci.yml <<'YAML'
-          services:
-            postgres:
-              image: postgres:16-alpine
-              environment:
-                POSTGRES_DB: identity_atlas
-                POSTGRES_USER: identity_atlas
-                POSTGRES_PASSWORD: ci_test
-              healthcheck:
-                test: ["CMD-SHELL", "pg_isready -U identity_atlas"]
-                interval: 5s
-                timeout: 3s
-                retries: 30
-                start_period: 10s
-              # Give postgres more resources for load test
-              deploy:
-                resources:
-                  limits:
-                    memory: 2g
-            web:
-              image: identity-atlas-web:ci
-              group_add: ["0"]
-              environment:
-                NODE_ENV: production
-                USE_SQL: "true"
-                DATABASE_URL: "postgres://identity_atlas:ci_test@postgres:5432/identity_atlas"
-                AUTH_ENABLED: "false"
-                PORT: "3001"
-              ports: ["3001:3001"]
-              volumes:
-                - job_data:/data/uploads
-                - /var/run/docker.sock:/var/run/docker.sock:ro
-                - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
-              depends_on:
-                postgres: { condition: service_healthy }
-            worker:
-              image: identity-atlas-worker:ci
-              environment:
-                WEB_API_URL: "http://web:3001/api"
-              volumes:
-                - job_data:/data/uploads
-              depends_on:
-                web: { condition: service_started }
-              restart: "no"
-          volumes:
-            job_data:
-          YAML
-          docker compose -f docker-compose.ci.yml up -d
+        run: docker compose -f docker-compose.ci.yml up -d
 
       - name: Wait for API ready
         run: |
