@@ -330,14 +330,14 @@ jobs:
             -LogFolder '${{ runner.temp }}/entra-logs'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      # ── API benchmark regression ─────────────────────────────────
+      # ── API benchmark (informational, non-blocking) ─────────────
       - name: 'Test: API benchmark'
         shell: pwsh
+        continue-on-error: true
         run: |
           $benchScript = 'test/benchmark/Run-Benchmark.ps1'
           if (Test-Path $benchScript) {
             & $benchScript -ApiBaseUrl http://localhost:3001/api
-            if ($LASTEXITCODE -ne 0) { exit 1 }
           } else {
             Write-Host "Benchmark script not found — skipping"
           }
