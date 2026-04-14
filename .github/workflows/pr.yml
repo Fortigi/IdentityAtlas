@@ -161,7 +161,7 @@ jobs:
         run: npm install -g @stoplight/spectral-cli
 
       - name: Lint openapi.yaml
-        run: spectral lint app/api/src/openapi.yaml --ruleset @stoplight/spectral-oas
+        run: spectral lint app/api/src/openapi.yaml --ruleset spectral:oas
 
   # ── Stage 6: Dependency audit ────────────────────────────────────────────
   audit:

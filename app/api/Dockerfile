@@ -11,6 +11,13 @@ RUN npm run build
 
 # ── Stage 2: Backend runtime ──────────────────────────────────────────────────
 FROM node:20-slim AS runtime
+
+# Bake the module version into the image so /api/version returns the full
+# version string (e.g. 5.0.20260414.0900) without needing the .psd1 file.
+# Passed as a build arg by docker-publish.yml and docker-compose.yml.
+ARG MODULE_VERSION=""
+ENV MODULE_VERSION=$MODULE_VERSION
+
 WORKDIR /app/backend
 COPY api/package*.json ./
 RUN npm ci --omit=dev
