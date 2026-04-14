@@ -52,13 +52,19 @@ const perfEnabled = process.env.PERF_METRICS_ENABLED !== 'false';
 // Resolve module version: env var (set during deployment) → fallback to .psd1 manifest
 let moduleVersion = process.env.MODULE_VERSION || null;
 if (!moduleVersion) {
-  try {
-    const psdPath = join(__dirname, '../../../setup/IdentityAtlas.psd1');
-    const psdContent = readFileSync(psdPath, 'utf-8');
-    const match = psdContent.match(/ModuleVersion\s*=\s*'([^']+)'/);
-    if (match) moduleVersion = match[1];
-  } catch {
-    // .psd1 not available (deployed environment without env var)
+  // Try to read the version from the .psd1 manifest. Two paths:
+  //   1. /app/setup/IdentityAtlas.psd1 — mounted by docker-compose.yml for local dev
+  //   2. ../../../setup/IdentityAtlas.psd1 — works when running outside Docker (e.g. npm start)
+  const candidates = [
+    '/app/setup/IdentityAtlas.psd1',
+    join(__dirname, '../../../setup/IdentityAtlas.psd1'),
+  ];
+  for (const p of candidates) {
+    try {
+      const content = readFileSync(p, 'utf-8');
+      const match = content.match(/ModuleVersion\s*=\s*'([^']+)'/);
+      if (match) { moduleVersion = match[1]; break; }
+    } catch { /* not available at this path */ }
   }
 }
 
@@ -152,8 +158,20 @@ app.get('/api/health', publicLimiter, (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Minimum compose file version this image expects. Bump this whenever
+// docker-compose.prod.yml changes in a way that affects runtime behavior
+// (new env vars, volume mounts, group_add, etc.). Users with an older
+// compose file will see a warning on the Dashboard.
+const MIN_COMPOSE_FILE_VERSION = 1;
+
 app.get('/api/version', publicLimiter, (req, res) => {
-  res.json({ version: moduleVersion || null });
+  const composeFileVersion = parseInt(process.env.COMPOSE_FILE_VERSION || '0', 10);
+  res.json({
+    version: moduleVersion || null,
+    composeFileVersion: composeFileVersion || null,
+    minComposeFileVersion: MIN_COMPOSE_FILE_VERSION,
+    composeFileOutdated: composeFileVersion > 0 && composeFileVersion < MIN_COMPOSE_FILE_VERSION,
+  });
 });
 
 // Helper: read a feature flag override from WorkerConfig (overrides the env var)

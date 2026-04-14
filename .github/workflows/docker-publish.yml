@@ -59,6 +59,7 @@ jobs:
           push: false
           load: true
           tags: identity-atlas-web:qa
+          build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
@@ -139,6 +140,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/fortigi/identity-atlas:latest
             ${{ env.REGISTRY }}/fortigi/identity-atlas:${{ steps.version.outputs.version }}
+          build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
