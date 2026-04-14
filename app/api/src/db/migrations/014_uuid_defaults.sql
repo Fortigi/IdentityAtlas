@@ -6,6 +6,8 @@
 -- SERIAL columns (e.g. Systems.id) already auto-generate via nextval();
 -- UUID columns need the equivalent.
 
+-- Only UUID columns — SERIAL/bigint columns already auto-generate via nextval().
+-- RiskClassifiers.id is bigint (not UUID) despite the table name suggesting otherwise.
 ALTER TABLE "Resources"               ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "Principals"              ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "Contexts"                ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
@@ -14,4 +16,3 @@ ALTER TABLE "GovernanceCatalogs"      ALTER COLUMN "id" SET DEFAULT gen_random_u
 ALTER TABLE "AssignmentPolicies"      ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "AssignmentRequests"      ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "CertificationDecisions"  ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "RiskClassifiers"         ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
