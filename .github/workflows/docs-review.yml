@@ -1,0 +1,188 @@
+# ─── Nightly Documentation Review ─────────────────────────────────────────────
+# Runs nightly (03:00 UTC) and reviews recent code changes against the project
+# documentation. If any docs are outdated or missing coverage for new features,
+# Claude Code updates them and opens a draft PR.
+#
+# If documentation is already up to date, the workflow completes without
+# creating a branch or PR.
+#
+# Required secrets:
+#   TRIAGE_ANTHROPIC_API_KEY  — Anthropic API key for Claude Code
+#   TRIAGE_LLM_MODEL          — Model ID (e.g. claude-sonnet-4-5-20250929)
+# ───────────────────────────────────────────────────────────────────────────────
+
+name: Nightly Docs Review
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC every night (1 hour after auto-fix)
+  workflow_dispatch:
+
+jobs:
+  review-docs:
+    name: Review documentation freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Gather recent changes
+        id: changes
+        run: |
+          # Get commits from the last 24 hours (or since last tag if more useful)
+          SINCE=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+              || date -u -v-24H '+%Y-%m-%dT%H:%M:%SZ')
+
+          COMMIT_LOG=$(git log --since="$SINCE" --pretty=format:"- %h %s" --no-merges)
+
+          if [ -z "$COMMIT_LOG" ]; then
+            echo "No commits in the last 24 hours — nothing to review"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+          # Also get the list of changed files
+          CHANGED_FILES=$(git diff --name-only "HEAD@{24 hours ago}" HEAD 2>/dev/null \
+              || git diff --name-only HEAD~10 HEAD)
+
+          # Save to files for the Claude Code step
+          echo "$COMMIT_LOG" > /tmp/recent_commits.txt
+          echo "$CHANGED_FILES" > /tmp/changed_files.txt
+
+          echo "Recent commits:"
+          cat /tmp/recent_commits.txt
+          echo ""
+          echo "Changed files:"
+          cat /tmp/changed_files.txt
+
+      - name: Review docs with Claude Code
+        if: steps.changes.outputs.has_changes == 'true'
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
+          model: ${{ secrets.TRIAGE_LLM_MODEL }}
+          direct_prompt: |
+            You are a documentation reviewer for the Identity Atlas project.
+
+            ## Your task
+
+            Review recent code changes and determine whether the project documentation
+            needs updating. If it does, make the updates. If everything is already
+            accurate, do nothing — do NOT create changes just for the sake of it.
+
+            ## Recent commits (last 24 hours)
+
+            ```
+            $(cat /tmp/recent_commits.txt)
+            ```
+
+            ## Files changed
+
+            ```
+            $(cat /tmp/changed_files.txt)
+            ```
+
+            ## Instructions
+
+            1. Read CLAUDE.md to understand the project structure and conventions.
+
+            2. For each changed file, determine if it affects documented behavior:
+               - New or changed API endpoints → check docs/api/*.md
+               - New or changed UI features → check docs/ui/*.md
+               - Architecture changes → check docs/architecture/*.md
+               - Data model changes → check docs/concepts/*.md
+               - Sync/crawler changes → check docs/sync/*.md
+               - Risk scoring changes → check docs/risk-scoring/*.md
+               - Configuration changes → check docs/reference/config.md
+               - New troubleshooting scenarios → check docs/reference/troubleshooting.md
+               - Changes to CLAUDE.md sections (repo structure, features, etc.)
+
+            3. For each doc that needs updating:
+               - Read the current doc file
+               - Make minimal, targeted edits to bring it in line with the code
+               - Do NOT rewrite entire documents — only update what changed
+               - Do NOT add filler, marketing language, or unnecessary detail
+               - Match the existing writing style and tone
+               - Keep technical accuracy as the top priority
+
+            4. Things that do NOT need documentation updates:
+               - Internal refactors with no user-facing or API-facing changes
+               - Version bumps, CHANGES.md entries (those are their own tracking)
+               - Test-only changes
+               - CI/workflow changes (unless they affect developer setup docs)
+
+            5. If after reviewing everything, no documentation updates are needed,
+               create a file called /tmp/no_changes_needed and write "true" in it.
+               Do NOT make any commits in this case.
+
+            6. If you do make changes, create a single commit with a clear message
+               summarizing what documentation was updated and why.
+
+            Important: quality over quantity. One accurate sentence is better than a
+            paragraph of filler. Do not update docs just to prove you did something.
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,Agent"
+          timeout_minutes: 25
+
+      - name: Check for changes
+        if: steps.changes.outputs.has_changes == 'true'
+        id: check
+        run: |
+          if git diff --quiet HEAD; then
+            echo "Documentation is up to date — no PR needed"
+            echo "needs_pr=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Documentation updates detected"
+            echo "needs_pr=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create branch and PR
+        if: steps.check.outputs.needs_pr == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u '+%Y%m%d')
+          BRANCH="docs/nightly-review-${DATE}"
+
+          git checkout -b "$BRANCH"
+          git push -u origin "$BRANCH"
+
+          # Build a summary of what changed from the commit message
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --draft \
+            --title "docs: nightly review ${DATE}" \
+            --body "$(cat <<EOF
+          ## Summary
+
+          Automated documentation review triggered by recent code changes.
+
+          ${COMMIT_MSG}
+
+          ## Recent code changes reviewed
+
+          $(cat /tmp/recent_commits.txt)
+
+          ## Test plan
+
+          - [ ] Verify updated docs are technically accurate
+          - [ ] Check for broken links or formatting issues
+          - [ ] Confirm no docs were unnecessarily modified
+
+          :robot: Generated with [Claude Code](https://claude.ai/code)
+          EOF
+          )")
+
+          echo "Created draft PR: $PR_URL"
