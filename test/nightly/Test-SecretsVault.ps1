@@ -119,7 +119,7 @@ if (-not $abortRemaining) {
 # ─── 3. Verify encryption in DB ──────────────────────────────────
 if (-not $abortRemaining) {
     try {
-        $ciphertext = Invoke-Psql -Sql "SELECT ciphertext FROM ""Secrets"" WHERE id = 'llm-api-key'"
+        $ciphertext = Invoke-Psql -Sql "SELECT ciphertext FROM ""Secrets"" WHERE id = 'llm.apikey'"
         if ([string]::IsNullOrWhiteSpace($ciphertext)) {
             Report-Result 'Vault/EncryptionVerified' $false 'no ciphertext row found in Secrets table'
             $abortRemaining = $true
@@ -138,7 +138,7 @@ if (-not $abortRemaining) {
 # ─── 4. Tamper detection ─────────────────────────────────────────
 if (-not $abortRemaining) {
     try {
-        $updateResult = Invoke-Psql -Sql "UPDATE ""Secrets"" SET ""authTag"" = 'tampered' WHERE id = 'llm-api-key'"
+        $updateResult = Invoke-Psql -Sql "UPDATE ""Secrets"" SET ""authTag"" = 'tampered' WHERE id = 'llm.apikey'"
         # psql should return something like "UPDATE 1"
         if ($updateResult -notmatch 'UPDATE\s+1') {
             Report-Result 'Vault/TamperDetected' $false "psql UPDATE did not affect 1 row: $updateResult"
@@ -175,7 +175,7 @@ try {
     } else {
         Report-Result 'Vault/Cleanup' $false "DELETE failed: $($_.Exception.Message)"
         # Best-effort: try to wipe via psql so we don't leave test data behind
-        try { Invoke-Psql -Sql "DELETE FROM ""Secrets"" WHERE id = 'llm-api-key'" | Out-Null } catch { }
+        try { Invoke-Psql -Sql "DELETE FROM ""Secrets"" WHERE id = 'llm.apikey'" | Out-Null } catch { }
     }
 }
 

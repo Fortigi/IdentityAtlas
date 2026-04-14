@@ -150,6 +150,7 @@ try {
 # --- 3. Create 1 identity via /ingest/identities ---------------------
 try {
     $rI = Invoke-LocalApi -Path '/ingest/identities' -Method Post -Body @{
+        systemId     = $systemAId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
         idPrefix     = 'corr'
@@ -168,6 +169,7 @@ try {
 # --- 4. Link both principals to the identity via /ingest/identity-members
 try {
     $rM = Invoke-LocalApi -Path '/ingest/identity-members' -Method Post -Body @{
+        systemId     = $systemAId
         syncMode     = 'delta'
         idGeneration = 'deterministic'
         idPrefix     = 'corr'
