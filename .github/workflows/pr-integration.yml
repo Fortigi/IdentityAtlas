@@ -223,7 +223,7 @@ jobs:
             /systems /users?limit=1 /resources?limit=1
             /permissions?userLimit=1 /sync-log /categories
             /tags /access-packages /risk-profiles
-            /correlation-rulesets /admin/crawler-configs
+            /admin/correlation-ruleset /admin/crawler-configs
             /version /openapi.json /admin/container-stats
           )
           for ep in "${ENDPOINTS[@]}"; do
