@@ -200,7 +200,7 @@ router.patch('/admin/crawler-configs/:id', async (req, res) => {
       mergedConfig = { ...mergedConfig, ...incoming };
     }
 
-    const sets = ['config = @config', 'updatedAt = SYSUTCDATETIME()'];
+    const sets = ['config = @config', 'updatedAt = now()'];
     const request = pool.request().input('id', id).input('config', JSON.stringify(mergedConfig));
 
     if (displayName !== undefined) {
