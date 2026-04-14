@@ -1,3 +1,7 @@
+## Changes in this branch
+
+- **Fix identity graph truncated at the bottom on Dashboard** — The SVG height of the identity data model diagram was 360px, cutting off the bottom nodes (Contexts, Reviews) and their labels. Increased to 400px.
+
 # Identity Atlas — Changes since v5
 
 Tracks user-visible changes to Identity Atlas since the v5 release on
