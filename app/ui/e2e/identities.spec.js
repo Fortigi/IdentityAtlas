@@ -53,7 +53,9 @@ test.describe('Identities Page', () => {
 
   test('clicking Identities tab navigates to the page', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Identities', exact: true }).click();
+    const btn = page.getByRole('button', { name: 'Identities', exact: true });
+    await expect(btn).toBeVisible({ timeout: 10000 });
+    await btn.click();
     await page.waitForTimeout(500);
     // The URL hash should reflect the current tab
     expect(page.url()).toContain('identities');
