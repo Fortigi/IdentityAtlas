@@ -865,7 +865,7 @@ function HistoryRetentionSection() {
 }
 
 // ─── Danger Zone — Clean Database ─────────────────────────────────────────────
-function DangerZoneSection() {
+function DangerZoneSection({ onRefresh }) {
   const { authFetch } = useAuth();
   const [confirmStep, setConfirmStep] = useState(0); // 0=idle, 1=confirm, 2=type-confirm
   const [typedConfirm, setTypedConfirm] = useState('');
@@ -886,6 +886,7 @@ function DangerZoneSection() {
       setResult(data);
       setConfirmStep(0);
       setTypedConfirm('');
+      onRefresh?.();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1490,7 +1491,7 @@ function AdminSubTabs({ activeTab, onTabChange }) {
   );
 }
 
-export default function AdminPage({ onNavigate }) {
+export default function AdminPage({ onNavigate, onRefresh }) {
   // Persist active sub-tab in URL hash like #admin?sub=crawlers so deep links work.
   // Also handles legacy #crawlers and #performance hashes by mapping them to the
   // corresponding sub-tab.
@@ -1540,7 +1541,7 @@ export default function AdminPage({ onNavigate }) {
           <>
             <CuratedDataSection />
             <HistoryRetentionSection />
-            <DangerZoneSection />
+            <DangerZoneSection onRefresh={onRefresh} />
           </>
         )}
 
