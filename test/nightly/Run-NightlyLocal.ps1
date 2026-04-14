@@ -230,7 +230,7 @@ if (-not $SkipStaticChecks) {
             # Docker fallback: mount the whole repo read-only so the spec
             # file and any $ref targets remain resolvable.
             $repoPath = $RepoRoot -replace '\\','/' -replace '^([A-Za-z]):','/$1'
-            $null = & docker run --rm -v "${repoPath}:/work:ro" -w /work node:20-slim sh -c "npx -y @stoplight/spectral-cli lint app/api/src/openapi.yaml --ruleset @stoplight/spectral-oas" 2>&1 |
+            $null = & docker run --rm -v "${repoPath}:/work:ro" -w /work node:20-slim sh -c "npx -y @stoplight/spectral-cli lint app/api/src/openapi.yaml --ruleset spectral:oas" 2>&1 |
                 Tee-Object -FilePath $spectralLog
             $spectralExit = $LASTEXITCODE
             Write-Result 'Static-Spectral' ($spectralExit -eq 0) $(if ($spectralExit -ne 0) { "exit code $spectralExit (via docker)" })
