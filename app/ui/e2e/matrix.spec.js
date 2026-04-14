@@ -5,8 +5,8 @@ const API = 'http://localhost:3001/api';
 
 test.describe('Matrix View', () => {
   // Warm up the permissions API before tests — cold start in CI can take 20s+
-  test.beforeAll(async ({ request }) => {
-    await request.get(`${API}/permissions?userLimit=5`);
+  test.beforeAll(async () => {
+    await fetch(`${API}/permissions?userLimit=5`);
   });
 
   test.beforeEach(async ({ page }) => {

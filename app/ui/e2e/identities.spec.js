@@ -53,6 +53,7 @@ test.describe('Identities Page', () => {
 
   test('clicking Identities tab navigates to the page', async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
     const btn = page.getByRole('button', { name: 'Identities', exact: true });
     await expect(btn).toBeVisible({ timeout: 10000 });
     await btn.click();
