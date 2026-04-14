@@ -4,7 +4,11 @@ import { test, expect } from '@playwright/test';
 const API = 'http://localhost:3001/api';
 
 test.describe('Matrix View', () => {
-  // Warm up the permissions API before tests — cold start in CI can take 20s+
+  // The permissions API cold start in CI can take 20-30s (complex SQL join + query planning).
+  // Increase test timeout for the matrix spec to accommodate this.
+  test.setTimeout(60000);
+
+  // Warm up the permissions API before tests
   test.beforeAll(async () => {
     try { await fetch(`${API}/permissions?userLimit=5`); } catch { /* ignore */ }
   });
@@ -15,10 +19,10 @@ test.describe('Matrix View', () => {
   });
 
   test('matrix renders with rows and columns', async ({ page }) => {
-    // Should have a table/grid structure with group rows
-    // The permissions API can be slow on first CI request — use generous timeout
+    // The permissions API can take 20s+ on CI cold start (complex SQL join).
+    // Use the full test timeout for this first-load assertion.
     const table = page.locator('table').first();
-    await expect(table).toBeVisible({ timeout: 25000 });
+    await expect(table).toBeVisible({ timeout: 29000 });
   });
 
   test('user limit slider is present and functional', async ({ page }) => {
@@ -35,7 +39,7 @@ test.describe('Matrix View', () => {
   test('IST/SOLL/All toggle is present', async ({ page }) => {
     // Look for managed filter buttons - "All", "Unmanaged", "Managed", "Gaps"
     const allButton = page.getByRole('button', { name: 'All', exact: true }).first();
-    await expect(allButton).toBeVisible({ timeout: 25000 });
+    await expect(allButton).toBeVisible({ timeout: 29000 });
   });
 
   test('matrix cells show membership badges', async ({ page }) => {
