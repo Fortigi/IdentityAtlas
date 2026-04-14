@@ -233,9 +233,9 @@ if ($groupAId -and $brId -and $otherId) {
             idPrefix     = "dpc$ts-resource-relationships"
             records      = @(
                 # GroupA is contained in the business role
-                @{ parentResourceExternalId = $brExtId;    childResourceExternalId = $groupAExtId; relationshipType = 'Contains' }
+                @{ parentExternalId = $brExtId;    childExternalId = $groupAExtId; relationshipType = 'Contains' }
                 # GroupA is also contained in a non-BR parent (should NOT count toward accessPackageCount)
-                @{ parentResourceExternalId = $otherExtId; childResourceExternalId = $groupAExtId; relationshipType = 'Contains' }
+                @{ parentExternalId = $otherExtId; childExternalId = $groupAExtId; relationshipType = 'Contains' }
             )
         }
         Report-Result 'Setup/Relationships' $true "ok"
