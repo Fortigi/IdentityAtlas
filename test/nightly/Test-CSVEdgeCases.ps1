@@ -63,7 +63,7 @@ function Invoke-LocalApi {
         ErrorAction = 'Stop'
     }
     if ($ApiKey) {
-        $params.Headers = @{ 'X-API-Key' = $ApiKey }
+        $params.Headers = @{ Authorization = "Bearer $ApiKey" }
     }
     if ($Body) { $params.Body = ($Body | ConvertTo-Json -Depth 10) }
     return Invoke-RestMethod @params
