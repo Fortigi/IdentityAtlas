@@ -14,20 +14,19 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e',
+  globalSetup: './e2e/global-setup.js',
   fullyParallel: true,
   forbidOnly: true,
   retries: 2,
   workers: 1,
   reporter: [['html', { open: 'never' }], ['list']],
   timeout: 30000,
-  /* Create missing snapshots on first run instead of failing. Visual
-     regression baselines are platform-specific (chromium-linux in CI vs
-     chromium-win32 locally) so they won't exist until the first CI run. */
-  updateSnapshots: 'missing',
 
   use: {
     /* Docker web container serves frontend on port 3001 */
     baseURL: 'http://localhost:3001',
+    /* Desktop viewport so there's only one <nav> element (no mobile nav) */
+    viewport: { width: 1280, height: 720 },
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
