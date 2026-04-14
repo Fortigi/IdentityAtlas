@@ -11,15 +11,13 @@ test.describe('Matrix View', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    // Wait for data to load — the toolbar shows "X resources · Y assignments" once ready
+    await expect(page.getByText(/resources/)).toBeVisible({ timeout: 30000 });
   });
 
   test('matrix renders with rows and columns', async ({ page }) => {
     // Should have a table/grid structure with group rows
-    // Mock data has 43 groups and 80 users
-    const table = page.locator('table');
-    await expect(table.first()).toBeVisible({ timeout: 15000 });
-    const rows = page.locator('tr');
+    const rows = page.locator('table tr');
     await expect(rows.first()).toBeVisible({ timeout: 5000 });
   });
 
