@@ -1281,7 +1281,7 @@ function RecentJobs({ jobs, onForceStop }) {
   );
 }
 
-// ─── External Crawlers Table (API key crawlers) ──────────────────────────────
+// ─── Custom Connectors Table (API key crawlers) ──────────────────────────────
 function ExternalCrawlers({ crawlers, onToggle, onResetKey, onRemove, newKey, onDismissKey, onCopy, expandedAudit, auditData, onToggleAudit }) {
   const visible = crawlers.filter(c => c.displayName !== 'Built-in Worker');
   if (visible.length === 0) return null;
@@ -1290,7 +1290,7 @@ function ExternalCrawlers({ crawlers, onToggle, onResetKey, onRemove, newKey, on
 
   return (
     <div className="mb-6">
-      <h3 className="text-lg font-semibold mb-3">External Crawlers</h3>
+      <h3 className="text-lg font-semibold mb-3">Custom Connectors</h3>
 
       {newKey && (
         <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
