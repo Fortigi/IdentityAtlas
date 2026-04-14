@@ -106,25 +106,35 @@ if ($provider -eq 'azure-openai') {
     if ($apiVersion) { $body.apiVersion = $apiVersion }
 }
 
-try {
-    $resp = Invoke-RestMethod -Uri "$ApiBaseUrl/admin/llm/config" `
-        -Method Put -ContentType 'application/json' `
-        -Body ($body | ConvertTo-Json -Compress) -TimeoutSec 30
-    if ($resp.ok) {
-        Report-Result 'LLM-Config/Save' $true "provider=$($resp.config.provider) model=$($resp.config.model)"
-    } else {
-        Report-Result 'LLM-Config/Save' $false 'no ok=true in response'
-        if (-not $WriteResult) { exit 1 } else { return }
+# Retry once on failure — Docker Desktop on Windows has a known race where
+# postgres reports healthy but the bootstrap hasn't fully committed all
+# migration tables yet. A single 5-second retry handles this without
+# masking real bugs (a real schema issue would fail both attempts).
+$saved = $false
+for ($attempt = 1; $attempt -le 2; $attempt++) {
+    try {
+        $resp = Invoke-RestMethod -Uri "$ApiBaseUrl/admin/llm/config" `
+            -Method Put -ContentType 'application/json' `
+            -Body ($body | ConvertTo-Json -Compress) -TimeoutSec 30
+        if ($resp.ok) {
+            $suffix = if ($attempt -gt 1) { " (retry $attempt)" } else { '' }
+            Report-Result 'LLM-Config/Save' $true "provider=$($resp.config.provider) model=$($resp.config.model)$suffix"
+            $saved = $true
+            break
+        } else {
+            throw 'no ok=true in response'
+        }
+    } catch {
+        if ($attempt -lt 2) {
+            Write-Host "    LLM-Config/Save failed (attempt $attempt), retrying in 5s..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 5
+        } else {
+            $detail = $_.Exception.Message
+            if ($_.ErrorDetails.Message) { $detail += " — $($_.ErrorDetails.Message)" }
+            Report-Result 'LLM-Config/Save' $false $detail
+            if (-not $WriteResult) { exit 1 } else { return }
+        }
     }
-} catch {
-    # Extract the response body from the error so the nightly report includes
-    # the server's error message, not just "500 Internal Server Error".
-    # PowerShell 7's Invoke-RestMethod puts the body in ErrorDetails.Message;
-    # the older GetResponseStream() approach returns null in pwsh 7.
-    $detail = $_.Exception.Message
-    if ($_.ErrorDetails.Message) { $detail += " — $($_.ErrorDetails.Message)" }
-    Report-Result 'LLM-Config/Save' $false $detail
-    if (-not $WriteResult) { exit 1 } else { return }
 }
 
 # ─── Verify with a ping ──────────────────────────────────────────
