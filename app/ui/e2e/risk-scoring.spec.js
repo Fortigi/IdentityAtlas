@@ -59,7 +59,7 @@ test.describe('Risk Scoring Page', () => {
     await page.waitForTimeout(1000);
 
     // Just verify the page rendered without crashing
-    const nav = page.locator('nav').first();
+    const nav = page.locator('nav');
     await expect(nav).toBeVisible();
   });
 });

@@ -14,7 +14,7 @@ test.describe('Performance Page', () => {
 
   test('page renders', async ({ page }) => {
     // Performance page should show even if metrics are disabled
-    const nav = page.locator('nav').first();
+    const nav = page.locator('nav');
     await expect(nav).toBeVisible();
   });
 
@@ -43,7 +43,7 @@ test.describe('Performance Page', () => {
       await page.waitForTimeout(300);
 
       // Should still be on the page
-      const nav = page.locator('nav').first();
+      const nav = page.locator('nav');
       await expect(nav).toBeVisible();
     }
   });
