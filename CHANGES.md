@@ -1,3 +1,7 @@
+## Changes in this branch
+
+- **Fix "External Crawlers" / "Custom Connectors" naming inconsistency** — The section heading on Admin → Crawlers now reads "Custom Connectors" to match the type selector and wizard title.
+
 # Identity Atlas — Changes since v5
 
 Tracks user-visible changes to Identity Atlas since the v5 release on

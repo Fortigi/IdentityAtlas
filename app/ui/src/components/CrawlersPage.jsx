@@ -14,6 +14,24 @@ function formatDurationHMS(seconds) {
   return s > 0 ? `${m}m ${s}s` : `${m}m`;
 }
 
+function StepIndicator({ steps, step }) {
+  return (
+    <div className="flex items-center gap-2 mb-5 text-xs">
+      {steps.filter(s => s.shown !== false).map((s, i, arr) => (
+        <div key={s.n} className="flex items-center gap-2">
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold ${
+            s.n === step ? 'bg-indigo-600 text-white' :
+            s.n < step ? 'bg-indigo-100 text-indigo-700' :
+            'bg-gray-200 text-gray-500'
+          }`}>{i + 1}</div>
+          <span className={s.n === step ? 'font-medium text-gray-900' : 'text-gray-500'}>{s.label}</span>
+          {i < arr.length - 1 && <span className="text-gray-300">→</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Crawler type catalog ─────────────────────────────────────────────────────
 const CRAWLER_TYPES = [
   {
@@ -431,30 +449,13 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
 
   // ── Render ────────────────────────────────────────────────────
 
-  const renderStepIndicator = () => {
-    const steps = [
-      { n: 1, label: 'Credentials' },
-      { n: 2, label: 'Object Types' },
-      { n: 3, label: 'Identity', shown: stepNeeded(3) },
-      { n: 4, label: 'Users & Groups', shown: stepNeeded(4) },
-      { n: 5, label: 'Schedule' },
-    ];
-    return (
-      <div className="flex items-center gap-2 mb-5 text-xs">
-        {steps.filter(s => s.shown !== false).map((s, i, arr) => (
-          <div key={s.n} className="flex items-center gap-2">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold ${
-              s.n === step ? 'bg-indigo-600 text-white' :
-              s.n < step ? 'bg-indigo-100 text-indigo-700' :
-              'bg-gray-200 text-gray-500'
-            }`}>{i + 1}</div>
-            <span className={s.n === step ? 'font-medium text-gray-900' : 'text-gray-500'}>{s.label}</span>
-            {i < arr.length - 1 && <span className="text-gray-300">→</span>}
-          </div>
-        ))}
-      </div>
-    );
-  };
+  const entraSteps = [
+    { n: 1, label: 'Credentials' },
+    { n: 2, label: 'Object Types' },
+    { n: 3, label: 'Identity', shown: stepNeeded(3) },
+    { n: 4, label: 'Users & Groups', shown: stepNeeded(4) },
+    { n: 5, label: 'Schedule' },
+  ];
 
   return (
     <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
@@ -463,7 +464,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
       </div>
 
-      {renderStepIndicator()}
+      <StepIndicator steps={entraSteps} step={step} />
 
       {/* ─── Step 1: Name + Credentials ─────────────────────────── */}
       {step === 1 && (
@@ -1280,7 +1281,7 @@ function RecentJobs({ jobs, onForceStop }) {
   );
 }
 
-// ─── External Crawlers Table (API key crawlers) ──────────────────────────────
+// ─── Custom Connectors Table (API key crawlers) ──────────────────────────────
 function ExternalCrawlers({ crawlers, onToggle, onResetKey, onRemove, newKey, onDismissKey, onCopy, expandedAudit, auditData, onToggleAudit }) {
   const visible = crawlers.filter(c => c.displayName !== 'Built-in Worker');
   if (visible.length === 0) return null;
@@ -1289,7 +1290,7 @@ function ExternalCrawlers({ crawlers, onToggle, onResetKey, onRemove, newKey, on
 
   return (
     <div className="mb-6">
-      <h3 className="text-lg font-semibold mb-3">External Crawlers</h3>
+      <h3 className="text-lg font-semibold mb-3">Custom Connectors</h3>
 
       {newKey && (
         <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -1538,12 +1539,20 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
     }
   };
 
+  const csvSteps = [
+    { n: 1, label: 'System info' },
+    { n: 2, label: 'Upload files' },
+    { n: 3, label: 'Review' },
+  ];
+
   return (
     <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">{isEdit ? 'Edit CSV Crawler' : 'Add CSV Crawler'} — Step {step} of 3</h3>
+        <h3 className="text-lg font-semibold">{isEdit ? 'Edit CSV Crawler' : 'Add CSV Crawler'}</h3>
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
       </div>
+
+      <StepIndicator steps={csvSteps} step={step} />
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
@@ -1841,16 +1850,20 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
     })
 } | ConvertTo-Json -Depth 5)`;
 
+  const connectorSteps = [
+    { n: 1, label: 'Register' },
+    { n: 2, label: 'API Key' },
+    { n: 3, label: 'Getting started' },
+  ];
+
   return (
     <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">
-          {step === 1 && 'Custom Connector — Register'}
-          {step === 2 && 'Custom Connector — Your API Key'}
-          {step === 3 && 'Custom Connector — Getting Started'}
-        </h3>
+        <h3 className="text-lg font-semibold">Custom Connector</h3>
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
       </div>
+
+      <StepIndicator steps={connectorSteps} step={step} />
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>
