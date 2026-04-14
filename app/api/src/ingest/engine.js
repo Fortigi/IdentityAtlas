@@ -28,7 +28,7 @@ export async function discoverColumns(_pool, tableName) {
   if (schemaCache.has(tableName)) return schemaCache.get(tableName);
 
   const r = await db.query(
-    `SELECT column_name, data_type, is_nullable,
+    `SELECT column_name, data_type, is_nullable, column_default,
             (column_default LIKE 'nextval(%' OR is_identity = 'YES') AS is_identity
        FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = $1
@@ -45,6 +45,7 @@ export async function discoverColumns(_pool, tableName) {
     sqlTypeName: row.data_type,
     isNullable: row.is_nullable === 'YES',
     isIdentity: !!row.is_identity,
+    hasUuidDefault: (row.column_default || '').startsWith('gen_random_uuid'),
   }));
 
   schemaCache.set(tableName, cols);
@@ -82,9 +83,17 @@ function escapeCopyText(s) {
 }
 
 function buildCopyRow(record, activeColumns) {
-  const fields = activeColumns.map(col =>
-    encodeCopyValue(record[col.name], col.sqlTypeName)
-  );
+  const fields = activeColumns.map(col => {
+    let val = record[col.name];
+    // Auto-generate a UUID for columns with gen_random_uuid() default when
+    // the caller doesn't supply one. Without this, the COPY writes NULL which
+    // overrides the column DEFAULT — postgres only applies defaults for
+    // missing columns, not for explicit NULLs.
+    if ((val === null || val === undefined) && col.hasUuidDefault) {
+      val = crypto.randomUUID();
+    }
+    return encodeCopyValue(val, col.sqlTypeName);
+  });
   return fields.join('\t') + '\n';
 }
 
@@ -148,7 +157,9 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
         const row = [];
         for (const col of activeColumns) {
           row.push(`$${pi++}`);
-          params.push(rec[col.name] !== undefined ? rec[col.name] : null);
+          let val = rec[col.name] !== undefined ? rec[col.name] : null;
+          if (val === null && col.hasUuidDefault) val = crypto.randomUUID();
+          params.push(val);
         }
         placeholders.push(`(${row.join(',')})`);
       }

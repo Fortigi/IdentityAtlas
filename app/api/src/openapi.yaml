@@ -377,7 +377,7 @@ components:
           description: "full: merge + delete missing records. delta: merge only."
         scope:
           type: object
-          description: Narrow delete scope (e.g., { resourceType: "Group" })
+          description: 'Narrow delete scope (e.g., { resourceType: "Group" })'
           additionalProperties:
             type: string
         idGeneration:
