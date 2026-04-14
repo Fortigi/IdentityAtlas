@@ -57,7 +57,7 @@ export default function DashboardPage({ onNavigate }) {
     ]).then(([s, v]) => {
       if (cancelled) return;
       setStats(s);
-      setVersion(v?.version || null);
+      setVersion(v);
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -82,6 +82,20 @@ export default function DashboardPage({ onNavigate }) {
             </p>
           </div>
         </div>
+
+      {/* Compose file outdated warning */}
+      {version?.composeFileOutdated && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+          <div className="font-semibold text-amber-800 mb-1">Your docker-compose file is outdated</div>
+          <p className="text-amber-700">
+            The running image expects compose file version {version.minComposeFileVersion} but your file is version {version.composeFileVersion || 'unknown'}.
+            Re-download the latest version to get new settings (volume mounts, security fixes, etc.):
+          </p>
+          <code className="block mt-2 px-3 py-2 bg-amber-100 rounded text-xs font-mono text-amber-900">
+            curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+          </code>
+        </div>
+      )}
 
       {/* Main 2-column layout: brain graph + stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -119,8 +133,9 @@ export default function DashboardPage({ onNavigate }) {
                 <StatCard label="Business Roles" value={stats.businessRoles} onClick={() => onNavigate?.('access-packages')} />
                 <StatCard label="Identities"     value={stats.identities}    onClick={() => onNavigate?.('identities')} />
                 <StatCard label="Contexts"       value={stats.contexts}      onClick={() => onNavigate?.('org-chart')} />
-                <StatCard label="Assignments"    value={stats.assignments}   />
-                <StatCard label="Relationships"  value={stats.relationships} />
+                <StatCard label="Assignments"      value={stats.assignments}     />
+                <StatCard label="Relationships"    value={stats.relationships}  />
+                <StatCard label="Identity Members" value={stats.identityMembers} onClick={() => onNavigate?.('identities')} />
               </div>
               <div className="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-400 text-right">
                 <button
@@ -188,8 +203,8 @@ export default function DashboardPage({ onNavigate }) {
             </div>
             <h3 className="text-sm font-bold text-gray-900">Version</h3>
           </div>
-          <div className="text-3xl font-mono font-semibold text-gray-900 tabular-nums">
-            {version ? `v${version}` : 'v5.0'}
+          <div className={`font-mono font-semibold text-gray-900 tabular-nums ${version?.version?.length > 10 ? 'text-lg' : 'text-3xl'}`}>
+            {version?.version ? `v${version.version}` : 'v5.0'}
           </div>
           <div className="mt-3 text-xs">
             <a href={`${GITHUB_BASE}/blob/main/CHANGES.md`} target="_blank" rel="noopener noreferrer" className="text-lime-700 hover:text-lime-800 font-medium hover:underline inline-flex items-center gap-1">
@@ -221,11 +236,6 @@ export default function DashboardPage({ onNavigate }) {
         Created by{' '}
         <a href="https://www.fortigi.nl" target="_blank" rel="noopener noreferrer" className="hover:underline text-gray-500 hover:text-lime-700 transition-colors">
           Maatschap Fortigi
-        </a>
-        {' · '}
-        Lead developer{' '}
-        <a href="https://www.linkedin.com/in/wimvdheijkant/" target="_blank" rel="noopener noreferrer" className="hover:underline text-gray-500 hover:text-lime-700 transition-colors">
-          Wim van den Heijkant
         </a>
       </div>
       </div>
@@ -328,19 +338,22 @@ function BrainGraph({ stats, loading }) {
   const GREEN_DARK = '#365314';   // text inside node body
   const GREEN_LABEL = '#4d7c0f';  // label text
 
-  // Hand-positioned to suggest the logo's brain outline:
-  // Systems at the "top of the brain", Users/Identities on the right lobe,
-  // Resources/Roles on the left lobe, Assignments in the central core,
-  // Contexts + Reviews at the bottom.
+  // Hand-positioned to suggest the logo's brain outline — a top-heavy oval
+  // with two lobes. Systems crowns the top, Assignments sits in the central
+  // core, and the remaining nodes are arranged symmetrically around them to
+  // form the brain silhouette. The two new nodes (ID Members, Relationships)
+  // are tucked into the lobes rather than dangling at the bottom.
   const NODE_DEFS = [
-    { id: 'systems',     label: 'Systems',     key: 'systems',       x: 220, y: 58  },
-    { id: 'resources',   label: 'Resources',   key: 'resources',     x: 96,  y: 130 },
-    { id: 'users',       label: 'Users',       key: 'users',         x: 340, y: 120 },
-    { id: 'roles',       label: 'Roles',       key: 'businessRoles', x: 140, y: 220 },
-    { id: 'assignments', label: 'Assignments', key: 'assignments',   x: 220, y: 180 },
-    { id: 'identities',  label: 'Identities',  key: 'identities',    x: 370, y: 220 },
-    { id: 'contexts',    label: 'Contexts',    key: 'contexts',      x: 270, y: 285 },
-    { id: 'certs',       label: 'Reviews',     key: 'certifications', x: 80,  y: 285 },
+    { id: 'systems',        label: 'Systems',        key: 'systems',         x: 220, y: 45  },
+    { id: 'resources',      label: 'Resources',      key: 'resources',       x: 75,  y: 110 },
+    { id: 'users',          label: 'Users',          key: 'users',           x: 365, y: 110 },
+    { id: 'relationships',  label: 'Relationships',  key: 'relationships',   x: 68,  y: 200 },
+    { id: 'assignments',    label: 'Assignments',    key: 'assignments',     x: 220, y: 165 },
+    { id: 'identities',     label: 'Identities',     key: 'identities',      x: 372, y: 200 },
+    { id: 'roles',          label: 'Roles',          key: 'businessRoles',   x: 110, y: 275 },
+    { id: 'idMembers',      label: 'ID Members',     key: 'identityMembers', x: 330, y: 275 },
+    { id: 'certs',          label: 'Reviews',        key: 'certifications',  x: 155, y: 335 },
+    { id: 'contexts',       label: 'Contexts',       key: 'contexts',        x: 285, y: 335 },
   ];
 
   // Edges — many more than before so the graph looks like a dense brain net.
@@ -352,14 +365,19 @@ function BrainGraph({ stats, loading }) {
     ['systems', 'contexts'],
     ['systems', 'assignments'],
     ['resources', 'assignments'],
+    ['resources', 'relationships'],
     ['users', 'assignments'],
     ['users', 'identities'],
+    ['users', 'idMembers'],
     ['users', 'contexts'],
     ['resources', 'roles'],
     ['assignments', 'roles'],
     ['assignments', 'contexts'],
     ['assignments', 'identities'],
+    ['identities', 'idMembers'],
     ['identities', 'contexts'],
+    ['relationships', 'roles'],
+    ['relationships', 'certs'],
     ['resources', 'certs'],
     ['certs', 'roles'],
     ['certs', 'assignments'],
