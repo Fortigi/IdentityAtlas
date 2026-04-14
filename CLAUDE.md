@@ -31,15 +31,15 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 
 | Branch | Purpose | PR required? | Approval required? |
 |--------|---------|-------------|-------------------|
-| `main` | Stable releases only. Never commit directly. | Yes | Yes (at least 1) |
-| `dev` | Release candidate. Merge completed features here first. Never commit directly. | Yes | No |
-| `feature/<name>` | All development work. Created from `dev`. Merged back to `dev` via PR. | Yes (to `dev`) | No |
+| `main` | Stable trunk. Never commit directly. | Yes | Yes (at least 1) |
+| `feature/<name>` | All feature work. Created from `main`. Merged back to `main` via PR. | Yes (to `main`) | No |
+| `bugfixes/<name>` | Bug fixes. Created from `main`. Merged back to `main` via PR. | Yes (to `main`) | No |
 
 **Rules:**
-- `feature/` branches must be branched off `dev`, never off `main`.
-- All merges to `dev` and `main` go through a Pull Request — no direct pushes ever.
-- Feature branch names: `feature/<short-descriptive-name>` (lowercase, hyphens). Example: `feature/risk-score-export`.
-- When starting work, always create a new `feature/` branch. Never work directly on `dev` or `main`.
+- `feature/` and `bugfixes/` branches must be branched off `main`.
+- All merges to `main` go through a Pull Request — no direct pushes ever.
+- Branch names: `feature/<short-descriptive-name>` or `bugfixes/<short-descriptive-name>` (lowercase, hyphens). Example: `feature/risk-score-export`, `bugfixes/fix-login-redirect`.
+- When starting work, always create a new `feature/` or `bugfixes/` branch. Never work directly on `main`.
 
 ### Version Number Scheme
 
@@ -47,24 +47,21 @@ Version format (4 parts, PowerShell-compatible): `Major.Minor.yyyyMMdd.HHmm`
 
 | Branch | Version format | Example | When to increment |
 |--------|---------------|---------|------------------|
-| `main` | `Major.0.yyyyMMdd.HHmm` | `3.0.20260317.1430` | Increment `Major` each time `dev` is merged to `main`. `Minor` is always `0` on `main`. |
-| `dev` | `Major.Minor.yyyyMMdd.HHmm` | `2.5.20260317.1100` | Increment `Minor` each time a `feature/` branch is merged to `dev`. `Major` matches current `main`. |
-| `feature/*` | `Major.Minor.yyyyMMdd.HHmm` | `2.5.20260317.0915` | Update date/time stamp with every change. `Major` and `Minor` must match the current `dev` version. |
+| `main` | `Major.Minor.yyyyMMdd.HHmm` | `3.1.20260317.1430` | Increment `Minor` each time a `feature/` or `bugfixes/` branch is merged to `main`. Increment `Major` for breaking changes. |
+| `feature/*` / `bugfixes/*` | `Major.Minor.yyyyMMdd.HHmm` | `3.1.20260317.0915` | Update date/time stamp with every change. `Major.Minor` must match the current `main` version. |
 
 **How to apply:**
 
-1. **Starting a feature branch**: Branch from `dev`. Set version to current `dev` `Major.Minor` + today's date/time.
-2. **After any code change on a feature branch**: Update `yyyyMMdd.HHmm` to current date/time. Keep `Major.Minor` unchanged.
-3. **When merging feature → dev via PR**: Increment `dev` Minor by 1 and update date/time. Example: `2.4.x.x` → `2.5.20260317.1430`.
-4. **When merging dev → main via PR**: Increment `main` Major by 1, set Minor to 0, update date/time. Example: `2.x.x.x` → `3.0.20260317.1500`.
+1. **Starting a branch**: Branch from `main`. Set version to current `main` `Major.Minor` + today's date/time.
+2. **After any code change on a branch**: Update `yyyyMMdd.HHmm` to current date/time. Keep `Major.Minor` unchanged.
+3. **When merging feature/bugfixes → main via PR**: Increment `main` Minor by 1 and update date/time. Example: `3.1.x.x` → `3.2.20260317.1430`.
 
 ### CHANGES.md
 
-Every feature branch must maintain a `CHANGES.md` file at the repo root. This file:
-- Is **overwritten fresh** at the start of each feature branch (do not carry over old entries).
-- Contains a bullet list of **functional changes** made on this branch (what users/operators will notice), not implementation details.
-- Is used as the PR description when merging to `dev`.
-- After merging to `main`, its content is appended to `CHANGELOG.md` under a new version heading.
+Every feature/bugfixes branch must add entries to the `CHANGES.md` file at the repo root. This file:
+- Is a **running log** — prepend new entries at the top, do not wipe existing entries.
+- Contains a bullet list of **functional changes** (what users/operators will notice), not implementation details.
+- The new entries are used as the PR description when merging to `main`.
 
 **Format:**
 ```markdown
@@ -731,34 +728,24 @@ The Crawlers wizard validates these permissions on the App Registration during s
 ### Starting New Work
 
 ```bash
-git checkout dev && git pull
-git checkout -b feature/<name>   # e.g. feature/risk-score-export
+git checkout main && git pull
+git checkout -b feature/<name>      # e.g. feature/risk-score-export
+# or
+git checkout -b bugfixes/<name>     # e.g. bugfixes/fix-login-redirect
 ```
-
-Then immediately overwrite `CHANGES.md` with a fresh header (no old entries).
 
 ### Making Changes
 
-1. **Create/Edit Functions** in `Functions/<category>/`
-2. **Test locally**: `Import-Module .\FortigiGraph.psd1 -Force`
-3. **Update version** in `FortigiGraph.psd1` — keep `Major.Minor` from `dev`, update `yyyyMMdd.HHmm` to now
-4. **Add a bullet to `CHANGES.md`** describing the functional change
-5. **Commit** with descriptive messages
+1. **Create/Edit** the relevant files
+2. **Test locally** against the running Docker stack (`docker compose build web && docker compose up -d web`)
+3. **Add a bullet to `CHANGES.md`** (prepend at top) describing the functional change
+4. **Commit** with descriptive messages
 
-### Merging Feature → Dev (via PR)
+### Merging Feature/Bugfixes → Main (via PR)
 
-1. Open PR from `feature/<name>` into `dev`
-2. Use the content of `CHANGES.md` as the PR description
-3. No approval required — merge when CI passes
-4. After merge: increment `dev` Minor by 1 and update date/time in `FortigiGraph.psd1`
-
-### Merging Dev → Main (via PR, stable release)
-
-1. Open PR from `dev` into `main`
-2. Summarize all changes since last main release in the PR description
-3. Requires 1 approval
-4. After merge: increment Major by 1, set Minor to 0, update date/time in `FortigiGraph.psd1`
-5. Append the dev changes to `CHANGELOG.md` under a `## v{Major}.0 — {date}` heading
+1. Open PR from `feature/<name>` or `bugfixes/<name>` into `main`
+2. Use the new `CHANGES.md` entries as the PR description
+3. Requires 1 approval — merge when CI passes
 
 ### Version Updates
 
