@@ -14,6 +14,8 @@ on the upstream FortigiGraph repo.
 
 ---
 
+- **Detail pages show section counts before expanding** — Business role, resource, and user detail pages now show the count in each collapsible section header immediately on page load, without requiring the section to be expanded first. API changes: resource detail endpoint (`/api/resources/:id`) now returns `memberCount`, `accessPackageCount`, `parentResourceCount`, and `historyCount`; access-package and user/group detail endpoints now return `historyCount` (integer) instead of only `hasHistory` (boolean). The pending request count on business role pages is now fetched as a cheap `COUNT(*)` during core load rather than being deferred. Unnamed business roles show "Unnamed" in grey italic; null `parentResourceId` rows are excluded from counts and results to prevent 400 errors on navigation.
+
 - **Dashboard sync log entries link to Sync Log tab** — The "N sync log entries" text at the bottom of the stats card on the Dashboard is now a clickable link that navigates directly to the Sync Log tab.
 
 - **Extract `Section` and `CollapsibleSection` to `DetailSection.jsx`** — both components were defined identically inside four detail page files (UserDetailPage, GroupDetailPage, ResourceDetailPage, AccessPackageDetailPage), causing React to recreate them on every render. Extracted to a shared `components/DetailSection.jsx`. No behavior change.
