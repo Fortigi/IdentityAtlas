@@ -188,7 +188,7 @@ try {
     $groupA = $rows | Where-Object { $_.displayName -like '*DPC GroupA*' } | Select-Object -First 1
     $groupAId = $groupA.id
 
-    $res2 = Invoke-Api -Path '/resources?search=DPC+BusinessRoleA'
+    $res2 = Invoke-Api -Path "/resources?search=DPC+BusinessRoleA&resourceType=BusinessRole"
     $rows2 = if ($res2 -is [array]) { $res2 } else { $res2.data }
     $br    = $rows2 | Where-Object { $_.displayName -like '*DPC BusinessRoleA*' } | Select-Object -First 1
     $brId  = $br.id
