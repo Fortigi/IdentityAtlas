@@ -14,7 +14,9 @@
 name: Publish Docker Images
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Bump version on PR merge"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -25,12 +27,17 @@ jobs:
   publish:
     name: Build, Test & Push Images
     runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       packages: write
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Extract version from manifest
         id: version
