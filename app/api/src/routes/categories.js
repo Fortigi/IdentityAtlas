@@ -165,7 +165,7 @@ router.post('/categories/unassign', async (req, res) => {
 
     await p.request()
       .input('resourceId', String(resId).toLowerCase())
-      .query('DELETE FROM GovernanceCategoryAssignments WHERE resourceId = @resourceId');
+      .query('DELETE FROM "GovernanceCategoryAssignments" WHERE "resourceId" = @resourceId');
     res.json({ ok: true });
   } catch (err) {
     console.error('POST /categories/unassign failed:', err.message);

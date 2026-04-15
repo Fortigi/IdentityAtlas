@@ -112,7 +112,7 @@ adminCrawlersRouter.patch('/admin/crawlers/:id', async (req, res) => {
   }
   if (enabled !== undefined) {
     sets.push('"enabled" = @enabled');
-    request.input('enabled', enabled ? 1 : 0);
+    request.input('enabled', enabled ? true : false);
   }
   if (systemIds !== undefined) {
     sets.push('"systemIds" = @systemIds');
@@ -294,7 +294,7 @@ selfServiceCrawlersRouter.post('/crawlers/rotate', async (req, res) => {
 });
 
 // POST /api/crawlers/job-progress — Crawlers report fine-grained progress here.
-// The body merges into dbo.CrawlerJobs.progress so the UI can show what the crawler
+// The body merges into CrawlerJobs.progress so the UI can show what the crawler
 // is doing right now ("Group memberships: 1500 of 9633") instead of sitting on the
 // last big-step update from the worker dispatcher.
 selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {

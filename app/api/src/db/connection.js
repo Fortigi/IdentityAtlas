@@ -1,23 +1,14 @@
-// Postgres connection pool + query helpers + a thin mssql-compat shim.
+// Postgres connection pool + query helpers.
 //
-// Two parallel APIs are exposed:
+// Two APIs are exposed:
 //
 //   1. Native postgres helpers — `db.query(text, params)`,
-//      `db.queryOne(text, params)`, `db.tx(fn)`. Use these in any new code.
+//      `db.queryOne(text, params)`, `db.tx(fn)`. Preferred for new code.
 //
-//   2. mssql-compat shim — `getPool().request().input(name, val).query(sqlText)`.
-//      Used by the v4 route files that haven't been rewritten yet. The shim
-//      converts `@name` placeholders to `$N`, runs the query via pg, and
-//      mimics the mssql result shape (`recordset`, `recordsets`, `rowsAffected`).
-//      It does NOT translate the SQL itself — that has to be done in each
-//      route file (camelCase identifiers must be double-quoted, ValidTo
-//      filters removed, GETDATE() → now(), etc.). The shim only provides
-//      the surface compatibility that makes the rewriting tractable.
-//
-// Why both? The migration plan said "no abstraction layer". In practice,
-// translating 8000+ lines of route code in one session is too risky; the shim
-// lets us migrate route by route while keeping a working stack the entire time.
-// Any new code should prefer the native helpers.
+//   2. Request-style helper — `getPool().request().input(name, val).query(sqlText)`.
+//      Converts `@name` placeholders to `$N`, runs the query via pg, and
+//      returns results shaped as `{ recordset, recordsets, rowsAffected }`.
+//      camelCase identifiers in SQL must be double-quoted.
 
 import pg from 'pg';
 
@@ -57,16 +48,15 @@ function getPoolSync() {
   return pool;
 }
 
-// ─── mssql-compat shim ───────────────────────────────────────────
-// Returns an object with .request() that produces a Request-shaped helper
-// supporting .input(name, value).query(sqlText). The query method converts
-// `@name` placeholders to `$N` and runs through pg, returning a result
-// shaped like an mssql result so existing route code works unchanged.
+// ─── Request-style helper ────────────────────────────────────────
+// Returns an object supporting .input(name, value).query(sqlText).
+// Converts `@name` placeholders to `$N` and runs through pg, returning
+// { recordset, recordsets, rowsAffected }.
 function makeCompatRequest() {
   const inputs = new Map();
   const request = {
     input(name, value) {
-      // mssql also accepts (name, type, value); we accept both shapes.
+      // Also accepts (name, type, value); the type arg is ignored — pg infers from JS values.
       // The "type" arg (if present) is ignored — pg infers from JS values.
       if (arguments.length === 3) {
         inputs.set(name, arguments[2]);
@@ -75,14 +65,14 @@ function makeCompatRequest() {
       }
       return request;
     },
-    output() { return request; }, // mssql output params — no-op
+    output() { return request; }, // no-op — output params not used
     parameters: { _params: inputs },
     timeout: 0,
     async query(sqlText) {
       // Convert @name → $1, $2, ... preserving order. Repeated @names share
       // the same $N. Quoted strings ('foo @bar') are NOT placeholders — skip them.
       const paramOrder = [];
-      const pgSql = replaceMssqlParams(sqlText, (name) => {
+      const pgSql = replaceAtParams(sqlText, (name) => {
         let idx = paramOrder.indexOf(name);
         if (idx === -1) {
           paramOrder.push(name);
@@ -92,8 +82,8 @@ function makeCompatRequest() {
       });
       const params = paramOrder.map(p => inputs.get(p));
 
-      // Detect multi-statement queries (the v4 mssql code occasionally returns
-      // two recordsets — typically a SELECT for data and a SELECT for the COUNT).
+      // Detect multi-statement queries (some routes return two recordsets —
+      // typically a SELECT for data and a SELECT for the COUNT).
       // pg's prepared-statement protocol can't handle multiple statements in one
       // query, so we split on `;` and run each statement separately, returning
       // both results in a recordsets array.
@@ -126,7 +116,7 @@ function makeCompatRequest() {
       try {
         for (const origStmt of origStatements) {
           const stmtOrder = [];
-          const stmtSql = replaceMssqlParams(origStmt, (name) => {
+          const stmtSql = replaceAtParams(origStmt, (name) => {
             let idx = stmtOrder.indexOf(name);
             if (idx === -1) {
               stmtOrder.push(name);
@@ -184,7 +174,7 @@ function splitSqlStatements(sql) {
 
 // Walk the SQL string and replace @name with the result of cb(name).
 // Skips occurrences inside single-quoted strings (so '@email' stays literal).
-function replaceMssqlParams(sql, cb) {
+function replaceAtParams(sql, cb) {
   let out = '';
   let i = 0;
   let inString = false;
@@ -212,14 +202,9 @@ function replaceMssqlParams(sql, cb) {
 
 // ─── Public API ──────────────────────────────────────────────────
 
-// Async wrapper kept for parity with the old `getPool()` signature so route
-// files that already use `await db.getPool()` continue to work without
-// rewriting every call site. The returned object has .request() that yields
-// the mssql-compat shim above.
+// Returns an object with `.request()` for the request-style helper and
+// pg-native pool methods (`query`, `connect`) passed through.
 export async function getPool() {
-  // Return an object with a `.request()` method that produces the compat shim
-  // (used by v4-style routes), AND with the pg-native pool methods passed
-  // through (used by the ingest sessions code which needs `pool.connect()`).
   return {
     request: makeCompatRequest,
     query:   (text, params) => getPoolSync().query(text, params),

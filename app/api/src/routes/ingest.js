@@ -386,6 +386,7 @@ async function refreshMatrixViews() {
     '"ResourceRelationships"',
     '"Contexts"',
     '"Identities"',
+    '"IdentityMembers"',
     '"Systems"',
     '"CertificationDecisions"',
     '"GraphSyncLog"',
