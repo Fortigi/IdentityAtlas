@@ -89,6 +89,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      id-token: write
     strategy:
       matrix: ${{ fromJson(needs.find-issues.outputs.matrix) }}
       max-parallel: 1 # process one issue at a time to avoid branch conflicts
