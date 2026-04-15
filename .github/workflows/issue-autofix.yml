@@ -113,6 +113,7 @@ jobs:
         id: claude1
         uses: anthropics/claude-code-action@v1
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }} --allowedTools Bash,Read,Write,Edit,Glob,Grep,Agent"
           prompt: |
             You are fixing GitHub issue #${{ matrix.number }} for the Identity Atlas project.
@@ -272,6 +273,7 @@ jobs:
         if: steps.create-pr.outputs.pr_created == 'true' && steps.ci-check.outputs.ci_passed == 'false'
         uses: anthropics/claude-code-action@v1
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }} --allowedTools Bash,Read,Write,Edit,Glob,Grep,Agent"
           prompt: |
             Your previous fix for GitHub issue #${{ matrix.number }} was submitted as a PR,
