@@ -203,6 +203,10 @@ jobs:
           echo "Changes detected — creating branch and PR"
           git log origin/main..HEAD --oneline
 
+          # Re-authenticate git remote with GITHUB_TOKEN (the OIDC token from
+          # claude-code-action may have replaced the default credentials)
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+
           SLUG=$(echo "${{ matrix.title }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | head -c 40)
           BRANCH="bugfixes/autofix-issue-${{ matrix.number }}-${SLUG}"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
@@ -333,6 +337,7 @@ jobs:
             echo "No additional changes from retry"
             echo "pushed=false" >> "$GITHUB_OUTPUT"
           else
+            git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
             git push origin "${{ steps.create-pr.outputs.branch }}"
             echo "Pushed CI fixes"
             echo "pushed=true" >> "$GITHUB_OUTPUT"
