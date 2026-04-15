@@ -1,7 +1,7 @@
 /**
  * Crawler job management + crawler configuration endpoints.
- * Jobs are stored in dbo.CrawlerJobs and picked up by the PowerShell worker.
- * Configs are stored in dbo.CrawlerConfigs for persistent crawler settings.
+ * Jobs are stored in CrawlerJobs and picked up by the worker container.
+ * Configs are stored in CrawlerConfigs for persistent crawler settings.
  */
 import { Router } from 'express';
 import * as db from '../db/connection.js';
@@ -200,7 +200,7 @@ router.patch('/admin/crawler-configs/:id', async (req, res) => {
       mergedConfig = { ...mergedConfig, ...incoming };
     }
 
-    const sets = ['config = @config', 'updatedAt = SYSUTCDATETIME()'];
+    const sets = ['config = @config', 'updatedAt = now()'];
     const request = pool.request().input('id', id).input('config', JSON.stringify(mergedConfig));
 
     if (displayName !== undefined) {

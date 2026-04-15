@@ -327,7 +327,7 @@ function NoDataState({ onNavigate }) {
 function BrainGraph({ stats, loading }) {
   const svgRef = useRef(null);
   const width = 440;
-  const height = 360;
+  const height = 400;
 
   // Logo-inspired palette tuned for a WHITE/light background. Bright lime
   // for active fills, deeper greens for outlines and text so they stay
@@ -416,7 +416,7 @@ function BrainGraph({ stats, loading }) {
       ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
       className="w-full h-auto"
-      style={{ maxHeight: '360px' }}
+      style={{ maxHeight: '400px' }}
     >
       <defs>
         {/* Active node gradient — bright lime highlight fading to mid-green */}
