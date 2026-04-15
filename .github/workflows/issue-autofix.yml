@@ -114,8 +114,8 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
-          model: ${{ secrets.TRIAGE_LLM_MODEL }}
-          direct_prompt: |
+          claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }} --allowedTools Bash,Read,Write,Edit,Glob,Grep,Agent"
+          prompt: |
             You are fixing GitHub issue #${{ matrix.number }} for the Identity Atlas project.
 
             **Issue title:** ${{ matrix.title }}
@@ -145,8 +145,6 @@ jobs:
             - Don't add features beyond what's needed for the fix
             - Don't add comments, docstrings, or type annotations to unchanged code
             - English only in code comments
-          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,Agent"
-          timeout_minutes: 25
 
       - name: Create branch and PR
         id: create-pr
