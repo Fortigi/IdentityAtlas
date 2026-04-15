@@ -422,8 +422,7 @@ router.get('/users', async (req, res) => {
     }
     where += filterWhere;
 
-    // Two-statement query: data + count, returned as recordsets[0] and [1]
-    // by the mssql-compat shim.
+    // Two-statement query: data + count, returned as recordsets[0] and [1].
     const result = await request.query(`
       SELECT u.id, u."displayName", u."email" AS "userPrincipalName",
              u."department", u."jobTitle", u."companyName", u."accountEnabled",
