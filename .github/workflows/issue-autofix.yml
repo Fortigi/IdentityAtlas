@@ -57,11 +57,12 @@ jobs:
             --json number,title,body,labels \
             --limit 10)
 
-          # Filter out issues that already have fix-in-progress or cant-autofix
+          # Filter out issues that already have fix-in-progress, cant-autofix, or auto-fixed
           ELIGIBLE=$(echo "$ISSUES" | jq -c '[
             .[] | select(
               ([.labels[].name] | index("fix-in-progress") | not) and
-              ([.labels[].name] | index("cant-autofix") | not)
+              ([.labels[].name] | index("cant-autofix") | not) and
+              ([.labels[].name] | index("auto-fixed") | not)
             ) | {
               number: .number,
               title: .title,
