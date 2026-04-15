@@ -745,6 +745,10 @@ git checkout -b bugfixes/<name>     # e.g. bugfixes/fix-login-redirect
 
 Break features and auto-fixes into a **stack of small, focused PRs** rather than one large PR. Each step gets its own branch targeting the previous branch in the stack.
 
+> **GitHub native stacking (private preview, April 2026):** GitHub is rolling out a native `gh stack` extension that improves on the manual pattern below in four ways: (1) `gh stack submit` creates all PRs in the stack at once; (2) `gh stack sync` auto-rebases the entire stack after a bottom PR merges — eliminating the manual `gh pr edit --base` step; (3) a visual stack map appears in every PR so reviewers can navigate the chain; (4) "Direct merge" merges a PR and all its unmerged dependencies in one click. Sign up at `gh.io/stacksbeta`. Once available, prefer `gh stack` commands over the manual pattern below.
+
+**Manual pattern (use until `gh stack` is available):**
+
 ```bash
 # First slice — targets main
 git checkout main && git pull
