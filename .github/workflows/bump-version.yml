@@ -1,0 +1,75 @@
+# ─── Version Bump + Changelog Merge on PR Merge ──────────────────────────────
+# On every PR merge to main this workflow:
+#   1. Collects all fragment files from changes/*.md and prepends them to
+#      CHANGES.md, then deletes the fragments.
+#   2. Increments the Minor version in setup/IdentityAtlas.psd1 and updates
+#      the timestamp.
+#
+# Branches never touch CHANGES.md or the version file directly — each branch
+# creates a uniquely named fragment file in changes/ instead, so merge
+# conflicts on those two files are eliminated.
+#
+# After the commit lands, docker-publish.yml is triggered via workflow_run
+# so Docker images are always tagged with the new (post-bump) version.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Bump version on PR merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  bump-version:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge changelog fragments and bump version
+        shell: pwsh
+        run: |
+          # ── 1. Collect changelog fragments from changes/*.md ──────────────
+          $fragments = Get-ChildItem changes/*.md -ErrorAction SilentlyContinue | Sort-Object Name
+          if ($fragments) {
+            $bullets = ($fragments | ForEach-Object { (Get-Content $_ -Raw).Trim() }) -join "`n"
+            $existing = Get-Content CHANGES.md -Raw
+            $newBlock  = "## Changes in this PR`n`n$bullets`n`n"
+            Set-Content CHANGES.md ($newBlock + $existing) -NoNewline
+            $fragments | Remove-Item
+            Write-Host "Merged $($fragments.Count) changelog fragment(s) into CHANGES.md"
+          } else {
+            Write-Host "No changelog fragments found in changes/ -- skipping CHANGES.md update"
+          }
+
+          # ── 2. Bump Minor version in setup/IdentityAtlas.psd1 ─────────────
+          $content = Get-Content setup/IdentityAtlas.psd1 -Raw
+          if ($content -match "ModuleVersion\s*=\s*'(\d+)\.(\d+)\.\d+\.\d+'") {
+            $major  = $Matches[1]
+            $minor  = [int]$Matches[2] + 1
+            $stamp  = (Get-Date -Format 'yyyyMMdd.HHmm')
+            $newVer = "$major.$minor.$stamp"
+            $content = $content -replace "ModuleVersion\s*=\s*'\d+\.\d+\.\d+\.\d+'", "ModuleVersion = '$newVer'"
+            Set-Content setup/IdentityAtlas.psd1 $content -NoNewline
+            Write-Host "Bumped to $newVer"
+            "NEW_VERSION=$newVer" | Out-File -Append $env:GITHUB_ENV
+          } else {
+            Write-Error "Could not find ModuleVersion in setup/IdentityAtlas.psd1"
+            exit 1
+          }
+
+      - name: Commit and push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add setup/IdentityAtlas.psd1 CHANGES.md changes/
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: bump version to ${NEW_VERSION}"
+          git push
