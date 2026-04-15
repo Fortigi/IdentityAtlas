@@ -1,10 +1,10 @@
 # FortigiGraph - AI Assistant Development Guide
 
-> **IMPORTANT: After making ANY code changes, you MUST update the module version AND CHANGES.md!**
-> 1. Update the `ModuleVersion` in `FortigiGraph.psd1` using the scheme for the **current branch** (see Branching & Versioning below)
-> 2. If running locally, run `_Build/CreatePSD.ps1` to regenerate `FortigiGraph.psd1`
-> 3. Add a bullet to `CHANGES.md` describing the functional change (user-facing language, not implementation details)
-> This ensures changes are properly tracked and the module can be re-imported.
+> **IMPORTANT: After making ANY code changes, you MUST add a changelog fragment!**
+> 1. Create or update `changes/<branch-name>.md` (e.g. `changes/fix-mssql-shim-boolean.md`) with bullet points describing the functional change (user-facing language, not implementation details).
+> 2. Do **NOT** edit `CHANGES.md` directly — the `bump-version.yml` Action merges all fragments into it on PR merge.
+> 3. Do **NOT** edit `ModuleVersion` in `setup/IdentityAtlas.psd1` — version bumps are also automated by the same Action.
+> This eliminates merge conflicts on both files.
 
 ## Project Overview
 
@@ -19,7 +19,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 - **Company:** Fortigi
 - **GitHub:** https://github.com/Fortigi/IdentityAtlas
 - **Distribution:** PowerShell Gallery
-- **Current Version:** 3.1.yyyyMMdd.HHmm (run `_Build/CreatePSD.ps1` to update)
+- **Current Version:** 5.x.yyyyMMdd.HHmm (auto-bumped by `bump-version.yml` on every PR merge to `main`)
 
 ---
 
@@ -40,38 +40,39 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 - All merges to `main` go through a Pull Request — no direct pushes ever.
 - Branch names: `feature/<short-descriptive-name>` or `bugfixes/<short-descriptive-name>` (lowercase, hyphens). Example: `feature/risk-score-export`, `bugfixes/fix-login-redirect`.
 - When starting work, always create a new `feature/` or `bugfixes/` branch. Never work directly on `main`.
+- **One issue per branch.** Each branch must fix exactly one issue or implement exactly one feature. Never combine fixes for separate, unrelated issues into a single branch or PR. Exception: if a single code change genuinely resolves more than one issue (e.g. the same root cause), both issue numbers may be referenced in the commit and PR — but this should be rare and the connection must be explicit.
 
 ### Version Number Scheme
 
 Version format (4 parts, PowerShell-compatible): `Major.Minor.yyyyMMdd.HHmm`
 
-| Branch | Version format | Example | When to increment |
-|--------|---------------|---------|------------------|
-| `main` | `Major.Minor.yyyyMMdd.HHmm` | `3.1.20260317.1430` | Increment `Minor` each time a `feature/` or `bugfixes/` branch is merged to `main`. Increment `Major` for breaking changes. |
-| `feature/*` / `bugfixes/*` | `Major.Minor.yyyyMMdd.HHmm` | `3.1.20260317.0915` | Update date/time stamp with every change. `Major.Minor` must match the current `main` version. |
+| Branch | Version format | Who updates it | When |
+|--------|---------------|----------------|------|
+| `main` | `Major.Minor.yyyyMMdd.HHmm` | `bump-version.yml` GitHub Action (automated) | On every PR merge. Increments `Minor`, updates timestamp. |
+| `feature/*` / `bugfixes/*` | — | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch. |
 
 **How to apply:**
 
-1. **Starting a branch**: Branch from `main`. Set version to current `main` `Major.Minor` + today's date/time.
-2. **After any code change on a branch**: Update `yyyyMMdd.HHmm` to current date/time. Keep `Major.Minor` unchanged.
-3. **When merging feature/bugfixes → main via PR**: Increment `main` Minor by 1 and update date/time. Example: `3.1.x.x` → `3.2.20260317.1430`.
+1. **Starting a branch**: Branch from `main`. Leave `setup/IdentityAtlas.psd1` untouched.
+2. **After any code change on a branch**: Add bullets to `changes/<branch-name>.md`. Do not edit `CHANGES.md` or `ModuleVersion`.
+3. **When merging feature/bugfixes → main via PR**: The `bump-version.yml` Action runs automatically after merge and commits the Minor increment + new timestamp to `main`. The `docker-publish.yml` Action then triggers on that commit to build and push Docker images with the updated version.
+4. **Major version bump**: Edit `setup/IdentityAtlas.psd1` manually on `main` (via a PR) for a breaking change. Increment `Major`, reset `Minor` to `0`.
 
-### CHANGES.md
+### Changelog fragments (replaces direct CHANGES.md edits)
 
-Every feature/bugfixes branch must add entries to the `CHANGES.md` file at the repo root. This file:
-- Is a **running log** — prepend new entries at the top, do not wipe existing entries.
-- Contains a bullet list of **functional changes** (what users/operators will notice), not implementation details.
-- The new entries are used as the PR description when merging to `main`.
+Every feature/bugfixes branch must add a fragment file under `changes/`. **Never edit `CHANGES.md` directly** — the `bump-version.yml` Action merges all fragments into it on PR merge, eliminating merge conflicts.
 
-**Format:**
+- **Filename:** `changes/<descriptive-name>.md` — use the branch name or a short slug (e.g. `changes/fix-mssql-shim-boolean.md`). One file per branch is typical; the name just needs to be unique across open PRs.
+- **Content:** Bullet points only. User-facing language. No implementation details.
+- `CHANGES.md` itself is append-only and owned by CI — never edit it on a branch.
+
+**Fragment format:**
 ```markdown
-## Changes in this branch
-
 - <Functional description of change 1>
 - <Functional description of change 2>
 ```
 
-**Rules for writing CHANGES.md entries:**
+**Rules for writing entries:**
 - Write in user-facing language ("Added X", "Fixed Y", "Improved Z").
 - Do not describe internal refactors unless they affect observable behavior.
 - Add a bullet immediately after each meaningful change — don't batch them up at the end.
@@ -424,7 +425,7 @@ FortigiGraph/
 │       └── docker-setup.md               # Docker deployment architecture
 │
 ├── FortigiGraph.psm1       # Module entry point (auto-loads all functions)
-├── FortigiGraph.psd1       # Module manifest
+├── setup/IdentityAtlas.psd1 # Module manifest (version auto-bumped by CI)
 ├── README.md               # User documentation
 └── CLAUDE.md               # This file - AI assistant development guide
 ```
@@ -629,7 +630,6 @@ function Get-FGSQLResource {
 - Use color-coded Write-Host for user feedback (Green=success, Yellow=warning, Cyan=progress, Red=error)
 - Use `-ErrorAction Stop` with try/catch for Azure operations that must succeed before continuing
 - Return raw Graph objects (don't transform)
-- Update module version after every change
 
 **DON'T:**
 - Don't call `Invoke-RestMethod` directly for Graph (use wrappers)
@@ -738,7 +738,7 @@ git checkout -b bugfixes/<name>     # e.g. bugfixes/fix-login-redirect
 
 1. **Create/Edit** the relevant files
 2. **Test locally** against the running Docker stack (`docker compose build web && docker compose up -d web`)
-3. **Add a bullet to `CHANGES.md`** (prepend at top) describing the functional change
+3. **Add bullets to `changes/<branch-name>.md`** describing the functional change (create the file if it doesn't exist — do NOT edit `CHANGES.md` directly)
 4. **Commit** with descriptive messages
 
 ### Merging Feature/Bugfixes → Main (via PR)
