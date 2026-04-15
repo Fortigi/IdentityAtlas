@@ -78,7 +78,7 @@ export default function SyncLogPage() {
 
       {!loading && !error && logs.length === 0 && (
         <div className="text-center text-gray-500 py-12">
-          No sync log entries found. Run <code className="bg-gray-100 px-1 rounded">Start-FGSync</code> to populate.
+          No sync log entries found. Add a crawler in Admin → Crawlers to get started.
         </div>
       )}
 
