@@ -202,7 +202,7 @@ router.delete('/systems/:id/owners/:userId', async (req, res) => {
     await timedRequest(p, 'system-owner-remove', res)
       .input('systemId', req.params.id)
       .input('userId', req.params.userId)
-      .query('DELETE FROM SystemOwners WHERE systemId = @systemId AND userId = @userId');
+      .query('DELETE FROM "SystemOwners" WHERE "systemId" = @systemId AND "userId" = @userId');
     return res.json({ ok: true });
   } catch (err) {
     console.error('DELETE /systems/:id/owners/:userId failed:', err.message);
