@@ -102,7 +102,6 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
           claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }} --allowedTools Bash,Read,Write,Edit,Glob,Grep,Agent"
           prompt: |
             You are a test coverage reviewer for the Identity Atlas project.
