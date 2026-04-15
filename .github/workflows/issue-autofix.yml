@@ -1,18 +1,15 @@
 # ─── Nightly Auto-fix ──────────────────────────────────────────────────────────
 # Runs on a nightly schedule (02:00 UTC) and processes all open issues that have
-# the `ready-to-fix` label but NOT `fix-in-progress`.
+# the `ready-to-fix` label but NOT `fix-in-progress`, `cant-autofix`, or
+# `auto-fixed`.
 #
 # For each eligible issue the workflow:
 #   1. Applies `fix-in-progress` label (so the next run skips it)
-#   2. Creates a bugfixes/ branch from main
-#   3. Uses Claude Code to analyse the issue and implement a fix
-#   4. Opens a draft PR linking the issue
-#
-# If Claude Code fails to produce a fix, the `fix-in-progress` label is removed
-# so the issue re-enters the queue on the next nightly run.
-#
-# The PR still requires human review before merge (branch protection enforces
-# this). The draft status makes it clear this is an AI-generated fix.
+#   2. Claude Code investigates and implements a fix on a bugfixes/ branch
+#   3. Opens a draft PR — this triggers the full CI pipeline
+#   4. Waits for CI checks to complete
+#   5. If CI fails, Claude gets the failure logs and tries to fix them
+#   6. Final outcome: `auto-fixed` (PR ready for review) or `cant-autofix`
 #
 # Required secrets:
 #   TRIAGE_ANTHROPIC_API_KEY  — Anthropic API key for Claude Code
@@ -21,6 +18,8 @@
 # Required labels (create manually in GitHub if they don't exist):
 #   ready-to-fix       — marks an issue as actionable
 #   fix-in-progress    — applied by this workflow to avoid double-processing
+#   auto-fixed         — applied when a PR is created and CI passes
+#   cant-autofix       — applied when Claude cannot fix the issue
 # ───────────────────────────────────────────────────────────────────────────────
 
 name: Nightly Auto-fix
@@ -46,7 +45,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Find issues with ready-to-fix but NOT fix-in-progress
+          # Find issues with ready-to-fix but NOT fix-in-progress, cant-autofix, or auto-fixed
           ISSUES=$(gh issue list \
             --repo "${{ github.repository }}" \
             --label "ready-to-fix" \
@@ -54,10 +53,11 @@ jobs:
             --json number,title,body,labels \
             --limit 10)
 
-          # Filter out issues that already have fix-in-progress
           ELIGIBLE=$(echo "$ISSUES" | jq -c '[
             .[] | select(
-              [.labels[].name] | index("fix-in-progress") | not
+              ([.labels[].name] | index("fix-in-progress") | not) and
+              ([.labels[].name] | index("cant-autofix") | not) and
+              ([.labels[].name] | index("auto-fixed") | not)
             ) | {
               number: .number,
               title: .title,
@@ -73,7 +73,6 @@ jobs:
             echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
           else
             echo "has_issues=true" >> "$GITHUB_OUTPUT"
-            # Build matrix JSON
             MATRIX=$(echo "$ELIGIBLE" | jq -c '{include: .}')
             echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           fi
@@ -84,7 +83,7 @@ jobs:
     needs: find-issues
     if: needs.find-issues.outputs.has_issues == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: write
       pull-requests: write
@@ -92,8 +91,8 @@ jobs:
       id-token: write
     strategy:
       matrix: ${{ fromJson(needs.find-issues.outputs.matrix) }}
-      max-parallel: 1 # process one issue at a time to avoid branch conflicts
-      fail-fast: false # don't skip remaining issues if one fails
+      max-parallel: 1
+      fail-fast: false
 
     steps:
       - name: Apply fix-in-progress label
@@ -109,8 +108,9 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Run Claude Code
-        id: claude
+      # ── Attempt 1: Investigate and fix ────────────────────────────────────
+      - name: "Attempt 1: Fix the issue"
+        id: claude1
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
@@ -122,57 +122,82 @@ jobs:
             **Issue body:**
             ${{ matrix.body }}
 
-            Instructions:
-            1. Read CLAUDE.md thoroughly — it contains the full project structure,
-               conventions, and rules you must follow.
-            2. Investigate the issue: find the relevant code, understand the root cause.
-            3. Implement a minimal, focused fix. Do not refactor surrounding code or
-               add unrelated improvements.
-            4. After making code changes:
-               a. Update the `ModuleVersion` timestamp in `FortigiGraph.psd1`
-                  (keep Major.Minor, update yyyyMMdd.HHmm to now).
-               b. Add a bullet to the top of the changes list in `CHANGES.md`
-                  describing the fix in user-facing language.
-            5. Verify your fix by running relevant tests if available.
-            6. Create a commit with a clear message referencing the issue number
-               (e.g., "Fix #${{ matrix.number }}: description").
+            ## Approach — think first, then implement
 
-            Important rules from CLAUDE.md:
-            - Follow existing naming conventions
-            - One function per file under Functions/
-            - Use Invoke-FG*Request wrappers for Graph API calls
-            - Use Invoke-FGSQLCommand for SQL operations
-            - Don't add features beyond what's needed for the fix
-            - Don't add comments, docstrings, or type annotations to unchanged code
-            - English only in code comments
+            Take your time. You get one shot at the initial fix, but if CI tests
+            fail you will get a second attempt with the failure logs. Still, aim to
+            get it right the first time by thinking carefully.
 
+            ### Step 1: Understand the project
+            Read CLAUDE.md to understand the project structure, conventions, and
+            key file locations.
+
+            ### Step 2: Investigate the issue
+            - Find the relevant source files (use Grep/Glob to search)
+            - Read the code around the problem area
+            - Understand the root cause before writing any fix
+            - Check if there are related tests that cover this area
+
+            ### Step 3: Plan your fix
+            Before editing any files, think through:
+            - What exactly needs to change and where?
+            - Could this change break anything else?
+            - Is this the minimal fix or am I over-engineering?
+
+            ### Step 4: Implement the fix
+            - Make the minimal code change needed
+            - Update `ModuleVersion` timestamp in `setup/IdentityAtlas.psd1`
+              (keep Major.Minor, set yyyyMMdd.HHmm to current UTC time)
+            - Add a bullet to the top of `CHANGES.md` describing the fix
+
+            ### Step 5: Commit
+            Create a git commit: `git add` the changed files, then commit with
+            message "Fix #${{ matrix.number }}: <description>".
+
+            ## You MUST do one of these two things:
+
+            **Option A: Fix it** — follow the steps above, commit the changes.
+            Don't worry about running tests — the PR will trigger a full CI
+            pipeline (integration tests, Playwright E2E, load tests) that
+            validates your fix automatically.
+
+            **Option B: Explain why you can't** — if you genuinely cannot fix it
+            (issue is unclear, requires design decision, bug doesn't exist, etc.):
+            1. Write a specific explanation to `/tmp/cant_fix_reason.txt`
+            2. Do NOT make any code changes or commits.
+
+            ## Rules
+            - You MUST either commit a fix OR write a reason file. No other outcome.
+            - Follow existing naming conventions and code patterns.
+            - Don't add features, refactoring, or changes beyond the fix.
+            - English only in code comments.
+
+      # ── Create branch and PR ──────────────────────────────────────────────
       - name: Create branch and PR
         id: create-pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Check if Claude made any changes
           if git diff --quiet HEAD; then
-            echo "No changes were made — skipping PR creation"
+            echo "No code changes were made"
             echo "pr_created=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Create branch name from issue number + sanitised title
           SLUG=$(echo "${{ matrix.title }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | head -c 40)
           BRANCH="bugfixes/autofix-issue-${{ matrix.number }}-${SLUG}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
           git checkout -b "$BRANCH"
           git push -u origin "$BRANCH"
 
-          # Create draft PR
           PR_URL=$(gh pr create \
             --repo "${{ github.repository }}" \
             --base main \
             --head "$BRANCH" \
             --draft \
             --title "Fix #${{ matrix.number }}: ${{ matrix.title }}" \
-            --body "$(cat <<'EOF'
+            --body "$(cat <<EOF
           ## Summary
 
           Automated fix for #${{ matrix.number }}.
@@ -182,8 +207,8 @@ jobs:
 
           ## Test plan
 
+          - [ ] CI pipeline validates the fix (integration tests, E2E, load tests)
           - [ ] Verify the fix addresses the issue
-          - [ ] Check for regressions in related functionality
           - [ ] Confirm CHANGES.md and module version were updated
 
           Closes #${{ matrix.number }}
@@ -196,22 +221,228 @@ jobs:
           echo "pr_created=true" >> "$GITHUB_OUTPUT"
           echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Comment on issue
+          # Extract PR number for checks
+          PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
+          echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+
+      # ── Wait for CI checks ────────────────────────────────────────────────
+      - name: Wait for CI checks
+        id: ci-check
         if: steps.create-pr.outputs.pr_created == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          PR_NUM="${{ steps.create-pr.outputs.pr_number }}"
+          echo "Waiting for CI checks on PR #$PR_NUM..."
+
+          # Give CI a moment to start
+          sleep 30
+
+          # Wait for checks (up to 15 minutes)
+          if gh pr checks "$PR_NUM" \
+            --repo "${{ github.repository }}" \
+            --watch \
+            --fail-fast 2>&1; then
+            echo "All CI checks passed!"
+            echo "ci_passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Some CI checks failed"
+            echo "ci_passed=false" >> "$GITHUB_OUTPUT"
+
+            # Capture failure logs
+            FAILED_RUN=$(gh pr checks "$PR_NUM" \
+              --repo "${{ github.repository }}" \
+              --json bucket,name,link \
+              --jq '[.[] | select(.bucket == "fail")] | .[0].link' 2>/dev/null || echo "")
+
+            if [ -n "$FAILED_RUN" ]; then
+              RUN_ID=$(echo "$FAILED_RUN" | grep -o 'runs/[0-9]*' | grep -o '[0-9]*')
+              if [ -n "$RUN_ID" ]; then
+                echo "Fetching failure logs from run $RUN_ID..."
+                gh run view "$RUN_ID" --repo "${{ github.repository }}" --log-failed 2>/dev/null | tail -200 > /tmp/ci_failure_logs.txt
+              fi
+            fi
+
+            # Also get a summary of all checks
+            gh pr checks "$PR_NUM" --repo "${{ github.repository }}" 2>/dev/null > /tmp/ci_check_summary.txt || true
+          fi
+
+      # ── Attempt 2: Fix CI failures ────────────────────────────────────────
+      - name: "Attempt 2: Fix CI failures"
+        id: claude2
+        if: steps.create-pr.outputs.pr_created == 'true' && steps.ci-check.outputs.ci_passed == 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
+          claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }} --allowedTools Bash,Read,Write,Edit,Glob,Grep,Agent"
+          prompt: |
+            Your previous fix for GitHub issue #${{ matrix.number }} was submitted as a PR,
+            but the CI pipeline reported test failures.
+
+            **Issue title:** ${{ matrix.title }}
+
+            ## CI check summary
+
+            ```
+            $(cat /tmp/ci_check_summary.txt 2>/dev/null || echo "No summary available")
+            ```
+
+            ## Failure logs (last 200 lines)
+
+            ```
+            $(cat /tmp/ci_failure_logs.txt 2>/dev/null || echo "No failure logs available")
+            ```
+
+            ## Instructions
+
+            1. Read the failure logs carefully to understand what broke.
+            2. Look at the code changes you already made (check `git log` and `git diff HEAD~1`).
+            3. Fix the failing tests or the code that caused them to fail.
+            4. Update your CHANGES.md entry if the fix changed.
+            5. Commit with message "Fix #${{ matrix.number }}: address CI failures".
+
+            If the test failures are unrelated to your change (pre-existing flaky
+            tests), write "UNRELATED" to `/tmp/ci_unrelated.txt` and commit nothing.
+
+      - name: Push CI fixes
+        id: push-fixes
+        if: steps.create-pr.outputs.pr_created == 'true' && steps.ci-check.outputs.ci_passed == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet HEAD; then
+            echo "No additional changes from retry"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          else
+            git push origin "${{ steps.create-pr.outputs.branch }}"
+            echo "Pushed CI fixes"
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for CI checks (attempt 2)
+        id: ci-check2
+        if: steps.push-fixes.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ steps.create-pr.outputs.pr_number }}"
+          echo "Waiting for CI checks after retry..."
+          sleep 30
+
+          if gh pr checks "$PR_NUM" \
+            --repo "${{ github.repository }}" \
+            --watch \
+            --fail-fast 2>&1; then
+            echo "CI checks passed on retry!"
+            echo "ci_passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "CI still failing after retry"
+            echo "ci_passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Determine final outcome ───────────────────────────────────────────
+      - name: Determine outcome
+        id: outcome
+        run: |
+          if [ "${{ steps.create-pr.outputs.pr_created }}" != "true" ]; then
+            echo "result=cant-fix" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.ci-check.outputs.ci_passed }}" == "true" ]; then
+            echo "result=fixed" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.ci-check2.outputs.ci_passed }}" == "true" ]; then
+            echo "result=fixed" >> "$GITHUB_OUTPUT"
+          elif [ -f /tmp/ci_unrelated.txt ]; then
+            # CI failures are unrelated to the fix — still mark as fixed
+            echo "result=fixed" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=ci-failed" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Outcome A: Fix succeeded ────────────────────────────────────────
+      - name: Label issue as auto-fixed
+        if: steps.outcome.outputs.result == 'fixed'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --add-label "auto-fixed" \
+            --remove-label "fix-in-progress"
+
           gh issue comment ${{ matrix.number }} \
             --repo "${{ github.repository }}" \
             --body "🔧 An automated fix has been created: ${{ steps.create-pr.outputs.pr_url }}
 
-          This draft PR was generated by the nightly auto-fix workflow. Please review before merging."
+          The CI pipeline has validated the fix. Please review the draft PR before merging.
 
-      - name: Remove fix-in-progress on failure
+          🤖 Generated with [Claude Code](https://claude.ai/code)"
+
+      # ── Outcome B: Can't fix (no code changes) ─────────────────────────
+      - name: Label issue as cant-autofix
+        if: steps.outcome.outputs.result == 'cant-fix'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f /tmp/cant_fix_reason.txt ]; then
+            REASON=$(cat /tmp/cant_fix_reason.txt)
+          else
+            REASON="Claude Code investigated the issue but did not produce a fix or provide a reason."
+          fi
+
+          gh issue edit ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --add-label "cant-autofix" \
+            --remove-label "fix-in-progress"
+
+          gh issue comment ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --body "🤖 **Auto-fix was unable to resolve this issue.**
+
+          ${REASON}
+
+          This issue has been labeled \`cant-autofix\` and will not be retried.
+          Remove the label to re-queue it."
+
+      # ── Outcome C: CI still failing after retry ─────────────────────────
+      - name: Label as cant-autofix (CI failures)
+        if: steps.outcome.outputs.result == 'ci-failed'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --add-label "cant-autofix" \
+            --remove-label "fix-in-progress"
+
+          gh issue comment ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --body "🤖 **Auto-fix created a PR but CI tests are still failing after a retry.**
+
+          PR: ${{ steps.create-pr.outputs.pr_url }}
+
+          The fix may be partially correct but introduces test failures that
+          could not be resolved automatically. A human developer should review
+          the PR and the failing tests.
+
+          This issue has been labeled \`cant-autofix\` and will not be retried.
+          Remove the label to re-queue it."
+
+      # ── Fallback: workflow error ────────────────────────────────────────
+      - name: Clean up on failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue edit ${{ matrix.number }} \
             --repo "${{ github.repository }}" \
+            --add-label "cant-autofix" \
             --remove-label "fix-in-progress"
+
+          gh issue comment ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --body "🤖 **Auto-fix workflow failed.**
+
+          The workflow encountered an error. Check the
+          [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+          This issue has been labeled \`cant-autofix\` and will not be retried.
+          Remove the label to re-queue it."
