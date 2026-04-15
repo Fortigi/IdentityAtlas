@@ -71,8 +71,8 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.TRIAGE_ANTHROPIC_API_KEY }}
-          model: ${{ secrets.TRIAGE_LLM_MODEL }}
-          direct_prompt: |
+          claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }} --allowedTools Bash,Read,Write,Edit,Glob,Grep,Agent"
+          prompt: |
             You are a documentation reviewer for the Identity Atlas project.
 
             ## Your task
@@ -131,8 +131,6 @@ jobs:
 
             Important: quality over quantity. One accurate sentence is better than a
             paragraph of filler. Do not update docs just to prove you did something.
-          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,Agent"
-          timeout_minutes: 25
 
       - name: Check for changes
         if: steps.changes.outputs.has_changes == 'true'
