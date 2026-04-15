@@ -108,6 +108,11 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       # ── Attempt 1: Investigate and fix ────────────────────────────────────
       - name: "Attempt 1: Fix the issue"
         id: claude1
@@ -178,11 +183,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if git diff --quiet HEAD; then
-            echo "No code changes were made"
+          # Check for changes: either uncommitted edits OR new commits by Claude
+          HAS_UNCOMMITTED=$(git diff --quiet HEAD && echo "no" || echo "yes")
+          HAS_COMMITS=$(git log origin/main..HEAD --oneline | head -1)
+
+          if [ "$HAS_UNCOMMITTED" = "no" ] && [ -z "$HAS_COMMITS" ]; then
+            echo "No code changes were made (no edits, no commits)"
             echo "pr_created=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          # If there are uncommitted changes, commit them
+          if [ "$HAS_UNCOMMITTED" = "yes" ]; then
+            echo "Found uncommitted changes — committing them"
+            git add -A
+            git commit -m "Fix #${{ matrix.number }}: ${{ matrix.title }}"
+          fi
+
+          echo "Changes detected — creating branch and PR"
+          git log origin/main..HEAD --oneline
 
           SLUG=$(echo "${{ matrix.title }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | head -c 40)
           BRANCH="bugfixes/autofix-issue-${{ matrix.number }}-${SLUG}"
