@@ -15,7 +15,7 @@ test.describe('Sync Log Page', () => {
     // Mock mode may return empty sync log
     const table = page.locator('table');
     const emptyState = page.getByText(/No sync log entries/i)
-      .or(page.getByText(/Run.*Start-FGSync/i));
+      .or(page.getByText(/Add a crawler/i));
 
     // Either table with data or empty state message
     const hasTable = await table.count() > 0 && await table.isVisible().catch(() => false);
