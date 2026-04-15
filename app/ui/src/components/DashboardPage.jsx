@@ -159,7 +159,7 @@ export default function DashboardPage({ onNavigate }) {
             detail={stats.riskScores > 0 ? `${formatNumber(stats.riskScores)} entities scored` : stats.llmConfigured ? 'LLM configured, no profile yet' : 'Configure in Admin → LLM Settings'}
             ok={stats.activeClassifiers > 0}
             warn={stats.llmConfigured && stats.activeClassifiers === 0}
-            onClick={() => onNavigate?.('admin')}
+            onClick={() => onNavigate?.('admin?sub=risk-scoring')}
           />
           <FeatureCard
             label="Certifications"
