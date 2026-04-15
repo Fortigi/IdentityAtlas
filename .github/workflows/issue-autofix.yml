@@ -1,6 +1,6 @@
 # ─── Nightly Auto-fix ──────────────────────────────────────────────────────────
 # Runs on a nightly schedule (02:00 UTC) and processes all open issues that have
-# the `ready-to-fix` label but NOT `fix-in-progress`.
+# the `ready-to-fix` label but NOT `fix-in-progress` or `cant-autofix`.
 #
 # For each eligible issue the workflow:
 #   1. Applies `fix-in-progress` label (so the next run skips it)
@@ -8,8 +8,9 @@
 #   3. Uses Claude Code to analyse the issue and implement a fix
 #   4. Opens a draft PR linking the issue
 #
-# If Claude Code fails to produce a fix, the `fix-in-progress` label is removed
-# so the issue re-enters the queue on the next nightly run.
+# Two possible outcomes per issue:
+#   A. Fix created  → branch + draft PR + `auto-fixed` label on issue
+#   B. Can't fix    → `cant-autofix` label + comment explaining why
 #
 # The PR still requires human review before merge (branch protection enforces
 # this). The draft status makes it clear this is an AI-generated fix.
@@ -21,6 +22,8 @@
 # Required labels (create manually in GitHub if they don't exist):
 #   ready-to-fix       — marks an issue as actionable
 #   fix-in-progress    — applied by this workflow to avoid double-processing
+#   auto-fixed         — applied when a draft PR is created
+#   cant-autofix       — applied when Claude cannot fix the issue
 # ───────────────────────────────────────────────────────────────────────────────
 
 name: Nightly Auto-fix
@@ -46,7 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Find issues with ready-to-fix but NOT fix-in-progress
+          # Find issues with ready-to-fix but NOT fix-in-progress or cant-autofix
           ISSUES=$(gh issue list \
             --repo "${{ github.repository }}" \
             --label "ready-to-fix" \
@@ -54,10 +57,11 @@ jobs:
             --json number,title,body,labels \
             --limit 10)
 
-          # Filter out issues that already have fix-in-progress
+          # Filter out issues that already have fix-in-progress or cant-autofix
           ELIGIBLE=$(echo "$ISSUES" | jq -c '[
             .[] | select(
-              [.labels[].name] | index("fix-in-progress") | not
+              ([.labels[].name] | index("fix-in-progress") | not) and
+              ([.labels[].name] | index("cant-autofix") | not)
             ) | {
               number: .number,
               title: .title,
@@ -122,29 +126,39 @@ jobs:
             **Issue body:**
             ${{ matrix.body }}
 
-            Instructions:
-            1. Read CLAUDE.md thoroughly — it contains the full project structure,
-               conventions, and rules you must follow.
+            ## You MUST do one of these two things — no other outcome is acceptable:
+
+            ### Option A: Fix the issue
+            1. Read CLAUDE.md to understand the project structure and conventions.
             2. Investigate the issue: find the relevant code, understand the root cause.
-            3. Implement a minimal, focused fix. Do not refactor surrounding code or
-               add unrelated improvements.
+            3. Implement a minimal, focused fix. Do not refactor surrounding code.
             4. After making code changes:
-               a. Update the `ModuleVersion` timestamp in `FortigiGraph.psd1`
-                  (keep Major.Minor, update yyyyMMdd.HHmm to now).
+               a. Update the `ModuleVersion` timestamp in `setup/IdentityAtlas.psd1`
+                  (keep Major.Minor, update yyyyMMdd.HHmm to current UTC time).
                b. Add a bullet to the top of the changes list in `CHANGES.md`
                   describing the fix in user-facing language.
-            5. Verify your fix by running relevant tests if available.
-            6. Create a commit with a clear message referencing the issue number
+            5. Create a git commit with a clear message referencing the issue number
                (e.g., "Fix #${{ matrix.number }}: description").
 
-            Important rules from CLAUDE.md:
-            - Follow existing naming conventions
-            - One function per file under Functions/
-            - Use Invoke-FG*Request wrappers for Graph API calls
-            - Use Invoke-FGSQLCommand for SQL operations
-            - Don't add features beyond what's needed for the fix
-            - Don't add comments, docstrings, or type annotations to unchanged code
-            - English only in code comments
+            ### Option B: Explain why you can't fix it
+            If you genuinely cannot fix the issue (e.g., the issue is unclear,
+            requires external access you don't have, needs a design decision from
+            a human, or the described bug doesn't exist in the code), then:
+            1. Create a file called `/tmp/cant_fix_reason.txt`
+            2. Write a clear, specific explanation of WHY you can't fix it.
+               Be concrete — "I found the relevant code in X file at line Y but
+               the issue requires Z which I cannot determine" is good.
+               "I couldn't fix it" is NOT acceptable.
+            3. Do NOT make any code changes or commits.
+
+            ## Rules
+            - You MUST either commit a fix (Option A) or write a reason file (Option B).
+            - Do not exit without doing one of these two things.
+            - Don't worry about testing — the PR will be validated by the CI pipeline
+              which includes integration tests, Playwright E2E, and load tests.
+            - Follow existing naming conventions and patterns in the codebase.
+            - Don't add features, refactoring, or changes beyond the fix.
+            - English only in code comments.
 
       - name: Create branch and PR
         id: create-pr
@@ -153,7 +167,7 @@ jobs:
         run: |
           # Check if Claude made any changes
           if git diff --quiet HEAD; then
-            echo "No changes were made — skipping PR creation"
+            echo "No code changes were made"
             echo "pr_created=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -196,7 +210,18 @@ jobs:
           echo "pr_created=true" >> "$GITHUB_OUTPUT"
           echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Comment on issue
+      # ── Outcome A: Fix was created ──────────────────────────────────────────
+      - name: Label issue as auto-fixed
+        if: steps.create-pr.outputs.pr_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --add-label "auto-fixed" \
+            --remove-label "fix-in-progress"
+
+      - name: Comment with PR link
         if: steps.create-pr.outputs.pr_created == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -205,13 +230,56 @@ jobs:
             --repo "${{ github.repository }}" \
             --body "🔧 An automated fix has been created: ${{ steps.create-pr.outputs.pr_url }}
 
-          This draft PR was generated by the nightly auto-fix workflow. Please review before merging."
+          This draft PR was generated by the nightly auto-fix workflow. Please review before merging.
 
-      - name: Remove fix-in-progress on failure
+          The PR will be validated by the CI pipeline (integration tests, Playwright E2E, load tests)."
+
+      # ── Outcome B: Can't fix ────────────────────────────────────────────────
+      - name: Label issue as cant-autofix
+        if: steps.create-pr.outputs.pr_created == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Read Claude's reason if available
+          if [ -f /tmp/cant_fix_reason.txt ]; then
+            REASON=$(cat /tmp/cant_fix_reason.txt)
+          else
+            REASON="Claude Code investigated the issue but did not produce a fix or provide a reason."
+          fi
+
+          # Add cant-autofix label and remove fix-in-progress
+          gh issue edit ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --add-label "cant-autofix" \
+            --remove-label "fix-in-progress"
+
+          # Comment with the reason
+          gh issue comment ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --body "🤖 **Auto-fix was unable to resolve this issue.**
+
+          ${REASON}
+
+          This issue has been labeled \`cant-autofix\` and will not be retried automatically.
+          To retry, remove the \`cant-autofix\` label."
+
+      # ── Fallback: workflow failure ──────────────────────────────────────────
+      - name: Clean up on failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue edit ${{ matrix.number }} \
             --repo "${{ github.repository }}" \
+            --add-label "cant-autofix" \
             --remove-label "fix-in-progress"
+
+          gh issue comment ${{ matrix.number }} \
+            --repo "${{ github.repository }}" \
+            --body "🤖 **Auto-fix workflow failed.**
+
+          The nightly auto-fix workflow encountered an error while processing this issue.
+          Check the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+          This issue has been labeled \`cant-autofix\` and will not be retried automatically.
+          To retry, remove the \`cant-autofix\` label."
