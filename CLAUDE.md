@@ -741,10 +741,33 @@ git checkout -b bugfixes/<name>     # e.g. bugfixes/fix-login-redirect
 3. **Add bullets to `changes/<branch-name>.md`** describing the functional change (create the file if it doesn't exist — do NOT edit `CHANGES.md` directly)
 4. **Commit** with descriptive messages
 
+### Stacked PRs (preferred workflow)
+
+Break features and auto-fixes into a **stack of small, focused PRs** rather than one large PR. Each step gets its own branch targeting the previous branch in the stack.
+
+> **GitHub native stacking (private preview, April 2026):** GitHub is rolling out a native `gh stack` extension that improves on the manual pattern below in four ways: (1) `gh stack submit` creates all PRs in the stack at once; (2) `gh stack sync` auto-rebases the entire stack after a bottom PR merges — eliminating the manual `gh pr edit --base` step; (3) a visual stack map appears in every PR so reviewers can navigate the chain; (4) "Direct merge" merges a PR and all its unmerged dependencies in one click. Sign up at `gh.io/stacksbeta`. Once available, prefer `gh stack` commands over the manual pattern below.
+
+**Manual pattern (use until `gh stack` is available):**
+
+```bash
+# First slice — targets main
+git checkout main && git pull
+git checkout -b feature/foo-step-1
+# ... make changes, commit ...
+gh pr create --base main --title "step 1: ..."
+
+# Second slice — stacked on top of step 1
+git checkout -b feature/foo-step-2
+# ... make changes, commit ...
+gh pr create --base feature/foo-step-1 --title "step 2: ..."
+```
+
+When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main`.
+
 ### Merging Feature/Bugfixes → Main (via PR)
 
-1. Open PR from `feature/<name>` or `bugfixes/<name>` into `main`
-2. Use the new `CHANGES.md` entries as the PR description
+1. Open PR from `feature/<name>` or `bugfixes/<name>` into `main` (or into the previous stack branch)
+2. Use the fragment content from `changes/<branch-name>.md` as the PR description
 3. Requires 1 approval — merge when CI passes
 
 ### Version Updates
