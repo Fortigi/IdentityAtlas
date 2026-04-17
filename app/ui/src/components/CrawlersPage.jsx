@@ -108,15 +108,46 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
     if (selected.includes(attr)) onChange(selected.filter(a => a !== attr));
     else onChange([...selected, attr]);
   };
+
+  const selectAll = () => {
+    // Select all non-core attributes (respecting filter if active)
+    const visibleNonCore = visible.filter(a => !coreSet.has(a));
+    const newSelected = [...new Set([...selected, ...visibleNonCore])];
+    onChange(newSelected);
+  };
+
+  const deselectAll = () => {
+    // Deselect all non-core attributes (respecting filter if active)
+    const visibleNonCore = new Set(visible.filter(a => !coreSet.has(a)));
+    const newSelected = selected.filter(a => !visibleNonCore.has(a));
+    onChange(newSelected);
+  };
+
   return (
     <div className="mb-3">
       <div className="flex items-center justify-between mb-2">
         <h5 className="text-xs font-semibold text-gray-700">
           {title} ({selected.length} extra + {coreAttrs.length} core)
         </h5>
-        <input type="text" value={filter} onChange={e => setFilter(e.target.value)}
-          placeholder="Filter..."
-          className="px-2 py-1 text-xs border border-gray-200 rounded w-48" />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={selectAll}
+            className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+            type="button"
+          >
+            Select All
+          </button>
+          <button
+            onClick={deselectAll}
+            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+            type="button"
+          >
+            Deselect All
+          </button>
+          <input type="text" value={filter} onChange={e => setFilter(e.target.value)}
+            placeholder="Filter..."
+            className="px-2 py-1 text-xs border border-gray-200 rounded w-48" />
+        </div>
       </div>
       <div className="max-h-72 overflow-y-auto border border-gray-200 rounded bg-white">
         {visible.length === 0 ? (
