@@ -120,6 +120,7 @@ export default function App() {
   const [visibleTabs, setVisibleTabs] = useState(null); // null = loading, [] = loaded
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
+  const [riskScoresRefreshKey, setRiskScoresRefreshKey] = useState(0);
 
   const navTabs = useMemo(() =>
     ALL_NAV_TABS.filter(tab => {
@@ -490,7 +491,7 @@ export default function App() {
           ) : page === 'access-packages' ? (
             <AccessPackagesPage onOpenDetail={openDetailTab} />
           ) : page === 'risk-scores' ? (
-            <RiskScoringPage onOpenDetail={openDetailTab} />
+            <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />
           ) : page === 'identities' ? (
             <IdentitiesPage onOpenDetail={openDetailTab} />
           ) : page === 'org-chart' ? (
@@ -498,7 +499,7 @@ export default function App() {
           ) : page === 'performance' || page === 'crawlers' || page === 'admin' ? (
             // Crawlers and Performance now live under Admin as sub-tabs.
             // Legacy #crawlers and #performance hashes redirect to the matching sub-tab.
-            <AdminPage onNavigate={navigate} onRefresh={forceRefresh} />
+            <AdminPage onNavigate={navigate} onRefresh={forceRefresh} onRiskScoresRefresh={() => setRiskScoresRefreshKey(k => k + 1)} />
           ) : loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-gray-500">Loading permission data...</div>
