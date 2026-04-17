@@ -1,1 +1,0 @@
-- Fixed Org Chart UI so all departments are visible when scrolled horizontally; departments no longer fall off the edge of the viewable area

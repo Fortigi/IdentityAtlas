@@ -1,1 +1,0 @@
-- Fixed Risk Scoring card on Dashboard to link directly to Admin → Risk Scoring subtab

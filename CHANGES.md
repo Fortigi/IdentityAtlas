@@ -1,3 +1,36 @@
+## Changes in this PR
+
+- Fixed Risk Scoring card on Dashboard to link directly to Admin → Risk Scoring subtab
+- Added Software Bill of Materials (SBOM) documentation listing all components, dependencies, and infrastructure elements
+- Fixed SBOM navigation entry in mkdocs.yml to ensure proper documentation site build
+- Added automatic scheduling for risk scoring runs (similar to crawler scheduling)
+- Risk classifiers can now have multiple schedules configured via Admin → Risk Classifiers
+- Scheduled scoring runs execute in the background and re-score all entities with the active classifier
+- Schedules support hourly, daily, and weekly frequencies
+- Added "Select All" and "Deselect All" buttons to the attribute picker in the EntraID crawler wizard, making it easier to manage large attribute lists
+- Fixed automated version bumps failing due to branch protection requiring pull requests
+- Fixed Dashboard Risk Scoring card link to properly navigate to Admin → Risk Scoring sub-tab
+- Fixed direct reports not showing in demo dataset (org chart queries now filter for current records in temporal Principals table)
+- Added in-browser wizard for generating account correlation rulesets via LLM (Admin → Account Correlation)
+- Users can now create correlation signals and account type rules through a conversational UI instead of PowerShell commands
+- Wizard follows the same pattern as Risk Scoring: Sources → Generate & Refine → Save
+- Fixed Risk Scoring page not refreshing automatically after completing the risk profile wizard
+- Fixed crawler schedules not firing when created via legacy wizard (scheduler now supports both `schedule` and `schedules` config formats)
+- Fixed detail page tabs not updating when switching between different users, resources, or other entities — tabs now show the correct entity data immediately
+- Fixed Org Chart UI so all departments are visible when scrolled horizontally; departments no longer fall off the edge of the viewable area
+- Fixed Extended Attributes displaying "[object Object]" for complex values like sign in activity — now shows properly formatted JSON
+- Automated version bumping on PR merge — `bump-version.yml` Action increments the Minor version in `setup/IdentityAtlas.psd1` and updates the timestamp on every PR merge to `main`. Branches no longer touch the version file, eliminating recurring merge conflicts on `setup/IdentityAtlas.psd1`.
+- Automated changelog merging on PR merge — branches now create a fragment file in `changes/` instead of editing `CHANGES.md` directly. The same `bump-version.yml` Action collects all fragments and prepends them to `CHANGES.md` on merge, eliminating recurring merge conflicts on `CHANGES.md`.
+- Fixed Sync Log empty state message to reference adding a crawler instead of Start-FGSync
+- Added historical performance graphs to Containers tab showing last 10 minutes of CPU, memory, and network usage for each container
+- Added syntax highlighting and collapsible sections to JSON display in risk profile wizard for improved readability
+- Fixed upgrade instructions to use `--pull always` instead of a separate `pull` + `up -d`, so a single command always fetches the latest image from the registry
+- Merged issue triage and nightly auto-fix into a single unified workflow that classifies and fixes bugs immediately when an issue is opened
+- Added automatic issue classification: bugs vs feature requests, with priority labels (critical, high, medium, low)
+- Feature requests are now labeled as `enhancement` with a priority but require manual triage before auto-fix
+- Added nightly re-evaluation job (23:00 Amsterdam time) that checks issues labeled `needs-clarification` or `cant-autofix` for new comments — if enough detail has been added, the issue is promoted to `ready-to-fix` and auto-fixed
+- Fixed auto-fix prompt to use changelog fragments instead of editing CHANGES.md and setup/IdentityAtlas.psd1 directly
+
 ## Changes in this branch
 
 - **Auto-fix workflow: CI-validated fixes with retry** — Reworked the nightly auto-fix into a two-attempt pipeline: Claude investigates and fixes the issue, submits a draft PR, waits for the full CI pipeline (integration tests, Playwright E2E, load tests) to validate it. If CI fails, Claude gets the failure logs and tries to fix the broken tests in a second attempt. Three possible outcomes: `auto-fixed` (PR + CI green), `cant-autofix` with reason (couldn't produce a fix), or `cant-autofix` with PR link (fix exists but CI still failing — needs human review). The prompt now instructs Claude to think step-by-step before implementing. Issues labeled `cant-autofix` or `auto-fixed` are excluded from future runs (remove the label to retry).

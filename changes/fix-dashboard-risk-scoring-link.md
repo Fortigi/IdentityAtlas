@@ -1,1 +1,0 @@
-- Fixed Dashboard Risk Scoring card link to properly navigate to Admin → Risk Scoring sub-tab

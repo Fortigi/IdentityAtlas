@@ -1,1 +1,0 @@
-- Added historical performance graphs to Containers tab showing last 10 minutes of CPU, memory, and network usage for each container
