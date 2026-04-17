@@ -1,0 +1,5 @@
+- Merged issue triage and nightly auto-fix into a single unified workflow that classifies and fixes bugs immediately when an issue is opened
+- Added automatic issue classification: bugs vs feature requests, with priority labels (critical, high, medium, low)
+- Feature requests are now labeled as `enhancement` with a priority but require manual triage before auto-fix
+- Added nightly re-evaluation job (23:00 Amsterdam time) that checks issues labeled `needs-clarification` or `cant-autofix` for new comments — if enough detail has been added, the issue is promoted to `ready-to-fix` and auto-fixed
+- Fixed auto-fix prompt to use changelog fragments instead of editing CHANGES.md and setup/IdentityAtlas.psd1 directly
