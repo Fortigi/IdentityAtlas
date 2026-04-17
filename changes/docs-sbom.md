@@ -1,0 +1,1 @@
+- Added Software Bill of Materials (SBOM) documentation listing all components, dependencies, and infrastructure elements
