@@ -151,12 +151,15 @@ async function queueScheduledScoringRun(classifierRow, scheduleIndex) {
 async function tick() {
   try {
     // Load all enabled crawler configs that have at least one schedule
+    // Support both 'schedules' (array, new format) and 'schedule' (object, legacy)
     const crawlerRows = await db.query(
       `SELECT id, "crawlerType", "displayName", config
          FROM "CrawlerConfigs"
         WHERE enabled = TRUE
-          AND config ? 'schedules'
-          AND jsonb_array_length(config->'schedules') > 0`
+          AND (
+            (config ? 'schedules' AND jsonb_array_length(config->'schedules') > 0)
+            OR (config ? 'schedule' AND (config->'schedule'->>'enabled')::boolean = TRUE)
+          )`
     );
 
     // Load all active risk classifiers that have at least one schedule
@@ -176,7 +179,8 @@ async function tick() {
     // Process crawler schedules
     for (const configRow of crawlerRows.rows) {
       const cfg = typeof configRow.config === 'string' ? JSON.parse(configRow.config) : configRow.config;
-      const schedules = cfg.schedules || [];
+      // Support both 'schedules' (array, new format) and 'schedule' (object, legacy)
+      const schedules = cfg.schedules?.length ? cfg.schedules : (cfg.schedule ? [cfg.schedule] : []);
 
       for (let i = 0; i < schedules.length; i++) {
         const s = schedules[i];
