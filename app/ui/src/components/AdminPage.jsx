@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useAuth } from '../auth/AuthGate';
+import ScheduleEditor from './ScheduleEditor';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
@@ -309,15 +310,43 @@ function ClassifiersSection() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('groups');
+  const [schedules, setSchedules] = useState([]);
+  const [savingSchedules, setSavingSchedules] = useState(false);
+  const [scheduleError, setScheduleError] = useState(null);
   const { authFetch } = useAuth();
 
   useEffect(() => {
     authFetch('/api/admin/classifiers')
       .then(r => r.json())
-      .then(setData)
+      .then(d => {
+        setData(d);
+        // Load schedules if classifier is active
+        if (d?.isActive && d?.schedules) {
+          setSchedules(d.schedules);
+        }
+      })
       .catch(() => setData({ available: false }))
       .finally(() => setLoading(false));
   }, [authFetch]);
+
+  const handleSaveSchedules = async () => {
+    if (!data?.id) return;
+    setSavingSchedules(true);
+    setScheduleError(null);
+    try {
+      const res = await authFetch(`/api/risk-classifiers/${data.id}/schedules`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schedules }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      alert('Schedules saved successfully');
+    } catch (err) {
+      setScheduleError(err.message);
+    } finally {
+      setSavingSchedules(false);
+    }
+  };
 
   const content = () => {
     if (loading) return <p className="mt-4 text-sm text-gray-400">Loading...</p>;
@@ -375,6 +404,42 @@ function ClassifiersSection() {
         {activeTab === 'groups' && <ClassifierTable rules={groupRules} emptyMsg="No group classifiers." />}
         {activeTab === 'users'  && <ClassifierTable rules={userRules}  emptyMsg="No user classifiers." />}
         {activeTab === 'agents' && <ClassifierTable rules={agentRules} emptyMsg="No agent classifiers." />}
+
+        {/* Schedules section (only show for active classifier) */}
+        {data.isActive && (
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <h4 className="text-sm font-semibold mb-2">Automatic Scoring Schedules</h4>
+            <p className="text-xs text-gray-500 mb-3">
+              Configure when risk scoring runs automatically. Schedules re-run the active classifiers over the latest data.
+            </p>
+
+            {schedules.length === 0 && (
+              <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500">
+                No schedules configured. Scoring will only run when triggered manually.
+              </div>
+            )}
+
+            {schedules.map((s, i) => (
+              <ScheduleEditor key={i}
+                schedule={{ enabled: true, ...s }}
+                onChange={(updated) => setSchedules(schedules.map((x, idx) => idx === i ? { ...updated, enabled: true } : x))}
+                onRemove={() => setSchedules(schedules.filter((_, idx) => idx !== i))}
+              />
+            ))}
+
+            <div className="flex gap-2 items-center">
+              <button onClick={() => setSchedules([...schedules, { enabled: true, frequency: 'daily', hour: 2, minute: 0 }])}
+                className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300">
+                + Add Schedule
+              </button>
+              <button onClick={handleSaveSchedules} disabled={savingSchedules}
+                className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50">
+                {savingSchedules ? 'Saving...' : 'Save Schedules'}
+              </button>
+              {scheduleError && <span className="text-xs text-red-600">{scheduleError}</span>}
+            </div>
+          </div>
+        )}
 
         <JsonViewer data={data.classifiers} />
       </div>
