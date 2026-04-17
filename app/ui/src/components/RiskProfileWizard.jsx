@@ -18,6 +18,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
+import JsonViewer from './JsonViewer';
 
 const STEPS = [
   { key: 'sources',     label: 'Sources' },
@@ -412,7 +413,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
               {/* Left: profile JSON */}
               <div>
                 <div className="text-xs font-medium mb-1">Current profile</div>
-                <pre className="text-[11px] bg-gray-50 border rounded p-2 overflow-auto max-h-96 font-mono">{JSON.stringify(profile, null, 2)}</pre>
+                <JsonViewer data={profile} />
               </div>
               {/* Right: chat */}
               <div className="flex flex-col">
@@ -508,7 +509,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
             {classifierError && <div className="text-sm text-red-700 mt-2">{classifierError}</div>}
             {classifiers && (
               <>
-                <pre className="text-[11px] bg-gray-50 border rounded p-2 overflow-auto max-h-80 font-mono">{JSON.stringify(classifiers, null, 2)}</pre>
+                <JsonViewer data={classifiers} />
                 <div className="flex items-end gap-3">
                   <div className="flex-1">
                     <label className="block text-xs font-medium mb-1">Classifier set name</label>
