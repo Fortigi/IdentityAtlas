@@ -9,6 +9,7 @@ export function formatValue(val) {
   if (val === null || val === undefined) return '\u2014';
   if (val === true) return 'Yes';
   if (val === false) return 'No';
+  if (typeof val === 'object') return JSON.stringify(val, null, 2);
   if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}T/)) return formatDate(val);
   return String(val);
 }
