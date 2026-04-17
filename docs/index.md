@@ -76,6 +76,7 @@ Open [http://localhost:3001](http://localhost:3001) → click **"Load Demo Data"
 - [Quick Start Guide](quickstart.md) — Docker quick start and verification
 - [Docker Setup](architecture/docker-setup.md) — services, volumes, scaling
 - [Data Model](concepts/data-model.md) — understand the unified schema and how systems map to it
+- [Software Bill of Materials](reference/sbom.md) — complete inventory of components and dependencies
 - [About](about.md) — creators, contact, and licensing
 - [History](history.md) — how Identity Atlas evolved from the FortigiGraph PowerShell toolkit through v5
 - [GitHub Repository](https://github.com/Fortigi/IdentityAtlas) — source code, issue tracker, and releases

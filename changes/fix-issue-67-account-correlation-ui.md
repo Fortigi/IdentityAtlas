@@ -1,0 +1,3 @@
+- Added in-browser wizard for generating account correlation rulesets via LLM (Admin → Account Correlation)
+- Users can now create correlation signals and account type rules through a conversational UI instead of PowerShell commands
+- Wizard follows the same pattern as Risk Scoring: Sources → Generate & Refine → Save
