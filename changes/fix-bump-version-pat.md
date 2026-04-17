@@ -1,0 +1,1 @@
+- Fixed automated version bumps failing due to branch protection requiring pull requests
