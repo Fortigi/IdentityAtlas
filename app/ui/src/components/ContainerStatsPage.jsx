@@ -47,7 +47,6 @@ function LineChart({ data, maxValue, color, height = 60, label }) {
     gridLines.push({ y, value });
   }
 
-  const now = Date.now();
   const timeLabels = [
     { x: padding.left, text: '-10m' },
     { x: padding.left + chartWidth / 2, text: '-5m' },
