@@ -11,7 +11,7 @@ import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
-const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv'];
+const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv', 'omada'];
 const MAX_RECENT_JOBS = 50;
 const SECRET_MASK = '••••••••';
 
@@ -683,6 +683,19 @@ router.post('/admin/crawler-jobs', async (req, res) => {
     if (jobType === 'entra-id') {
       if (!resolvedConfig?.tenantId || !resolvedConfig?.clientId || !resolvedConfig?.clientSecret) {
         return res.status(400).json({ error: 'Entra ID jobs require tenantId, clientId, and clientSecret' });
+      }
+    }
+
+    // Validate omada has the required connection settings
+    if (jobType === 'omada') {
+      if (!resolvedConfig?.omadaBaseUrl || !resolvedConfig?.authMode) {
+        return res.status(400).json({ error: 'Omada jobs require omadaBaseUrl and authMode' });
+      }
+      if (resolvedConfig.authMode === 'Credential' && !resolvedConfig.username) {
+        return res.status(400).json({ error: 'Omada Credential auth requires a username' });
+      }
+      if (resolvedConfig.authMode === 'OAuth2' && (!resolvedConfig.tenantId || !resolvedConfig.clientId)) {
+        return res.status(400).json({ error: 'Omada OAuth2 auth requires tenantId and clientId' });
       }
     }
 

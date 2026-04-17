@@ -229,6 +229,52 @@ switch ($JobType) {
         Set-JobResult @{ status = 'CSV import completed successfully' }
     }
 
+    'omada' {
+        Update-JobProgress -Step 'Preparing Omada sync' -Pct 5
+
+        $crawlerParams = @{
+            ApiBaseUrl   = $apiBaseUrl
+            ApiKey       = $ApiKey
+            OmadaBaseUrl = $Config['omadaBaseUrl']
+            AuthMode     = $Config['authMode']
+            JobId        = $JobId
+        }
+
+        if ($Config['systemName']) { $crawlerParams['SystemName'] = $Config['systemName'] }
+
+        # Auth-mode-specific params
+        if ($Config['authMode'] -eq 'Credential') {
+            $secPw = $Config['password'] ? (ConvertTo-SecureString $Config['password'] -AsPlainText -Force) : (New-Object System.Security.SecureString)
+            $crawlerParams['OmadaCredential'] = New-Object PSCredential($Config['username'], $secPw)
+        } elseif ($Config['authMode'] -eq 'OAuth2') {
+            $crawlerParams['TenantId']     = $Config['tenantId']
+            $crawlerParams['ClientId']     = $Config['clientId']
+            $crawlerParams['ClientSecret'] = $Config['clientSecret']
+        }
+
+        # Sync toggles
+        if ($Config.ContainsKey('syncContexts'))    { $crawlerParams['SyncContexts']    = [bool]$Config['syncContexts'] }
+        if ($Config.ContainsKey('syncPrincipals'))  { $crawlerParams['SyncPrincipals']  = [bool]$Config['syncPrincipals'] }
+        if ($Config.ContainsKey('syncResources'))   { $crawlerParams['SyncResources']   = [bool]$Config['syncResources'] }
+        if ($Config.ContainsKey('syncAssignments')) { $crawlerParams['SyncAssignments'] = [bool]$Config['syncAssignments'] }
+
+        Update-JobProgress -Step 'Running Omada OData crawler' -Pct 10
+
+        & /app/tools/crawlers/omada/Start-OmadaCrawler.ps1 @crawlerParams
+
+        Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
+        try {
+            if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) {
+                Invoke-FGAccountCorrelation
+            }
+        } catch {
+            Write-Host "  Account correlation failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+
+        Update-JobProgress -Step 'Complete' -Pct 100
+        Set-JobResult @{ status = 'Omada sync completed successfully' }
+    }
+
     default {
         throw "Unknown job type: $JobType"
     }

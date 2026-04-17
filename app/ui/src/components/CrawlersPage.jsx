@@ -48,6 +48,12 @@ const CRAWLER_TYPES = [
     available: true,
   },
   {
+    id: 'omada',
+    name: 'Omada Identity',
+    description: 'Sync identities, resources, and assignments directly from Omada via OData — no CSV export required',
+    available: true,
+  },
+  {
     id: 'demo',
     name: 'Demo Data',
     description: 'Load synthetic data to explore the platform (~30 seconds)',
@@ -1720,6 +1726,264 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Omada Identity Wizard
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
+  const [step, setStep] = useState(1);
+  const [displayName, setDisplayName] = useState(initialConfig?.displayName || 'Omada Identity');
+  const [omadaBaseUrl, setOmadaBaseUrl] = useState(initialConfig?.omadaBaseUrl || '');
+  const [authMode, setAuthMode] = useState(initialConfig?.authMode || 'Credential');
+  const [username, setUsername] = useState(initialConfig?.username || '');
+  const [password, setPassword] = useState('');
+  const [tenantId, setTenantId] = useState(initialConfig?.tenantId || '');
+  const [clientId, setClientId] = useState(initialConfig?.clientId || '');
+  const [clientSecret, setClientSecret] = useState('');
+  const [systemName, setSystemName] = useState(initialConfig?.systemName || 'Omada Identity');
+
+  const [syncContexts, setSyncContexts] = useState(initialConfig?.syncContexts ?? true);
+  const [syncPrincipals, setSyncPrincipals] = useState(initialConfig?.syncPrincipals ?? true);
+  const [syncResources, setSyncResources] = useState(initialConfig?.syncResources ?? true);
+  const [syncAssignments, setSyncAssignments] = useState(initialConfig?.syncAssignments ?? true);
+
+  const [schedules, setSchedules] = useState(() => {
+    if (initialConfig?.schedules?.length) return initialConfig.schedules;
+    if (initialConfig?.schedule) return [initialConfig.schedule];
+    return [];
+  });
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const canProceedFromStep1 = omadaBaseUrl.trim() && (
+    authMode === 'WindowsIntegrated' ||
+    (authMode === 'Credential' && username.trim() && (password.trim() || isEdit)) ||
+    (authMode === 'OAuth2' && tenantId.trim() && clientId.trim() && (clientSecret.trim() || isEdit))
+  );
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const configPayload = {
+        omadaBaseUrl: omadaBaseUrl.trim(),
+        authMode,
+        systemName,
+        syncContexts, syncPrincipals, syncResources, syncAssignments,
+        schedules,
+      };
+      if (authMode === 'Credential') {
+        configPayload.username = username.trim();
+        if (password.trim()) configPayload.password = password;
+      } else if (authMode === 'OAuth2') {
+        configPayload.tenantId = tenantId.trim();
+        configPayload.clientId = clientId.trim();
+        if (clientSecret.trim()) configPayload.clientSecret = clientSecret;
+      }
+
+      const url = isEdit ? `/api/admin/crawler-configs/${initialConfig.id}` : '/api/admin/crawler-configs';
+      const method = isEdit ? 'PATCH' : 'POST';
+      const body = isEdit
+        ? { displayName, config: configPayload }
+        : { crawlerType: 'omada', displayName, config: configPayload };
+
+      const r = await authFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e.error || `HTTP ${r.status}`);
+      }
+      onComplete();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const omadaSteps = [
+    { n: 1, label: 'Connection' },
+    { n: 2, label: 'Sync options' },
+    { n: 3, label: 'Review' },
+  ];
+
+  return (
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold">{isEdit ? 'Edit Omada Crawler' : 'Add Omada Crawler'}</h3>
+        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
+      </div>
+
+      <StepIndicator steps={omadaSteps} step={step} />
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">{error}</div>
+      )}
+
+      {/* Step 1: Connection */}
+      {step === 1 && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Display name</label>
+            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)}
+              placeholder="e.g. Omada Production"
+              className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">OData base URL</label>
+            <input type="text" value={omadaBaseUrl} onChange={e => setOmadaBaseUrl(e.target.value)}
+              placeholder="http://omada.company.com/odata/dataobjects"
+              className="w-full px-3 py-2 border border-gray-200 rounded text-sm font-mono" />
+            <p className="text-xs text-gray-500 mt-1">Full path to the OData entity root — typically <code>/odata/dataobjects</code>.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">System name</label>
+            <input type="text" value={systemName} onChange={e => setSystemName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Authentication mode</label>
+            <select value={authMode} onChange={e => setAuthMode(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded text-sm">
+              <option value="WindowsIntegrated">Windows Integrated (domain-joined worker)</option>
+              <option value="Credential">Credential (username + password)</option>
+              <option value="OAuth2">OAuth2 / Entra ID app registration</option>
+            </select>
+          </div>
+          {authMode === 'Credential' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                <input type="text" value={username} onChange={e => setUsername(e.target.value)}
+                  placeholder="DOMAIN\user"
+                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm font-mono" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder={isEdit ? '(unchanged)' : ''}
+                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
+              </div>
+            </div>
+          )}
+          {authMode === 'OAuth2' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tenant ID</label>
+                <input type="text" value={tenantId} onChange={e => setTenantId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm font-mono" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
+                  <input type="text" value={clientId} onChange={e => setClientId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded text-sm font-mono" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Client secret</label>
+                  <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)}
+                    placeholder={isEdit ? '(unchanged)' : ''}
+                    className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <button onClick={() => setStep(2)} disabled={!canProceedFromStep1}
+              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              Next: Sync options
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Sync options + schedule */}
+      {step === 2 && (
+        <div className="space-y-4">
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Objects to sync</h4>
+            <div className="space-y-2">
+              {[
+                { key: 'syncContexts',    label: 'Contexts (org units)',         val: syncContexts,    set: setSyncContexts },
+                { key: 'syncPrincipals',  label: 'Identities & user accounts',   val: syncPrincipals,  set: setSyncPrincipals },
+                { key: 'syncResources',   label: 'Resources (business roles)',    val: syncResources,   set: setSyncResources },
+                { key: 'syncAssignments', label: 'Resource assignments',          val: syncAssignments, set: setSyncAssignments },
+              ].map(({ key, label, val, set }) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={val} onChange={e => set(e.target.checked)} className="rounded" />
+                  <span className="text-sm text-gray-700">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Schedules</h4>
+            {schedules.length === 0 ? (
+              <p className="text-sm text-gray-500 mb-2">No schedule — run manually only.</p>
+            ) : (
+              <div className="space-y-2 mb-2">
+                {schedules.map((sched, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <ScheduleEditor
+                      schedule={sched}
+                      onChange={s => setSchedules(prev => prev.map((x, j) => j === i ? s : x))}
+                    />
+                    <button onClick={() => setSchedules(prev => prev.filter((_, j) => j !== i))}
+                      className="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setSchedules(prev => [...prev, { enabled: true, frequency: 'daily', hour: 2, minute: 0 }])}
+              className="text-sm text-indigo-600 hover:text-indigo-800">
+              + Add schedule
+            </button>
+          </div>
+          <div className="flex justify-between">
+            <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 rounded text-sm">Back</button>
+            <button onClick={() => setStep(3)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">
+              Next: Review
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Review */}
+      {step === 3 && (
+        <div className="space-y-4">
+          <div className="bg-gray-50 border border-gray-200 rounded p-4 space-y-2 text-sm">
+            <div><span className="text-gray-500">Display name:</span> <span className="font-medium">{displayName}</span></div>
+            <div><span className="text-gray-500">OData URL:</span> <code className="text-xs">{omadaBaseUrl}</code></div>
+            <div><span className="text-gray-500">Auth mode:</span> {authMode}</div>
+            {authMode === 'Credential' && <div><span className="text-gray-500">Username:</span> {username}</div>}
+            {authMode === 'OAuth2' && <div><span className="text-gray-500">Tenant:</span> {tenantId}</div>}
+            <div><span className="text-gray-500">Sync:</span> {[
+              syncContexts    && 'Contexts',
+              syncPrincipals  && 'Identities & Users',
+              syncResources   && 'Resources',
+              syncAssignments && 'Assignments',
+            ].filter(Boolean).join(', ') || 'Nothing'}</div>
+            <div><span className="text-gray-500">Schedules:</span> {schedules.length || 'None (manual only)'}</div>
+          </div>
+          <div className="flex justify-between">
+            <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-100 rounded text-sm">Back</button>
+            <button onClick={handleSave} disabled={saving}
+              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              {saving ? 'Saving...' : (isEdit ? 'Save changes' : 'Create crawler')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Custom Connector Wizard
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2099,6 +2363,9 @@ export default function CrawlersPage({ onNavigate }) {
     } else if (type === 'csv') {
       setEditingConfig(null);
       setWizardStep('csv-wizard');
+    } else if (type === 'omada') {
+      setEditingConfig(null);
+      setWizardStep('omada-wizard');
     } else if (type === 'custom') {
       setEditingConfig(null);
       setWizardStep('custom-wizard');
@@ -2193,7 +2460,8 @@ export default function CrawlersPage({ onNavigate }) {
       displayName: config.displayName,
       ...(config.config || {}),
     });
-    setWizardStep(config.crawlerType === 'csv' ? 'csv-wizard' : 'entra-wizard');
+    const wizardMap = { csv: 'csv-wizard', omada: 'omada-wizard' };
+    setWizardStep(wizardMap[config.crawlerType] || 'entra-wizard');
   };
 
   // ── Job actions ───────────────────────────────────────────────
@@ -2324,6 +2592,19 @@ export default function CrawlersPage({ onNavigate }) {
       )}
       {wizardStep === 'csv-wizard' && (
         <CsvWizard
+          onComplete={() => {
+            setWizardStep(null);
+            setEditingConfig(null);
+            fetchConfigs();
+          }}
+          onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
+          initialConfig={editingConfig}
+          isEdit={!!editingConfig}
+          authFetch={authFetch}
+        />
+      )}
+      {wizardStep === 'omada-wizard' && (
+        <OmadaWizard
           onComplete={() => {
             setWizardStep(null);
             setEditingConfig(null);

@@ -1,1 +1,2 @@
-- Added Omada Identity OData crawler (`tools/crawlers/omada/Start-OmadaCrawler.ps1`) for direct API-based sync without requiring CSV exports; uses the OmadaWeb.PS module for authentication (Windows Integrated, explicit credential, and OAuth2/Entra ID)
+- Added Omada Identity OData crawler (`tools/crawlers/omada/Start-OmadaCrawler.ps1`) for direct API-based sync without requiring CSV exports; supports Windows Integrated, explicit credential, and OAuth2/Entra ID authentication
+- Added Omada Identity crawler type to the Admin → Crawlers wizard with a three-step setup UI (connection settings, sync options, schedule)

@@ -91,7 +91,7 @@ async function queueScheduledJob(configRow, scheduleIndex) {
   // The jobType is derived from crawlerType. The CrawlerConfigs.crawlerType is
   // the canonical source — 'entra-id' or 'csv'.
   const jobType = configRow.crawlerType;
-  if (!['entra-id', 'csv'].includes(jobType)) {
+  if (!['entra-id', 'csv', 'omada'].includes(jobType)) {
     console.warn(`Scheduler: unsupported crawlerType '${jobType}' for config ${configRow.id}`);
     return;
   }
@@ -100,6 +100,12 @@ async function queueScheduledJob(configRow, scheduleIndex) {
   if (jobType === 'entra-id') {
     if (!jobConfig.tenantId || !jobConfig.clientId || !jobConfig.clientSecret) {
       console.warn(`Scheduler: config ${configRow.id} missing Entra credentials — skipping scheduled run`);
+      return;
+    }
+  }
+  if (jobType === 'omada') {
+    if (!jobConfig.omadaBaseUrl || !jobConfig.authMode) {
+      console.warn(`Scheduler: config ${configRow.id} missing Omada settings — skipping scheduled run`);
       return;
     }
   }
