@@ -1500,8 +1500,11 @@ export default function AdminPage({ onNavigate, onRefresh }) {
     const page = hash.split('?')[0];
     if (page === 'crawlers') return 'crawlers';
     if (page === 'performance') return 'performance';
-    const m = window.location.hash.match(/sub=([\w-]+)/);
-    return m && ADMIN_TABS.some(t => t.key === m[1]) ? m[1] : 'crawlers';
+    // Parse query parameters properly using URLSearchParams (consistent with App.jsx parseHash())
+    const qIndex = hash.indexOf('?');
+    const params = new URLSearchParams(qIndex >= 0 ? hash.substring(qIndex + 1) : '');
+    const sub = params.get('sub');
+    return sub && ADMIN_TABS.some(t => t.key === sub) ? sub : 'crawlers';
   };
   const [activeTab, setActiveTab] = useState(getInitialTab);
 
