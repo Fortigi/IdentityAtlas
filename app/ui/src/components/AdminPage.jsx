@@ -8,6 +8,7 @@ const ContainerStatsPage = lazy(() => import('./ContainerStatsPage'));
 const AuthSettingsPage = lazy(() => import('./AuthSettingsPage'));
 const PerfPage = lazy(() => import('./PerfPage'));
 const RiskProfileWizard = lazy(() => import('./RiskProfileWizard'));
+const CorrelationWizard = lazy(() => import('./CorrelationWizard'));
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -451,23 +452,69 @@ function ClassifiersSection() {
 
 // ── Correlation Ruleset section ───────────────────────────────────
 
+// ── New Correlation Ruleset launcher (opens the wizard) ───────────
+function NewCorrelationRulesetLauncher({ onRefresh }) {
+  const [open, setOpen] = useState(false);
+  const [bumpKey, setBumpKey] = useState(0);
+
+  const handleSaved = () => {
+    setBumpKey(k => k + 1);
+    onRefresh?.();
+  };
+
+  return (
+    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-center justify-between mb-4">
+      <div>
+        <div className="text-sm font-medium text-indigo-900">Create a new account correlation ruleset</div>
+        <div className="text-xs text-indigo-700 mt-0.5">
+          Generates correlation signals and account type rules to link accounts across systems.
+        </div>
+      </div>
+      <button onClick={() => setOpen(true)} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
+        New Ruleset
+      </button>
+      {open && (
+        <Suspense fallback={null}>
+          <CorrelationWizard
+            key={bumpKey}
+            onClose={() => setOpen(false)}
+            onSaved={handleSaved}
+          />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
 function CorrelationSection() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('signals');
   const { authFetch } = useAuth();
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
     authFetch('/api/admin/correlation-ruleset')
       .then(r => r.json())
       .then(setData)
       .catch(() => setData({ available: false }))
       .finally(() => setLoading(false));
-  }, [authFetch]);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const content = () => {
     if (loading) return <p className="mt-4 text-sm text-gray-400">Loading...</p>;
-    if (!data?.available) return <NotConfigured message="No correlation ruleset saved yet. Run New-FGCorrelationRuleset and Save-FGCorrelationRuleset to configure one." />;
+    if (!data?.available) {
+      return (
+        <div className="mt-4">
+          <NewCorrelationRulesetLauncher onRefresh={loadData} />
+          <NotConfigured message="No correlation ruleset saved yet. Click 'New Ruleset' above to create one via the wizard." />
+        </div>
+      );
+    }
 
     const rs = data.ruleset || {};
     const signals = rs.correlationSignals || rs.correlation_signals || [];
@@ -476,6 +523,8 @@ function CorrelationSection() {
 
     return (
       <div className="mt-4 space-y-3">
+        <NewCorrelationRulesetLauncher onRefresh={loadData} />
+
         <div className="flex flex-wrap gap-2">
           <MetaBadge label="Version" value={data.version} />
           <MetaBadge label="Generated" value={fmt(data.generatedAt)} />
@@ -1565,8 +1614,11 @@ export default function AdminPage({ onNavigate, onRefresh }) {
     const page = hash.split('?')[0];
     if (page === 'crawlers') return 'crawlers';
     if (page === 'performance') return 'performance';
-    const m = window.location.hash.match(/sub=([\w-]+)/);
-    return m && ADMIN_TABS.some(t => t.key === m[1]) ? m[1] : 'crawlers';
+    // Parse query parameters properly using URLSearchParams (consistent with App.jsx parseHash())
+    const qIndex = hash.indexOf('?');
+    const params = new URLSearchParams(qIndex >= 0 ? hash.substring(qIndex + 1) : '');
+    const sub = params.get('sub');
+    return sub && ADMIN_TABS.some(t => t.key === sub) ? sub : 'crawlers';
   };
   const [activeTab, setActiveTab] = useState(getInitialTab);
 
