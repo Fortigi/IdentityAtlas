@@ -483,6 +483,26 @@ router.post('/risk-classifiers/:id/activate', async (req, res) => {
   }
 });
 
+router.patch('/risk-classifiers/:id/schedules', async (req, res) => {
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+  const { schedules } = req.body;
+  if (!Array.isArray(schedules)) {
+    return res.status(400).json({ error: 'schedules must be an array' });
+  }
+  try {
+    await db.query(
+      `UPDATE "RiskClassifiers" SET schedules = $1::jsonb, "updatedAt" = now() WHERE id = $2`,
+      [JSON.stringify(schedules), id]
+    );
+    res.json({ message: 'Schedules updated' });
+  } catch (err) {
+    console.error('update schedules failed:', err.message);
+    res.status(500).json({ error: 'Update failed', message: err.message });
+  }
+});
+
 router.delete('/risk-classifiers/:id', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
