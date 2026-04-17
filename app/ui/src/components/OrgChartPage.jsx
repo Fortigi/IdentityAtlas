@@ -676,7 +676,7 @@ export default function OrgChartPage({ onOpenDetail, onCacheData }) {
 
       {/* Org chart */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 overflow-x-auto">
-        <div className="flex justify-center py-4">
+        <div className="inline-flex py-4 min-w-full justify-center">
           <OrgNode
             node={rootNode}
             depth={0}
