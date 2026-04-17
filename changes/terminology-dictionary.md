@@ -1,0 +1,7 @@
+- Added terminology dictionary for decoding abbreviations and codes in authorization names
+- Dictionary terms can be enriched via LLM (description, business process links, classifier proposals)
+- LLM uses web search for additional context; only generic terms are sent externally
+- Correlations between terms (synonyms and related concepts) with strength scores (0–1)
+- Auto-mining extracts candidate terms from existing resource and group names
+- All LLM proposals land as pending and require admin review before activation
+- Approved classifier pattern proposals are linked to existing risk classifiers for admin review
