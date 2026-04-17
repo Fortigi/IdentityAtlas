@@ -1460,7 +1460,7 @@ function LLMSettingsSection() {
 }
 
 // ─── New-profile launcher (opens the wizard) ────────────────────────────────
-function NewRiskProfileLauncher() {
+function NewRiskProfileLauncher({ onRiskScoresRefresh }) {
   const [open, setOpen] = useState(false);
   const [bumpKey, setBumpKey] = useState(0);
   return (
@@ -1479,7 +1479,7 @@ function NewRiskProfileLauncher() {
           <RiskProfileWizard
             key={bumpKey}
             onClose={() => setOpen(false)}
-            onSaved={() => { setBumpKey(k => k + 1); }}
+            onSaved={() => { setBumpKey(k => k + 1); onRiskScoresRefresh?.(); }}
           />
         </Suspense>
       )}
@@ -1488,7 +1488,7 @@ function NewRiskProfileLauncher() {
 }
 
 // ─── Risk Scoring sub-tab — combines profile + classifiers + feature toggle ──
-function RiskScoringSection() {
+function RiskScoringSection({ onRiskScoresRefresh }) {
   const { authFetch } = useAuth();
   const [features, setFeatures] = useState(null);
   const [toggling, setToggling] = useState(false);
@@ -1570,7 +1570,7 @@ function RiskScoringSection() {
       {/* Risk profile + classifiers — only render when feature is enabled */}
       {enabled ? (
         <>
-          <NewRiskProfileLauncher />
+          <NewRiskProfileLauncher onRiskScoresRefresh={onRiskScoresRefresh} />
           <RiskProfileSection />
           <ClassifiersSection />
         </>
@@ -1605,7 +1605,7 @@ function AdminSubTabs({ activeTab, onTabChange }) {
   );
 }
 
-export default function AdminPage({ onNavigate, onRefresh }) {
+export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }) {
   // Persist active sub-tab in URL hash like #admin?sub=crawlers so deep links work.
   // Also handles legacy #crawlers and #performance hashes by mapping them to the
   // corresponding sub-tab.
@@ -1663,7 +1663,7 @@ export default function AdminPage({ onNavigate, onRefresh }) {
         )}
 
         {activeTab === 'correlation' && <CorrelationSection />}
-        {activeTab === 'risk-scoring' && <RiskScoringSection />}
+        {activeTab === 'risk-scoring' && <RiskScoringSection onRiskScoresRefresh={onRiskScoresRefresh} />}
         {activeTab === 'llm' && <LLMSettingsSection />}
 
         {activeTab === 'performance' && (
