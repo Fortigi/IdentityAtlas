@@ -1,0 +1,1 @@
+- Fixed Extended Attributes displaying "[object Object]" for complex values like sign in activity — now shows properly formatted JSON
