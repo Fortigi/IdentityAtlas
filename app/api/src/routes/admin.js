@@ -88,7 +88,7 @@ router.get('/admin/classifiers', async (req, res) => {
   try {
     const r = await db.query(`
       SELECT id, "profileId", "displayName", "llmProvider", "llmModel", version,
-             "isActive", "createdAt", "updatedAt", classifiers
+             "isActive", "createdAt", "updatedAt", classifiers, schedules
         FROM "RiskClassifiers"
         ORDER BY "isActive" DESC, "createdAt" DESC
         LIMIT 1
@@ -108,6 +108,7 @@ router.get('/admin/classifiers', async (req, res) => {
       llmProvider: row.llmProvider,
       llmModel: row.llmModel,
       classifiers: row.classifiers, // jsonb parsed by pg
+      schedules: row.schedules || [], // jsonb parsed by pg
     });
   } catch (err) {
     console.error('Error fetching classifiers:', err.message);

@@ -26,6 +26,7 @@
 //   - Worker restarts (common during debugging) don't lose scheduled runs.
 
 import * as db from './db/connection.js';
+import { runScoring } from './riskscoring/engine.js';
 
 const TICK_INTERVAL_MS = 60_000;
 const FIRST_RUN_DELAY_MS = 45_000;
@@ -120,10 +121,37 @@ async function queueScheduledJob(configRow, scheduleIndex) {
   console.log(`Scheduler: queued ${jobType} job from config ${configRow.id} (${configRow.displayName})`);
 }
 
+async function queueScheduledScoringRun(classifierRow, scheduleIndex) {
+  // Check if a scoring run already exists in the last 55 minutes for this classifier
+  const recent = await db.queryOne(
+    `SELECT 1 FROM "ScoringRuns"
+      WHERE "classifierId" = $1
+        AND "startedAt" > now() - interval '55 minutes'
+      LIMIT 1`,
+    [classifierRow.id]
+  );
+  if (recent) return; // Skip duplicate
+
+  const triggeredBy = 'scheduler';
+  const run = await db.queryOne(
+    `INSERT INTO "ScoringRuns" ("classifierId", status, step, pct, "triggeredBy")
+     VALUES ($1, 'pending', 'Queued', 0, $2)
+     RETURNING *`,
+    [classifierRow.id, triggeredBy]
+  );
+
+  // Fire the scoring runner in the background (same pattern as manual runs)
+  runScoring(run.id, classifierRow.id).catch(err => {
+    console.error(`Scheduled scoring run ${run.id} crashed:`, err);
+  });
+
+  console.log(`Scheduler: queued risk scoring run for classifier ${classifierRow.id} (${classifierRow.displayName})`);
+}
+
 async function tick() {
   try {
-    // Load all enabled configs that have at least one schedule
-    const rows = await db.query(
+    // Load all enabled crawler configs that have at least one schedule
+    const crawlerRows = await db.query(
       `SELECT id, "crawlerType", "displayName", config
          FROM "CrawlerConfigs"
         WHERE enabled = TRUE
@@ -131,12 +159,22 @@ async function tick() {
           AND jsonb_array_length(config->'schedules') > 0`
     );
 
-    if (rows.rows.length === 0) return;
+    // Load all active risk classifiers that have at least one schedule
+    const classifierRows = await db.query(
+      `SELECT id, "displayName", schedules
+         FROM "RiskClassifiers"
+        WHERE "isActive" = TRUE
+          AND schedules IS NOT NULL
+          AND jsonb_array_length(schedules) > 0`
+    );
+
+    if (crawlerRows.rows.length === 0 && classifierRows.rows.length === 0) return;
 
     const now = new Date();
     const minuteKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}T${now.getUTCHours()}:${now.getUTCMinutes()}`;
 
-    for (const configRow of rows.rows) {
+    // Process crawler schedules
+    for (const configRow of crawlerRows.rows) {
       const cfg = typeof configRow.config === 'string' ? JSON.parse(configRow.config) : configRow.config;
       const schedules = cfg.schedules || [];
 
@@ -144,7 +182,7 @@ async function tick() {
         const s = schedules[i];
         if (!scheduleMatches(s, now)) continue;
 
-        const key = `${configRow.id}:${i}`;
+        const key = `crawler:${configRow.id}:${i}`;
         if (lastFired.get(key) === minuteKey) continue; // already fired this minute
 
         // Cross-restart safety: check DB for recent job from this config
@@ -161,6 +199,28 @@ async function tick() {
         }
       }
     }
+
+    // Process risk scoring schedules
+    for (const classifierRow of classifierRows.rows) {
+      const schedules = Array.isArray(classifierRow.schedules)
+        ? classifierRow.schedules
+        : (typeof classifierRow.schedules === 'string' ? JSON.parse(classifierRow.schedules) : []);
+
+      for (let i = 0; i < schedules.length; i++) {
+        const s = schedules[i];
+        if (!scheduleMatches(s, now)) continue;
+
+        const key = `scoring:${classifierRow.id}:${i}`;
+        if (lastFired.get(key) === minuteKey) continue; // already fired this minute
+
+        try {
+          await queueScheduledScoringRun(classifierRow, i);
+          lastFired.set(key, minuteKey);
+        } catch (err) {
+          console.error(`Scheduler: failed to queue scoring run for classifier ${classifierRow.id}: ${err.message}`);
+        }
+      }
+    }
   } catch (err) {
     console.error(`Scheduler tick failed: ${err.message}`);
   }
@@ -174,5 +234,5 @@ export function startScheduler() {
       tick().catch(err => console.error('Scheduler tick failed:', err.message));
     }, TICK_INTERVAL_MS);
   }, FIRST_RUN_DELAY_MS);
-  console.log('Crawler scheduler started (ticks every 60s)');
+  console.log('Scheduler started (crawlers + risk scoring, ticks every 60s)');
 }
