@@ -313,38 +313,38 @@ export default function App() {
     if (page.startsWith('user:')) {
       const id = page.substring(5);
       const cacheKey = `user:${id}`;
-      return <UserDetailPage userId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('user', id)} onOpenDetail={openDetailTab} />;
+      return <UserDetailPage key={cacheKey} userId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('user', id)} onOpenDetail={openDetailTab} />;
     }
     if (page.startsWith('resource:')) {
       const id = page.substring(9);
       const cacheKey = `resource:${id}`;
-      return <ResourceDetailPage resourceId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('resource', id)} onOpenDetail={openDetailTab} />;
+      return <ResourceDetailPage key={cacheKey} resourceId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('resource', id)} onOpenDetail={openDetailTab} />;
     }
     if (page.startsWith('group:')) {
       // Backward compat: #group:id opens ResourceDetailPage
       const id = page.substring(6);
       const cacheKey = `group:${id}`;
-      return <ResourceDetailPage resourceId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('group', id)} onOpenDetail={openDetailTab} />;
+      return <ResourceDetailPage key={cacheKey} resourceId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('group', id)} onOpenDetail={openDetailTab} />;
     }
     if (page.startsWith('access-package:')) {
       const id = page.substring(15);
       const cacheKey = `access-package:${id}`;
-      return <AccessPackageDetailPage accessPackageId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('access-package', id)} />;
+      return <AccessPackageDetailPage key={cacheKey} accessPackageId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('access-package', id)} />;
     }
     if (page.startsWith('department:')) {
       const name = page.substring(11);
       const cacheKey = `department:${name}`;
-      return <DepartmentDetailPage departmentName={name} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('department', name)} onOpenDetail={openDetailTab} />;
+      return <DepartmentDetailPage key={cacheKey} departmentName={name} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('department', name)} onOpenDetail={openDetailTab} />;
     }
     if (page.startsWith('context:')) {
       const id = page.substring(8);
       const cacheKey = `context:${id}`;
-      return <ContextDetailPage contextId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('context', id)} onOpenDetail={openDetailTab} />;
+      return <ContextDetailPage key={cacheKey} contextId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('context', id)} onOpenDetail={openDetailTab} />;
     }
     if (page.startsWith('identity:')) {
       const id = page.substring(9);
       const cacheKey = `identity:${id}`;
-      return <IdentityDetailPage identityId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('identity', id)} onOpenDetail={openDetailTab} />;
+      return <IdentityDetailPage key={cacheKey} identityId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('identity', id)} onOpenDetail={openDetailTab} />;
     }
     return null;
   };

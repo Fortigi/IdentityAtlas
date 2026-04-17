@@ -1,0 +1,1 @@
+- Fixed detail page tabs not updating when switching between different users, resources, or other entities — tabs now show the correct entity data immediately
