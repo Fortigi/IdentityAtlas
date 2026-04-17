@@ -1,0 +1,1 @@
+- Fixed crawler schedules not firing when created via legacy wizard (scheduler now supports both `schedule` and `schedules` config formats)
