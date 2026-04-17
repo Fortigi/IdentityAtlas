@@ -26,6 +26,7 @@ import adminRouter from './routes/admin.js';
 import llmRouter from './routes/llm.js';
 import riskProfilesRouter from './routes/riskProfiles.js';
 import riskScoringRunsRouter from './routes/riskScoringRuns.js';
+import correlationRulesetsRouter from './routes/correlationRulesets.js';
 import { adminCrawlersRouter, selfServiceCrawlersRouter } from './routes/crawlers.js';
 import { crawlerAuthMiddleware } from './middleware/crawlerAuth.js';
 import ingestRouter from './routes/ingest.js';
@@ -242,6 +243,7 @@ app.use('/api', authMiddleware, adminRouter);
 app.use('/api', authMiddleware, llmRouter);
 app.use('/api', authMiddleware, riskProfilesRouter);
 app.use('/api', authMiddleware, riskScoringRunsRouter);
+app.use('/api', authMiddleware, correlationRulesetsRouter);
 app.use('/api', authMiddleware, csvUploadsRouter);
 app.use('/api', authMiddleware, governanceRouter);
 

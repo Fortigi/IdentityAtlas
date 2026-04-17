@@ -342,11 +342,16 @@ router.get('/org-chart/user/:id/manager', async (req, res) => {
     const request = timedRequest(p, 'org-user-manager', res);
     request.input('id', req.params.id);
 
+    // For Principals table, filter for current records only (temporal table)
+    const whereClause = userTable === 'Principals'
+      ? `WHERE u.id = @id AND u."ValidTo" = '9999-12-31 23:59:59.9999999' AND m."ValidTo" = '9999-12-31 23:59:59.9999999'`
+      : `WHERE u.id = @id`;
+
     const result = await request.query(`
       SELECT ${managerCols}
       FROM ${userTable} u
       INNER JOIN ${userTable} m ON u."managerId" = m.id
-      WHERE u.id = @id
+      ${whereClause}
     `);
 
     return res.json({
@@ -388,10 +393,15 @@ router.get('/org-chart/user/:id/reports', async (req, res) => {
     const request = timedRequest(p, 'org-user-reports', res);
     request.input('id', req.params.id);
 
+    // For Principals table, filter for current records only (temporal table)
+    const whereClause = userTable === 'Principals'
+      ? `WHERE "managerId" = @id AND "ValidTo" = '9999-12-31 23:59:59.9999999'`
+      : `WHERE "managerId" = @id`;
+
     const result = await request.query(`
       SELECT ${cols}
       FROM ${userTable}
-      WHERE "managerId" = @id
+      ${whereClause}
       ORDER BY "displayName"
     `);
 

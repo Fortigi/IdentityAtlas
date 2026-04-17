@@ -1,0 +1,2 @@
+- Added Software Bill of Materials (SBOM) documentation listing all components, dependencies, and infrastructure elements
+- Fixed SBOM navigation entry in mkdocs.yml to ensure proper documentation site build
