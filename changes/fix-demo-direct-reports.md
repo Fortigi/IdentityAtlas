@@ -1,0 +1,1 @@
+- Fixed direct reports not showing in demo dataset (org chart queries now filter for current records in temporal Principals table)
