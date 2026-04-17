@@ -1,1 +1,0 @@
-- Fixed upgrade instructions to use `--pull always` instead of a separate `pull` + `up -d`, so a single command always fetches the latest image from the registry
