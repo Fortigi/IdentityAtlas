@@ -573,6 +573,10 @@ $syncStart = Get-Date
 # and used by SyncResources to route each resource to the right IA system.
 $Script:OmadaSystemIdMap = @{}
 
+# Maps Omada ResourceType UId → display name; populated by the SyncResources
+# phase before resources are fetched, used to set resourceType on each resource.
+$Script:ResourceTypeMap = @{}
+
 # ─── Sync Omada Systems ───────────────────────────────────────────
 # Fetches the Omada system catalog (SAP, Active Directory, etc.) and registers
 # each as a separate Identity Atlas system so resources can be grouped correctly.
@@ -876,6 +880,26 @@ if ($SyncResources) {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing resources (Omada Roles/Permissions)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing resources' -Pct 50 -Detail 'Fetching Omada Resources...'
 
+    # ── Resource types ─────────────────────────────────────────────
+    # Fetch the ResourceType catalog upfront so each resource gets a canonical
+    # type name. Falls back to ROLETYPEREF.DisplayName if the catalog is unavailable.
+    try {
+        # ResourceType has a Deleted column, so the standard filter applies.
+        $omadaResourceTypes = Get-OmadaData -BaseUri (Get-OmadaUrl 'resourcetype' -Select @(
+            'UId','NAME','DisplayName','ROLECATEGORY'
+        ))
+        foreach ($rt in $omadaResourceTypes) {
+            $name = $rt.NAME; if (-not $name) { $name = $rt.DisplayName }
+            $Script:ResourceTypeMap[$rt.UId] = @{
+                name         = $name
+                roleCategory = if ($rt.ROLECATEGORY) { $rt.ROLECATEGORY.Value } else { $null }
+            }
+        }
+        Write-Host "  Fetched $($Script:ResourceTypeMap.Count) resource types" -ForegroundColor Gray
+    } catch {
+        Write-Host "  Resource type fetch skipped: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
     try {
         $omadaResources = Get-OmadaData -BaseUri (Get-OmadaUrl 'resource' -Select @(
             'UId','NAME','DisplayName','DESCRIPTION','ROLETYPEREF','SYSTEMREF',
@@ -890,8 +914,12 @@ if ($SyncResources) {
             $displayName = $_.NAME
             if (-not $displayName) { $displayName = $_.DisplayName }
 
+            # Resolve resourceType: canonical name from the ResourceType catalog,
+            # falling back to the inline ROLETYPEREF.DisplayName on the resource record.
             $resourceType = 'BusinessRole'
-            if ($_.ROLETYPEREF -and $_.ROLETYPEREF.DisplayName) {
+            if ($_.ROLETYPEREF -and $_.ROLETYPEREF.UId -and $Script:ResourceTypeMap.ContainsKey($_.ROLETYPEREF.UId)) {
+                $resourceType = $Script:ResourceTypeMap[$_.ROLETYPEREF.UId].name
+            } elseif ($_.ROLETYPEREF -and $_.ROLETYPEREF.DisplayName) {
                 $resourceType = $_.ROLETYPEREF.DisplayName
             }
 
@@ -902,6 +930,11 @@ if ($SyncResources) {
             if ($_.ROLEID)                                   { $ext['omadaRoleId']       = $_.ROLEID }
             if ($_.ROLECATEGORY -and $_.ROLECATEGORY.Value)  { $ext['omadaRoleCategory'] = $_.ROLECATEGORY.Value }
             if ($_.SYSTEMREF -and $_.SYSTEMREF.DisplayName)  { $ext['omadaSystem']       = $_.SYSTEMREF.DisplayName }
+            # Store the resource type category for cross-reference
+            if ($_.ROLETYPEREF -and $_.ROLETYPEREF.UId -and $Script:ResourceTypeMap.ContainsKey($_.ROLETYPEREF.UId)) {
+                $rt = $Script:ResourceTypeMap[$_.ROLETYPEREF.UId]
+                if ($rt.roleCategory) { $ext['omadaResourceTypeCategory'] = $rt.roleCategory }
+            }
 
             $rec = @{
                 id           = $_.UId
