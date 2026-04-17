@@ -1,1 +1,0 @@
-- Fixed Sync Log empty state message to reference adding a crawler instead of Start-FGSync

@@ -1,1 +1,0 @@
-- Added "Select All" and "Deselect All" buttons to the attribute picker in the EntraID crawler wizard, making it easier to manage large attribute lists

@@ -1,4 +1,0 @@
-- Added automatic scheduling for risk scoring runs (similar to crawler scheduling)
-- Risk classifiers can now have multiple schedules configured via Admin → Risk Classifiers
-- Scheduled scoring runs execute in the background and re-score all entities with the active classifier
-- Schedules support hourly, daily, and weekly frequencies
