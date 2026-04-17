@@ -1,6 +1,6 @@
 # ─── Docker Image Publishing ─────────────────────────────────────────────────
 # Builds container images, runs a basic smoke test, then pushes to GitHub
-# Container Registry. A broken image never reaches :latest.
+# Container Registry. A broken image never reaches :latest or :edge.
 #
 # Flow:  Build (local) → Start stack → Smoke test → Push
 #
@@ -8,7 +8,9 @@
 #   ghcr.io/fortigi/identity-atlas         — Node.js API + React frontend (web service)
 #   ghcr.io/fortigi/identity-atlas-worker  — PowerShell worker (crawlers, risk scoring)
 #
-# Tags: latest + version from IdentityAtlas.psd1 (e.g., 5.0.20260413.1530)
+# Tags pushed depend on the source branch:
+#   main:         edge  + Major.Minor.yyyyMMdd.HHmm   (dev builds, not :latest)
+#   release/v*:   latest + Major.Minor.Patch.0         (stable customer releases)
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Publish Docker Images
@@ -17,8 +19,15 @@ on:
   workflow_run:
     workflows: ["Bump version on PR merge"]
     types: [completed]
-    branches: [main]
+    branches:
+      - main
+      - 'release/**'
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from (main or release/vX.Y)'
+        required: true
+        default: 'main'
 
 env:
   REGISTRY: ghcr.io
@@ -35,9 +44,25 @@ jobs:
       packages: write
 
     steps:
+      - name: Determine source branch and image tags
+        id: config
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH="${{ github.event.inputs.branch }}"
+          else
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+          fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          if [[ "$BRANCH" == release/* ]]; then
+            echo "channel=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=main" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ steps.config.outputs.branch }}
 
       - name: Extract version from manifest
         id: version
@@ -138,7 +163,8 @@ jobs:
         run: docker compose -f docker-compose.qa.yml down -v 2>/dev/null || true
 
       # ── Push images (only reached if smoke test passed) ─────────────
-      - name: Push web image
+      - name: Push web image (release → latest)
+        if: steps.config.outputs.channel == 'release'
         uses: docker/build-push-action@v6
         with:
           context: ./app
@@ -151,7 +177,8 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
-      - name: Push worker image
+      - name: Push worker image (release → latest)
+        if: steps.config.outputs.channel == 'release'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -159,6 +186,33 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:latest
+            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+
+      - name: Push web image (main → edge)
+        if: steps.config.outputs.channel == 'main'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./app/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/fortigi/identity-atlas:edge
+            ${{ env.REGISTRY }}/fortigi/identity-atlas:${{ steps.version.outputs.version }}
+          build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Push worker image (main → edge)
+        if: steps.config.outputs.channel == 'main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./setup/docker/Dockerfile.powershell
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:edge
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=worker
           cache-to: type=gha,mode=max,scope=worker

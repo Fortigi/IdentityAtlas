@@ -1,0 +1,10 @@
+- Added stable release branch model: `release/vX.Y` branches are cut from `main` and receive only bugfixes, giving customers a stable `:latest` Docker image that does not change when new features land on `main`
+- New `cut-release.yml` workflow creates a release branch and sets the initial version (e.g. `5.2.0.0`) with one click from GitHub Actions
+- Main branch builds now push the `:edge` Docker tag instead of `:latest`, so customers on `:latest` only receive intentional releases
+- Production hotfixes merged to a release branch increment the patch version (`5.2.0.0` → `5.2.1.0`) and push `:latest` automatically
+- `docker-compose.prod.yml` now supports an `IMAGE_TAG` environment variable to select the image channel (`latest`, `edge`, or a pinned version); customers get `latest` by default
+- The footer now shows the running version; edge builds display a prominent amber "edge" badge so it is immediately obvious which channel is running
+- README and Docker Setup documentation updated with step-by-step `.env` setup for both customers and developers, image channel selection guide, and a full environment variable reference
+- Fixed PR checks (lint, unit tests, integration tests) to also run on pull requests targeting `release/**` branches, so hotfixes receive the same gate as feature PRs
+- Fixed release cut workflow: the initial `X.Y.0.0` image is now published to `:latest` immediately after the release branch is created, not only after the first bugfix merges
+- `release/**` branches are now protected: direct commits are blocked, a pull request is required, and the `PR Summary` status check must pass before merging; repository admins retain bypass rights so the automated version bump can still land
