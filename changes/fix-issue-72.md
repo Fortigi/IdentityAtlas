@@ -1,0 +1,1 @@
+- Fixed Risk Scoring page not refreshing automatically after completing the risk profile wizard
