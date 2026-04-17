@@ -83,21 +83,13 @@ To upgrade an existing deployment to the newest version:
 === "Linux / macOS"
 
     ```bash
-    # Pull the latest image from ghcr.io
-    docker compose -f docker-compose.prod.yml pull
-
-    # Recreate containers so they use the new image
-    docker compose -f docker-compose.prod.yml up -d
+    docker compose -f docker-compose.prod.yml up -d --pull always
     ```
 
 === "Windows (PowerShell)"
 
     ```powershell
-    # Pull the latest image from ghcr.io
-    docker compose -f docker-compose.prod.yml pull
-
-    # Recreate containers so they use the new image
-    docker compose -f docker-compose.prod.yml up -d
+    docker compose -f docker-compose.prod.yml up -d --pull always
     ```
 
 The database volume is preserved across upgrades — any data you have loaded stays put. Schema migrations run automatically on container start; if a new version needs a new table or column, the web container will apply it before serving traffic.
