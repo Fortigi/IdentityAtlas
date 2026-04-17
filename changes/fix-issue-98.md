@@ -1,0 +1,1 @@
+- Fixed Clean Database removing crawler settings — Systems table (which stores connection configuration like tenantId) is now preserved during clean operations

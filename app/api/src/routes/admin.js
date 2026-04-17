@@ -467,6 +467,19 @@ router.post('/admin/clean-database', adminDestructiveLimiter, async (req, res) =
 
   // Tables to wipe (data only — configs/profiles/audit preserved)
   // Listed in dependency order: child tables first to avoid FK issues
+  //
+  // PRESERVED (NOT wiped):
+  //   - Systems (connection config: tenantId, systemType, etc.)
+  //   - Crawlers (API keys for custom connectors)
+  //   - CrawlerConfigs (crawler configuration settings)
+  //   - CrawlerAuditLog (crawler audit history)
+  //   - RiskProfiles, RiskClassifiers (risk scoring config)
+  //   - WorkerConfig (feature flags, LLM config, etc.)
+  //   - Secrets (encrypted credentials)
+  // WIPED:
+  //   - All identity data (Principals, Resources, Assignments, etc.)
+  //   - Crawler runtime artifacts (CrawlerJobs)
+  //   - Sync logs
   const TABLES_TO_WIPE = [
     // Identity correlation
     'IdentityMembers', 'Identities',
@@ -474,13 +487,11 @@ router.post('/admin/clean-database', adminDestructiveLimiter, async (req, res) =
     'ResourceAssignments', 'ResourceRelationships',
     'AssignmentRequests', 'AssignmentPolicies', 'CertificationDecisions',
     'Resources',
-    // Principals, contexts, systems
+    // Principals, contexts, org units
     'Principals', 'Contexts', 'OrgUnits',
     // Governance + risk artifacts
     'GovernanceCatalogs', 'RiskScores',
-    // Systems is wiped LAST so any FK references from above are gone first
-    'Systems',
-    // Crawler runtime artifacts (jobs, sync log) — but NOT configs
+    // Crawler runtime artifacts (jobs, sync log)
     'CrawlerJobs', 'SyncLog', 'GraphSyncLog',
     // Legacy tables
     'GraphGroupMembers', 'GraphGroupOwners', 'GraphGroups', 'GraphUsers',
