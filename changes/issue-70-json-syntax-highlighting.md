@@ -1,0 +1,1 @@
+- Added syntax highlighting and collapsible sections to JSON display in risk profile wizard for improved readability

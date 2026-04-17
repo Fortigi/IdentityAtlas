@@ -106,6 +106,7 @@ nav:
   - Reference:
       - Configuration: reference/config.md
       - Database Views: reference/sql-views.md
+      - Software Bill of Materials: reference/sbom.md
   - About:
       - About Identity Atlas: about.md
       - History: history.md
