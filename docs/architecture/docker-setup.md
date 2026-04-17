@@ -9,19 +9,55 @@ Running Identity Atlas locally with Docker — three containers providing the fu
 The fastest way to try Identity Atlas — pulls pre-built images, no source code needed:
 
 ```bash
-# Download the production compose file
+# 1. Download the compose file and environment template
 curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
 
-# Start everything (first run: ~2 min to pull images)
+# 2. Create your .env file
+cp .env.example .env
+
+# 3. Start everything (first run: ~2 min to pull images)
 docker compose -f docker-compose.prod.yml up -d
 
-# Open the UI
+# 4. Open the UI
 open http://localhost:3001
 ```
 
 On first visit, the UI opens to the Dashboard. If no data is loaded yet, click **"Configure a crawler"** to go to Admin → Crawlers, then click **"Load Demo Data"** to populate the system with synthetic data (~30 seconds). After that, explore the Matrix, Users, Resources, and other pages.
 
 To connect your own Entra ID tenant, click **"Connect Entra ID"** on the Crawlers page and enter your App Registration credentials (Tenant ID, Client ID, Client Secret).
+
+### The .env File
+
+`docker-compose.prod.yml` reads all configuration from a `.env` file in the same directory. The template has safe defaults for local evaluation — for anything networked or production, set these two variables:
+
+| Variable | Default | What to do |
+|---|---|---|
+| `POSTGRES_PASSWORD` | `identity_atlas_local` | **Change this** for any non-local deployment |
+| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Set an explicit value so you can back it up; if left blank the container generates one and saves it to the `job_data` volume |
+
+Full variable reference: [Environment Variables](#environment-variables).
+
+### Image Channels
+
+The compose file uses the `IMAGE_TAG` variable to select which build to pull:
+
+| `IMAGE_TAG` | What you get | Who should use it |
+|---|---|---|
+| *(unset or blank)* | `:latest` — last stable release | Customers and production deployments |
+| `edge` | `:edge` — latest commit on `main`, may be unstable | Developers and testers who want the newest features |
+| `5.2.1.0` | Exact pinned version, never auto-updates | Customers who want to control upgrade timing |
+
+The running version is always visible in the footer of the UI. Edge builds show an amber **edge** badge so it is immediately obvious which channel is running.
+
+```bash
+# Run the stable release (default)
+docker compose -f docker-compose.prod.yml up -d
+
+# Run the edge build
+IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d
+# or set IMAGE_TAG=edge in your .env
+```
 
 ---
 
@@ -69,6 +105,11 @@ happens inside the web container at startup via the migrations runner
 ```powershell
 cd c:\Source\GitHub\IdentityAtlas
 
+# Create your .env file from the template
+cp setup/config/.env.example .env
+# IMAGE_TAG is ignored by the dev compose (it builds from source).
+# You can leave the other defaults as-is for local development.
+
 # Start the stack (first time takes ~3 min to build)
 docker compose up -d --build
 
@@ -82,6 +123,8 @@ Start-Process http://localhost:3001
 # Open Swagger docs
 Start-Process http://localhost:3001/api/docs
 ```
+
+> **Note:** `docker-compose.yml` (dev) builds images from source — `IMAGE_TAG` has no effect. Use `docker-compose.prod.yml` with `IMAGE_TAG=edge` if you want to run the pre-built edge image without a local build.
 
 ## Stopping
 
@@ -209,19 +252,60 @@ docker compose -f docker-compose.yml restart worker
 
 ### Environment Variables
 
-Create `.env` from the template for secrets:
+Copy the template once, then edit the values you need:
 
-```powershell
+```bash
 cp setup/config/.env.example .env
-# Edit .env with your values
 ```
 
-| Variable | Purpose |
-|---|---|
-| `POSTGRES_PASSWORD` | PostgreSQL password. Both `docker-compose.yml` and `docker-compose.prod.yml` use PostgreSQL — SQL Server was dropped in v5. |
-| `CRAWLER_API_KEY` | API key for the worker's crawler |
-| `GRAPH_TENANT_ID` / `CLIENT_ID` / `CLIENT_SECRET` | For EntraID crawler |
-| `LLM_PROVIDER` / `LLM_API_KEY` | For risk scoring (Anthropic or OpenAI) |
+Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read from `.env` in the project root.
+
+#### Image channel (`docker-compose.prod.yml` only)
+
+| Variable | Default | Description |
+|---|---|---|
+| `IMAGE_TAG` | *(blank → `latest`)* | Docker image tag to pull. Leave blank for the stable release, set `edge` for the latest dev build, or pin to a specific version like `5.2.1.0`. |
+
+#### Database
+
+| Variable | Default | Description |
+|---|---|---|
+| `POSTGRES_PASSWORD` | `identity_atlas_local` | PostgreSQL password. Safe for local evaluation; **change for any networked deployment**. |
+| `POSTGRES_USER` | `identity_atlas` | PostgreSQL username. Rarely needs changing. |
+| `POSTGRES_DB` | `identity_atlas` | Database name. Rarely needs changing. |
+
+#### Security
+
+| Variable | Default | Description |
+|---|---|---|
+| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the container generates a key on first start and persists it to the `job_data` volume. **Set an explicit value for production** so the key can be backed up alongside other root secrets. |
+
+#### Authentication (optional)
+
+Identity Atlas defaults to no-auth (any browser can access the UI). To require Entra ID login:
+
+| Variable | Default | Description |
+|---|---|---|
+| `AUTH_ENABLED` | `false` | Set to `true` to require Entra ID authentication. |
+| `AUTH_TENANT_ID` | — | Your Entra ID tenant ID. |
+| `AUTH_CLIENT_ID` | — | App Registration client ID for the UI. |
+| `AUTH_REQUIRED_ROLES` | — | Optional comma-separated list of app roles required to access the UI. |
+
+#### Crawler credentials (optional — can also configure via the in-browser wizard)
+
+| Variable | Default | Description |
+|---|---|---|
+| `CRAWLER_API_KEY` | *(auto-generated)* | API key the worker uses to authenticate with the API. Auto-generated on first start; override only if you need a fixed key. |
+| `GRAPH_TENANT_ID` | — | Entra ID tenant ID for the Graph API crawler. |
+| `GRAPH_CLIENT_ID` | — | App Registration client ID. |
+| `GRAPH_CLIENT_SECRET` | — | App Registration client secret. |
+
+#### LLM / Risk Scoring (optional)
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLM_PROVIDER` | — | `Anthropic`, `OpenAI`, or `AzureOpenAI`. Can also be configured per-tenant via Admin → LLM Settings. |
+| `LLM_API_KEY` | — | API key for the selected LLM provider. |
 
 ---
 
