@@ -253,6 +253,7 @@ switch ($JobType) {
         }
 
         # Sync toggles
+        if ($Config.ContainsKey('syncSystems'))     { $crawlerParams['SyncSystems']     = [bool]$Config['syncSystems'] }
         if ($Config.ContainsKey('syncContexts'))    { $crawlerParams['SyncContexts']    = [bool]$Config['syncContexts'] }
         if ($Config.ContainsKey('syncPrincipals'))  { $crawlerParams['SyncPrincipals']  = [bool]$Config['syncPrincipals'] }
         if ($Config.ContainsKey('syncResources'))   { $crawlerParams['SyncResources']   = [bool]$Config['syncResources'] }

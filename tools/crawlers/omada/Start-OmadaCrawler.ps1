@@ -58,6 +58,9 @@
 .PARAMETER SyncAssignments
     Sync Omada Resourceassignments as governed resource assignments (default: true)
 
+.PARAMETER SyncSystems
+    Sync Omada Systems and System Categories as Identity Atlas systems (default: true)
+
 .PARAMETER SyncContexts
     Sync OrgUnit contexts from the Omada Orgunit entity (default: true)
 
@@ -122,13 +125,14 @@ Param(
     [string]$ClientSecret,
 
     # Sync options
-    [string]$SystemName     = 'Omada Identity',
-    [string]$SystemType     = 'Omada',
-    [switch]$SyncPrincipals = $true,
-    [switch]$SyncResources  = $true,
+    [string]$SystemName      = 'Omada Identity',
+    [string]$SystemType      = 'Omada',
+    [switch]$SyncSystems     = $true,
+    [switch]$SyncPrincipals  = $true,
+    [switch]$SyncResources   = $true,
     [switch]$SyncAssignments = $true,
-    [switch]$SyncContexts   = $true,
-    [switch]$RefreshViews   = $true,
+    [switch]$SyncContexts    = $true,
+    [switch]$RefreshViews    = $true,
     [int]$BatchSize         = 5000,
     [int]$ODataPageSize     = 1000,
     [int]$JobId             = 0
@@ -496,9 +500,12 @@ function Get-OmadaData {
 
 function Get-OmadaUrl {
     param([string]$Entity, [string[]]$Select, [string]$Filter = 'Deleted eq false')
-    $entity = $Entity.ToLower()
-    $selectClause = if ($Select) { "&`$select=$($Select -join ',')" } else { '' }
-    return "$OmadaBaseUrl/$entity`?`$filter=$Filter$selectClause"
+    $entity  = $Entity.ToLower()
+    $parts   = @()
+    if ($Filter)  { $parts += "`$filter=$Filter" }
+    if ($Select)  { $parts += "`$select=$($Select -join ',')" }
+    $query   = if ($parts) { '?' + ($parts -join '&') } else { '' }
+    return "$OmadaBaseUrl/$entity$query"
 }
 
 # ─── Main ─────────────────────────────────────────────────────────
@@ -562,13 +569,104 @@ Write-Host "  System ID: $systemId" -ForegroundColor Green
 
 $syncStart = Get-Date
 
+# Maps Omada system UId → IA system id; populated by the SyncSystems phase
+# and used by SyncResources to route each resource to the right IA system.
+$Script:OmadaSystemIdMap = @{}
+
+# ─── Sync Omada Systems ───────────────────────────────────────────
+# Fetches the Omada system catalog (SAP, Active Directory, etc.) and registers
+# each as a separate Identity Atlas system so resources can be grouped correctly.
+# System categories are fetched and stored on each system's extendedAttributes.
+
+if ($SyncSystems) {
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing Omada Systems..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing Omada systems' -Pct 3
+
+    # ── System categories ─────────────────────────────────────────
+    $sysCatMap = @{}   # UId → { name, ident, contentType }
+    try {
+        $omadaSysCats = Get-OmadaData -BaseUri (Get-OmadaUrl 'systemcategory' -Select @(
+            'UId','NAME','DisplayName','SC_IDENT','SC_CONTENT','SC_DEPRECATED'
+        ))
+        foreach ($cat in $omadaSysCats) {
+            $catName = $cat.NAME; if (-not $catName) { $catName = $cat.DisplayName }
+            $sysCatMap[$cat.UId] = @{
+                name        = $catName
+                ident       = $cat.SC_IDENT
+                contentType = if ($cat.SC_CONTENT) { $cat.SC_CONTENT.Value } else { $null }
+                deprecated  = [bool]$cat.SC_DEPRECATED
+            }
+        }
+        Write-Host "  Fetched $($sysCatMap.Count) system categories" -ForegroundColor Gray
+    } catch {
+        Write-Host "  System category fetch skipped: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    # ── Systems ───────────────────────────────────────────────────
+    try {
+        $omadaSystems = Get-OmadaData -BaseUri (Get-OmadaUrl 'system' -Select @(
+            'UId','NAME','DisplayName','DESCRIPTION','SYSTEMID','SYSTEMCATEGORY','SYSTEMSTATUS','ISLOGICALSYSTEM'
+        ))
+        Write-Host "  Fetched $($omadaSystems.Count) Omada Systems" -ForegroundColor Gray
+
+        # Preserve order so we can map returned systemIds back to UIds
+        $omadaSystemsList = @($omadaSystems)
+
+        $sysRecords = @($omadaSystemsList | ForEach-Object {
+            $name       = $_.NAME; if (-not $name) { $name = $_.DisplayName }
+            $statusVal  = if ($_.SYSTEMSTATUS) { $_.SYSTEMSTATUS.Value } else { '' }
+            $enabled    = (-not $statusVal) -or ($statusVal -eq 'Active')
+
+            $ext = @{ omadaSystemId = $_.SYSTEMID }
+            if ($_.DESCRIPTION) { $ext['description'] = $_.DESCRIPTION }
+
+            # Category — display name is already inline on the system record
+            if ($_.SYSTEMCATEGORY -and $_.SYSTEMCATEGORY.DisplayName) {
+                $ext['systemCategory'] = $_.SYSTEMCATEGORY.DisplayName
+                # Add extra category metadata if we fetched the catalog
+                if ($_.SYSTEMCATEGORY.UId -and $sysCatMap.ContainsKey($_.SYSTEMCATEGORY.UId)) {
+                    $cat = $sysCatMap[$_.SYSTEMCATEGORY.UId]
+                    if ($cat.ident)       { $ext['systemCategoryIdent']       = $cat.ident }
+                    if ($cat.contentType) { $ext['systemCategoryContentType'] = $cat.contentType }
+                }
+            }
+
+            @{
+                displayName        = $name
+                systemType         = 'Omada'
+                enabled            = $enabled
+                syncEnabled        = $false   # provisioning is through Omada, not direct
+                extendedAttributes = $ext
+            }
+        })
+
+        if ($sysRecords.Count -gt 0) {
+            $sysResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
+                syncMode = 'delta'   # never delete — Omada systems are reference data
+                records  = $sysRecords
+            }
+
+            # Build Omada system UId → IA system id map (returned order matches input order)
+            if ($sysResult.systemIds) {
+                for ($i = 0; $i -lt $omadaSystemsList.Count -and $i -lt $sysResult.systemIds.Count; $i++) {
+                    $Script:OmadaSystemIdMap[$omadaSystemsList[$i].UId] = [int]$sysResult.systemIds[$i]
+                }
+            }
+            Write-Host "  Registered $($sysRecords.Count) Omada Systems" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "  System sync failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
 # ─── Sync Contexts ────────────────────────────────────────────────
 # Two sources:
 #   1. orgunit entity  → contextType='OrgUnit'  (with parent hierarchy via PARENTOU)
 #   2. contextassignment.CA_CONTEXT → contextType='Context' (non-hierarchical groupings)
 # Must run before principals so contextId references exist.
 
-$Script:CtxAssignments = @()   # shared with identity principal phase for contextId mapping
+$Script:CtxAssignments    = @()   # context assignments from contextassignment entity
+$Script:IdentityToUserMap = @{}   # Omada Identity UId → User UId (built during user sync)
 
 if ($SyncContexts) {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing contexts (OrgUnits + Contexts)..." -ForegroundColor Cyan
@@ -654,55 +752,19 @@ if ($SyncPrincipals) {
         ))
 
         Write-Host "  Fetched $($omadaIdentities.Count) Omada Identities" -ForegroundColor Gray
-        Update-CrawlerProgress -Detail "Building $($omadaIdentities.Count) principal records..."
+        Update-CrawlerProgress -Detail "Building $($omadaIdentities.Count) identity records..."
 
-        $identityPrincipalRecords = @($omadaIdentities | ForEach-Object {
-            $displayName = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
-            if (-not $displayName) { $displayName = $_.DisplayName }
-
-            # Map identity type to principalType
-            # Omada identity type values: 'Primary', 'Employee', 'Contractor', 'External', etc.
-            $identityTypeVal = if ($_.IDENTITYTYPE) { $_.IDENTITYTYPE.Value } else { '' }
-            $principalType   = if ($identityTypeVal -in @('Contractor','External','ExternalUser','Guest')) {
-                'ExternalUser'
-            } else {
-                'User'
-            }
-
-            $statusVal = if ($_.IDENTITYSTATUS) { $_.IDENTITYSTATUS.Value } else { '' }
-            $enabled   = $statusVal -eq 'Active'
-
-            $rec = @{
-                id            = $_.UId
-                displayName   = $displayName
-                email         = $_.EMAIL
-                jobTitle      = $_.JOBTITLE
-                principalType = $principalType
-                enabled       = $enabled
-            }
-
-            if ($_.OUREF -and $_.OUREF.DisplayName) {
-                $rec['department'] = $_.OUREF.DisplayName
-            }
-
-            $ext = @{ omadaIdentityId = $_.IDENTITYID }
-            if ($identityTypeVal)                                                { $ext['omadaIdentityType']     = $identityTypeVal }
-            if ($_.IDENTITYCATEGORY -and $_.IDENTITYCATEGORY.Value)             { $ext['omadaIdentityCategory'] = $_.IDENTITYCATEGORY.Value }
-            $rec['extendedAttributes'] = $ext
-
-            $rec
-        })
-
-        Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
-            -Scope @{ principalType = @('User', 'ExternalUser') } -Records $identityPrincipalRecords
-
-        # ── Omada Identities → IA Identities ──────────────────────
-        Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing identities (Omada Identities)..." -ForegroundColor Cyan
-        Update-CrawlerProgress -Step 'Syncing identities' -Pct 25 -Detail "Building identity records..."
+        # ── Omada Identities → IA Identities ─────────────────────
+        # Omada Identities are real-person records (HR records), not accounts.
+        # They map directly to the Identity Atlas Identities table.
+        # User accounts (Omada User entity) are the principals that carry resource assignments.
 
         $identityRecords = @($omadaIdentities | ForEach-Object {
             $displayName = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
             if (-not $displayName) { $displayName = $_.DisplayName }
+
+            $identityTypeVal = if ($_.IDENTITYTYPE)   { $_.IDENTITYTYPE.Value   } else { '' }
+            $statusVal       = if ($_.IDENTITYSTATUS) { $_.IDENTITYSTATUS.Value } else { '' }
 
             $rec = @{
                 id          = $_.UId
@@ -712,28 +774,25 @@ if ($SyncPrincipals) {
                 jobTitle    = $_.JOBTITLE
             }
 
-            if ($_.OUREF -and $_.OUREF.DisplayName) {
-                $rec['department'] = $_.OUREF.DisplayName
-            }
-            if ($SyncContexts -and $_.OUREF -and $_.OUREF.UId) {
-                $rec['contextId'] = $_.OUREF.UId
-            }
+            if ($_.OUREF -and $_.OUREF.DisplayName) { $rec['department'] = $_.OUREF.DisplayName }
+            if ($SyncContexts -and $_.OUREF -and $_.OUREF.UId) { $rec['contextId'] = $_.OUREF.UId }
+
+            $ext = @{ omadaIdentityId = $_.IDENTITYID }
+            if ($identityTypeVal)                                   { $ext['omadaIdentityType']     = $identityTypeVal }
+            if ($_.IDENTITYCATEGORY -and $_.IDENTITYCATEGORY.Value){ $ext['omadaIdentityCategory'] = $_.IDENTITYCATEGORY.Value }
+            if ($statusVal)                                         { $ext['omadaIdentityStatus']   = $statusVal }
+            $rec['extendedAttributes'] = $ext
 
             $rec
         })
 
+        Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing identities (Omada Identities → IA Identities)..." -ForegroundColor Cyan
+        Update-CrawlerProgress -Step 'Syncing identities' -Pct 25
+
         Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $systemId -SyncMode 'full' -Records $identityRecords
 
-        # ── Self-referencing IdentityMembers for Omada Identities ─
-        # Each Omada Identity is itself a principal — link identity → its own principal record.
-        $selfMembers = @($omadaIdentities | ForEach-Object {
-            @{
-                identityId  = $_.UId
-                principalId = $_.UId
-                accountType = 'Primary'
-            }
-        })
-        Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode 'full' -Records $selfMembers
+        # Store the identities list for later use (IdentityMembers, assignment mapping)
+        $Script:OmadaIdentities = $omadaIdentities
 
     } catch {
         Write-Host "  Identity sync failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -759,7 +818,7 @@ if ($SyncPrincipals) {
             if (-not $displayName) { $displayName = $_.UserName }
 
             $ext = @{}
-            if ($_.OBJECTGUID) { $ext['objectGuid']    = $_.OBJECTGUID }
+            if ($_.OBJECTGUID) { $ext['objectGuid'] = $_.OBJECTGUID }
             if ($_.IDENTITYREF -and $_.IDENTITYREF.UId) {
                 $ext['omadaIdentityId'] = $_.IDENTITYREF.UId
             }
@@ -776,10 +835,21 @@ if ($SyncPrincipals) {
             $rec
         })
 
-        Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'delta' -Records $userPrincipalRecords
+        Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' -Records $userPrincipalRecords
+
+        # ── Build identity UId → user UId map ─────────────────────
+        # Used by the assignments phase to resolve IDENTITYREF to the account's principalId.
+        $Script:IdentityToUserMap = @{}
+        foreach ($u in $omadaUsers) {
+            if ($u.IDENTITYREF -and $u.IDENTITYREF.UId) {
+                # First linked user wins if an identity has multiple accounts
+                if (-not $Script:IdentityToUserMap.ContainsKey($u.IDENTITYREF.UId)) {
+                    $Script:IdentityToUserMap[$u.IDENTITYREF.UId] = $u.UId
+                }
+            }
+        }
 
         # ── User.IDENTITYREF → IdentityMembers ────────────────────
-        # Link each managed Omada User account back to its Identity.
         $userMembers = @($omadaUsers | Where-Object { $_.IDENTITYREF -and $_.IDENTITYREF.UId } | ForEach-Object {
             @{
                 identityId  = $_.IDENTITYREF.UId
@@ -790,12 +860,13 @@ if ($SyncPrincipals) {
 
         if ($userMembers.Count -gt 0) {
             Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing identity-members (User → Identity links)..." -ForegroundColor Cyan
-            Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode 'delta' -Records $userMembers
+            Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode 'full' -Records $userMembers
         }
 
     } catch {
         Write-Host "  User/account sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
         Write-Host "  Continuing without Omada User records." -ForegroundColor Yellow
+        $Script:IdentityToUserMap = @{}
     }
 }
 
@@ -814,11 +885,11 @@ if ($SyncResources) {
         Write-Host "  Fetched $($omadaResources.Count) Omada Resources" -ForegroundColor Gray
         Update-CrawlerProgress -Detail "Building $($omadaResources.Count) resource records..."
 
-        $resourceRecords = @($omadaResources | ForEach-Object {
+        # Build (record, omadaSystemUId) pairs so we can route to the right IA system
+        $resourcesWithSystem = @($omadaResources | ForEach-Object {
             $displayName = $_.NAME
             if (-not $displayName) { $displayName = $_.DisplayName }
 
-            # resourceType from ROLETYPEREF display name; fall back to 'BusinessRole'
             $resourceType = 'BusinessRole'
             if ($_.ROLETYPEREF -and $_.ROLETYPEREF.DisplayName) {
                 $resourceType = $_.ROLETYPEREF.DisplayName
@@ -828,9 +899,9 @@ if ($SyncResources) {
             $enabled   = $statusVal -eq 'Active' -or -not $statusVal
 
             $ext = @{}
-            if ($_.ROLEID)                                                 { $ext['omadaRoleId']      = $_.ROLEID }
-            if ($_.ROLECATEGORY -and $_.ROLECATEGORY.Value)               { $ext['omadaRoleCategory'] = $_.ROLECATEGORY.Value }
-            if ($_.SYSTEMREF -and $_.SYSTEMREF.DisplayName)               { $ext['omadaSystem']       = $_.SYSTEMREF.DisplayName }
+            if ($_.ROLEID)                                   { $ext['omadaRoleId']       = $_.ROLEID }
+            if ($_.ROLECATEGORY -and $_.ROLECATEGORY.Value)  { $ext['omadaRoleCategory'] = $_.ROLECATEGORY.Value }
+            if ($_.SYSTEMREF -and $_.SYSTEMREF.DisplayName)  { $ext['omadaSystem']       = $_.SYSTEMREF.DisplayName }
 
             $rec = @{
                 id           = $_.UId
@@ -840,14 +911,33 @@ if ($SyncResources) {
                 enabled      = $enabled
             }
             if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
-            $rec
+
+            # Track the Omada system UId so we can route to the right IA system below
+            $sysUId = if ($_.SYSTEMREF -and $_.SYSTEMREF.UId) { $_.SYSTEMREF.UId } else { $null }
+
+            @{ record = $rec; sysUId = $sysUId }
         })
 
-        # Group by resourceType and ingest each type with a scoped full sync
-        $byType = $resourceRecords | Group-Object { $_['resourceType'] }
-        foreach ($grp in $byType) {
-            Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ resourceType = $grp.Name } -Records @($grp.Group)
+        # Group by (Omada system UId, resourceType) and ingest each group under
+        # the matching IA system if one was registered, otherwise the main Omada system.
+        $bySysUId = @{}
+        foreach ($item in $resourcesWithSystem) {
+            $key = if ($item.sysUId) { $item.sysUId } else { '_none' }
+            if (-not $bySysUId.ContainsKey($key)) { $bySysUId[$key] = [System.Collections.Generic.List[object]]::new() }
+            $bySysUId[$key].Add($item.record)
+        }
+
+        foreach ($sysUId in $bySysUId.Keys) {
+            $iaSystemId = $systemId   # default: main Omada source system
+            if ($sysUId -ne '_none' -and $Script:OmadaSystemIdMap.ContainsKey($sysUId)) {
+                $iaSystemId = $Script:OmadaSystemIdMap[$sysUId]
+            }
+
+            $byType = @($bySysUId[$sysUId]) | Group-Object { $_['resourceType'] }
+            foreach ($grp in $byType) {
+                Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $iaSystemId -SyncMode 'full' `
+                    -Scope @{ resourceType = $grp.Name } -Records @($grp.Group)
+            }
         }
 
     } catch {
@@ -870,16 +960,21 @@ if ($SyncAssignments) {
         Write-Host "  Fetched $($omadaAssignments.Count) Omada Resourceassignments" -ForegroundColor Gray
         Update-CrawlerProgress -Detail "Building $($omadaAssignments.Count) assignment records..."
 
+        # Resolve each assignment's principalId: prefer the linked user account (Omada User),
+        # fall back to the identity UId when the identity has no managed user account.
+        $idToUser = if ($Script:IdentityToUserMap) { $Script:IdentityToUserMap } else { @{} }
+
         $assignmentRecords = @($omadaAssignments | Where-Object {
             $_.IDENTITYREF -and $_.IDENTITYREF.UId -and $_.ROLEREF -and $_.ROLEREF.UId
         } | ForEach-Object {
-            $statusVal = if ($_.ROLEASSNSTATUS) { $_.ROLEASSNSTATUS.Value } else { $null }
+            $identityUId = $_.IDENTITYREF.UId
+            $principalId = if ($idToUser.ContainsKey($identityUId)) { $idToUser[$identityUId] } else { $identityUId }
+            $statusVal   = if ($_.ROLEASSNSTATUS) { $_.ROLEASSNSTATUS.Value } else { $null }
 
             $rec = @{
                 resourceId       = $_.ROLEREF.UId
-                principalId      = $_.IDENTITYREF.UId
+                principalId      = $principalId
                 assignmentType   = 'Governed'
-                principalType    = 'User'
                 assignmentStatus = $statusVal
             }
 

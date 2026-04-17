@@ -1741,6 +1741,7 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
   const [clientSecret, setClientSecret] = useState('');
   const [systemName, setSystemName] = useState(initialConfig?.systemName || 'Omada Identity');
 
+  const [syncSystems, setSyncSystems] = useState(initialConfig?.syncSystems ?? true);
   const [syncContexts, setSyncContexts] = useState(initialConfig?.syncContexts ?? true);
   const [syncPrincipals, setSyncPrincipals] = useState(initialConfig?.syncPrincipals ?? true);
   const [syncResources, setSyncResources] = useState(initialConfig?.syncResources ?? true);
@@ -1769,7 +1770,7 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
         omadaBaseUrl: omadaBaseUrl.trim(),
         authMode,
         systemName,
-        syncContexts, syncPrincipals, syncResources, syncAssignments,
+        syncSystems, syncContexts, syncPrincipals, syncResources, syncAssignments,
         schedules,
       };
       if (authMode === 'Credential') {
@@ -1907,6 +1908,7 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
             <h4 className="text-sm font-semibold text-gray-700 mb-2">Objects to sync</h4>
             <div className="space-y-2">
               {[
+                { key: 'syncSystems',     label: 'Systems & system categories',  val: syncSystems,     set: setSyncSystems },
                 { key: 'syncContexts',    label: 'Contexts (org units)',         val: syncContexts,    set: setSyncContexts },
                 { key: 'syncPrincipals',  label: 'Identities & user accounts',   val: syncPrincipals,  set: setSyncPrincipals },
                 { key: 'syncResources',   label: 'Resources (business roles)',    val: syncResources,   set: setSyncResources },
