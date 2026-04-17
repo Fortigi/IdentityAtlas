@@ -18,11 +18,106 @@ function Bar({ percent, color }) {
   );
 }
 
+function LineChart({ data, maxValue, color, height = 60, label }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="text-xs text-gray-400 text-center py-4">
+        Collecting data...
+      </div>
+    );
+  }
+
+  const width = 300;
+  const padding = { top: 8, right: 8, bottom: 20, left: 40 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  const max = Math.max(maxValue || 100, ...data.map(d => d.value), 1);
+
+  const points = data.map((d, i) => {
+    const x = padding.left + (i / Math.max(data.length - 1, 1)) * chartWidth;
+    const y = padding.top + chartHeight - (d.value / max) * chartHeight;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const gridLines = [];
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + (i / 4) * chartHeight;
+    const value = max * (1 - i / 4);
+    gridLines.push({ y, value });
+  }
+
+  const timeLabels = [
+    { x: padding.left, text: '-10m' },
+    { x: padding.left + chartWidth / 2, text: '-5m' },
+    { x: padding.left + chartWidth, text: 'now' },
+  ];
+
+  return (
+    <div>
+      <div className="text-xs font-medium text-gray-700 mb-1">{label}</div>
+      <svg width={width} height={height} className="border border-gray-200 rounded bg-gray-50">
+        {gridLines.map((line, i) => (
+          <g key={i}>
+            <line
+              x1={padding.left}
+              y1={line.y}
+              x2={width - padding.right}
+              y2={line.y}
+              stroke="#e5e7eb"
+              strokeWidth="1"
+            />
+            <text
+              x={padding.left - 5}
+              y={line.y + 3}
+              textAnchor="end"
+              className="text-[9px] fill-gray-500"
+            >
+              {line.value.toFixed(0)}
+            </text>
+          </g>
+        ))}
+
+        {timeLabels.map((tl, i) => (
+          <text
+            key={i}
+            x={tl.x}
+            y={height - 5}
+            textAnchor={i === 0 ? 'start' : i === 1 ? 'middle' : 'end'}
+            className="text-[9px] fill-gray-500"
+          >
+            {tl.text}
+          </text>
+        ))}
+
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+
+        {data.length > 0 && (
+          <circle
+            cx={padding.left + ((data.length - 1) / Math.max(data.length - 1, 1)) * chartWidth}
+            cy={padding.top + chartHeight - (data[data.length - 1].value / max) * chartHeight}
+            r="3"
+            fill={color}
+          />
+        )}
+      </svg>
+    </div>
+  );
+}
+
 const SERVICE_LABELS = {
   web:      { label: 'Web (API + UI)',    icon: '🌐' },
   worker:   { label: 'Worker (Crawlers)', icon: '⚙️' },
   postgres: { label: 'PostgreSQL',        icon: '🗄️' },
 };
+
+const MAX_HISTORY_POINTS = 200; // 200 points * 3s = 600s = 10 minutes
 
 export default function ContainerStatsPage() {
   const { authFetch } = useAuth();
@@ -31,6 +126,7 @@ export default function ContainerStatsPage() {
   const prevNet = useRef({});
   const prevTime = useRef(null);
   const [rates, setRates] = useState({});
+  const [history, setHistory] = useState({});
 
   const fetchStats = async () => {
     try {
@@ -59,6 +155,28 @@ export default function ContainerStatsPage() {
       prevTime.current = now;
       setRates(newRates);
       setData(j);
+
+      // Store historical data points for each container
+      setHistory(prev => {
+        const next = { ...prev };
+        for (const c of j.containers) {
+          if (!next[c.name]) next[c.name] = { cpu: [], memory: [], netRx: [], netTx: [] };
+          const h = next[c.name];
+          const rate = newRates[c.name] || {};
+
+          h.cpu.push({ timestamp: now, value: c.cpuPercent || 0 });
+          h.memory.push({ timestamp: now, value: c.memPercent || 0 });
+          h.netRx.push({ timestamp: now, value: (rate.rxRate || 0) / 1024 / 1024 }); // MB/s
+          h.netTx.push({ timestamp: now, value: (rate.txRate || 0) / 1024 / 1024 }); // MB/s
+
+          // Keep only last MAX_HISTORY_POINTS
+          if (h.cpu.length > MAX_HISTORY_POINTS) h.cpu.shift();
+          if (h.memory.length > MAX_HISTORY_POINTS) h.memory.shift();
+          if (h.netRx.length > MAX_HISTORY_POINTS) h.netRx.shift();
+          if (h.netTx.length > MAX_HISTORY_POINTS) h.netTx.shift();
+        }
+        return next;
+      });
     } catch (err) {
       setError(err.message);
     }
@@ -111,6 +229,7 @@ export default function ContainerStatsPage() {
       {data.containers.map(c => {
         const meta = SERVICE_LABELS[c.service] || { label: c.service, icon: '📦' };
         const rate = rates[c.name] || {};
+        const h = history[c.name] || { cpu: [], memory: [], netRx: [], netTx: [] };
         return (
           <div key={c.name} className="bg-white border border-gray-200 rounded-lg p-5">
             <div className="flex items-start justify-between mb-4">
@@ -127,36 +246,66 @@ export default function ContainerStatsPage() {
             {c.error ? (
               <div className="text-sm text-red-600">Stats error: {c.error}</div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <div className="flex justify-between text-xs text-gray-600 mb-1">
-                    <span>CPU</span>
-                    <span className="font-mono font-medium text-gray-900">{c.cpuPercent.toFixed(1)}%</span>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                      <span>CPU</span>
+                      <span className="font-mono font-medium text-gray-900">{c.cpuPercent.toFixed(1)}%</span>
+                    </div>
+                    <Bar percent={c.cpuPercent} color={c.cpuPercent > 80 ? 'bg-red-500' : c.cpuPercent > 50 ? 'bg-amber-500' : 'bg-emerald-500'} />
                   </div>
-                  <Bar percent={c.cpuPercent} color={c.cpuPercent > 80 ? 'bg-red-500' : c.cpuPercent > 50 ? 'bg-amber-500' : 'bg-emerald-500'} />
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                      <span>Memory</span>
+                      <span className="font-mono font-medium text-gray-900">{fmtBytes(c.memUsageBytes)} / {fmtBytes(c.memLimitBytes)} ({c.memPercent.toFixed(0)}%)</span>
+                    </div>
+                    <Bar percent={c.memPercent} color={c.memPercent > 80 ? 'bg-red-500' : c.memPercent > 50 ? 'bg-amber-500' : 'bg-blue-500'} />
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">Network</div>
+                    <div className="font-mono text-xs text-gray-900">
+                      ↓ {rate.rxRate != null ? `${fmtBytes(rate.rxRate)}/s` : '—'} <span className="text-gray-400">({fmtBytes(c.netRxBytes)} total)</span>
+                    </div>
+                    <div className="font-mono text-xs text-gray-900">
+                      ↑ {rate.txRate != null ? `${fmtBytes(rate.txRate)}/s` : '—'} <span className="text-gray-400">({fmtBytes(c.netTxBytes)} total)</span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="flex justify-between text-xs text-gray-600 mb-1">
-                    <span>Memory</span>
-                    <span className="font-mono font-medium text-gray-900">{fmtBytes(c.memUsageBytes)} / {fmtBytes(c.memLimitBytes)} ({c.memPercent.toFixed(0)}%)</span>
+
+                <div className="pt-3 border-t border-gray-100">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <LineChart
+                      data={h.cpu}
+                      maxValue={100}
+                      color="#10b981"
+                      label="CPU % (last 10 min)"
+                    />
+                    <LineChart
+                      data={h.memory}
+                      maxValue={100}
+                      color="#3b82f6"
+                      label="Memory % (last 10 min)"
+                    />
+                    <LineChart
+                      data={h.netRx}
+                      maxValue={Math.max(1, ...h.netRx.map(d => d.value))}
+                      color="#8b5cf6"
+                      label="Network RX (MB/s)"
+                    />
+                    <LineChart
+                      data={h.netTx}
+                      maxValue={Math.max(1, ...h.netTx.map(d => d.value))}
+                      color="#f59e0b"
+                      label="Network TX (MB/s)"
+                    />
                   </div>
-                  <Bar percent={c.memPercent} color={c.memPercent > 80 ? 'bg-red-500' : c.memPercent > 50 ? 'bg-amber-500' : 'bg-blue-500'} />
                 </div>
-                <div>
-                  <div className="text-xs text-gray-600 mb-1">Network</div>
-                  <div className="font-mono text-xs text-gray-900">
-                    ↓ {rate.rxRate != null ? `${fmtBytes(rate.rxRate)}/s` : '—'} <span className="text-gray-400">({fmtBytes(c.netRxBytes)} total)</span>
-                  </div>
-                  <div className="font-mono text-xs text-gray-900">
-                    ↑ {rate.txRate != null ? `${fmtBytes(rate.txRate)}/s` : '—'} <span className="text-gray-400">({fmtBytes(c.netTxBytes)} total)</span>
-                  </div>
+
+                <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
+                  Processes: {c.pids}
                 </div>
-              </div>
-            )}
-            {!c.error && (
-              <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-                Processes: {c.pids}
-              </div>
+              </>
             )}
           </div>
         );
