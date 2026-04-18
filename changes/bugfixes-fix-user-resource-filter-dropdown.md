@@ -1,1 +1,2 @@
 - Fixed the "Filters" dropdown on the Users and Resources pages — attribute fields (Department, Job Title, etc.) and their values are populated again. The list had regressed to showing only "User Tag" because column discovery was looking up table names in the wrong case after the PostgreSQL migration.
+- Added regression tests pinning the PostgreSQL table and column casing used by column discovery, so the same mismatch can't slip back in.
