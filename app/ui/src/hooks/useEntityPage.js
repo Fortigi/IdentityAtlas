@@ -242,14 +242,23 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   const allOnPageSelected = items.length > 0 && selected.size === items.length;
   const hasAnyFilter = activeFilters.length > 0 || debouncedSearch;
 
-  // Build filterFields from availableColumns
+  // Build filterFields from availableColumns. Keys that start with `ext.`
+  // are extended-attribute filters (see api columnCache.js / buildFilterWhere)
+  // — we strip the prefix for display and tag the label with "(ext)" so
+  // they're visually distinct from real columns in the dropdown.
   const getFilterFields = useCallback((fieldLabels) => {
+    const humanize = (s) => s.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
     return availableColumns
       .filter(col => col.values && col.values.length >= 1 && col.values.length <= 500)
-      .map(col => ({
-        key: col.column,
-        label: fieldLabels[col.column] || col.column.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim(),
-      }));
+      .map(col => {
+        if (fieldLabels[col.column]) {
+          return { key: col.column, label: fieldLabels[col.column] };
+        }
+        if (col.column.startsWith('ext.')) {
+          return { key: col.column, label: `${humanize(col.column.slice(4))} (ext)` };
+        }
+        return { key: col.column, label: humanize(col.column) };
+      });
   }, [availableColumns]);
 
   const getOptionsForField = useCallback((fieldKey) => {
