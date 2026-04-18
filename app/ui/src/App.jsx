@@ -529,8 +529,13 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 bg-white px-6 py-2 text-xs text-gray-400 text-center">
+      <footer className="border-t border-gray-200 bg-white px-6 py-2 text-xs text-gray-400 text-center flex items-center justify-center gap-2">
         Identity Atlas{moduleVersion ? ` v${moduleVersion}` : ''}
+        {/^\d+\.\d+\.\d{8}\.\d{4}$/.test(moduleVersion) && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-300">
+            edge
+          </span>
+        )}
       </footer>
     </div>
     </ErrorBoundary>

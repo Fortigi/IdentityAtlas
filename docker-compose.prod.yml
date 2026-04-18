@@ -12,6 +12,11 @@
 #   Copy .env.example to .env and set your values, or pass them inline:
 #   GRAPH_TENANT_ID=... GRAPH_CLIENT_ID=... GRAPH_CLIENT_SECRET=... docker compose -f docker-compose.prod.yml up
 #
+# Image channel (IMAGE_TAG):
+#   latest  — stable customer release (default, omit IMAGE_TAG or leave blank)
+#   edge    — latest merged commit on main; may be unstable (set IMAGE_TAG=edge)
+#   5.2.1.0 — pin to a specific release version
+#
 # SECURITY: The default POSTGRES_PASSWORD is for local evaluation only.
 #   For any networked or production deployment, set a strong password and an
 #   explicit master key for the secrets vault:
@@ -43,7 +48,7 @@ services:
 
   # ── Web (serves built frontend + API) ────────────────────────────────────────
   web:
-    image: ghcr.io/fortigi/identity-atlas:latest
+    image: ghcr.io/fortigi/identity-atlas:${IMAGE_TAG:-latest}
     # The container runs as the unprivileged `node` user. The Docker socket
     # is owned by root:root 0660, so node needs GID 0 to read container stats.
     group_add: ["0"]
@@ -81,7 +86,7 @@ services:
   # In v5 the worker container has NO database driver. It talks to the API
   # for everything (job pickup, ingest, progress reporting).
   worker:
-    image: ghcr.io/fortigi/identity-atlas-worker:latest
+    image: ghcr.io/fortigi/identity-atlas-worker:${IMAGE_TAG:-latest}
     environment:
       WEB_API_URL: "http://web:3001/api"
       # Optional global crawler API key — overridden per-job via WorkerConfig.
