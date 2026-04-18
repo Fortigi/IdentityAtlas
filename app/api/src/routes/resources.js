@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { timedRequest } from '../perf/sqlTimer.js';
 import { getResourceColumns, getResourceColumnValues, FILTERABLE_TYPES } from '../db/columnCache.js';
-import { ensureTagTables } from './tags.js';
+import { ensureTagTables, buildFilterWhere } from './tags.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -76,16 +76,7 @@ router.get('/resources', async (req, res) => {
     const cols = await getResourceColumns(p);
     const colNames = new Set(cols.map(c => c.name));
 
-    let filterWhere = '';
-    let idx = 0;
-    for (const [field, value] of Object.entries(attrFilters)) {
-      if (colNames.has(field) && value != null && String(value) !== '') {
-        const paramName = `fl${idx}`;
-        filterWhere += ` AND r."${field}"::text = @${paramName}`;
-        request.input(paramName, String(value));
-        idx++;
-      }
-    }
+    const filterWhere = buildFilterWhere(request, attrFilters, colNames, 'r');
 
     let where = '1=1';
     if (search) {
