@@ -9,18 +9,28 @@ Permissions are scattered across identity systems, directories, and SaaS platfor
 **Prerequisites:** Docker and Docker Compose.
 
 ```bash
-# 1. Download the production compose file
+# 1. Download the compose file and environment template
 curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
 
-# 2. Start the stack
+# 2. Create your .env file
+cp .env.example .env
+# For a quick local evaluation the defaults are fine.
+# For any networked or production deployment, open .env and set:
+#   POSTGRES_PASSWORD=<strong-password>
+#   IDENTITY_ATLAS_MASTER_KEY=<random-32-char-string>
+
+# 3. Start the stack (first run: ~2 min to pull images)
 docker compose -f docker-compose.prod.yml up -d
 
-# 3. Open http://localhost:3001
+# 4. Open http://localhost:3001
 #    Go to Admin > Crawlers, then click "Load Demo Data" to explore with sample data, or
 #    click "Add Crawler" to connect your Entra ID tenant.
 ```
 
 The in-browser crawler wizard walks you through credentials, permission validation, object type selection, and scheduling — no PowerShell or command-line setup required.
+
+> **Image channels:** The default pulls the latest stable release (`:latest`). To run the development build instead, set `IMAGE_TAG=edge` in your `.env`. See [Docker Setup](docs/architecture/docker-setup.md) for details.
 
 ---
 

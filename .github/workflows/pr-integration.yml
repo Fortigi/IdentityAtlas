@@ -30,7 +30,9 @@ name: PR Integration Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - 'release/**'
 
 env:
   DOTNET_NOLOGO: true

@@ -16,7 +16,10 @@ name: PR Checks
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches:
+      - main
+      - dev
+      - 'release/**'
 
 env:
   DOTNET_NOLOGO: true
