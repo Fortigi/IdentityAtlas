@@ -31,32 +31,49 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 
 | Branch | Purpose | PR required? | Approval required? |
 |--------|---------|-------------|-------------------|
-| `main` | Stable trunk. Never commit directly. | Yes | Yes (at least 1) |
+| `main` | Integration trunk. Never commit directly. Merges push `:edge` Docker tag. | Yes | Yes (at least 1) |
+| `release/vX.Y` | Stable customer release line. Cut from `main` via `cut-release.yml`. Merges push `:latest` Docker tag. | Yes | No |
 | `feature/<name>` | All feature work. Created from `main`. Merged back to `main` via PR. | Yes (to `main`) | No |
-| `bugfixes/<name>` | Bug fixes. Created from `main`. Merged back to `main` via PR. | Yes (to `main`) | No |
+| `bugfixes/<name>` | Bug fixes. Branch from `release/vX.Y` for production hotfixes, or from `main` for pre-release fixes. | Yes | No |
 
 **Rules:**
-- `feature/` and `bugfixes/` branches must be branched off `main`.
-- All merges to `main` go through a Pull Request — no direct pushes ever.
+- `feature/` branches must be branched off `main`.
+- `bugfixes/` branches branch from **`release/vX.Y`** when fixing a production issue (customers are affected), or from `main` when fixing something not yet released.
+- Production bugfixes merged to `release/vX.Y` must also be cherry-picked to `main` so the fix is included in future feature releases.
+- All merges go through a Pull Request — no direct pushes to `main` or `release/*` ever.
 - Branch names: `feature/<short-descriptive-name>` or `bugfixes/<short-descriptive-name>` (lowercase, hyphens). Example: `feature/risk-score-export`, `bugfixes/fix-login-redirect`.
-- When starting work, always create a new `feature/` or `bugfixes/` branch. Never work directly on `main`.
+- When starting work, always create a new branch. Never work directly on `main` or `release/*`.
 - **One issue per branch.** Each branch must fix exactly one issue or implement exactly one feature. Never combine fixes for separate, unrelated issues into a single branch or PR. Exception: if a single code change genuinely resolves more than one issue (e.g. the same root cause), both issue numbers may be referenced in the commit and PR — but this should be rare and the connection must be explicit.
 
 ### Version Number Scheme
 
-Version format (4 parts, PowerShell-compatible): `Major.Minor.yyyyMMdd.HHmm`
+Two formats, both 4-part (PowerShell-compatible):
 
-| Branch | Version format | Who updates it | When |
-|--------|---------------|----------------|------|
-| `main` | `Major.Minor.yyyyMMdd.HHmm` | `bump-version.yml` GitHub Action (automated) | On every PR merge. Increments `Minor`, updates timestamp. |
-| `feature/*` / `bugfixes/*` | — | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch. |
+| Branch | Version format | Example | Docker tag pushed |
+|--------|---------------|---------|-------------------|
+| `main` | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` | `:edge` |
+| `release/vX.Y` | `Major.Minor.Patch.0` | `5.2.1.0` | `:latest` |
+| `feature/*` / `bugfixes/*` | — | — | Nobody |
+
+The timestamp format on `main` makes dev builds instantly recognisable. The semantic `Patch.0` format on release branches gives customers a clear upgrade path.
+
+**Who updates versions:**
+
+| Branch | Who updates it | When |
+|--------|---------------|------|
+| `main` | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp |
+| `release/vX.Y` | `bump-version.yml` (automated) | Every PR merge — increments `Patch` (e.g. `5.2.0.0` → `5.2.1.0`) |
+| `feature/*` / `bugfixes/*` | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch |
 
 **How to apply:**
 
-1. **Starting a branch**: Branch from `main`. Leave `setup/IdentityAtlas.psd1` untouched.
-2. **After any code change on a branch**: Add bullets to `changes/<branch-name>.md`. Do not edit `CHANGES.md` or `ModuleVersion`.
-3. **When merging feature/bugfixes → main via PR**: The `bump-version.yml` Action runs automatically after merge and commits the Minor increment + new timestamp to `main`. The `docker-publish.yml` Action then triggers on that commit to build and push Docker images with the updated version.
-4. **Major version bump**: Edit `setup/IdentityAtlas.psd1` manually on `main` (via a PR) for a breaking change. Increment `Major`, reset `Minor` to `0`.
+1. **Starting a feature or pre-release bugfix branch**: Branch from `main`. Leave `setup/IdentityAtlas.psd1` untouched.
+2. **Starting a production hotfix branch**: Branch from `release/vX.Y`. Leave `setup/IdentityAtlas.psd1` untouched.
+3. **After any code change on a branch**: Add bullets to `changes/<branch-name>.md`. Do not edit `CHANGES.md` or `ModuleVersion`.
+4. **When merging → main via PR**: `bump-version.yml` increments Minor + timestamp. `docker-publish.yml` builds and pushes `:edge` + versioned tag.
+5. **When merging → release/vX.Y via PR**: `bump-version.yml` increments Patch. `docker-publish.yml` builds and pushes `:latest` + versioned tag.
+6. **Cutting a new release**: Run the `cut-release.yml` workflow (Actions → Cut Release Branch → enter `Major.Minor`). It creates `release/vX.Y` from `main` and sets the version to `X.Y.0.0`.
+7. **Major version bump**: Edit `setup/IdentityAtlas.psd1` manually on `main` (via a PR) for a breaking change. Increment `Major`, reset `Minor` to `0`.
 
 ### Changelog fragments (replaces direct CHANGES.md edits)
 
@@ -723,16 +740,71 @@ The Crawlers wizard validates these permissions on the App Registration during s
 - `vw_PendingRequestTimeline` - Aging pending requests
 - `vw_RequestResponseMetrics` - Aggregate approval statistics
 
+## Repository Setup (One-Time)
+
+These steps are required once when creating or transferring the repository. They are not automated by CI.
+
+### GitHub Actions secrets
+
+| Secret | Required scopes | Purpose |
+|--------|----------------|---------|
+| `VERSION_BUMP_PAT` | `repo` (includes `contents:write`) | Lets `bump-version.yml` and `cut-release.yml` push commits directly to protected branches (`main`, `release/**`). The PAT owner **must have the admin role** on the repository so the bypass actor rule on `release/**` applies. |
+
+### Branch protection
+
+Run once after repo creation (requires `gh` CLI authenticated as admin):
+
+```bash
+bash tools/setup-branch-protection.sh Fortigi/IdentityAtlas
+```
+
+This sets:
+- `main` — PR required (1 approval), `PR Summary` check required, admins bypass
+- `release/**` — PR required (0 approvals), `PR Summary` check required, no force-push, no deletion, admins bypass
+
+---
+
 ## Development Workflow
 
 ### Starting New Work
 
+**Feature (not yet released):**
 ```bash
 git checkout main && git pull
 git checkout -b feature/<name>      # e.g. feature/risk-score-export
-# or
+```
+
+**Pre-release bugfix (bug is in main, not yet in a release):**
+```bash
+git checkout main && git pull
 git checkout -b bugfixes/<name>     # e.g. bugfixes/fix-login-redirect
 ```
+
+**Production hotfix (bug is in a released version, customers are affected):**
+```bash
+# Step 1 — fix on the release branch
+git checkout release/v5.2 && git pull
+git checkout -b bugfixes/<name>
+# ... make the fix, add changes/<name>.md fragment, commit ...
+gh pr create --base release/v5.2 --title "fix: ..."
+# merge the PR → bump-version bumps patch, docker-publish pushes :latest
+
+# Step 2 — bring the fix into main via its own PR (main is protected, no direct commits)
+git checkout main && git pull
+git checkout -b bugfixes/<name>-main
+git cherry-pick <fix-commit-sha>    # the fix commit only, not the version bump commit
+gh pr create --base main --title "fix: ... (cherry-pick from release/v5.2)"
+# merge the PR → bump-version bumps minor on main as normal
+```
+
+### Cutting a New Release
+
+When `main` is stable and ready to ship to customers:
+
+1. Go to **Actions → Cut Release Branch → Run workflow**
+2. Enter the version, e.g. `5.3` (Major.Minor only)
+3. The workflow creates `release/v5.3` from `main` and sets version to `5.3.0.0`
+4. Merges to `release/v5.3` push `:latest` to customers
 
 ### Making Changes
 
@@ -764,17 +836,26 @@ gh pr create --base feature/foo-step-1 --title "step 2: ..."
 
 When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main`.
 
-### Merging Feature/Bugfixes → Main (via PR)
+### Merging to Main (feature / pre-release bugfix)
 
-1. Open PR from `feature/<name>` or `bugfixes/<name>` into `main` (or into the previous stack branch)
+1. Open PR from `feature/<name>` or `bugfixes/<name>` into `main`
 2. Use the fragment content from `changes/<branch-name>.md` as the PR description
 3. Requires 1 approval — merge when CI passes
+4. After merge: `bump-version.yml` increments Minor + timestamp; `docker-publish.yml` pushes `:edge`
+
+### Merging to a Release Branch (production hotfix)
+
+1. Open PR from `bugfixes/<name>` into `release/vX.Y`
+2. Use the fragment content from `changes/<branch-name>.md` as the PR description
+3. Merge when CI passes
+4. After merge: `bump-version.yml` increments Patch; `docker-publish.yml` pushes `:latest`
+5. Cherry-pick the fix to `main`: `git checkout main && git cherry-pick <sha>`
 
 ### Version Updates
 
-Version format: `Major.Minor.yyyyMMdd.HHmm` (e.g., `2.5.20260317.1430`)
-
-See the **Branching & Versioning Strategy** section above for the full scheme. The Docker images are built and pushed by the `docker-publish.yml` GitHub Action on merge to `main`, tagged with both `latest` and the module version.
+See the **Branching & Versioning Strategy** section above for the full scheme.
+- `main` merges → `Major.Minor.yyyyMMdd.HHmm` → `:edge` Docker tag
+- `release/*` merges → `Major.Minor.Patch.0` → `:latest` Docker tag
 
 ## User Workflow (Getting Started)
 
