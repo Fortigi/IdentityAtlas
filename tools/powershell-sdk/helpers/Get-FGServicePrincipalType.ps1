@@ -51,10 +51,23 @@ function Get-FGServicePrincipalType {
     # Rule 2 — Well-known AI platform tags that Microsoft stamps on SPs.
     # Keep this list narrow; speculative additions produce false positives that
     # then propagate into risk scoring.
-    $AIPlatformTags = @('CopilotStudio', 'PowerVirtualAgents', 'AzureOpenAI', 'CognitiveServices')
+    #
+    # The exact-match list covers classic AI-related platform tags plus the
+    # Entra Agent ID markers introduced in 2025 (AgenticInstance, AgenticApp).
+    # Power Virtual Agents stamps a per-instance tag of the form
+    # `power-virtual-agents-<guid>`, so PVA is detected via prefix match.
+    $AIPlatformTags = @(
+        'CopilotStudio', 'PowerVirtualAgents', 'AzureOpenAI', 'CognitiveServices',
+        'AgenticInstance', 'AgenticApp'
+    )
+    $AIPlatformTagPrefixes = @('power-virtual-agents-')
     if ($ServicePrincipal.tags) {
         foreach ($t in $ServicePrincipal.tags) {
+            if (-not $t) { continue }
             if ($AIPlatformTags -contains $t) { return 'AIAgent' }
+            foreach ($prefix in $AIPlatformTagPrefixes) {
+                if ($t.StartsWith($prefix)) { return 'AIAgent' }
+            }
         }
     }
 
