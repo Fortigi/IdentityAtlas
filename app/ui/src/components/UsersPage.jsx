@@ -83,12 +83,16 @@ export default function UsersPage({ onOpenDetail }) {
     baseFilters,
   });
 
-  // Hide `principalType` from the Filters dropdown — the sub-tabs control it.
-  // Leaving it in would create two ways to set the same value and surprise
-  // users when the two disagree.
+  // Hide `principalType` from the Filters dropdown only when a specific
+  // sub-tab is active — the tab is the authoritative selector there, and
+  // having both would create two ways to set the same value. On the "All"
+  // tab no type is pinned, so leave `principalType` available as a regular
+  // filter option.
   const filterFields = useMemo(
-    () => ep.getFilterFields(FIELD_LABELS).filter(f => f.key !== 'principalType'),
-    [ep],
+    () => ep.getFilterFields(FIELD_LABELS).filter(f =>
+      !(activeTypeTab !== 'all' && f.key === 'principalType')
+    ),
+    [ep, activeTypeTab],
   );
 
   return (
