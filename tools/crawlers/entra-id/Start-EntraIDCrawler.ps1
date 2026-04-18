@@ -147,7 +147,8 @@ function Invoke-IngestAPI {
                 continue
             }
 
-            Write-Host "  ERROR: $Endpoint returned $statusCode after $attempt attempt(s)" -ForegroundColor Red
+            $payloadMB = [Math]::Round($json.Length / 1MB, 2)
+            Write-Host "  ERROR: $Endpoint returned $statusCode after $attempt attempt(s) (payload: ${payloadMB} MB)" -ForegroundColor Red
             if ($responseBody) {
                 Write-Host "  Response: $responseBody" -ForegroundColor Yellow
             } else {
