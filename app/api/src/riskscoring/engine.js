@@ -52,6 +52,7 @@
 // progress.
 
 import * as db from '../db/connection.js';
+import * as pluginManager from './pluginManager.js';
 
 // v4 weights (Invoke-FGRiskScoring.ps1 lines 885-888)
 const W_DIRECT      = 0.50;
@@ -703,21 +704,58 @@ export async function runScoring(runId, classifierId = null) {
       }
     }
 
+    // ── Pass 4.5: External plugin scores ──
+    // Query all enabled risk scoring plugins (BloodHound, custom HTTP, etc.) for
+    // additional scores. These merge into a 5th weighted component ("external").
+    // When no plugins are enabled, this pass is a no-op and weights stay at v4 defaults.
+    await updateRun({ step: 'Querying external plugins', pct: 82 });
+
+    let externalScoresMap = new Map();
+    let externalWeight = 0;
+    try {
+      externalWeight = await pluginManager.computeExternalWeight();
+      if (externalWeight > 0) {
+        const allEntities = [
+          ...Array.from(principalState.entries()).map(([id, s]) => ({
+            id, type: 'Principal', displayName: s.displayName || '',
+          })),
+          ...Array.from(resourceState.entries()).map(([id, s]) => ({
+            id, type: 'Resource', displayName: s.displayName || '',
+          })),
+        ];
+        externalScoresMap = await pluginManager.fetchAllPluginScores(allEntities);
+      }
+    } catch (err) {
+      console.warn('External plugin scoring failed (non-fatal):', err.message);
+    }
+
     // ── Pass 5: Final score assembly ──
     await updateRun({ step: 'Finalising scores', pct: 88 });
 
-    const finalScore = (s) => Math.min(
+    // Dynamic weights: when plugins are active, proportionally scale down the
+    // original 4 weights to make room for the external component.
+    const wE = externalWeight;
+    const scale = wE > 0 ? (1 - wE) : 1;
+    const wD = W_DIRECT     * scale;
+    const wM = W_MEMBERSHIP * scale;
+    const wS = W_STRUCTURAL * scale;
+    const wP = W_PROPAGATED * scale;
+
+    const finalScore = (s, extScore) => Math.min(
       100,
       Math.round(
-        W_DIRECT * s.directScore +
-        W_MEMBERSHIP * s.membershipScore +
-        W_STRUCTURAL * s.structuralScore +
-        W_PROPAGATED * s.propagatedScore
+        wD * s.directScore +
+        wM * s.membershipScore +
+        wS * s.structuralScore +
+        wP * s.propagatedScore +
+        wE * (extScore || 0)
       )
     );
 
     const makeRow = (entityType, id, s) => {
-      const final = finalScore(s);
+      const ext = externalScoresMap.get(`${id}:${entityType}`);
+      const extScore = ext?.score || 0;
+      const final = finalScore(s, extScore);
       return {
         entityId: id,
         entityType,
@@ -727,12 +765,14 @@ export async function runScoring(runId, classifierId = null) {
         riskMembershipScore: s.membershipScore,
         riskStructuralScore: s.structuralScore,
         riskPropagatedScore: s.propagatedScore,
+        riskExternalScore: extScore,
         riskClassifierMatches: s.matches,
         riskExplanation: {
           direct:     { score: s.directScore,     reasons: s.directReasons },
           membership: { score: s.membershipScore, reasons: s.membershipReasons },
           structural: { score: s.structuralScore, reasons: s.structuralReasons },
           propagated: { score: s.propagatedScore, reasons: s.propagatedReasons },
+          ...(extScore > 0 ? { external: { score: extScore, reasons: ext?.reasons || [] } } : {}),
         },
       };
     };
@@ -755,7 +795,7 @@ export async function runScoring(runId, classifierId = null) {
         const params = [];
         let pi = 1;
         for (const s of chunk) {
-          values.push(`($${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, now())`);
+          values.push(`($${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, now())`);
           params.push(
             s.entityId,
             s.entityType,
@@ -765,6 +805,7 @@ export async function runScoring(runId, classifierId = null) {
             s.riskMembershipScore,
             s.riskStructuralScore,
             s.riskPropagatedScore,
+            s.riskExternalScore || 0,
             JSON.stringify(s.riskExplanation),
             JSON.stringify(s.riskClassifierMatches),
           );
@@ -772,7 +813,7 @@ export async function runScoring(runId, classifierId = null) {
         await client.query(
           `INSERT INTO "RiskScores"
              ("entityId","entityType","riskScore","riskTier","riskDirectScore","riskMembershipScore",
-              "riskStructuralScore","riskPropagatedScore","riskExplanation","riskClassifierMatches","riskScoredAt")
+              "riskStructuralScore","riskPropagatedScore","riskExternalScore","riskExplanation","riskClassifierMatches","riskScoredAt")
            VALUES ${values.join(',')}
            ON CONFLICT ("entityId","entityType") DO UPDATE SET
              "riskScore" = EXCLUDED."riskScore",
@@ -781,6 +822,7 @@ export async function runScoring(runId, classifierId = null) {
              "riskMembershipScore" = EXCLUDED."riskMembershipScore",
              "riskStructuralScore" = EXCLUDED."riskStructuralScore",
              "riskPropagatedScore" = EXCLUDED."riskPropagatedScore",
+             "riskExternalScore" = EXCLUDED."riskExternalScore",
              "riskExplanation" = EXCLUDED."riskExplanation",
              "riskClassifierMatches" = EXCLUDED."riskClassifierMatches",
              "riskScoredAt" = now()`,

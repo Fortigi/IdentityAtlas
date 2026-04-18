@@ -27,8 +27,9 @@ function ScoreBar({ score, maxScore = 100, width = 'w-32' }) {
 // ─── Risk field names (to exclude from generic Attributes table) ─────
 export const RISK_FIELDS = new Set([
   'riskScore', 'riskTier', 'riskDirectScore', 'riskMembershipScore',
-  'riskStructuralScore', 'riskPropagatedScore', 'riskClassifierMatches',
-  'riskExplanation', 'riskScoredAt', 'riskOverride', 'riskOverrideReason',
+  'riskStructuralScore', 'riskPropagatedScore', 'riskExternalScore',
+  'riskClassifierMatches', 'riskExplanation', 'riskScoredAt',
+  'riskOverride', 'riskOverrideReason',
 ]);
 
 function parseJSON(val) {
@@ -65,11 +66,15 @@ export default function RiskScoreSection({ attributes, entityType, entityId, aut
   const explanation = parseJSON(attributes.riskExplanation);
   const classifierMatches = parseJSON(attributes.riskClassifierMatches);
 
+  const hasExternal = (attributes.riskExternalScore || 0) > 0;
   const layers = [
-    { key: 'direct',     label: 'Classifier Match',   score: attributes.riskDirectScore,     weight: '50%' },
-    { key: 'membership', label: 'Membership Analysis', score: attributes.riskMembershipScore, weight: '20%' },
-    { key: 'structural', label: 'Structural / Hygiene', score: attributes.riskStructuralScore, weight: '10%' },
-    { key: 'propagated', label: 'Risk Propagation',    score: attributes.riskPropagatedScore,  weight: '20%' },
+    { key: 'direct',     label: 'Classifier Match',    score: attributes.riskDirectScore,      weight: hasExternal ? '~43%' : '50%' },
+    { key: 'membership', label: 'Membership Analysis',  score: attributes.riskMembershipScore,  weight: hasExternal ? '~17%' : '20%' },
+    { key: 'structural', label: 'Structural / Hygiene', score: attributes.riskStructuralScore,  weight: hasExternal ? '~9%'  : '10%' },
+    { key: 'propagated', label: 'Risk Propagation',     score: attributes.riskPropagatedScore,  weight: hasExternal ? '~17%' : '20%' },
+    ...(hasExternal ? [
+      { key: 'external', label: 'External (Plugins)', score: attributes.riskExternalScore, weight: '~15%' },
+    ] : []),
   ];
 
   const effectiveScore = localOverride != null

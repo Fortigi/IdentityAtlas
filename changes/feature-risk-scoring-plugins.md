@@ -1,0 +1,8 @@
+- Added risk scoring plugin architecture for integrating external scoring tools
+- Added BloodHound CE adapter for attack path analysis (exports Identity Atlas data to BloodHound, imports risk scores back)
+- Added generic HTTP API adapter for customer-owned scoring systems
+- External plugin scores contribute as a weighted 5th component in the scoring engine
+- Score weights dynamically rebalance when plugins are enabled (no change when disabled)
+- Added Admin > Risk Plugins page for plugin management, health checks, and data export
+- Added optional BloodHound CE docker-compose overlay (docker-compose.bloodhound.yml)
+- Added guided BloodHound CE setup wizard (connect, authenticate, configure, export) in Admin > Risk Plugins

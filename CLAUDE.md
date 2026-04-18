@@ -145,6 +145,7 @@ multi-step wizard. See [docs/architecture/llm-and-risk-scoring.md](docs/architec
 - **Postgres-native scoring engine**: [app/api/src/riskscoring/engine.js](app/api/src/riskscoring/engine.js). Layer 1 (direct classifier match, weight 0.60) and a lightweight Layer 2 (small-group bonus, weight 0.25) are implemented. Layers 3 and 4 (structural hygiene, cross-entity propagation) are placeholders kept in the formula for future extension.
 - **Background scoring runs**: `POST /api/risk-scoring/runs` queues a run, the engine executes in the same Node process, the wizard polls `GET /api/risk-scoring/runs/:id` for progress.
 - **Risk Tiers**: Critical (90-100), High (70-89), Medium (40-69), Low (20-39), Minimal (1-19), None (0).
+- **Risk scoring plugins**: External tools (BloodHound CE, custom HTTP APIs) contribute scores as a 5th weighted component. Plugin manager at [app/api/src/riskscoring/pluginManager.js](app/api/src/riskscoring/pluginManager.js) dispatches to adapters in `app/api/src/riskscoring/adapters/`. API keys stored in the Secrets vault. When no plugins are enabled, weights stay at v4 defaults. Admin → Risk Plugins manages registration, health checks, and data export. BloodHound CE runs as an optional sidecar via `docker-compose.bloodhound.yml`.
 - **Worker dependency**: zero. The worker container has no LLM SDK and no API key — risk scoring runs in the web container.
 
 ### 8. Universal Data Model (v3.1)
@@ -424,6 +425,7 @@ FortigiGraph/
 │       ├── postgres-migration.md          # PostgreSQL migration plan
 │       └── docker-setup.md               # Docker deployment architecture
 │
+├── docker-compose.bloodhound.yml  # Optional BloodHound CE sidecar overlay
 ├── FortigiGraph.psm1       # Module entry point (auto-loads all functions)
 ├── setup/IdentityAtlas.psd1 # Module manifest (version auto-bumped by CI)
 ├── README.md               # User documentation

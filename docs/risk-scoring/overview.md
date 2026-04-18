@@ -56,6 +56,22 @@ flowchart TD
 
 Each layer adds points; the final score is clamped to 0–100.
 
+### Layer 5: External Plugins (optional)
+
+When risk scoring plugins are enabled (Admin → Risk Plugins), external tools
+contribute scores as a 5th weighted component. The original 4 weights scale
+down proportionally to make room.
+
+Supported plugin types:
+
+- **BloodHound CE** — attack path analysis. Identity Atlas exports users/groups/
+  memberships to BloodHound, then queries for tier-zero entities, shortest attack
+  paths, and blast radius. See `docker-compose.bloodhound.yml` for deployment.
+- **Custom HTTP API** — any scoring system that accepts entity batches and returns
+  `{scores: [{entityId, entityType, score, explanation}]}`.
+
+When no plugins are enabled, the engine behaves identically to v4 — zero change.
+
 ## Scoring by Entity Type
 
 | Entity Type | Layer 1 | Layer 2 | Layer 3 | Layer 4 |

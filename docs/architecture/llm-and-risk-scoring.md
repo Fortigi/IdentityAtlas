@@ -170,6 +170,60 @@ button does a single ping using either the form values or the saved config so
 you can verify before clicking Save. The API key is never returned by the
 server; the form shows `apiKeySet: true|false` and a placeholder.
 
+### 9. Risk scoring plugins — `app/api/src/riskscoring/pluginManager.js`
+
+External risk scoring tools (BloodHound CE, custom HTTP APIs) contribute scores
+as a 5th weighted component in the scoring engine. Plugins are registered,
+configured, and toggled from Admin → Risk Plugins.
+
+**Architecture:**
+
+```
+Plugin Manager (pluginManager.js)
+  ├── adapters/bloodhound.js   — BloodHound CE REST API (export + score retrieval)
+  └── adapters/httpApi.js      — generic HTTP (customer scoring systems)
+```
+
+**Database tables** (migration `016_risk_plugins.sql`):
+
+- `RiskPlugins` — plugin registration, config (JSONB), weight, health status
+- `RiskPluginScores` — raw scores per plugin per entity (for attribution)
+- `RiskScores.riskExternalScore` — aggregated external component (new column)
+
+**Endpoints** (all behind auth middleware):
+
+| Method | Path                              | Purpose                                     |
+|--------|-----------------------------------|---------------------------------------------|
+| GET    | `/api/risk-plugins`               | List all registered plugins                 |
+| GET    | `/api/risk-plugins/:id`           | Single plugin detail                        |
+| POST   | `/api/risk-plugins`               | Register a new plugin                       |
+| PUT    | `/api/risk-plugins/:id`           | Update plugin config                        |
+| DELETE | `/api/risk-plugins/:id`           | Remove plugin + vault secret                |
+| PUT    | `/api/risk-plugins/:id/toggle`    | Enable/disable                              |
+| POST   | `/api/risk-plugins/:id/health`    | Ping endpoint, update health status         |
+| POST   | `/api/risk-plugins/:id/export`    | Trigger data export (BloodHound only)       |
+| GET    | `/api/risk-plugins/:id/scores`    | View raw plugin scores                      |
+
+**Weight rebalancing:** When plugins are enabled, their combined weight is taken
+from the total and the original 4 weights scale down proportionally. When no
+plugins are enabled, weights stay at v4 defaults (0.50/0.20/0.10/0.20) — zero
+behavioral change.
+
+**BloodHound CE integration:** Identity Atlas exports principals, resources, and
+memberships as BloodHound-compatible JSON via the BH file-upload API, then
+queries BH's Cypher endpoint for attack path analysis. Tier-zero entities score
+95, high-value 75, etc. An optional `docker-compose.bloodhound.yml` overlay
+runs BH as a sidecar.
+
+**Custom HTTP API integration:** Any scoring system that accepts a batch of
+entity summaries (POST) and returns `{ scores: [{entityId, entityType, score}] }`
+can be plugged in. Configurable batch size, timeout, custom headers, and
+request/response field mapping.
+
+API keys for all plugin types are stored in the existing Secrets vault
+(envelope-encrypted). The plugin manager follows the same pattern as
+`llm/service.js`.
+
 ## Tests
 
 Coverage added in this work:
@@ -178,7 +232,11 @@ Coverage added in this work:
 - `app/api/src/llm/providers.test.js` — adapter URL/headers/parsing for all three providers (mocked fetch)
 - `app/api/src/llm/riskPrompts.test.js` — prompt builders + JSON extractor (markdown fence stripping, leading/trailing prose, nested objects)
 - `app/api/src/llm/scraper.test.js` — protocol/MIME validation, HTML stripping, Basic/Bearer auth header construction, error handling
-- `app/api/src/riskscoring/engine.test.js` — tier thresholds, weighted formula, regex compilation tolerance
+- `app/api/src/riskscoring/engine.test.js` — tier thresholds, weighted formula (4-layer and 5-layer with external weight), regex compilation tolerance
+- `app/api/src/riskscoring/pluginManager.test.js` — weight computation, score aggregation, adapter dispatch, graceful failure, vault integration
+- `app/api/src/riskscoring/adapters/httpApi.test.js` — health check, score fetching, batching, normalisation, custom headers, entity type filtering
+- `app/api/src/riskscoring/adapters/bloodhound.test.js` — health check, export data shape, score retrieval, tier mapping, custom tier scores
+- `app/ui/e2e/risk-plugins.spec.js` — plugin CRUD lifecycle, validation, admin page rendering
 
 Run with `npm test` from `app/api/`. The test runner is vitest; no DB required
 (database-backed code paths are exercised by the smoke tests against a real

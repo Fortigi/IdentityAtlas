@@ -641,7 +641,7 @@ router.put('/risk-scores/:type/:id/override', async (req, res) => {
       .input('id', id)
       .input('entityType', entityType)
       .query(`
-        SELECT "riskDirectScore", "riskMembershipScore", "riskStructuralScore", "riskPropagatedScore"
+        SELECT "riskDirectScore", "riskMembershipScore", "riskStructuralScore", "riskPropagatedScore", "riskExternalScore"
         FROM "RiskScores"
         WHERE "entityId" = @id AND "entityType" = @entityType
       `);
@@ -652,7 +652,8 @@ router.put('/risk-scores/:type/:id/override', async (req, res) => {
 
     const row = current.recordset[0];
     const baseScore = (row.riskDirectScore || 0) + (row.riskMembershipScore || 0)
-      + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0);
+      + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0)
+      + (row.riskExternalScore || 0);
     const newScore = Math.max(0, Math.min(100, baseScore + adjustment));
     const newTier = computeTier(newScore);
 
@@ -719,7 +720,7 @@ router.delete('/risk-scores/:type/:id/override', async (req, res) => {
       .input('id', id)
       .input('entityType', entityType)
       .query(`
-        SELECT "riskDirectScore", "riskMembershipScore", "riskStructuralScore", "riskPropagatedScore"
+        SELECT "riskDirectScore", "riskMembershipScore", "riskStructuralScore", "riskPropagatedScore", "riskExternalScore"
         FROM "RiskScores"
         WHERE "entityId" = @id AND "entityType" = @entityType
       `);
@@ -731,7 +732,8 @@ router.delete('/risk-scores/:type/:id/override', async (req, res) => {
     const row = current.recordset[0];
     const newScore = Math.max(0, Math.min(100,
       (row.riskDirectScore || 0) + (row.riskMembershipScore || 0)
-      + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0)));
+      + (row.riskStructuralScore || 0) + (row.riskPropagatedScore || 0)
+      + (row.riskExternalScore || 0)));
     const newTier = computeTier(newScore);
 
     // Clear override in RiskScores table

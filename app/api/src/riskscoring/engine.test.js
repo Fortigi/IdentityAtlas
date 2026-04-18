@@ -53,6 +53,63 @@ describe('finalScore formula', () => {
   });
 });
 
+// ─── weighted formula with external plugin score (5 layers) ─────────
+
+describe('finalScore with external plugin weight', () => {
+  // Mirrors the dynamic weight logic in engine.js Pass 5.
+  // When plugins are active, the external weight is subtracted from 1.0
+  // and the original 4 weights scale down proportionally.
+  function computeWeights(externalWeight) {
+    const scale = externalWeight > 0 ? (1 - externalWeight) : 1;
+    return {
+      wD: 0.50 * scale,
+      wM: 0.20 * scale,
+      wS: 0.10 * scale,
+      wP: 0.20 * scale,
+      wE: externalWeight,
+    };
+  }
+
+  const finalScoreWithExternal = (d, m, s, p, ext, extWeight) => {
+    const { wD, wM, wS, wP, wE } = computeWeights(extWeight);
+    return Math.min(100, Math.round(wD * d + wM * m + wS * s + wP * p + wE * ext));
+  };
+
+  it('matches v4 exactly when external weight is 0', () => {
+    // Same test cases as the 4-layer formula
+    expect(finalScoreWithExternal(0, 0, 0, 0, 0, 0)).toBe(0);
+    expect(finalScoreWithExternal(100, 0, 0, 0, 0, 0)).toBe(50);
+    expect(finalScoreWithExternal(0, 100, 0, 0, 0, 0)).toBe(20);
+    expect(finalScoreWithExternal(80, 30, 15, 20, 0, 0)).toBe(52);
+  });
+
+  it('includes external score when weight is non-zero', () => {
+    // With 15% external weight:
+    // wD=0.425, wM=0.17, wS=0.085, wP=0.17, wE=0.15
+    // 0.425*80 + 0.17*30 + 0.085*15 + 0.17*20 + 0.15*90
+    // = 34 + 5.1 + 1.275 + 3.4 + 13.5 = 57.275 → 57
+    expect(finalScoreWithExternal(80, 30, 15, 20, 90, 0.15)).toBe(57);
+  });
+
+  it('total weights sum to 1.0 regardless of external weight', () => {
+    for (const ext of [0, 0.05, 0.10, 0.15, 0.25, 0.40]) {
+      const { wD, wM, wS, wP, wE } = computeWeights(ext);
+      expect(wD + wM + wS + wP + wE).toBeCloseTo(1.0);
+    }
+  });
+
+  it('caps at 100 even with high external score', () => {
+    expect(finalScoreWithExternal(100, 100, 100, 100, 100, 0.40)).toBe(100);
+  });
+
+  it('external score alone contributes its weighted share', () => {
+    // Only external score at 100 with weight 0.15 → 15
+    expect(finalScoreWithExternal(0, 0, 0, 0, 100, 0.15)).toBe(15);
+    // External at 100 with weight 0.40 → 40
+    expect(finalScoreWithExternal(0, 0, 0, 0, 100, 0.40)).toBe(40);
+  });
+});
+
 // ─── isNonProduction ──────────────────────────────────────────────
 
 describe('isNonProduction', () => {

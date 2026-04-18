@@ -9,6 +9,7 @@ const AuthSettingsPage = lazy(() => import('./AuthSettingsPage'));
 const PerfPage = lazy(() => import('./PerfPage'));
 const RiskProfileWizard = lazy(() => import('./RiskProfileWizard'));
 const CorrelationWizard = lazy(() => import('./CorrelationWizard'));
+const RiskPluginsPage = lazy(() => import('./RiskPluginsPage'));
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -1128,6 +1129,7 @@ const ADMIN_TABS = [
   { key: 'data',         label: 'Data',                description: 'Export/import curated data and clean the database' },
   { key: 'correlation',  label: 'Account Correlation', description: 'Rules for linking accounts to identities' },
   { key: 'risk-scoring', label: 'Risk Scoring',        description: 'Risk profile, classifiers and feature toggle' },
+  { key: 'risk-plugins', label: 'Risk Plugins',        description: 'External scoring tools (BloodHound, custom APIs)' },
   { key: 'llm',          label: 'LLM Settings',        description: 'Configure the LLM provider used by risk scoring and account correlation' },
   { key: 'performance',  label: 'Performance',         description: 'API and SQL performance metrics' },
   { key: 'containers',   label: 'Containers',          description: 'Live CPU, memory and network for the Docker stack' },
@@ -1664,6 +1666,11 @@ export default function AdminPage({ onNavigate, onRefresh }) {
 
         {activeTab === 'correlation' && <CorrelationSection />}
         {activeTab === 'risk-scoring' && <RiskScoringSection />}
+        {activeTab === 'risk-plugins' && (
+          <Suspense fallback={<div className="text-sm text-gray-500 p-6">Loading…</div>}>
+            <RiskPluginsPage />
+          </Suspense>
+        )}
         {activeTab === 'llm' && <LLMSettingsSection />}
 
         {activeTab === 'performance' && (
