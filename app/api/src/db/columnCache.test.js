@@ -77,19 +77,27 @@ describe('discoverColumns — table/column casing pinned to migrations', () => {
 });
 
 describe('discoverColumnValues — emits correctly-quoted PascalCase table name', () => {
-  // Each call to get{Principal,Resource}ColumnValues makes two queries:
+  // Each call to get{Principal,Resource}ColumnValues makes three queries in
+  // this order:
   //   1. discoverColumns (information_schema)
-  //   2. the UNION ALL over distinct values
-  // We program both responses in order.
-  function programSchemaThenValues(columns, valueRows) {
+  //   2. discoverColumnValues (UNION ALL over filterable columns)
+  //   3. discoverExtendedAttrValues — key discovery on the JSONB column
+  //   4. (optional) distinct-value UNION ALL over the ext keys from step 3
+  // Tests program as many responses as they inspect; unused ones can be
+  // left as empty rows.
+  function programQueries(columnRows, valueRows, extKeyRows = [], extValueRows = []) {
     queryMock
-      .mockResolvedValueOnce({ rows: columns.map(c => ({ column_name: c.name, data_type: c.type })) })
-      .mockResolvedValueOnce({ rows: valueRows });
+      .mockResolvedValueOnce({ rows: columnRows })
+      .mockResolvedValueOnce({ rows: valueRows })
+      .mockResolvedValueOnce({ rows: extKeyRows });
+    if (extKeyRows.length > 0) {
+      queryMock.mockResolvedValueOnce({ rows: extValueRows });
+    }
   }
 
   it('Principals: SELECTs FROM "Principals" with double-quoted PascalCase', async () => {
-    programSchemaThenValues(
-      [{ name: 'department', type: 'text' }],
+    programQueries(
+      [{ column_name: 'department', data_type: 'text' }],
       [{ col: 'department', val: 'Sales' }],
     );
     const mod = await freshModule();
@@ -102,8 +110,8 @@ describe('discoverColumnValues — emits correctly-quoted PascalCase table name'
   });
 
   it('Resources: SELECTs FROM "Resources" with double-quoted PascalCase', async () => {
-    programSchemaThenValues(
-      [{ name: 'resourceType', type: 'text' }],
+    programQueries(
+      [{ column_name: 'resourceType', data_type: 'text' }],
       [{ col: 'resourceType', val: 'Group' }],
     );
     const mod = await freshModule();
@@ -115,11 +123,11 @@ describe('discoverColumnValues — emits correctly-quoted PascalCase table name'
   });
 
   it('skips columns whose type is not in FILTERABLE_TYPES (e.g. jsonb, uuid)', async () => {
-    programSchemaThenValues(
+    programQueries(
       [
-        { name: 'displayName',        type: 'text' },
-        { name: 'extendedAttributes', type: 'jsonb' },
-        { name: 'id',                 type: 'uuid'  },
+        { column_name: 'displayName',        data_type: 'text' },
+        { column_name: 'extendedAttributes', data_type: 'jsonb' },
+        { column_name: 'id',                 data_type: 'uuid'  },
       ],
       [],
     );
@@ -130,5 +138,70 @@ describe('discoverColumnValues — emits correctly-quoted PascalCase table name'
     expect(valuesSql).toMatch(/"displayName"/);
     expect(valuesSql).not.toMatch(/"extendedAttributes"/);
     expect(valuesSql).not.toMatch(/\buuid\b/);
+  });
+});
+
+describe('discoverExtendedAttrValues — surfaces JSONB keys as ext.<key>', () => {
+  it('enumerates scalar JSONB keys and emits distinct values under ext.<key>', async () => {
+    queryMock
+      // discoverColumns — keep tiny so we reach the ext phase quickly
+      .mockResolvedValueOnce({ rows: [{ column_name: 'department', data_type: 'text' }] })
+      // discoverColumnValues — base UNION ALL
+      .mockResolvedValueOnce({ rows: [{ col: 'department', val: 'Sales' }] })
+      // ext key discovery
+      .mockResolvedValueOnce({ rows: [{ key: 'userType' }, { key: 'onPremisesSyncEnabled' }] })
+      // ext value UNION ALL
+      .mockResolvedValueOnce({ rows: [
+        { col: 'ext.userType', val: 'Member' },
+        { col: 'ext.userType', val: 'Guest' },
+        { col: 'ext.onPremisesSyncEnabled', val: 'true' },
+      ]});
+
+    const mod = await freshModule();
+    const grouped = await mod.getPrincipalColumnValues();
+
+    expect(grouped['department']).toEqual(['Sales']);
+    expect(grouped['ext.userType']).toEqual(['Member', 'Guest']);
+    expect(grouped['ext.onPremisesSyncEnabled']).toEqual(['true']);
+
+    // Ext key-discovery SQL must restrict to scalar jsonb types — that's what
+    // excludes objects (signInActivity) and arrays (groupTypes) from the list.
+    const keyDiscoverySql = queryMock.mock.calls[2][0];
+    expect(keyDiscoverySql).toMatch(/jsonb_typeof.*IN \('string', 'number', 'boolean'\)/);
+    expect(keyDiscoverySql).toMatch(/FROM "Principals"/);
+
+    // Ext value SQL must use the ->>'<key>' form on the extendedAttributes
+    // column. If anyone changes it back to `->` (returning jsonb) string
+    // equality breaks for booleans/numbers.
+    const extValuesSql = queryMock.mock.calls[3][0];
+    expect(extValuesSql).toMatch(/"extendedAttributes"->>'userType'/);
+    expect(extValuesSql).toMatch(/"extendedAttributes"->>'onPremisesSyncEnabled'/);
+  });
+
+  it('drops keys whose name contains unsafe characters (no SQL-injection vector)', async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [] })       // discoverColumns — empty is fine
+      // No base values query because filterableCols is empty → discoverColumnValues returns {}
+      // Actually it WILL issue the UNION ALL only when filterableCols.length > 0, so skip it.
+      // But we still hit the ext key query:
+      .mockResolvedValueOnce({ rows: [
+        { key: 'userType' },
+        { key: "badKey'; DROP TABLE--" },
+        { key: 'extension_deadbeef_sAMAccountName' },
+      ]})
+      .mockResolvedValueOnce({ rows: [
+        { col: 'ext.userType', val: 'Member' },
+        { col: 'ext.extension_deadbeef_sAMAccountName', val: 'jdoe' },
+      ]});
+
+    const mod = await freshModule();
+    await mod.getPrincipalColumnValues();
+
+    // Call sequence with an empty column list: schema, ext-key-discovery,
+    // ext-value UNION. The base-values query is skipped.
+    const extValuesSql = queryMock.mock.calls[2][0];
+    expect(extValuesSql).toMatch(/'userType'/);
+    expect(extValuesSql).toMatch(/'extension_deadbeef_sAMAccountName'/);
+    expect(extValuesSql).not.toMatch(/DROP TABLE/);
   });
 });

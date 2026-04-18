@@ -110,6 +110,55 @@ async function discoverColumnValues(table, columns) {
   return grouped;
 }
 
+// Discover scalar top-level keys in the `extendedAttributes` JSONB column and
+// their distinct values. The flat column list returned by `discoverColumns`
+// deliberately excludes `extendedAttributes` (it's a blob, not directly
+// filterable), but individual string/number/boolean keys INSIDE the blob are
+// very useful filter fields — e.g. `userType`, `onPremisesSyncEnabled`,
+// `extensionAttribute5`. They're surfaced under namespaced keys like
+// `ext.userType` so the front end and `buildFilterWhere` can tell them apart
+// from real columns and emit JSON-path SQL (`"extendedAttributes"->>'key'`).
+//
+// Object/array-valued keys (e.g. `signInActivity`, `groupTypes`) are skipped —
+// matching on a serialized object is not a useful filter.
+async function discoverExtendedAttrValues(table) {
+  if (!SAFE_IDENT_RE.test(table)) throw new Error(`Invalid table name: ${table}`);
+
+  // Find distinct scalar top-level keys. We use jsonb_typeof on the value so
+  // we only keep keys whose typical content is something a user would filter
+  // on; if a key is mixed (string in some rows, object in others) we'd lose
+  // the object rows, but the filter still matches the scalar ones.
+  const keysRes = await db.query(
+    `SELECT DISTINCT key
+       FROM "${table}", jsonb_object_keys("extendedAttributes") AS key
+      WHERE "extendedAttributes" IS NOT NULL
+        AND jsonb_typeof("extendedAttributes"->key) IN ('string', 'number', 'boolean')`
+  );
+  const keys = keysRes.rows.map(r => r.key).filter(k => SAFE_IDENT_RE.test(k));
+  if (keys.length === 0) return {};
+
+  // One UNION ALL per key — same shape as discoverColumnValues. The
+  // `->> 'key'` form returns text for any scalar jsonb type, which is what
+  // we want: booleans become 'true'/'false', numbers become their printed form.
+  const parts = keys.map(k =>
+    `SELECT 'ext.${k}' AS col, val FROM (
+       SELECT DISTINCT "extendedAttributes"->>'${k}' AS val FROM "${table}"
+        WHERE "extendedAttributes" ? '${k}'
+          AND "extendedAttributes"->>'${k}' IS NOT NULL
+          AND "extendedAttributes"->>'${k}' <> ''
+        LIMIT 500
+     ) t`
+  );
+
+  const r = await db.query(parts.join('\nUNION ALL\n') + '\nORDER BY col, val');
+  const grouped = {};
+  for (const row of r.rows) {
+    if (!grouped[row.col]) grouped[row.col] = [];
+    grouped[row.col].push(row.val);
+  }
+  return grouped;
+}
+
 export async function getPrincipalColumnValues(_pool) {
   const now = Date.now();
   if (principalValuesCache && (now - principalValuesCacheTime) < COLUMN_CACHE_TTL) {
@@ -119,7 +168,11 @@ export async function getPrincipalColumnValues(_pool) {
   principalValuesInflight = (async () => {
     try {
       const cols = await getPrincipalColumns(null);
-      const result = await discoverColumnValues('Principals', cols);
+      const [base, ext] = await Promise.all([
+        discoverColumnValues('Principals', cols),
+        discoverExtendedAttrValues('Principals'),
+      ]);
+      const result = { ...base, ...ext };
       principalValuesCache = result;
       principalValuesCacheTime = Date.now();
       return result;
@@ -139,7 +192,11 @@ export async function getResourceColumnValues(_pool) {
   resourceValuesInflight = (async () => {
     try {
       const cols = await getResourceColumns(null);
-      const result = await discoverColumnValues('Resources', cols);
+      const [base, ext] = await Promise.all([
+        discoverColumnValues('Resources', cols),
+        discoverExtendedAttrValues('Resources'),
+      ]);
+      const result = { ...base, ...ext };
       resourceValuesCache = result;
       resourceValuesCacheTime = Date.now();
       return result;

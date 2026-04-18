@@ -20,13 +20,31 @@ let tablesReady = false;
 async function ensureTagTables(_pool) { tablesReady = true; }
 export { ensureTagTables };
 
-// Build parameterized WHERE clause from filters object, validating against actual columns.
-function buildFilterWhere(requestObj, filters, validColNames, alias, paramPrefix = 'fl') {
+// Build parameterized WHERE clause from filters object.
+//
+// Two kinds of filter keys are accepted:
+//   - Real column names — validated against `validColNames` to prevent SQL
+//     injection via field names, emitted as `alias."col"::text = @param`.
+//   - `ext.<key>` — filters on a scalar value inside the `extendedAttributes`
+//     JSONB column. The suffix must match FILTER_KEY_RE so it's safe to
+//     inline (we can't parameter-bind a JSON path key). Emitted as
+//     `alias."extendedAttributes"->>'key' = @param`.
+const FILTER_KEY_RE = /^[a-zA-Z0-9_]+$/;
+const EXT_PREFIX = 'ext.';
+export function buildFilterWhere(requestObj, filters, validColNames, alias, paramPrefix = 'fl') {
   let where = '';
   let idx = 0;
   for (const [field, value] of Object.entries(filters)) {
-    if (validColNames.has(field) && value != null && String(value) !== '') {
-      const paramName = `${paramPrefix}${idx}`;
+    if (value == null || String(value) === '') continue;
+    const paramName = `${paramPrefix}${idx}`;
+
+    if (field.startsWith(EXT_PREFIX)) {
+      const key = field.slice(EXT_PREFIX.length);
+      if (!FILTER_KEY_RE.test(key)) continue;
+      where += ` AND ${alias}."extendedAttributes"->>'${key}' = @${paramName}`;
+      requestObj.input(paramName, String(value));
+      idx++;
+    } else if (validColNames.has(field)) {
       where += ` AND ${alias}."${field}"::text = @${paramName}`;
       requestObj.input(paramName, String(value));
       idx++;
