@@ -15,7 +15,8 @@ This document covers branch naming, PR rules, version format, and the release wo
 **Rules:**
 
 - `feature/` branches must be branched off `main`.
-- `bugfixes/` branches branch from `main` for pre-release fixes. For hotfixes to an already-released version, branch from the release tag (e.g. `git checkout -b bugfixes/fix-foo v5.2.0`).
+- `bugfixes/` branches branch from `main` for pre-release fixes. For hotfixes to an already-released version, branch from the release tag: `git checkout -b bugfixes/fix-foo v5.2.0`.
+- Hotfix commits must be cherry-picked back to `main` via a separate PR so the fix is included in future releases.
 - All merges to `main` go through a Pull Request — no direct pushes.
 - Branch names: lowercase, hyphens. Examples: `feature/risk-score-export`, `bugfixes/fix-login-redirect`.
 - **One issue per branch.** Each branch fixes exactly one issue or implements exactly one feature. Never combine unrelated fixes into a single branch or PR.
@@ -31,7 +32,7 @@ git checkout -b feature/<name>
 # or
 git checkout -b bugfixes/<name>
 
-# Hotfix to a released version — branch from the release tag
+# Hotfix to a released version — branch from the release tag, NOT from main
 git checkout -b bugfixes/<name> v5.2.0
 ```
 
@@ -39,12 +40,12 @@ git checkout -b bugfixes/<name> v5.2.0
 
 ## Version Number Format
 
-Two version formats, both PowerShell-compatible (4-part):
+Two formats, both 4-part (PowerShell-compatible):
 
 | Context | Format | Example |
 |---------|--------|---------|
-| `main` dev builds | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` |
-| Release tags | `Major.Minor.Patch.0` | `5.2.1.0` |
+| `main` dev builds (`:edge`) | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` |
+| Release tags (`:latest`) | `Major.Minor.Patch.0` | `5.2.1.0` |
 
 **Who updates what:**
 
@@ -93,32 +94,26 @@ When `main` is stable and ready to ship to customers:
 3. The workflow creates tag `v5.2.0` on the current `main` HEAD
 4. `docker-publish.yml` triggers automatically on the tag push and builds `:latest` + `:5.2.0.0`
 
-Customers who track `:latest` will receive the new version automatically on their next `docker compose pull`.
+Customers who track `:latest` will receive the new version on their next `docker compose pull`.
 
 ---
 
 ## Hotfix Releases
 
-To ship a bugfix without including features that are already on `main`:
+To ship a bugfix without including features already on `main`:
 
 ```bash
-# 1. Branch from the release tag, not from main
+# 1. Branch from the release tag — NOT from main
 git checkout -b bugfixes/fix-login-crash v5.2.0
 
-# 2. Fix the bug, commit
-git add ...
-git commit -m "fix: ..."
-
-# 3. Push the branch
+# 2. Fix the bug, commit, push
 git push origin bugfixes/fix-login-crash
 ```
 
-Then:
-
-4. Go to **Actions → Cut Hotfix → Run workflow**
-5. Enter the branch name (`bugfixes/fix-login-crash`) and new version (`5.2.1`)
-6. The workflow creates tag `v5.2.1` on the HEAD of your branch
-7. `docker-publish.yml` builds `:latest` + `:5.2.1.0`
+3. Go to **Actions → Cut Hotfix → Run workflow**
+4. Enter the branch name (`bugfixes/fix-login-crash`) and new version (`5.2.1`)
+5. The workflow creates tag `v5.2.1` on the HEAD of your branch
+6. `docker-publish.yml` builds `:latest` + `:5.2.1.0`
 
 After the hotfix ships, open a PR to cherry-pick the fix into `main`:
 
@@ -150,10 +145,10 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 ## Image Channels
 
-| Tag | Content | Who uses it |
-|-----|---------|-------------|
-| `:latest` | Last stable release (from a `v*` tag) | End users (default) |
-| `:edge` | Latest commit on `main` | Testers and developers |
-| `:5.2.1.0` | Exact pinned version | Production deployments needing controlled upgrades |
+| Tag | Published when | Who uses it |
+|-----|---------------|-------------|
+| `:latest` | A release tag (`v5.2.0`) is created via Actions → Cut Release or Cut Hotfix | Customers (default) |
+| `:edge` | Every PR merges to `main` | Developers and testers |
+| `:5.2.0.0` | Same time as `:latest` — exact pinned version | Production deployments needing controlled upgrades |
 
 See [Docker Setup](docker-setup.md) for how to select a channel via `IMAGE_TAG`.

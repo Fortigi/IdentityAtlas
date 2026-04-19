@@ -89,7 +89,7 @@ The v5 rewrite was executed in a single ~2-week feature branch (`feature/univers
 
 ## Version numbers
 
-v5 resets the major version. `ModuleVersion` follows `Major.Minor.yyyyMMdd.HHmm` per the branching strategy in CLAUDE.md. The `CHANGELOG.md` at the repo root is the authoritative per-release history; this document is the narrative.
+v5 resets the major version. `ModuleVersion` follows `Major.Minor.yyyyMMdd.HHmm` per the [branching and versioning strategy](architecture/branching-strategy.md). The `CHANGELOG.md` at the repo root is the authoritative per-release history; this document is the narrative.
 
 ## Acknowledgements
 
