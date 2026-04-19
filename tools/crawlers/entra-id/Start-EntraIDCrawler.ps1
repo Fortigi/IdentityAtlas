@@ -38,6 +38,12 @@
 .PARAMETER SyncContexts
     Sync calculated department contexts (default: true)
 
+.PARAMETER SyncOAuth2Grants
+    Sync OAuth2 delegated permission grants — per-user consents (a user
+    authorized app X to call API Y with scope Z on their behalf). Tenant-wide
+    (AllPrincipals) grants are skipped because they don't represent a
+    user-specific authorization decision. Default: false.
+
 .PARAMETER RefreshViews
     Refresh materialized SQL views after sync (default: true)
 
@@ -64,6 +70,7 @@ Param(
     [switch]$SyncContexts = $true,
     [switch]$SyncPim = $false,
     [switch]$SyncSignInLogs = $false,
+    [switch]$SyncOAuth2Grants = $false,
     [switch]$RefreshViews = $true,
 
     # Window for the sign-in logs fetch. Graph retains events for ~30 days so
@@ -1351,6 +1358,209 @@ if ($SyncGovernance) {
         Write-Host "  This tenant may not have Entitlement Management (Access Packages) enabled." -ForegroundColor Yellow
     }
     $__phaseSW.Stop(); $phaseTimings['Governance'] = $__phaseSW.Elapsed
+}
+
+# ─── Sync OAuth2 Delegated Grants ────────────────────────────────
+# Per-user consent grants: user authorized client-app X to call target-API Y on
+# their behalf with scope Z. Modelled as a child-resource tree:
+#
+#     Resources(Application)           <-- client SP (the app that got delegated-to)
+#       └─ ResourceRelationships(DelegatesScope)
+#            └─ Resources(DelegatedPermission)   <-- synthetic per (client, api, scope)
+#                 └─ ResourceAssignments(OAuth2Grant)  <-- one row per consenting user
+#
+# The scope resource ID is deterministic over (clientSpId, targetApiSpId, scope)
+# so re-runs idempotently overwrite the same rows. Tenant-wide consents
+# (consentType='AllPrincipals', principalId=null) are skipped — they don't
+# represent a user-specific decision. A distinct relationshipType (
+# 'DelegatesScope' not 'Contains') keeps the scoped full-sync delete from
+# wiping out the Access Package 'Contains' relationships produced by the
+# governance sync above.
+if ($SyncOAuth2Grants) {
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing OAuth2 delegated grants..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing OAuth2 grants' -Pct 72 -Detail 'Fetching from Microsoft Graph...'
+
+    # Deterministic UUID v3-style over MD5 — mirrors normalizeRecords in
+    # app/api/src/ingest/normalization.js so the same input always yields the
+    # same ID whether generated here or server-side.
+    function New-OAuth2ScopeResourceId {
+        param([string]$ClientSpId, [string]$TargetApiSpId, [string]$Scope)
+        $input = "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
+        $md5 = [System.Security.Cryptography.MD5]::Create()
+        try {
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($input)
+            $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
+        } finally {
+            $md5.Dispose()
+        }
+        return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+    }
+
+    try {
+        $grants = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/oauth2PermissionGrants?`$top=999"
+        $total = @($grants).Count
+        Write-Host "  Fetched $total OAuth2 permission grants" -ForegroundColor Gray
+
+        # Keep only per-user consents — AllPrincipals are tenant-wide admin
+        # consents that we explicitly skip (they don't reflect an individual
+        # user's authorization decision).
+        $userGrants = @($grants | Where-Object { $_.consentType -eq 'Principal' -and $_.principalId })
+        Write-Host "  $($userGrants.Count) per-user consents (skipping $($total - $userGrants.Count) tenant-wide)" -ForegroundColor Gray
+
+        if ($userGrants.Count -eq 0) {
+            Write-Host "  Nothing to ingest" -ForegroundColor Yellow
+        }
+        else {
+            # Collect unique SP IDs referenced as either client or target API so
+            # we can attach human-readable displayNames to the Resource rows.
+            # We fetch each SP individually — Graph's `$filter id in (...)` on
+            # servicePrincipals has a 15-item cap and a tight total URL length
+            # limit; one-at-a-time is slower but robust across all tenant sizes.
+            $spIds = [System.Collections.Generic.HashSet[string]]::new()
+            foreach ($g in $userGrants) {
+                if ($g.clientId)   { [void]$spIds.Add($g.clientId) }
+                if ($g.resourceId) { [void]$spIds.Add($g.resourceId) }
+            }
+            Update-CrawlerProgress -Detail "Resolving $($spIds.Count) service principals..."
+
+            $spInfo = @{}
+            foreach ($id in $spIds) {
+                try {
+                    $sp = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/$id`?`$select=id,displayName,appId,publisherName"
+                    if ($sp) {
+                        $spInfo[$id] = @{
+                            displayName    = $sp.displayName
+                            appId          = $sp.appId
+                            publisherName  = $sp.publisherName
+                        }
+                    }
+                } catch {
+                    # SP deleted / inaccessible — fall back to the raw id so
+                    # the grant is still ingestible.
+                    $spInfo[$id] = @{ displayName = $id; appId = $null; publisherName = $null }
+                }
+            }
+
+            # ── Emit client-app Resources (one per distinct client SP) ────
+            $clientIds = [System.Collections.Generic.HashSet[string]]::new()
+            foreach ($g in $userGrants) { [void]$clientIds.Add($g.clientId) }
+            $clientRecords = @($clientIds | ForEach-Object {
+                $info = $spInfo[$_]
+                $rec = @{
+                    id           = $_
+                    displayName  = $info.displayName
+                    resourceType = 'Application'
+                    enabled      = $true
+                }
+                $ext = @{}
+                if ($info.appId)         { $ext['appId']         = $info.appId }
+                if ($info.publisherName) { $ext['publisherName'] = $info.publisherName }
+                if ($ext.Count -gt 0)    { $rec['extendedAttributes'] = $ext }
+                $rec
+            })
+            Update-CrawlerProgress -Detail "Uploading $($clientRecords.Count) client apps..."
+            Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ resourceType = 'Application' } -Records $clientRecords
+
+            # ── Build unique scope resources and relationships ────────────
+            # One Resource per (clientSpId, targetApiSpId, scope). The scope
+            # string is space-separated — split it so analysts can filter on
+            # individual scopes like "Mail.Read".
+            $scopeResourceMap = @{}   # scopeResId → record
+            $relMap           = @{}   # "parent|child" → record
+            $assignments      = [System.Collections.Generic.List[object]]::new()
+
+            foreach ($g in $userGrants) {
+                $clientId   = $g.clientId
+                $targetId   = $g.resourceId
+                $userId     = $g.principalId
+                if (-not $clientId -or -not $targetId -or -not $userId) { continue }
+
+                $clientInfo = $spInfo[$clientId]
+                $targetInfo = $spInfo[$targetId]
+                $clientName = if ($clientInfo) { $clientInfo.displayName } else { $clientId }
+                $targetName = if ($targetInfo) { $targetInfo.displayName } else { $targetId }
+
+                $scopeTokens = @()
+                if ($g.scope) {
+                    $scopeTokens = @($g.scope -split '\s+' | Where-Object { $_ -ne '' })
+                }
+                if ($scopeTokens.Count -eq 0) { continue }
+
+                foreach ($scope in $scopeTokens) {
+                    $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
+                    if (-not $scopeResourceMap.ContainsKey($scopeResId)) {
+                        $scopeResourceMap[$scopeResId] = @{
+                            id           = $scopeResId
+                            displayName  = "$scope on $targetName"
+                            resourceType = 'DelegatedPermission'
+                            enabled      = $true
+                            extendedAttributes = @{
+                                clientSpId           = $clientId
+                                clientDisplayName    = $clientName
+                                targetApiSpId        = $targetId
+                                targetApiDisplayName = $targetName
+                                scope                = $scope
+                            }
+                        }
+                    }
+                    $relKey = "$clientId|$scopeResId"
+                    if (-not $relMap.ContainsKey($relKey)) {
+                        $relMap[$relKey] = @{
+                            parentResourceId = $clientId
+                            childResourceId  = $scopeResId
+                            relationshipType = 'DelegatesScope'
+                            roleName         = $scope
+                            roleOriginSystem = 'OAuth2'
+                        }
+                    }
+                    $assignments.Add(@{
+                        resourceId     = $scopeResId
+                        principalId    = $userId
+                        principalType  = 'User'
+                        assignmentType = 'OAuth2Grant'
+                        extendedAttributes = @{
+                            grantId              = $g.id
+                            clientSpId           = $clientId
+                            clientDisplayName    = $clientName
+                            targetApiSpId        = $targetId
+                            targetApiDisplayName = $targetName
+                            scope                = $scope
+                        }
+                    })
+                }
+            }
+
+            $scopeRecords = @($scopeResourceMap.Values)
+            Update-CrawlerProgress -Detail "Uploading $($scopeRecords.Count) scope resources..."
+            Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ resourceType = 'DelegatedPermission' } -Records $scopeRecords
+
+            $relRecords = @($relMap.Values)
+            Update-CrawlerProgress -Detail "Uploading $($relRecords.Count) scope relationships..."
+            Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ relationshipType = 'DelegatesScope' } -Records $relRecords
+
+            # Dedupe assignments on PK (resourceId, principalId, assignmentType).
+            # Graph never returns duplicate per-user grants for the same (client,
+            # api) pair, but we split one multi-scope grant into N rows so two
+            # different grants referencing the same user/scope via different
+            # (client, api) combos could collide at the PK. Unlikely in practice
+            # — but a HashSet is cheap insurance.
+            $seen = @{}
+            $assignRecords = @($assignments | Where-Object {
+                $k = "$($_.resourceId)|$($_.principalId)"
+                if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
+            })
+            Update-CrawlerProgress -Detail "Uploading $($assignRecords.Count) OAuth2 grant assignments..."
+            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ assignmentType = 'OAuth2Grant' } -Records $assignRecords
+        }
+    }
+    catch {
+        Write-Host "  OAuth2 grant sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  (Requires DelegatedPermissionGrant.Read.All on the app registration.)" -ForegroundColor Yellow
+    }
 }
 
 # ─── Refresh Views ───────────────────────────────────────────────

@@ -9,6 +9,12 @@ import { Section, CollapsibleSection } from './DetailSection';
 const HEADER_FIELDS = ['userPrincipalName', 'email', 'department', 'jobTitle', 'companyName'];
 const HIDDEN_FIELDS = new Set(['displayName', ...HEADER_FIELDS, ...RISK_FIELDS, 'ValidFrom', 'ValidTo', 'extendedAttributes', 'extendedAttributesParsed']);
 
+function safeParse(val) {
+  if (!val) return {};
+  if (typeof val === 'object') return val;
+  try { return JSON.parse(val) || {}; } catch { return {}; }
+}
+
 export default function UserDetailPage({ userId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
 
@@ -21,6 +27,11 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState(cachedData?.history || null);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Lazy-loaded OAuth2 delegated grants
+  const [oauth2Open, setOauth2Open] = useState(false);
+  const [oauth2Grants, setOauth2Grants] = useState(cachedData?.oauth2Grants || null);
+  const [oauth2Loading, setOauth2Loading] = useState(false);
 
   // Identity membership
   const [identityInfo, setIdentityInfo] = useState(undefined); // undefined = not fetched, null = no identity
@@ -111,6 +122,27 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     });
   }, [loadHistory]);
 
+  // Lazy-load OAuth2 grants
+  const loadOauth2 = useCallback(() => {
+    if (oauth2Grants) return;
+    setOauth2Loading(true);
+    authFetch(`/api/user/${encodeURIComponent(userId)}/oauth2-grants`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => {
+        setOauth2Grants(d);
+        onCacheData?.(userId, 'user', { oauth2Grants: d });
+      })
+      .catch(() => setOauth2Grants([]))
+      .finally(() => setOauth2Loading(false));
+  }, [userId, authFetch, oauth2Grants, onCacheData]);
+
+  const toggleOauth2 = useCallback(() => {
+    setOauth2Open(prev => {
+      if (!prev) loadOauth2();
+      return !prev;
+    });
+  }, [loadOauth2]);
+
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500">Loading user details...</div>;
   }
@@ -124,7 +156,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   }
   if (!data) return null;
 
-  const { attributes, tags, historyCount, hasHistory, lastActivity } = data;
+  const { attributes, tags, historyCount, hasHistory, lastActivity, oauth2GrantCount } = data;
   const resolvedHistoryCount = history ? history.length : historyCount;
   const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
 
@@ -303,6 +335,61 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               </tbody>
             </table>
           </Section>
+        </div>
+      )}
+
+      {/* OAuth2 Delegated Grants - collapsible, lazy-loaded */}
+      {(oauth2GrantCount > 0 || (oauth2Grants && oauth2Grants.length > 0)) && (
+        <div className="mt-4">
+          <CollapsibleSection
+            title="OAuth2 Delegated Grants"
+            count={oauth2Grants ? oauth2Grants.length : oauth2GrantCount}
+            countLabel={(oauth2Grants ? oauth2Grants.length : oauth2GrantCount) === 1 ? 'grant' : 'grants'}
+            open={oauth2Open}
+            onToggle={toggleOauth2}
+            loading={oauth2Loading}
+          >
+            {oauth2Grants && oauth2Grants.length === 0 ? (
+              <p className="text-sm text-gray-400 italic p-4">No grants recorded</p>
+            ) : oauth2Grants ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-2 font-medium">Client application</th>
+                    <th className="px-4 py-2 font-medium">Target API</th>
+                    <th className="px-4 py-2 font-medium">Scope</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {oauth2Grants.map(g => {
+                    const grantExt = safeParse(g.grantExtendedAttributes);
+                    const scopeExt = safeParse(g.scopeExtendedAttributes);
+                    const clientName = g.clientDisplayName || grantExt.clientDisplayName || grantExt.clientSpId || '—';
+                    const targetName = grantExt.targetApiDisplayName || scopeExt.targetApiDisplayName || scopeExt.targetApiSpId || '—';
+                    const scopeValue = grantExt.scope || scopeExt.scope || g.scopeDisplayName || '—';
+                    return (
+                      <tr key={g.scopeResourceId + ':' + (grantExt.grantId || '')} className="border-b border-gray-50 last:border-b-0">
+                        <td className="px-4 py-2">
+                          {g.clientSpId ? (
+                            <button
+                              onClick={() => onOpenDetail?.('resource', g.clientSpId, clientName)}
+                              className="text-blue-700 hover:text-blue-900 hover:underline text-left"
+                            >
+                              {clientName}
+                            </button>
+                          ) : (
+                            <span className="text-gray-900">{clientName}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">{targetName}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-gray-900">{scopeValue}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : null}
+          </CollapsibleSection>
         </div>
       )}
 
