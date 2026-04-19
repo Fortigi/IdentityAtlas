@@ -79,4 +79,25 @@ describe('generateWorkbook', () => {
       expect(cell).toContain(q.endpoint);
     }
   });
+
+  it('uses List.Numbers-based pagination (guards against the record-self-reference bug that capped the old List.Generate pattern at 4 pages)', () => {
+    const principals = wb.getWorksheet('Principals').getCell('A6').value;
+    expect(principals).toContain('List.Numbers');
+    // The old buggy pattern had `[off] = [off] + PageSize` — a forward
+    // self-reference in a record literal — which halted iteration early.
+    // Guard against it creeping back.
+    expect(principals).not.toMatch(/off\s*=\s*\[off\]/);
+  });
+
+  it('auto-expands the extendedAttributes JSONB column', () => {
+    // Users of the workbook expect sub-keys (userType, onPremisesSyncEnabled,
+    // etc.) to appear as first-class columns, not "Record" cells they have
+    // to click open one by one. The load-bearing bit: ExpandRecordColumn is
+    // called against extendedAttributes with an ext_ prefix on the new
+    // column names to avoid colliding with real columns.
+    const principals = wb.getWorksheet('Principals').getCell('A6').value;
+    expect(principals).toContain('extendedAttributes');
+    expect(principals).toContain('Record.FieldNames');
+    expect(principals).toMatch(/ext_/);
+  });
 });
