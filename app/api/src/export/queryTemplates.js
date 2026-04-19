@@ -49,13 +49,27 @@ let
       ])),
   First = FetchPage(0),
   Total = First[total],
-  PageCount = if Total = 0 then 0 else Number.RoundUp(Total / PageSize),
-  // Offsets: {0, PageSize, 2*PageSize, ...} for every page we need.
-  Offsets = List.Numbers(0, PageCount, PageSize),
-  // Skip the first offset because we already fetched it as First.
-  LaterPages = List.Transform(List.Skip(Offsets, 1), (off) => FetchPage(off)),
-  AllPageRecords = {First} & LaterPages,
-  AllRows = List.Combine(List.Transform(AllPageRecords, (p) => p[data])),
+  FirstRows = First[data],
+  // Walk pages by actual row count, not by arithmetic over Total. This is
+  // defensive: if the server ever caps below PageSize (the /users cap used
+  // to be 500 even when asked for 1000), an arithmetic walk silently stops
+  // at TotalBeforeCount records. Here we advance state[off] by whatever the
+  // last page actually returned, and stop when we've hit Total or when a
+  // page returns zero rows.
+  Pages = List.Generate(
+      () => [rows = FirstRows, off = List.Count(FirstRows), done = List.Count(FirstRows) >= Total or List.Count(FirstRows) = 0],
+      (state) => not state[done],
+      (state) =>
+          let
+              nextPage = FetchPage(state[off]),
+              nextRows = nextPage[data],
+              nextCount = List.Count(nextRows),
+              newOff = state[off] + nextCount
+          in
+              [rows = nextRows, off = newOff, done = newOff >= Total or nextCount = 0],
+      (state) => state[rows]
+  ),
+  AllRows = List.Combine(Pages),
   Table = Table.FromList(AllRows, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
   Expanded = if List.IsEmpty(AllRows) then Table
              else Table.ExpandRecordColumn(Table, "Column1", Record.FieldNames(AllRows{0})),

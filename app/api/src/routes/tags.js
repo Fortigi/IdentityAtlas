@@ -398,7 +398,10 @@ router.get('/users', async (req, res) => {
 
     const search = (req.query.search || '').trim().slice(0, 200);
     const tagId = req.query.tagId ? parseInt(req.query.tagId) : null;
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
+    // Cap at 10k to match the bulk-list endpoints. The UI defaults to 100
+    // and never asks for more; the higher cap is there so Power Query /
+    // BI exports can page through the full dataset in fewer round trips.
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 10000);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
     let attrFilters = {};
