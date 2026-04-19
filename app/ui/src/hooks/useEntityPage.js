@@ -14,8 +14,11 @@ const PAGE_SIZE = 100;
  * @param {string} options.listEndpoint - API endpoint for entity list (e.g., '/api/users')
  * @param {string} options.columnsEndpoint - API endpoint for column discovery
  * @param {string} options.tagFilterKey - Key for tag filter (e.g., '__userTag' or '__groupTag')
+ * @param {object} [options.baseFilters] - Page-level filters always applied on top of user-driven ones
+ *   (e.g. the Users-page principalType sub-tab). Keys with null/empty values are dropped.
+ *   The caller is expected to memoise this object so its identity is stable per intended value.
  */
-export default function useEntityPage({ authFetch, entityType, listEndpoint, columnsEndpoint, tagFilterKey }) {
+export default function useEntityPage({ authFetch, entityType, listEndpoint, columnsEndpoint, tagFilterKey, baseFilters }) {
   // Data state
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -51,7 +54,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   const fetchVersion = useRef(0);
 
   // Reset page & selection when filters change
-  useEffect(() => { setPage(0); setSelected(new Set()); }, [debouncedSearch, activeFilters]);
+  useEffect(() => { setPage(0); setSelected(new Set()); }, [debouncedSearch, activeFilters, baseFilters]);
 
   // Fetch available columns for filter dropdowns
   useEffect(() => {
@@ -74,11 +77,18 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
 
   useEffect(() => { fetchTags(); }, [fetchTags]);
 
-  // Build filters object for API
+  // Build filters object for API: merge user-driven `activeFilters` on top
+  // of page-level `baseFilters` (e.g. the Users-page principalType tab). User
+  // filters win on key collision — tabs aren't expected to overlap with
+  // user-configurable fields, but if they do, the explicit action wins.
   const filtersObj = useMemo(() => {
-    if (activeFilters.length === 0) return null;
-    return Object.fromEntries(activeFilters.map(f => [f.field, f.value]));
-  }, [activeFilters]);
+    const base = Object.fromEntries(
+      Object.entries(baseFilters || {}).filter(([, v]) => v != null && v !== '')
+    );
+    const fromActive = Object.fromEntries(activeFilters.map(f => [f.field, f.value]));
+    const merged = { ...base, ...fromActive };
+    return Object.keys(merged).length ? merged : null;
+  }, [activeFilters, baseFilters]);
 
   // Fetch items
   const fetchItems = useCallback(async () => {
