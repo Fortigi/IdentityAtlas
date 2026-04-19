@@ -1,6 +1,6 @@
 # Branching and Versioning Strategy
 
-This document covers branch naming, PR rules, version format, and the changelog workflow for contributors.
+This document covers branch naming, PR rules, version format, and the release workflow for contributors.
 
 ---
 
@@ -10,11 +10,13 @@ This document covers branch naming, PR rules, version format, and the changelog 
 |--------|---------|-------------|-------------------|
 | `main` | Stable trunk. Never commit directly. | Yes | Yes (at least 1) |
 | `feature/<name>` | All feature work. Created from `main`. Merged back to `main` via PR. | Yes | No |
-| `bugfixes/<name>` | Bug fixes. Created from `main`. Merged back to `main` via PR. | Yes | No |
+| `bugfixes/<name>` | Bug fixes. Branch from `main` for pre-release fixes; branch from a **release tag** for hotfixes. | Yes (to `main`) | No |
 
 **Rules:**
 
-- `feature/` and `bugfixes/` branches must be branched off `main`.
+- `feature/` branches must be branched off `main`.
+- `bugfixes/` branches branch from `main` for pre-release fixes. For hotfixes to an already-released version, branch from the release tag: `git checkout -b bugfixes/fix-foo v5.2.0`.
+- Hotfix commits must be cherry-picked back to `main` via a separate PR so the fix is included in future releases.
 - All merges to `main` go through a Pull Request — no direct pushes.
 - Branch names: lowercase, hyphens. Examples: `feature/risk-score-export`, `bugfixes/fix-login-redirect`.
 - **One issue per branch.** Each branch fixes exactly one issue or implements exactly one feature. Never combine unrelated fixes into a single branch or PR.
@@ -24,34 +26,35 @@ This document covers branch naming, PR rules, version format, and the changelog 
 ## Starting New Work
 
 ```bash
+# Feature or pre-release bugfix — branch from main
 git checkout main && git pull
 git checkout -b feature/<name>
 # or
 git checkout -b bugfixes/<name>
+
+# Hotfix to a released version — branch from the release tag, NOT from main
+git checkout -b bugfixes/<name> v5.2.0
 ```
 
 ---
 
 ## Version Number Format
 
-```
-Major.Minor.yyyyMMdd.HHmm
-```
+Two formats, both 4-part (PowerShell-compatible):
 
-Example: `5.2.20260420.1430`
-
-| Part | Meaning |
-|------|---------|
-| `Major` | Incremented manually for breaking changes (via a PR to `main`) |
-| `Minor` | Auto-incremented by CI on every PR merge to `main` |
-| `yyyyMMdd.HHmm` | Timestamp of the merge, set by CI |
+| Context | Format | Example |
+|---------|--------|---------|
+| `main` dev builds (`:edge`) | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` |
+| Release tags (`:latest`) | `Major.Minor.Patch.0` | `5.2.1.0` |
 
 **Who updates what:**
 
 | Action | Who | When |
 |--------|-----|------|
 | `Minor` bump + timestamp | `bump-version.yml` GitHub Action | Automatically on every PR merge to `main` |
-| `Major` bump | Developer, via PR | Only for breaking changes |
+| Release version | `cut-release.yml` GitHub Action | When you run Actions → Cut Release |
+| Hotfix version | `cut-hotfix.yml` GitHub Action | When you run Actions → Cut Hotfix |
+| `Major` bump | Developer, via PR to `main` | Only for breaking changes |
 | Branch work | Nobody | Never touch `setup/IdentityAtlas.psd1` on a branch |
 
 ---
@@ -78,7 +81,47 @@ Write in user-facing language. One bullet per functional change. Add the file al
 1. Open a PR from `feature/<name>` or `bugfixes/<name>` into `main`.
 2. Use the changelog fragment content as the PR description body.
 3. Requires 1 approval and passing CI.
-4. After merge, `bump-version.yml` automatically increments `Minor`, updates the timestamp, and merges all `changes/*.md` fragments into `CHANGES.md`. The `docker-publish.yml` action then builds and pushes Docker images tagged with the new version.
+4. After merge, `bump-version.yml` automatically increments `Minor`, updates the timestamp, and merges all `changes/*.md` fragments into `CHANGES.md`. The `docker-publish.yml` action then builds and pushes Docker images tagged `:edge`.
+
+---
+
+## Cutting a Release
+
+When `main` is stable and ready to ship to customers:
+
+1. Go to **Actions → Cut Release → Run workflow**
+2. Enter the version: `Major.Minor.Patch` (e.g. `5.2.0`)
+3. The workflow creates tag `v5.2.0` on the current `main` HEAD
+4. `docker-publish.yml` triggers automatically on the tag push and builds `:latest` + `:5.2.0.0`
+
+Customers who track `:latest` will receive the new version on their next `docker compose pull`.
+
+---
+
+## Hotfix Releases
+
+To ship a bugfix without including features already on `main`:
+
+```bash
+# 1. Branch from the release tag — NOT from main
+git checkout -b bugfixes/fix-login-crash v5.2.0
+
+# 2. Fix the bug, commit, push
+git push origin bugfixes/fix-login-crash
+```
+
+3. Go to **Actions → Cut Hotfix → Run workflow**
+4. Enter the branch name (`bugfixes/fix-login-crash`) and new version (`5.2.1`)
+5. The workflow creates tag `v5.2.1` on the HEAD of your branch
+6. `docker-publish.yml` builds `:latest` + `:5.2.1.0`
+
+After the hotfix ships, open a PR to cherry-pick the fix into `main`:
+
+```bash
+git checkout main && git pull
+git cherry-pick <fix-commit-sha>
+gh pr create --base main --title "fix: cherry-pick hotfix from v5.2.1"
+```
 
 ---
 
@@ -102,12 +145,10 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 ## Image Channels
 
-The CI pipeline publishes Docker images on every merge to `main`:
-
-| Tag | Content | Who uses it |
-|-----|---------|-------------|
-| `:latest` | Last stable release | End users (default) |
-| `:edge` | Latest commit on `main` | Testers and developers |
-| `:5.2.0.0` | Exact pinned version | Production deployments |
+| Tag | Published when | Who uses it |
+|-----|---------------|-------------|
+| `:latest` | A release tag (`v5.2.0`) is created via Actions → Cut Release or Cut Hotfix | Customers (default) |
+| `:edge` | Every PR merges to `main` | Developers and testers |
+| `:5.2.0.0` | Same time as `:latest` — exact pinned version | Production deployments needing controlled upgrades |
 
 See [Docker Setup](docker-setup.md) for how to select a channel via `IMAGE_TAG`.

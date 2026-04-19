@@ -74,11 +74,30 @@ Open the UI at [http://localhost:3001](http://localhost:3001) and the Admin → 
 
 ---
 
+## Image channels
+
+Identity Atlas publishes two channels:
+
+| Channel | Tag | Updated when | Use it for |
+|---------|-----|-------------|-----------|
+| **Stable** | `:latest` | A new release is cut (e.g. `v5.2.0`) | Customers and production — default |
+| **Edge** | `:edge` | Every PR merges to `main` | Developers and testers who want unreleased features |
+
+Both channels also publish an exact version tag (`:5.2.0.0`, `:5.2.1.0`) at the same time as `:latest`, so you can pin to a specific build.
+
+```bash
+# Default: pull the latest stable release
+docker compose -f docker-compose.prod.yml up -d --pull always
+
+# Edge: latest commit on main (may include unreleased features)
+IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
+```
+
+---
+
 ## Upgrading to a new version
 
-Identity Atlas publishes new images to `ghcr.io/fortigi/identity-atlas{,-worker}` on every push to `main`. The `:latest` tag always points at the newest build, and each build also gets a version-stamped tag (`5.0.yyyyMMdd.HHmm`) for reproducible deployments.
-
-To upgrade an existing deployment to the newest version:
+To upgrade an existing deployment to the newest stable release:
 
 === "Linux / macOS"
 
@@ -98,8 +117,8 @@ The database volume is preserved across upgrades — any data you have loaded st
 
 Three ways to see which version is currently deployed:
 
-1. **Dashboard** — open [http://localhost:3001](http://localhost:3001); the Version card on the right shows `v5.0.yyyyMMdd.HHmm`.
-2. **API endpoint** — `Invoke-RestMethod http://localhost:3001/api/version` (or `curl` on Linux/macOS). Returns `{ "version": "5.0.yyyyMMdd.HHmm" }`.
+1. **Dashboard** — open [http://localhost:3001](http://localhost:3001); the Version card in the footer shows the version. Stable releases show `v5.2.0.0`; edge builds show `v5.3.20260419.1430` with an amber **edge** badge.
+2. **API endpoint** — `Invoke-RestMethod http://localhost:3001/api/version` (or `curl` on Linux/macOS). Returns `{ "version": "5.2.0.0" }`.
 3. **Docker directly** — `docker compose -f docker-compose.prod.yml images` lists the image tag each container is running.
 
 Compare that against the newest tag on [ghcr.io/fortigi/identity-atlas](https://github.com/Fortigi/IdentityAtlas/pkgs/container/identity-atlas) to see whether an upgrade is available.
