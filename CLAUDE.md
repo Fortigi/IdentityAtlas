@@ -32,47 +32,46 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 | Branch | Purpose | PR required? | Approval required? |
 |--------|---------|-------------|-------------------|
 | `main` | Integration trunk. Never commit directly. Merges push `:edge` Docker tag. | Yes | Yes (at least 1) |
-| `release/vX.Y` | Stable customer release line. Cut from `main` via `cut-release.yml`. Merges push `:latest` Docker tag. | Yes | No |
 | `feature/<name>` | All feature work. Created from `main`. Merged back to `main` via PR. | Yes (to `main`) | No |
-| `bugfixes/<name>` | Bug fixes. Branch from `release/vX.Y` for production hotfixes, or from `main` for pre-release fixes. | Yes | No |
+| `bugfixes/<name>` | Bug fixes. Branch from `main` for pre-release fixes; branch from a **release tag** for hotfixes. | Yes (to `main`) | No |
 
 **Rules:**
 - `feature/` branches must be branched off `main`.
-- `bugfixes/` branches branch from **`release/vX.Y`** when fixing a production issue (customers are affected), or from `main` when fixing something not yet released.
-- Production bugfixes merged to `release/vX.Y` must also be cherry-picked to `main` so the fix is included in future feature releases.
-- All merges go through a Pull Request — no direct pushes to `main` or `release/*` ever.
+- `bugfixes/` branches branch from `main` for pre-release fixes. For hotfixes to an already-released version, branch from the release tag: `git checkout -b bugfixes/fix-foo v5.2.0`.
+- Hotfix commits must be cherry-picked back to `main` via a separate PR so the fix is included in future releases.
+- All merges go through a Pull Request — no direct pushes to `main` ever.
 - Branch names: `feature/<short-descriptive-name>` or `bugfixes/<short-descriptive-name>` (lowercase, hyphens). Example: `feature/risk-score-export`, `bugfixes/fix-login-redirect`.
-- When starting work, always create a new branch. Never work directly on `main` or `release/*`.
+- When starting work, always create a new branch. Never work directly on `main`.
 - **One issue per branch.** Each branch must fix exactly one issue or implement exactly one feature. Never combine fixes for separate, unrelated issues into a single branch or PR. Exception: if a single code change genuinely resolves more than one issue (e.g. the same root cause), both issue numbers may be referenced in the commit and PR — but this should be rare and the connection must be explicit.
 
 ### Version Number Scheme
 
 Two formats, both 4-part (PowerShell-compatible):
 
-| Branch | Version format | Example | Docker tag pushed |
-|--------|---------------|---------|-------------------|
-| `main` | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` | `:edge` |
-| `release/vX.Y` | `Major.Minor.Patch.0` | `5.2.1.0` | `:latest` |
+| Context | Version format | Example | Docker tag pushed |
+|---------|---------------|---------|-------------------|
+| `main` dev builds | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` | `:edge` |
+| Release tags (`v*`) | `Major.Minor.Patch.0` | `5.2.1.0` | `:latest` |
 | `feature/*` / `bugfixes/*` | — | — | Nobody |
 
-The timestamp format on `main` makes dev builds instantly recognisable. The semantic `Patch.0` format on release branches gives customers a clear upgrade path.
+The timestamp format on `main` makes dev builds instantly recognisable. Release versions use `Major.Minor.Patch.0` (patch increments for each hotfix).
 
 **Who updates versions:**
 
-| Branch | Who updates it | When |
-|--------|---------------|------|
-| `main` | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp |
-| `release/vX.Y` | `bump-version.yml` (automated) | Every PR merge — increments `Patch` (e.g. `5.2.0.0` → `5.2.1.0`) |
+| Context | Who updates it | When |
+|---------|---------------|------|
+| `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp |
+| Release tags | `cut-release.yml` / `cut-hotfix.yml` (automated) | When you run Actions → Cut Release or Cut Hotfix |
 | `feature/*` / `bugfixes/*` | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch |
 
 **How to apply:**
 
 1. **Starting a feature or pre-release bugfix branch**: Branch from `main`. Leave `setup/IdentityAtlas.psd1` untouched.
-2. **Starting a production hotfix branch**: Branch from `release/vX.Y`. Leave `setup/IdentityAtlas.psd1` untouched.
+2. **Starting a hotfix branch**: Branch from the release tag (`git checkout -b bugfixes/fix-foo v5.2.0`). Leave `setup/IdentityAtlas.psd1` untouched.
 3. **After any code change on a branch**: Add bullets to `changes/<branch-name>.md`. Do not edit `CHANGES.md` or `ModuleVersion`.
 4. **When merging → main via PR**: `bump-version.yml` increments Minor + timestamp. `docker-publish.yml` builds and pushes `:edge` + versioned tag.
-5. **When merging → release/vX.Y via PR**: `bump-version.yml` increments Patch. `docker-publish.yml` builds and pushes `:latest` + versioned tag.
-6. **Cutting a new release**: Run the `cut-release.yml` workflow (Actions → Cut Release Branch → enter `Major.Minor`). It creates `release/vX.Y` from `main` and sets the version to `X.Y.0.0`.
+5. **Cutting a release**: Run Actions → Cut Release, enter `Major.Minor.Patch` (e.g. `5.2.0`). Tags `v5.2.0` on current `main` HEAD; `docker-publish.yml` pushes `:latest` + `:5.2.0.0`.
+6. **Shipping a hotfix**: Run Actions → Cut Hotfix, enter the branch name and new version (e.g. `5.2.1`). Tags `v5.2.1` on the hotfix branch HEAD; `docker-publish.yml` pushes `:latest` + `:5.2.1.0`.
 7. **Major version bump**: Edit `setup/IdentityAtlas.psd1` manually on `main` (via a PR) for a breaking change. Increment `Major`, reset `Minor` to `0`.
 
 ### Changelog fragments (replaces direct CHANGES.md edits)
@@ -748,7 +747,7 @@ These steps are required once when creating or transferring the repository. They
 
 | Secret | Required scopes | Purpose |
 |--------|----------------|---------|
-| `VERSION_BUMP_PAT` | `repo` (includes `contents:write`) | Lets `bump-version.yml` and `cut-release.yml` push commits directly to protected branches (`main`, `release/**`). The PAT owner **must have the admin role** on the repository so the bypass actor rule on `release/**` applies. |
+| `VERSION_BUMP_PAT` | `repo` (includes `contents:write`) | Lets `bump-version.yml`, `cut-release.yml`, and `cut-hotfix.yml` push tags and commits to `main`. |
 
 ### Branch protection
 
@@ -760,7 +759,7 @@ bash tools/setup-branch-protection.sh Fortigi/IdentityAtlas
 
 This sets:
 - `main` — PR required (1 approval), `PR Summary` check required, admins bypass
-- `release/**` — PR required (0 approvals), `PR Summary` check required, no force-push, no deletion, admins bypass
+- Tags are immutable by default in GitHub — no extra protection needed
 
 ---
 
@@ -774,37 +773,21 @@ git checkout main && git pull
 git checkout -b feature/<name>      # e.g. feature/risk-score-export
 ```
 
-**Pre-release bugfix (bug is in main, not yet in a release):**
+**Pre-release bugfix (bug is in main, not yet released):**
 ```bash
 git checkout main && git pull
 git checkout -b bugfixes/<name>     # e.g. bugfixes/fix-login-redirect
 ```
 
-**Production hotfix (bug is in a released version, customers are affected):**
+**Hotfix (bug is in a released version — ship the fix without including unreleased features):**
 ```bash
-# Step 1 — fix on the release branch
-git checkout release/v5.2 && git pull
-git checkout -b bugfixes/<name>
-# ... make the fix, add changes/<name>.md fragment, commit ...
-gh pr create --base release/v5.2 --title "fix: ..."
-# merge the PR → bump-version bumps patch, docker-publish pushes :latest
-
-# Step 2 — bring the fix into main via its own PR (main is protected, no direct commits)
-git checkout main && git pull
-git checkout -b bugfixes/<name>-main
-git cherry-pick <fix-commit-sha>    # the fix commit only, not the version bump commit
-gh pr create --base main --title "fix: ... (cherry-pick from release/v5.2)"
-# merge the PR → bump-version bumps minor on main as normal
+# Branch from the release tag, not from main
+git checkout -b bugfixes/<name> v5.2.0
+# ... make the fix, add changes/<name>.md fragment, commit, push ...
+git push origin bugfixes/<name>
+# Then run Actions → Cut Hotfix with the branch name and new version (e.g. 5.2.1)
+# After the hotfix ships, cherry-pick the fix to main via a separate PR
 ```
-
-### Cutting a New Release
-
-When `main` is stable and ready to ship to customers:
-
-1. Go to **Actions → Cut Release Branch → Run workflow**
-2. Enter the version, e.g. `5.3` (Major.Minor only)
-3. The workflow creates `release/v5.3` from `main` and sets version to `5.3.0.0`
-4. Merges to `release/v5.3` push `:latest` to customers
 
 ### Making Changes
 
@@ -843,19 +826,35 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 3. Requires 1 approval — merge when CI passes
 4. After merge: `bump-version.yml` increments Minor + timestamp; `docker-publish.yml` pushes `:edge`
 
-### Merging to a Release Branch (production hotfix)
+### Cutting a Release
 
-1. Open PR from `bugfixes/<name>` into `release/vX.Y`
-2. Use the fragment content from `changes/<branch-name>.md` as the PR description
-3. Merge when CI passes
-4. After merge: `bump-version.yml` increments Patch; `docker-publish.yml` pushes `:latest`
-5. Cherry-pick the fix to `main`: `git checkout main && git cherry-pick <sha>`
+When `main` is stable and ready to ship to customers:
+
+1. Go to **Actions → Cut Release → Run workflow**
+2. Enter the version: `Major.Minor.Patch` (e.g. `5.2.0`)
+3. The workflow creates tag `v5.2.0` on the current `main` HEAD
+4. `docker-publish.yml` triggers automatically and pushes `:latest` + `:5.2.0.0`
+
+### Hotfix Releases (shipping a fix without unreleased features)
+
+```bash
+# 1. Branch from the release tag — NOT from main
+git checkout -b bugfixes/fix-foo v5.2.0
+
+# 2. Fix, commit, push
+git push origin bugfixes/fix-foo
+```
+
+3. Go to **Actions → Cut Hotfix → Run workflow**
+4. Enter the branch name and new version (e.g. `5.2.1`)
+5. `docker-publish.yml` triggers on the new tag and pushes `:latest` + `:5.2.1.0`
+6. Cherry-pick the fix to `main`: open a PR from a cherry-pick branch into `main`
 
 ### Version Updates
 
 See the **Branching & Versioning Strategy** section above for the full scheme.
 - `main` merges → `Major.Minor.yyyyMMdd.HHmm` → `:edge` Docker tag
-- `release/*` merges → `Major.Minor.Patch.0` → `:latest` Docker tag
+- Release tags (`v*`) → `Major.Minor.Patch.0` → `:latest` Docker tag
 
 ## User Workflow (Getting Started)
 

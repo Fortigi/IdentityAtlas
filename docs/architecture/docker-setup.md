@@ -8,20 +8,43 @@ Running Identity Atlas locally with Docker — three containers providing the fu
 
 The fastest way to try Identity Atlas — pulls pre-built images, no source code needed:
 
-```bash
-# 1. Download the compose file and environment template
-curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
+=== "Linux / macOS"
 
-# 2. Create your .env file
-cp .env.example .env
+    ```bash
+    # 1. Download the compose file and environment template
+    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
 
-# 3. Start everything (first run: ~2 min to pull images)
-docker compose -f docker-compose.prod.yml up -d
+    # 2. Create your .env file
+    cp .env.example .env
 
-# 4. Open the UI
-open http://localhost:3001
-```
+    # 3. Start everything (--pull always fetches the newest :latest from the registry)
+    docker compose -f docker-compose.prod.yml up -d --pull always
+
+    # 4. Open the UI
+    open http://localhost:3001
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    # 1. Download the compose file and environment template
+    Invoke-WebRequest `
+        -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml `
+        -OutFile docker-compose.prod.yml
+    Invoke-WebRequest `
+        -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example `
+        -OutFile .env.example
+
+    # 2. Create your .env file
+    Copy-Item .env.example .env
+
+    # 3. Start everything (--pull always fetches the newest :latest from the registry)
+    docker compose -f docker-compose.prod.yml up -d --pull always
+
+    # 4. Open the UI
+    Start-Process http://localhost:3001
+    ```
 
 On first visit, the UI opens to the Dashboard. If no data is loaded yet, click **"Configure a crawler"** to go to Admin → Crawlers, then click **"Load Demo Data"** to populate the system with synthetic data (~30 seconds). After that, explore the Matrix, Users, Resources, and other pages.
 
@@ -44,19 +67,22 @@ The compose file uses the `IMAGE_TAG` variable to select which build to pull:
 
 | `IMAGE_TAG` | What you get | Who should use it |
 |---|---|---|
-| *(unset or blank)* | `:latest` — last stable release | Customers and production deployments |
-| `edge` | `:edge` — latest commit on `main`, may be unstable | Developers and testers who want the newest features |
-| `5.2.1.0` | Exact pinned version, never auto-updates | Customers who want to control upgrade timing |
+| *(unset or blank)* | `:latest` — last stable release, published when a release tag is cut | Customers and production deployments |
+| `edge` | `:edge` — latest commit on `main`, updated on every PR merge, may include unreleased features | Developers and testers |
+| `5.2.1.0` | Exact pinned version, never auto-updates | Production deployments needing controlled upgrade timing |
 
 The running version is always visible in the footer of the UI. Edge builds show an amber **edge** badge so it is immediately obvious which channel is running.
 
 ```bash
 # Run the stable release (default)
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d --pull always
 
-# Run the edge build
-IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d
+# Run the edge build (latest merged to main, may be unstable)
+IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
 # or set IMAGE_TAG=edge in your .env
+
+# Run a specific pinned version
+IMAGE_TAG=5.2.0.0 docker compose -f docker-compose.prod.yml up -d --pull always
 ```
 
 ---
@@ -102,27 +128,53 @@ happens inside the web container at startup via the migrations runner
 
 ## Quick Start (Developer)
 
-```powershell
-cd c:\Source\GitHub\IdentityAtlas
+=== "Linux / macOS"
 
-# Create your .env file from the template
-cp setup/config/.env.example .env
-# IMAGE_TAG is ignored by the dev compose (it builds from source).
-# You can leave the other defaults as-is for local development.
+    ```bash
+    cd /path/to/IdentityAtlas
 
-# Start the stack (first time takes ~3 min to build)
-docker compose up -d --build
+    # Create your .env file from the template
+    cp setup/config/.env.example .env
+    # IMAGE_TAG is ignored by the dev compose (it builds from source).
+    # You can leave the other defaults as-is for local development.
 
-# Verify
-docker compose ps
-# Expected: postgres (healthy), web (up), worker (up)
+    # Start the stack (first time takes ~3 min to build)
+    docker compose up -d --build
 
-# Open the UI — click "Load Demo Data" on the Crawlers page
-Start-Process http://localhost:3001
+    # Verify
+    docker compose ps
+    # Expected: postgres (healthy), web (up), worker (up)
 
-# Open Swagger docs
-Start-Process http://localhost:3001/api/docs
-```
+    # Open the UI — click "Load Demo Data" on the Crawlers page
+    open http://localhost:3001
+
+    # Open Swagger docs
+    open http://localhost:3001/api/docs
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    cd C:\path\to\IdentityAtlas
+
+    # Create your .env file from the template
+    Copy-Item setup/config/.env.example .env
+    # IMAGE_TAG is ignored by the dev compose (it builds from source).
+    # You can leave the other defaults as-is for local development.
+
+    # Start the stack (first time takes ~3 min to build)
+    docker compose up -d --build
+
+    # Verify
+    docker compose ps
+    # Expected: postgres (healthy), web (up), worker (up)
+
+    # Open the UI — click "Load Demo Data" on the Crawlers page
+    Start-Process http://localhost:3001
+
+    # Open Swagger docs
+    Start-Process http://localhost:3001/api/docs
+    ```
 
 > **Note:** `docker-compose.yml` (dev) builds images from source — `IMAGE_TAG` has no effect. Use `docker-compose.prod.yml` with `IMAGE_TAG=edge` if you want to run the pre-built edge image without a local build.
 

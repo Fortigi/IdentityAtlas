@@ -261,7 +261,12 @@ app.use('/api', authMiddleware, jobsRouter);
 // Crawler self-service (API key auth) — /api/crawlers/whoami, /api/crawlers/rotate
 app.use('/api', crawlerAuthMiddleware, selfServiceCrawlersRouter);
 // Ingest endpoints (API key auth) — /api/ingest/*
-app.use('/api/ingest', express.json({ limit: '10mb' }));  // larger limit for ingest payloads
+// Ingest body size cap. Crawler chunks at 5,000 records per batch; with
+// extendedAttributes populated (SPs in particular carry appId, tags,
+// servicePrincipalNames, publisherName, etc.) a typical batch can reach
+// 20-30 MB. 50 MB gives ~5x headroom over real-world observed sizes while
+// still keeping a sane upper bound on memory use per request.
+app.use('/api/ingest', express.json({ limit: '50mb' }));
 app.use('/api', crawlerAuthMiddleware, ingestRouter);
 
 // In production, serve the frontend build output
