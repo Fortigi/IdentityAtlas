@@ -67,9 +67,9 @@ The compose file uses the `IMAGE_TAG` variable to select which build to pull:
 
 | `IMAGE_TAG` | What you get | Who should use it |
 |---|---|---|
-| *(unset or blank)* | `:latest` — last stable release | Customers and production deployments |
-| `edge` | `:edge` — latest commit on `main`, may be unstable | Developers and testers who want the newest features |
-| `5.2.1.0` | Exact pinned version, never auto-updates | Customers who want to control upgrade timing |
+| *(unset or blank)* | `:latest` — last stable release, published when a release tag is cut | Customers and production deployments |
+| `edge` | `:edge` — latest commit on `main`, updated on every PR merge, may include unreleased features | Developers and testers |
+| `5.2.1.0` | Exact pinned version, never auto-updates | Production deployments needing controlled upgrade timing |
 
 The running version is always visible in the footer of the UI. Edge builds show an amber **edge** badge so it is immediately obvious which channel is running.
 
@@ -77,9 +77,12 @@ The running version is always visible in the footer of the UI. Edge builds show 
 # Run the stable release (default)
 docker compose -f docker-compose.prod.yml up -d --pull always
 
-# Run the edge build
+# Run the edge build (latest merged to main, may be unstable)
 IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
 # or set IMAGE_TAG=edge in your .env
+
+# Run a specific pinned version
+IMAGE_TAG=5.2.0.0 docker compose -f docker-compose.prod.yml up -d --pull always
 ```
 
 ---
