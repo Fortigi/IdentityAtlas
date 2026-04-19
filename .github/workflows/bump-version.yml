@@ -1,17 +1,18 @@
 # ─── Version Bump + Changelog Merge on PR Merge ──────────────────────────────
-# On every PR merge this workflow:
+# On every PR merge to main this workflow:
 #   1. Collects all fragment files from changes/*.md and prepends them to
 #      CHANGES.md, then deletes the fragments.
-#   2. Bumps the version in setup/IdentityAtlas.psd1:
-#      - main:        increments Minor, updates timestamp  → Major.Minor.yyyyMMdd.HHmm
-#      - release/v*:  increments Patch                    → Major.Minor.Patch.0
+#   2. Increments Minor and updates the timestamp → Major.Minor.yyyyMMdd.HHmm
 #
 # Branches never touch CHANGES.md or the version file directly — each branch
 # creates a uniquely named fragment file in changes/ instead, so merge
 # conflicts on those two files are eliminated.
 #
 # After the commit lands, docker-publish.yml is triggered via workflow_run
-# so Docker images are always tagged with the new (post-bump) version.
+# so Docker images are always tagged with the new (post-bump) version (:edge).
+#
+# Releases are handled separately via git tags (Actions → Cut Release),
+# not by this workflow.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Bump version on PR merge
@@ -21,7 +22,6 @@ on:
     types: [closed]
     branches:
       - main
-      - 'release/**'
 
 jobs:
   bump-version:
@@ -31,27 +31,14 @@ jobs:
       contents: write
 
     steps:
-      - name: Determine target branch
-        id: branch
-        run: |
-          TARGET="${{ github.event.pull_request.base.ref }}"
-          echo "name=$TARGET" >> "$GITHUB_OUTPUT"
-          if [[ "$TARGET" == release/* ]]; then
-            echo "type=release" >> "$GITHUB_OUTPUT"
-          else
-            echo "type=main" >> "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.branch.outputs.name }}
+          ref: main
           token: ${{ secrets.VERSION_BUMP_PAT }}
 
       - name: Merge changelog fragments and bump version
         shell: pwsh
         run: |
-          $branchType = "${{ steps.branch.outputs.type }}"
-
           # ── 1. Collect changelog fragments from changes/*.md ──────────────
           $fragments = Get-ChildItem changes/*.md -ErrorAction SilentlyContinue | Sort-Object Name
           if ($fragments) {
@@ -65,39 +52,20 @@ jobs:
             Write-Host "No changelog fragments found in changes/ -- skipping CHANGES.md update"
           }
 
-          # ── 2. Bump version in setup/IdentityAtlas.psd1 ───────────────────
+          # ── 2. Increment Minor + update timestamp → Major.Minor.yyyyMMdd.HHmm
           $content = Get-Content setup/IdentityAtlas.psd1 -Raw
-
-          if ($branchType -eq 'release') {
-            # Release branch: increment Patch → Major.Minor.Patch.0
-            if ($content -match "ModuleVersion\s*=\s*'(\d+)\.(\d+)\.(\d+)\.(\d+)'") {
-              $major = $Matches[1]
-              $minor = $Matches[2]
-              $patch = [int]$Matches[3] + 1
-              $newVer = "$major.$minor.$patch.0"
-              $content = $content -replace "ModuleVersion\s*=\s*'\d+\.\d+\.\d+\.\d+'", "ModuleVersion = '$newVer'"
-              Set-Content setup/IdentityAtlas.psd1 $content -NoNewline
-              Write-Host "Bumped to $newVer (release patch)"
-              "NEW_VERSION=$newVer" | Out-File -Append $env:GITHUB_ENV
-            } else {
-              Write-Error "Could not find ModuleVersion in setup/IdentityAtlas.psd1"
-              exit 1
-            }
+          if ($content -match "ModuleVersion\s*=\s*'(\d+)\.(\d+)\.\d+\.\d+'") {
+            $major  = $Matches[1]
+            $minor  = [int]$Matches[2] + 1
+            $stamp  = (Get-Date -Format 'yyyyMMdd.HHmm')
+            $newVer = "$major.$minor.$stamp"
+            $content = $content -replace "ModuleVersion\s*=\s*'\d+\.\d+\.\d+\.\d+'", "ModuleVersion = '$newVer'"
+            Set-Content setup/IdentityAtlas.psd1 $content -NoNewline
+            Write-Host "Bumped to $newVer"
+            "NEW_VERSION=$newVer" | Out-File -Append $env:GITHUB_ENV
           } else {
-            # Main branch: increment Minor, update timestamp → Major.Minor.yyyyMMdd.HHmm
-            if ($content -match "ModuleVersion\s*=\s*'(\d+)\.(\d+)\.\d+\.\d+'") {
-              $major  = $Matches[1]
-              $minor  = [int]$Matches[2] + 1
-              $stamp  = (Get-Date -Format 'yyyyMMdd.HHmm')
-              $newVer = "$major.$minor.$stamp"
-              $content = $content -replace "ModuleVersion\s*=\s*'\d+\.\d+\.\d+\.\d+'", "ModuleVersion = '$newVer'"
-              Set-Content setup/IdentityAtlas.psd1 $content -NoNewline
-              Write-Host "Bumped to $newVer (main dev build)"
-              "NEW_VERSION=$newVer" | Out-File -Append $env:GITHUB_ENV
-            } else {
-              Write-Error "Could not find ModuleVersion in setup/IdentityAtlas.psd1"
-              exit 1
-            }
+            Write-Error "Could not find ModuleVersion in setup/IdentityAtlas.psd1"
+            exit 1
           }
 
       - name: Commit and push
