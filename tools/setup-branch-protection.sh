@@ -5,18 +5,15 @@
 #
 # What this configures:
 #
-#   main         (classic branch protection — already set, included here for docs)
+#   main         (classic branch protection)
 #     - Require PR with 1 approval before merging
 #     - Require "PR Summary" status check
 #     - Dismiss stale reviews on push
 #     - enforce_admins: false  ← lets VERSION_BUMP_PAT push the version bump commit
 #
-#   release/**   (GitHub Ruleset — wildcard patterns need Rulesets API)
-#     - Require PR before merging (0 approvals needed)
-#     - Require "PR Summary" status check
-#     - Block direct pushes (non-fast-forward / force push)
-#     - Block branch deletion
-#     - Bypass: repository admins (actor_id=5) ← VERSION_BUMP_PAT owner must be admin
+# Release model uses git tags (v5.2.0, v5.2.1, ...) rather than long-lived
+# release branches. Hotfix branches (bugfixes/*) are short-lived and deleted
+# after cherry-picking to main — no special protection needed.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -24,7 +21,7 @@ set -euo pipefail
 REPO="${1:-Fortigi/IdentityAtlas}"
 echo "Configuring branch protection for: $REPO"
 
-# ── 1. main — classic branch protection ─────────────────────────────────────
+# ── main — classic branch protection ────────────────────────────────────────
 echo ""
 echo "Setting classic branch protection on main..."
 gh api "repos/$REPO/branches/main/protection" \
@@ -50,66 +47,23 @@ gh api "repos/$REPO/branches/main/protection" \
 JSON
 echo "✅ main branch protection set"
 
-# ── 2. release/** — GitHub Ruleset ──────────────────────────────────────────
+# ── Remove legacy release/** ruleset if it exists ───────────────────────────
 echo ""
-echo "Creating ruleset for release/** branches..."
-
-# Delete existing ruleset with the same name if it exists
+echo "Checking for legacy release/** ruleset..."
 EXISTING_ID=$(gh api "repos/$REPO/rulesets" | \
   python3 -c "import sys,json; rs=[r['id'] for r in json.load(sys.stdin) if r['name']=='Protect release branches']; print(rs[0] if rs else '')" 2>/dev/null || true)
 
 if [ -n "$EXISTING_ID" ]; then
-  echo "  Removing existing ruleset (id=$EXISTING_ID)..."
+  echo "  Removing legacy release/** ruleset (id=$EXISTING_ID)..."
   gh api "repos/$REPO/rulesets/$EXISTING_ID" --method DELETE
+  echo "  ✅ Legacy ruleset removed"
+else
+  echo "  No legacy ruleset found — nothing to remove"
 fi
-
-gh api "repos/$REPO/rulesets" --method POST --input - <<'JSON'
-{
-  "name": "Protect release branches",
-  "target": "branch",
-  "enforcement": "active",
-  "conditions": {
-    "ref_name": {
-      "include": ["refs/heads/release/**"],
-      "exclude": []
-    }
-  },
-  "bypass_actors": [
-    {
-      "actor_id": 5,
-      "actor_type": "RepositoryRole",
-      "bypass_mode": "always"
-    }
-  ],
-  "rules": [
-    { "type": "deletion" },
-    { "type": "non_fast_forward" },
-    {
-      "type": "pull_request",
-      "parameters": {
-        "required_approving_review_count": 0,
-        "dismiss_stale_reviews_on_push": false,
-        "require_code_owner_review": false,
-        "require_last_push_approval": false,
-        "required_review_thread_resolution": false
-      }
-    },
-    {
-      "type": "required_status_checks",
-      "parameters": {
-        "strict_required_status_checks_policy": false,
-        "required_status_checks": [
-          { "context": "PR Summary" }
-        ]
-      }
-    }
-  ]
-}
-JSON
-echo "✅ release/** ruleset created"
 
 echo ""
 echo "Done. Branch protection summary:"
-echo "  main         → PR required (1 approval) + PR Summary check"
-echo "  release/**   → PR required (0 approvals) + PR Summary check + no force-push + no deletion"
-echo "  Bypass       → Repository admins (the VERSION_BUMP_PAT owner must have admin role)"
+echo "  main  → PR required (1 approval) + PR Summary check + no force-push"
+echo "  tags  → No branch protection needed (tags are immutable by default)"
+echo ""
+echo "Release model: git tags (v5.2.0, v5.2.1, ...) via Actions → Cut Release / Cut Hotfix"

@@ -1,0 +1,4 @@
+- Replaced long-lived release branches with git tags for release management — hotfixes now ship only the fix, without features already merged to main
+- Added "Cut Release" workflow: tags vX.Y.Z on main HEAD, triggers :latest publish
+- Added "Cut Hotfix" workflow: tags a hotfix branch commit as a new patch version, triggers :latest publish
+- Removed release branch concept — no more "Compare & pull request" banner confusion after cutting a release
