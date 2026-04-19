@@ -7,6 +7,7 @@ const CrawlersPage = lazy(() => import('./CrawlersPage'));
 const ContainerStatsPage = lazy(() => import('./ContainerStatsPage'));
 const AuthSettingsPage = lazy(() => import('./AuthSettingsPage'));
 const PerfPage = lazy(() => import('./PerfPage'));
+const AboutPage = lazy(() => import('./AboutPage'));
 const RiskProfileWizard = lazy(() => import('./RiskProfileWizard'));
 const CorrelationWizard = lazy(() => import('./CorrelationWizard'));
 
@@ -1361,6 +1362,7 @@ const ADMIN_TABS = [
   { key: 'performance',  label: 'Performance',         description: 'API and SQL performance metrics' },
   { key: 'containers',   label: 'Containers',          description: 'Live CPU, memory and network for the Docker stack' },
   { key: 'auth',         label: 'Authentication',      description: 'Configure Entra ID single sign-on' },
+  { key: 'about',        label: 'About',               description: 'License, version, and software bill of materials' },
 ];
 
 // ─── LLM Settings sub-tab ────────────────────────────────────────────────────
@@ -1911,6 +1913,12 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
         {activeTab === 'auth' && (
           <Suspense fallback={<div className="text-sm text-gray-500 p-6">Loading…</div>}>
             <AuthSettingsPage />
+          </Suspense>
+        )}
+
+        {activeTab === 'about' && (
+          <Suspense fallback={<div className="text-sm text-gray-500 p-6">Loading…</div>}>
+            <AboutPage />
           </Suspense>
         )}
       </div>
