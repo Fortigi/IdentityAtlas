@@ -8,9 +8,9 @@
 #   ghcr.io/fortigi/identity-atlas         — Node.js API + React frontend (web service)
 #   ghcr.io/fortigi/identity-atlas-worker  — PowerShell worker (crawlers, risk scoring)
 #
-# Tags pushed depend on the source branch:
-#   main:         edge  + Major.Minor.yyyyMMdd.HHmm   (dev builds, not :latest)
-#   release/v*:   latest + Major.Minor.Patch.0         (stable customer releases)
+# Tags pushed depend on the trigger:
+#   main (via bump-version):  :edge  + Major.Minor.yyyyMMdd.HHmm
+#   v* tag push:              :latest + Major.Minor.Patch.0
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Publish Docker Images
@@ -21,11 +21,13 @@ on:
     types: [completed]
     branches:
       - main
-      - 'release/**'
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to build from (main or release/vX.Y)'
+      ref:
+        description: 'Branch or tag to build from (e.g. main, v5.2.0)'
         required: true
         default: 'main'
 
@@ -38,39 +40,55 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
       github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Determine source branch and image tags
+      - name: Determine ref and channel
         id: config
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BRANCH="${{ github.event.inputs.branch }}"
+          EVENT="${{ github.event_name }}"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            REF="${{ github.event.inputs.ref }}"
+          elif [ "$EVENT" = "push" ]; then
+            # Tag push: github.ref_name = v5.2.0
+            REF="${{ github.ref_name }}"
           else
-            BRANCH="${{ github.event.workflow_run.head_branch }}"
+            # workflow_run from bump-version on main
+            REF="${{ github.event.workflow_run.head_branch }}"
           fi
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
 
-          if [[ "$BRANCH" == release/* ]]; then
+          if [[ "$REF" == v* ]]; then
+            # Release tag: v5.2.0 → version 5.2.0.0
+            VERSION="${REF#v}.0"
             echo "channel=release" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "use_tag_version=true" >> "$GITHUB_OUTPUT"
           else
             echo "channel=main" >> "$GITHUB_OUTPUT"
+            echo "use_tag_version=false" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.config.outputs.branch }}
+          ref: ${{ steps.config.outputs.ref }}
 
-      - name: Extract version from manifest
+      - name: Extract version
         id: version
         shell: bash
         run: |
-          version=$(grep -oP "ModuleVersion\s*=\s*'\K[^']+" setup/IdentityAtlas.psd1)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Module version: $version"
+          if [ "${{ steps.config.outputs.use_tag_version }}" = "true" ]; then
+            echo "version=${{ steps.config.outputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "Version from tag: ${{ steps.config.outputs.version }}"
+          else
+            version=$(grep -oP "ModuleVersion\s*=\s*'\K[^']+" setup/IdentityAtlas.psd1)
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "Version from psd1: $version"
+          fi
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -163,7 +181,7 @@ jobs:
         run: docker compose -f docker-compose.qa.yml down -v 2>/dev/null || true
 
       # ── Push images (only reached if smoke test passed) ─────────────
-      - name: Push web image (release → latest)
+      - name: Push web image (release tag → latest)
         if: steps.config.outputs.channel == 'release'
         uses: docker/build-push-action@v6
         with:
@@ -177,7 +195,7 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
-      - name: Push worker image (release → latest)
+      - name: Push worker image (release tag → latest)
         if: steps.config.outputs.channel == 'release'
         uses: docker/build-push-action@v6
         with:
