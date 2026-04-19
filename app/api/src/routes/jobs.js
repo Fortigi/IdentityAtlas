@@ -81,7 +81,7 @@ const PERMISSION_OBJECT_MAP = {
   'PrivilegedEligibilitySchedule.Read.AzureADGroup': ['pim'],
   'EntitlementManagement.Read.All': ['identityGovernance'],
   'AccessReview.Read.All': ['identityGovernance'],
-  'AuditLog.Read.All': ['identity'],
+  'AuditLog.Read.All': ['identity', 'signInLogs'],
   'RoleManagement.Read.Directory': ['directoryRoles'],
   'RoleEligibilitySchedule.Read.Directory': ['pim'],
 };
@@ -96,6 +96,7 @@ const ENTRA_OBJECT_TYPES = [
   { key: 'appsAppRoles', label: 'Apps & AppRoles', description: 'Application registrations and role assignments' },
   { key: 'directoryRoles', label: 'Directory Roles', description: 'Entra ID directory role assignments' },
   { key: 'pim', label: 'PIM', description: 'Privileged Identity Management eligible group memberships' },
+  { key: 'signInLogs', label: 'Sign-in Logs (per-app activity)', description: 'Aggregated sign-in events — last activity per (user, app) pair' },
 ];
 
 function maskConfig(config) {
