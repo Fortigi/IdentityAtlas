@@ -22,6 +22,7 @@ const ContextDetailPage = lazy(() => import('./components/ContextDetailPage'));
 const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
 const IdentityDetailPage = lazy(() => import('./components/IdentityDetailPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
+const AboutPage = lazy(() => import('./components/AboutPage'));
 // PerfPage and CrawlersPage are lazy-loaded inside AdminPage as sub-tabs.
 // const GovernancePage = lazy(() => import('./components/GovernancePage')); // temporarily disabled
 
@@ -96,6 +97,7 @@ const ALL_NAV_TABS = [
   { key: 'identities',       label: 'Identities',   feature: 'accountCorrelation', optional: true },
   { key: 'org-chart',        label: 'Org Chart',                                    optional: true },
   { key: 'admin',            label: 'Admin' },
+  { key: 'about',            label: 'About' },
 ];
 
 export default function App() {
@@ -496,6 +498,8 @@ export default function App() {
             <IdentitiesPage onOpenDetail={openDetailTab} />
           ) : page === 'org-chart' ? (
             <OrgChartPage onOpenDetail={openDetailTab} onCacheData={onCacheData} />
+          ) : page === 'about' ? (
+            <AboutPage />
           ) : page === 'performance' || page === 'crawlers' || page === 'admin' ? (
             // Crawlers and Performance now live under Admin as sub-tabs.
             // Legacy #crawlers and #performance hashes redirect to the matching sub-tab.
@@ -530,7 +534,12 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-gray-200 bg-white px-6 py-2 text-xs text-gray-400 text-center flex items-center justify-center gap-2">
-        Identity Atlas{moduleVersion ? ` v${moduleVersion}` : ''}
+        <button
+          onClick={() => navigate('about')}
+          className="hover:text-gray-600 hover:underline focus:outline-none"
+        >
+          Identity Atlas{moduleVersion ? ` v${moduleVersion}` : ''}
+        </button>
         {/^\d+\.\d+\.\d{8}\.\d{4}$/.test(moduleVersion) && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-300">
             edge
