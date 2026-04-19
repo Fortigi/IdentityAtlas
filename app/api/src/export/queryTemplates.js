@@ -50,23 +50,32 @@ let
   First = FetchPage(0),
   Total = First[total],
   FirstRows = First[data],
-  // Walk pages by actual row count, not by arithmetic over Total. This is
-  // defensive: if the server ever caps below PageSize (the /users cap used
-  // to be 500 even when asked for 1000), an arithmetic walk silently stops
-  // at TotalBeforeCount records. Here we advance state[off] by whatever the
-  // last page actually returned, and stop when we've hit Total or when a
-  // page returns zero rows.
+  // Walk pages by actual row count — not by arithmetic over Total. Two
+  // failure modes this design guards against:
+  //   1. The server returns fewer rows than PageSize (historical cap, or a
+  //      partial tail page). Arithmetic walks silently truncate.
+  //   2. The last page (partial) gets dropped by the condition check. The
+  //      previous version had a `done` flag that flipped true right when
+  //      the tail page had been fetched, and List.Generate skips a state
+  //      whose condition evaluates false — so 911 rows on the last page
+  //      vanished and the user saw 7,000 instead of 7,911.
+  //
+  // Contract of the state: [rows = rows-to-emit, nextOff = offset of NEXT
+  // fetch]. Selector emits state[rows] unconditionally; condition asks
+  // "does the state have rows to emit?"; next() fetches one more page
+  // (or short-circuits to an empty state when we've reached Total so the
+  // next condition evaluation stops the loop cleanly).
   Pages = List.Generate(
-      () => [rows = FirstRows, off = List.Count(FirstRows), done = List.Count(FirstRows) >= Total or List.Count(FirstRows) = 0],
-      (state) => not state[done],
+      () => [rows = FirstRows, nextOff = List.Count(FirstRows)],
+      (state) => List.Count(state[rows]) > 0,
       (state) =>
-          let
-              nextPage = FetchPage(state[off]),
-              nextRows = nextPage[data],
-              nextCount = List.Count(nextRows),
-              newOff = state[off] + nextCount
-          in
-              [rows = nextRows, off = newOff, done = newOff >= Total or nextCount = 0],
+          if state[nextOff] >= Total then [rows = {}, nextOff = state[nextOff]]
+          else
+              let
+                  page = FetchPage(state[nextOff]),
+                  fetched = page[data]
+              in
+                  [rows = fetched, nextOff = state[nextOff] + List.Count(fetched)],
       (state) => state[rows]
   ),
   AllRows = List.Combine(Pages),

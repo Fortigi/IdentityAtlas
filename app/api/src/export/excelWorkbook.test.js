@@ -81,17 +81,25 @@ describe('generateWorkbook', () => {
   });
 
   it('paginates by actual-rows-received rather than arithmetic over Total (so it adapts if server caps below PageSize)', () => {
-    // Two failure modes this pins against:
-    //   1. The original List.Generate had `[off] = [off] + PageSize` — a
-    //      forward self-reference that silently stopped at 4 pages.
-    //   2. A later attempt walked offsets arithmetically with
-    //      Number.RoundUp(Total/PageSize); when /api/users capped rows at
-    //      500 instead of 1000 that stopped at 4000/7911 rows.
-    // Both are guarded by requiring the row-counting loop be in the M.
+    // Three previous bugs this pins against:
+    //   1. List.Generate with `[off] = [off] + PageSize` — record
+    //      self-reference stopped at 4 pages (4,000/7,911).
+    //   2. Arithmetic walk with Number.RoundUp(Total/PageSize) stopped
+    //      when server capped below PageSize (4,000 again).
+    //   3. `done`-flag variant dropped the tail partial page: when
+    //      newOff >= Total the condition flipped false on the same
+    //      state that held the rows, so the last 911 rows were never
+    //      emitted (7,000/7,911).
+    // The stable design: state carries "rows to emit" + "offset of next
+    // fetch"; selector emits unconditionally; condition asks "does this
+    // state have rows?"; next() short-circuits to an empty state when
+    // there's nothing more to fetch so the next condition stops the loop.
     const principals = wb.getWorksheet('Principals').getCell('A6').value;
-    expect(principals).toContain('List.Count');         // tracks actual rows
-    expect(principals).toContain('newOff');             // advance by what was returned
-    expect(principals).not.toMatch(/off\s*=\s*\[off\]/); // old record-self-ref
+    expect(principals).toContain('List.Count');                      // counts actual rows
+    expect(principals).toContain('nextOff');                         // offset of next fetch
+    expect(principals).toContain('List.Count(state[rows]) > 0');     // condition based on emitted rows
+    expect(principals).not.toMatch(/done\s*=/);                      // old boolean-flag pattern
+    expect(principals).not.toMatch(/off\s*=\s*\[off\]/);             // old record-self-ref
   });
 
   it('auto-expands the extendedAttributes JSONB column', () => {
