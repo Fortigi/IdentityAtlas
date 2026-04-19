@@ -79,3 +79,19 @@ jobs:
           echo "✅ docker-publish triggered for ${BRANCH} (will publish :latest + :${NEW_VERSION})"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post run summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## ✅ Release branch created
+
+          | | |
+          |---|---|
+          | **Branch** | \`${BRANCH}\` |
+          | **Version** | \`${NEW_VERSION}\` |
+
+          ### Next steps
+          - Bugfixes targeting this release go on \`bugfixes/<name>\` branched from \`${BRANCH}\`, then PR **into** \`${BRANCH}\` (not into \`main\`).
+          - GitHub will show a **"Compare & pull request"** banner for the new branch — **dismiss it**. That banner always targets \`main\` and is not the right direction for release bugfixes.
+          - After a bugfix is merged into \`${BRANCH}\`, cherry-pick the commit to \`main\` via a separate PR so the fix is included in future feature releases.
+          EOF
