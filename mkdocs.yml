@@ -89,6 +89,7 @@ nav:
       - Plugin Architecture: risk-scoring/plugin-architecture.md
   - Architecture:
       - Docker Setup: architecture/docker-setup.md
+      - Release & Branching Strategy: architecture/branching-strategy.md
       - Ingest API: architecture/ingest-api.md
       - Audit History: architecture/audit-history.md
       - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
