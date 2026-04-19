@@ -80,13 +80,18 @@ describe('generateWorkbook', () => {
     }
   });
 
-  it('uses List.Numbers-based pagination (guards against the record-self-reference bug that capped the old List.Generate pattern at 4 pages)', () => {
+  it('paginates by actual-rows-received rather than arithmetic over Total (so it adapts if server caps below PageSize)', () => {
+    // Two failure modes this pins against:
+    //   1. The original List.Generate had `[off] = [off] + PageSize` — a
+    //      forward self-reference that silently stopped at 4 pages.
+    //   2. A later attempt walked offsets arithmetically with
+    //      Number.RoundUp(Total/PageSize); when /api/users capped rows at
+    //      500 instead of 1000 that stopped at 4000/7911 rows.
+    // Both are guarded by requiring the row-counting loop be in the M.
     const principals = wb.getWorksheet('Principals').getCell('A6').value;
-    expect(principals).toContain('List.Numbers');
-    // The old buggy pattern had `[off] = [off] + PageSize` — a forward
-    // self-reference in a record literal — which halted iteration early.
-    // Guard against it creeping back.
-    expect(principals).not.toMatch(/off\s*=\s*\[off\]/);
+    expect(principals).toContain('List.Count');         // tracks actual rows
+    expect(principals).toContain('newOff');             // advance by what was returned
+    expect(principals).not.toMatch(/off\s*=\s*\[off\]/); // old record-self-ref
   });
 
   it('auto-expands the extendedAttributes JSONB column', () => {

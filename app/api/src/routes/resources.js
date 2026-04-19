@@ -44,7 +44,9 @@ router.get('/resources', async (req, res) => {
     const resourceType = (req.query.resourceType || '').trim();
     const systemId = (req.query.systemId || '').trim();
     const tagId = req.query.tagId ? parseInt(req.query.tagId) : null;
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
+    // Cap matches the bulk-list endpoints; UI defaults to 100, Power Query
+    // walks in 1000-record pages.
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 10000);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
     // Parse attribute filters
