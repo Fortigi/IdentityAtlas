@@ -1,0 +1,78 @@
+# ─── Cut a Hotfix Release ─────────────────────────────────────────────────────
+# Manually triggered. Tags the HEAD of a hotfix branch with a new patch version,
+# triggering docker-publish to build :latest + :X.Y.Z.0.
+#
+# Usage:
+#   1. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the release tag
+#   2. Fix the bug, push the branch
+#   3. Go to Actions → Cut Hotfix → Run workflow
+#   4. Enter the branch name and new version (e.g. "5.2.1")
+#   5. After the hotfix ships, open a PR to cherry-pick the fix into main
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Cut Hotfix
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Hotfix branch name (e.g. bugfixes/fix-login-crash)'
+        required: true
+      version:
+        description: 'New version (major.minor.patch, e.g. "5.2.1")'
+        required: true
+
+jobs:
+  cut-hotfix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Validate version input
+        run: |
+          if ! echo "${{ github.event.inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version must be in Major.Minor.Patch format (e.g. 5.2.1)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          token: ${{ secrets.VERSION_BUMP_PAT }}
+
+      - name: Create and push hotfix tag
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          TAG="v${VERSION}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Hotfix release $TAG"
+          git push origin "$TAG"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          COMMIT=$(git rev-parse --short HEAD)
+          echo "COMMIT=$COMMIT" >> "$GITHUB_ENV"
+          echo "✅ Tagged ${TAG} on ${COMMIT}"
+
+      - name: Post run summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## ✅ Hotfix tagged
+
+          | | |
+          |---|---|
+          | **Tag** | \`${TAG}\` |
+          | **Version** | \`${VERSION}.0\` |
+          | **Branch** | \`${{ github.event.inputs.branch }}\` |
+          | **Commit** | \`${COMMIT}\` |
+
+          docker-publish is now building \`:latest\` + \`:${VERSION}.0\` — check the [Actions tab](../../actions) for progress.
+
+          ### Next step — cherry-pick to main
+          \`\`\`bash
+          git checkout main && git pull
+          git cherry-pick ${COMMIT}
+          gh pr create --base main --title "fix: cherry-pick hotfix from ${TAG}"
+          \`\`\`
+          EOF
