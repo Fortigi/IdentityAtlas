@@ -1,2 +1,0 @@
-- Added an About page showing the MIT license text and Software Bill of Materials
-- The version string in the footer is now a clickable link to the About page
