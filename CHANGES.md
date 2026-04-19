@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed Docker image publishing not triggering automatically after PR merges to main
+
+## Changes in this PR
+
 - Fixed Quick Start documentation: Image channel switching code now includes Windows PowerShell syntax
 
 ## Changes in this PR
