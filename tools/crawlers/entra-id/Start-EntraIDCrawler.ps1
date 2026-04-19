@@ -63,7 +63,14 @@ Param(
     [switch]$SyncGovernance = $true,
     [switch]$SyncContexts = $true,
     [switch]$SyncPim = $false,
+    [switch]$SyncSignInLogs = $false,
     [switch]$RefreshViews = $true,
+
+    # Window for the sign-in logs fetch. Graph retains events for ~30 days so
+    # the value is capped there. Default 7 is a good steady-state (daily
+    # crawls comfortably overlap); bump to 30 on the first-ever run.
+    [ValidateRange(1, 30)]
+    [int]$SignInLogsDays = 7,
 
     # Custom user attributes to include in the sync (added to $select)
     [string[]]$CustomUserAttributes = @(),
@@ -539,21 +546,15 @@ if ($SyncPrincipals) {
             $rec['managerId'] = $_.manager.id
         }
 
-        # Build extendedAttributes: signInActivity, userType, externalUserState
-        # plus any custom attributes the operator asked for. We put hygiene
-        # signals in extendedAttributes because there are no first-class
-        # columns for them on Principals — the scoring engine reads them from
-        # the jsonb blob at scoring time.
+        # Build extendedAttributes: userType, externalUserState, custom attrs.
+        # `signInActivity` DELIBERATELY does NOT live here anymore — it used
+        # to, but the four timestamps change on every crawl and a jsonb
+        # rewrite triggers a _history row per user per day. Activity data
+        # now goes to the purpose-built PrincipalActivity table, which is
+        # not audited. See migrations/017_principal_activity.sql.
         $ext = @{}
         if ($_.userType)          { $ext['userType']          = $_.userType }
         if ($_.externalUserState) { $ext['externalUserState'] = $_.externalUserState }
-        if ($_.signInActivity) {
-            $sia = @{}
-            if ($_.signInActivity.lastSignInDateTime)                     { $sia['lastSignInDateTime']                     = $_.signInActivity.lastSignInDateTime }
-            if ($_.signInActivity.lastNonInteractiveSignInDateTime)       { $sia['lastNonInteractiveSignInDateTime']       = $_.signInActivity.lastNonInteractiveSignInDateTime }
-            if ($_.signInActivity.lastSuccessfulSignInDateTime)           { $sia['lastSuccessfulSignInDateTime']           = $_.signInActivity.lastSuccessfulSignInDateTime }
-            if ($sia.Count -gt 0) { $ext['signInActivity'] = $sia }
-        }
         if ($CustomUserAttributes.Count -gt 0) {
             foreach ($attr in $CustomUserAttributes) {
                 $val = Get-UserAttrValue -User $_ -AttrName $attr
@@ -571,6 +572,35 @@ if ($SyncPrincipals) {
     Update-CrawlerProgress -Detail "Uploading $($records.Count) users to ingest API..."
     Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ principalType = 'User' } -Records $records
+
+    # ─── Upload user sign-in activity (aggregate per-principal) ──
+    # The four signInActivity timestamps come back on the same /users call,
+    # but they live in the dedicated PrincipalActivity table now — sending
+    # them to /ingest/principal-activity with resourceId set to the
+    # AGG_RESOURCE_ID sentinel (the DEFAULT on the column) produces one
+    # aggregate row per user.
+    $aggResourceId = '00000000-0000-0000-0000-000000000000'
+    $activityRecords = @($users | ForEach-Object {
+        $sia = $_.signInActivity
+        if ($null -eq $sia) { return }
+        $rec = @{
+            principalId   = $_.id
+            resourceId    = $aggResourceId
+            activityType  = 'SignIn'
+        }
+        if ($sia.lastSignInDateTime)                { $rec['lastSignInDateTime']                = $sia.lastSignInDateTime }
+        if ($sia.lastNonInteractiveSignInDateTime)  { $rec['lastNonInteractiveSignInDateTime']  = $sia.lastNonInteractiveSignInDateTime }
+        if ($sia.lastSuccessfulSignInDateTime)      { $rec['lastSuccessfulSignInDateTime']      = $sia.lastSuccessfulSignInDateTime }
+        # Only emit a record if we have at least one timestamp — users who
+        # have never signed in would otherwise produce a row with just the
+        # key columns and no meaningful payload.
+        if ($rec.Count -gt 3) { $rec }
+    })
+    if ($activityRecords.Count -gt 0) {
+        Update-CrawlerProgress -Detail "Uploading $($activityRecords.Count) user sign-in activity records..."
+        Send-IngestBatch -Endpoint 'ingest/principal-activity' -SystemId $systemId -SyncMode 'delta' `
+            -Records $activityRecords
+    }
 
     # ─── Identity sync (filtered subset of users) ────────────────
     if ($IdentityFilter.Count -gt 0 -and $IdentityFilter['attribute']) {
@@ -732,7 +762,166 @@ if ($SyncServicePrincipals) {
         Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
             -Scope @{ principalType = $pt } -Records @($bucket)
     }
+
+    # ─── SP sign-in activity (aggregate per SP) ──────────────────
+    # Graph has a dedicated report endpoint that returns per-appId
+    # last-activity timestamps. We join it by appId to the SPs we just
+    # synced so the PrincipalActivity row is keyed on the SP's object id
+    # (the same id used as principalId in ResourceAssignments — not appId).
+    try {
+        Update-CrawlerProgress -Step 'Fetching SP sign-in activity report' -Pct 20 -Detail '/reports/servicePrincipalSignInActivities'
+        $spActivityRows = Invoke-FGGetRequest -URI 'https://graph.microsoft.com/beta/reports/servicePrincipalSignInActivities?$top=999'
+
+        # Build appId → activity map. Graph returns one row per appId with
+        # four timestamp "flavours"; we promote the primary last/nonInteractive
+        # to first-class columns and stash the two client-variant timestamps
+        # in extendedAttributes so downstream queries can still reach them.
+        $activityByAppId = @{}
+        foreach ($a in $spActivityRows) {
+            if (-not $a.appId) { continue }
+            $activityByAppId[$a.appId] = $a
+        }
+
+        $spActivityRecords = @($sps | ForEach-Object {
+            $a = $activityByAppId[$_.appId]
+            if (-not $a) { return }
+            $rec = @{
+                principalId  = $_.id
+                resourceId   = $aggResourceId
+                activityType = 'ServicePrincipalSignIn'
+            }
+            if ($a.lastSignInActivity.lastSignInDateTime) {
+                $rec['lastSignInDateTime'] = $a.lastSignInActivity.lastSignInDateTime
+            }
+            if ($a.lastNonInteractiveSignInActivity.lastSignInDateTime) {
+                $rec['lastNonInteractiveSignInDateTime'] = $a.lastNonInteractiveSignInActivity.lastSignInDateTime
+            }
+            # applicationAuthenticationClientSignInActivity + delegatedClientSignInActivity
+            # aren't first-class columns — they're SP-specific signals so we keep
+            # them in extendedAttributes for risk scoring and detail-page display.
+            $ext = @{}
+            if ($a.applicationAuthenticationClientSignInActivity.lastSignInDateTime) {
+                $ext['lastApplicationAuthSignInDateTime'] = $a.applicationAuthenticationClientSignInActivity.lastSignInDateTime
+            }
+            if ($a.delegatedClientSignInActivity.lastSignInDateTime) {
+                $ext['lastDelegatedClientSignInDateTime'] = $a.delegatedClientSignInActivity.lastSignInDateTime
+            }
+            if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
+            if ($rec.Count -gt 3) { $rec }
+        })
+
+        if ($spActivityRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($spActivityRecords.Count) SP sign-in activity records..."
+            Send-IngestBatch -Endpoint 'ingest/principal-activity' -SystemId $systemId -SyncMode 'delta' `
+                -Records $spActivityRecords
+        } else {
+            Write-Host '  No SP sign-in activity to upload (report empty or no matches)' -ForegroundColor Gray
+        }
+    } catch {
+        # The report endpoint needs AuditLog.Read.All, which should already
+        # be granted, but tenants that haven't consented yet will 403 here.
+        # Fail soft — SP data itself still lands, activity just stays stale.
+        Write-Host "  WARN: SP sign-in activity sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
     $__phaseSW.Stop(); $phaseTimings['ServicePrincipals'] = $__phaseSW.Elapsed
+}
+
+# ─── Sync Sign-in Logs (per-(user, app) activity) ────────────────
+# Aggregates /auditLogs/signIns events from the last $SignInLogsDays days
+# into per-(user, app) last-activity rows (granularity B). Each event is
+# O(1) work; the sum is kept in a hashtable keyed by "$userId|$appSpId"
+# so the peak memory is bounded by the number of DISTINCT pairs, not
+# event count. Tenants with millions of events/week still aggregate to
+# ~O(users × apps) entries — well within PowerShell's reach.
+#
+# Requires AuditLog.Read.All (already in the base permission set). The
+# block also resolves app appId → SP principalId on the fly via
+# /servicePrincipals so it works whether or not the SP sync ran this run.
+if ($SyncSignInLogs) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing sign-in logs (last $SignInLogsDays days)..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing sign-in logs' -Pct 22 -Detail 'Building appId index...'
+
+    try {
+        # Build appId → sp.id map. Use the $sps array from the SP sync block
+        # if present; otherwise fetch a stripped-down list on-demand. Either
+        # way it's a single pass of Graph service principals.
+        $appIdToSpId = @{}
+        if ($sps -and $sps.Count -gt 0) {
+            foreach ($sp in $sps) { if ($sp.appId) { $appIdToSpId[$sp.appId] = $sp.id } }
+        } else {
+            $spIndex = Invoke-FGGetRequest -URI 'https://graph.microsoft.com/beta/servicePrincipals?$select=id,appId&$top=999'
+            foreach ($sp in $spIndex) { if ($sp.appId) { $appIdToSpId[$sp.appId] = $sp.id } }
+        }
+        Write-Host "  Indexed $($appIdToSpId.Count) app ids" -ForegroundColor Gray
+
+        # Delta window. 30d is Graph's retention cap; default 7 gives
+        # comfortable overlap on daily crawls.
+        $cutoff = (Get-Date).ToUniversalTime().AddDays(-$SignInLogsDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
+        $filter = [uri]::EscapeDataString("createdDateTime ge $cutoff")
+        $uri = "https://graph.microsoft.com/beta/auditLogs/signIns?`$filter=$filter&`$top=999"
+
+        Update-CrawlerProgress -Detail "Fetching events since $cutoff..."
+        $events = Invoke-FGGetRequest -URI $uri
+        Write-Host "  Pulled $($events.Count) events" -ForegroundColor Gray
+
+        # Aggregate. Events older than an existing aggregate are skipped;
+        # newer ones win via max(date). Success/failure split comes from
+        # status.errorCode — 0 is a successful sign-in.
+        $agg = @{}
+        $skipped = 0
+        foreach ($ev in $events) {
+            if (-not $ev.userId -or -not $ev.appId) { $skipped++; continue }
+            $spId = $appIdToSpId[$ev.appId]
+            if (-not $spId) { $skipped++; continue }
+            $key = "$($ev.userId)|$spId"
+            $entry = $agg[$key]
+            if (-not $entry) {
+                $entry = @{
+                    principalId  = $ev.userId
+                    resourceId   = $spId
+                    activityType = 'SignInPerApp'
+                    lastSignInDateTime = $ev.createdDateTime
+                    lastSuccessfulSignInDateTime = $null
+                    lastFailedSignInDateTime = $null
+                    signInCount = 0
+                }
+                $agg[$key] = $entry
+            }
+            if ($ev.createdDateTime -gt $entry.lastSignInDateTime) {
+                $entry.lastSignInDateTime = $ev.createdDateTime
+            }
+            $entry.signInCount++
+            $errorCode = $ev.status.errorCode
+            if ($null -ne $errorCode -and [int]$errorCode -eq 0) {
+                if (-not $entry.lastSuccessfulSignInDateTime -or $ev.createdDateTime -gt $entry.lastSuccessfulSignInDateTime) {
+                    $entry.lastSuccessfulSignInDateTime = $ev.createdDateTime
+                }
+            } else {
+                if (-not $entry.lastFailedSignInDateTime -or $ev.createdDateTime -gt $entry.lastFailedSignInDateTime) {
+                    $entry.lastFailedSignInDateTime = $ev.createdDateTime
+                }
+            }
+        }
+
+        if ($skipped -gt 0) {
+            Write-Host "  Skipped $skipped events (missing userId/appId, or app not synced yet)" -ForegroundColor Gray
+        }
+
+        $records = @($agg.Values)
+        Write-Host "  Aggregated to $($records.Count) (user, app) pairs" -ForegroundColor Cyan
+        if ($records.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($records.Count) per-app activity rows..."
+            Send-IngestBatch -Endpoint 'ingest/principal-activity' -SystemId $systemId -SyncMode 'delta' `
+                -Records $records
+        }
+    } catch {
+        # 403 if the tenant hasn't consented AuditLog.Read.All, 429 if the
+        # report is rate-limited. Fail soft — user/SP aggregate activity
+        # from the cheaper endpoints still landed.
+        Write-Host "  WARN: Sign-in log sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    $__phaseSW.Stop(); $phaseTimings['SignInLogs'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync Resources (Groups) ─────────────────────────────────────
