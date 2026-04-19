@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Replaced long-lived release branches with git tags for release management — hotfixes now ship only the fix, without features already merged to main
+- Added "Cut Release" workflow: tags vX.Y.Z on main HEAD, triggers :latest publish
+- Added "Cut Hotfix" workflow: tags a hotfix branch commit as a new patch version, triggers :latest publish
+- Removed release branch concept — no more "Compare & pull request" banner confusion after cutting a release
+
+## Changes in this PR
+
 - Added branching and versioning strategy reference page under docs/architecture
 - Added `--pull always` flag to Quick Start commands in README, quickstart, docker-setup, and index docs so users always get the newest image
 - Added `.env` setup step (copy from template) to all Quick Start sections
