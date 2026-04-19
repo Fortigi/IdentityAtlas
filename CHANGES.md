@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Added branching and versioning strategy reference page under docs/architecture
+- Added `--pull always` flag to Quick Start commands in README, quickstart, docker-setup, and index docs so users always get the newest image
+- Added `.env` setup step (copy from template) to all Quick Start sections
+- Added tabbed Linux/macOS and Windows code blocks throughout docker-setup and local-dev docs
+- Fixed version pinning example in quickstart to use release format (5.2.0.0) instead of edge timestamp format
+- Fixed history.md to link to the branching strategy doc instead of referencing CLAUDE.md
+- Aligned local-dev.md with docker-setup.md: added --build note for first run, tabbed stop/reset commands
+
+## Changes in this PR
+
 - Added an About page showing the MIT license text and Software Bill of Materials
 - The version string in the footer is now a clickable link to the About page
 
