@@ -1,0 +1,1 @@
+- Fixed the Cut Release workflow rejecting valid version inputs like "5.2" due to a non-portable regex
