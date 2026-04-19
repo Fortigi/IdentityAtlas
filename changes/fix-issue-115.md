@@ -1,1 +1,0 @@
-- Fixed Quick Start documentation: Image channel switching code now includes Windows PowerShell syntax
