@@ -1,6 +1,6 @@
 const MIT_LICENSE = `MIT License
 
-Copyright (c) 2025 Fortigi
+Copyright (c) 2025 Wim van den Heijkant / Fortigi
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
