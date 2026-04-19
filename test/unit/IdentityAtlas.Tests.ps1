@@ -88,9 +88,118 @@ Describe 'Function Availability — Helpers (idempotent)' {
     It 'exports <_>' -ForEach @(
         'Confirm-FGUser', 'Confirm-FGGroup', 'Confirm-FGGroupMember', 'Confirm-FGNotGroupMember',
         'Confirm-FGAccessPackage', 'Confirm-FGAccessPackagePolicy', 'Confirm-FGAccessPackageResource',
-        'Confirm-FGCatalog', 'Confirm-FGGroupInCatalog'
+        'Confirm-FGCatalog', 'Confirm-FGGroupInCatalog',
+        'Get-FGServicePrincipalType'
     ) {
         Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+    }
+}
+
+# ─── Get-FGServicePrincipalType ───────────────────────────────────
+# Tests pin the classification taxonomy from CLAUDE.md. Any change to the
+# ordering (e.g. Managed Identity must win over tag-based AI detection) needs
+# a corresponding change here; otherwise crawler output silently shifts
+# principalType labels and breaks risk-scoring heuristics downstream.
+Describe 'Get-FGServicePrincipalType — classification rules' {
+    It 'classifies servicePrincipalType=ManagedIdentity as ManagedIdentity (even when tags look AI)' {
+        # Rule 1 is authoritative: MI must win over tag-based AI detection.
+        $sp = [pscustomobject]@{
+            displayName          = 'Copilot ghost tenant'
+            servicePrincipalType = 'ManagedIdentity'
+            tags                 = @('AzureOpenAI')
+        }
+        Get-FGServicePrincipalType -ServicePrincipal $sp | Should -Be 'ManagedIdentity'
+    }
+
+    It 'classifies AI platform tags as AIAgent' {
+        foreach ($tag in @('CopilotStudio','PowerVirtualAgents','AzureOpenAI','CognitiveServices')) {
+            $sp = [pscustomobject]@{
+                displayName          = 'benign-sounding-sp'
+                servicePrincipalType = 'Application'
+                tags                 = @('SomeOtherTag', $tag)
+            }
+            Get-FGServicePrincipalType -ServicePrincipal $sp |
+                Should -Be 'AIAgent' -Because "tag '$tag' must trigger AIAgent"
+        }
+    }
+
+    It 'classifies Entra Agent ID tags (AgenticInstance, AgenticApp) as AIAgent' {
+        # Entra Agent ID (GA 2025) stamps SPs with these exact tags. These
+        # identities are first-class AI agents and must not be left as generic
+        # ServicePrincipal — risk scoring and UX both depend on the distinction.
+        foreach ($tag in @('AgenticInstance','AgenticApp')) {
+            $sp = [pscustomobject]@{
+                displayName          = 'some-agent-123'
+                servicePrincipalType = 'Application'
+                tags                 = @('WindowsAzureActiveDirectoryIntegratedApp', $tag)
+            }
+            Get-FGServicePrincipalType -ServicePrincipal $sp |
+                Should -Be 'AIAgent' -Because "Entra Agent ID tag '$tag' must trigger AIAgent"
+        }
+    }
+
+    It 'classifies Power Virtual Agents tag prefix as AIAgent' {
+        # PVA stamps per-instance tags of the form `power-virtual-agents-<guid>`
+        # — we prefix-match because matching one-GUID-per-tag in a fixed list
+        # obviously doesn't work.
+        $sp = [pscustomobject]@{
+            displayName          = 'Copilot Studio flow host'
+            servicePrincipalType = 'Application'
+            tags                 = @('power-virtual-agents-3fa85f64-5717-4562-b3fc-2c963f66afa6')
+        }
+        Get-FGServicePrincipalType -ServicePrincipal $sp | Should -Be 'AIAgent'
+    }
+
+    It 'does not match a displayName fragment against a tag-like unrelated name' {
+        # 'gptools' contains 'gpt' as substring but not as a word — the built-in
+        # pattern uses \bgpt\b. This guards against false positives on things
+        # like "GitOps Toolkit".
+        $sp = [pscustomobject]@{
+            displayName          = 'GPTools Support'
+            servicePrincipalType = 'Application'
+            tags                 = @()
+        }
+        Get-FGServicePrincipalType -ServicePrincipal $sp | Should -Be 'ServicePrincipal'
+    }
+
+    It 'classifies AI displayNames as AIAgent (case-insensitive)' {
+        foreach ($name in @('Microsoft Copilot', 'my-OpenAI-proxy', 'Team Bot', 'GPT Assistant')) {
+            $sp = [pscustomobject]@{
+                displayName          = $name
+                servicePrincipalType = 'Application'
+                tags                 = @()
+            }
+            Get-FGServicePrincipalType -ServicePrincipal $sp |
+                Should -Be 'AIAgent' -Because "displayName '$name' should trigger AIAgent"
+        }
+    }
+
+    It 'honours caller-supplied AINamePatterns' {
+        $sp = [pscustomobject]@{
+            displayName          = 'acme-agent-service'
+            servicePrincipalType = 'Application'
+            tags                 = @()
+        }
+        Get-FGServicePrincipalType -ServicePrincipal $sp -AINamePatterns @('acme-agent-') |
+            Should -Be 'AIAgent'
+    }
+
+    It 'returns ServicePrincipal for an ordinary enterprise app' {
+        $sp = [pscustomobject]@{
+            displayName          = 'Jira Integration'
+            servicePrincipalType = 'Application'
+            tags                 = @('WindowsAzureActiveDirectoryIntegratedApp')
+        }
+        Get-FGServicePrincipalType -ServicePrincipal $sp | Should -Be 'ServicePrincipal'
+    }
+
+    It 'handles an SP with no tags and no displayName gracefully' {
+        $sp = [pscustomobject]@{
+            displayName          = $null
+            servicePrincipalType = 'Application'
+            tags                 = $null
+        }
+        Get-FGServicePrincipalType -ServicePrincipal $sp | Should -Be 'ServicePrincipal'
     }
 }
 
