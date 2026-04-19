@@ -42,6 +42,10 @@ const GRAPH_PERMISSION_MAP = {
   'c74fd47d-ed3c-45c3-9a9e-b8676de685d2': 'EntitlementManagement.Read.All',
   'd07a8cc0-3d51-4b77-b3b0-32704d1f69fa': 'AccessReview.Read.All',
   'b0afded3-3588-46d8-8b3d-9842eff778da': 'AuditLog.Read.All',
+  // DelegatedPermissionGrant.Read.All — required to read /oauth2PermissionGrants
+  // so the crawler can ingest per-user delegated consents (user authorized app
+  // X to read their mail on their behalf). Directory.Read.All is NOT sufficient.
+  '41ce6ca6-6826-4807-84f1-1c82854f7ee5': 'DelegatedPermissionGrant.Read.All',
   // Role-management / PIM directory. Not strictly required but nice to surface
   // so the admin can see whether PIM-for-roles is available to the crawler.
   '483bed4a-2ad3-4361-a73b-c83ccdbdc53c': 'RoleManagement.Read.Directory',
@@ -69,6 +73,8 @@ const GRAPH_PERMISSION_ALIASES = {
   '9acd699f-1e81-4958-b001-93b1d2506e19': 'EntitlementManagement.Read.All',
   // RoleManagement.ReadWrite.Directory → RoleManagement.Read.Directory
   '9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8': 'RoleManagement.Read.Directory',
+  // DelegatedPermissionGrant.ReadWrite.All → DelegatedPermissionGrant.Read.All
+  '8e8e4742-1d95-4f68-9d56-6ee75648c72a': 'DelegatedPermissionGrant.Read.All',
 };
 
 // Which permissions enable which object types
@@ -84,6 +90,7 @@ const PERMISSION_OBJECT_MAP = {
   'AuditLog.Read.All': ['identity', 'signInLogs'],
   'RoleManagement.Read.Directory': ['directoryRoles'],
   'RoleEligibilitySchedule.Read.Directory': ['pim'],
+  'DelegatedPermissionGrant.Read.All': ['oauth2Grants'],
 };
 
 // All known object types for the Entra ID crawler
@@ -97,6 +104,7 @@ const ENTRA_OBJECT_TYPES = [
   { key: 'directoryRoles', label: 'Directory Roles', description: 'Entra ID directory role assignments' },
   { key: 'pim', label: 'PIM', description: 'Privileged Identity Management eligible group memberships' },
   { key: 'signInLogs', label: 'Sign-in Logs (per-app activity)', description: 'Aggregated sign-in events — last activity per (user, app) pair' },
+  { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
 ];
 
 function maskConfig(config) {
