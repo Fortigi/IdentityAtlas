@@ -116,8 +116,8 @@ image: ghcr.io/fortigi/identity-atlas-worker:latest
 with the explicit version tag:
 
 ```yaml
-image: ghcr.io/fortigi/identity-atlas:5.0.20260411.1955
-image: ghcr.io/fortigi/identity-atlas-worker:5.0.20260411.1955
+image: ghcr.io/fortigi/identity-atlas:5.2.0.0
+image: ghcr.io/fortigi/identity-atlas-worker:5.2.0.0
 ```
 
 Both images are always published with the same version tag, so they'll stay in sync.
