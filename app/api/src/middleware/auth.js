@@ -12,6 +12,7 @@ import {
   getClientId,
   getRequiredRoles,
 } from '../config/authConfig.js';
+import { isReadTokenFormat, findActiveByPlaintext } from '../auth/readTokens.js';
 
 // jwks-rsa's getSigningKey is callback-shaped. We need a stable function ref
 // that resolves the *current* client at call time so a hot reload picks up the
@@ -44,6 +45,29 @@ export function authMiddleware(req, res, next) {
   if (token.startsWith('fgc_')) {
     return next();
   }
+
+  // Read-only API keys (`fgr_…`) are accepted on GET requests to non-admin
+  // endpoints — that's all downstream tooling (Excel Power Query, BI imports)
+  // needs and it keeps the blast radius of a leaked read token contained.
+  // Anything mutating or admin-scoped MUST come from a real signed-in user.
+  if (isReadTokenFormat(token)) {
+    if (req.method !== 'GET') {
+      return res.status(403).json({ error: 'Read API keys may only be used for GET requests' });
+    }
+    if (req.path.startsWith('/api/admin/')) {
+      return res.status(403).json({ error: 'Read API keys cannot access admin endpoints' });
+    }
+    findActiveByPlaintext(token).then(row => {
+      if (!row) return res.status(401).json({ error: 'Invalid, revoked, or expired read API key' });
+      req.readToken = { id: row.id, name: row.name };
+      next();
+    }).catch(err => {
+      console.error('Read token lookup failed:', err.message);
+      res.status(500).json({ error: 'Authentication service error' });
+    });
+    return;
+  }
+
   const tenantId = getTenantId();
   const clientId = getClientId();
 
