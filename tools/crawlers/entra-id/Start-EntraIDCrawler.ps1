@@ -71,6 +71,11 @@ Param(
     # Custom group attributes to include in the sync (added to $select)
     [string[]]$CustomGroupAttributes = @(),
 
+    # Extra regex fragments applied to servicePrincipal.displayName to flag an
+    # SP as AIAgent. Combined with the built-in list ('copilot', 'openai', etc).
+    # Case-insensitive; use \b word boundaries if exactness matters.
+    [string[]]$AINamePatterns = @(),
+
     # Identity filter: select which users are treated as identities
     # Format: @{ attribute='employeeId'; condition='isNotNull' }
     #     or: @{ attribute='employeeType'; condition='equals'; value='Employee' }
@@ -142,7 +147,8 @@ function Invoke-IngestAPI {
                 continue
             }
 
-            Write-Host "  ERROR: $Endpoint returned $statusCode after $attempt attempt(s)" -ForegroundColor Red
+            $payloadMB = [Math]::Round($json.Length / 1MB, 2)
+            Write-Host "  ERROR: $Endpoint returned $statusCode after $attempt attempt(s) (payload: ${payloadMB} MB)" -ForegroundColor Red
             if ($responseBody) {
                 Write-Host "  Response: $responseBody" -ForegroundColor Yellow
             } else {
@@ -601,6 +607,87 @@ if ($SyncPrincipals) {
             })
             Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode 'full' -Records $idMembers
         }
+    }
+}
+
+# ─── Sync Service Principals ─────────────────────────────────────
+# Service principals are Entra ID's non-human identities — enterprise-app SPs,
+# managed identities, AI agents (Copilot Studio / Azure OpenAI), etc. They own
+# a large fraction of role assignments in Azure and M365, so we want them in
+# the `Principals` table alongside human users.
+#
+# We classify each SP into one of the schema's principalType values via
+# Get-FGServicePrincipalType (from tools/powershell-sdk/helpers). Each class
+# gets its own full-sync batch because the ingest API's scoped-delete works
+# on exactly one principalType value at a time.
+if ($SyncServicePrincipals) {
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing service principals..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing service principals' -Pct 18 -Detail 'Fetching from Microsoft Graph...'
+
+    # `tags` and `servicePrincipalType` drive classification; `appId`,
+    # `appOwnerOrganizationId`, and `notes` go into extendedAttributes for
+    # downstream visibility. `accountEnabled` lives in its dedicated column.
+    $spSelectAttrs = @(
+        'id','appId','displayName','servicePrincipalType','accountEnabled',
+        'tags','appOwnerOrganizationId','createdDateTime','notes',
+        'servicePrincipalNames','homepage','publisherName'
+    )
+    $spSelect = $spSelectAttrs -join ','
+    $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=$spSelect&`$top=999"
+    Update-CrawlerProgress -Detail "Classifying $($sps.Count) service principals..."
+
+    # Bucket records by principalType so we can submit one scoped full-sync
+    # per type. An empty bucket is skipped entirely to avoid an unintended
+    # delete-everything-of-that-type against the DB.
+    $buckets = @{
+        ServicePrincipal = New-Object System.Collections.ArrayList
+        ManagedIdentity  = New-Object System.Collections.ArrayList
+        AIAgent          = New-Object System.Collections.ArrayList
+    }
+
+    foreach ($sp in $sps) {
+        $pt = Get-FGServicePrincipalType -ServicePrincipal $sp -AINamePatterns $AINamePatterns
+
+        $rec = @{
+            id             = $sp.id
+            displayName    = $sp.displayName
+            accountEnabled = [bool]$sp.accountEnabled
+            principalType  = $pt
+        }
+        if ($sp.createdDateTime) { $rec['createdDateTime'] = $sp.createdDateTime }
+
+        # Everything that isn't a first-class column but is useful for filters
+        # or risk signals lives in extendedAttributes. We stringify arrays
+        # (tags, servicePrincipalNames) because jsonb_typeof filters arrays out
+        # of the filter-dropdown discovery and a comma-joined string keeps the
+        # key discoverable.
+        $ext = @{}
+        if ($sp.appId)                   { $ext['appId']                   = $sp.appId }
+        if ($sp.servicePrincipalType)    { $ext['servicePrincipalType']    = $sp.servicePrincipalType }
+        if ($sp.appOwnerOrganizationId)  { $ext['appOwnerOrganizationId']  = $sp.appOwnerOrganizationId }
+        if ($sp.publisherName)           { $ext['publisherName']           = $sp.publisherName }
+        if ($sp.homepage)                { $ext['homepage']                = $sp.homepage }
+        if ($sp.notes)                   { $ext['notes']                   = $sp.notes }
+        if ($sp.tags -and $sp.tags.Count -gt 0) {
+            $ext['tags'] = ($sp.tags -join ',')
+        }
+        if ($sp.servicePrincipalNames -and $sp.servicePrincipalNames.Count -gt 0) {
+            $ext['servicePrincipalNames'] = ($sp.servicePrincipalNames -join ',')
+        }
+        if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
+
+        [void]$buckets[$pt].Add($rec)
+    }
+
+    Write-Host ("  Classified: {0} ServicePrincipal / {1} ManagedIdentity / {2} AIAgent" -f `
+        $buckets.ServicePrincipal.Count, $buckets.ManagedIdentity.Count, $buckets.AIAgent.Count) -ForegroundColor Gray
+
+    foreach ($pt in @('ServicePrincipal','ManagedIdentity','AIAgent')) {
+        $bucket = $buckets[$pt]
+        if ($bucket.Count -eq 0) { continue }
+        Update-CrawlerProgress -Detail "Uploading $($bucket.Count) $pt records..."
+        Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
+            -Scope @{ principalType = $pt } -Records @($bucket)
     }
 }
 

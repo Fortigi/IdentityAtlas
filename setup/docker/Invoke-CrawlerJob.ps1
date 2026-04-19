@@ -131,6 +131,7 @@ switch ($JobType) {
                     $crawlerParams['SyncResources']   = [bool]$objects['usersGroupsMembers']
                     $crawlerParams['SyncAssignments'] = [bool]$objects['usersGroupsMembers']
                 }
+                if ($objects.ContainsKey('servicePrincipals'))  { $crawlerParams['SyncServicePrincipals']   = [bool]$objects['servicePrincipals'] }
                 if ($objects.ContainsKey('identityGovernance')) { $crawlerParams['SyncGovernance']          = [bool]$objects['identityGovernance'] }
                 if ($objects.ContainsKey('context'))            { $crawlerParams['SyncContexts']            = [bool]$objects['context'] }
                 if ($objects.ContainsKey('pim'))                { $crawlerParams['SyncPim']                 = [bool]$objects['pim'] }
@@ -154,6 +155,9 @@ switch ($JobType) {
             }
             if ($Config['customGroupAttributes']) {
                 $crawlerParams['CustomGroupAttributes'] = @($Config['customGroupAttributes'])
+            }
+            if ($Config['aiNamePatterns']) {
+                $crawlerParams['AINamePatterns'] = @($Config['aiNamePatterns'])
             }
 
             # Identity filter
