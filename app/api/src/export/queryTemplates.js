@@ -16,11 +16,25 @@
 
 const PAGE_SIZE = 1000;
 
-// Single shared M function: paginate(endpoint, extraQuery)
-// Returns the combined `data` array as a list of records.
+// Shared paginated fetch template. Two responsibilities:
 //
-// Heredoc-style template literal — we substitute PAGE_SIZE only. The user
-// never edits this; they edit BaseUrl and AuthToken on the Settings sheet.
+//   1. Walk the entire dataset across N pages of PAGE_SIZE records. We use
+//      List.Numbers to compute the page offsets up-front instead of the
+//      stateful List.Generate pattern — the latter has a record-self-
+//      reference foot-gun (`[off]` inside the next-state record literal
+//      gets parsed as forward field reference, not `_[off]`) that silently
+//      caps the loop at 4 iterations against the local stack.
+//
+//   2. Auto-expand the JSONB `extendedAttributes` column so users see the
+//      sub-keys (userType, onPremisesSyncEnabled, signInActivity, etc.) as
+//      first-class columns instead of "Record" cells they have to click
+//      one by one. Keys are collected as the union across every row so
+//      sparsely-populated keys (only some users have employeeId) still
+//      appear. Expanded columns are prefixed `ext_` to avoid collisions
+//      with real columns of the same name.
+//
+// The user never edits this; they edit BaseUrl / AuthToken on the Settings
+// sheet and the queries pick up the new values on the next refresh.
 const PAGINATED_FETCH = `
 let
   BaseUrl = Excel.CurrentWorkbook(){[Name="BaseUrl"]}[Content]{0}[Column1],
@@ -35,18 +49,29 @@ let
       ])),
   First = FetchPage(0),
   Total = First[total],
-  Pages = if Total <= PageSize then {First}
-          else List.Generate(
-              () => [page = First, off = 0],
-              each [off] < Total,
-              each [page = FetchPage([off] + PageSize), off = [off] + PageSize],
-              each [page]
-          ),
-  Combined = List.Combine(List.Transform(Pages, each _[data])),
-  Table = Table.FromList(Combined, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
-  Expanded = Table.ExpandRecordColumn(Table, "Column1", Record.FieldNames(Combined{0}))
+  PageCount = if Total = 0 then 0 else Number.RoundUp(Total / PageSize),
+  // Offsets: {0, PageSize, 2*PageSize, ...} for every page we need.
+  Offsets = List.Numbers(0, PageCount, PageSize),
+  // Skip the first offset because we already fetched it as First.
+  LaterPages = List.Transform(List.Skip(Offsets, 1), (off) => FetchPage(off)),
+  AllPageRecords = {First} & LaterPages,
+  AllRows = List.Combine(List.Transform(AllPageRecords, (p) => p[data])),
+  Table = Table.FromList(AllRows, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+  Expanded = if List.IsEmpty(AllRows) then Table
+             else Table.ExpandRecordColumn(Table, "Column1", Record.FieldNames(AllRows{0})),
+  // Auto-expand extendedAttributes. The keys vary per row — collect the
+  // union so we don't lose any. ext_ prefix avoids name collisions with
+  // real columns. Skipped if the table doesn't have an extendedAttributes
+  // column (most join-table endpoints).
+  HasExt = List.Contains(Table.ColumnNames(Expanded), "extendedAttributes"),
+  ExtKeys = if not HasExt then {} else List.Distinct(
+      List.Combine(List.Transform(Expanded[extendedAttributes],
+          (r) => if r = null then {} else Record.FieldNames(r)))),
+  ExtExpanded = if not HasExt or List.IsEmpty(ExtKeys) then Expanded
+                else Table.ExpandRecordColumn(Expanded, "extendedAttributes",
+                    ExtKeys, List.Transform(ExtKeys, (k) => "ext_" & k))
 in
-  Expanded
+  ExtExpanded
 `.trim();
 
 function paginatedQuery(endpointPath) {
@@ -68,9 +93,18 @@ let
   ])),
   Table = Table.FromList(Source, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
   Expanded = if List.IsEmpty(Source) then Table
-             else Table.ExpandRecordColumn(Table, "Column1", Record.FieldNames(Source{0}))
+             else Table.ExpandRecordColumn(Table, "Column1", Record.FieldNames(Source{0})),
+  // Same extendedAttributes auto-expand as PAGINATED_FETCH — Systems has ext
+  // attrs too (tenant id, connector settings, etc.)
+  HasExt = List.Contains(Table.ColumnNames(Expanded), "extendedAttributes"),
+  ExtKeys = if not HasExt then {} else List.Distinct(
+      List.Combine(List.Transform(Expanded[extendedAttributes],
+          (r) => if r = null then {} else Record.FieldNames(r)))),
+  ExtExpanded = if not HasExt or List.IsEmpty(ExtKeys) then Expanded
+                else Table.ExpandRecordColumn(Expanded, "extendedAttributes",
+                    ExtKeys, List.Transform(ExtKeys, (k) => "ext_" & k))
 in
-  Expanded
+  ExtExpanded
 `.trim();
 
 function arrayQuery(endpointPath) {
