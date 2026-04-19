@@ -55,7 +55,7 @@ let
   //   1. The server returns fewer rows than PageSize (historical cap, or a
   //      partial tail page). Arithmetic walks silently truncate.
   //   2. The last page (partial) gets dropped by the condition check. The
-  //      previous version had a `done` flag that flipped true right when
+  //      previous version had a \`done\` flag that flipped true right when
   //      the tail page had been fetched, and List.Generate skips a state
   //      whose condition evaluates false — so 911 rows on the last page
   //      vanished and the user saw 7,000 instead of 7,911.
