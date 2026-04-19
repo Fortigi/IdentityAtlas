@@ -1,0 +1,1 @@
+- Fixed Docker image publishing not triggering automatically after PR merges to main
