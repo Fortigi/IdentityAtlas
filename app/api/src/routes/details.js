@@ -130,7 +130,18 @@ router.get('/user/:id', async (req, res) => {
 
     let historyCount = 0;
     try { historyCount = await countHistory('Principals', userId); } catch { /* _history may not exist */ }
-    res.json({ attributes, tags, membershipCount, accessPackageCount, historyCount, hasHistory: historyCount > 0, lastActivity: null });
+
+    let oauth2GrantCount = 0;
+    try {
+      const r = await timedRequest(pool, 'user-oauth2-grant-count', res)
+        .input('id', userId)
+        .query(`SELECT COUNT(*)::int AS cnt
+                  FROM "ResourceAssignments"
+                 WHERE "principalId"::text = @id AND "assignmentType" = 'OAuth2Grant'`);
+      oauth2GrantCount = r.recordset[0].cnt;
+    } catch { /* column may not exist on older deployments */ }
+
+    res.json({ attributes, tags, membershipCount, accessPackageCount, historyCount, hasHistory: historyCount > 0, oauth2GrantCount, lastActivity: null });
   } catch (err) {
     console.error('Error fetching user detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch user details' });
@@ -190,6 +201,48 @@ router.get('/user/:id/access-packages', async (req, res) => {
   } catch (err) {
     console.error('Error fetching user access packages:', err.message);
     res.status(500).json({ error: 'Failed to fetch access packages' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────
+// GET /api/user/:id/oauth2-grants — Lazy-loaded OAuth2 consents
+// One row per (client app, target API, scope) this user authorized.
+// Joins the scope Resource → DelegatesScope ResourceRelationship → client-app
+// Resource chain so the client app's displayName resolves even when
+// extendedAttributes is blank.
+// ────────────────────────────────────────────────────────────────
+router.get('/user/:id/oauth2-grants', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.json([]);
+  try {
+    const pool = await db.getPool();
+    const r = await timedRequest(pool, 'user-oauth2-grants', res)
+      .input('id', req.params.id)
+      .query(`
+      SELECT
+        scope_res.id                       AS "scopeResourceId",
+        scope_res."displayName"            AS "scopeDisplayName",
+        scope_res."extendedAttributes"     AS "scopeExtendedAttributes",
+        rr."parentResourceId"              AS "clientSpId",
+        client_res."displayName"           AS "clientDisplayName",
+        a."extendedAttributes"             AS "grantExtendedAttributes"
+        FROM "ResourceAssignments" a
+        JOIN "Resources" scope_res
+          ON scope_res.id = a."resourceId"
+         AND scope_res."resourceType" = 'DelegatedPermission'
+        LEFT JOIN "ResourceRelationships" rr
+          ON rr."childResourceId" = scope_res.id
+         AND rr."relationshipType" = 'DelegatesScope'
+        LEFT JOIN "Resources" client_res
+          ON client_res.id = rr."parentResourceId"
+       WHERE a."principalId"::text = @id
+         AND a."assignmentType" = 'OAuth2Grant'
+       ORDER BY client_res."displayName", scope_res."displayName"
+    `);
+    res.json(r.recordset);
+  } catch (err) {
+    console.error('Error fetching user oauth2 grants:', err.message);
+    res.status(500).json({ error: 'Failed to fetch OAuth2 grants' });
   }
 });
 
