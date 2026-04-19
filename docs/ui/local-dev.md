@@ -21,9 +21,41 @@ The PostgreSQL port `5432` is exposed to the host for direct database access dur
 
 ## Start the Stack
 
-```bash
-docker compose up -d
-```
+First, create your `.env` file from the template (only needed once):
+
+=== "Linux / macOS"
+
+    ```bash
+    cp setup/config/.env.example .env
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    Copy-Item setup/config/.env.example .env
+    ```
+
+Then start the stack. Use `--build` on the first run (or after pulling new commits) to build the images from source:
+
+=== "Linux / macOS"
+
+    ```bash
+    # First run or after code changes — builds images from source (~3 min)
+    docker compose up -d --build
+
+    # Subsequent runs (images already built)
+    docker compose up -d
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    # First run or after code changes — builds images from source (~3 min)
+    docker compose up -d --build
+
+    # Subsequent runs (images already built)
+    docker compose up -d
+    ```
 
 This starts:
 
@@ -52,13 +84,25 @@ The worker runs every minute and picks up queued jobs. Live progress is shown on
 
 ## Stopping and Resetting
 
-```bash
-# Stop the stack (data persists in the postgres_data volume)
-docker compose down
+=== "Linux / macOS"
 
-# Stop and delete all data (full reset)
-docker compose down -v
-```
+    ```bash
+    # Stop the stack (data persists in the postgres_data volume)
+    docker compose down
+
+    # Stop and delete all data (full reset)
+    docker compose down -v
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    # Stop the stack (data persists in the postgres_data volume)
+    docker compose down
+
+    # Stop and delete all data (full reset)
+    docker compose down -v
+    ```
 
 ## Building the Image Manually
 
