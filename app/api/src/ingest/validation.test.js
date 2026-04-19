@@ -307,3 +307,66 @@ describe('validateRecords — error cap', () => {
     expect(result.errors[10]).toMatch(/stopped after/);
   });
 });
+
+// ── validateRecords — principal-activity ─────────────────────────────────────
+
+describe('validateRecords — principal-activity', () => {
+  const valid = {
+    principalId:  '22222222-2222-2222-2222-222222222222',
+    resourceId:   '00000000-0000-0000-0000-000000000000', // aggregate sentinel
+    activityType: 'SignIn',
+    lastSignInDateTime: '2026-04-18T12:34:56Z',
+  };
+
+  it('accepts an aggregate (resourceId = sentinel) SignIn record', () => {
+    const result = validateRecords([valid], 'principal-activity');
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('accepts a per-(principal,app) SignInPerApp record', () => {
+    const r = {
+      principalId:  '22222222-2222-2222-2222-222222222222',
+      resourceId:   '33333333-3333-3333-3333-333333333333',
+      activityType: 'SignInPerApp',
+      lastSignInDateTime: '2026-04-18T12:34:56Z',
+      lastSuccessfulSignInDateTime: '2026-04-18T12:34:56Z',
+      signInCount: 5,
+    };
+    expect(validateRecords([r], 'principal-activity').valid).toBe(true);
+  });
+
+  it('requires principalId', () => {
+    const { principalId: _, ...noPid } = valid;
+    const result = validateRecords([noPid], 'principal-activity');
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => /principalId/.test(e))).toBe(true);
+  });
+
+  it('requires activityType', () => {
+    const { activityType: _, ...noType } = valid;
+    const result = validateRecords([noType], 'principal-activity');
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => /activityType/.test(e))).toBe(true);
+  });
+
+  it('rejects a malformed UUID in principalId', () => {
+    const result = validateRecords([{ ...valid, principalId: 'nope' }], 'principal-activity');
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => /UUID/.test(e))).toBe(true);
+  });
+
+  it('rejects a malformed UUID in resourceId', () => {
+    const result = validateRecords([{ ...valid, resourceId: 'nope' }], 'principal-activity');
+    expect(result.valid).toBe(false);
+  });
+
+  it('exports AGG_RESOURCE_ID matching the migration DEFAULT', async () => {
+    // The sentinel is cross-boundary: the migration DEFAULT, the ingest
+    // validator, the crawler PS1 and the risk-engine all hardcode it. If
+    // they ever diverge, aggregate rows won't match their own unique key
+    // and silently duplicate. The migration value is authoritative.
+    const { AGG_RESOURCE_ID } = await import('./validation.js');
+    expect(AGG_RESOURCE_ID).toBe('00000000-0000-0000-0000-000000000000');
+  });
+});
