@@ -1,24 +1,26 @@
-# ─── Cut a Release Branch ─────────────────────────────────────────────────────
-# Manually triggered. Creates release/vX.Y from main, sets the version to
-# X.Y.0.0, then triggers docker-publish to build and push the initial
-# :latest image for that version.
+# ─── Cut a Release ────────────────────────────────────────────────────────────
+# Manually triggered. Tags the current main HEAD with vX.Y.Z and lets
+# docker-publish (triggered by the tag push) build and push :latest + :X.Y.Z.0.
 #
 # Usage:
-#   1. Go to Actions → Cut Release Branch → Run workflow
-#   2. Enter the version (e.g. "5.2" — major.minor only, no patch)
-#   3. The workflow creates release/v5.2, sets ModuleVersion = 5.2.0.0,
-#      and publishes ghcr.io/fortigi/identity-atlas:latest + :5.2.0.0
-#   4. Bugfixes targeting that release are PRed into release/v5.2
-#   5. Each merge bumps patch and republishes: 5.2.0.0 → 5.2.1.0 → 5.2.2.0 ...
+#   1. Go to Actions → Cut Release → Run workflow
+#   2. Enter the version (e.g. "5.2.0" — major.minor.patch)
+#   3. The workflow creates tag v5.2.0 on the current main HEAD
+#   4. docker-publish builds and pushes :latest + :5.2.0.0
+#
+# Hotfixes (shipping a bugfix without including features already on main):
+#   1. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the tag, not main
+#   2. Fix the bug, push the branch
+#   3. Run Actions → Cut Hotfix with the branch name and new version (e.g. 5.2.1)
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Cut Release Branch
+name: Cut Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (major.minor only, e.g. "5.2")'
+        description: 'Release version (major.minor.patch, e.g. "5.2.0")'
         required: true
 
 jobs:
@@ -26,13 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write
 
     steps:
       - name: Validate version input
         run: |
-          if ! echo "${{ github.event.inputs.version }}" | grep -qE '^\d+\.\d+$'; then
-            echo "::error::Version must be in Major.Minor format (e.g. 5.2)"
+          if ! echo "${{ github.event.inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version must be in Major.Minor.Patch format (e.g. 5.2.0)"
             exit 1
           fi
 
@@ -40,42 +41,37 @@ jobs:
         with:
           ref: main
           token: ${{ secrets.VERSION_BUMP_PAT }}
-          fetch-depth: 0
 
-      - name: Create release branch and set version
-        shell: pwsh
+      - name: Create and push release tag
         run: |
-          $version  = "${{ github.event.inputs.version }}"
-          $branch   = "release/v$version"
-          $newVer   = "$version.0.0"
-
-          # Create and push the branch
-          git checkout -b $branch
-          Write-Host "Created branch $branch"
-
-          # Set version to Major.Minor.0.0
-          $content = Get-Content setup/IdentityAtlas.psd1 -Raw
-          $content = $content -replace "ModuleVersion\s*=\s*'\d+\.\d+\.\d+\.\d+'", "ModuleVersion = '$newVer'"
-          Set-Content setup/IdentityAtlas.psd1 $content -NoNewline
-          Write-Host "Set ModuleVersion to $newVer"
-
-          "NEW_VERSION=$newVer" | Out-File -Append $env:GITHUB_ENV
-          "BRANCH=$branch"      | Out-File -Append $env:GITHUB_ENV
-
-      - name: Commit and push
-        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          TAG="v${VERSION}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add setup/IdentityAtlas.psd1
-          git commit -m "chore: cut release branch, set version to ${NEW_VERSION}"
-          git push origin "${BRANCH}"
-          echo "✅ Release branch ${BRANCH} created at version ${NEW_VERSION}"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "✅ Tagged ${TAG} on $(git rev-parse --short HEAD)"
 
-      - name: Trigger docker-publish for initial release image
+      - name: Post run summary
         run: |
-          gh workflow run docker-publish.yml \
-            --ref main \
-            --field branch="${BRANCH}"
-          echo "✅ docker-publish triggered for ${BRANCH} (will publish :latest + :${NEW_VERSION})"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## ✅ Release tagged
+
+          | | |
+          |---|---|
+          | **Tag** | \`${TAG}\` |
+          | **Version** | \`${VERSION}.0\` |
+          | **Commit** | \`$(git rev-parse --short HEAD)\` |
+
+          docker-publish is now building \`:latest\` + \`:${VERSION}.0\` — check the [Actions tab](../../actions) for progress.
+
+          ### Hotfix workflow (if a bug is found in this release)
+          \`\`\`bash
+          git checkout -b bugfixes/fix-foo ${TAG}   # branch from the tag, not main
+          # fix the bug, commit, push
+          git push origin bugfixes/fix-foo
+          # then run Actions → Cut Hotfix
+          \`\`\`
+          EOF

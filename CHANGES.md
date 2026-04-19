@@ -1,5 +1,38 @@
 ## Changes in this PR
 
+- Replaced long-lived release branches with git tags for release management — hotfixes now ship only the fix, without features already merged to main
+- Added "Cut Release" workflow: tags vX.Y.Z on main HEAD, triggers :latest publish
+- Added "Cut Hotfix" workflow: tags a hotfix branch commit as a new patch version, triggers :latest publish
+- Removed release branch concept — no more "Compare & pull request" banner confusion after cutting a release
+
+## Changes in this PR
+
+- Added branching and versioning strategy reference page under docs/architecture
+- Added `--pull always` flag to Quick Start commands in README, quickstart, docker-setup, and index docs so users always get the newest image
+- Added `.env` setup step (copy from template) to all Quick Start sections
+- Added tabbed Linux/macOS and Windows code blocks throughout docker-setup and local-dev docs
+- Fixed version pinning example in quickstart to use release format (5.2.0.0) instead of edge timestamp format
+- Fixed history.md to link to the branching strategy doc instead of referencing CLAUDE.md
+- Aligned local-dev.md with docker-setup.md: added --build note for first run, tabbed stop/reset commands
+
+## Changes in this PR
+
+- Added an About page showing the MIT license text and Software Bill of Materials
+- The version string in the footer is now a clickable link to the About page
+
+## Changes in this PR
+
+- Added Service Principals to the Entra ID crawler. When the "Service Principals" object type is selected, the crawler now pulls all Entra service principals (enterprise apps, managed identities, AI agents) and writes them to the Principals table alongside user accounts — unblocking future Azure RM role-assignment imports that reference these identities.
+- New classification helper (`Get-FGServicePrincipalType`) tags each service principal as `ManagedIdentity`, `AIAgent`, or `ServicePrincipal` based on Graph's `servicePrincipalType`, well-known Microsoft AI platform tags (CopilotStudio, PowerVirtualAgents, AzureOpenAI, CognitiveServices), the Entra Agent ID markers (`AgenticInstance`, `AgenticApp`, `power-virtual-agents-*`), and display-name heuristics. Custom AI-name patterns can be supplied per crawler config via `aiNamePatterns`.
+- Extra SP metadata (`appId`, `servicePrincipalType`, `publisherName`, `homepage`, `tags`, `servicePrincipalNames`, `notes`) is stored in `extendedAttributes` so it shows up in the Users filter dropdown and detail pages.
+- Added principal-type sub-tabs to the Users page ("All / Users / Service Principals / Managed Identities / AI Agents") so the list stays navigable after an SP sync adds thousands of non-human identities. The active tab is preserved in the URL hash (`#users?type=AIAgent`).
+
+## Changes in this PR
+
+- Fixed the Cut Release workflow rejecting valid version inputs like "5.2" due to a non-portable regex
+
+## Changes in this PR
+
 - Fixed the "Filters" dropdown on the Users and Resources pages — attribute fields (Department, Job Title, etc.) and their values are populated again. The list had regressed to showing only "User Tag" because column discovery was looking up table names in the wrong case after the PostgreSQL migration.
 - Added regression tests pinning the PostgreSQL table and column casing used by column discovery, so the same mismatch can't slip back in.
 - Added extended-attribute fields to the Users and Resources filter dropdowns. Keys stored inside the `extendedAttributes` JSON blob (e.g. `userType`, `onPremisesSyncEnabled`, `extensionAttribute5`, `city`, `country`) are now filterable via the UI, labelled with a "(ext)" suffix so they're distinguishable from regular columns.

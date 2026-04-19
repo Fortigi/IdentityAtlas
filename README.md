@@ -20,8 +20,9 @@ cp .env.example .env
 #   POSTGRES_PASSWORD=<strong-password>
 #   IDENTITY_ATLAS_MASTER_KEY=<random-32-char-string>
 
-# 3. Start the stack (first run: ~2 min to pull images)
-docker compose -f docker-compose.prod.yml up -d
+# 3. Start the stack (first run: ~2 min to pull images; --pull always ensures
+#    Docker fetches the newest :latest instead of reusing a cached copy)
+docker compose -f docker-compose.prod.yml up -d --pull always
 
 # 4. Open http://localhost:3001
 #    Go to Admin > Crawlers, then click "Load Demo Data" to explore with sample data, or

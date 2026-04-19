@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import useEntityPage from '../hooks/useEntityPage';
 import FilterBar from './FilterBar';
@@ -28,8 +28,51 @@ const TABLE_COLUMNS = [
   { key: 'jobTitle',          label: 'Job Title' },
 ];
 
+// Sub-tabs for principalType. The Principals table is a universal identity
+// store, so the "Users" page now lists more than just humans — splitting it
+// by type keeps each view manageable when SP/MI/AIAgent sync is enabled.
+// The tab label is what's shown; the value is matched against the column.
+// 'all' is a sentinel for "no filter".
+const PRINCIPAL_TYPE_TABS = [
+  { key: 'all',              label: 'All' },
+  { key: 'User',             label: 'Users' },
+  { key: 'ServicePrincipal', label: 'Service Principals' },
+  { key: 'ManagedIdentity',  label: 'Managed Identities' },
+  { key: 'AIAgent',          label: 'AI Agents' },
+];
+
+// Read/write the active sub-tab from the URL hash (?type=User on the users
+// route). This keeps deep links working across reload, matching the pattern
+// the Admin page uses for its own sub-tabs.
+function readTypeFromHash() {
+  const hash = window.location.hash.replace('#', '');
+  const q = hash.indexOf('?');
+  const params = new URLSearchParams(q >= 0 ? hash.substring(q + 1) : '');
+  const t = params.get('type');
+  return t && PRINCIPAL_TYPE_TABS.some(tab => tab.key === t) ? t : 'all';
+}
+
+function writeTypeToHash(tab) {
+  const hash = window.location.hash.replace('#', '');
+  const q = hash.indexOf('?');
+  const page = q >= 0 ? hash.substring(0, q) : hash;
+  const params = new URLSearchParams(q >= 0 ? hash.substring(q + 1) : '');
+  if (tab === 'all') params.delete('type'); else params.set('type', tab);
+  const qs = params.toString();
+  window.history.replaceState(null, '', `#${page}${qs ? '?' + qs : ''}`);
+}
+
 export default function UsersPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
+  const [activeTypeTab, setActiveTypeTab] = useState(readTypeFromHash);
+
+  useEffect(() => { writeTypeToHash(activeTypeTab); }, [activeTypeTab]);
+
+  // Memoise so useEntityPage's filtersObj memo isn't busted every render.
+  const baseFilters = useMemo(
+    () => (activeTypeTab === 'all' ? null : { principalType: activeTypeTab }),
+    [activeTypeTab],
+  );
 
   const ep = useEntityPage({
     authFetch,
@@ -37,9 +80,20 @@ export default function UsersPage({ onOpenDetail }) {
     listEndpoint: '/api/users',
     columnsEndpoint: '/api/user-columns-page',
     tagFilterKey: '__userTag',
+    baseFilters,
   });
 
-  const filterFields = useMemo(() => ep.getFilterFields(FIELD_LABELS), [ep]);
+  // Hide `principalType` from the Filters dropdown only when a specific
+  // sub-tab is active — the tab is the authoritative selector there, and
+  // having both would create two ways to set the same value. On the "All"
+  // tab no type is pinned, so leave `principalType` available as a regular
+  // filter option.
+  const filterFields = useMemo(
+    () => ep.getFilterFields(FIELD_LABELS).filter(f =>
+      !(activeTypeTab !== 'all' && f.key === 'principalType')
+    ),
+    [ep, activeTypeTab],
+  );
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -47,6 +101,26 @@ export default function UsersPage({ onOpenDetail }) {
       <div className="flex items-center gap-4 mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Users</h2>
         <span className="text-sm text-gray-500">{ep.total.toLocaleString()} total</span>
+      </div>
+
+      {/* Principal-type sub-tabs. Matches the underlined-pills style used by
+          the Admin page's own sub-tab bar so the UX is consistent. */}
+      <div className="border-b border-gray-200 mb-4">
+        <nav className="flex gap-1 -mb-px">
+          {PRINCIPAL_TYPE_TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTypeTab(tab.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTypeTab === tab.key
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
       </div>
 
       {/* Tag management bar */}
