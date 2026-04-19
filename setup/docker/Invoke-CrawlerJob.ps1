@@ -135,6 +135,7 @@ switch ($JobType) {
                 if ($objects.ContainsKey('identityGovernance')) { $crawlerParams['SyncGovernance']          = [bool]$objects['identityGovernance'] }
                 if ($objects.ContainsKey('context'))            { $crawlerParams['SyncContexts']            = [bool]$objects['context'] }
                 if ($objects.ContainsKey('pim'))                { $crawlerParams['SyncPim']                 = [bool]$objects['pim'] }
+                if ($objects.ContainsKey('signInLogs'))         { $crawlerParams['SyncSignInLogs']          = [bool]$objects['signInLogs'] }
             }
             # Direct sync toggles (backward compat)
             if ($Config.ContainsKey('syncPrincipals'))         { $crawlerParams['SyncPrincipals']         = [bool]$Config['syncPrincipals'] }
@@ -143,6 +144,8 @@ switch ($JobType) {
             if ($Config.ContainsKey('syncAssignments'))         { $crawlerParams['SyncAssignments']         = [bool]$Config['syncAssignments'] }
             if ($Config.ContainsKey('syncGovernance'))          { $crawlerParams['SyncGovernance']          = [bool]$Config['syncGovernance'] }
             if ($Config.ContainsKey('syncContexts'))            { $crawlerParams['SyncContexts']            = [bool]$Config['syncContexts'] }
+            if ($Config.ContainsKey('syncSignInLogs'))          { $crawlerParams['SyncSignInLogs']          = [bool]$Config['syncSignInLogs'] }
+            if ($Config.ContainsKey('signInLogsDays'))          { $crawlerParams['SignInLogsDays']          = [int]$Config['signInLogsDays'] }
 
             # Custom attributes — merge identityAttributes into CustomUserAttributes
             # so they're fetched in the same Graph call AND included in identity records
