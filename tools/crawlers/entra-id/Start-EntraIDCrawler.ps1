@@ -457,7 +457,12 @@ if ($SyncPrincipals) {
     $coreUserAttrs = @(
         'id','displayName','mail','userPrincipalName','accountEnabled',
         'givenName','surname','department','jobTitle','companyName','employeeId',
-        'createdDateTime','userType','signInActivity','externalUserState'
+        'createdDateTime','userType','signInActivity','externalUserState',
+        # Needed so Add-FGEntraCalculatedAttributes can derive the _OuPath
+        # calculated field for on-prem-synced users. Cheap to fetch (single
+        # string), high value for reporting. Cloud-native users just leave
+        # it null and no _OuPath is emitted.
+        'onPremisesDistinguishedName'
     )
 
     # If any custom attribute is extensionAttributeN, add onPremisesExtensionAttributes to the select
@@ -525,6 +530,10 @@ if ($SyncPrincipals) {
                 if ($null -ne $val -and $val -ne '') { $ext[$attr] = $val }
             }
         }
+        # Identity-Atlas-calculated fields: portal Link and *_OuPath derived
+        # from any DN-shaped value in the record. Runs last so it sees both
+        # the core attributes above and every CustomUserAttribute.
+        Add-FGEntraCalculatedAttributes -Object $_ -Ext $ext -Type 'User' | Out-Null
         if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
         $rec
     })
@@ -674,6 +683,8 @@ if ($SyncServicePrincipals) {
         if ($sp.servicePrincipalNames -and $sp.servicePrincipalNames.Count -gt 0) {
             $ext['servicePrincipalNames'] = ($sp.servicePrincipalNames -join ',')
         }
+        # Portal Link + any *_OuPath fields from DN-shaped extension attrs.
+        Add-FGEntraCalculatedAttributes -Object $sp -Ext $ext -Type 'ServicePrincipal' | Out-Null
         if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
 
         [void]$buckets[$pt].Add($rec)
@@ -709,6 +720,9 @@ if ($SyncResources) {
         foreach ($attr in $CustomGroupAttributes) {
             if ($_.$attr -ne $null) { $ext[$attr] = $_.$attr }
         }
+        # Portal Link + *_OuPath for any DN-shaped custom attr (fgGroupDN,
+        # onPremisesDistinguishedName via CustomGroupAttributes, etc.).
+        Add-FGEntraCalculatedAttributes -Object $_ -Ext $ext -Type 'Group' | Out-Null
         @{
             id              = $_.id
             displayName     = $_.displayName
