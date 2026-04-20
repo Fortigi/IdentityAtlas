@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Added a one-click Excel Power Query workbook download under **Admin → Data → Excel Power Query Workbook**. Clicking "Generate token & download workbook" mints a read-only API key, embeds it in the workbook's Settings sheet alongside the API URL, and streams the file back. Data analysts can drop the file on any machine and refresh from any deployment without ever editing M code.
+- Tabs included: Systems, Principals, Resources, Assignments, Identities, IdentityMembers, ResourceRelationships. Each tab includes pre-written paginated Power Query M code that the user pastes into Power Query Editor (Data → Get Data → Other Sources → Blank Query). A future iteration will swap in a hand-built template that loads queries automatically — the rest of the plumbing is already in place.
+- New read-only API token type (`fgr_…`). Tokens are accepted on GET requests to non-admin endpoints only — they cannot mutate data or reach any admin endpoint, even if leaked. Stored as SHA-256 hashes; plaintext is shown to the operator exactly once at creation. Tokens can be revoked from the same admin section, which immediately stops every workbook holding them from refreshing.
+- New bulk list endpoints for the join tables that previously had no flat listing: `/api/assignments`, `/api/identity-members`, `/api/resource-relationships`. All are paginated (`?limit=1000&offset=N`, max 10 000 per page) with optional `?systemId=N` filter, returning `{ data, total }` like every other list endpoint.
+
+## Changes in this PR
+
 - Fixed Docker image publishing not triggering automatically after PR merges to main
 
 ## Changes in this PR
