@@ -356,10 +356,22 @@ function Get-FGGroupChildrenParallel {
 }
 
 # ─── Helper: report fine-grained progress to the API ─────────────
-# Sends partial updates (any of step/pct/detail) to /crawlers/job-progress so the
-# UI can display "what is the crawler doing right now" between the worker's
-# coarse-grained progress markers. No-op when running standalone (no JobId set).
-# Failures are swallowed — progress reporting must never break the crawl itself.
+# Sends partial updates (any of step/pct/detail) to /crawlers/job-progress so
+# the UI can display "what is the crawler doing right now" between the
+# worker's coarse-grained progress markers. No-op when running standalone
+# (no JobId set).
+#
+# This function doubles as our abort-detection channel. The server-side
+# endpoint returns HTTP 409 when the job is no longer `running` / `queued`
+# — most commonly because the web container's bootstrap marked the job as
+# `failed` on restart. Before: that signal was silently swallowed and the
+# crawler kept processing an orphaned run, blocking the queue for hours.
+# Now: 409 causes an immediate throw, which the dispatcher catches and
+# turns into a clean "skip and move on" at the next poll.
+#
+# Transient errors (network blips, temporary 5xx) are still swallowed —
+# progress reporting is non-critical and a 5s API hiccup should never
+# kill a 90-minute crawl.
 function Update-CrawlerProgress {
     param(
         [string]$Step,
@@ -377,7 +389,17 @@ function Update-CrawlerProgress {
         Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/job-progress" -Method Post `
             -Headers $headers -Body $json -TimeoutSec 10 | Out-Null
     } catch {
-        # Silent on purpose — progress is best-effort
+        $statusCode = $null
+        try { $statusCode = $_.Exception.Response.StatusCode.value__ } catch {}
+        if ($statusCode -eq 409) {
+            # The job has been terminated server-side. Propagate so the
+            # dispatcher breaks out of the current crawl and the worker
+            # moves on to the next queued job. Message format is
+            # deliberately distinctive so operators grepping logs can
+            # see the self-heal event.
+            throw "Job $JobId terminated server-side (HTTP 409) — aborting crawl"
+        }
+        # Everything else is transient and non-critical.
     }
 }
 
@@ -430,6 +452,13 @@ Write-Host "  System ID: $systemId" -ForegroundColor Green
 
 $syncStart = Get-Date
 
+# Per-phase timings. Each major `if ($Sync...)` block stops a Stopwatch at
+# its end and records the elapsed time here. Printed as a table at the end
+# so operators can see where the crawl actually spent its time without
+# needing to instrument downstream logs. Ordered so the Summary prints in
+# execution order.
+$phaseTimings = [ordered]@{}
+
 # ─── Helper: get attribute value, handling extensionAttributeN ────
 # extensionAttribute1-15 live under onPremisesExtensionAttributes
 function Get-UserAttrValue {
@@ -445,6 +474,7 @@ function Get-UserAttrValue {
 
 # ─── Sync Principals ─────────────────────────────────────────────
 if ($SyncPrincipals) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing principals (users)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing users' -Pct 12 -Detail 'Fetching from Microsoft Graph...'
 
@@ -457,7 +487,12 @@ if ($SyncPrincipals) {
     $coreUserAttrs = @(
         'id','displayName','mail','userPrincipalName','accountEnabled',
         'givenName','surname','department','jobTitle','companyName','employeeId',
-        'createdDateTime','userType','signInActivity','externalUserState'
+        'createdDateTime','userType','signInActivity','externalUserState',
+        # Needed so Add-FGEntraCalculatedAttributes can derive the _OuPath
+        # calculated field for on-prem-synced users. Cheap to fetch (single
+        # string), high value for reporting. Cloud-native users just leave
+        # it null and no _OuPath is emitted.
+        'onPremisesDistinguishedName'
     )
 
     # If any custom attribute is extensionAttributeN, add onPremisesExtensionAttributes to the select
@@ -525,6 +560,10 @@ if ($SyncPrincipals) {
                 if ($null -ne $val -and $val -ne '') { $ext[$attr] = $val }
             }
         }
+        # Identity-Atlas-calculated fields: portal Link and *_OuPath derived
+        # from any DN-shaped value in the record. Runs last so it sees both
+        # the core attributes above and every CustomUserAttribute.
+        Add-FGEntraCalculatedAttributes -Object $_ -Ext $ext -Type 'User' | Out-Null
         if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
         $rec
     })
@@ -608,6 +647,7 @@ if ($SyncPrincipals) {
             Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode 'full' -Records $idMembers
         }
     }
+    $__phaseSW.Stop(); $phaseTimings['Principals'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync Service Principals ─────────────────────────────────────
@@ -621,6 +661,7 @@ if ($SyncPrincipals) {
 # gets its own full-sync batch because the ingest API's scoped-delete works
 # on exactly one principalType value at a time.
 if ($SyncServicePrincipals) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing service principals..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing service principals' -Pct 18 -Detail 'Fetching from Microsoft Graph...'
 
@@ -674,6 +715,8 @@ if ($SyncServicePrincipals) {
         if ($sp.servicePrincipalNames -and $sp.servicePrincipalNames.Count -gt 0) {
             $ext['servicePrincipalNames'] = ($sp.servicePrincipalNames -join ',')
         }
+        # Portal Link + any *_OuPath fields from DN-shaped extension attrs.
+        Add-FGEntraCalculatedAttributes -Object $sp -Ext $ext -Type 'ServicePrincipal' | Out-Null
         if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
 
         [void]$buckets[$pt].Add($rec)
@@ -689,10 +732,12 @@ if ($SyncServicePrincipals) {
         Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
             -Scope @{ principalType = $pt } -Records @($bucket)
     }
+    $__phaseSW.Stop(); $phaseTimings['ServicePrincipals'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync Resources (Groups) ─────────────────────────────────────
 if ($SyncResources) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing resources (groups)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing groups' -Pct 20 -Detail 'Fetching groups from Microsoft Graph...'
     $coreGroupAttrs = @('id','displayName','description','mail','visibility','createdDateTime','groupTypes','securityEnabled','mailEnabled')
@@ -709,6 +754,9 @@ if ($SyncResources) {
         foreach ($attr in $CustomGroupAttributes) {
             if ($_.$attr -ne $null) { $ext[$attr] = $_.$attr }
         }
+        # Portal Link + *_OuPath for any DN-shaped custom attr (fgGroupDN,
+        # onPremisesDistinguishedName via CustomGroupAttributes, etc.).
+        Add-FGEntraCalculatedAttributes -Object $_ -Ext $ext -Type 'Group' | Out-Null
         @{
             id              = $_.id
             displayName     = $_.displayName
@@ -724,10 +772,12 @@ if ($SyncResources) {
 
     Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ resourceType = 'EntraGroup' } -Records $records
+    $__phaseSW.Stop(); $phaseTimings['Resources'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync Assignments (Group Members) ────────────────────────────
 if ($SyncAssignments) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing assignments (group memberships)..." -ForegroundColor Cyan
     $totalGroups = $groups.Count
     Update-CrawlerProgress -Step 'Syncing group memberships' -Pct 25 -Detail "0 of $totalGroups groups"
@@ -777,6 +827,7 @@ if ($SyncAssignments) {
     Update-CrawlerProgress -Detail "Uploading $($allOwners.Count) owner assignments..."
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ assignmentType = 'Owner' } -Records $allOwners
+    $__phaseSW.Stop(); $phaseTimings['Assignments'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync PIM (Eligible group memberships) ───────────────────────
@@ -784,6 +835,7 @@ if ($SyncAssignments) {
 # in groups. Each group must be queried individually because the Graph API
 # requires a groupId filter on /privilegedAccess/group/eligibilitySchedules.
 if ($SyncPim) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing PIM eligible memberships..." -ForegroundColor Cyan
     try {
         # Filter out dynamic groups (cannot be PIM-enabled)
@@ -869,10 +921,12 @@ if ($SyncPim) {
     } catch {
         Write-Host "  PIM sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
     }
+    $__phaseSW.Stop(); $phaseTimings['PIM'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync Governance ─────────────────────────────────────────────
 if ($SyncGovernance) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Update-CrawlerProgress -Step 'Syncing governance' -Pct 66 -Detail 'Catalogs, access packages, policies, reviews...'
     try {
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (catalogs)..." -ForegroundColor Cyan
@@ -1107,10 +1161,12 @@ if ($SyncGovernance) {
         Write-Host "  Governance sync skipped: $($_.Exception.Message)" -ForegroundColor Yellow
         Write-Host "  This tenant may not have Entitlement Management (Access Packages) enabled." -ForegroundColor Yellow
     }
+    $__phaseSW.Stop(); $phaseTimings['Governance'] = $__phaseSW.Elapsed
 }
 
 # ─── Refresh Views ───────────────────────────────────────────────
 if ($RefreshViews) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Update-CrawlerProgress -Step 'Refreshing materialized views' -Pct 76 -Detail 'Rebuilding SQL views...'
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Refreshing materialized views..." -ForegroundColor Cyan
     try {
@@ -1120,12 +1176,35 @@ if ($RefreshViews) {
     catch {
         Write-Host "  View refresh failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
     }
+    $__phaseSW.Stop(); $phaseTimings['RefreshViews'] = $__phaseSW.Elapsed
 }
 
 # ─── Summary ─────────────────────────────────────────────────────
 $elapsed = (Get-Date) - $syncStart
 Write-Host "`n=== Sync Complete ===" -ForegroundColor Green
 Write-Host "Duration: $([Math]::Round($elapsed.TotalSeconds)) seconds" -ForegroundColor Gray
+
+# Per-phase breakdown. The point of the table is to tell an operator
+# WHERE the time went so a "this sync takes too long" complaint can be
+# investigated without re-running with profiling hacks. Unaccounted time
+# (setup, context build invoked by the dispatcher, etc.) is the line
+# at the bottom.
+if ($phaseTimings.Count -gt 0) {
+    Write-Host "`nPer-phase breakdown:" -ForegroundColor Cyan
+    $phaseTotal = [TimeSpan]::Zero
+    foreach ($kv in $phaseTimings.GetEnumerator()) {
+        $secs = [Math]::Round($kv.Value.TotalSeconds, 1)
+        $pct  = if ($elapsed.TotalSeconds -gt 0) { [Math]::Round(100 * $kv.Value.TotalSeconds / $elapsed.TotalSeconds, 1) } else { 0 }
+        Write-Host ("  {0,-22} {1,8}s  ({2,5}%)" -f $kv.Key, $secs, $pct) -ForegroundColor Gray
+        $phaseTotal += $kv.Value
+    }
+    $other = $elapsed - $phaseTotal
+    if ($other.TotalSeconds -gt 1) {
+        $otherSecs = [Math]::Round($other.TotalSeconds, 1)
+        $otherPct  = [Math]::Round(100 * $other.TotalSeconds / $elapsed.TotalSeconds, 1)
+        Write-Host ("  {0,-22} {1,8}s  ({2,5}%)" -f 'Other (setup/etc)', $otherSecs, $otherPct) -ForegroundColor DarkGray
+    }
+}
 
 # Write a single sync log entry covering the full crawler runtime so the
 # Sync Log page reflects the actual end-to-end duration (not just the per-batch
