@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed Docker image publishing not triggering automatically after PR merges to main
+
+## Changes in this PR
+
+- Fixed Quick Start documentation: Image channel switching code now includes Windows PowerShell syntax
+
+## Changes in this PR
+
 - Replaced long-lived release branches with git tags for release management — hotfixes now ship only the fix, without features already merged to main
 - Added "Cut Release" workflow: tags vX.Y.Z on main HEAD, triggers :latest publish
 - Added "Cut Hotfix" workflow: tags a hotfix branch commit as a new patch version, triggers :latest publish

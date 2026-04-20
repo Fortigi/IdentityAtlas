@@ -85,13 +85,26 @@ Identity Atlas publishes two channels:
 
 Both channels also publish an exact version tag (`:5.2.0.0`, `:5.2.1.0`) at the same time as `:latest`, so you can pin to a specific build.
 
-```bash
-# Default: pull the latest stable release
-docker compose -f docker-compose.prod.yml up -d --pull always
+=== "Linux / macOS"
 
-# Edge: latest commit on main (may include unreleased features)
-IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
-```
+    ```bash
+    # Default: pull the latest stable release
+    docker compose -f docker-compose.prod.yml up -d --pull always
+
+    # Edge: latest commit on main (may include unreleased features)
+    IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    # Default: pull the latest stable release
+    docker compose -f docker-compose.prod.yml up -d --pull always
+
+    # Edge: latest commit on main (may include unreleased features)
+    $env:IMAGE_TAG = "edge"
+    docker compose -f docker-compose.prod.yml up -d --pull always
+    ```
 
 ---
 
