@@ -398,7 +398,10 @@ router.get('/users', async (req, res) => {
 
     const search = (req.query.search || '').trim().slice(0, 200);
     const tagId = req.query.tagId ? parseInt(req.query.tagId) : null;
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
+    // Cap at 10k to match the bulk-list endpoints. The UI defaults to 100
+    // and never asks for more; the higher cap is there so Power Query /
+    // BI exports can page through the full dataset in fewer round trips.
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 10000);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
     let attrFilters = {};
@@ -441,10 +444,18 @@ router.get('/users', async (req, res) => {
     where += filterWhere;
 
     // Two-statement query: data + count, returned as recordsets[0] and [1].
+    // Returns the FULL Principals row (every column on the table) so the same
+    // endpoint feeds both the UI table (which ignores extra columns) and the
+    // Excel Power Query export (which auto-expands extendedAttributes into
+    // first-class columns). The UI side is unaffected — extra fields fall
+    // through to the JSON without rendering.
     const result = await request.query(`
       SELECT u.id, u."displayName", u."email" AS "userPrincipalName",
              u."department", u."jobTitle", u."companyName", u."accountEnabled",
              u."principalType", u."systemId", u."externalId",
+             u."givenName", u."surname", u."employeeId", u."managerId",
+             u."contextId", u."createdDateTime", u."extendedAttributes",
+             u."riskScore", u."riskTier",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" = 'user'
@@ -460,8 +471,14 @@ router.get('/users', async (req, res) => {
     `);
 
     const data = result.recordsets[0].map(r => {
-      const { tagString, ...rest } = r;
-      return { ...rest, tags: parseTags(tagString) };
+      const { tagString, extendedAttributes, ...rest } = r;
+      // jsonb columns come back already-parsed from pg, but if it's a string
+      // (defensive — older shim path) parse it. Either way the UI gets a
+      // record/null and Power Query gets a record/null.
+      const parsedExt = extendedAttributes && typeof extendedAttributes === 'string'
+        ? (() => { try { return JSON.parse(extendedAttributes); } catch { return null; } })()
+        : extendedAttributes;
+      return { ...rest, extendedAttributes: parsedExt, tags: parseTags(tagString) };
     });
 
     res.json({ data, total: result.recordsets[1][0].total });
