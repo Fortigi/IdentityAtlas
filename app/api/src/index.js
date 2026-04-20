@@ -32,6 +32,8 @@ import { crawlerAuthMiddleware } from './middleware/crawlerAuth.js';
 import ingestRouter from './routes/ingest.js';
 import jobsRouter from './routes/jobs.js';
 import csvUploadsRouter from './routes/csvUploads.js';
+import dataExportRouter from './routes/dataExport.js';
+import bulkListsRouter from './routes/bulkLists.js';
 import { loadAuthConfig, isAuthEnabled, getTenantId, getClientId } from './config/authConfig.js';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
@@ -246,6 +248,10 @@ app.use('/api', authMiddleware, riskScoringRunsRouter);
 app.use('/api', authMiddleware, correlationRulesetsRouter);
 app.use('/api', authMiddleware, csvUploadsRouter);
 app.use('/api', authMiddleware, governanceRouter);
+// Bulk list endpoints used by Power Query / BI tools (read API keys honoured)
+app.use('/api', authMiddleware, bulkListsRouter);
+// Read API token CRUD + Excel workbook download (admin-scoped)
+app.use('/api', authMiddleware, dataExportRouter);
 
 // ─── Crawler & job routes ───────────────────────────────────────
 // Admin crawler management (Entra ID auth) — /api/admin/crawlers/*
