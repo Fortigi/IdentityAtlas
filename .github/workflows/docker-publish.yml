@@ -19,8 +19,8 @@ on:
   workflow_run:
     workflows: ["Bump version on PR merge"]
     types: [completed]
-    branches:
-      - main
+    # No branches filter: the filter matches the feature branch that triggered
+    # bump-version (via pull_request), not main — so it would never fire.
   push:
     tags:
       - 'v*'
@@ -57,8 +57,9 @@ jobs:
             # Tag push: github.ref_name = v5.2.0
             REF="${{ github.ref_name }}"
           else
-            # workflow_run from bump-version on main
-            REF="${{ github.event.workflow_run.head_branch }}"
+            # workflow_run from bump-version: always build main (bump-version
+            # only runs on PR merge to main, so the result always lands on main)
+            REF="main"
           fi
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
 
