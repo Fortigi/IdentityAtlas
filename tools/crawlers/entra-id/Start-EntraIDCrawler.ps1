@@ -430,6 +430,13 @@ Write-Host "  System ID: $systemId" -ForegroundColor Green
 
 $syncStart = Get-Date
 
+# Per-phase timings. Each major `if ($Sync...)` block stops a Stopwatch at
+# its end and records the elapsed time here. Printed as a table at the end
+# so operators can see where the crawl actually spent its time without
+# needing to instrument downstream logs. Ordered so the Summary prints in
+# execution order.
+$phaseTimings = [ordered]@{}
+
 # ─── Helper: get attribute value, handling extensionAttributeN ────
 # extensionAttribute1-15 live under onPremisesExtensionAttributes
 function Get-UserAttrValue {
@@ -445,6 +452,7 @@ function Get-UserAttrValue {
 
 # ─── Sync Principals ─────────────────────────────────────────────
 if ($SyncPrincipals) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing principals (users)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing users' -Pct 12 -Detail 'Fetching from Microsoft Graph...'
 
@@ -608,6 +616,7 @@ if ($SyncPrincipals) {
             Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode 'full' -Records $idMembers
         }
     }
+    $__phaseSW.Stop(); $phaseTimings['Principals'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync Service Principals ─────────────────────────────────────
@@ -621,6 +630,7 @@ if ($SyncPrincipals) {
 # gets its own full-sync batch because the ingest API's scoped-delete works
 # on exactly one principalType value at a time.
 if ($SyncServicePrincipals) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing service principals..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing service principals' -Pct 18 -Detail 'Fetching from Microsoft Graph...'
 
@@ -689,10 +699,12 @@ if ($SyncServicePrincipals) {
         Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
             -Scope @{ principalType = $pt } -Records @($bucket)
     }
+    $__phaseSW.Stop(); $phaseTimings['ServicePrincipals'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync Resources (Groups) ─────────────────────────────────────
 if ($SyncResources) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing resources (groups)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing groups' -Pct 20 -Detail 'Fetching groups from Microsoft Graph...'
     $coreGroupAttrs = @('id','displayName','description','mail','visibility','createdDateTime','groupTypes','securityEnabled','mailEnabled')
@@ -724,10 +736,12 @@ if ($SyncResources) {
 
     Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ resourceType = 'EntraGroup' } -Records $records
+    $__phaseSW.Stop(); $phaseTimings['Resources'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync Assignments (Group Members) ────────────────────────────
 if ($SyncAssignments) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing assignments (group memberships)..." -ForegroundColor Cyan
     $totalGroups = $groups.Count
     Update-CrawlerProgress -Step 'Syncing group memberships' -Pct 25 -Detail "0 of $totalGroups groups"
@@ -777,6 +791,7 @@ if ($SyncAssignments) {
     Update-CrawlerProgress -Detail "Uploading $($allOwners.Count) owner assignments..."
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ assignmentType = 'Owner' } -Records $allOwners
+    $__phaseSW.Stop(); $phaseTimings['Assignments'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync PIM (Eligible group memberships) ───────────────────────
@@ -784,6 +799,7 @@ if ($SyncAssignments) {
 # in groups. Each group must be queried individually because the Graph API
 # requires a groupId filter on /privilegedAccess/group/eligibilitySchedules.
 if ($SyncPim) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing PIM eligible memberships..." -ForegroundColor Cyan
     try {
         # Filter out dynamic groups (cannot be PIM-enabled)
@@ -869,10 +885,12 @@ if ($SyncPim) {
     } catch {
         Write-Host "  PIM sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
     }
+    $__phaseSW.Stop(); $phaseTimings['PIM'] = $__phaseSW.Elapsed
 }
 
 # ─── Sync Governance ─────────────────────────────────────────────
 if ($SyncGovernance) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Update-CrawlerProgress -Step 'Syncing governance' -Pct 66 -Detail 'Catalogs, access packages, policies, reviews...'
     try {
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (catalogs)..." -ForegroundColor Cyan
@@ -1107,10 +1125,12 @@ if ($SyncGovernance) {
         Write-Host "  Governance sync skipped: $($_.Exception.Message)" -ForegroundColor Yellow
         Write-Host "  This tenant may not have Entitlement Management (Access Packages) enabled." -ForegroundColor Yellow
     }
+    $__phaseSW.Stop(); $phaseTimings['Governance'] = $__phaseSW.Elapsed
 }
 
 # ─── Refresh Views ───────────────────────────────────────────────
 if ($RefreshViews) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Update-CrawlerProgress -Step 'Refreshing materialized views' -Pct 76 -Detail 'Rebuilding SQL views...'
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Refreshing materialized views..." -ForegroundColor Cyan
     try {
@@ -1120,12 +1140,35 @@ if ($RefreshViews) {
     catch {
         Write-Host "  View refresh failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
     }
+    $__phaseSW.Stop(); $phaseTimings['RefreshViews'] = $__phaseSW.Elapsed
 }
 
 # ─── Summary ─────────────────────────────────────────────────────
 $elapsed = (Get-Date) - $syncStart
 Write-Host "`n=== Sync Complete ===" -ForegroundColor Green
 Write-Host "Duration: $([Math]::Round($elapsed.TotalSeconds)) seconds" -ForegroundColor Gray
+
+# Per-phase breakdown. The point of the table is to tell an operator
+# WHERE the time went so a "this sync takes too long" complaint can be
+# investigated without re-running with profiling hacks. Unaccounted time
+# (setup, context build invoked by the dispatcher, etc.) is the line
+# at the bottom.
+if ($phaseTimings.Count -gt 0) {
+    Write-Host "`nPer-phase breakdown:" -ForegroundColor Cyan
+    $phaseTotal = [TimeSpan]::Zero
+    foreach ($kv in $phaseTimings.GetEnumerator()) {
+        $secs = [Math]::Round($kv.Value.TotalSeconds, 1)
+        $pct  = if ($elapsed.TotalSeconds -gt 0) { [Math]::Round(100 * $kv.Value.TotalSeconds / $elapsed.TotalSeconds, 1) } else { 0 }
+        Write-Host ("  {0,-22} {1,8}s  ({2,5}%)" -f $kv.Key, $secs, $pct) -ForegroundColor Gray
+        $phaseTotal += $kv.Value
+    }
+    $other = $elapsed - $phaseTotal
+    if ($other.TotalSeconds -gt 1) {
+        $otherSecs = [Math]::Round($other.TotalSeconds, 1)
+        $otherPct  = [Math]::Round(100 * $other.TotalSeconds / $elapsed.TotalSeconds, 1)
+        Write-Host ("  {0,-22} {1,8}s  ({2,5}%)" -f 'Other (setup/etc)', $otherSecs, $otherPct) -ForegroundColor DarkGray
+    }
+}
 
 # Write a single sync log entry covering the full crawler runtime so the
 # Sync Log page reflects the actual end-to-end duration (not just the per-batch
