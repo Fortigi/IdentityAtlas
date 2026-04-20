@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
 import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
+import { renderAttributeValue } from '../utils/renderAttribute';
 import { tierClass } from '../utils/tierStyles';
 import { Section, CollapsibleSection } from './DetailSection';
 
@@ -126,12 +127,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   const { attributes, tags, historyCount, hasHistory, lastActivity } = data;
   const resolvedHistoryCount = history ? history.length : historyCount;
   const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
-  const isEntraSystem = (attributes.systemDisplayName || '').toLowerCase().includes('entra') ||
-    (attributes.systemDisplayName || '').toLowerCase().includes('azure ad') ||
-    (attributes.principalType || '').startsWith('Entra');
-  const entraUrl = isEntraSystem
-    ? `https://entra.microsoft.com/#view/Microsoft_AAD_UsersAndTenants/UserProfileMenuBlade/~/overview/userId/${encodeURIComponent(userId)}`
-    : null;
 
   const historyDiffs = history ? computeHistoryDiffs(history) : [];
 
@@ -183,15 +178,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                 </span>
               ))}
             </div>
-          )}
-          {entraUrl && (
-            <a href={entraUrl} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-2 text-xs text-blue-600 hover:text-blue-800 hover:underline">
-              Open in Entra ID
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </a>
           )}
         </div>
         <button onClick={onClose}
@@ -287,10 +273,13 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
       <Section title="Attributes" count={otherAttributes.length}>
         <table className="w-full text-sm">
           <tbody>
+            {/* URL-shaped values render as clickable links (see renderAttributeValue).
+                That's how ext.Link on synced objects becomes the replacement for the
+                old hardcoded "Open in Entra ID" button we removed. */}
             {otherAttributes.map(([key, val]) => (
               <tr key={key} className="border-b border-gray-50 last:border-b-0">
                 <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                <td className="py-1 text-gray-900 font-medium break-all">{formatValue(val)}</td>
+                <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
               </tr>
             ))}
           </tbody>
@@ -308,7 +297,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                   .map(([key, val]) => (
                     <tr key={key} className="border-b border-gray-50 last:border-b-0">
                       <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                      <td className="py-1 text-gray-900 font-medium break-all">{formatValue(val)}</td>
+                      <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
                     </tr>
                   ))}
               </tbody>
