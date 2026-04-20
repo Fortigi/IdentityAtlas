@@ -356,10 +356,22 @@ function Get-FGGroupChildrenParallel {
 }
 
 # ─── Helper: report fine-grained progress to the API ─────────────
-# Sends partial updates (any of step/pct/detail) to /crawlers/job-progress so the
-# UI can display "what is the crawler doing right now" between the worker's
-# coarse-grained progress markers. No-op when running standalone (no JobId set).
-# Failures are swallowed — progress reporting must never break the crawl itself.
+# Sends partial updates (any of step/pct/detail) to /crawlers/job-progress so
+# the UI can display "what is the crawler doing right now" between the
+# worker's coarse-grained progress markers. No-op when running standalone
+# (no JobId set).
+#
+# This function doubles as our abort-detection channel. The server-side
+# endpoint returns HTTP 409 when the job is no longer `running` / `queued`
+# — most commonly because the web container's bootstrap marked the job as
+# `failed` on restart. Before: that signal was silently swallowed and the
+# crawler kept processing an orphaned run, blocking the queue for hours.
+# Now: 409 causes an immediate throw, which the dispatcher catches and
+# turns into a clean "skip and move on" at the next poll.
+#
+# Transient errors (network blips, temporary 5xx) are still swallowed —
+# progress reporting is non-critical and a 5s API hiccup should never
+# kill a 90-minute crawl.
 function Update-CrawlerProgress {
     param(
         [string]$Step,
@@ -377,7 +389,17 @@ function Update-CrawlerProgress {
         Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/job-progress" -Method Post `
             -Headers $headers -Body $json -TimeoutSec 10 | Out-Null
     } catch {
-        # Silent on purpose — progress is best-effort
+        $statusCode = $null
+        try { $statusCode = $_.Exception.Response.StatusCode.value__ } catch {}
+        if ($statusCode -eq 409) {
+            # The job has been terminated server-side. Propagate so the
+            # dispatcher breaks out of the current crawl and the worker
+            # moves on to the next queued job. Message format is
+            # deliberately distinctive so operators grepping logs can
+            # see the self-heal event.
+            throw "Job $JobId terminated server-side (HTTP 409) — aborting crawl"
+        }
+        # Everything else is transient and non-critical.
     }
 }
 
