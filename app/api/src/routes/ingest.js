@@ -187,6 +187,7 @@ router.post('/ingest/governance/catalogs',      createIngestHandler('governance/
 router.post('/ingest/governance/policies',      createIngestHandler('governance/policies'));
 router.post('/ingest/governance/requests',      createIngestHandler('governance/requests'));
 router.post('/ingest/governance/certifications', createIngestHandler('governance/certifications'));
+router.post('/ingest/principal-activity',       createIngestHandler('principal-activity'));
 
 // POST /api/ingest/refresh-views — no-op in v5.
 //
