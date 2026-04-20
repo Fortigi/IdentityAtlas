@@ -2359,7 +2359,17 @@ export default function CrawlersPage({ onNavigate }) {
                 onEdit={handleEditConfig}
                 onRemove={handleRemoveConfig}
                 onForceStop={handleForceStop}
-                runningJob={activeJob?.jobType === c.crawlerType ? activeJob : null}
+                runningJob={
+                  // Match THIS config's running job by _scheduledByConfigId
+                  // (stamped by both the scheduler and the manual-run path).
+                  // Matching by jobType alone wrongly lit up the "Force
+                  // Stop" button on every config of the same type when any
+                  // one of them was running.
+                  jobs.find(j =>
+                    ['queued', 'running'].includes(j.status) &&
+                    String(j.config?._scheduledByConfigId ?? '') === String(c.id)
+                  ) || null
+                }
               />
             ))}
           </div>

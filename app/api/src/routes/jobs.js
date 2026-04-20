@@ -703,7 +703,17 @@ router.post('/admin/crawler-jobs', async (req, res) => {
       resolvedConfig = { ...(resolvedConfig || {}), csvFolder: folder };
     }
 
-    const configJson = resolvedConfig ? JSON.stringify(resolvedConfig) : null;
+    // Stamp the source config id into the stored job config so the UI can
+    // tell WHICH config is running when two configs of the same crawlerType
+    // exist. The scheduler already stamps this field on scheduled runs
+    // (see scheduler.js → queueScheduledJob); we were missing the mirror on
+    // manual "Run Now" requests, which made the Crawlers page render the
+    // "Force Stop" button on EVERY config of that type. Workers ignore
+    // unknown fields so this is non-breaking.
+    const configToStore = configId
+      ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId }
+      : resolvedConfig;
+    const configJson = configToStore ? JSON.stringify(configToStore) : null;
 
     const result = await pool.request()
       .input('jobType', jobType)
