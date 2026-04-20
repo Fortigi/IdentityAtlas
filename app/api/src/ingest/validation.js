@@ -233,7 +233,28 @@ const SCHEMAS = {
       extendedAttributes: { type: 'json' },
     },
   },
+  // PrincipalActivity — latest sign-in timestamps per principal (aggregate,
+  // resourceId=AGG_RESOURCE_ID) or per (principal, app) pair (resourceId=app
+  // Resources row). No history; see migrations/017_principal_activity.sql.
+  'principal-activity': {
+    required: ['principalId', 'activityType'],
+    fields: {
+      principalId: { type: 'uuid' },
+      resourceId: { type: 'uuid' },
+      activityType: { type: 'string', maxLength: 100 },
+      lastSignInDateTime: { type: 'string' },
+      lastNonInteractiveSignInDateTime: { type: 'string' },
+      lastSuccessfulSignInDateTime: { type: 'string' },
+      lastFailedSignInDateTime: { type: 'string' },
+      signInCount: { type: 'number' },
+      extendedAttributes: { type: 'json' },
+    },
+  },
 };
+
+// Sentinel UUID used as resourceId on aggregate PrincipalActivity rows.
+// Mirrors the DEFAULT on the migration.
+export const AGG_RESOURCE_ID = '00000000-0000-0000-0000-000000000000';
 
 // Table name mapping. v5 keeps the v4 camelCase table names (double-quoted in postgres).
 export const ENTITY_TABLE_MAP = {
@@ -249,6 +270,7 @@ export const ENTITY_TABLE_MAP = {
   'governance/policies': 'AssignmentPolicies',
   'governance/requests': 'AssignmentRequests',
   'governance/certifications': 'CertificationDecisions',
+  'principal-activity': 'PrincipalActivity',
 };
 
 // Key columns per entity type
@@ -265,6 +287,11 @@ export const ENTITY_KEY_MAP = {
   'governance/policies': ['id'],
   'governance/requests': ['id'],
   'governance/certifications': ['id'],
+  // PrincipalActivity is keyed on (principalId, resourceId, activityType).
+  // Aggregate rows use resourceId = AGG_RESOURCE_ID; the ingest engine
+  // upserts via ON CONFLICT across the composite key, so the sentinel and
+  // real-resource rows coexist cleanly under one unique constraint.
+  'principal-activity': ['principalId', 'resourceId', 'activityType'],
 };
 
 // Scope filter columns per entity type (used for scoped deletes)
