@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
+import { renderAttributeValue } from '../utils/renderAttribute';
 import { Section, CollapsibleSection } from './DetailSection';
 
 const HEADER_FIELDS = ['catalogName', 'catalogId', 'description'];
@@ -242,9 +243,6 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   const apDisplayName = attributes.displayName || '';
   const resolvedHistoryCount = history ? history.length : historyCount;
   const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
-  const entraUrl = catalogId
-    ? `https://portal.azure.com/#view/Microsoft_Azure_ELMAdmin/EntitlementMenuBlade/~/overview/entitlementId/${accessPackageId.toLowerCase()}/catalogId/${catalogId}/catalogName/${encodeURIComponent(catalogName || '')}/entitlementName/${encodeURIComponent(apDisplayName)}`
-    : `https://entra.microsoft.com/#view/Microsoft_AAD_ERM/AccessPackageManagementMenuBlade/~/AccessPackageBladeOverview/accessPackageId/${encodeURIComponent(accessPackageId)}`;
 
   const historyDiffs = history ? computeHistoryDiffs(history) : [];
 
@@ -310,13 +308,6 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
               {lastReviewedBy && <span className="text-gray-500"> by {lastReviewedBy}</span>}
             </div>
           )}
-          <a href={entraUrl} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 mt-2 text-xs text-blue-600 hover:text-blue-800 hover:underline">
-            Open in Entra ID
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-          </a>
         </div>
         <button onClick={onClose}
           className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
@@ -334,10 +325,12 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       <Section title="Attributes" count={otherAttributes.length}>
         <table className="w-full text-sm">
           <tbody>
+            {/* URL-shaped values render as clickable links (see renderAttributeValue);
+                ext.Link in particular becomes the "Open in Entra ID" affordance. */}
             {otherAttributes.map(([key, val]) => (
               <tr key={key} className="border-b border-gray-50 last:border-b-0">
                 <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                <td className="py-1 text-gray-900 font-medium break-all">{formatValue(val)}</td>
+                <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
               </tr>
             ))}
           </tbody>
