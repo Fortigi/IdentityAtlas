@@ -44,7 +44,9 @@ router.get('/resources', async (req, res) => {
     const resourceType = (req.query.resourceType || '').trim();
     const systemId = (req.query.systemId || '').trim();
     const tagId = req.query.tagId ? parseInt(req.query.tagId) : null;
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
+    // Cap matches the bulk-list endpoints; UI defaults to 100, Power Query
+    // walks in 1000-record pages.
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 10000);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
     // Parse attribute filters
@@ -112,9 +114,15 @@ router.get('/resources', async (req, res) => {
     }
     where += filterWhere;
 
+    // Returns every Resources column so the same endpoint feeds the UI grid
+    // AND the Power Query Excel export (which auto-expands extendedAttributes
+    // into first-class ext_* columns). The UI ignores fields it doesn't need.
     const result = await request.query(`
       SELECT r.id, r."displayName", r."description", r."resourceType", r."systemId", r."enabled",
              r."createdDateTime", r."extendedAttributes",
+             r."mail", r."visibility", r."externalId", r."contextId",
+             r."catalogId", r."isHidden", r."modifiedDateTime",
+             r."riskScore", r."riskTier",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" IN ('resource', 'group')
