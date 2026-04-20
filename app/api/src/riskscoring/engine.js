@@ -277,6 +277,31 @@ export async function runScoring(runId, classifierId = null) {
          FROM "Principals"`
     );
 
+    // ── Load per-principal activity aggregates ──
+    // PrincipalActivity supersedes the old extendedAttributes.signInActivity.
+    // We only need the aggregate rows (resourceId = AGG_RESOURCE_ID) and
+    // only the latest-sign-in timestamp for stale-account detection. The
+    // engine keeps a backwards-compat fallback for ext-attr data until
+    // the first full re-crawl lands. Missing table (migration not yet
+    // applied) is tolerated — the query catches and returns an empty map.
+    const principalActivity = new Map();
+    try {
+      const act = await db.query(
+        `SELECT "principalId",
+                "lastSignInDateTime",
+                "lastNonInteractiveSignInDateTime",
+                "lastSuccessfulSignInDateTime"
+           FROM "PrincipalActivity"
+          WHERE "resourceId" = '00000000-0000-0000-0000-000000000000'
+            AND "activityType" IN ('SignIn', 'ServicePrincipalSignIn')`
+      );
+      for (const row of act.rows) {
+        principalActivity.set(String(row.principalId), row);
+      }
+    } catch (err) {
+      console.warn('PrincipalActivity not available (pre-017 DB?):', err.message);
+    }
+
     // Build manager → direct reports index for hierarchy analysis. Only used
     // when the Entra crawler has populated managerId — if the column is empty
     // across the board, hierarchy signals gracefully degrade to 0.
@@ -523,12 +548,16 @@ export async function runScoring(runId, classifierId = null) {
         structuralScore += 5;
         structuralReasons.push('External guest account — higher risk for data exfiltration [+5]');
       }
-      // Stale sign-in: v4 checks lastSignInDateTime. v5 Entra crawler doesn't
-      // currently pull signInActivity so this gracefully degrades to 0. When
-      // the crawler starts pulling it, look for 'lastSignInDateTime' or
-      // 'signInActivity.lastSignInDateTime' inside extendedAttributes.
-      const lastSignIn = pext.lastSignInDateTime
-        || (pext.signInActivity && pext.signInActivity.lastSignInDateTime);
+      // Stale sign-in. Primary source is PrincipalActivity (populated by
+      // the Entra crawler from /users.signInActivity and
+      // /reports/servicePrincipalSignInActivities). Falls back to the old
+      // extendedAttributes.signInActivity path for tenants that haven't
+      // re-crawled since the switch to the new table landed.
+      const actRow = principalActivity.get(String(p.id));
+      const lastSignIn =
+        (actRow && (actRow.lastSignInDateTime || actRow.lastSuccessfulSignInDateTime)) ||
+        pext.lastSignInDateTime ||
+        (pext.signInActivity && pext.signInActivity.lastSignInDateTime);
       if (lastSignIn) {
         const days = Math.floor((Date.now() - new Date(lastSignIn).getTime()) / 86400000);
         if (days > 90) {

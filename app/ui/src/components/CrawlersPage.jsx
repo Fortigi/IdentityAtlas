@@ -1137,7 +1137,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
 }
 
 // ─── Job Progress Card ────────────────────────────────────────────────────────
-function JobProgress({ job, onNavigateToMatrix, onDismiss }) {
+function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
   // Store current time in state so the "last update Xs ago" line stays accurate
   // without calling impure Date.now() during render.
   const [now, setNow] = useState(() => Date.now());
@@ -1155,11 +1155,17 @@ function JobProgress({ job, onNavigateToMatrix, onDismiss }) {
   const updatedAt = progress.updatedAt ? new Date(progress.updatedAt) : null;
   const secondsSince = updatedAt ? Math.max(0, Math.round((now - updatedAt.getTime()) / 1000)) : null;
 
+  // Header label on every card so two running crawlers are distinguishable
+  // at a glance. Falls back to the bare job type (e.g. "entra-id") if the
+  // config name isn't known (manual jobs without a source config, demo jobs).
+  const header = configLabel || job.jobType;
+
   if (job.status === 'completed') {
     return (
       <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
         <div className="flex items-center justify-between">
           <div>
+            <div className="text-xs font-medium text-green-700 uppercase tracking-wide mb-0.5">{header}</div>
             <span className="font-semibold text-green-800">Data loaded successfully!</span>
             <p className="text-sm text-green-600 mt-1">Your identity data is ready to explore.</p>
           </div>
@@ -1178,6 +1184,7 @@ function JobProgress({ job, onNavigateToMatrix, onDismiss }) {
       <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
         <div className="flex items-center justify-between">
           <div>
+            <div className="text-xs font-medium text-red-700 uppercase tracking-wide mb-0.5">{header}</div>
             <span className="font-semibold text-red-800">Job failed</span>
             <p className="text-sm text-red-600 mt-1">{job.errorMessage || 'Unknown error'}</p>
           </div>
@@ -1194,10 +1201,32 @@ function JobProgress({ job, onNavigateToMatrix, onDismiss }) {
     : 'stale';
   const stalenessColor = staleness === 'stale' ? 'text-amber-600' : 'text-blue-500';
 
+  // Queued jobs get a softer treatment: amber card, no percent, no progress
+  // bar — the worker still has to pick this one up, and showing 0% with a
+  // flatlined bar implies "stuck" when it's just "waiting in line".
+  if (job.status === 'queued') {
+    return (
+      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-medium text-amber-800 uppercase tracking-wide mb-0.5">{header}</div>
+            <span className="font-semibold text-amber-900">Queued</span>
+            <p className="text-sm text-amber-700 mt-1">Waiting for the worker — will start when the current run finishes.</p>
+          </div>
+          {onDismiss && <button onClick={onDismiss} className="text-amber-700 hover:text-amber-900 text-sm">Dismiss</button>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-xs font-medium text-blue-700 uppercase tracking-wide">{header}</div>
+        {onDismiss && <button onClick={onDismiss} className="text-blue-500 hover:text-blue-700 text-xs">Dismiss</button>}
+      </div>
       <div className="flex items-center justify-between mb-2">
-        <span className="font-semibold text-blue-800">{job.status === 'queued' ? 'Waiting for worker...' : step}</span>
+        <span className="font-semibold text-blue-800">{step}</span>
         <span className="text-sm text-blue-600">{pct}%</span>
       </div>
       <div className="w-full bg-blue-200 rounded-full h-2.5">
@@ -2024,7 +2053,15 @@ export default function CrawlersPage({ onNavigate }) {
   const [configs, setConfigs] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [status, setStatus] = useState(null);
-  const [activeJob, setActiveJob] = useState(null);
+  // We track MULTIPLE concurrent jobs now. Each rendering a progress card.
+  // A job lands here when:
+  //   - submitJob returns an entry (immediate UI feedback for the user's click)
+  //   - fetchJobs discovers a queued/running job we weren't tracking yet
+  // A job stays here after transitioning to completed/failed (so the user
+  // sees the final state) until they click Dismiss. The poll updates the
+  // status of tracked jobs in place.
+  const [activeJobs, setActiveJobs] = useState([]);
+  const prevActiveJobsRef = useRef([]);
   const pollRef = useRef(null);
 
   // Wizard state — 'select' (type picker), 'entra-wizard' (full wizard)
@@ -2057,21 +2094,43 @@ export default function CrawlersPage({ onNavigate }) {
   const fetchJobs = useCallback(async () => {
     try {
       const r = await authFetch('/api/admin/crawler-jobs?limit=10');
-      if (r.ok) {
-        const data = await r.json();
-        setJobs(Array.isArray(data) ? data : []);
-        const active = data.find(j => j.status === 'queued' || j.status === 'running');
-        if (active) {
-          setActiveJob(active);
-        } else if (activeJob && ['queued', 'running'].includes(activeJob.status)) {
-          const finished = data.find(j => j.id === activeJob.id);
-          if (finished) setActiveJob(finished);
-          fetchStatus();
-          fetchConfigs();
+      if (!r.ok) return;
+      const data = await r.json();
+      if (!Array.isArray(data)) return;
+      setJobs(data);
+      // Rebuild activeJobs:
+      //   - keep each currently-tracked job, but refresh its status from
+      //     the server response (so running → completed transitions show)
+      //   - add any queued/running job we aren't tracking yet
+      //   - completed/failed jobs we AREN'T tracking don't get re-added
+      //     (users dismiss them; we respect that by not re-discovering)
+      setActiveJobs(prev => {
+        const byId = Object.fromEntries(data.map(j => [j.id, j]));
+        const carried = prev.map(pj => byId[pj.id] ?? pj);
+        for (const j of data) {
+          if (['queued', 'running'].includes(j.status) && !carried.find(k => k.id === j.id)) {
+            carried.push(j);
+          }
         }
-      }
+        return carried;
+      });
     } catch {}
-  }, [authFetch, activeJob, fetchStatus, fetchConfigs]);
+  }, [authFetch]);
+
+  // When any tracked job transitions from active → terminal, refresh the
+  // dashboard stats (config counts, last-run timestamps).
+  useEffect(() => {
+    const prev = prevActiveJobsRef.current;
+    const justFinished = prev.some(pj =>
+      ['queued', 'running'].includes(pj.status) &&
+      activeJobs.find(aj => aj.id === pj.id && ['completed', 'failed', 'cancelled'].includes(aj.status))
+    );
+    if (justFinished) {
+      fetchStatus();
+      fetchConfigs();
+    }
+    prevActiveJobsRef.current = activeJobs;
+  }, [activeJobs, fetchStatus, fetchConfigs]);
 
   useEffect(() => {
     Promise.all([fetchCrawlers(), fetchConfigs(), fetchStatus(), fetchJobs()])
@@ -2079,13 +2138,16 @@ export default function CrawlersPage({ onNavigate }) {
   }, []);
 
   useEffect(() => {
-    if (activeJob && ['queued', 'running'].includes(activeJob.status)) {
+    // Keep polling as long as ANY tracked job is still active. As soon as
+    // they all hit a terminal state (or the user dismisses them), we stop.
+    const anyActive = activeJobs.some(j => ['queued', 'running'].includes(j.status));
+    if (anyActive) {
       pollRef.current = setInterval(fetchJobs, 3000);
       return () => clearInterval(pollRef.current);
     } else if (pollRef.current) {
       clearInterval(pollRef.current);
     }
-  }, [activeJob, fetchJobs]);
+  }, [activeJobs, fetchJobs]);
 
   // ── Wizard actions ────────────────────────────────────────────
 
@@ -2210,7 +2272,10 @@ export default function CrawlersPage({ onNavigate }) {
       });
       if (!r.ok) { const e = await r.json(); throw new Error(e.error || `HTTP ${r.status}`); }
       const job = await r.json();
-      setActiveJob(job);
+      // Add to the tracked set (replacing if the same id somehow re-appears).
+      // The poll will overwrite with the canonical server copy on the next
+      // tick; this just gives the user an immediate card to watch.
+      setActiveJobs(prev => [...prev.filter(j => j.id !== job.id), job]);
       fetchJobs();
     } catch (err) {
       setError(err.message);
@@ -2303,10 +2368,24 @@ export default function CrawlersPage({ onNavigate }) {
       {/* Getting started */}
       {showGettingStarted && <GettingStarted onAddCrawler={() => setWizardStep('select')} />}
 
-      {/* Active job progress */}
-      {activeJob && ['queued', 'running', 'completed', 'failed'].includes(activeJob.status) && (
-        <JobProgress job={activeJob} onNavigateToMatrix={() => onNavigate?.('matrix')} onDismiss={() => setActiveJob(null)} />
-      )}
+      {/* Active job progress — one card per tracked job. Queued jobs render
+          a card too (JobProgress shows "Waiting for worker..." internally),
+          so a user who fires off two crawlers sees both: the running one
+          with its live step/pct, and the queued one waiting its turn. */}
+      {activeJobs.map(j => {
+        const sourceCfg = configs.find(c =>
+          String(c.id) === String(j.config?._scheduledByConfigId ?? '')
+        );
+        return (
+          <JobProgress
+            key={j.id}
+            job={j}
+            configLabel={sourceCfg?.displayName}
+            onNavigateToMatrix={() => onNavigate?.('matrix')}
+            onDismiss={() => setActiveJobs(prev => prev.filter(aj => aj.id !== j.id))}
+          />
+        );
+      })}
 
       {/* Wizard steps */}
       {wizardStep === 'select' && (
@@ -2359,7 +2438,17 @@ export default function CrawlersPage({ onNavigate }) {
                 onEdit={handleEditConfig}
                 onRemove={handleRemoveConfig}
                 onForceStop={handleForceStop}
-                runningJob={activeJob?.jobType === c.crawlerType ? activeJob : null}
+                runningJob={
+                  // Match THIS config's running job by _scheduledByConfigId
+                  // (stamped by both the scheduler and the manual-run path).
+                  // Matching by jobType alone wrongly lit up the "Force
+                  // Stop" button on every config of the same type when any
+                  // one of them was running.
+                  jobs.find(j =>
+                    ['queued', 'running'].includes(j.status) &&
+                    String(j.config?._scheduledByConfigId ?? '') === String(c.id)
+                  ) || null
+                }
               />
             ))}
           </div>
