@@ -2,6 +2,7 @@
 - CSV import: `Contexts.csv` gained `TargetType` and `OwnerUserId` columns; added `ContextMembers.csv` for explicit membership rows. Entra crawler no longer has a "Context" object type — context generation (org-chart, department tree) moves to plugin runs.
 - Added a context-algorithm plugin framework (registry, runner, dry-run, run history) with two initial plugins — `manager-hierarchy` and `department-tree` — that replace the old `/ingest/refresh-contexts` flow. Plugins are in-tree Node modules under `app/api/src/contexts/plugins/`; registered plugins are seeded into `ContextAlgorithms` at container startup.
 - Added `/api/context-plugins` endpoints: list plugins, dry-run, run (async, returns runId), list runs, and per-run status.
+- UI: new **Contexts** tab with a grouped tree selector (by context type) on the left and tree / list views on the right. Visual signals distinguish variant (border + dot colour) from target type (pill) and show a scope-system chip when set. Context detail page rewritten to surface variant, target, scope system, owner, and provenance.
 - Added `ContextAlgorithms` and `ContextAlgorithmRuns` tables for plugin-driven context generation.
 - Rewrote `/api/contexts` routes: list / tree / detail / members plus full CRUD for manual contexts and their members.
 - Ingest API: added `/api/ingest/context-members`; removed the obsolete `/api/admin/refresh-contexts` and `/api/ingest/refresh-contexts` endpoints (replaced by the `department-tree` plugin once it ships).
