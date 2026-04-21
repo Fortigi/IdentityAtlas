@@ -97,6 +97,19 @@ Every feature/bugfixes branch must add a fragment file under `changes/`. **Never
 
 ## Major Features
 
+> **v6 note (Context Redesign, April 2026):** Contexts became a first-class
+> unified data surface. There is now a single `Contexts` table with three
+> variants (synced / generated / manual) and four target types (Identity /
+> Resource / Principal / System). Membership lives in `ContextMembers`.
+> Legacy feature tables — `OrgUnits`, `GraphResourceClusters`,
+> `GraphResourceClusterMembers`, the `Identities.contextId` column, and the
+> old `GraphTags` / `GraphTagAssignments` tables — are gone. Tags are now
+> `contextType='Tag'` Contexts (with backward-compat views so existing JOIN
+> queries keep working). Clustering, org-chart derivation, tags, business
+> processes are all context-algorithm plugins that register at startup and
+> emit generated Contexts. See `docs/architecture/context-redesign.md` and
+> `docs/architecture/context-redesign-plan.md` for the design.
+
 ### 1. In-Browser Crawler Wizard
 - The Crawlers page in Admin walks the user through Microsoft Graph credentials → permission validation → object type selection → identity filter → custom attributes → schedules
 - Works against any Entra ID tenant without leaving the browser
@@ -129,7 +142,7 @@ Every feature/bugfixes branch must add a fragment file under `changes/`. **Never
 ### 6. Role Mining UI
 - **Web Application**: React + Vite + Tailwind + TanStack Table v8 served by the `web` Docker container on port 3001
 - **Authentication**: Optional Entra ID (MSAL) with support for both v1 and v2 token formats; defaults to no-auth for local Docker
-- **Tab Navigation**: Eleven pages — Matrix, Users, Resources, Systems, Access Packages, Sync Log, Risk Scoring, Identities, Org Chart, Performance — plus dynamic detail tabs. Optional tabs (Risk Scores, Identities, Org Chart, Performance) are hidden by default and can be enabled per-user via the settings dropdown.
+- **Tab Navigation**: Matrix, Users, Resources, Systems, Access Packages, Sync Log, Risk Scoring, Identities, **Contexts**, Performance — plus dynamic detail tabs. Optional tabs (Risk Scores, Identities, Performance) are hidden by default and can be enabled per-user via the settings dropdown. Contexts replaces the former Org Chart tab; manager-hierarchy trees now come from the `manager-hierarchy` context-algorithm plugin.
 - **User Preferences**: Clicking the user avatar in the top-right opens a settings dropdown with toggle switches for optional tabs. Preferences are stored per-user in the `GraphUserPreferences` SQL table (auto-created). User identified by Entra ID `oid` claim; `anonymous` fallback for no-auth mode.
 - **Matrix View**: User-group permission heatmap with drag-and-drop row reordering
 - **Staircase Sort**: Default row order groups rows by their leftmost AP bucket, creating a visual staircase pattern; unmanaged groups at the bottom. Custom drag order persists via versioned localStorage (bump `ROW_ORDER_VERSION` in `useMatrixRowOrder.js` when changing default sort logic)
