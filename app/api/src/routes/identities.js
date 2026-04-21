@@ -188,13 +188,12 @@ router.get('/identities/:id', async (req, res) => {
   try {
     const p = await db.getPool();
 
-    // Fetch identity with context name
+    // Fetch identity. Context membership is no longer a column on Identities
+    // (v6 context redesign) — membership now lives in ContextMembers and is
+    // surfaced through the dedicated /api/contexts/* endpoints.
     const identityResult = await timedRequest(p, 'identity-detail', res)
       .input('id', identityId)
-      .query(`SELECT i.*, c."displayName" AS contextDisplayName
-              FROM "Identities" i
-              LEFT JOIN "Contexts" c ON i."contextId" = c.id
-              WHERE i.id = @id`);
+      .query(`SELECT i.* FROM "Identities" i WHERE i.id = @id`);
 
     if (identityResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Identity not found' });
