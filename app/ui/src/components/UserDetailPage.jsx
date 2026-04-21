@@ -1,13 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
-import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
-import { renderAttributeValue } from '../utils/renderAttribute';
+import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
 import { tierClass } from '../utils/tierStyles';
-import { Section, CollapsibleSection } from './DetailSection';
+import { CollapsibleSection } from './DetailSection';
+import EntityGraph from './EntityGraph';
+import EntityDetailLayout, { AttributesTable, buildAttributeEntries } from './EntityDetailLayout';
 
 const HEADER_FIELDS = ['userPrincipalName', 'email', 'department', 'jobTitle', 'companyName'];
-const HIDDEN_FIELDS = new Set(['displayName', ...HEADER_FIELDS, ...RISK_FIELDS, 'ValidFrom', 'ValidTo', 'extendedAttributes', 'extendedAttributesParsed']);
+const HIDDEN_FIELDS = new Set([
+  'displayName', ...HEADER_FIELDS, ...RISK_FIELDS,
+  'ValidFrom', 'ValidTo', 'extendedAttributes', 'extendedAttributesParsed',
+  // These columns show up as graph nodes instead of attribute rows so the
+  // visualization doesn't feel duplicated by the table.
+  'managerId', 'contextId',
+]);
 
 function safeParse(val) {
   if (!val) return {};
@@ -18,7 +25,7 @@ function safeParse(val) {
 export default function UserDetailPage({ userId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
 
-  // Core data (fast — attributes, tags, counts)
+  // Core data (attributes, tags, all counts incl. membership breakdown)
   const [data, setData] = useState(cachedData?.core || null);
   const [loading, setLoading] = useState(!cachedData?.core);
   const [error, setError] = useState(null);
@@ -28,24 +35,23 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   const [history, setHistory] = useState(cachedData?.history || null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Lazy-loaded OAuth2 delegated grants
-  const [oauth2Open, setOauth2Open] = useState(false);
-  const [oauth2Grants, setOauth2Grants] = useState(cachedData?.oauth2Grants || null);
-  const [oauth2Loading, setOauth2Loading] = useState(false);
+  // Identity membership banner
+  const [identityInfo, setIdentityInfo] = useState(undefined);
 
-  // Identity membership
-  const [identityInfo, setIdentityInfo] = useState(undefined); // undefined = not fetched, null = no identity
-
-  // Manager and direct reports
+  // Manager (one record) — fetched eagerly because the header uses it and
+  // the graph shows the manager node.
   const [manager, setManager] = useState(null);
   const [managerLoaded, setManagerLoaded] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(false);
-  const [reports, setReports] = useState(null);
-  const [reportsLoading, setReportsLoading] = useState(false);
 
-  // Fetch core data (attributes + tags + counts)
+  // Graph selection + cache of relationship lists keyed by node key. Cache
+  // keeps us from re-fetching when the user toggles between nodes.
+  const [activeKey, setActiveKey] = useState(null);
+  const [listCache, setListCache] = useState({});
+  const [listLoading, setListLoading] = useState(false);
+
+  // Core fetch
   useEffect(() => {
-    if (cachedData?.core) return; // Already cached
+    if (cachedData?.core) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -62,7 +68,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     return () => { cancelled = true; };
   }, [userId, authFetch, cachedData?.core, onCacheData]);
 
-  // Fetch identity membership
   useEffect(() => {
     let cancelled = false;
     authFetch(`/api/identities/by-user/${encodeURIComponent(userId)}`)
@@ -72,7 +77,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     return () => { cancelled = true; };
   }, [userId, authFetch]);
 
-  // Fetch manager (lightweight — one record)
   useEffect(() => {
     let cancelled = false;
     authFetch(`/api/org-chart/user/${encodeURIComponent(userId)}/manager`)
@@ -83,25 +87,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     return () => { cancelled = true; };
   }, [userId, authFetch]);
 
-  // Lazy-load direct reports
-  const loadReports = useCallback(() => {
-    if (reports) return;
-    setReportsLoading(true);
-    authFetch(`/api/org-chart/user/${encodeURIComponent(userId)}/reports`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setReports(d?.reports || []))
-      .catch(() => setReports([]))
-      .finally(() => setReportsLoading(false));
-  }, [userId, authFetch, reports]);
-
-  const toggleReports = useCallback(() => {
-    setReportsOpen(prev => {
-      if (!prev) loadReports();
-      return !prev;
-    });
-  }, [loadReports]);
-
-  // Lazy-load history
   const loadHistory = useCallback(() => {
     if (history) return;
     setHistoryLoading(true);
@@ -122,26 +107,49 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     });
   }, [loadHistory]);
 
-  // Lazy-load OAuth2 grants
-  const loadOauth2 = useCallback(() => {
-    if (oauth2Grants) return;
-    setOauth2Loading(true);
-    authFetch(`/api/user/${encodeURIComponent(userId)}/oauth2-grants`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => {
-        setOauth2Grants(d);
-        onCacheData?.(userId, 'user', { oauth2Grants: d });
-      })
-      .catch(() => setOauth2Grants([]))
-      .finally(() => setOauth2Loading(false));
-  }, [userId, authFetch, oauth2Grants, onCacheData]);
+  // ─── Relationship node click → fetch list if not cached ────────────
+  const fetchList = useCallback(async (key) => {
+    if (listCache[key]) return;
+    setListLoading(true);
+    try {
+      let items = [];
+      if (key === 'manager') {
+        items = manager ? [manager] : [];
+      } else if (key === 'reports') {
+        const r = await authFetch(`/api/org-chart/user/${encodeURIComponent(userId)}/reports`);
+        const d = r.ok ? await r.json() : {};
+        items = d.reports || [];
+      } else if (key === 'context') {
+        const ctxId = data?.attributes?.contextId;
+        if (ctxId) {
+          const r = await authFetch(`/api/contexts/${encodeURIComponent(ctxId)}`);
+          const d = r.ok ? await r.json() : null;
+          items = d?.context ? [d.context] : (d ? [d] : []);
+        }
+      } else if (key?.startsWith('groups-')) {
+        const r = await authFetch(`/api/user/${encodeURIComponent(userId)}/memberships`);
+        const d = r.ok ? await r.json() : [];
+        const want = { 'groups-direct': 'Direct', 'groups-indirect': 'Indirect', 'groups-owner': 'Owner', 'groups-eligible': 'Eligible' }[key];
+        items = d.filter(m => m.membershipType === want);
+      } else if (key === 'access-packages') {
+        const r = await authFetch(`/api/user/${encodeURIComponent(userId)}/access-packages`);
+        items = r.ok ? await r.json() : [];
+      } else if (key === 'oauth2-grants') {
+        const r = await authFetch(`/api/user/${encodeURIComponent(userId)}/oauth2-grants`);
+        items = r.ok ? await r.json() : [];
+      } else if (key === 'identity') {
+        items = identityInfo?.identity ? [identityInfo.identity] : [];
+      }
+      setListCache(prev => ({ ...prev, [key]: items }));
+    } finally {
+      setListLoading(false);
+    }
+  }, [userId, authFetch, listCache, manager, data, identityInfo]);
 
-  const toggleOauth2 = useCallback(() => {
-    setOauth2Open(prev => {
-      if (!prev) loadOauth2();
-      return !prev;
-    });
-  }, [loadOauth2]);
+  const handleNodeClick = useCallback((key) => {
+    setActiveKey(key);
+    fetchList(key);
+  }, [fetchList]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500">Loading user details...</div>;
@@ -156,14 +164,30 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   }
   if (!data) return null;
 
-  const { attributes, tags, historyCount, hasHistory, lastActivity, oauth2GrantCount } = data;
-  const resolvedHistoryCount = history ? history.length : historyCount;
-  const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
+  const { attributes, tags, historyCount, lastActivity,
+          membershipByType = {}, accessPackageCount = 0,
+          oauth2GrantCount = 0, directReportCount = 0 } = data;
 
+  const resolvedHistoryCount = history ? history.length : historyCount;
+  const attributeEntries = buildAttributeEntries(attributes, attributes.extendedAttributesParsed, HIDDEN_FIELDS);
   const historyDiffs = history ? computeHistoryDiffs(history) : [];
 
+  // ─── Graph nodes ──────────────────────────────────────────────────
+  const nodes = [
+    { key: 'manager', label: 'Manager', count: manager ? 1 : 0, accent: 'emerald' },
+    { key: 'reports', label: 'Direct Reports', count: directReportCount, accent: 'blue' },
+    { key: 'context', label: 'Context', count: attributes.contextId ? 1 : 0, accent: 'purple' },
+    { key: 'groups-direct', label: 'Groups (Direct)', count: membershipByType.Direct || 0, accent: 'lime' },
+    { key: 'groups-indirect', label: 'Groups (Indirect)', count: membershipByType.Indirect || 0, accent: 'lime' },
+    { key: 'groups-owner', label: 'Groups Owned', count: membershipByType.Owner || 0, accent: 'amber' },
+    { key: 'groups-eligible', label: 'Eligible', count: membershipByType.Eligible || 0, accent: 'purple' },
+    { key: 'access-packages', label: 'Access Packages', count: accessPackageCount, accent: 'purple' },
+    { key: 'oauth2-grants', label: 'OAuth2 Grants', count: oauth2GrantCount, accent: 'red' },
+    { key: 'identity', label: 'Identity', count: identityInfo?.identity ? 1 : 0, accent: 'emerald' },
+  ];
+
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -221,180 +245,52 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
         </button>
       </div>
 
-      {/* Risk Assessment */}
-      <RiskScoreSection attributes={attributes} entityType="user" entityId={userId} authFetch={authFetch} />
-
-      {/* Identity Membership */}
-      {identityInfo && <IdentityMembershipSection identityInfo={identityInfo} onNavigateToIdentities={() => { window.location.hash = 'identities'; }} />}
-
-      {/* Manager */}
-      {managerLoaded && manager && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4 mb-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Manager</h3>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
-              {(manager.displayName || '?')[0]}
+      <EntityDetailLayout
+        left={<AttributesTable entries={attributeEntries} />}
+        right={
+          <div className="space-y-4">
+            <div className="bg-white border border-gray-200 rounded-lg p-3">
+              <EntityGraph
+                centerLabel="User"
+                centerSubLabel={attributes.displayName}
+                nodes={nodes}
+                activeKey={activeKey}
+                onNodeClick={handleNodeClick}
+              />
+              {activeKey && (
+                <div className="text-xs text-gray-400 text-center pb-2">
+                  Showing <span className="font-medium text-gray-600">{nodes.find(n => n.key === activeKey)?.label}</span>
+                  {' — '}
+                  <button onClick={() => setActiveKey(null)} className="text-gray-500 hover:text-gray-700 underline">clear</button>
+                </div>
+              )}
             </div>
-            <div className="min-w-0 flex-1">
-              <button
-                onClick={() => onOpenDetail?.('user', manager.id, manager.displayName)}
-                className="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
-              >
-                {manager.displayName}
-              </button>
-              <div className="text-xs text-gray-400">
-                {[manager.jobTitle, manager.department].filter(Boolean).join(' \u2022 ') || '\u2014'}
+
+            {activeKey && (
+              <UserRelationshipList
+                nodeKey={activeKey}
+                items={listCache[activeKey]}
+                loading={listLoading}
+                onOpenDetail={onOpenDetail}
+              />
+            )}
+            {!activeKey && (
+              <div className="bg-white border border-dashed border-gray-200 rounded-lg p-6 text-center">
+                <p className="text-sm text-gray-400">Click a node in the graph to see its details.</p>
               </div>
-            </div>
-            {manager.riskTier && manager.riskTier !== 'None' && manager.riskTier !== 'Minimal' && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tierClass(manager.riskTier)}`}>
-                {manager.riskTier}
-              </span>
             )}
           </div>
-        </div>
-      )}
+        }
+      >
+        <RiskScoreSection attributes={attributes} entityType="user" entityId={userId} authFetch={authFetch} />
 
-      {/* Direct Reports */}
-      {managerLoaded && (
-        <div className="mb-4">
-          <CollapsibleSection
-            title="Direct Reports"
-            count={attributes.riskHierarchyDirectReports || null}
-            open={reportsOpen}
-            onToggle={toggleReports}
-            loading={reportsLoading}
-          >
-            {reports && reports.length === 0 ? (
-              <p className="text-sm text-gray-400 italic p-4">No direct reports</p>
-            ) : reports ? (
-              <div className="divide-y divide-gray-50">
-                {reports.map(r => (
-                  <div key={r.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
-                    <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
-                      {(r.displayName || '?')[0]}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <button
-                        onClick={() => onOpenDetail?.('user', r.id, r.displayName)}
-                        className="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
-                      >
-                        {r.displayName}
-                      </button>
-                      <div className="text-xs text-gray-400">
-                        {[r.jobTitle, r.department].filter(Boolean).join(' \u2022 ') || '\u2014'}
-                      </div>
-                    </div>
-                    {r.riskTier && r.riskTier !== 'None' && r.riskTier !== 'Minimal' && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tierClass(r.riskTier)}`}>
-                        {r.riskTier}
-                      </span>
-                    )}
-                    {r.riskScore != null && (
-                      <span className="text-xs font-mono text-gray-400 w-6 text-right">{r.riskScore}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </CollapsibleSection>
-        </div>
-      )}
+        {identityInfo && (
+          <IdentityMembershipSection
+            identityInfo={identityInfo}
+            onNavigateToIdentities={() => { window.location.hash = 'identities'; }}
+          />
+        )}
 
-      {/* Attributes - single column table */}
-      <Section title="Attributes" count={otherAttributes.length}>
-        <table className="w-full text-sm">
-          <tbody>
-            {/* URL-shaped values render as clickable links (see renderAttributeValue).
-                That's how ext.Link on synced objects becomes the replacement for the
-                old hardcoded "Open in Entra ID" button we removed. */}
-            {otherAttributes.map(([key, val]) => (
-              <tr key={key} className="border-b border-gray-50 last:border-b-0">
-                <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
-
-      {/* Extended Attributes (Principals model) */}
-      {attributes.extendedAttributesParsed && Object.keys(attributes.extendedAttributesParsed).length > 0 && (
-        <div className="mt-4">
-          <Section title="Extended Attributes" count={Object.keys(attributes.extendedAttributesParsed).filter(k => attributes.extendedAttributesParsed[k] != null).length}>
-            <table className="w-full text-sm">
-              <tbody>
-                {Object.entries(attributes.extendedAttributesParsed)
-                  .filter(([, val]) => val != null)
-                  .map(([key, val]) => (
-                    <tr key={key} className="border-b border-gray-50 last:border-b-0">
-                      <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                      <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </Section>
-        </div>
-      )}
-
-      {/* OAuth2 Delegated Grants - collapsible, lazy-loaded */}
-      {(oauth2GrantCount > 0 || (oauth2Grants && oauth2Grants.length > 0)) && (
-        <div className="mt-4">
-          <CollapsibleSection
-            title="OAuth2 Delegated Grants"
-            count={oauth2Grants ? oauth2Grants.length : oauth2GrantCount}
-            countLabel={(oauth2Grants ? oauth2Grants.length : oauth2GrantCount) === 1 ? 'grant' : 'grants'}
-            open={oauth2Open}
-            onToggle={toggleOauth2}
-            loading={oauth2Loading}
-          >
-            {oauth2Grants && oauth2Grants.length === 0 ? (
-              <p className="text-sm text-gray-400 italic p-4">No grants recorded</p>
-            ) : oauth2Grants ? (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-2 font-medium">Client application</th>
-                    <th className="px-4 py-2 font-medium">Target API</th>
-                    <th className="px-4 py-2 font-medium">Scope</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {oauth2Grants.map(g => {
-                    const grantExt = safeParse(g.grantExtendedAttributes);
-                    const scopeExt = safeParse(g.scopeExtendedAttributes);
-                    const clientName = g.clientDisplayName || grantExt.clientDisplayName || grantExt.clientSpId || '—';
-                    const targetName = grantExt.targetApiDisplayName || scopeExt.targetApiDisplayName || scopeExt.targetApiSpId || '—';
-                    const scopeValue = grantExt.scope || scopeExt.scope || g.scopeDisplayName || '—';
-                    return (
-                      <tr key={g.scopeResourceId + ':' + (grantExt.grantId || '')} className="border-b border-gray-50 last:border-b-0">
-                        <td className="px-4 py-2">
-                          {g.clientSpId ? (
-                            <button
-                              onClick={() => onOpenDetail?.('resource', g.clientSpId, clientName)}
-                              className="text-blue-700 hover:text-blue-900 hover:underline text-left"
-                            >
-                              {clientName}
-                            </button>
-                          ) : (
-                            <span className="text-gray-900">{clientName}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-gray-700">{targetName}</td>
-                        <td className="px-4 py-2 font-mono text-xs text-gray-900">{scopeValue}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : null}
-          </CollapsibleSection>
-        </div>
-      )}
-
-      {/* Version History - collapsible, lazy-loaded */}
-      <div className="mt-6">
         <CollapsibleSection
           title="Version History"
           count={resolvedHistoryCount}
@@ -438,10 +334,242 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
             </table>
           )}
         </CollapsibleSection>
-      </div>
+      </EntityDetailLayout>
     </div>
   );
 }
+
+// ─── UserRelationshipList ──────────────────────────────────────────────
+// Renders the list of relationship objects below the graph. Row shape
+// varies by relationship type; a small switch keeps the markup readable.
+
+function UserRelationshipList({ nodeKey, items, loading, onOpenDetail }) {
+  if (loading && !items) {
+    return <div className="bg-white border border-gray-200 rounded-lg p-6 text-center text-sm text-gray-500">Loading…</div>;
+  }
+  if (!items || items.length === 0) {
+    return <div className="bg-white border border-gray-200 rounded-lg p-6 text-center text-sm text-gray-400 italic">Nothing to show for this relationship.</div>;
+  }
+
+  if (nodeKey === 'manager' || nodeKey === 'reports') {
+    return <PrincipalRows items={items} onOpenDetail={onOpenDetail} />;
+  }
+  if (nodeKey === 'context') {
+    return <ContextRows items={items} onOpenDetail={onOpenDetail} />;
+  }
+  if (nodeKey?.startsWith('groups-')) {
+    return <MembershipRows items={items} onOpenDetail={onOpenDetail} />;
+  }
+  if (nodeKey === 'access-packages') {
+    return <AccessPackageRows items={items} onOpenDetail={onOpenDetail} />;
+  }
+  if (nodeKey === 'oauth2-grants') {
+    return <OAuth2GrantRows items={items} onOpenDetail={onOpenDetail} />;
+  }
+  if (nodeKey === 'identity') {
+    return <IdentityRows items={items} onOpenDetail={onOpenDetail} />;
+  }
+  return null;
+}
+
+function ListShell({ count, children }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+        <h3 className="text-sm font-semibold text-gray-700">Selected</h3>
+        <span className="text-xs text-gray-500">{count}</span>
+      </div>
+      <div className="max-h-[460px] overflow-y-auto">{children}</div>
+    </div>
+  );
+}
+
+function PrincipalRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <div className="divide-y divide-gray-50">
+        {items.map(r => (
+          <div key={r.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
+            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
+              {(r.displayName || '?')[0]}
+            </div>
+            <div className="min-w-0 flex-1">
+              <button
+                onClick={() => onOpenDetail?.('user', r.id, r.displayName)}
+                className="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
+              >
+                {r.displayName}
+              </button>
+              <div className="text-xs text-gray-400">
+                {[r.jobTitle, r.department].filter(Boolean).join(' \u2022 ') || '\u2014'}
+              </div>
+            </div>
+            {r.riskTier && r.riskTier !== 'None' && r.riskTier !== 'Minimal' && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tierClass(r.riskTier)}`}>
+                {r.riskTier}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </ListShell>
+  );
+}
+
+function ContextRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <div className="divide-y divide-gray-50">
+        {items.map(c => (
+          <div key={c.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
+            <div className="min-w-0 flex-1">
+              <button
+                onClick={() => onOpenDetail?.('context', c.id, c.displayName)}
+                className="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
+              >
+                {c.displayName || c.id}
+              </button>
+              <div className="text-xs text-gray-400">
+                {[c.contextType, c.parentContextDisplayName].filter(Boolean).join(' \u2022 ') || '\u2014'}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </ListShell>
+  );
+}
+
+function MembershipRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+            <th className="px-4 py-2 font-medium">Group / Resource</th>
+            <th className="px-4 py-2 font-medium">Type</th>
+            <th className="px-4 py-2 font-medium">Managed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((m, i) => (
+            <tr key={m.resourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+              <td className="px-4 py-2">
+                <button
+                  onClick={() => onOpenDetail?.('resource', m.resourceId, m.resourceDisplayName || m.groupDisplayName)}
+                  className="text-blue-700 hover:text-blue-900 hover:underline text-left font-medium"
+                >
+                  {m.resourceDisplayName || m.groupDisplayName || m.resourceId}
+                </button>
+              </td>
+              <td className="px-4 py-2 text-gray-500 text-xs">{m.resourceType || m.groupTypeCalculated || '—'}</td>
+              <td className="px-4 py-2 text-xs">
+                {m.managedByAccessPackage
+                  ? <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">Governed</span>
+                  : <span className="text-gray-400">—</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ListShell>
+  );
+}
+
+function AccessPackageRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+            <th className="px-4 py-2 font-medium">Access Package</th>
+            <th className="px-4 py-2 font-medium">State</th>
+            <th className="px-4 py-2 font-medium">Expires</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((ap, i) => (
+            <tr key={ap.resourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+              <td className="px-4 py-2">
+                <button
+                  onClick={() => onOpenDetail?.('access-package', ap.resourceId, ap.accessPackageName)}
+                  className="text-blue-700 hover:text-blue-900 hover:underline text-left font-medium"
+                >
+                  {ap.accessPackageName || ap.resourceId}
+                </button>
+              </td>
+              <td className="px-4 py-2 text-xs text-gray-500">{ap.state || '—'}</td>
+              <td className="px-4 py-2 text-xs text-gray-500">{ap.expirationDateTime ? formatDate(ap.expirationDateTime) : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ListShell>
+  );
+}
+
+function OAuth2GrantRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+            <th className="px-4 py-2 font-medium">Client application</th>
+            <th className="px-4 py-2 font-medium">Scope</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((g, i) => {
+            const grantExt = safeParse(g.grantExtendedAttributes);
+            const scopeExt = safeParse(g.scopeExtendedAttributes);
+            const clientName = g.clientDisplayName || grantExt.clientDisplayName || grantExt.clientSpId || '—';
+            const scopeValue = grantExt.scope || scopeExt.scope || g.scopeDisplayName || '—';
+            return (
+              <tr key={g.scopeResourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="px-4 py-2">
+                  {g.clientSpId ? (
+                    <button onClick={() => onOpenDetail?.('resource', g.clientSpId, clientName)}
+                            className="text-blue-700 hover:text-blue-900 hover:underline text-left font-medium">
+                      {clientName}
+                    </button>
+                  ) : <span className="text-gray-900">{clientName}</span>}
+                </td>
+                <td className="px-4 py-2 font-mono text-xs text-gray-600">{scopeValue}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </ListShell>
+  );
+}
+
+function IdentityRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <div className="divide-y divide-gray-50">
+        {items.map(id => (
+          <div key={id.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
+            <div className="min-w-0 flex-1">
+              <button
+                onClick={() => onOpenDetail?.('identity', id.id, id.displayName)}
+                className="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
+              >
+                {id.displayName || id.id}
+              </button>
+              <div className="text-xs text-gray-400">
+                {id.accountCount ? `${id.accountCount} accounts` : ''}
+                {id.primaryAccountUpn ? ` \u2022 primary: ${id.primaryAccountUpn}` : ''}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </ListShell>
+  );
+}
+
+// ─── Identity Membership banner — unchanged from v1 ────────────────────
 
 const ACCOUNT_TYPE_COLORS = {
   Regular:  'bg-blue-100 text-blue-800 border-blue-200',
@@ -458,7 +586,7 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
   const typeColor = ACCOUNT_TYPE_COLORS[memberInfo.accountType] || ACCOUNT_TYPE_COLORS.Regular;
 
   return (
-    <div className="bg-white border border-emerald-200 rounded-lg p-4 mt-4 mb-4">
+    <div className="bg-white border border-emerald-200 rounded-lg p-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
           <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
@@ -466,10 +594,7 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
           </svg>
           Identity Membership
         </h3>
-        <button
-          onClick={onNavigateToIdentities}
-          className="text-xs text-emerald-700 hover:text-emerald-900 hover:underline"
-        >
+        <button onClick={onNavigateToIdentities} className="text-xs text-emerald-700 hover:text-emerald-900 hover:underline">
           View all identities →
         </button>
       </div>
@@ -507,10 +632,7 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
 
       {otherMembers.length > 0 && (
         <div className="mt-3">
-          <button
-            onClick={() => setExpanded(v => !v)}
-            className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
-          >
+          <button onClick={() => setExpanded(v => !v)} className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
             <span>{expanded ? '▼' : '▶'}</span>
             {expanded ? 'Hide' : 'Show'} other accounts ({otherMembers.length})
           </button>
@@ -538,4 +660,3 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
     </div>
   );
 }
-

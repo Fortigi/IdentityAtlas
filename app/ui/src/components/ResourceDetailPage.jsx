@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
-import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
-import { renderAttributeValue } from '../utils/renderAttribute';
-import { Section, CollapsibleSection } from './DetailSection';
+import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
+import { CollapsibleSection } from './DetailSection';
+import EntityGraph from './EntityGraph';
+import EntityDetailLayout, { AttributesTable, buildAttributeEntries } from './EntityDetailLayout';
 
 const RESOURCE_TYPE_COLORS = {
   EntraGroup: 'bg-blue-100 text-blue-700',
@@ -13,13 +14,11 @@ const RESOURCE_TYPE_COLORS = {
 };
 
 const HEADER_FIELDS = ['description', 'resourceType', 'groupTypeCalculated'];
-const HIDDEN_FIELDS = new Set(['displayName', ...HEADER_FIELDS, ...RISK_FIELDS, 'ValidFrom', 'ValidTo', 'extendedAttributes', 'systemId']);
-
-function parseExtendedAttributes(val) {
-  if (!val) return null;
-  if (typeof val === 'object' && !Array.isArray(val)) return val;
-  try { return JSON.parse(val); } catch { return null; }
-}
+const HIDDEN_FIELDS = new Set([
+  'displayName', ...HEADER_FIELDS, ...RISK_FIELDS,
+  'ValidFrom', 'ValidTo', 'extendedAttributes', 'systemId',
+  'contextId',
+]);
 
 const ASSIGNMENT_TYPE_COLORS = {
   Direct: 'bg-green-100 text-green-700',
@@ -28,33 +27,28 @@ const ASSIGNMENT_TYPE_COLORS = {
   Eligible: 'bg-purple-100 text-purple-700',
 };
 
+function parseExtendedAttributes(val) {
+  if (!val) return null;
+  if (typeof val === 'object' && !Array.isArray(val)) return val;
+  try { return JSON.parse(val); } catch { return null; }
+}
+
 export default function ResourceDetailPage({ resourceId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
 
-  // Core data
   const [data, setData] = useState(cachedData?.core || null);
   const [loading, setLoading] = useState(!cachedData?.core);
   const [error, setError] = useState(null);
 
-  // Lazy-loaded sections
-  const [assignmentsOpen, setAssignmentsOpen] = useState(false);
-  const [assignments, setAssignments] = useState(null);
-  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
-
-  const [businessRolesOpen, setBusinessRolesOpen] = useState(false);
-  const [businessRoles, setBusinessRoles] = useState(null);
-  const [businessRolesLoading, setBusinessRolesLoading] = useState(false);
-
-  const [parentResourcesOpen, setParentResourcesOpen] = useState(false);
-  const [parentResources, setParentResources] = useState(null);
-  const [parentResourcesLoading, setParentResourcesLoading] = useState(false);
-
-  // Lazy-loaded history
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState(cachedData?.history || null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Fetch core data
+  // Graph interaction state
+  const [activeKey, setActiveKey] = useState(null);
+  const [listCache, setListCache] = useState({});
+  const [listLoading, setListLoading] = useState(false);
+
   useEffect(() => {
     if (cachedData?.core) return;
     let cancelled = false;
@@ -80,7 +74,6 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
     return () => { cancelled = true; };
   }, [resourceId, authFetch, cachedData?.core, onCacheData]);
 
-  // Lazy-load history
   const loadHistory = useCallback(() => {
     if (history) return;
     setHistoryLoading(true);
@@ -100,42 +93,48 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
       .finally(() => setHistoryLoading(false));
   }, [resourceId, authFetch, history, onCacheData]);
 
-  const loadAssignments = useCallback(() => {
-    if (assignments) return;
-    setAssignmentsLoading(true);
-    authFetch(`/api/resources/${encodeURIComponent(resourceId)}/assignments`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setAssignments(d))
-      .catch(() => setAssignments([]))
-      .finally(() => setAssignmentsLoading(false));
-  }, [resourceId, authFetch, assignments]);
-
-  const loadBusinessRoles = useCallback(() => {
-    if (businessRoles) return;
-    setBusinessRolesLoading(true);
-    authFetch(`/api/resources/${encodeURIComponent(resourceId)}/business-roles`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setBusinessRoles(d))
-      .catch(() => setBusinessRoles([]))
-      .finally(() => setBusinessRolesLoading(false));
-  }, [resourceId, authFetch, businessRoles]);
-
-  const loadParentResources = useCallback(() => {
-    if (parentResources) return;
-    setParentResourcesLoading(true);
-    authFetch(`/api/resources/${encodeURIComponent(resourceId)}/parent-resources`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setParentResources(d))
-      .catch(() => setParentResources([]))
-      .finally(() => setParentResourcesLoading(false));
-  }, [resourceId, authFetch, parentResources]);
-
   const toggleHistory = useCallback(() => {
     setHistoryOpen(prev => {
       if (!prev) loadHistory();
       return !prev;
     });
   }, [loadHistory]);
+
+  // ─── Relationship node click → fetch list ───────────────────────────
+  const fetchList = useCallback(async (key) => {
+    if (listCache[key]) return;
+    setListLoading(true);
+    try {
+      let items = [];
+      if (key?.startsWith('members-')) {
+        const r = await authFetch(`/api/resources/${encodeURIComponent(resourceId)}/assignments`);
+        const all = r.ok ? await r.json() : [];
+        const want = { 'members-direct': 'Direct', 'members-governed': 'Governed', 'members-owner': 'Owner', 'members-eligible': 'Eligible' }[key];
+        items = all.filter(a => a.assignmentType === want);
+      } else if (key === 'business-roles') {
+        const r = await authFetch(`/api/resources/${encodeURIComponent(resourceId)}/business-roles`);
+        items = r.ok ? await r.json() : [];
+      } else if (key === 'parents') {
+        const r = await authFetch(`/api/resources/${encodeURIComponent(resourceId)}/parent-resources`);
+        items = r.ok ? await r.json() : [];
+      } else if (key === 'context') {
+        const ctxId = data?.attributes?.contextId;
+        if (ctxId) {
+          const r = await authFetch(`/api/contexts/${encodeURIComponent(ctxId)}`);
+          const d = r.ok ? await r.json() : null;
+          items = d?.context ? [d.context] : (d ? [d] : []);
+        }
+      }
+      setListCache(prev => ({ ...prev, [key]: items }));
+    } finally {
+      setListLoading(false);
+    }
+  }, [resourceId, authFetch, listCache, data]);
+
+  const handleNodeClick = useCallback((key) => {
+    setActiveKey(key);
+    fetchList(key);
+  }, [fetchList]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500">Loading resource details...</div>;
@@ -150,24 +149,32 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
   }
   if (!data) return null;
 
-  const { attributes, tags, memberCount, accessPackageCount, parentResourceCount, historyCount, hasHistory } = data;
+  const { attributes, tags, historyCount,
+          assignmentByType = {}, accessPackageCount = 0, parentResourceCount = 0 } = data;
   const resourceType = attributes.resourceType || attributes.groupTypeCalculated || '';
   const typeBadgeClass = RESOURCE_TYPE_COLORS[resourceType] || 'bg-gray-100 text-gray-700';
   const extAttrs = parseExtendedAttributes(attributes.extendedAttributes);
   const resolvedHistoryCount = history ? history.length : historyCount;
-  const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
-
+  const attributeEntries = buildAttributeEntries(attributes, extAttrs, HIDDEN_FIELDS);
   const historyDiffs = history ? computeHistoryDiffs(history) : [];
 
+  const nodes = [
+    { key: 'members-direct', label: 'Direct Members', count: assignmentByType.Direct || 0, accent: 'lime' },
+    { key: 'members-governed', label: 'Governed', count: assignmentByType.Governed || 0, accent: 'blue' },
+    { key: 'members-owner', label: 'Owners', count: assignmentByType.Owner || 0, accent: 'amber' },
+    { key: 'members-eligible', label: 'Eligible', count: assignmentByType.Eligible || 0, accent: 'purple' },
+    { key: 'business-roles', label: 'Business Roles', count: accessPackageCount, accent: 'purple' },
+    { key: 'parents', label: 'Member Of', count: parentResourceCount, accent: 'emerald' },
+    { key: 'context', label: 'Context', count: attributes.contextId ? 1 : 0, accent: 'purple' },
+  ];
+
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-lg font-bold">
-              R
-            </div>
+            <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-lg font-bold">R</div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">{attributes.displayName}</h2>
               <div className="flex items-center gap-2 mt-0.5">
@@ -177,9 +184,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
                   </span>
                 )}
                 {attributes.systemId && (
-                  <span className="text-xs text-gray-400">
-                    System: {attributes.systemId}
-                  </span>
+                  <span className="text-xs text-gray-400">System: {attributes.systemId}</span>
                 )}
               </div>
             </div>
@@ -207,178 +212,45 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
         </button>
       </div>
 
-      {/* Risk Assessment */}
-      <RiskScoreSection attributes={attributes} entityType="group" entityId={resourceId} authFetch={authFetch} />
+      <EntityDetailLayout
+        left={<AttributesTable entries={attributeEntries} />}
+        right={
+          <div className="space-y-4">
+            <div className="bg-white border border-gray-200 rounded-lg p-3">
+              <EntityGraph
+                centerLabel="Resource"
+                centerSubLabel={attributes.displayName}
+                nodes={nodes}
+                activeKey={activeKey}
+                onNodeClick={handleNodeClick}
+              />
+              {activeKey && (
+                <div className="text-xs text-gray-400 text-center pb-2">
+                  Showing <span className="font-medium text-gray-600">{nodes.find(n => n.key === activeKey)?.label}</span>
+                  {' — '}
+                  <button onClick={() => setActiveKey(null)} className="text-gray-500 hover:text-gray-700 underline">clear</button>
+                </div>
+              )}
+            </div>
 
-      {/* Attributes */}
-      <Section title="Attributes" count={otherAttributes.length}>
-        <table className="w-full text-sm">
-          <tbody>
-            {/* URL-shaped values render as clickable links (see renderAttributeValue);
-                ext.Link in particular becomes the "Open in Entra ID" affordance. */}
-            {otherAttributes.map(([key, val]) => (
-              <tr key={key} className="border-b border-gray-50 last:border-b-0">
-                <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
+            {activeKey && (
+              <ResourceRelationshipList
+                nodeKey={activeKey}
+                items={listCache[activeKey]}
+                loading={listLoading}
+                onOpenDetail={onOpenDetail}
+              />
+            )}
+            {!activeKey && (
+              <div className="bg-white border border-dashed border-gray-200 rounded-lg p-6 text-center">
+                <p className="text-sm text-gray-400">Click a node in the graph to see its details.</p>
+              </div>
+            )}
+          </div>
+        }
+      >
+        <RiskScoreSection attributes={attributes} entityType="group" entityId={resourceId} authFetch={authFetch} />
 
-      {/* Extended Attributes (parsed from JSON) */}
-      {extAttrs && Object.keys(extAttrs).length > 0 && (
-        <div className="mt-6">
-          <Section title="Extended Attributes" count={Object.keys(extAttrs).filter(k => extAttrs[k] != null).length}>
-            <table className="w-full text-sm">
-              <tbody>
-                {Object.entries(extAttrs)
-                  .filter(([, val]) => val != null)
-                  .map(([key, val]) => (
-                    <tr key={key} className="border-b border-gray-50 last:border-b-0">
-                      <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                      <td className="py-1 text-gray-900 font-medium break-all">
-                        {typeof val === 'object' ? JSON.stringify(val) : renderAttributeValue(key, val)}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </Section>
-        </div>
-      )}
-
-      {/* Assigned Users */}
-      <div className="mt-6">
-        <CollapsibleSection
-          title="Assigned Users"
-          count={assignments ? assignments.length : memberCount}
-          open={assignmentsOpen}
-          onToggle={() => { if (!assignmentsOpen) loadAssignments(); setAssignmentsOpen(p => !p); }}
-          loading={assignmentsLoading}
-        >
-          {assignments && assignments.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No assignments</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-2 font-medium">User</th>
-                  <th className="px-4 py-2 font-medium">Type</th>
-                  <th className="px-4 py-2 font-medium">Assignment</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(assignments || []).map((a, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    <td className="px-4 py-2">
-                      <button
-                        onClick={() => onOpenDetail?.('user', a.principalId, a.principalDisplayName)}
-                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                      >{a.principalDisplayName || a.principalId}</button>
-                    </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{a.principalType}</td>
-                    <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${ASSIGNMENT_TYPE_COLORS[a.assignmentType] || 'bg-gray-100 text-gray-700'}`}>
-                        {a.assignmentType}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{a.assignmentStatus || a.state || '\u2014'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CollapsibleSection>
-      </div>
-
-      {/* Business Roles containing this resource */}
-      <div className="mt-6">
-        <CollapsibleSection
-          title="Business Roles"
-          count={businessRoles ? businessRoles.length : accessPackageCount}
-          open={businessRolesOpen}
-          onToggle={() => { if (!businessRolesOpen) loadBusinessRoles(); setBusinessRolesOpen(p => !p); }}
-          loading={businessRolesLoading}
-        >
-          {businessRoles && businessRoles.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">Not part of any business role</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-2 font-medium">Business Role</th>
-                  <th className="px-4 py-2 font-medium">Role Name</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(businessRoles || []).map((br, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    <td className="px-4 py-2">
-                      {br.businessRoleId ? (
-                        <button
-                          onClick={() => onOpenDetail?.('resource', br.businessRoleId, br.businessRoleName || 'Unnamed')}
-                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                        >{br.businessRoleName || <span className="text-gray-400 italic">Unnamed</span>}</button>
-                      ) : (
-                        <span className="text-gray-400 italic">{br.businessRoleName || 'Unnamed'}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-gray-500">{(br.roleName && br.roleName !== '-') ? br.roleName : '\u2014'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CollapsibleSection>
-      </div>
-
-      {/* Parent Resources (resources this resource is a member of) */}
-      <div className="mt-6">
-        <CollapsibleSection
-          title="Member Of"
-          count={parentResources ? parentResources.length : parentResourceCount}
-          open={parentResourcesOpen}
-          onToggle={() => { if (!parentResourcesOpen) loadParentResources(); setParentResourcesOpen(p => !p); }}
-          loading={parentResourcesLoading}
-        >
-          {parentResources && parentResources.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">Not a member of any other resource</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-2 font-medium">Parent Resource</th>
-                  <th className="px-4 py-2 font-medium">Type</th>
-                  <th className="px-4 py-2 font-medium">Relationship</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(parentResources || []).map((pr, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    <td className="px-4 py-2">
-                      <button
-                        onClick={() => onOpenDetail?.('resource', pr.parentResourceId, pr.parentDisplayName)}
-                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                      >{pr.parentDisplayName || pr.parentResourceId}</button>
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${RESOURCE_TYPE_COLORS[pr.parentResourceType] || 'bg-gray-100 text-gray-700'}`}>
-                        {pr.parentResourceType}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{pr.relationshipType}{pr.roleName ? ` (${pr.roleName})` : ''}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CollapsibleSection>
-      </div>
-
-      {/* Version History */}
-      <div className="mt-6">
         <CollapsibleSection
           title="Version History"
           count={resolvedHistoryCount}
@@ -400,9 +272,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
               <tbody>
                 {historyDiffs.map((diff, i) => (
                   <tr key={i} className="border-b border-gray-50">
-                    <td className="px-4 py-2 text-gray-600 text-xs align-top whitespace-nowrap">
-                      {formatDate(diff.date)}
-                    </td>
+                    <td className="px-4 py-2 text-gray-600 text-xs align-top whitespace-nowrap">{formatDate(diff.date)}</td>
                     <td className="px-4 py-2">
                       <div className="flex flex-col gap-1">
                         {diff.changes.map((c, j) => (
@@ -422,9 +292,154 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
             </table>
           )}
         </CollapsibleSection>
-      </div>
+      </EntityDetailLayout>
     </div>
   );
 }
 
+function ResourceRelationshipList({ nodeKey, items, loading, onOpenDetail }) {
+  if (loading && !items) {
+    return <div className="bg-white border border-gray-200 rounded-lg p-6 text-center text-sm text-gray-500">Loading…</div>;
+  }
+  if (!items || items.length === 0) {
+    return <div className="bg-white border border-gray-200 rounded-lg p-6 text-center text-sm text-gray-400 italic">Nothing to show for this relationship.</div>;
+  }
+  if (nodeKey?.startsWith('members-')) return <AssignmentRows items={items} onOpenDetail={onOpenDetail} />;
+  if (nodeKey === 'business-roles') return <BusinessRoleRows items={items} onOpenDetail={onOpenDetail} />;
+  if (nodeKey === 'parents') return <ParentRows items={items} onOpenDetail={onOpenDetail} />;
+  if (nodeKey === 'context') return <ContextRows items={items} onOpenDetail={onOpenDetail} />;
+  return null;
+}
 
+function ListShell({ count, children }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+        <h3 className="text-sm font-semibold text-gray-700">Selected</h3>
+        <span className="text-xs text-gray-500">{count}</span>
+      </div>
+      <div className="max-h-[460px] overflow-y-auto">{children}</div>
+    </div>
+  );
+}
+
+function AssignmentRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+            <th className="px-4 py-2 font-medium">User</th>
+            <th className="px-4 py-2 font-medium">Type</th>
+            <th className="px-4 py-2 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((a, i) => (
+            <tr key={a.principalId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+              <td className="px-4 py-2">
+                <button onClick={() => onOpenDetail?.('user', a.principalId, a.principalDisplayName)}
+                        className="text-blue-700 hover:text-blue-900 hover:underline font-medium">
+                  {a.principalDisplayName || a.principalId}
+                </button>
+                <div className="text-xs text-gray-400">{a.principalType}</div>
+              </td>
+              <td className="px-4 py-2">
+                <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${ASSIGNMENT_TYPE_COLORS[a.assignmentType] || 'bg-gray-100 text-gray-700'}`}>
+                  {a.assignmentType}
+                </span>
+              </td>
+              <td className="px-4 py-2 text-gray-500 text-xs">{a.assignmentStatus || a.state || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ListShell>
+  );
+}
+
+function BusinessRoleRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+            <th className="px-4 py-2 font-medium">Business Role</th>
+            <th className="px-4 py-2 font-medium">Role Name</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((br, i) => (
+            <tr key={(br.businessRoleId || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+              <td className="px-4 py-2">
+                {br.businessRoleId ? (
+                  <button onClick={() => onOpenDetail?.('access-package', br.businessRoleId, br.businessRoleName || 'Unnamed')}
+                          className="text-blue-700 hover:text-blue-900 hover:underline font-medium">
+                    {br.businessRoleName || <span className="text-gray-400 italic">Unnamed</span>}
+                  </button>
+                ) : <span className="text-gray-400 italic">{br.businessRoleName || 'Unnamed'}</span>}
+              </td>
+              <td className="px-4 py-2 text-gray-500">{(br.roleName && br.roleName !== '-') ? br.roleName : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ListShell>
+  );
+}
+
+function ParentRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+            <th className="px-4 py-2 font-medium">Parent Resource</th>
+            <th className="px-4 py-2 font-medium">Type</th>
+            <th className="px-4 py-2 font-medium">Relationship</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((pr, i) => (
+            <tr key={pr.parentResourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+              <td className="px-4 py-2">
+                <button onClick={() => onOpenDetail?.('resource', pr.parentResourceId, pr.parentDisplayName)}
+                        className="text-blue-700 hover:text-blue-900 hover:underline font-medium">
+                  {pr.parentDisplayName || pr.parentResourceId}
+                </button>
+              </td>
+              <td className="px-4 py-2">
+                <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${RESOURCE_TYPE_COLORS[pr.parentResourceType] || 'bg-gray-100 text-gray-700'}`}>
+                  {pr.parentResourceType}
+                </span>
+              </td>
+              <td className="px-4 py-2 text-gray-500 text-xs">{pr.relationshipType}{pr.roleName ? ` (${pr.roleName})` : ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ListShell>
+  );
+}
+
+function ContextRows({ items, onOpenDetail }) {
+  return (
+    <ListShell count={items.length}>
+      <div className="divide-y divide-gray-50">
+        {items.map(c => (
+          <div key={c.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
+            <div className="min-w-0 flex-1">
+              <button onClick={() => onOpenDetail?.('context', c.id, c.displayName)}
+                      className="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline text-left">
+                {c.displayName || c.id}
+              </button>
+              <div className="text-xs text-gray-400">
+                {[c.contextType, c.parentContextDisplayName].filter(Boolean).join(' • ') || '—'}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </ListShell>
+  );
+}
