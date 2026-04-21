@@ -535,7 +535,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [view, setView] = useState('clusters');
+  const [view, setView] = useState('users');
   const [tierFilter, setTierFilter] = useState('');
   const [search, setSearch] = useState('');
   const [overridesOnly, setOverridesOnly] = useState(false);
@@ -652,11 +652,11 @@ export default function RiskScoringPage({ onOpenDetail }) {
   }, [fetchClusters, fetchClusterSummary]);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  useEffect(() => { fetchClusterSummary(); }, [fetchClusterSummary]);
+  // Resource clusters moved to the Contexts tab (Phase 7 of the redesign).
+  // The old /api/risk-scores/clusters* routes no longer exist.
   useEffect(() => {
-    if (view === 'clusters') fetchClusters();
-    else fetchEntities();
-  }, [view, fetchClusters, fetchEntities]);
+    if (view !== 'clusters') fetchEntities();
+  }, [view, fetchEntities]);
   useEffect(() => { setPage(0); }, [view, tierFilter, search, overridesOnly]);
 
   if (loading && !summary) {
@@ -832,19 +832,13 @@ export default function RiskScoringPage({ onOpenDetail }) {
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setView('clusters')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                view === 'clusters' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`}
+            <a
+              href="#contexts"
+              className="px-3 py-1.5 text-sm font-medium rounded-lg text-blue-600 hover:bg-blue-50"
+              title="Resource clusters are now a generated context tree — view them on the Contexts tab."
             >
-              Clusters
-              {clusterSummary?.available && clusterSummary.total > 0 && (
-                <span className="ml-1.5 text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
-                  {clusterSummary.total}
-                </span>
-              )}
-            </button>
+              View clusters →
+            </a>
             <span className="w-px h-5 bg-gray-200" />
             {(s?.totalGroups > 0 || !s) && (
               <button
@@ -930,22 +924,14 @@ export default function RiskScoringPage({ onOpenDetail }) {
           </div>
         </div>
 
-        {view === 'clusters' ? (
-          clusterLoading ? (
-            <div className="py-8 text-center text-gray-400">Loading clusters...</div>
-          ) : (
-            <ClusterTable clusters={clusterData.data} onSelect={setSelectedCluster} sortKey={clusterSort.key} sortDir={clusterSort.dir} onSort={handleClusterSort} />
-          )
+        {entityLoading ? (
+          <div className="py-8 text-center text-gray-400">Loading...</div>
         ) : (
-          entityLoading ? (
-            <div className="py-8 text-center text-gray-400">Loading...</div>
-          ) : (
-            <EntityTable
-              entities={entityData.data}
-              entityType={viewToEntityType[view] || 'group'}
-              onOpenDetail={onOpenDetail}
-            />
-          )
+          <EntityTable
+            entities={entityData.data}
+            entityType={viewToEntityType[view] || 'group'}
+            onOpenDetail={onOpenDetail}
+          />
         )}
 
         {/* Pagination */}
