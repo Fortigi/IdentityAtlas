@@ -1,6 +1,16 @@
 import { useMemo, useState } from 'react';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 
+function renderMemberCounts(n) {
+  const d = typeof n.directMemberCount === 'number' ? n.directMemberCount : null;
+  const t = typeof n.totalMemberCount  === 'number' ? n.totalMemberCount  : null;
+  if (d == null && t == null) return null;
+  if (t != null && d != null && t > d) {
+    return <span className="text-[10px] text-gray-400">· {d}/{t}</span>;
+  }
+  return <span className="text-[10px] text-gray-400">· {d ?? t}</span>;
+}
+
 // Left pane of the Contexts tab. Lists every root context. Grouped by
 // contextType so "all OrgUnit roots" cluster, "all ResourceCluster roots"
 // cluster, etc. Within a group, each entry shows variant colour + target
@@ -111,9 +121,7 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
                                 {n.scopeSystemName}
                               </span>
                             )}
-                            {typeof n.totalMemberCount === 'number' && (
-                              <span className="text-[10px] text-gray-400">· {n.totalMemberCount}</span>
-                            )}
+                            {renderMemberCounts(n)}
                           </div>
                         </div>
                       </div>
