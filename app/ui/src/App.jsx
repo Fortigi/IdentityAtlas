@@ -47,7 +47,18 @@ function parseMatrixParams(params) {
   }
   const managed = params.get('managed') || 'all';
   const search = params.get('q') || '';
-  return { limit, filters, managed, search };
+  let contextFilters = [];
+  if (params.has('cf')) {
+    try {
+      const raw = JSON.parse(params.get('cf'));
+      if (Array.isArray(raw)) {
+        contextFilters = raw
+          .filter(x => x && typeof x.id === 'string')
+          .map(x => ({ id: x.id, includeChildren: !!x.includeChildren }));
+      }
+    } catch { /* ignore malformed cf */ }
+  }
+  return { limit, filters, managed, search, contextFilters };
 }
 
 function buildMatrixHash(state) {
@@ -59,6 +70,9 @@ function buildMatrixHash(state) {
   }
   if (state.managed && state.managed !== 'all') params.set('managed', state.managed);
   if (state.search) params.set('q', state.search);
+  if (state.contextFilters && state.contextFilters.length > 0) {
+    params.set('cf', JSON.stringify(state.contextFilters));
+  }
   const qs = params.toString();
   return `matrix${qs ? '?' + qs : ''}`;
 }
@@ -114,8 +128,9 @@ export default function App() {
   const [activeFilters, setActiveFilters] = useState(initial.filters);
   const [managedFilter, setManagedFilter] = useState(initial.managed);
   const [filterText, setFilterText] = useState(initial.search);
+  const [contextFilters, setContextFilters] = useState(initial.contextFilters || []);
 
-  const { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error, forceRefresh } = usePermissions(userLimit, activeFilters);
+  const { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error, forceRefresh } = usePermissions(userLimit, activeFilters, contextFilters);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -277,13 +292,14 @@ export default function App() {
         filters: activeFilters,
         managed: managedFilter,
         search: filterText,
+        contextFilters,
       });
       if (window.location.hash !== '#' + newHash) {
         history.replaceState(null, '', '#' + newHash);
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [page, userLimit, activeFilters, managedFilter, filterText]);
+  }, [page, userLimit, activeFilters, managedFilter, filterText, contextFilters]);
 
   // Build shareable URL (stable reference for children)
   const shareUrl = useMemo(() => buildMatrixUrl({
@@ -291,7 +307,8 @@ export default function App() {
     filters: activeFilters,
     managed: managedFilter,
     search: filterText,
-  }), [userLimit, activeFilters, managedFilter, filterText]);
+    contextFilters,
+  }), [userLimit, activeFilters, managedFilter, filterText, contextFilters]);
 
   // Check if current page is a detail tab
   const isDetailPage = page.startsWith('user:') || page.startsWith('group:') || page.startsWith('resource:') || page.startsWith('access-package:') || page.startsWith('department:') || page.startsWith('context:') || page.startsWith('identity:') || page.startsWith('run:');
@@ -528,6 +545,8 @@ export default function App() {
               setManagedFilter={setManagedFilter}
               filterText={filterText}
               setFilterText={setFilterText}
+              contextFilters={contextFilters}
+              setContextFilters={setContextFilters}
               userColumns={userColumns}
               groupTagMap={groupTagMap}
               refreshing={refreshing}
