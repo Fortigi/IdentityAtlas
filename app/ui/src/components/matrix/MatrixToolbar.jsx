@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import FilterBar from '../FilterBar';
+import ContextFilterControl from './ContextFilterControl';
 
 export default function MatrixToolbar({
   filterFields,
@@ -10,6 +11,8 @@ export default function MatrixToolbar({
   onRemoveFilter,
   filterText,
   setFilterText,
+  contextFilters = [],
+  setContextFilters,
   managedFilter,
   setManagedFilter,
   userLimit,
@@ -97,6 +100,13 @@ export default function MatrixToolbar({
           {' '}&times; {stats.groups} resources &middot; {stats.memberships} assignments
         </div>
       </div>
+
+      {/* Row 1b: context filter chips */}
+      {setContextFilters && (
+        <div className="flex flex-wrap items-center gap-2">
+          <ContextFilterControl value={contextFilters} onChange={setContextFilters} />
+        </div>
+      )}
 
       {/* Row 2: Managed toggle + actions */}
       <div className="flex flex-wrap items-center gap-2 text-sm">

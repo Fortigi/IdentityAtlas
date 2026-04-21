@@ -12,7 +12,7 @@ const GROUP_COL_ALIASES = {
   groupDescription: 'resourceDescription',
 };
 
-export function usePermissions(userLimit = 25, activeFilters = []) {
+export function usePermissions(userLimit = 25, activeFilters = [], contextFilters = []) {
   const { authFetch } = useAuth();
   const [data, setData] = useState([]);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -102,10 +102,12 @@ export function usePermissions(userLimit = 25, activeFilters = []) {
 
   // Stable key for debounce comparison (avoids object reference changes)
   const serverFilterKey = useMemo(() => JSON.stringify(serverFilters), [serverFilters]);
+  const contextFilterKey = useMemo(() => JSON.stringify(contextFilters || []), [contextFilters]);
 
   // Debounced server parameters: only triggers fetch after 400ms of no changes
   const [debouncedLimit, setDebouncedLimit] = useState(userLimit);
   const [debouncedFilterKey, setDebouncedFilterKey] = useState(serverFilterKey);
+  const [debouncedContextKey, setDebouncedContextKey] = useState(contextFilterKey);
   const timerRef = useRef(null);
 
   useEffect(() => {
@@ -113,15 +115,18 @@ export function usePermissions(userLimit = 25, activeFilters = []) {
     timerRef.current = setTimeout(() => {
       setDebouncedLimit(userLimit);
       setDebouncedFilterKey(serverFilterKey);
+      setDebouncedContextKey(contextFilterKey);
     }, 400);
     return () => clearTimeout(timerRef.current);
-  }, [userLimit, serverFilterKey]);
+  }, [userLimit, serverFilterKey, contextFilterKey]);
 
-  const fetchPermissions = useCallback(async (limit, filterJson, signal) => {
+  const fetchPermissions = useCallback(async (limit, filterJson, contextJson, signal) => {
     const params = new URLSearchParams();
     if (limit > 0) params.set('userLimit', limit);
     const filters = JSON.parse(filterJson);
     if (Object.keys(filters).length > 0) params.set('filters', filterJson);
+    const ctxs = JSON.parse(contextJson);
+    if (Array.isArray(ctxs) && ctxs.length > 0) params.set('contextFilters', contextJson);
     const qs = params.toString();
     const url = `${API_BASE}/permissions${qs ? `?${qs}` : ''}`;
     const res = await authFetch(url, { signal });
@@ -144,7 +149,7 @@ export function usePermissions(userLimit = 25, activeFilters = []) {
         setRefreshing(true);
 
         const [permResult, apRes] = await Promise.all([
-          fetchPermissions(debouncedLimit, debouncedFilterKey, controller.signal),
+          fetchPermissions(debouncedLimit, debouncedFilterKey, debouncedContextKey, controller.signal),
           authFetch(`${API_BASE}/access-package-groups`, { signal: controller.signal }),
         ]);
 
@@ -172,7 +177,7 @@ export function usePermissions(userLimit = 25, activeFilters = []) {
       cancelled = true;
       controller.abort();
     };
-  }, [debouncedLimit, debouncedFilterKey, fetchPermissions, authFetch, refreshCounter]);
+  }, [debouncedLimit, debouncedFilterKey, debouncedContextKey, fetchPermissions, authFetch, refreshCounter]);
 
   return { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error, forceRefresh };
 }

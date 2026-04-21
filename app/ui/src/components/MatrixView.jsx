@@ -44,6 +44,7 @@ export default function MatrixView({
   activeFilters, setActiveFilters,
   managedFilter, setManagedFilter,
   filterText, setFilterText,
+  contextFilters, setContextFilters,
   userColumns,
   groupTagMap,
   refreshing,
@@ -791,6 +792,8 @@ export default function MatrixView({
         onRemoveFilter={removeFilter}
         filterText={filterText}
         setFilterText={setFilterText}
+        contextFilters={contextFilters}
+        setContextFilters={setContextFilters}
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
         userLimit={userLimit}
