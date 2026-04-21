@@ -12,3 +12,8 @@
 - Unified Tags into the Contexts model: existing tag UX preserved, tags become manual flat contexts that analysts can later reparent and assign an owner to.
 - Added a phased build plan for the redesign as a greenfield v6 change with no migration from v5.
 - Fixed plain-HTTP deployments being bricked by HSTS + CSP `upgrade-insecure-requests`. Both headers are now opt-in via `BEHIND_TLS=true`; the default quickstart deployment over `http://host:3001` no longer traps browsers into HTTPS-only for a year.
+- Contexts tab: "+ New" on the tree selector now opens a three-card dispatcher — Import (opens Crawlers), Run plugin, or Create manual tree. Creating a manual tree lands on its detail page; starting a plugin run opens a live run-detail tab.
+- Added a plugin-run wizard: plugin picker grouped by target type, parameter form auto-generated from each plugin's `parametersSchema`, a "Dry run" preview showing context/member counts plus sample rows, and a "Run" action that queues the algorithm and navigates to the run-detail page.
+- Added a plugin-run detail page that polls the run API every 1s, shows live status (queued → running → succeeded/failed), final reconciliation counts, parameters, and the error if one fires.
+- Manual contexts are now fully editable from the detail page: rename, edit description, set parent (picker limited to same-target-type trees), set owner, and delete (with confirm). Manual-only — synced and generated variants are still read-only.
+- Members on manual contexts can be added via a typeahead picker (identities / resources / principals / systems) and removed per-row. Member-write endpoints already enforced manual-only on the server; the UI just surfaces them.
