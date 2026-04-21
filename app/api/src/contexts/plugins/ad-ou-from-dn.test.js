@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import plugin, { _internal } from './ad-ou-from-dn.js';
 
-const { parseOuChain } = _internal;
+const { parseOuChain, resolveDnExpression } = _internal;
 
 describe('parseOuChain', () => {
   it('returns [] for empty input', () => {
@@ -27,6 +27,21 @@ describe('parseOuChain', () => {
   it('trims whitespace around components', () => {
     expect(parseOuChain('CN=Alice, OU = Finance , OU = HQ , DC=example'))
       .toEqual(['Finance', 'HQ']);
+  });
+});
+
+describe('resolveDnExpression', () => {
+  it('compiles a bare column name', () => {
+    expect(resolveDnExpression('distinguishedName')).toBe('"distinguishedName"');
+  });
+  it('compiles an extendedAttributes.key path', () => {
+    expect(resolveDnExpression('extendedAttributes.onPremisesDistinguishedName'))
+      .toBe(`"extendedAttributes"->>'onPremisesDistinguishedName'`);
+  });
+  it('rejects junk identifiers', () => {
+    expect(() => resolveDnExpression('foo; DROP TABLE x;')).toThrow();
+    expect(() => resolveDnExpression('extendedAttributes.key-with-dash')).toThrow();
+    expect(() => resolveDnExpression('a.b.c')).toThrow();
   });
 });
 
