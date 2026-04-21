@@ -48,8 +48,13 @@ export default {
 
     const compiled = patterns.map((p, i) => {
       if (!p?.name || !p?.regex) throw new Error(`Pattern at index ${i} is missing name or regex.`);
+      // Case-insensitivity is always applied (the 'i' flag below). Strip a
+      // leading PCRE-style (?i) so users who paste a regex from grep / .NET
+      // don't get "Invalid group" from the JS engine, which doesn't support
+      // inline flag syntax.
+      const source = String(p.regex).replace(/^\(\?i\)/, '');
       let re;
-      try { re = new RegExp(p.regex, 'i'); }
+      try { re = new RegExp(source, 'i'); }
       catch (err) { throw new Error(`Pattern "${p.name}" has invalid regex: ${err.message}`); }
       return { name: String(p.name).slice(0, 500), re };
     });
