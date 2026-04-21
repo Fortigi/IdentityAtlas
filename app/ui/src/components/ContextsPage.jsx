@@ -6,12 +6,14 @@ import { useContextRoots, useContextSubtree } from '../hooks/useContextTrees';
 import ContextTreeSelector from './contexts/ContextTreeSelector';
 import ContextTreeView from './contexts/ContextTreeView';
 import ContextListView from './contexts/ContextListView';
+import NewContextModal from './contexts/NewContextModal';
 import { variantMeta, targetTypeMeta } from '../utils/contextStyles';
 
-export default function ContextsPage({ onOpenDetail }) {
+export default function ContextsPage({ onOpenDetail, onNavigate }) {
   const { roots, loading: rootsLoading, error: rootsError, reload: reloadRoots } = useContextRoots();
   const [selectedRootId, setSelectedRootId] = useState(null);
   const [viewMode, setViewMode] = useState('tree');
+  const [newModalOpen, setNewModalOpen] = useState(false);
 
   // Auto-select the first root when roots load.
   const effectiveRootId = useMemo(() => {
@@ -34,6 +36,7 @@ export default function ContextsPage({ onOpenDetail }) {
             roots={roots}
             selectedRootId={effectiveRootId}
             onSelectRoot={setSelectedRootId}
+            onNewTree={() => setNewModalOpen(true)}
             loading={rootsLoading}
           />
         </div>
@@ -47,7 +50,7 @@ export default function ContextsPage({ onOpenDetail }) {
 
           {!selectedRoot && !rootsLoading && (
             <div className="flex-1 flex items-center justify-center p-8 text-sm text-gray-500">
-              Select a tree on the left to view its contents.
+              Select a tree on the left, or click <span className="font-semibold">+ New</span> to create one.
             </div>
           )}
 
@@ -65,6 +68,19 @@ export default function ContextsPage({ onOpenDetail }) {
           )}
         </div>
       </div>
+
+      <NewContextModal
+        open={newModalOpen}
+        onClose={() => setNewModalOpen(false)}
+        onCreated={(created) => {
+          reloadRoots();
+          if (created?.id) onOpenDetail?.('context', created.id, created.displayName);
+        }}
+        onRunStarted={(runId) => {
+          if (runId) onOpenDetail?.('run', runId, 'Plugin run');
+        }}
+        onOpenCrawlers={() => onNavigate?.('admin')}
+      />
     </div>
   );
 }

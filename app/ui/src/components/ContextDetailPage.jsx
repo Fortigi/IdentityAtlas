@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
+import ManualContextEditor from './contexts/ManualContextEditor';
+import ContextMemberPicker from './contexts/ContextMemberPicker';
 import { variantMeta, targetTypeMeta } from '../utils/contextStyles';
 
 // ─── Context Detail Page ──────────────────────────────────────────────────────
@@ -135,6 +137,20 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
   const attrs = cleanAttributes(detail.attributes);
   const subContexts = detail.subContexts || [];
   const totalPages = Math.ceil(memberTotal / PAGE_SIZE);
+  const isManual = detail.attributes.variant === 'manual';
+
+  async function removeMember(memberId) {
+    try {
+      const r = await authFetch(`/api/contexts/${contextId}/members/${memberId}`, { method: 'DELETE' });
+      if (!r.ok && r.status !== 204) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${r.status}`);
+      }
+      fetchMembers(); fetchDetail();
+    } catch (err) {
+      console.error('Remove member failed:', err);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -142,6 +158,16 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
       <ContextHeader attrs={detail.attributes} onClose={onClose} />
       {detail.attributes.description && (
         <div className="bg-white border border-gray-200 rounded-lg px-6 py-3 text-sm text-gray-700">{detail.attributes.description}</div>
+      )}
+
+      {/* Manual-context inline editor */}
+      {isManual && (
+        <ManualContextEditor
+          contextId={contextId}
+          attrs={detail.attributes}
+          onUpdated={() => fetchDetail()}
+          onDeleted={() => onClose?.()}
+        />
       )}
 
       {/* Risk Score */}
@@ -204,6 +230,17 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
           />
         </div>
 
+        {isManual && (
+          <div className="mb-4">
+            <ContextMemberPicker
+              contextId={contextId}
+              targetType={detail.attributes.targetType}
+              existingMemberIds={members.map(m => m.id)}
+              onAdded={() => { fetchMembers(); fetchDetail(); }}
+            />
+          </div>
+        )}
+
         {membersLoading ? (
           <div className="text-center text-gray-400 py-8 text-sm">Loading members...</div>
         ) : members.length === 0 ? (
@@ -218,6 +255,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                   <th className="pb-2 font-medium">Job Title</th>
                   <th className="pb-2 font-medium">Type</th>
                   <th className="pb-2 font-medium">Status</th>
+                  {isManual && <th className="pb-2 font-medium"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -242,6 +280,15 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                         </span>
                       )}
                     </td>
+                    {isManual && (
+                      <td className="py-1.5 text-right">
+                        <button
+                          onClick={e => { e.stopPropagation(); removeMember(m.id); }}
+                          className="text-[11px] text-red-600 hover:text-red-800"
+                          title="Remove from context"
+                        >Remove</button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

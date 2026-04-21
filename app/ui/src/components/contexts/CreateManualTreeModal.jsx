@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthGate';
+import { Modal, Field, ErrorBox, PrimaryButton, SecondaryButton } from './ModalPrimitives';
 
 // Minimal wizard for creating a manual root context. Target type + context
 // type + name + optional description + optional scope system.
@@ -108,38 +109,14 @@ export default function CreateManualTreeModal({ open, onClose, onCreated }) {
         </Field>
       </div>
 
-      {error && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">{error}</div>}
+      <ErrorBox message={error} />
 
       <div className="mt-4 flex items-center justify-end gap-2">
-        <button onClick={onClose} className="px-3 py-1 text-xs rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-700">Cancel</button>
-        <button disabled={!canSubmit} onClick={submit} className="px-3 py-1 text-xs rounded bg-blue-600 text-white disabled:opacity-50">
+        <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
+        <PrimaryButton disabled={!canSubmit} onClick={submit}>
           {submitting ? 'Creating…' : 'Create'}
-        </button>
+        </PrimaryButton>
       </div>
     </Modal>
-  );
-}
-
-function Field({ label, help, children }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-700">{label}</label>
-      {children}
-      {help && <p className="text-[11px] text-gray-500 mt-0.5">{help}</p>}
-    </div>
-  );
-}
-
-function Modal({ title, onClose, children }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white border border-gray-200 rounded-lg p-5 w-[480px] max-w-full" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">✕</button>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }
