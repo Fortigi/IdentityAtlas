@@ -1,12 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
+import { variantMeta, targetTypeMeta } from '../utils/contextStyles';
 
 // ─── Context Detail Page ──────────────────────────────────────────────────────
-// Shows details for a single Context: attributes, members (via Identities), sub-contexts.
-// Loaded via /api/contexts/:id
+// Shows details for a single Context (v6 shape): header with variant /
+// target / scope-system / owner, paginated members, sub-contexts.
+// Loaded via /api/contexts/:id.
 
-const SYSTEM_COLS = new Set(['SysStartTime', 'SysEndTime', 'ValidFrom', 'ValidTo']);
+const SYSTEM_COLS = new Set([
+  'SysStartTime', 'SysEndTime', 'ValidFrom', 'ValidTo',
+  // New-shape fields already surfaced in the header — don't repeat in the
+  // attributes grid.
+  'id', 'variant', 'targetType', 'contextType', 'displayName', 'description',
+  'parentContextId', 'scopeSystemId', 'scopeSystemName', 'sourceAlgorithmId',
+  'sourceAlgorithmName', 'sourceAlgorithmDisplayName', 'sourceRunId',
+  'createdByUser', 'ownerUserId', 'externalId', 'parentDisplayName',
+]);
 
 function cleanAttributes(attrs) {
   if (!attrs) return {};
@@ -129,53 +139,13 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center text-sm font-bold">
-                CTX
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">{attrs.displayName || contextId}</h2>
-                {attrs.contextType && (
-                  <span className="inline-block mt-0.5 text-xs text-sky-600 bg-sky-50 border border-sky-200 rounded px-2 py-0.5">
-                    {attrs.contextType}
-                  </span>
-                )}
-              </div>
-            </div>
-            {attrs.description && (
-              <p className="text-sm text-gray-600 mt-2">{attrs.description}</p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1"
-            title="Close"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
+      <ContextHeader attrs={detail.attributes} onClose={onClose} />
+      {detail.attributes.description && (
+        <div className="bg-white border border-gray-200 rounded-lg px-6 py-3 text-sm text-gray-700">{detail.attributes.description}</div>
+      )}
 
       {/* Risk Score */}
       {riskData && <RiskScoreSection attributes={riskData} entityType="contexts" entityId={contextId} authFetch={authFetch} />}
-
-      {/* Attributes */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Attributes</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
-          {Object.entries(attrs).map(([key, value]) => (
-            <div key={key} className="flex items-baseline gap-2 py-1">
-              <span className="text-xs text-gray-500 font-medium min-w-[140px]">{key}</span>
-              <span className="text-sm text-gray-900 break-all">{String(value)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Sub-contexts */}
       {subContexts.length > 0 && (
@@ -198,6 +168,21 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                   <span className="text-xs text-gray-400">{sc.memberCount} members</span>
                 )}
               </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Attributes JSON (non-header fields) */}
+      {Object.keys(attrs).length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Attributes</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+            {Object.entries(attrs).map(([key, value]) => (
+              <div key={key} className="flex items-baseline gap-2 py-1">
+                <span className="text-xs text-gray-500 font-medium min-w-[140px]">{key}</span>
+                <span className="text-sm text-gray-900 break-all">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+              </div>
             ))}
           </div>
         </div>
@@ -289,4 +274,68 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
       </div>
     </div>
   );
+}
+
+// ─── Header — surfaces provenance (variant, target, system, owner) ────────
+function ContextHeader({ attrs, onClose }) {
+  const v = variantMeta(attrs.variant);
+  const t = targetTypeMeta(attrs.targetType);
+  const provenance = describeProvenance(attrs);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-6 border-l-4" style={{ borderLeftColor: '' /* handled via variant dot below */ }}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`w-1.5 h-8 ${v.dotClass} rounded`} aria-hidden="true" />
+            <h2 className="text-xl font-semibold text-gray-900 truncate">{attrs.displayName || attrs.id}</h2>
+            {attrs.contextType && (
+              <span className="text-[10px] uppercase tracking-wide text-gray-600 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5">
+                {attrs.contextType}
+              </span>
+            )}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass}`}>{t.label}</span>
+            <span className={`inline-flex items-center gap-1 text-[10px] ${v.textClass}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${v.dotClass}`} />{v.label}
+            </span>
+            {attrs.scopeSystemName && (
+              <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                {attrs.scopeSystemName}
+              </span>
+            )}
+            {attrs.ownerUserId && (
+              <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                Owner: {attrs.ownerUserId}
+              </span>
+            )}
+          </div>
+          {provenance && <p className="text-xs text-gray-500 mt-2">{provenance}</p>}
+          {attrs.parentDisplayName && (
+            <p className="text-xs text-gray-500 mt-1">Parent: {attrs.parentDisplayName}</p>
+          )}
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1" title="Close">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function describeProvenance(attrs) {
+  if (attrs.variant === 'synced') {
+    const src = attrs.scopeSystemName ? `system ${attrs.scopeSystemName}` : 'an upstream crawler';
+    return `Synced from ${src}. Updated by the next crawl; analyst edits do not persist.`;
+  }
+  if (attrs.variant === 'generated') {
+    const algo = attrs.sourceAlgorithmDisplayName || attrs.sourceAlgorithmName || 'a plugin';
+    const sys = attrs.scopeSystemName ? ` on ${attrs.scopeSystemName}` : '';
+    return `Generated by the "${algo}" plugin${sys}. Replaced by the next run of the same plugin.`;
+  }
+  if (attrs.variant === 'manual') {
+    return `Created manually${attrs.createdByUser ? ` by ${attrs.createdByUser}` : ''}. Edit name, description, parent, and owner in-place.`;
+  }
+  return null;
 }

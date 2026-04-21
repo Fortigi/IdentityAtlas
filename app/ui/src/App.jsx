@@ -17,6 +17,7 @@ const AccessPackageDetailPage = lazy(() => import('./components/AccessPackageDet
 const SystemsPage = lazy(() => import('./components/SystemsPage'));
 const RiskScoringPage = lazy(() => import('./components/RiskScoringPage'));
 const OrgChartPage = lazy(() => import('./components/OrgChartPage'));
+const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const DepartmentDetailPage = lazy(() => import('./components/DepartmentDetailPage'));
 const ContextDetailPage = lazy(() => import('./components/ContextDetailPage'));
 const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
@@ -94,6 +95,7 @@ const ALL_NAV_TABS = [
   { key: 'sync-log',         label: 'Sync Log' },
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring',        optional: true },
   { key: 'identities',       label: 'Identities',   feature: 'accountCorrelation', optional: true },
+  { key: 'contexts',         label: 'Contexts' },
   { key: 'org-chart',        label: 'Org Chart',                                    optional: true },
   { key: 'admin',            label: 'Admin' },
 ];
@@ -496,6 +498,8 @@ export default function App() {
             <IdentitiesPage onOpenDetail={openDetailTab} />
           ) : page === 'org-chart' ? (
             <OrgChartPage onOpenDetail={openDetailTab} onCacheData={onCacheData} />
+          ) : page === 'contexts' ? (
+            <ContextsPage onOpenDetail={openDetailTab} />
           ) : page === 'performance' || page === 'crawlers' || page === 'admin' ? (
             // Crawlers and Performance now live under Admin as sub-tabs.
             // Legacy #crawlers and #performance hashes redirect to the matching sub-tab.
