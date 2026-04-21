@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
 import { getUserColumns as getUserCols, getGroupColumns as getGroupCols, getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getUserColumnValues, getPrincipalOrUserColumnValues, getGroupColumnValues, getResourceColumnValues, FILTERABLE_TYPES } from '../db/columnCache.js';
 
 const router = Router();
@@ -123,12 +124,13 @@ router.post('/tags', async (req, res) => {
 
     const createdBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'unknown';
     const ext = JSON.stringify({ tagColor: color || '#3b82f6' });
+    const id = randomUUID();
     const { rows } = await db.query(
       `INSERT INTO "Contexts"
-         (variant, "targetType", "contextType", "displayName", "createdByUser", "extendedAttributes")
-       VALUES ('manual', $1, 'Tag', $2, $3, $4::jsonb)
+         (id, variant, "targetType", "contextType", "displayName", "createdByUser", "extendedAttributes")
+       VALUES ($1, 'manual', $2, 'Tag', $3, $4, $5::jsonb)
        RETURNING *`,
-      [targetType, name.trim(), createdBy, ext]
+      [id, targetType, name.trim(), createdBy, ext]
     );
     res.status(201).json(tagRowFromContext(rows[0], 0));
   } catch (err) {
