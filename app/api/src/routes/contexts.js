@@ -69,7 +69,7 @@ router.get('/contexts', async (req, res) => {
         LEFT JOIN "Systems" s ON c."scopeSystemId" = s.id
         LEFT JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id
        WHERE ${clauses.join(' AND ')}
-       ORDER BY c."contextType", c."displayName"
+       ORDER BY c."contextType", COALESCE(c."totalMemberCount", 0) DESC, c."displayName"
     `, params);
 
     res.json({ data: r.rows, total: r.rows.length });
@@ -125,7 +125,15 @@ router.get('/contexts/tree', async (req, res) => {
       }
     });
 
-    const cmp = (a, b) => (a.displayName || '').localeCompare(b.displayName || '');
+    // Sort by totalMemberCount DESC, then displayName ASC as tiebreaker.
+    // Largest subtrees bubble to the top in every level — much more useful
+    // than alphabetic for org-sized trees (99 departments, 500 managers).
+    const cmp = (a, b) => {
+      const at = a.totalMemberCount || 0;
+      const bt = b.totalMemberCount || 0;
+      if (at !== bt) return bt - at;
+      return (a.displayName || '').localeCompare(b.displayName || '');
+    };
     const sortRec = n => { n.children.sort(cmp); n.children.forEach(sortRec); };
     roots.sort(cmp);
     roots.forEach(sortRec);
@@ -187,8 +195,11 @@ router.get('/contexts/:id/members', async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const search = (req.query.search || '').toString().trim().slice(0, 200);
+    const includeDescendants = req.query.include === 'descendants';
 
-    const { rows, total } = await loadMembers(req.params.id, ctx.targetType, { limit, offset, search, withTotal: true });
+    const { rows, total } = await loadMembers(req.params.id, ctx.targetType, {
+      limit, offset, search, withTotal: true, includeDescendants,
+    });
     res.json({ data: rows, total });
   } catch (err) {
     console.error('GET /contexts/:id/members failed:', err.message);
@@ -372,9 +383,24 @@ router.delete('/contexts/:id/members/:memberId', async (req, res) => {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-async function loadMembers(contextId, targetType, { limit = 100, offset = 0, search = '', withTotal = false } = {}) {
+async function loadMembers(contextId, targetType, { limit = 100, offset = 0, search = '', withTotal = false, includeDescendants = false } = {}) {
   const table = MEMBER_TABLE[targetType];
   if (!table) return withTotal ? { rows: [], total: 0 } : [];
+
+  // When includeDescendants=true, we expand $1 into "this context plus every
+  // descendant" via a recursive CTE. The selected member rows are then
+  // de-duplicated on memberId (a person could theoretically be a direct
+  // member of two sub-contexts; we only want them once).
+  const contextSet = includeDescendants
+    ? `(
+        WITH RECURSIVE subtree AS (
+          SELECT id FROM "Contexts" WHERE id = $1
+          UNION ALL
+          SELECT c.id FROM "Contexts" c JOIN subtree s ON c."parentContextId" = s.id
+        )
+        SELECT id FROM subtree
+      )`
+    : null;
 
   // Identity / Resource / Principal all have displayName. Systems have
   // displayName too. Keep the projection uniform.
@@ -385,25 +411,34 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
     searchClause = ` AND m."displayName" ILIKE $${params.length}`;
   }
 
+  const contextFilter = includeDescendants
+    ? `cm."contextId" IN ${contextSet}`
+    : `cm."contextId" = $1`;
+
+  // When descendants are included we dedupe on memberId so siblings don't
+  // produce duplicates. The DISTINCT adds a small sort cost but matters for
+  // accurate counts and pagination.
+  const distinct = includeDescendants ? 'DISTINCT ON (m.id)' : '';
+
   const dataSql = `
-    SELECT m.id, m."displayName",
+    SELECT ${distinct} m.id, m."displayName",
            cm."addedBy", cm."addedAt"
       FROM "ContextMembers" cm
       JOIN "${table}" m ON m.id::text = cm."memberId"::text
-     WHERE cm."contextId" = $1
+     WHERE ${contextFilter}
        AND cm."memberType" = '${targetType}'
        ${searchClause}
-     ORDER BY m."displayName"
+     ORDER BY ${includeDescendants ? 'm.id, ' : ''}m."displayName"
      LIMIT ${parseInt(limit, 10)} OFFSET ${parseInt(offset, 10)}
   `;
   const rows = (await db.query(dataSql, params)).rows;
   if (!withTotal) return rows;
 
   const countSql = `
-    SELECT COUNT(*)::int AS total
+    SELECT COUNT(${includeDescendants ? 'DISTINCT m.id' : '*'})::int AS total
       FROM "ContextMembers" cm
       JOIN "${table}" m ON m.id::text = cm."memberId"::text
-     WHERE cm."contextId" = $1
+     WHERE ${contextFilter}
        AND cm."memberType" = '${targetType}'
        ${searchClause}
   `;

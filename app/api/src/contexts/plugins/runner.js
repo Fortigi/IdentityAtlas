@@ -255,7 +255,7 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
       counts.membersAdded = insertedNow;
     }
 
-    // 6) Refresh directMemberCount on every context we touched.
+    // 6a) Refresh directMemberCount on every context we touched.
     if (producedContextIds.length > 0) {
       await client.query(`
         UPDATE "Contexts" c
@@ -268,6 +268,34 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
              GROUP BY "contextId"
           ) m
          WHERE c.id = m."contextId"
+      `, [producedContextIds]);
+
+      // 6b) Roll up totalMemberCount = sum of directMemberCount over the
+      //     subtree rooted at each context. We count distinct members so a
+      //     person who's a direct member of two sibling leaves in the same
+      //     tree doesn't get counted twice (uncommon but possible).
+      await client.query(`
+        WITH RECURSIVE subtree AS (
+          -- Seed: the context itself.
+          SELECT id AS root_id, id AS node_id
+            FROM "Contexts"
+           WHERE id = ANY($1::uuid[])
+          UNION
+          -- Walk down.
+          SELECT s.root_id, c.id
+            FROM "Contexts" c
+            JOIN subtree s ON c."parentContextId" = s.node_id
+        ),
+        totals AS (
+          SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
+            FROM subtree s
+            LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
+           GROUP BY s.root_id
+        )
+        UPDATE "Contexts" c
+           SET "totalMemberCount" = t.cnt
+          FROM totals t
+         WHERE c.id = t.root_id
       `, [producedContextIds]);
     }
   });

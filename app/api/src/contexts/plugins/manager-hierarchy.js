@@ -33,9 +33,11 @@ export default {
     // Fetch all principals for this system with a managerId (either set or
     // null). We need the full set so we can (a) identify managers — principals
     // referenced as someone else's managerId, and (b) know which principals
-    // sit at the top (no manager within this system).
+    // sit at the top (no manager within this system). Department comes along
+    // so we can format the manager-node displayName as "<Department> (<Name>)"
+    // — much more useful than a bare person name when skimming the tree.
     const rows = (await db.query(`
-      SELECT id, "displayName", "managerId"
+      SELECT id, "displayName", "managerId", department
         FROM "Principals"
        WHERE "systemId" = $1
     `, [scopeSystemId])).rows;
@@ -68,7 +70,12 @@ export default {
     // dataset; otherwise parent is the synthetic root.
     for (const managerId of managerIds) {
       const mgr = byId.get(managerId);
-      const displayName = (mgr?.displayName) || `Manager ${managerId.slice(0, 8)}`;
+      const mgrName = mgr?.displayName || `Manager ${managerId.slice(0, 8)}`;
+      const dept = (mgr?.department || '').trim();
+      // "<Department> (<Name>)" when we have a department, bare name otherwise.
+      // The department is far more searchable/skimmable than the manager's name
+      // when an analyst is looking at the tree.
+      const displayName = dept ? `${dept} (${mgrName})` : mgrName;
       const parentManagerId = mgr?.managerId && managerIds.has(mgr.managerId) ? mgr.managerId : null;
       contexts.push({
         externalId: managerId,

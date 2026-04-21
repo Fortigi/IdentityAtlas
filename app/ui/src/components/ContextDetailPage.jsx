@@ -40,6 +40,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
   // Paginated members
   const [memberPage, setMemberPage] = useState(0);
   const [memberSearch, setMemberSearch] = useState('');
+  const [includeDescendants, setIncludeDescendants] = useState(false);
   const [members, setMembers] = useState([]);
   const [memberTotal, setMemberTotal] = useState(0);
   const [membersLoading, setMembersLoading] = useState(false);
@@ -85,6 +86,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
         offset: String(memberPage * PAGE_SIZE),
       });
       if (memberSearch) params.set('search', memberSearch);
+      if (includeDescendants) params.set('include', 'descendants');
       const res = await authFetch(`/api/contexts/${contextId}/members?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -95,12 +97,12 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
     } finally {
       setMembersLoading(false);
     }
-  }, [authFetch, contextId, memberPage, memberSearch]);
+  }, [authFetch, contextId, memberPage, memberSearch, includeDescendants]);
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
 
-  // Reset page when search changes
-  useEffect(() => { setMemberPage(0); }, [memberSearch]);
+  // Reset page when search / scope changes
+  useEffect(() => { setMemberPage(0); }, [memberSearch, includeDescendants]);
 
   // ─── Render ────────────────────────────────────────────────────────
 
@@ -216,18 +218,34 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
 
       {/* Members */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-4 flex-wrap">
           <h3 className="text-sm font-semibold text-gray-700">
             Members ({memberTotal})
+            {detail.attributes.totalMemberCount > (detail.attributes.directMemberCount || 0) && !includeDescendants && (
+              <span className="ml-2 text-[11px] font-normal text-gray-500">
+                direct only — {detail.attributes.directMemberCount || 0} of {detail.attributes.totalMemberCount} total
+              </span>
+            )}
           </h3>
-          <input
-            type="text"
-            value={memberSearch}
-            onChange={e => setMemberSearch(e.target.value)}
-            placeholder="Search members..."
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1 w-64 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent"
-            aria-label="Search members"
-          />
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeDescendants}
+                onChange={e => setIncludeDescendants(e.target.checked)}
+                className="w-3.5 h-3.5"
+              />
+              Include sub-contexts
+            </label>
+            <input
+              type="text"
+              value={memberSearch}
+              onChange={e => setMemberSearch(e.target.value)}
+              placeholder="Search members..."
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1 w-64 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent"
+              aria-label="Search members"
+            />
+          </div>
         </div>
 
         {isManual && (
@@ -282,11 +300,15 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                     </td>
                     {isManual && (
                       <td className="py-1.5 text-right">
-                        <button
-                          onClick={e => { e.stopPropagation(); removeMember(m.id); }}
-                          className="text-[11px] text-red-600 hover:text-red-800"
-                          title="Remove from context"
-                        >Remove</button>
+                        {includeDescendants ? (
+                          <span className="text-[11px] text-gray-400" title="Turn off sub-context view to remove members">—</span>
+                        ) : (
+                          <button
+                            onClick={e => { e.stopPropagation(); removeMember(m.id); }}
+                            className="text-[11px] text-red-600 hover:text-red-800"
+                            title="Remove from context"
+                          >Remove</button>
+                        )}
                       </td>
                     )}
                   </tr>
