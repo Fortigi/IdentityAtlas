@@ -284,13 +284,77 @@ router.get('/identities/:id', async (req, res) => {
       }
     }
 
+    // Aggregate relationship counts across every linked account — the entity
+    // graph shows these as nodes ("32 groups across 3 accounts", "4 access
+    // packages"). One query joins IdentityMembers to ResourceAssignments and
+    // groups by assignmentType so we stay cheap.
+    const aggregate = { Direct: 0, Governed: 0, Owner: 0, Eligible: 0, OAuth2Grant: 0 };
+    try {
+      const aggResult = await timedRequest(p, 'identity-aggregate-counts', res)
+        .input('identityId', identityId)
+        .query(`
+          SELECT ra."assignmentType", COUNT(DISTINCT ra."resourceId")::int AS cnt
+          FROM "IdentityMembers" m
+          JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
+          WHERE m."identityId" = @identityId
+          GROUP BY ra."assignmentType"
+        `);
+      for (const row of aggResult.recordset) {
+        if (row.assignmentType in aggregate) aggregate[row.assignmentType] = row.cnt;
+      }
+    } catch { /* ResourceAssignments may not exist */ }
+
     res.json({
       identity,
       members: membersResult.recordset,
+      aggregateAssignments: aggregate,
     });
   } catch (err) {
     console.error('Error fetching identity detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch identity detail' });
+  }
+});
+
+// GET /api/identities/:id/assignments?type=Direct|Governed|Owner|Eligible|OAuth2Grant
+// Flattens assignments across every linked account — used by the identity
+// detail graph when the user clicks a relationship node.
+router.get('/identities/:id/assignments', async (req, res) => {
+  if (!useSql) return res.json([]);
+  const identityId = req.params.id;
+  if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
+  const ALLOWED = ['Direct', 'Governed', 'Owner', 'Eligible', 'OAuth2Grant'];
+  const type = req.query.type;
+  if (!ALLOWED.includes(type)) return res.status(400).json({ error: 'Invalid assignment type' });
+
+  try {
+    const p = await db.getPool();
+    const r = await timedRequest(p, 'identity-assignments', res)
+      .input('identityId', identityId)
+      .input('type', type)
+      .query(`
+        SELECT ra."resourceId",
+               r."displayName"   AS "resourceDisplayName",
+               r."resourceType",
+               m."principalId",
+               p."displayName"   AS "principalDisplayName",
+               p."userPrincipalName",
+               m."accountType",
+               m."isPrimary",
+               ra.state,
+               ra."assignmentStatus",
+               ra."expirationDateTime"
+        FROM "IdentityMembers" m
+        JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
+        LEFT JOIN "Resources" r ON r.id = ra."resourceId"
+        LEFT JOIN "Principals" p ON p.id = m."principalId"
+        WHERE m."identityId" = @identityId
+          AND ra."assignmentType" = @type
+        ORDER BY r."displayName", p."displayName"
+      `);
+    res.json(r.recordset);
+  } catch (err) {
+    console.error('Error fetching identity assignments:', err.message);
+    res.status(500).json({ error: 'Failed to fetch identity assignments' });
   }
 });
 
