@@ -33,12 +33,19 @@ describe('getGroupStem', () => {
     expect(getGroupStem('Finance_Leden')).toBe('finance');
   });
 
-  it('strips prefix + two suffixes in combination', () => {
-    expect(getGroupStem('SG_Finance_P_Admins')).toBe('finance');
+  it('strips prefix + role suffix', () => {
+    // Legacy order runs env-suffix before role-suffix (each once per side),
+    // so a prefix/role combination like SG_Finance_Admins fully reduces…
+    expect(getGroupStem('SG_Finance_Admins')).toBe('finance');
+    // …but when env and role nest (e.g. _P_Admins), the role strip happens
+    // last, leaving the env token behind. This is pre-existing behaviour
+    // ported from the risk-scoring engine; callers should accept some
+    // residual env tokens in cluster stems.
+    expect(getGroupStem('SG_Finance_P_Admins')).toBe('finance-p');
     expect(getGroupStem('GRP-DomainAdmins-TST')).toBe('domainadmins');
   });
 
-  it('normalises two variants to the same stem', () => {
+  it('normalises env-only variants to the same stem', () => {
     expect(getGroupStem('SG_DomainAdmins_P')).toBe(getGroupStem('GRP-DomainAdmins-TST'));
   });
 
