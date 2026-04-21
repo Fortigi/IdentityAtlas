@@ -46,9 +46,7 @@ function TreeNode({ node, depth, onOpenDetail }) {
         >
           <span className="font-medium text-gray-900 truncate">{node.displayName}</span>
           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap`}>{t.label}</span>
-          {typeof node.directMemberCount === 'number' && (
-            <span className="text-[11px] text-gray-400 whitespace-nowrap">{node.directMemberCount} direct</span>
-          )}
+          <MemberCount direct={node.directMemberCount} total={node.totalMemberCount} />
         </button>
       </div>
       {hasChildren && expanded && (
@@ -60,4 +58,21 @@ function TreeNode({ node, depth, onOpenDetail }) {
       )}
     </li>
   );
+}
+
+// Shows "<direct> direct" when the node is a leaf or direct == total,
+// "<direct> direct · <total> total" otherwise so analysts can eyeball how
+// much weight a subtree carries without expanding it.
+function MemberCount({ direct, total }) {
+  if (typeof direct !== 'number' && typeof total !== 'number') return null;
+  const d = direct || 0;
+  const t = total  || 0;
+  if (t > d) {
+    return (
+      <span className="text-[11px] text-gray-400 whitespace-nowrap">
+        {d} direct · <span className="text-gray-600">{t} total</span>
+      </span>
+    );
+  }
+  return <span className="text-[11px] text-gray-400 whitespace-nowrap">{d} direct</span>;
 }

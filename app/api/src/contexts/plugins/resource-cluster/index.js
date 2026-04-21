@@ -41,8 +41,13 @@ export const plugin = {
       },
       minMembers: {
         type: 'integer',
-        default: 2,
-        description: 'Drop clusters with fewer than this many members.',
+        default: 4,
+        description: 'Drop clusters with fewer than this many members. Use a larger value to focus on meaningful groupings; a lower value (min 2) to see more fragmented clusters.',
+      },
+      rootName: {
+        type: 'string',
+        default: 'Resource Clusters',
+        description: 'Display name of the synthetic root node — every cluster is attached under this.',
       },
     },
     required: [],
@@ -51,7 +56,8 @@ export const plugin = {
   async run(params, { db }) {
     const scopeSystemId = params.scopeSystemId ? parseInt(params.scopeSystemId, 10) : null;
     const minStemLength = Math.max(parseInt(params.minStemLength, 10) || 3, 1);
-    const minMembers    = Math.max(parseInt(params.minMembers, 10)    || 2, 2);
+    const minMembers    = Math.max(parseInt(params.minMembers, 10)    || 4, 2);
+    const rootName      = (params.rootName || 'Resource Clusters').slice(0, 500);
 
     const rows = (await db.query(
       `SELECT id, "displayName", "systemId"
@@ -69,7 +75,15 @@ export const plugin = {
       byStem.get(stem).push(r);
     }
 
-    const contexts = [];
+    // Synthetic root. Everything attaches here so the tree selector shows
+    // one "Resource Clusters" entry rather than N flat roots.
+    const rootExt = 'root';
+    const contexts = [{
+      externalId: rootExt,
+      displayName: rootName,
+      description: `Stem-based clusters of resources (min ${minMembers} members per cluster).`,
+      contextType: 'ResourceCluster',
+    }];
     const members = [];
     for (const [stem, group] of byStem) {
       if (group.length < minMembers) continue;
@@ -78,6 +92,7 @@ export const plugin = {
         displayName: stem,
         description: `${group.length} resources sharing name stem "${stem}"`,
         contextType: 'ResourceCluster',
+        parentExternalId: rootExt,
       });
       for (const r of group) {
         members.push({
