@@ -183,6 +183,7 @@ router.post('/ingest/resource-relationships',   createIngestHandler('resource-re
 router.post('/ingest/identities',               createIngestHandler('identities'));
 router.post('/ingest/identity-members',         createIngestHandler('identity-members'));
 router.post('/ingest/contexts',                 createIngestHandler('contexts'));
+router.post('/ingest/context-members',          createIngestHandler('context-members'));
 router.post('/ingest/governance/catalogs',      createIngestHandler('governance/catalogs'));
 router.post('/ingest/governance/policies',      createIngestHandler('governance/policies'));
 router.post('/ingest/governance/requests',      createIngestHandler('governance/requests'));
@@ -229,12 +230,6 @@ router.post('/ingest/sync-log', async (req, res) => {
   }
 });
 
-// POST /api/ingest/refresh-contexts — recompute derived OrgUnit contexts.
-//
-// Same logic as the admin endpoint at /api/admin/refresh-contexts, but
-// mounted under the ingest router so the worker can call it with its
-// X-API-Key (crawler auth) instead of needing a UI session. Idempotent:
-// rebuilds Contexts from Principals.department on every call.
 // POST /api/ingest/classify-business-role-assignments — reclassify Direct
 // assignments to BusinessRole resources as Governed. Called by the CSV crawler
 // after all data is imported so it doesn't need to know resource types at
@@ -293,34 +288,6 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
   } catch (err) {
     console.error('classify-business-role-assignments failed:', err.message);
     return res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/ingest/refresh-contexts', async (req, res) => {
-  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-  if (!crawlerHasPermission(req, 'admin') && !crawlerHasPermission(req, 'ingest')) {
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  }
-  try {
-    const start = Date.now();
-    const created = await db.tx(async (client) => {
-      await client.query(`DELETE FROM "Contexts"`);
-      const ins = await client.query(`
-        INSERT INTO "Contexts" (id, "systemId", "contextType", "displayName", department, "memberCount", "lastCalculatedAt", "sourceType")
-        SELECT gen_random_uuid(), "systemId", 'Department', department, department,
-               COUNT(*)::int, now(), 'derived'
-          FROM "Principals"
-         WHERE department IS NOT NULL AND department <> ''
-           AND "systemId" IS NOT NULL
-         GROUP BY "systemId", department
-        RETURNING id
-      `);
-      return ins.rowCount;
-    });
-    return res.json({ ok: true, contextsCreated: created, durationMs: Date.now() - start });
-  } catch (err) {
-    console.error('refresh-contexts (ingest) failed:', err.message);
-    return res.status(500).json({ error: 'refresh-contexts failed', message: err.message });
   }
 });
 

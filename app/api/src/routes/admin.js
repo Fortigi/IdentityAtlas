@@ -592,52 +592,6 @@ router.post('/admin/features/toggle', async (req, res) => {
   }
 });
 
-// ─── Refresh derived OrgUnit contexts ───────────────────────────────────────
-// Replaces v4's Build-FGContexts.ps1 (which talked directly to SQL Server).
-// Recomputes the Contexts table from Principals: one row per (systemId, department)
-// for users that have a department set. Members get a managerId derived from
-// the most common manager in the department. Idempotent — safe to call after
-// every sync. The crawler/dispatcher calls this once at end-of-sync.
-router.post('/admin/refresh-contexts', async (req, res) => {
-  if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
-  if (!isAdminRequest(req)) {
-    // Allow when called from a crawler with the 'admin' permission too
-    if (!req.crawler || !(req.crawler.permissions || []).includes('admin')) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-  }
-  try {
-    const start = Date.now();
-    // Wipe and rebuild — Contexts is fully derived, no manual edits to preserve.
-    // The unique key on (systemId, department) keeps the table small (a few hundred rows).
-    const r = await db.tx(async (client) => {
-      await client.query(`DELETE FROM "Contexts"`);
-      const ins = await client.query(`
-        INSERT INTO "Contexts" (id, "systemId", "contextType", "displayName", department, "memberCount", "lastCalculatedAt", "sourceType")
-        SELECT
-          gen_random_uuid(),
-          "systemId",
-          'Department',
-          department,
-          department,
-          COUNT(*)::int,
-          now(),
-          'derived'
-        FROM "Principals"
-        WHERE department IS NOT NULL AND department <> ''
-          AND "systemId" IS NOT NULL
-        GROUP BY "systemId", department
-        RETURNING id
-      `);
-      return ins.rowCount;
-    });
-    return res.json({ ok: true, contextsCreated: r, durationMs: Date.now() - start });
-  } catch (err) {
-    console.error('refresh-contexts failed:', err.message);
-    return res.status(500).json({ error: 'refresh-contexts failed', message: err.message });
-  }
-});
-
 // Helper: detect whether the request came from an interactive admin user.
 // In v5, the only mutation surface for admin endpoints is either an authenticated
 // UI session or a crawler with the 'admin' permission. We check both.
