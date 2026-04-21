@@ -20,6 +20,7 @@ import * as db from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
 import { selfTest as vaultSelfTest } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
+import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
 
@@ -212,6 +213,14 @@ export async function bootstrapWorker() {
     const pool = await db.getPool();
     await runMigrations(pool);
     await ensureBuiltinCrawler();
+    try {
+      await seedContextAlgorithms();
+    } catch (err) {
+      // Non-critical: the ContextAlgorithms table is created by migration 018
+      // so this can fail on fresh boots if that migration hasn't run yet —
+      // it just means the Contexts plugins picker will be empty until next boot.
+      console.warn('Context-algorithm seeding skipped:', err.message);
+    }
     startHistoryPruneJob();
     startScheduler();
     // Reap stale jobs: on every web container start, mark ALL jobs stuck in
