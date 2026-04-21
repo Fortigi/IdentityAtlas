@@ -21,12 +21,12 @@ function cleanRow(row) {
   return clean;
 }
 
-// Helper: parse tag string from SQL into array
+// Helper: parse tag string from SQL into array. Tag IDs are UUID strings (v6).
 function parseTags(tagString) {
   if (!tagString) return [];
   return tagString.split('|').map(t => {
     const parts = t.split(':');
-    return { id: parseInt(parts[0]), name: parts[1], color: parts[2] };
+    return { id: parts[0], name: parts[1], color: parts[2] };
   });
 }
 
@@ -43,7 +43,7 @@ router.get('/resources', async (req, res) => {
     const search = (req.query.search || '').trim().slice(0, 200);
     const resourceType = (req.query.resourceType || '').trim();
     const systemId = (req.query.systemId || '').trim();
-    const tagId = req.query.tagId ? parseInt(req.query.tagId) : null;
+    const tagId = req.query.tagId ? String(req.query.tagId) : null;
     // Cap matches the bulk-list endpoints; UI defaults to 100, Power Query
     // walks in 1000-record pages.
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 10000);
