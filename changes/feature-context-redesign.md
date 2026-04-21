@@ -11,3 +11,4 @@
 - Documented a new Contexts UI tab with tree and list views, multi-tree handling for cases like multiple AD OU or HR trees per system, a matrix context-filter with include/exclude-children, and a context-detail page that replaces the Risk-Scoring Clusters page.
 - Unified Tags into the Contexts model: existing tag UX preserved, tags become manual flat contexts that analysts can later reparent and assign an owner to.
 - Added a phased build plan for the redesign as a greenfield v6 change with no migration from v5.
+- Fixed plain-HTTP deployments being bricked by HSTS + CSP `upgrade-insecure-requests`. Both headers are now opt-in via `BEHIND_TLS=true`; the default quickstart deployment over `http://host:3001` no longer traps browsers into HTTPS-only for a year.
