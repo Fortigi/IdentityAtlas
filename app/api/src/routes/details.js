@@ -107,15 +107,23 @@ router.get('/user/:id', async (req, res) => {
       tags = r.recordset;
     } catch { /* table may not exist */ }
 
-    // 3. Counts
+    // 3. Counts — membership broken down by type so the entity graph can
+    //    show a node per type (Direct / Indirect / Owner / Eligible) without
+    //    pulling the full membership list.
+    const membershipByType = { Direct: 0, Indirect: 0, Owner: 0, Eligible: 0 };
     let membershipCount = 0;
     try {
-      const r = await timedRequest(pool, 'user-membership-count', res)
+      const r = await timedRequest(pool, 'user-membership-breakdown', res)
         .input('id', userId)
-        .query(`SELECT COUNT(DISTINCT "resourceId")::int AS cnt
+        .query(`SELECT "membershipType",
+                       COUNT(DISTINCT "resourceId")::int AS cnt
                   FROM "vw_ResourceUserPermissionAssignments"
-                 WHERE "principalId"::text = @id`);
-      membershipCount = r.recordset[0].cnt;
+                 WHERE "principalId"::text = @id
+                 GROUP BY "membershipType"`);
+      for (const row of r.recordset) {
+        if (row.membershipType in membershipByType) membershipByType[row.membershipType] = row.cnt;
+      }
+      membershipCount = Object.values(membershipByType).reduce((a, b) => a + b, 0);
     } catch { /* view may not exist */ }
 
     let accessPackageCount = 0;
@@ -141,7 +149,27 @@ router.get('/user/:id', async (req, res) => {
       oauth2GrantCount = r.recordset[0].cnt;
     } catch { /* column may not exist on older deployments */ }
 
-    res.json({ attributes, tags, membershipCount, accessPackageCount, historyCount, hasHistory: historyCount > 0, oauth2GrantCount, lastActivity: null });
+    // Direct-report count: cheap query on managerId FK.
+    let directReportCount = 0;
+    try {
+      const r = await timedRequest(pool, 'user-reports-count', res)
+        .input('id', userId)
+        .query(`SELECT COUNT(*)::int AS cnt FROM "Principals" WHERE "managerId" = @id`);
+      directReportCount = r.recordset[0].cnt;
+    } catch { /* managerId may not exist on older deployments */ }
+
+    res.json({
+      attributes,
+      tags,
+      membershipCount,
+      membershipByType,
+      accessPackageCount,
+      historyCount,
+      hasHistory: historyCount > 0,
+      oauth2GrantCount,
+      directReportCount,
+      lastActivity: null,
+    });
   } catch (err) {
     console.error('Error fetching user detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch user details' });
