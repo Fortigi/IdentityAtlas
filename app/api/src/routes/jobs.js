@@ -79,7 +79,7 @@ const GRAPH_PERMISSION_ALIASES = {
 
 // Which permissions enable which object types
 const PERMISSION_OBJECT_MAP = {
-  'User.Read.All': ['identity', 'context', 'usersGroupsMembers'],
+  'User.Read.All': ['identity', 'usersGroupsMembers'],
   'Group.Read.All': ['usersGroupsMembers'],
   'GroupMember.Read.All': ['usersGroupsMembers'],
   'Directory.Read.All': ['directoryRoles', 'servicePrincipals'],
@@ -93,10 +93,13 @@ const PERMISSION_OBJECT_MAP = {
   'DelegatedPermissionGrant.Read.All': ['oauth2Grants'],
 };
 
-// All known object types for the Entra ID crawler
+// All known object types for the Entra ID crawler.
+// Context generation (formerly an Entra crawler object type) is no longer
+// crawler-driven — it's produced by Contexts → plugin runs after the crawl
+// (manager-hierarchy, department-tree, ad-ou-from-dn). See
+// docs/architecture/context-redesign.md.
 const ENTRA_OBJECT_TYPES = [
   { key: 'identity', label: 'Identity', description: 'Personal user accounts that are synced from HR' },
-  { key: 'context', label: 'Context', description: 'Auto-detected organizational structure from identity data' },
   { key: 'usersGroupsMembers', label: 'Users & Groups & Members', description: 'All users, security groups, and group memberships' },
   { key: 'servicePrincipals', label: 'Service Principals', description: 'Non-human identities (enterprise app SPs, managed identities, AI agents)' },
   { key: 'identityGovernance', label: 'Identity Governance', description: 'Access Packages, assignments, policies, reviews' },
