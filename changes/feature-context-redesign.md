@@ -1,3 +1,7 @@
+- **Breaking (v6):** Replaced the Contexts table with a unified model supporting three variants (synced, generated, manual) and four target types (Identity, Resource, Principal, System). Legacy `Identities.contextId`, `Principals.contextId`, and `Resources.contextId` columns removed; membership now lives in the new `ContextMembers` table.
+- Added `ContextAlgorithms` and `ContextAlgorithmRuns` tables for plugin-driven context generation.
+- Rewrote `/api/contexts` routes: list / tree / detail / members plus full CRUD for manual contexts and their members.
+- Ingest API: added `/api/ingest/context-members`; removed the obsolete `/api/admin/refresh-contexts` and `/api/ingest/refresh-contexts` endpoints (replaced by the `department-tree` plugin once it ships).
 - Added design proposal for a unified Contexts model with three variants (synced, generated, manual) and four target types (Identity, Resource, Principal, System).
 - Documented a plugin framework for generated contexts that replaces the manager-hierarchy computation in the Entra crawler and the Risk-Scoring Clusters feature.
 - Documented a new Contexts UI tab with tree and list views, multi-tree handling for cases like multiple AD OU or HR trees per system, a matrix context-filter with include/exclude-children, and a context-detail page that replaces the Risk-Scoring Clusters page.

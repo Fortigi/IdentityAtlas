@@ -120,7 +120,7 @@ router.get('/resources', async (req, res) => {
     const result = await request.query(`
       SELECT r.id, r."displayName", r."description", r."resourceType", r."systemId", r."enabled",
              r."createdDateTime", r."extendedAttributes",
-             r."mail", r."visibility", r."externalId", r."contextId",
+             r."mail", r."visibility", r."externalId",
              r."catalogId", r."isHidden", r."modifiedDateTime",
              r."riskScore", r."riskTier",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
