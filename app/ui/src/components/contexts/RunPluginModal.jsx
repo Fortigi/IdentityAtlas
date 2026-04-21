@@ -275,6 +275,21 @@ function JsonSchemaForm({ schema, values, onChange, systems }) {
         </Field>
       );
     }
+    if (spec.type === 'array' || spec.type === 'object') {
+      // Paste JSON. The form stores the *parsed* value; invalid JSON is
+      // surfaced inline and the Run button will stay disabled via the
+      // "missing" check upstream if the field is required.
+      return (
+        <JsonField
+          key={name}
+          label={label}
+          help={help}
+          spec={spec}
+          value={values[name]}
+          onChange={val => setField(name, val)}
+        />
+      );
+    }
     // default: string
     return (
       <Field key={name} label={label} help={help}>
@@ -287,6 +302,46 @@ function JsonSchemaForm({ schema, values, onChange, systems }) {
       </Field>
     );
   });
+}
+
+function JsonField({ label, help, spec, value, onChange }) {
+  const [text, setText] = useState(() =>
+    value !== undefined ? JSON.stringify(value, null, 2) :
+    spec.default !== undefined ? JSON.stringify(spec.default, null, 2) : ''
+  );
+  const [err, setErr] = useState(null);
+  // Keep text in sync when caller resets params (e.g. switching plugins).
+  useEffect(() => {
+    if (value === undefined || value === null) return;
+    const current = JSON.stringify(value, null, 2);
+    setText(prev => prev === current ? prev : current);
+  }, [value]);
+
+  function handleChange(newText) {
+    setText(newText);
+    if (newText.trim() === '') { setErr(null); onChange(undefined); return; }
+    try {
+      const parsed = JSON.parse(newText);
+      setErr(null);
+      onChange(parsed);
+    } catch (e) {
+      setErr(e.message);
+      onChange(undefined);
+    }
+  }
+
+  return (
+    <Field label={label} help={help}>
+      <textarea
+        value={text}
+        onChange={e => handleChange(e.target.value)}
+        rows={5}
+        spellCheck={false}
+        className="w-full border rounded px-2 py-1 text-xs font-mono"
+      />
+      {err && <p className="text-[11px] text-red-700 mt-1">JSON error: {err}</p>}
+    </Field>
+  );
 }
 
 function prettifyName(name) {

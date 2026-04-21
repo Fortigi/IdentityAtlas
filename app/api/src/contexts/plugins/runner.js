@@ -159,11 +159,19 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
       newByExternalId.set(node.externalId, existingId || randomUUID());
     }
 
-    // 3) Upsert contexts.
+    // 3) Upsert contexts — two passes to avoid FK-ordering pain.
+    //    Plugins emit contexts in arbitrary order, and manager-hierarchy in
+    //    particular iterates a Set of managerIds; a child may land before
+    //    its parent. Rather than topologically sort, we:
+    //      3a) INSERT/UPDATE every node with parentContextId = NULL.
+    //      3b) UPDATE every node with a real parent pointer in one pass.
+    //    The existing "Contexts_parentContextId_fkey" FK is not deferrable,
+    //    so this two-pass form is the simplest way to stay legal.
+
+    // 3a) First pass: all rows with parent = NULL.
     for (const node of result.contexts) {
       if (!node.externalId) continue;
       const id = newByExternalId.get(node.externalId);
-      const parentId = node.parentExternalId ? (newByExternalId.get(node.parentExternalId) || null) : null;
       const existed  = existingByExternalId.has(node.externalId);
 
       if (existed) {
@@ -172,22 +180,34 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
              SET "displayName"         = $2,
                  description           = $3,
                  "contextType"         = $4,
-                 "parentContextId"     = $5,
-                 "extendedAttributes"  = $6,
-                 "sourceRunId"         = $7
+                 "parentContextId"     = NULL,
+                 "extendedAttributes"  = $5,
+                 "sourceRunId"         = $6
            WHERE id = $1
-        `, [id, node.displayName, node.description || null, node.contextType || plugin.name, parentId, node.extendedAttributes || null, runId]);
+        `, [id, node.displayName, node.description || null, node.contextType || plugin.name, node.extendedAttributes || null, runId]);
         counts.contextsUpdated++;
       } else {
         await client.query(`
           INSERT INTO "Contexts"
             (id, variant, "targetType", "contextType", "displayName", description,
              "parentContextId", "scopeSystemId", "sourceAlgorithmId", "sourceRunId", "externalId", "extendedAttributes")
-          VALUES ($1, 'generated', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          VALUES ($1, 'generated', $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10)
         `, [id, plugin.targetType, node.contextType || plugin.name, node.displayName, node.description || null,
-            parentId, scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null]);
+            scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null]);
         counts.contextsCreated++;
       }
+    }
+
+    // 3b) Second pass: set parent pointers now that every target row exists.
+    for (const node of result.contexts) {
+      if (!node.externalId || !node.parentExternalId) continue;
+      const id = newByExternalId.get(node.externalId);
+      const parentId = newByExternalId.get(node.parentExternalId);
+      if (!parentId) continue; // parent wasn't in the output — leave NULL
+      await client.query(
+        `UPDATE "Contexts" SET "parentContextId" = $2 WHERE id = $1`,
+        [id, parentId]
+      );
     }
 
     // 4) Remove contexts that previously belonged to this (algorithm, scope)
