@@ -16,7 +16,6 @@ const ResourceDetailPage = lazy(() => import('./components/ResourceDetailPage'))
 const AccessPackageDetailPage = lazy(() => import('./components/AccessPackageDetailPage'));
 const SystemsPage = lazy(() => import('./components/SystemsPage'));
 const RiskScoringPage = lazy(() => import('./components/RiskScoringPage'));
-const OrgChartPage = lazy(() => import('./components/OrgChartPage'));
 const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const DepartmentDetailPage = lazy(() => import('./components/DepartmentDetailPage'));
 const ContextDetailPage = lazy(() => import('./components/ContextDetailPage'));
@@ -111,7 +110,6 @@ const ALL_NAV_TABS = [
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring',        optional: true },
   { key: 'identities',       label: 'Identities',   feature: 'accountCorrelation', optional: true },
   { key: 'contexts',         label: 'Contexts' },
-  { key: 'org-chart',        label: 'Org Chart',                                    optional: true },
   { key: 'admin',            label: 'Admin' },
 ];
 
@@ -253,7 +251,7 @@ export default function App() {
         .map(t => t.returnPage === tabKey ? { ...t, returnPage: closing?.returnPage } : t);
       // Only navigate when closing the active tab
       if (isActive) {
-        navigate(closing?.returnPage ?? (type === 'run' ? 'contexts' : type === 'department' || type === 'context' ? 'org-chart' : type === 'identity' ? 'identities' : type === 'resource' ? 'resources' : 'matrix'));
+        navigate(closing?.returnPage ?? (type === 'run' ? 'contexts' : type === 'department' || type === 'context' ? 'contexts' : type === 'identity' ? 'identities' : type === 'resource' ? 'resources' : 'matrix'));
       }
       return remaining;
     });
@@ -519,8 +517,6 @@ export default function App() {
             <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />
           ) : page === 'identities' ? (
             <IdentitiesPage onOpenDetail={openDetailTab} />
-          ) : page === 'org-chart' ? (
-            <OrgChartPage onOpenDetail={openDetailTab} onCacheData={onCacheData} />
           ) : page === 'contexts' ? (
             <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />
           ) : page === 'performance' || page === 'crawlers' || page === 'admin' ? (
