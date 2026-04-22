@@ -1089,7 +1089,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
 }
 
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
-function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, runningJob }) {
+function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob }) {
   const cfg = config.config || {};
   const [savingNextRunMode, setSavingNextRunMode] = useState(false);
   const { authFetch } = useAuth();
@@ -1168,6 +1168,11 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
           <button onClick={() => onEdit(config)}
             className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">
             Configure
+          </button>
+          <button onClick={() => onExport(config)}
+            title="Download this crawler's configuration as JSON (client secret is stripped)"
+            className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">
+            Export
           </button>
           <button onClick={() => onRemove(config.id)}
             className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
@@ -2554,6 +2559,62 @@ export default function CrawlersPage({ onNavigate }) {
     }
   };
 
+  // ── Export / Import ───────────────────────────────────────────
+
+  // The server already masks clientSecret on the config payload, but we also
+  // empty it here and drop the tenant-specific validation blob so the
+  // exported file is obviously safe to commit to a repo / share in Slack.
+  const handleExportConfig = (config) => {
+    const cfg = { ...(config.config || {}) };
+    cfg.clientSecret = '';
+    delete cfg.validation;
+    const payload = {
+      _schemaVersion: 1,
+      _exportedAt: new Date().toISOString(),
+      displayName: config.displayName,
+      crawlerType: config.crawlerType,
+      config: cfg,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const slug = (config.displayName || 'crawler').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crawler-${slug || 'export'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const importFileRef = useRef(null);
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const imported = JSON.parse(text);
+      if (!imported.crawlerType || !imported.config) {
+        throw new Error('Invalid export file (missing crawlerType or config)');
+      }
+      if (!['entra-id', 'csv'].includes(imported.crawlerType)) {
+        throw new Error(`Unsupported crawlerType: ${imported.crawlerType}`);
+      }
+      // No id on editingConfig → wizard treats this as a new crawler;
+      // the user must re-enter the clientSecret on step 1.
+      setEditingConfig({
+        displayName: imported.displayName || '',
+        ...(imported.config || {}),
+      });
+      setWizardStep(imported.crawlerType === 'csv' ? 'csv-wizard' : 'entra-wizard');
+    } catch (err) {
+      setError(`Import failed: ${err.message}`);
+    } finally {
+      // Reset so re-selecting the same file still fires onChange.
+      e.target.value = '';
+    }
+  };
+
   // ── External crawler actions ──────────────────────────────────
 
   const handleToggleEnabled = async (c) => {
@@ -2598,10 +2659,24 @@ export default function CrawlersPage({ onNavigate }) {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Crawlers</h1>
         {!wizardStep && (
-          <button onClick={() => setWizardStep('select')}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
-            Add Crawler
-          </button>
+          <div className="flex gap-2">
+            <input
+              ref={importFileRef}
+              type="file"
+              accept="application/json,.json"
+              style={{ display: 'none' }}
+              onChange={handleImportFile}
+            />
+            <button onClick={() => importFileRef.current?.click()}
+              title="Import a crawler configuration from a previously exported JSON file"
+              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">
+              Import
+            </button>
+            <button onClick={() => setWizardStep('select')}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+              Add Crawler
+            </button>
+          </div>
         )}
       </div>
 
@@ -2645,7 +2720,7 @@ export default function CrawlersPage({ onNavigate }) {
           validateFn={validateCredentials}
           discoverFn={discoverAttributes}
           initialConfig={editingConfig}
-          isEdit={!!editingConfig}
+          isEdit={!!editingConfig?.id}
         />
       )}
       {wizardStep === 'csv-wizard' && (
@@ -2657,7 +2732,7 @@ export default function CrawlersPage({ onNavigate }) {
           }}
           onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
           initialConfig={editingConfig}
-          isEdit={!!editingConfig}
+          isEdit={!!editingConfig?.id}
           authFetch={authFetch}
         />
       )}
@@ -2683,6 +2758,7 @@ export default function CrawlersPage({ onNavigate }) {
                 config={c}
                 onRunNow={handleRunNow}
                 onEdit={handleEditConfig}
+                onExport={handleExportConfig}
                 onRemove={handleRemoveConfig}
                 onForceStop={handleForceStop}
                 runningJob={
