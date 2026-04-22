@@ -639,11 +639,15 @@ router.get('/access-package/:id/assignments', async (req, res) => {
       // drive the _history lookup from a.id; the audit rows key off the
       // composite too. Skip the assignedDate lookup for now (it's a nice-to
       // have) and fall back to the assignment row itself.
+      // ResourceAssignments has no surrogate `id` column in v5 — the
+      // primary key is (resourceId, principalId, assignmentType). The
+      // merge with main re-introduced `a.id` which 500'd the query and
+      // blanked the whole assignments list again.
       r = await timedRequest(pool, 'ap-assignments', res)
         .input('id', req.params.id)
         .query(`
         SELECT
-          a.id, a."principalId", a.state AS "assignmentState", a."assignmentStatus",
+          a."principalId", a.state AS "assignmentState", a."assignmentStatus",
           u."displayName" AS "targetDisplayName",
           u.email AS "targetUPN",
           NULL::timestamptz AS "assignedDate"
