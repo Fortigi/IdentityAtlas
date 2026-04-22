@@ -398,8 +398,9 @@ router.get('/identities/by-user/:userId', async (req, res) => {
     const memberResult = await timedRequest(p, 'identity-by-user-member', res)
       .input('userId', userId)
       .query(`
-        SELECT i.id AS "identityId", i."displayName" AS identityDisplayName, i."accountCount",
-          i.primaryAccountUpn, i.primaryAccountId, i."correlationConfidence", i."isHrAnchored",
+        SELECT i.id AS "identityId", i."displayName" AS "identityDisplayName", i."accountCount",
+          i.email AS "primaryAccountUpn", i."primaryPrincipalId" AS "primaryAccountId",
+          i."correlationConfidence", i."isHrAnchored",
           m."accountType", m."isPrimary", m."isHrAuthoritative", m."hrScore", m."signalConfidence",
           m."correlationSignals", m."analystOverride"
         FROM "IdentityMembers" m

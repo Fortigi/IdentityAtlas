@@ -39,6 +39,10 @@ function createIngestHandler(entityType) {
       return res.status(403).json({ error: `Crawler does not have access to system ${body.systemId}` });
     }
 
+    // Normalise records to an array (may arrive as null from PS crawlers
+    // sending delta-only-deletes — empty arrays serialize to null).
+    if (!Array.isArray(body.records)) body.records = [];
+
     const recResult = validateRecords(body.records, entityType, body.idGeneration);
     if (!recResult.valid) {
       console.warn(`Ingest validation failed [${entityType}]: ${recResult.errors.length} record error(s)`);
@@ -110,11 +114,40 @@ function createIngestHandler(entityType) {
       }
 
       // ── Single-batch path ─────────────────────────────────────────
-      const result = await ingest(null, tableName, keyColumns, normalized, {
-        syncMode: body.syncMode || 'delta',
-        systemId: body.systemId,
-        scope,
-      });
+      const result = body.records.length > 0
+        ? await ingest(null, tableName, keyColumns, normalized, {
+            syncMode: body.syncMode || 'delta',
+            systemId: body.systemId,
+            scope,
+          })
+        : { inserted: 0, updated: 0, deleted: 0 };
+
+      // ── Explicit delete-by-id path (for Graph /delta @removed rows) ──
+      // Delta runs can include a list of ids that were removed upstream.
+      // Deleting them individually is O(ids) but the batches are small
+      // (a few hundred on a typical daily delta), and this keeps the
+      // delete contained to the exact ids the caller supplied rather
+      // than relying on scopedDelete's NOT-EXISTS pattern.
+      if (Array.isArray(body.deletedIds) && body.deletedIds.length > 0) {
+        // Filter to UUIDs only — ResourceAssignments/Relationships surrogate
+        // ids and Principals/Resources ids are all UUID in v5. Reject the
+        // whole batch if any entry isn't a UUID to avoid ambiguous deletes.
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const bad = body.deletedIds.find(v => typeof v !== 'string' || !uuidRe.test(v));
+        if (bad) {
+          return res.status(400).json({ error: `deletedIds must be UUIDs (got '${String(bad).slice(0, 50)}')` });
+        }
+        try {
+          const delRes = await db.query(
+            `DELETE FROM "${tableName}" WHERE id = ANY($1::uuid[])`,
+            [body.deletedIds]
+          );
+          result.deleted += delRes.rowCount || 0;
+        } catch (delErr) {
+          console.error(`Delete-by-id failed on ${tableName}:`, delErr.message);
+          return res.status(500).json({ error: 'Delete-by-id failed', message: delErr.message });
+        }
+      }
 
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
                          body.records.length, result.inserted, result.updated, result.deleted, null);

@@ -147,7 +147,12 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     // 'stream')" that kills the Node process. The INSERT approach is ~30% slower
     // but doesn't have this failure mode.
     const colList = activeColumns.map(c => `"${c.name}"`).join(', ');
-    const INSERT_CHUNK = 200; // rows per INSERT statement
+    // 1000 rows per INSERT. We measured this on a 255k-row ResourceAssignments
+    // batch: bumping from 200 → 1000 cuts round-trip count 5× and wall-clock
+    // time by roughly the same factor, with no measurable increase in lock
+    // hold time on Postgres (the whole batch is already one transaction, so
+    // chunk size only affects statement count, not locking behaviour).
+    const INSERT_CHUNK = 1000; // rows per INSERT statement
     for (let i = 0; i < records.length; i += INSERT_CHUNK) {
       const chunk = records.slice(i, i + INSERT_CHUNK);
       const placeholders = [];

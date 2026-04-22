@@ -15,20 +15,46 @@ function formatDurationHMS(seconds) {
   return s > 0 ? `${m}m ${s}s` : `${m}m`;
 }
 
-function StepIndicator({ steps, step }) {
+function StepIndicator({ steps, step, onStepClick, allowAll }) {
+  // onStepClick: (n) => void. allowAll=true lets the user jump to ANY step
+  // (used in edit mode because all config is already valid). Otherwise,
+  // only past and current steps are clickable — forward nav requires the
+  // wizard's Next button so step-level validation runs.
+  const isClickable = (n) => {
+    if (!onStepClick) return false;
+    if (allowAll) return true;
+    return n <= step;
+  };
   return (
     <div className="flex items-center gap-2 mb-5 text-xs">
-      {steps.filter(s => s.shown !== false).map((s, i, arr) => (
-        <div key={s.n} className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold ${
-            s.n === step ? 'bg-indigo-600 text-white' :
-            s.n < step ? 'bg-indigo-100 text-indigo-700' :
-            'bg-gray-200 text-gray-500'
-          }`}>{i + 1}</div>
-          <span className={s.n === step ? 'font-medium text-gray-900' : 'text-gray-500'}>{s.label}</span>
-          {i < arr.length - 1 && <span className="text-gray-300">→</span>}
-        </div>
-      ))}
+      {steps.filter(s => s.shown !== false).map((s, i, arr) => {
+        const clickable = isClickable(s.n);
+        const bubbleCls = s.n === step ? 'bg-indigo-600 text-white'
+          : s.n < step ? 'bg-indigo-100 text-indigo-700'
+          : 'bg-gray-200 text-gray-500';
+        const labelCls = s.n === step ? 'font-medium text-gray-900' : 'text-gray-500';
+        const content = (
+          <>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold ${bubbleCls} ${clickable ? 'group-hover:ring-2 group-hover:ring-indigo-300 transition' : ''}`}>{i + 1}</div>
+            <span className={`${labelCls} ${clickable ? 'group-hover:text-indigo-700 group-hover:underline' : ''}`}>{s.label}</span>
+          </>
+        );
+        return (
+          <div key={s.n} className="flex items-center gap-2">
+            {clickable ? (
+              <button
+                type="button"
+                onClick={() => onStepClick(s.n)}
+                className="group flex items-center gap-2 cursor-pointer focus:outline-none"
+                aria-label={`Go to step ${i + 1}: ${s.label}`}
+              >{content}</button>
+            ) : (
+              <div className="flex items-center gap-2">{content}</div>
+            )}
+            {i < arr.length - 1 && <span className="text-gray-300">→</span>}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -256,6 +282,18 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
     return [];
   });
 
+  // Advanced options — exposed in a collapsible on step 5. These are read
+  // by the worker dispatcher but had no UI surface before.
+  // signInLogsDays: how many days of /auditLogs/signIns to pull each run
+  //                 (1-30, capped at Graph's retention). Default 7.
+  // aiNamePatterns: extra regex fragments applied to SP displayName to
+  //                 classify as AIAgent (beyond the built-in list).
+  const [signInLogsDays, setSignInLogsDays] = useState(initialConfig?.signInLogsDays ?? 7);
+  const [aiNamePatterns, setAiNamePatterns] = useState(
+    Array.isArray(initialConfig?.aiNamePatterns) ? initialConfig.aiNamePatterns.join('\n') : ''
+  );
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   // Discovery state — must be declared before the useEffect below that references userAttrCatalog
   const [userAttrCatalog, setUserAttrCatalog] = useState(null);
   const [groupAttrCatalog, setGroupAttrCatalog] = useState(null);
@@ -427,6 +465,15 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
         config.identityFilter.values = idFilterValue.split(',').map(s => s.trim()).filter(Boolean);
       }
     }
+    // Advanced options
+    const daysInt = parseInt(signInLogsDays, 10);
+    if (Number.isInteger(daysInt) && daysInt >= 1 && daysInt <= 30 && daysInt !== 7) {
+      config.signInLogsDays = daysInt;
+    }
+    const patterns = aiNamePatterns.split('\n').map(s => s.trim()).filter(Boolean);
+    if (patterns.length > 0) {
+      config.aiNamePatterns = patterns;
+    }
     try {
       await onComplete(config);
     } finally {
@@ -451,7 +498,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
       </div>
 
-      <StepIndicator steps={entraSteps} step={step} />
+      <StepIndicator steps={entraSteps} step={step} onStepClick={setStep} allowAll={!!isEdit} />
 
       {/* ─── Step 1: Name + Credentials ─────────────────────────── */}
       {step === 1 && (
@@ -703,6 +750,53 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
             className="mb-4 px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300">
             + Add Schedule
           </button>
+
+          {/* ─── Advanced options ──────────────────────────────── */}
+          <div className="mt-4 mb-4 border-t pt-4">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="text-sm text-gray-700 hover:text-gray-900 flex items-center gap-1"
+            >
+              <span className={`inline-block transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
+              Advanced options
+            </button>
+            {showAdvanced && (
+              <div className="mt-3 space-y-4 p-4 bg-gray-50 border border-gray-200 rounded">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Sign-in logs window (days)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={signInLogsDays}
+                    onChange={e => setSignInLogsDays(e.target.value)}
+                    className="w-24 px-2 py-1 text-sm border border-gray-300 rounded"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    How many days of <code>/auditLogs/signIns</code> to fetch per run. Graph retains events for up to 30 days; default is 7 so daily runs overlap a day.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Extra AI-agent name patterns (one regex per line)
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={aiNamePatterns}
+                    onChange={e => setAiNamePatterns(e.target.value)}
+                    placeholder="e.g. mycustom.*copilot&#10;\bassistant\b"
+                    className="w-full px-2 py-1 text-sm font-mono border border-gray-300 rounded"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Combined with the built-in list (copilot, openai, bot, azure-ai, gpt, …). Case-insensitive. Matches on <code>servicePrincipal.displayName</code>. Leave empty to use the default set.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="flex justify-between border-t pt-4">
             <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm">Back</button>
@@ -997,6 +1091,31 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
 function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, runningJob }) {
   const cfg = config.config || {};
+  const [savingNextRunMode, setSavingNextRunMode] = useState(false);
+  const { authFetch } = useAuth();
+
+  // Force-full-sync-next-run toggle. Default: 'delta' (fast). Flipping to
+  // 'full' makes the next scheduled or manual run wipe delta tokens and
+  // fetch everything; the worker flips it back to 'delta' when that run
+  // completes successfully.
+  const handleToggleForceFull = async () => {
+    const next = config.nextRunMode === 'full' ? 'delta' : 'full';
+    setSavingNextRunMode(true);
+    try {
+      await authFetch(`/api/admin/crawler-configs/${config.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nextRunMode: next }),
+      });
+      // Optimistic: mutate the local object so the UI reflects the change
+      // without needing a parent-component reload.
+      config.nextRunMode = next;
+    } catch (err) {
+      alert(`Failed to update run mode: ${err.message || err}`);
+    } finally {
+      setSavingNextRunMode(false);
+    }
+  };
 
   const objectLabels = [];
   if (cfg.selectedObjects?.identity) objectLabels.push('Identity');
@@ -1090,6 +1209,32 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Sync mode toggle — entra-id only, since the delta path is Graph-specific */}
+      {config.crawlerType === 'entra-id' && (
+        <div className="flex items-center justify-between mt-2 text-xs">
+          <span className="text-gray-500">
+            Next run:{' '}
+            <span className={config.nextRunMode === 'full' ? 'text-amber-700 font-medium' : 'text-green-700 font-medium'}>
+              {config.nextRunMode === 'full' ? 'Full re-sync' : 'Delta (fast)'}
+            </span>
+          </span>
+          <button
+            onClick={handleToggleForceFull}
+            disabled={savingNextRunMode}
+            className={`px-2 py-0.5 rounded border ${
+              config.nextRunMode === 'full'
+                ? 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
+                : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
+            } ${savingNextRunMode ? 'opacity-50' : ''}`}
+            title={config.nextRunMode === 'full'
+              ? 'Cancel — go back to delta on next run'
+              : 'Force a full re-sync on the next run. Slow but guaranteed-complete; resets to delta automatically after the run succeeds.'}
+          >
+            {savingNextRunMode ? '...' : config.nextRunMode === 'full' ? 'Cancel full sync' : 'Force full sync next run'}
+          </button>
         </div>
       )}
       {/* Identity filter badge */}
@@ -1247,8 +1392,98 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
   );
 }
 
+// ─── Job Phases Modal ─────────────────────────────────────────────────────────
+// Opens when the operator clicks "Details" on a completed/failed job. Shows
+// the per-phase breakdown written by the crawler at end-of-run: status,
+// duration, and error text per phase. Falls back to the raw errorMessage
+// text when a legacy job pre-dates the phases column.
+function JobPhasesModal({ job, onClose }) {
+  if (!job) return null;
+  const phases = Array.isArray(job.phases) ? job.phases : [];
+  const fmtMs = (ms) => {
+    if (ms == null) return '—';
+    if (ms < 1000) return `${ms} ms`;
+    const s = Math.round(ms / 100) / 10;
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    const rem = Math.round(s - m * 60);
+    return `${m}m ${rem}s`;
+  };
+  const dot = (status) => {
+    if (status === 'ok')      return <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" title="Succeeded" />;
+    if (status === 'failed')  return <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500"   title="Failed" />;
+    if (status === 'skipped') return <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-400"  title="Skipped" />;
+    return <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300" />;
+  };
+  const okCount     = phases.filter(p => p.status === 'ok').length;
+  const failedCount = phases.filter(p => p.status === 'failed').length;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Job {job.id} — {job.jobType}</h2>
+            <div className="text-xs text-gray-500 mt-0.5">
+              {new Date(job.createdAt).toLocaleString()} ·
+              {' '}<span className={job.status === 'failed' ? 'text-red-600' : job.status === 'completed' ? 'text-green-600' : 'text-gray-600'}>{job.status}</span>
+              {phases.length > 0 && <> · {okCount} ok, {failedCount} failed</>}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="overflow-auto p-6">
+          {phases.length === 0 ? (
+            <div>
+              <p className="text-sm text-gray-600 mb-2">No per-phase breakdown available for this job.</p>
+              {job.errorMessage && (
+                <pre className="bg-red-50 border border-red-200 text-red-800 text-xs p-3 rounded whitespace-pre-wrap break-words">{job.errorMessage}</pre>
+              )}
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left p-2 font-medium w-6"></th>
+                  <th className="text-left p-2 font-medium">Phase</th>
+                  <th className="text-right p-2 font-medium">Duration</th>
+                  <th className="text-left p-2 font-medium">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {phases.map((p, i) => (
+                  <tr key={i} className={p.status === 'failed' ? 'bg-red-50' : ''}>
+                    <td className="p-2 align-top">{dot(p.status)}</td>
+                    <td className="p-2 font-mono text-xs align-top">{p.name}</td>
+                    <td className="p-2 text-right text-gray-600 align-top">{fmtMs(p.durationMs)}</td>
+                    <td className="p-2 align-top">
+                      {p.error ? (
+                        <span className="text-red-700 text-xs break-words">{p.error}</span>
+                      ) : p.records ? (
+                        <span className="text-gray-600 text-xs font-mono">
+                          {Object.entries(p.records).map(([k, v]) => `${k}=${v}`).join(' · ')}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Recent Jobs Table ────────────────────────────────────────────────────────
 function RecentJobs({ jobs, onForceStop }) {
+  const [detailsJob, setDetailsJob] = useState(null);
   if (!jobs || jobs.length === 0) return null;
   const statusColors = {
     queued: 'bg-yellow-100 text-yellow-800',
@@ -1269,6 +1504,7 @@ function RecentJobs({ jobs, onForceStop }) {
               <th className="text-left p-3 font-medium">Created</th>
               <th className="text-left p-3 font-medium">Duration</th>
               <th className="text-left p-3 font-medium">Error</th>
+              <th className="text-left p-3 font-medium w-16"></th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -1276,6 +1512,8 @@ function RecentJobs({ jobs, onForceStop }) {
               const duration = j.startedAt && j.completedAt
                 ? formatDurationHMS(Math.round((new Date(j.completedAt) - new Date(j.startedAt)) / 1000))
                 : j.startedAt ? 'running...' : '—';
+              const isTerminal = j.status !== 'running' && j.status !== 'queued';
+              const hasDetails = isTerminal && ((Array.isArray(j.phases) && j.phases.length > 0) || j.errorMessage);
               return (
                 <tr key={j.id}>
                   <td className="p-3 font-medium">{j.jobType}</td>
@@ -1283,9 +1521,17 @@ function RecentJobs({ jobs, onForceStop }) {
                   <td className="p-3 text-gray-500">{new Date(j.createdAt).toLocaleString()}</td>
                   <td className="p-3 text-gray-500">{duration}</td>
                   <td className="p-3 text-red-500 text-xs truncate max-w-64">
-                    {j.status === 'running' || j.status === 'queued' ? (
+                    {isTerminal ? (j.errorMessage || '—') : (
                       <button onClick={() => onForceStop?.(j.id)} className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">Force Stop</button>
-                    ) : (j.errorMessage || '—')}
+                    )}
+                  </td>
+                  <td className="p-3">
+                    {hasDetails && (
+                      <button
+                        onClick={() => setDetailsJob(j)}
+                        className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      >Details</button>
+                    )}
                   </td>
                 </tr>
               );
@@ -1293,6 +1539,7 @@ function RecentJobs({ jobs, onForceStop }) {
           </tbody>
         </table>
       </div>
+      {detailsJob && <JobPhasesModal job={detailsJob} onClose={() => setDetailsJob(null)} />}
     </div>
   );
 }
@@ -1568,7 +1815,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
       </div>
 
-      <StepIndicator steps={csvSteps} step={step} />
+      <StepIndicator steps={csvSteps} step={step} onStepClick={setStep} allowAll={!!isEdit} />
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
