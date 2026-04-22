@@ -249,7 +249,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
         left={<AttributesTable entries={attributeEntries} />}
         right={
           <div className="space-y-4">
-            <div className="bg-white border border-gray-200 rounded-lg p-3">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
               <EntityGraph
                 centerLabel="User"
                 centerSubLabel={attributes.displayName}
@@ -258,7 +258,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                 onNodeClick={handleNodeClick}
               />
               {activeKey && (
-                <div className="text-xs text-gray-400 text-center pb-2">
+                <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-2">
                   Showing <span className="font-medium text-gray-600">{nodes.find(n => n.key === activeKey)?.label}</span>
                   {' — '}
                   <button onClick={() => setActiveKey(null)} className="text-gray-500 hover:text-gray-700 underline">clear</button>
@@ -275,7 +275,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               />
             )}
             {!activeKey && (
-              <div className="bg-white border border-dashed border-gray-200 rounded-lg p-6 text-center">
+              <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
                 <p className="text-sm text-gray-400">Click a node in the graph to see its details.</p>
               </div>
             )}
@@ -300,7 +300,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
           loading={historyLoading}
         >
           {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No changes recorded</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No changes recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -374,9 +374,9 @@ function UserRelationshipList({ nodeKey, items, loading, onOpenDetail }) {
 
 function ListShell({ count, children }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700">Selected</h3>
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Selected</h3>
         <span className="text-xs text-gray-500">{count}</span>
       </div>
       <div className="max-h-[460px] overflow-y-auto">{children}</div>
@@ -389,7 +389,7 @@ function PrincipalRows({ items, onOpenDetail }) {
     <ListShell count={items.length}>
       <div className="divide-y divide-gray-50">
         {items.map(r => (
-          <div key={r.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
+          <div key={r.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/40">
             <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
               {(r.displayName || '?')[0]}
             </div>
@@ -421,7 +421,7 @@ function ContextRows({ items, onOpenDetail }) {
     <ListShell count={items.length}>
       <div className="divide-y divide-gray-50">
         {items.map(c => (
-          <div key={c.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
+          <div key={c.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/40">
             <div className="min-w-0 flex-1">
               <button
                 onClick={() => onOpenDetail?.('context', c.id, c.displayName)}
@@ -445,7 +445,7 @@ function MembershipRows({ items, onOpenDetail }) {
     <ListShell count={items.length}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+          <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 sticky top-0">
             <th className="px-4 py-2 font-medium">Group / Resource</th>
             <th className="px-4 py-2 font-medium">Type</th>
             <th className="px-4 py-2 font-medium">Managed</th>
@@ -453,7 +453,7 @@ function MembershipRows({ items, onOpenDetail }) {
         </thead>
         <tbody>
           {items.map((m, i) => (
-            <tr key={m.resourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+            <tr key={m.resourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/40">
               <td className="px-4 py-2">
                 <button
                   onClick={() => onOpenDetail?.('resource', m.resourceId, m.resourceDisplayName || m.groupDisplayName)}
@@ -481,7 +481,7 @@ function AccessPackageRows({ items, onOpenDetail }) {
     <ListShell count={items.length}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+          <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 sticky top-0">
             <th className="px-4 py-2 font-medium">Access Package</th>
             <th className="px-4 py-2 font-medium">State</th>
             <th className="px-4 py-2 font-medium">Expires</th>
@@ -489,7 +489,7 @@ function AccessPackageRows({ items, onOpenDetail }) {
         </thead>
         <tbody>
           {items.map((ap, i) => (
-            <tr key={ap.resourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+            <tr key={ap.resourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/40">
               <td className="px-4 py-2">
                 <button
                   onClick={() => onOpenDetail?.('access-package', ap.resourceId, ap.accessPackageName)}
@@ -513,7 +513,7 @@ function OAuth2GrantRows({ items, onOpenDetail }) {
     <ListShell count={items.length}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+          <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 sticky top-0">
             <th className="px-4 py-2 font-medium">Client application</th>
             <th className="px-4 py-2 font-medium">Scope</th>
           </tr>
@@ -525,7 +525,7 @@ function OAuth2GrantRows({ items, onOpenDetail }) {
             const clientName = g.clientDisplayName || grantExt.clientDisplayName || grantExt.clientSpId || '—';
             const scopeValue = grantExt.scope || scopeExt.scope || g.scopeDisplayName || '—';
             return (
-              <tr key={g.scopeResourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+              <tr key={g.scopeResourceId + ':' + i} className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/40">
                 <td className="px-4 py-2">
                   {g.clientSpId ? (
                     <button onClick={() => onOpenDetail?.('resource', g.clientSpId, clientName)}
@@ -549,7 +549,7 @@ function IdentityRows({ items, onOpenDetail }) {
     <ListShell count={items.length}>
       <div className="divide-y divide-gray-50">
         {items.map(id => (
-          <div key={id.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
+          <div key={id.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/40">
             <div className="min-w-0 flex-1">
               <button
                 onClick={() => onOpenDetail?.('identity', id.id, id.displayName)}
