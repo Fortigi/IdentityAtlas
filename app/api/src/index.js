@@ -89,6 +89,15 @@ loadAuthConfig().catch(err => {
 });
 
 // ─── Security headers ────────────────────────────────────────────
+// BEHIND_TLS: set to "true" only when a TLS terminator (Caddy, nginx, Azure
+// Front Door, etc.) is in front of this container. When false (the default
+// for plain docker-compose dev stacks), we drop two directives that assume
+// HTTPS and break plain-http dev URLs:
+//   - CSP `upgrade-insecure-requests` rewrites every asset URL to https://
+//     — on a sidekick VM served over http://ip:3001 this blanks the page.
+//   - Strict-Transport-Security HSTS-pins the host for months in the
+//     browser, so even after fixing the server, the pin survives.
+const behindTls = process.env.BEHIND_TLS === 'true';
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -103,8 +112,10 @@ app.use(helmet({
       ],
       frameSrc: ["'self'", 'https://login.microsoftonline.com'],
       imgSrc: ["'self'", 'data:'],
+      ...(behindTls ? {} : { 'upgrade-insecure-requests': null }),
     },
   },
+  strictTransportSecurity: behindTls,
   crossOriginEmbedderPolicy: false,  // Required for MSAL redirects
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
