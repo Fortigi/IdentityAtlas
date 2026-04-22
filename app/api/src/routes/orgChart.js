@@ -42,7 +42,7 @@ async function checkContexts(pool) {
   if (hasContextsTable !== null && now - contextsCheckTime < 300000) return hasContextsTable;
   try {
     const r = await pool.request().query(`
-      SELECT to_regclass('"Contexts"') AS contextsExists
+      SELECT to_regclass('"Contexts"') AS "contextsExists"
     `);
     hasContextsTable = !!r.recordset[0].contextsExists;
     contextsCheckTime = now;
@@ -63,7 +63,7 @@ async function getOrgUserTable(pool) {
   const now = Date.now();
   if (_orgUserTable && (now - _orgUserTableTime) < ORG_TABLE_TTL) return _orgUserTable;
   try {
-    const r = await pool.request().query(`SELECT to_regclass('"Principals"') AS principalsExists`);
+    const r = await pool.request().query(`SELECT to_regclass('"Principals"') AS "principalsExists"`);
     _orgUserTable = r.recordset[0].principalsExists ? 'Principals' : 'GraphUsers';
   } catch {
     _orgUserTable = 'GraphUsers';

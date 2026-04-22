@@ -61,13 +61,13 @@ router.get('/identities', async (req, res) => {
     const [summaryResult, typeDistResult] = await Promise.all([
       timedRequest(p, 'identity-summary', res).query(`
         SELECT
-          COUNT(*) AS totalIdentities,
-          SUM(CASE WHEN "accountCount" > 1 THEN 1 ELSE 0 END) AS multiAccountIdentities,
-          SUM(CASE WHEN "accountCount" = 1 THEN 1 ELSE 0 END) AS singleAccountIdentities,
-          SUM("accountCount") AS totalAccounts,
-          SUM(CASE WHEN "analystVerified" = TRUE THEN 1 ELSE 0 END) AS verifiedCount,
-          AVG(CAST("correlationConfidence" AS FLOAT)) AS avgConfidence,
-          MAX("correlatedAt") AS lastCorrelatedAt
+          COUNT(*) AS "totalIdentities",
+          SUM(CASE WHEN "accountCount" > 1 THEN 1 ELSE 0 END) AS "multiAccountIdentities",
+          SUM(CASE WHEN "accountCount" = 1 THEN 1 ELSE 0 END) AS "singleAccountIdentities",
+          SUM("accountCount") AS "totalAccounts",
+          SUM(CASE WHEN "analystVerified" = TRUE THEN 1 ELSE 0 END) AS "verifiedCount",
+          AVG(CAST("correlationConfidence" AS FLOAT)) AS "avgConfidence",
+          MAX("correlatedAt") AS "lastCorrelatedAt"
           ${hasHrCols ? `, SUM(CASE WHEN "isHrAnchored" = true THEN 1 ELSE 0 END) AS "hrAnchoredCount",
           SUM(CASE WHEN "orphanStatus" IS NOT NULL THEN 1 ELSE 0 END) AS "orphanCount"` : ''}
         FROM "Identities"
@@ -149,7 +149,7 @@ router.get('/identities', async (req, res) => {
     const [countResult, dataResult] = await Promise.all([
       countReq.query(`SELECT COUNT(*) AS total FROM "Identities" ${where}`),
       dataReq.query(`
-        SELECT id, "displayName", "primaryPrincipalId" AS primaryAccountId, email AS primaryAccountUpn,
+        SELECT id, "displayName", "primaryPrincipalId" AS "primaryAccountId", email AS "primaryAccountUpn",
           "accountCount", NULL AS "accountTypes",
           "correlationConfidence", NULL AS "correlationSignals", NULL AS department, "jobTitle",
           NULL AS "managerId", email AS mail,
@@ -191,7 +191,7 @@ router.get('/identities/:id', async (req, res) => {
     // Fetch identity with context name
     const identityResult = await timedRequest(p, 'identity-detail', res)
       .input('id', identityId)
-      .query(`SELECT i.*, c."displayName" AS contextDisplayName
+      .query(`SELECT i.*, c."displayName" AS "contextDisplayName"
               FROM "Identities" i
               LEFT JOIN "Contexts" c ON i."contextId" = c.id
               WHERE i.id = @id`);
@@ -228,7 +228,7 @@ router.get('/identities/:id', async (req, res) => {
       membersResult = await timedRequest(p, 'identity-members-legacy', res)
         .input('identityId', identityId)
         .query(`
-          SELECT m.*, u.department, u."jobTitle", u.lastSignInDateTime, u."createdDateTime", u."accountEnabled" AS userAccountEnabled
+          SELECT m.*, u.department, u."jobTitle", u.lastSignInDateTime, u."createdDateTime", u."accountEnabled" AS "userAccountEnabled"
           FROM "IdentityMembers" m
           LEFT JOIN GraphUsers u ON m."principalId" = u.id
           WHERE m."identityId" = @identityId
@@ -270,7 +270,7 @@ router.get('/identities/:id', async (req, res) => {
       const groupCountResult = await timedRequest(p, 'identity-member-groups', res)
         .input('identityId', identityId)
         .query(`
-          SELECT m."principalId", COUNT(DISTINCT gm."resourceId") AS groupCount
+          SELECT m."principalId", COUNT(DISTINCT gm."resourceId") AS "groupCount"
           FROM "IdentityMembers" m
           LEFT JOIN "ResourceAssignments" gm ON m."principalId" = gm."principalId" AND gm."assignmentType" = 'Direct'
           WHERE m."identityId" = @identityId
@@ -468,12 +468,15 @@ router.get('/identities/by-user/:userId', async (req, res) => {
       return res.json({ identity: null, memberInfo: null });
     }
 
-    // Find identity membership for this user
+    // Find identity membership for this user. Identities has `email`, not
+    // `primaryAccountUpn` / `primaryAccountId` columns — map them through
+    // aliases so the response keeps the field names the frontend expects.
     const memberResult = await timedRequest(p, 'identity-by-user-member', res)
       .input('userId', userId)
       .query(`
-        SELECT i.id AS "identityId", i."displayName" AS identityDisplayName, i."accountCount",
-          i.primaryAccountUpn, i.primaryAccountId, i."correlationConfidence", i."isHrAnchored",
+        SELECT i.id AS "identityId", i."displayName" AS "identityDisplayName", i."accountCount",
+          i.email AS "primaryAccountUpn", i."primaryPrincipalId" AS "primaryAccountId",
+          i."correlationConfidence", i."isHrAnchored",
           m."accountType", m."isPrimary", m."isHrAuthoritative", m."hrScore", m."signalConfidence",
           m."correlationSignals", m."analystOverride"
         FROM "IdentityMembers" m
