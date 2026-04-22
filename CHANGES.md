@@ -1,5 +1,21 @@
 ## Changes in this PR
 
+- Fixed org chart direct reports not showing due to invalid ValidTo filtering (temporal tables were removed in v5)
+
+## Changes in this PR
+
+- Fixed business role assignments not displaying in the detail page (API was returning `state` instead of `assignmentState` and missing the `id` field)
+
+## Changes in this PR
+
+- Added dark mode support across the entire UI; toggle via the user avatar settings dropdown
+- Dark mode preference is persisted per browser in localStorage
+- All pages, tables, cards, modals, and the matrix view adapt to dark mode
+- Access Package column colors switch to a darker saturated palette in dark mode so they remain distinct and legible
+- Risk tier badges (Critical/High/Medium/Low/Minimal) use appropriately shifted dark variants
+
+## Changes in this PR
+
 - The Crawlers page now shows **one progress card per running or queued crawler** instead of collapsing everything to a single card. Starting two crawlers back-to-back shows two cards stacked: the running one with its live step + percentage, and the queued one with a "Waiting for the worker" amber card (no fake 0% progress bar). Each card is labelled with the source config's display name so two Entra tenants are distinguishable at a glance. Cards can be dismissed individually once the job finishes.
 - Added **OAuth2 Delegated Grants** as a new object type in the Entra ID crawler. When enabled, the crawler pulls `/oauth2PermissionGrants` and ingests every per-user consent (user X authorized client app Y to call target API Z on their behalf with scope S). Tenant-wide admin consents (`consentType='AllPrincipals'`) are skipped because they don't represent an individual user's authorization decision.
 - New Graph permission surfaced in the Crawlers wizard: `DelegatedPermissionGrant.Read.All`. The wizard now warns if the app registration doesn't have it when the OAuth2 Grants object type is selected. `DelegatedPermissionGrant.ReadWrite.All` counts as granted (superset).

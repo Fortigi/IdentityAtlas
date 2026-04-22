@@ -685,6 +685,49 @@ curl -s -X POST http://localhost:3001/api/ingest/contexts \
 
 Only proceed to branch/commit/push once the endpoint returns a 2xx response. The prod compose file (`docker-compose.prod.yml`) uses a pre-built image from ghcr.io — changes to source files have no effect until the image is rebuilt with `docker compose build`.
 
+### 4. Dark Mode
+
+The UI supports a **light/dark theme toggle** implemented with Tailwind v4's class-based dark mode strategy.
+
+**How it works:**
+- `index.css` declares `@custom-variant dark (&:is(.dark, .dark *))` — the `dark` class on `<html>` activates all `dark:` variants.
+- `app/ui/src/hooks/useTheme.js` — toggles the class and persists the preference in `localStorage`.
+- `app/ui/src/contexts/ThemeContext.jsx` — `ThemeContext` / `useIsDark()` hook for components that need the theme value at runtime (e.g. for inline hex styles that can't be expressed as Tailwind classes).
+- The toggle button lives in `App.jsx`'s top-right nav bar.
+
+**Rule: every new UI component must include dark mode from the start.** Do not add a component without `dark:` variants on every hardcoded color. There is no cleanup pass — new code ships complete.
+
+**Common patterns:**
+```jsx
+// Container cards
+className="bg-white border border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+
+// Body text
+className="text-gray-900 dark:text-white"          // headings
+className="text-gray-500 dark:text-gray-400"       // secondary text
+
+// Form inputs
+className="border border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
+
+// Table headers
+className="bg-gray-50 dark:bg-gray-700/50"
+// Table dividers
+className="divide-y dark:divide-gray-700"
+
+// Status/semantic badges (green, red, amber, blue)
+className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+className="bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+className="bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+className="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+
+// Back/secondary buttons
+className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+
+// Inline hex colors (AP colors, tier colors) — use useIsDark() from ThemeContext
+const isDark = useIsDark();
+style={{ color: isDark ? AP_COLORS_DARK[i] : AP_COLORS[i] }}
+```
+
 ### 4. No Duplicate Code
 
 Before writing any utility function, helper, constant, or component — **search first**.

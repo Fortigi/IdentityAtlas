@@ -22,11 +22,11 @@ function StepIndicator({ steps, step }) {
         <div key={s.n} className="flex items-center gap-2">
           <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold ${
             s.n === step ? 'bg-indigo-600 text-white' :
-            s.n < step ? 'bg-indigo-100 text-indigo-700' :
-            'bg-gray-200 text-gray-500'
+            s.n < step ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
+            'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
           }`}>{i + 1}</div>
-          <span className={s.n === step ? 'font-medium text-gray-900' : 'text-gray-500'}>{s.label}</span>
-          {i < arr.length - 1 && <span className="text-gray-300">→</span>}
+          <span className={s.n === step ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}>{s.label}</span>
+          {i < arr.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
         </div>
       ))}
     </div>
@@ -64,10 +64,10 @@ const CRAWLER_TYPES = [
 // ─── Step 1: Select Type ──────────────────────────────────────────────────────
 function SelectType({ onSelect, onCancel }) {
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Add Crawler — Select Type</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
+        <h3 className="text-lg font-semibold dark:text-white">Add Crawler — Select Type</h3>
+        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {CRAWLER_TYPES.map(t => (
@@ -77,14 +77,14 @@ function SelectType({ onSelect, onCancel }) {
             disabled={!t.available}
             className={`flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all ${
               t.available
-                ? 'border-gray-200 hover:border-indigo-400 hover:shadow-md cursor-pointer'
-                : 'border-gray-100 opacity-50 cursor-not-allowed'
+                ? 'border-gray-200 hover:border-indigo-400 hover:shadow-md cursor-pointer dark:border-gray-700 dark:hover:border-indigo-500'
+                : 'border-gray-100 opacity-50 cursor-not-allowed dark:border-gray-700'
             }`}
           >
-            <span className="font-semibold text-gray-900">{t.name}</span>
-            <span className="text-sm text-gray-500 mt-1">{t.description}</span>
+            <span className="font-semibold text-gray-900 dark:text-white">{t.name}</span>
+            <span className="text-sm text-gray-500 mt-1 dark:text-gray-400">{t.description}</span>
             {t.comingSoon && (
-              <span className="mt-2 px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">Coming soon</span>
+              <span className="mt-2 px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full dark:bg-gray-700 dark:text-gray-400">Coming soon</span>
             )}
           </button>
         ))}
@@ -126,7 +126,7 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
   return (
     <div className="mb-3">
       <div className="flex items-center justify-between mb-2">
-        <h5 className="text-xs font-semibold text-gray-700">
+        <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
           {title} ({selected.length} extra + {coreAttrs.length} core)
         </h5>
         <div className="flex items-center gap-2">
@@ -139,28 +139,28 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
           </button>
           <button
             onClick={deselectAll}
-            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
             type="button"
           >
             Deselect All
           </button>
           <input type="text" value={filter} onChange={e => setFilter(e.target.value)}
             placeholder="Filter..."
-            className="px-2 py-1 text-xs border border-gray-200 rounded w-48" />
+            className="px-2 py-1 text-xs border border-gray-200 rounded w-48 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
         </div>
       </div>
-      <div className="max-h-72 overflow-y-auto border border-gray-200 rounded bg-white">
+      <div className="max-h-72 overflow-y-auto border border-gray-200 rounded bg-white dark:border-gray-600 dark:bg-gray-800">
         {visible.length === 0 ? (
-          <div className="text-xs text-gray-400 italic p-2">No attributes match filter</div>
+          <div className="text-xs text-gray-400 italic p-2 dark:text-gray-500">No attributes match filter</div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
             {visible.map(attr => {
               const isCore = coreSet.has(attr);
               const isSelected = isCore || selected.includes(attr);
               return (
                 <label key={attr}
                   className={`flex items-center gap-2 text-xs px-2 py-1 ${
-                    isCore ? 'cursor-default bg-indigo-50/40' : 'cursor-pointer hover:bg-gray-50'
+                    isCore ? 'cursor-default bg-indigo-50/40 dark:bg-indigo-900/20' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                   title={isCore ? 'Core attribute (always synced)' : attr}>
                   <input type="checkbox" checked={isSelected} disabled={isCore}
@@ -173,8 +173,8 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
           </div>
         )}
       </div>
-      <p className="text-xs text-gray-400 mt-1">
-        <span className="text-indigo-500">core</span> = always synced.
+      <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">
+        <span className="text-indigo-500 dark:text-indigo-400">core</span> = always synced.
         Extras go into the extendedAttributes JSON column.
       </p>
     </div>
@@ -445,10 +445,10 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
   ];
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">{isEdit ? 'Edit' : 'Add'} Microsoft Graph Crawler</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
+        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit' : 'Add'} Microsoft Graph Crawler</h3>
+        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
 
       <StepIndicator steps={entraSteps} step={step} />
@@ -456,39 +456,39 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
       {/* ─── Step 1: Name + Credentials ─────────────────────────── */}
       {step === 1 && (
         <div>
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">
             Enter a name for this crawler and your App Registration credentials. We'll validate them and check which permissions are granted.
           </p>
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Crawler Name *</label>
+            <label className="block text-sm font-medium mb-1 dark:text-gray-200">Crawler Name *</label>
             <input type="text" value={crawlerName} onChange={e => setCrawlerName(e.target.value)}
               placeholder="e.g., Entra ID — Production"
-              className="w-full max-w-md p-2 border border-gray-200 rounded text-sm" />
+              className="w-full max-w-md p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Tenant ID *</label>
+              <label className="block text-sm font-medium mb-1 dark:text-gray-200">Tenant ID *</label>
               <input type="text" value={tenantId} onChange={e => setTenantId(e.target.value)}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full p-2 border border-gray-200 rounded font-mono text-sm" />
+                className="w-full p-2 border border-gray-200 rounded font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Client ID *</label>
+              <label className="block text-sm font-medium mb-1 dark:text-gray-200">Client ID *</label>
               <input type="text" value={clientId} onChange={e => setClientId(e.target.value)}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full p-2 border border-gray-200 rounded font-mono text-sm" />
+                className="w-full p-2 border border-gray-200 rounded font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1 dark:text-gray-200">
                 Client Secret {isEdit ? '(leave blank to keep)' : '*'}
               </label>
               <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)}
                 placeholder={isEdit ? '••••••••' : 'Enter client secret'}
-                className="w-full p-2 border border-gray-200 rounded text-sm" />
+                className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
             </div>
           </div>
           {validationError && (
-            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">{validationError}</div>
+            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">{validationError}</div>
           )}
           <div className="flex justify-end">
             <button onClick={handleValidate}
@@ -503,26 +503,26 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
       {/* ─── Step 2: Object Type Selection ──────────────────────── */}
       {step === 2 && validation && (
         <div>
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded">
-            <span className="font-medium text-green-800">
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded dark:bg-green-900/20 dark:border-green-700">
+            <span className="font-medium text-green-800 dark:text-green-300">
               Connected to {validation.organization || 'tenant'}
             </span>
           </div>
 
           <div className="mb-5">
-            <h4 className="text-sm font-semibold mb-2">Granted Permissions</h4>
+            <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Granted Permissions</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
               {Object.entries(validation.permissions || {}).sort(([a], [b]) => a.localeCompare(b)).map(([perm, granted]) => (
                 <div key={perm} className="flex items-center gap-2 text-sm py-1">
-                  <span className={granted ? 'text-green-600' : 'text-red-400'}>{granted ? '✓' : '✗'}</span>
-                  <span className={granted ? '' : 'text-gray-400 line-through'}>{perm}</span>
+                  <span className={granted ? 'text-green-600 dark:text-green-400' : 'text-red-400 dark:text-red-400'}>{granted ? '✓' : '✗'}</span>
+                  <span className={granted ? 'dark:text-gray-200' : 'text-gray-400 line-through dark:text-gray-500'}>{perm}</span>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="mb-5">
-            <h4 className="text-sm font-semibold mb-2">Object Types to Sync</h4>
+            <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Object Types to Sync</h4>
             <div className="space-y-2">
               {(validation.objectTypes || []).map(ot => {
                 const canSelect = canObjectBeSelected(ot.key);
@@ -532,8 +532,8 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
                       onChange={() => canSelect && toggleObject(ot.key)} disabled={!canSelect}
                       className="mt-0.5 rounded" />
                     <div>
-                      <span className="text-sm font-medium">{ot.label}</span>
-                      <span className="text-xs text-gray-500 ml-2">{ot.description}</span>
+                      <span className="text-sm font-medium dark:text-gray-200">{ot.label}</span>
+                      <span className="text-xs text-gray-500 ml-2 dark:text-gray-400">{ot.description}</span>
                       {!canSelect && <span className="text-xs text-red-400 ml-2">(missing permissions)</span>}
                     </div>
                   </label>
@@ -543,7 +543,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           </div>
 
           <div className="flex justify-between">
-            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm">Back</button>
+            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={nextStep} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next</button>
           </div>
         </div>
@@ -552,38 +552,38 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
       {/* ─── Step 3: Identity Configuration ─────────────────────── */}
       {step === 3 && (
         <div>
-          <h4 className="text-sm font-semibold mb-3">Identity Configuration</h4>
+          <h4 className="text-sm font-semibold mb-3 dark:text-gray-200">Identity Configuration</h4>
 
           {/* Identity filter */}
-          <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
+          <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
             <div className="flex items-center gap-3 mb-3">
               <input type="checkbox" checked={idFilterEnabled} onChange={e => setIdFilterEnabled(e.target.checked)} className="rounded" />
-              <h5 className="text-sm font-semibold">Identity Filter</h5>
+              <h5 className="text-sm font-semibold dark:text-gray-200">Identity Filter</h5>
             </div>
-            <p className="text-xs text-gray-500 mb-3">Select which users should be synced as identities. Users not matching the filter will be skipped from the identities table.</p>
+            <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Select which users should be synced as identities. Users not matching the filter will be skipped from the identities table.</p>
 
             {idFilterEnabled && (
               <div className="ml-6 grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium mb-1">Attribute</label>
+                  <label className="block text-xs font-medium mb-1 dark:text-gray-300">Attribute</label>
                   {discovering ? (
-                    <div className="text-xs text-gray-500">Discovering...</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Discovering...</div>
                   ) : userAttrCatalog?.attributes?.length > 0 ? (
                     <select value={idFilterAttr} onChange={e => setIdFilterAttr(e.target.value)}
-                      className="w-full p-2 border border-gray-200 rounded text-sm">
+                      className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                       {userAttrCatalog.attributes.map(a => (
                         <option key={a} value={a}>{a}</option>
                       ))}
                     </select>
                   ) : (
                     <input type="text" value={idFilterAttr} onChange={e => setIdFilterAttr(e.target.value)}
-                      className="w-full p-2 border border-gray-200 rounded text-sm" />
+                      className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1">Condition</label>
+                  <label className="block text-xs font-medium mb-1 dark:text-gray-300">Condition</label>
                   <select value={idFilterCondition} onChange={e => setIdFilterCondition(e.target.value)}
-                    className="w-full p-2 border border-gray-200 rounded text-sm">
+                    className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                     <option value="isNotNull">Is not empty</option>
                     <option value="equals">Equals</option>
                     <option value="notEquals">Not equals</option>
@@ -595,19 +595,19 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
                   const isBool = filterType === 'Boolean';
                   return (
                     <div>
-                      <label className="block text-xs font-medium mb-1">
-                        Value{filterType && <span className="ml-1 text-gray-400">({filterType})</span>}
+                      <label className="block text-xs font-medium mb-1 dark:text-gray-300">
+                        Value{filterType && <span className="ml-1 text-gray-400 dark:text-gray-500">({filterType})</span>}
                       </label>
                       {isBool && idFilterCondition !== 'inValues' ? (
                         <select value={idFilterValue || 'true'} onChange={e => setIdFilterValue(e.target.value)}
-                          className="w-full p-2 border border-gray-200 rounded text-sm">
+                          className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                           <option value="true">true</option>
                           <option value="false">false</option>
                         </select>
                       ) : (
                         <input type="text" value={idFilterValue} onChange={e => setIdFilterValue(e.target.value)}
                           placeholder={idFilterCondition === 'inValues' ? 'a, b, c' : 'value'}
-                          className="w-full p-2 border border-gray-200 rounded text-sm" />
+                          className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
                       )}
                     </div>
                   );
@@ -617,11 +617,11 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           </div>
 
           {/* Identity attributes to sync */}
-          <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
-            <h5 className="text-sm font-semibold mb-2">Identity Attributes to Sync</h5>
-            <p className="text-xs text-gray-500 mb-3">Pick which user attributes get stored in extendedAttributes JSON for identities. Core fields (displayName, email, employeeId) are always included.</p>
-            {discovering && !userAttrCatalog && <div className="text-sm text-gray-500">Discovering attributes from Microsoft Graph...</div>}
-            {userAttrCatalog?.error && <div className="text-sm text-red-500">Discovery failed: {userAttrCatalog.error}</div>}
+          <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
+            <h5 className="text-sm font-semibold mb-2 dark:text-gray-200">Identity Attributes to Sync</h5>
+            <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Pick which user attributes get stored in extendedAttributes JSON for identities. Core fields (displayName, email, employeeId) are always included.</p>
+            {discovering && !userAttrCatalog && <div className="text-sm text-gray-500 dark:text-gray-400">Discovering attributes from Microsoft Graph...</div>}
+            {userAttrCatalog?.error && <div className="text-sm text-red-500 dark:text-red-400">Discovery failed: {userAttrCatalog.error}</div>}
             {userAttrCatalog?.attributes && (
               <AttributePicker
                 title="Identity attributes"
@@ -634,7 +634,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           </div>
 
           <div className="flex justify-between">
-            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm">Back</button>
+            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={nextStep} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next</button>
           </div>
         </div>
@@ -643,14 +643,14 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
       {/* ─── Step 4: Users & Groups Attributes ──────────────────── */}
       {step === 4 && (
         <div>
-          <h4 className="text-sm font-semibold mb-3">User & Group Attributes</h4>
-          <p className="text-xs text-gray-500 mb-3">Pick which attributes to fetch. Core fields (displayName, givenName, surname, mail, etc.) are always synced and shown locked.</p>
+          <h4 className="text-sm font-semibold mb-3 dark:text-gray-200">User & Group Attributes</h4>
+          <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Pick which attributes to fetch. Core fields (displayName, givenName, surname, mail, etc.) are always synced and shown locked.</p>
 
           {discovering && (!userAttrCatalog || !groupAttrCatalog) && (
-            <div className="text-sm text-gray-500 mb-3">Discovering attributes from Microsoft Graph...</div>
+            <div className="text-sm text-gray-500 mb-3 dark:text-gray-400">Discovering attributes from Microsoft Graph...</div>
           )}
           {userAttrCatalog?.attributes && (
-            <div className="mb-4 p-4 bg-gray-50 rounded border border-gray-200">
+            <div className="mb-4 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
               <AttributePicker
                 title="User attributes"
                 available={userAttrCatalog.attributes}
@@ -661,7 +661,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
             </div>
           )}
           {groupAttrCatalog?.attributes && (
-            <div className="mb-4 p-4 bg-gray-50 rounded border border-gray-200">
+            <div className="mb-4 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
               <AttributePicker
                 title="Group attributes"
                 available={groupAttrCatalog.attributes}
@@ -673,7 +673,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           )}
 
           <div className="flex justify-between">
-            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm">Back</button>
+            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={nextStep} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next</button>
           </div>
         </div>
@@ -682,11 +682,11 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
       {/* ─── Step 5: Schedules ──────────────────────────────────── */}
       {step === 5 && (
         <div>
-          <h4 className="text-sm font-semibold mb-3">Schedule</h4>
-          <p className="text-xs text-gray-500 mb-3">Configure when this crawler runs automatically. You can add multiple schedules (e.g., a hourly delta + a daily full sync).</p>
+          <h4 className="text-sm font-semibold mb-3 dark:text-gray-200">Schedule</h4>
+          <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Configure when this crawler runs automatically. You can add multiple schedules (e.g., a hourly delta + a daily full sync).</p>
 
           {schedules.length === 0 && (
-            <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500">
+            <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-400">
               No schedules configured. The crawler will only run when you click "Run Now".
             </div>
           )}
@@ -700,12 +700,12 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           ))}
 
           <button onClick={() => setSchedules([...schedules, { enabled: true, frequency: 'daily', hour: 2, minute: 0 }])}
-            className="mb-4 px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300">
+            className="mb-4 px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
             + Add Schedule
           </button>
 
-          <div className="flex justify-between border-t pt-4">
-            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm">Back</button>
+          <div className="flex justify-between border-t pt-4 dark:border-gray-700">
+            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={handleSave} disabled={saving}
               className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
               {saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Deploy to Worker')}
@@ -795,27 +795,27 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
   const permEntries = Object.entries(validation.permissions || {}).sort(([a], [b]) => a.localeCompare(b));
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Microsoft Graph — Configure</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
+        <h3 className="text-lg font-semibold dark:text-white">Microsoft Graph — Configure</h3>
+        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
 
       {/* Validation result */}
-      <div className="mb-5 p-3 bg-green-50 border border-green-200 rounded">
-        <span className="font-medium text-green-800">
+      <div className="mb-5 p-3 bg-green-50 border border-green-200 rounded dark:bg-green-900/20 dark:border-green-700">
+        <span className="font-medium text-green-800 dark:text-green-300">
           Connected to {validation.organization || 'tenant'}
         </span>
       </div>
 
       {/* Permissions checklist */}
       <div className="mb-5">
-        <h4 className="text-sm font-semibold mb-2">Granted Permissions</h4>
+        <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Granted Permissions</h4>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
           {permEntries.map(([perm, granted]) => (
             <div key={perm} className="flex items-center gap-2 text-sm py-1">
-              <span className={granted ? 'text-green-600' : 'text-red-400'}>{granted ? '>' : 'x'}</span>
-              <span className={granted ? '' : 'text-gray-400 line-through'}>{perm}</span>
+              <span className={granted ? 'text-green-600 dark:text-green-400' : 'text-red-400'}>{granted ? '>' : 'x'}</span>
+              <span className={granted ? 'dark:text-gray-200' : 'text-gray-400 line-through dark:text-gray-500'}>{perm}</span>
             </div>
           ))}
         </div>
@@ -823,7 +823,7 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
 
       {/* Object type selection */}
       <div className="mb-5">
-        <h4 className="text-sm font-semibold mb-2">Object Types to Sync</h4>
+        <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Object Types to Sync</h4>
         <div className="space-y-2">
           {(validation.objectTypes || []).map(ot => {
             const canSelect = canObjectBeSelected(ot.key);
@@ -837,8 +837,8 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
                   className="mt-0.5 rounded"
                 />
                 <div>
-                  <span className="text-sm font-medium">{ot.label}</span>
-                  <span className="text-xs text-gray-500 ml-2">{ot.description}</span>
+                  <span className="text-sm font-medium dark:text-gray-200">{ot.label}</span>
+                  <span className="text-xs text-gray-500 ml-2 dark:text-gray-400">{ot.description}</span>
                   {!canSelect && <span className="text-xs text-red-400 ml-2">(missing permissions)</span>}
                 </div>
               </label>
@@ -849,19 +849,19 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
 
       {/* Identity filter (shown when Identity object type is selected) */}
       {selectedObjects.identity && (
-        <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
+        <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
           <div className="flex items-center gap-3 mb-3">
             <input type="checkbox" checked={idFilterEnabled} onChange={e => setIdFilterEnabled(e.target.checked)} className="rounded" />
-            <h4 className="text-sm font-semibold">Identity Selection Filter</h4>
+            <h4 className="text-sm font-semibold dark:text-gray-200">Identity Selection Filter</h4>
           </div>
           {idFilterEnabled && (
             <div className="ml-6 space-y-3">
-              <p className="text-xs text-gray-500">Select which users should be treated as identities (e.g., HR-managed accounts).</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Select which users should be treated as identities (e.g., HR-managed accounts).</p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium mb-1">Attribute</label>
+                  <label className="block text-xs font-medium mb-1 dark:text-gray-300">Attribute</label>
                   <select value={idFilterAttr} onChange={e => setIdFilterAttr(e.target.value)}
-                    className="w-full p-2 border border-gray-200 rounded text-sm">
+                    className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                     <option value="employeeId">employeeId</option>
                     <option value="employeeType">employeeType</option>
                     <option value="companyName">companyName</option>
@@ -872,9 +872,9 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1">Condition</label>
+                  <label className="block text-xs font-medium mb-1 dark:text-gray-300">Condition</label>
                   <select value={idFilterCondition} onChange={e => setIdFilterCondition(e.target.value)}
-                    className="w-full p-2 border border-gray-200 rounded text-sm">
+                    className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                     <option value="isNotNull">Is not empty</option>
                     <option value="equals">Equals</option>
                     <option value="notEquals">Not equals</option>
@@ -883,10 +883,10 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
                 </div>
                 {idFilterCondition !== 'isNotNull' && (
                   <div>
-                    <label className="block text-xs font-medium mb-1">Value</label>
+                    <label className="block text-xs font-medium mb-1 dark:text-gray-300">Value</label>
                     <input type="text" value={idFilterValue} onChange={e => setIdFilterValue(e.target.value)}
                       placeholder={idFilterCondition === 'inValues' ? 'Employee, Intern, Contractor' : 'Employee'}
-                      className="w-full p-2 border border-gray-200 rounded text-sm" />
+                      className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
                   </div>
                 )}
               </div>
@@ -896,37 +896,37 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
       )}
 
       {/* Custom attributes */}
-      <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
-        <h4 className="text-sm font-semibold mb-2">Custom Attributes (optional)</h4>
-        <p className="text-xs text-gray-500 mb-3">Add extra attributes to sync from Microsoft Graph. Comma-separated. These will be stored in extendedAttributes.</p>
+      <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
+        <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Custom Attributes (optional)</h4>
+        <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Add extra attributes to sync from Microsoft Graph. Comma-separated. These will be stored in extendedAttributes.</p>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium mb-1">User attributes</label>
+            <label className="block text-xs font-medium mb-1 dark:text-gray-300">User attributes</label>
             <input type="text" value={customUserAttrs} onChange={e => setCustomUserAttrs(e.target.value)}
               placeholder="e.g., employeeHireDate, onPremisesSyncEnabled, extension_abc123_costCenter"
-              className="w-full p-2 border border-gray-200 rounded text-sm" />
+              className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1">Group attributes</label>
+            <label className="block text-xs font-medium mb-1 dark:text-gray-300">Group attributes</label>
             <input type="text" value={customGroupAttrs} onChange={e => setCustomGroupAttrs(e.target.value)}
               placeholder="e.g., classification, resourceBehaviorOptions"
-              className="w-full p-2 border border-gray-200 rounded text-sm" />
+              className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
           </div>
         </div>
       </div>
 
       {/* Schedule */}
-      <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200">
+      <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
         <div className="flex items-center gap-3 mb-3">
           <input type="checkbox" checked={schedEnabled} onChange={e => setSchedEnabled(e.target.checked)} className="rounded" />
-          <h4 className="text-sm font-semibold">Schedule</h4>
+          <h4 className="text-sm font-semibold dark:text-gray-200">Schedule</h4>
         </div>
         {schedEnabled && (
           <div className="ml-6 grid grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs font-medium mb-1">Frequency</label>
+              <label className="block text-xs font-medium mb-1 dark:text-gray-300">Frequency</label>
               <select value={schedFrequency} onChange={e => setSchedFrequency(e.target.value)}
-                className="w-full p-2 border border-gray-200 rounded text-sm">
+                className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                 <option value="hourly">Hourly</option>
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
@@ -934,25 +934,25 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
             </div>
             {schedFrequency !== 'hourly' && (
               <div>
-                <label className="block text-xs font-medium mb-1">Hour (UTC)</label>
+                <label className="block text-xs font-medium mb-1 dark:text-gray-300">Hour (UTC)</label>
                 <select value={schedHour} onChange={e => setSchedHour(parseInt(e.target.value, 10))}
-                  className="w-full p-2 border border-gray-200 rounded text-sm">
+                  className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                   {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>)}
                 </select>
               </div>
             )}
             <div>
-              <label className="block text-xs font-medium mb-1">Minute</label>
+              <label className="block text-xs font-medium mb-1 dark:text-gray-300">Minute</label>
               <select value={schedMinute} onChange={e => setSchedMinute(parseInt(e.target.value, 10))}
-                className="w-full p-2 border border-gray-200 rounded text-sm">
+                className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                 {[0, 15, 30, 45].map(m => <option key={m} value={m}>:{String(m).padStart(2, '0')}</option>)}
               </select>
             </div>
             {schedFrequency === 'weekly' && (
               <div>
-                <label className="block text-xs font-medium mb-1">Day</label>
+                <label className="block text-xs font-medium mb-1 dark:text-gray-300">Day</label>
                 <select value={schedDay} onChange={e => setSchedDay(parseInt(e.target.value, 10))}
-                  className="w-full p-2 border border-gray-200 rounded text-sm">
+                  className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                   {['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((d, i) => <option key={i} value={i}>{d}</option>)}
                 </select>
               </div>
@@ -963,15 +963,15 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
 
       {/* Crawler name */}
       <div className="mb-5">
-        <label className="block text-sm font-medium mb-1">Crawler Name</label>
+        <label className="block text-sm font-medium mb-1 dark:text-gray-200">Crawler Name</label>
         <input type="text" value={crawlerName} onChange={e => setCrawlerName(e.target.value)}
           placeholder={`Entra ID — ${validation.organization || 'Production'}`}
-          className="w-full max-w-md p-2 border border-gray-200 rounded text-sm" />
+          className="w-full max-w-md p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
       </div>
 
       {/* Deploy options */}
       <div className="mb-5">
-        <h4 className="text-sm font-semibold mb-2">Deploy To</h4>
+        <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Deploy To</h4>
         <div className="flex gap-3">
           <button
             onClick={handleDeploy}
@@ -980,16 +980,16 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
           >
             {loading ? 'Saving...' : 'Deploy to Worker'}
           </button>
-          <button disabled className="px-4 py-2 bg-gray-100 text-gray-400 rounded text-sm cursor-not-allowed">
+          <button disabled className="px-4 py-2 bg-gray-100 text-gray-400 rounded text-sm cursor-not-allowed dark:bg-gray-700 dark:text-gray-500">
             Azure Automation (coming soon)
           </button>
-          <button disabled className="px-4 py-2 bg-gray-100 text-gray-400 rounded text-sm cursor-not-allowed">
+          <button disabled className="px-4 py-2 bg-gray-100 text-gray-400 rounded text-sm cursor-not-allowed dark:bg-gray-700 dark:text-gray-500">
             Download Scripts (coming soon)
           </button>
         </div>
       </div>
 
-      <button onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700">Back to type selection</button>
+      <button onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Back to type selection</button>
     </div>
   );
 }
@@ -1023,11 +1023,11 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
   };
 
   return (
-    <div className="p-4 bg-white border border-gray-200 rounded-lg">
+    <div className="p-4 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h4 className="font-semibold text-gray-900">{config.displayName}</h4>
-          <span className="text-xs text-gray-500">{config.crawlerType}</span>
+          <h4 className="font-semibold text-gray-900 dark:text-white">{config.displayName}</h4>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{config.crawlerType}</span>
         </div>
         <div className="flex gap-1">
           {isRunning ? (
@@ -1046,11 +1046,11 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
             </button>
           )}
           <button onClick={() => onEdit(config)}
-            className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">
+            className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
             Configure
           </button>
           <button onClick={() => onRemove(config.id)}
-            className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">
+            className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">
             Remove
           </button>
         </div>
@@ -1058,14 +1058,14 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
 
       {config.crawlerType === 'entra-id' && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
-          <div><span className="text-gray-500">Tenant ID:</span> <span className="font-mono text-xs">{cfg.tenantId || '—'}</span></div>
-          <div><span className="text-gray-500">Client ID:</span> <span className="font-mono text-xs">{cfg.clientId || '—'}</span></div>
-          <div><span className="text-gray-500">Secret:</span> <span className="text-gray-400">{SECRET_MASK}</span></div>
+          <div><span className="text-gray-500 dark:text-gray-400">Tenant ID:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.tenantId || '—'}</span></div>
+          <div><span className="text-gray-500 dark:text-gray-400">Client ID:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.clientId || '—'}</span></div>
+          <div><span className="text-gray-500 dark:text-gray-400">Secret:</span> <span className="text-gray-400 dark:text-gray-500">{SECRET_MASK}</span></div>
           <div>
-            <span className="text-gray-500">Objects:</span>{' '}
+            <span className="text-gray-500 dark:text-gray-400">Objects:</span>{' '}
             {objectLabels.length > 0
-              ? objectLabels.map(l => <span key={l} className="inline-block mr-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded">{l}</span>)
-              : <span className="text-gray-400 text-xs">none</span>
+              ? objectLabels.map(l => <span key={l} className="inline-block mr-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded dark:bg-indigo-900/30 dark:text-indigo-300">{l}</span>)
+              : <span className="text-gray-400 text-xs dark:text-gray-500">none</span>
             }
           </div>
         </div>
@@ -1073,18 +1073,18 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
 
       {config.crawlerType === 'csv' && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
-          <div><span className="text-gray-500">System:</span> <span className="font-medium">{cfg.systemName || '—'}</span></div>
-          <div><span className="text-gray-500">Type:</span> <span className="font-mono text-xs">{cfg.systemType || '—'}</span></div>
-          <div><span className="text-gray-500">Delimiter:</span> <code className="text-xs">{cfg.delimiter === '\t' ? '\\t' : (cfg.delimiter || ';')}</code></div>
+          <div><span className="text-gray-500 dark:text-gray-400">System:</span> <span className="font-medium dark:text-gray-200">{cfg.systemName || '—'}</span></div>
+          <div><span className="text-gray-500 dark:text-gray-400">Type:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.systemType || '—'}</span></div>
+          <div><span className="text-gray-500 dark:text-gray-400">Delimiter:</span> <code className="text-xs dark:text-gray-300">{cfg.delimiter === '\t' ? '\\t' : (cfg.delimiter || ';')}</code></div>
         </div>
       )}
 
       {/* Schedules */}
       {scheduleList.length > 0 && (
-        <div className="text-xs text-gray-500 mt-2 space-y-1">
+        <div className="text-xs text-gray-500 mt-2 space-y-1 dark:text-gray-400">
           {scheduleList.map((s, i) => (
             <div key={i}>
-              <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">
+              <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded dark:bg-blue-900/30 dark:text-blue-300">
                 Schedule: {formatSched(s)}
               </span>
             </div>
@@ -1093,8 +1093,8 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
       )}
       {/* Identity filter badge */}
       {cfg.identityFilter?.attribute && (
-        <div className="text-xs text-gray-500 mt-1">
-          <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded">
+        <div className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+          <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded dark:bg-purple-900/30 dark:text-purple-300">
             Identity filter: {cfg.identityFilter.attribute} {cfg.identityFilter.condition}
             {cfg.identityFilter.value && ` "${cfg.identityFilter.value}"`}
             {cfg.identityFilter.values?.length > 0 && ` ${JSON.stringify(cfg.identityFilter.values)}`}
@@ -1103,30 +1103,30 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onForceStop, ru
       )}
       {/* Custom attribute counts */}
       {(cfg.customUserAttributes?.length > 0 || cfg.customGroupAttributes?.length > 0 || cfg.identityAttributes?.length > 0) && (
-        <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-1">
+        <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-1 dark:text-gray-400">
           {cfg.identityAttributes?.length > 0 && (
-            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded">
+            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded dark:bg-amber-900/30 dark:text-amber-300">
               +{cfg.identityAttributes.length} identity attr{cfg.identityAttributes.length > 1 ? 's' : ''}
             </span>
           )}
           {cfg.customUserAttributes?.length > 0 && (
-            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded">
+            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded dark:bg-amber-900/30 dark:text-amber-300">
               +{cfg.customUserAttributes.length} user attr{cfg.customUserAttributes.length > 1 ? 's' : ''}
             </span>
           )}
           {cfg.customGroupAttributes?.length > 0 && (
-            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded">
+            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded dark:bg-amber-900/30 dark:text-amber-300">
               +{cfg.customGroupAttributes.length} group attr{cfg.customGroupAttributes.length > 1 ? 's' : ''}
             </span>
           )}
         </div>
       )}
       {config.lastRunAt && (
-        <div className="text-xs text-gray-500 mt-2">
+        <div className="text-xs text-gray-500 mt-2 dark:text-gray-400">
           Last run: {new Date(config.lastRunAt).toLocaleString()}
           {config.lastRunStatus && (
             <span className={`ml-2 px-1.5 py-0.5 rounded-full ${
-              config.lastRunStatus === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              config.lastRunStatus === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
             }`}>{config.lastRunStatus}</span>
           )}
         </div>
@@ -1161,18 +1161,18 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
 
   if (job.status === 'completed') {
     return (
-      <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+      <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-700">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs font-medium text-green-700 uppercase tracking-wide mb-0.5">{header}</div>
-            <span className="font-semibold text-green-800">Data loaded successfully!</span>
-            <p className="text-sm text-green-600 mt-1">Your identity data is ready to explore.</p>
+            <div className="text-xs font-medium text-green-700 uppercase tracking-wide mb-0.5 dark:text-green-400">{header}</div>
+            <span className="font-semibold text-green-800 dark:text-green-300">Data loaded successfully!</span>
+            <p className="text-sm text-green-600 mt-1 dark:text-green-400">Your identity data is ready to explore.</p>
           </div>
           <div className="flex gap-2">
             {onNavigateToMatrix && (
               <button onClick={onNavigateToMatrix} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">Open Matrix</button>
             )}
-            {onDismiss && <button onClick={onDismiss} className="text-green-600 hover:text-green-800 text-sm">Dismiss</button>}
+            {onDismiss && <button onClick={onDismiss} className="text-green-600 hover:text-green-800 text-sm dark:text-green-400 dark:hover:text-green-200">Dismiss</button>}
           </div>
         </div>
       </div>
@@ -1180,14 +1180,14 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
   }
   if (job.status === 'failed') {
     return (
-      <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+      <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-700">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs font-medium text-red-700 uppercase tracking-wide mb-0.5">{header}</div>
-            <span className="font-semibold text-red-800">Job failed</span>
-            <p className="text-sm text-red-600 mt-1">{job.errorMessage || 'Unknown error'}</p>
+            <div className="text-xs font-medium text-red-700 uppercase tracking-wide mb-0.5 dark:text-red-400">{header}</div>
+            <span className="font-semibold text-red-800 dark:text-red-300">Job failed</span>
+            <p className="text-sm text-red-600 mt-1 dark:text-red-400">{job.errorMessage || 'Unknown error'}</p>
           </div>
-          {onDismiss && <button onClick={onDismiss} className="text-red-500 hover:text-red-700 text-sm">Dismiss</button>}
+          {onDismiss && <button onClick={onDismiss} className="text-red-500 hover:text-red-700 text-sm dark:text-red-400 dark:hover:text-red-200">Dismiss</button>}
         </div>
       </div>
     );
@@ -1205,35 +1205,35 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
   // flatlined bar implies "stuck" when it's just "waiting in line".
   if (job.status === 'queued') {
     return (
-      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg dark:bg-amber-900/20 dark:border-amber-700">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs font-medium text-amber-800 uppercase tracking-wide mb-0.5">{header}</div>
-            <span className="font-semibold text-amber-900">Queued</span>
-            <p className="text-sm text-amber-700 mt-1">Waiting for the worker — will start when the current run finishes.</p>
+            <div className="text-xs font-medium text-amber-800 uppercase tracking-wide mb-0.5 dark:text-amber-300">{header}</div>
+            <span className="font-semibold text-amber-900 dark:text-amber-300">Queued</span>
+            <p className="text-sm text-amber-700 mt-1 dark:text-amber-400">Waiting for the worker — will start when the current run finishes.</p>
           </div>
-          {onDismiss && <button onClick={onDismiss} className="text-amber-700 hover:text-amber-900 text-sm">Dismiss</button>}
+          {onDismiss && <button onClick={onDismiss} className="text-amber-700 hover:text-amber-900 text-sm dark:text-amber-400 dark:hover:text-amber-200">Dismiss</button>}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-700">
       <div className="flex items-center justify-between mb-1">
-        <div className="text-xs font-medium text-blue-700 uppercase tracking-wide">{header}</div>
-        {onDismiss && <button onClick={onDismiss} className="text-blue-500 hover:text-blue-700 text-xs">Dismiss</button>}
+        <div className="text-xs font-medium text-blue-700 uppercase tracking-wide dark:text-blue-400">{header}</div>
+        {onDismiss && <button onClick={onDismiss} className="text-blue-500 hover:text-blue-700 text-xs dark:text-blue-400 dark:hover:text-blue-200">Dismiss</button>}
       </div>
       <div className="flex items-center justify-between mb-2">
-        <span className="font-semibold text-blue-800">{step}</span>
-        <span className="text-sm text-blue-600">{pct}%</span>
+        <span className="font-semibold text-blue-800 dark:text-blue-300">{step}</span>
+        <span className="text-sm text-blue-600 dark:text-blue-400">{pct}%</span>
       </div>
-      <div className="w-full bg-blue-200 rounded-full h-2.5">
+      <div className="w-full bg-blue-200 rounded-full h-2.5 dark:bg-blue-900/40">
         <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${Math.max(pct, 2)}%` }} />
       </div>
       {(detail || secondsSince != null) && (
         <div className="flex items-center justify-between mt-2 text-xs">
-          <span className="text-blue-700 truncate font-mono">{detail || ''}</span>
+          <span className="text-blue-700 truncate font-mono dark:text-blue-400">{detail || ''}</span>
           {secondsSince != null && (
             <span className={`ml-2 flex-shrink-0 ${stalenessColor}`} title={updatedAt?.toLocaleString()}>
               {secondsSince === 0 ? 'just now' : `${secondsSince}s ago`}
@@ -1250,40 +1250,40 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
 function RecentJobs({ jobs, onForceStop }) {
   if (!jobs || jobs.length === 0) return null;
   const statusColors = {
-    queued: 'bg-yellow-100 text-yellow-800',
-    running: 'bg-blue-100 text-blue-800',
-    completed: 'bg-green-100 text-green-800',
-    failed: 'bg-red-100 text-red-800',
-    cancelled: 'bg-gray-100 text-gray-800',
+    queued: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    running: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    completed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    failed: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
   };
   return (
     <div className="mb-6">
-      <h3 className="text-lg font-semibold mb-3">Recent Jobs</h3>
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <h3 className="text-lg font-semibold mb-3 dark:text-white">Recent Jobs</h3>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden dark:bg-gray-800 dark:border-gray-700">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-700/50">
             <tr>
-              <th className="text-left p-3 font-medium">Type</th>
-              <th className="text-left p-3 font-medium">Status</th>
-              <th className="text-left p-3 font-medium">Created</th>
-              <th className="text-left p-3 font-medium">Duration</th>
-              <th className="text-left p-3 font-medium">Error</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Type</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Status</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Created</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Duration</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Error</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y dark:divide-gray-700">
             {jobs.map(j => {
               const duration = j.startedAt && j.completedAt
                 ? formatDurationHMS(Math.round((new Date(j.completedAt) - new Date(j.startedAt)) / 1000))
                 : j.startedAt ? 'running...' : '—';
               return (
                 <tr key={j.id}>
-                  <td className="p-3 font-medium">{j.jobType}</td>
+                  <td className="p-3 font-medium dark:text-gray-200">{j.jobType}</td>
                   <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[j.status] || ''}`}>{j.status}</span></td>
-                  <td className="p-3 text-gray-500">{new Date(j.createdAt).toLocaleString()}</td>
-                  <td className="p-3 text-gray-500">{duration}</td>
-                  <td className="p-3 text-red-500 text-xs truncate max-w-64">
+                  <td className="p-3 text-gray-500 dark:text-gray-400">{new Date(j.createdAt).toLocaleString()}</td>
+                  <td className="p-3 text-gray-500 dark:text-gray-400">{duration}</td>
+                  <td className="p-3 text-red-500 text-xs truncate max-w-64 dark:text-red-400">
                     {j.status === 'running' || j.status === 'queued' ? (
-                      <button onClick={() => onForceStop?.(j.id)} className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">Force Stop</button>
+                      <button onClick={() => onForceStop?.(j.id)} className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">Force Stop</button>
                     ) : (j.errorMessage || '—')}
                   </td>
                 </tr>
@@ -1305,55 +1305,55 @@ function ExternalCrawlers({ crawlers, onToggle, onResetKey, onRemove, newKey, on
 
   return (
     <div className="mb-6">
-      <h3 className="text-lg font-semibold mb-3">Custom Connectors</h3>
+      <h3 className="text-lg font-semibold mb-3 dark:text-white">Custom Connectors</h3>
 
       {newKey && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-700">
           <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold text-green-800">API Key Generated</span>
-            <button onClick={onDismissKey} className="text-green-600 hover:text-green-800 text-sm">Dismiss</button>
+            <span className="font-semibold text-green-800 dark:text-green-300">API Key Generated</span>
+            <button onClick={onDismissKey} className="text-green-600 hover:text-green-800 text-sm dark:text-green-400 dark:hover:text-green-200">Dismiss</button>
           </div>
-          <p className="text-sm text-green-700 mb-2">Store this key securely. It will not be shown again.</p>
+          <p className="text-sm text-green-700 mb-2 dark:text-green-400">Store this key securely. It will not be shown again.</p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 p-2 bg-white border border-gray-200 rounded font-mono text-sm break-all">{newKey}</code>
+            <code className="flex-1 p-2 bg-white border border-gray-200 rounded font-mono text-sm break-all dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">{newKey}</code>
             <button onClick={() => onCopy(newKey)} className="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700">Copy</button>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden dark:bg-gray-800 dark:border-gray-700">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-700/50">
             <tr>
-              <th className="text-left p-3 font-medium">Name</th>
-              <th className="text-left p-3 font-medium">Key Prefix</th>
-              <th className="text-left p-3 font-medium">Status</th>
-              <th className="text-left p-3 font-medium">Last Used</th>
-              <th className="text-right p-3 font-medium">Actions</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Name</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Key Prefix</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Status</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Last Used</th>
+              <th className="text-right p-3 font-medium dark:text-gray-300">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y dark:divide-gray-700">
             {visible.map(c => (
               <tr key={c.id}>
                 <td className="p-3">
-                  <div className="font-medium">{c.displayName}</div>
-                  {c.description && <div className="text-xs text-gray-500">{c.description}</div>}
+                  <div className="font-medium dark:text-gray-200">{c.displayName}</div>
+                  {c.description && <div className="text-xs text-gray-500 dark:text-gray-400">{c.description}</div>}
                 </td>
-                <td className="p-3 font-mono text-xs">{c.apiKeyPrefix}...</td>
+                <td className="p-3 font-mono text-xs dark:text-gray-300">{c.apiKeyPrefix}...</td>
                 <td className="p-3">
                   <button onClick={() => onToggle(c)}
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.enabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'}`}>
                     {c.enabled ? 'Enabled' : 'Disabled'}
                   </button>
                 </td>
-                <td className="p-3 text-gray-500">{formatDate(c.lastUsedAt)}</td>
+                <td className="p-3 text-gray-500 dark:text-gray-400">{formatDate(c.lastUsedAt)}</td>
                 <td className="p-3 text-right">
                   <div className="flex gap-1 justify-end">
-                    <button onClick={() => onToggleAudit(c.id)} className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">
+                    <button onClick={() => onToggleAudit(c.id)} className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
                       {expandedAudit === c.id ? 'Hide' : 'Log'}
                     </button>
-                    <button onClick={() => onResetKey(c)} className="px-2 py-1 text-xs bg-amber-100 text-amber-800 rounded hover:bg-amber-200">Reset Key</button>
-                    <button onClick={() => onRemove(c)} className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200">Remove</button>
+                    <button onClick={() => onResetKey(c)} className="px-2 py-1 text-xs bg-amber-100 text-amber-800 rounded hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50">Reset Key</button>
+                    <button onClick={() => onRemove(c)} className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">Remove</button>
                   </div>
                 </td>
               </tr>
@@ -1368,9 +1368,9 @@ function ExternalCrawlers({ crawlers, onToggle, onResetKey, onRemove, newKey, on
 // ─── Getting Started Card ─────────────────────────────────────────────────────
 function GettingStarted({ onAddCrawler }) {
   return (
-    <div className="mb-8 p-6 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl text-center">
-      <h2 className="text-xl font-bold text-emerald-900 mb-2">Welcome to Identity Atlas</h2>
-      <p className="text-emerald-700 mb-4">No identity data loaded yet. Add a crawler to get started.</p>
+    <div className="mb-8 p-6 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl text-center dark:from-emerald-900/20 dark:to-teal-900/20 dark:border-emerald-700">
+      <h2 className="text-xl font-bold text-emerald-900 mb-2 dark:text-emerald-300">Welcome to Identity Atlas</h2>
+      <p className="text-emerald-700 mb-4 dark:text-emerald-400">No identity data loaded yet. Add a crawler to get started.</p>
       <button onClick={onAddCrawler} className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium">
         Add Crawler
       </button>
@@ -1562,16 +1562,16 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
   ];
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">{isEdit ? 'Edit CSV Crawler' : 'Add CSV Crawler'}</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
+        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit CSV Crawler' : 'Add CSV Crawler'}</h3>
+        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
 
       <StepIndicator steps={csvSteps} step={step} />
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">
           {error}
         </div>
       )}
@@ -1580,31 +1580,31 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
       {step === 1 && (
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Display name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">Display name</label>
             <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)}
               placeholder="e.g. Omada Production"
-              className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
-            <p className="text-xs text-gray-500 mt-1">Shown on the configured crawlers card.</p>
+              className="w-full px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
+            <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Shown on the configured crawlers card.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">System name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">System name</label>
               <input type="text" value={systemName} onChange={e => setSystemName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
-              <p className="text-xs text-gray-500 mt-1">Recorded in <code>dbo.Systems.displayName</code>.</p>
+                className="w-full px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Recorded in <code className="dark:text-gray-300">dbo.Systems.displayName</code>.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">System type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">System type</label>
               <input type="text" value={systemType} onChange={e => setSystemType(e.target.value)}
                 placeholder="Omada / SailPoint / Custom"
-                className="w-full px-3 py-2 border border-gray-200 rounded text-sm" />
-              <p className="text-xs text-gray-500 mt-1">Used for grouping in the UI.</p>
+                className="w-full px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Used for grouping in the UI.</p>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">CSV delimiter</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">CSV delimiter</label>
             <select value={delimiter} onChange={e => setDelimiter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded text-sm">
+              className="px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
               <option value=";">Semicolon (;)</option>
               <option value=",">Comma (,)</option>
               <option value="\t">Tab</option>
@@ -1623,13 +1623,13 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
       {/* ── Step 2: File upload ──────────────────────────────────────────── */}
       {step === 2 && (
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800">
+          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300">
             <div>Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name.</div>
             <div className="mt-1">
-              <a href="/api/admin/csv-schema" download className="text-indigo-700 underline hover:text-indigo-900">
+              <a href="/api/admin/csv-schema" download className="text-indigo-700 underline hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200">
                 Download schema templates
               </a>
-              <span className="text-blue-600 ml-2">— empty CSVs with the expected column headers. Use a transform script to convert your source data to this format.</span>
+              <span className="text-blue-600 ml-2 dark:text-blue-400">— empty CSVs with the expected column headers. Use a transform script to convert your source data to this format.</span>
             </div>
           </div>
 
@@ -1638,7 +1638,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
               Select folder
               <input type="file" multiple webkitdirectory="" directory="" onChange={handleFileSelect} className="hidden" />
             </label>
-            <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 cursor-pointer">
+            <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 cursor-pointer dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
               Select files
               <input type="file" multiple accept=".csv" onChange={handleFileSelect} className="hidden" />
             </label>
@@ -1647,23 +1647,23 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           {/* Staged files (not yet uploaded) */}
           {stagedFiles.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Staged files ({stagedFiles.length})</h4>
-              <div className="border border-gray-200 rounded divide-y">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-200">Staged files ({stagedFiles.length})</h4>
+              <div className="border border-gray-200 rounded divide-y dark:border-gray-600 dark:divide-gray-700">
                 {stagedFiles.map(s => (
-                  <div key={s.file.name} className="flex items-center justify-between p-2 text-sm">
+                  <div key={s.file.name} className="flex items-center justify-between p-2 text-sm dark:bg-gray-800">
                     <div className="flex-1 min-w-0">
-                      <div className="font-mono truncate">{s.file.name}</div>
-                      <div className="text-xs text-gray-500">{fmtBytes(s.file.size)}</div>
+                      <div className="font-mono truncate dark:text-gray-200">{s.file.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{fmtBytes(s.file.size)}</div>
                     </div>
                     <select value={s.slot || ''} onChange={e => setStagedSlot(s.file.name, e.target.value || null)}
-                      className="ml-2 text-xs border border-gray-200 rounded px-1 py-0.5">
+                      className="ml-2 text-xs border border-gray-200 rounded px-1 py-0.5 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                       <option value="">— Ignore —</option>
                       {CSV_SLOTS.map(slot => (
                         <option key={slot.key} value={slot.key}>{slot.label}{slot.required ? ' *' : ''}</option>
                       ))}
                     </select>
                     <button onClick={() => removeStaged(s.file.name)}
-                      className="ml-2 text-red-500 hover:text-red-700 text-xs">Remove</button>
+                      className="ml-2 text-red-500 hover:text-red-700 text-xs dark:text-red-400 dark:hover:text-red-300">Remove</button>
                   </div>
                 ))}
               </div>
@@ -1673,20 +1673,20 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           {/* Files already on the server (edit mode) */}
           {serverFiles.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Already uploaded ({serverFiles.length})</h4>
-              <div className="border border-gray-200 rounded divide-y">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-200">Already uploaded ({serverFiles.length})</h4>
+              <div className="border border-gray-200 rounded divide-y dark:border-gray-600 dark:divide-gray-700">
                 {serverFiles.map(f => {
                   const slot = matchSlot(f.name);
                   const slotLabel = CSV_SLOTS.find(s => s.key === slot)?.label || 'Unrecognized';
                   return (
-                    <div key={f.name} className="flex items-center justify-between p-2 text-sm">
+                    <div key={f.name} className="flex items-center justify-between p-2 text-sm dark:bg-gray-800">
                       <div className="flex-1 min-w-0">
-                        <div className="font-mono truncate">{f.name}</div>
-                        <div className="text-xs text-gray-500">{fmtBytes(f.sizeBytes)} · {new Date(f.modifiedAt).toLocaleString()}</div>
+                        <div className="font-mono truncate dark:text-gray-200">{f.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{fmtBytes(f.sizeBytes)} · {new Date(f.modifiedAt).toLocaleString()}</div>
                       </div>
-                      <span className={`ml-2 px-2 py-0.5 rounded text-xs ${slot ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{slotLabel}</span>
+                      <span className={`ml-2 px-2 py-0.5 rounded text-xs ${slot ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>{slotLabel}</span>
                       <button onClick={() => removeServerFile(f.name)}
-                        className="ml-2 text-red-500 hover:text-red-700 text-xs">Delete</button>
+                        className="ml-2 text-red-500 hover:text-red-700 text-xs dark:text-red-400 dark:hover:text-red-300">Delete</button>
                     </div>
                   );
                 })}
@@ -1695,14 +1695,14 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           )}
 
           {/* Required-slot coverage */}
-          <div className="bg-gray-50 border border-gray-200 rounded p-3">
-            <div className="text-xs font-semibold text-gray-700 mb-2">Required object types</div>
+          <div className="bg-gray-50 border border-gray-200 rounded p-3 dark:bg-gray-700/50 dark:border-gray-600">
+            <div className="text-xs font-semibold text-gray-700 mb-2 dark:text-gray-300">Required object types</div>
             <div className="flex flex-wrap gap-2">
               {CSV_SLOTS.map(slot => {
                 const filled = filledSlots.has(slot.key);
                 return (
                   <span key={slot.key} className={`px-2 py-1 rounded text-xs ${
-                    filled ? 'bg-green-100 text-green-800' : (slot.required ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-600')
+                    filled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : (slot.required ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300')
                   }`} title={slot.hint || ''}>
                     {filled ? '✓ ' : (slot.required ? '✗ ' : '○ ')}{slot.label}{slot.required ? ' *' : ''}
                   </span>
@@ -1710,14 +1710,14 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
               })}
             </div>
             {missingRequired.length > 0 && (
-              <div className="text-xs text-red-600 mt-2">
+              <div className="text-xs text-red-600 mt-2 dark:text-red-400">
                 Missing required: {missingRequired.map(s => s.file).join(', ')}
               </div>
             )}
           </div>
 
           <div className="flex justify-between">
-            <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 rounded text-sm">Back</button>
+            <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={() => setStep(3)} disabled={missingRequired.length > 0 || allFiles.length === 0}
               className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
               Next: Review
@@ -1729,14 +1729,14 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
       {/* ── Step 3: Review ──────────────────────────────────────────────── */}
       {step === 3 && (
         <div className="space-y-4">
-          <div className="bg-gray-50 border border-gray-200 rounded p-4 space-y-2 text-sm">
-            <div><span className="text-gray-500">Display name:</span> <span className="font-medium">{displayName}</span></div>
-            <div><span className="text-gray-500">System:</span> {systemName} ({systemType})</div>
-            <div><span className="text-gray-500">Delimiter:</span> <code>{delimiter === '\t' ? '\\t' : delimiter}</code></div>
-            <div><span className="text-gray-500">Files:</span> {allFiles.length} total ({stagedFiles.length} new, {serverFiles.length} existing)</div>
+          <div className="bg-gray-50 border border-gray-200 rounded p-4 space-y-2 text-sm dark:bg-gray-700/50 dark:border-gray-600">
+            <div><span className="text-gray-500 dark:text-gray-400">Display name:</span> <span className="font-medium dark:text-gray-200">{displayName}</span></div>
+            <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">System:</span> {systemName} ({systemType})</div>
+            <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">Delimiter:</span> <code className="dark:text-gray-200">{delimiter === '\t' ? '\\t' : delimiter}</code></div>
+            <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">Files:</span> {allFiles.length} total ({stagedFiles.length} new, {serverFiles.length} existing)</div>
           </div>
           <div className="flex justify-between">
-            <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-100 rounded text-sm">Back</button>
+            <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={handleSave} disabled={!canSave}
               className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
               {uploading ? 'Uploading...' : saving ? 'Saving...' : (isEdit ? 'Save changes' : 'Create crawler')}
@@ -1873,39 +1873,39 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
   ];
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg">
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Custom Connector</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
+        <h3 className="text-lg font-semibold dark:text-white">Custom Connector</h3>
+        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
 
       <StepIndicator steps={connectorSteps} step={step} />
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">{error}</div>
       )}
 
       {/* Step 1: Name + register */}
       {step === 1 && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             Register a custom connector to push data from any system into Identity Atlas using the Ingest API.
             You'll get an API key to authenticate your requests.
           </p>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Connector name *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">Connector name *</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder="e.g. SAP HR Export, ServiceNow CMDB, Okta Sync"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">Description (optional)</label>
             <input type="text" value={description} onChange={e => setDescription(e.target.value)}
               placeholder="What system does this connector pull data from?"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
           </div>
           <div className="flex justify-end gap-2">
-            <button onClick={onCancel} className="px-4 py-2 bg-gray-100 rounded text-sm">Cancel</button>
+            <button onClick={onCancel} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Cancel</button>
             <button onClick={handleRegister} disabled={!name.trim() || registering}
               className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
               {registering ? 'Registering...' : 'Register Connector'}
@@ -1917,12 +1917,12 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
       {/* Step 2: Show API key (one-time) */}
       {step === 2 && apiKey && (
         <div className="space-y-4">
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-sm font-medium text-amber-800 mb-2">
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg dark:bg-amber-900/20 dark:border-amber-700">
+            <p className="text-sm font-medium text-amber-800 mb-2 dark:text-amber-300">
               Save this API key now — it will not be shown again.
             </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded text-sm font-mono break-all">{apiKey}</code>
+              <code className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded text-sm font-mono break-all dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">{apiKey}</code>
               <button onClick={() => copyToClipboard(apiKey, 'key')}
                 className="px-3 py-2 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 whitespace-nowrap">
                 {copied === 'key' ? 'Copied!' : 'Copy'}
@@ -1930,11 +1930,11 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">API Base URL</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">API Base URL</label>
             <div className="flex items-center gap-2">
-              <code className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm font-mono">{apiBaseUrl}</code>
+              <code className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm font-mono dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-200">{apiBaseUrl}</code>
               <button onClick={() => copyToClipboard(apiBaseUrl, 'url')}
-                className="px-3 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300">
+                className="px-3 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
                 {copied === 'url' ? 'Copied!' : 'Copy'}
               </button>
             </div>
@@ -1954,28 +1954,28 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
           {/* Quick links */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <a href={`${apiBaseUrl}/docs`} target="_blank" rel="noopener noreferrer"
-              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center">
+              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-indigo-500">
               <span className="text-2xl mb-1">📖</span>
-              <span className="font-medium text-sm">Swagger UI</span>
-              <span className="text-xs text-gray-500">Interactive API explorer</span>
+              <span className="font-medium text-sm dark:text-gray-200">Swagger UI</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Interactive API explorer</span>
             </a>
             <a href={`${apiBaseUrl}/openapi.json`} download="identity-atlas-openapi.json"
-              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center">
+              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-indigo-500">
               <span className="text-2xl mb-1">📄</span>
-              <span className="font-medium text-sm">Download OpenAPI Spec</span>
-              <span className="text-xs text-gray-500">JSON format</span>
+              <span className="font-medium text-sm dark:text-gray-200">Download OpenAPI Spec</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">JSON format</span>
             </a>
             <a href="https://fortigi.github.io/IdentityAtlas/datasources/csv-schema/" target="_blank" rel="noopener noreferrer"
-              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center">
+              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-indigo-500">
               <span className="text-2xl mb-1">📋</span>
-              <span className="font-medium text-sm">CSV Schema Reference</span>
-              <span className="text-xs text-gray-500">Field definitions for all entity types</span>
+              <span className="font-medium text-sm dark:text-gray-200">CSV Schema Reference</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Field definitions for all entity types</span>
             </a>
           </div>
 
           {/* Code examples */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Quick Start Examples</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-200">Quick Start Examples</h4>
             <ExampleTabs examples={[
               { label: 'curl', code: curlExample },
               { label: 'Python', code: pythonExample },
@@ -1984,19 +1984,19 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
           </div>
 
           {/* Ingest flow explanation */}
-          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 space-y-2">
-            <p className="font-medium">How the Ingest API works:</p>
-            <ol className="list-decimal list-inside space-y-1 text-gray-600">
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 space-y-2 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-300">
+            <p className="font-medium dark:text-gray-200">How the Ingest API works:</p>
+            <ol className="list-decimal list-inside space-y-1 text-gray-600 dark:text-gray-400">
               <li><strong>Systems</strong> — register your source system (once)</li>
               <li><strong>Principals</strong> — push user accounts (with systemId from step 1)</li>
               <li><strong>Resources</strong> — push groups, roles, apps, or any permission-granting entity</li>
               <li><strong>Resource Assignments</strong> — push who has access to what</li>
               <li><strong>Resource Relationships</strong> — push role-to-resource nesting (optional)</li>
               <li><strong>Identities + Identity Members</strong> — push cross-system account correlation (optional)</li>
-              <li><strong>Refresh Views</strong> — call <code>POST /ingest/refresh-views</code> after a full sync to update the matrix</li>
+              <li><strong>Refresh Views</strong> — call <code className="dark:text-gray-300">POST /ingest/refresh-views</code> after a full sync to update the matrix</li>
             </ol>
             <p className="mt-2">
-              Use <code>syncMode: "full"</code> to replace all data for a system, or <code>"delta"</code> to upsert incrementally.
+              Use <code className="dark:text-gray-300">syncMode: "full"</code> to replace all data for a system, or <code className="dark:text-gray-300">"delta"</code> to upsert incrementally.
             </p>
           </div>
 
@@ -2016,19 +2016,19 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
 function ExampleTabs({ examples, onCopy, copied }) {
   const [active, setActive] = useState(0);
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <div className="flex border-b bg-gray-50">
+    <div className="border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
+      <div className="flex border-b bg-gray-50 dark:bg-gray-700/50 dark:border-gray-700">
         {examples.map((ex, i) => (
           <button key={ex.label} onClick={() => setActive(i)}
             className={`px-4 py-2 text-sm font-medium ${
-              i === active ? 'bg-white border-b-2 border-indigo-500 text-indigo-700' : 'text-gray-500 hover:text-gray-700'
+              i === active ? 'bg-white border-b-2 border-indigo-500 text-indigo-700 dark:bg-gray-800 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
             }`}>
             {ex.label}
           </button>
         ))}
         <div className="flex-1" />
         <button onClick={() => onCopy(examples[active].code, `example-${active}`)}
-          className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 self-center mr-2">
+          className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 self-center mr-2 dark:text-gray-400 dark:hover:text-gray-200">
           {copied === `example-${active}` ? 'Copied!' : 'Copy'}
         </button>
       </div>
@@ -2342,14 +2342,14 @@ export default function CrawlersPage({ onNavigate }) {
 
   // ── Render ────────────────────────────────────────────────────
 
-  if (loading) return <div className="p-6 text-gray-500">Loading...</div>;
+  if (loading) return <div className="p-6 text-gray-500 dark:text-gray-400">Loading...</div>;
 
   const showGettingStarted = status && !status.hasData && configs.length === 0 && !wizardStep;
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Crawlers</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Crawlers</h1>
         {!wizardStep && (
           <button onClick={() => setWizardStep('select')}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
@@ -2359,9 +2359,9 @@ export default function CrawlersPage({ onNavigate }) {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
-          <span className="text-red-700 text-sm">{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 text-sm">Dismiss</button>
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between dark:bg-red-900/20 dark:border-red-700">
+          <span className="text-red-700 text-sm dark:text-red-300">{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 text-sm dark:text-red-400 dark:hover:text-red-200">Dismiss</button>
         </div>
       )}
 
@@ -2428,7 +2428,7 @@ export default function CrawlersPage({ onNavigate }) {
       {/* Configured crawlers */}
       {configs.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-3">Configured Crawlers</h3>
+          <h3 className="text-lg font-semibold mb-3 dark:text-white">Configured Crawlers</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {configs.map(c => (
               <CrawlerConfigCard
