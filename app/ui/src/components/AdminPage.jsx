@@ -25,8 +25,8 @@ function fmt(dateStr) {
 function MetaBadge({ label, value }) {
   if (!value) return null;
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-xs">
-      <span className="text-gray-400">{label}:</span>
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">
+      <span className="text-gray-400 dark:text-gray-500">{label}:</span>
       <span className="font-medium">{value}</span>
     </span>
   );
@@ -38,7 +38,7 @@ function JsonViewer({ data }) {
     <div className="mt-3">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+        className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
       >
         <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -57,27 +57,27 @@ function JsonViewer({ data }) {
 function Section({ title, icon, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
       >
         <div className="flex items-center gap-3">
           <span className="text-lg">{icon}</span>
-          <span className="font-medium text-gray-900">{title}</span>
+          <span className="font-medium text-gray-900 dark:text-white">{title}</span>
         </div>
-        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {open && <div className="px-5 pb-5 pt-0 border-t border-gray-100">{children}</div>}
+      {open && <div className="px-5 pb-5 pt-0 border-t border-gray-100 dark:border-gray-700">{children}</div>}
     </div>
   );
 }
 
 function NotConfigured({ message }) {
   return (
-    <div className="mt-4 flex items-center gap-2 text-sm text-gray-400">
+    <div className="mt-4 flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500">
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
@@ -108,7 +108,7 @@ function RiskProfileSection() {
   }, [authFetch]);
 
   const content = () => {
-    if (loading) return <p className="mt-4 text-sm text-gray-400">Loading...</p>;
+    if (loading) return <p className="mt-4 text-sm text-gray-400 dark:text-gray-500">Loading...</p>;
     if (!data?.available) {
       return (
         <div className="mt-4">
@@ -128,7 +128,7 @@ function RiskProfileSection() {
       <div className="mt-4 space-y-4">
         <div className="flex flex-wrap gap-2">
           {!data.isActive && (
-            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full border border-amber-200">
+            <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-xs rounded-full border border-amber-200 dark:border-amber-700">
               Not active — showing most recent
             </span>
           )}
@@ -143,20 +143,20 @@ function RiskProfileSection() {
 
         {cp.description && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Organization Description</p>
-            <p className="text-sm text-gray-700 leading-relaxed">{cp.description}</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Organization Description</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{cp.description}</p>
           </div>
         )}
 
         {regulations.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Applicable Regulations ({regulations.length})</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Applicable Regulations ({regulations.length})</p>
             <div className="flex flex-wrap gap-1.5">
               {regulations.map((r, i) => (
                 <span
                   key={i}
                   title={r.relevance || ''}
-                  className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-200"
+                  className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full border border-blue-200 dark:border-blue-700"
                 >
                   {r.name || r.id || String(r)}
                 </span>
@@ -167,14 +167,14 @@ function RiskProfileSection() {
 
         {criticalRoles.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Critical Roles ({criticalRoles.length})</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Critical Roles ({criticalRoles.length})</p>
             <div className="space-y-1">
               {criticalRoles.map((r, i) => {
                 const titles = Array.isArray(r.title_patterns) ? r.title_patterns.join(', ') : (r.title || String(r));
                 return (
-                  <div key={i} className="text-xs text-gray-700 flex gap-2">
-                    <span className="font-mono text-gray-500 shrink-0">{titles}</span>
-                    {r.rationale && <span className="text-gray-500">— {r.rationale}</span>}
+                  <div key={i} className="text-xs text-gray-700 dark:text-gray-300 flex gap-2">
+                    <span className="font-mono text-gray-500 dark:text-gray-400 shrink-0">{titles}</span>
+                    {r.rationale && <span className="text-gray-500 dark:text-gray-400">— {r.rationale}</span>}
                   </div>
                 );
               })}
@@ -184,16 +184,16 @@ function RiskProfileSection() {
 
         {knownSystems.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Known Systems ({knownSystems.length})</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Known Systems ({knownSystems.length})</p>
             <div className="flex flex-wrap gap-1.5">
               {knownSystems.map((s, i) => (
                 <span
                   key={i}
                   title={s.description || s.type || ''}
                   className={`px-2 py-0.5 text-xs rounded-full border ${
-                    s.criticality === 'critical' ? 'bg-red-50 text-red-700 border-red-200' :
-                    s.criticality === 'high' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                    'bg-gray-50 text-gray-700 border-gray-200'
+                    s.criticality === 'critical' ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700' :
+                    s.criticality === 'high' ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700' :
+                    'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600'
                   }`}
                 >
                   {s.name || String(s)}
@@ -205,8 +205,8 @@ function RiskProfileSection() {
 
         {criticalProcesses.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Critical Business Processes ({criticalProcesses.length})</p>
-            <ul className="text-xs text-gray-700 space-y-0.5 list-disc list-inside">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Critical Business Processes ({criticalProcesses.length})</p>
+            <ul className="text-xs text-gray-700 dark:text-gray-300 space-y-0.5 list-disc list-inside">
               {criticalProcesses.map((p, i) => <li key={i}>{typeof p === 'string' ? p : (p.name || JSON.stringify(p))}</li>)}
             </ul>
           </div>
@@ -214,16 +214,16 @@ function RiskProfileSection() {
 
         {riskDomains.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Risk Domains ({riskDomains.length})</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Risk Domains ({riskDomains.length})</p>
             <div className="flex flex-wrap gap-1.5">
               {riskDomains.map((d, i) => (
                 <span
                   key={i}
                   title={d.description || ''}
-                  className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs rounded-full border border-purple-200"
+                  className="px-2 py-0.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full border border-purple-200 dark:border-purple-700"
                 >
                   {d.domain || d.name || String(d)}
-                  {d.weight != null && <span className="ml-1 text-[10px] text-purple-500">{d.weight}</span>}
+                  {d.weight != null && <span className="ml-1 text-[10px] text-purple-500 dark:text-purple-400">{d.weight}</span>}
                 </span>
               ))}
             </div>
@@ -245,19 +245,19 @@ function RiskProfileSection() {
 // each classifier: { id, label, description, patterns:[], score, tier, domain }
 
 const TIER_STYLES_SMALL = {
-  critical: 'bg-red-100 text-red-700',
-  high:     'bg-orange-100 text-orange-700',
-  medium:   'bg-yellow-100 text-yellow-700',
-  low:      'bg-blue-100 text-blue-700',
+  critical: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+  high:     'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+  medium:   'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  low:      'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
 };
 
 function ClassifierTable({ rules, emptyMsg }) {
-  if (!rules?.length) return <p className="text-xs text-gray-400 mt-2">{emptyMsg}</p>;
+  if (!rules?.length) return <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{emptyMsg}</p>;
   return (
-    <div className="mt-2 overflow-x-auto rounded border border-gray-200">
+    <div className="mt-2 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
       <table className="w-full text-xs">
         <thead>
-          <tr className="bg-gray-50 text-left text-gray-500 uppercase tracking-wide">
+          <tr className="bg-gray-50 dark:bg-gray-700/50 text-left text-gray-500 dark:text-gray-400 uppercase tracking-wide">
             <th className="px-3 py-2 font-semibold">Label</th>
             <th className="px-3 py-2 font-semibold">Patterns</th>
             <th className="px-3 py-2 font-semibold w-16 text-center">Score</th>
@@ -265,19 +265,19 @@ function ClassifierTable({ rules, emptyMsg }) {
             <th className="px-3 py-2 font-semibold">Domain</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
           {rules.map((rule, i) => {
             const patterns = Array.isArray(rule.patterns) ? rule.patterns : (rule.patterns ? [rule.patterns] : []);
             const tier = (rule.tier || '').toLowerCase();
             return (
-              <tr key={rule.id || i} className="hover:bg-gray-50 align-top">
-                <td className="px-3 py-2 font-medium text-gray-800">
+              <tr key={rule.id || i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 align-top">
+                <td className="px-3 py-2 font-medium text-gray-800 dark:text-gray-200">
                   {rule.label || rule.id || '—'}
                   {rule.description && (
-                    <p className="text-gray-400 font-normal mt-0.5 leading-relaxed">{rule.description}</p>
+                    <p className="text-gray-400 dark:text-gray-500 font-normal mt-0.5 leading-relaxed">{rule.description}</p>
                   )}
                 </td>
-                <td className="px-3 py-2 text-gray-600 font-mono">
+                <td className="px-3 py-2 text-gray-600 dark:text-gray-400 font-mono">
                   {patterns.length === 0 ? '—' : (
                     <div className="space-y-0.5">
                       {patterns.map((p, pi) => <div key={pi}>{p}</div>)}
@@ -286,19 +286,19 @@ function ClassifierTable({ rules, emptyMsg }) {
                 </td>
                 <td className="px-3 py-2 text-center">
                   <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
-                    (rule.score || 0) >= 70 ? 'bg-red-100 text-red-700' :
-                    (rule.score || 0) >= 40 ? 'bg-orange-100 text-orange-700' :
-                    'bg-gray-100 text-gray-600'
+                    (rule.score || 0) >= 70 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                    (rule.score || 0) >= 40 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                    'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                   }`}>{rule.score ?? '—'}</span>
                 </td>
                 <td className="px-3 py-2 text-center">
                   {tier ? (
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${TIER_STYLES_SMALL[tier] || 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${TIER_STYLES_SMALL[tier] || 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
                       {tier}
                     </span>
                   ) : '—'}
                 </td>
-                <td className="px-3 py-2 text-gray-600">{rule.domain || '—'}</td>
+                <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{rule.domain || '—'}</td>
               </tr>
             );
           })}
@@ -351,7 +351,7 @@ function ClassifiersSection() {
   };
 
   const content = () => {
-    if (loading) return <p className="mt-4 text-sm text-gray-400">Loading...</p>;
+    if (loading) return <p className="mt-4 text-sm text-gray-400 dark:text-gray-500">Loading...</p>;
     if (!data?.available) {
       return (
         <div className="mt-4">
@@ -369,7 +369,7 @@ function ClassifiersSection() {
       <div className="mt-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           {!data.isActive && (
-            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full border border-amber-200">
+            <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-xs rounded-full border border-amber-200 dark:border-amber-700">
               Not active — showing most recent
             </span>
           )}
@@ -383,7 +383,7 @@ function ClassifiersSection() {
         </div>
 
         {/* Sub-tabs */}
-        <div className="flex gap-2 border-b border-gray-200 mt-2">
+        <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mt-2">
           {[
             ['groups', `Groups (${groupRules.length})`],
             ['users',  `Users (${userRules.length})`],
@@ -395,7 +395,7 @@ function ClassifiersSection() {
               className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === key
                   ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
               {label}
@@ -409,14 +409,14 @@ function ClassifiersSection() {
 
         {/* Schedules section (only show for active classifier) */}
         {data.isActive && (
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <h4 className="text-sm font-semibold mb-2">Automatic Scoring Schedules</h4>
-            <p className="text-xs text-gray-500 mb-3">
+          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-semibold mb-2 dark:text-white">Automatic Scoring Schedules</h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Configure when risk scoring runs automatically. Schedules re-run the active classifiers over the latest data.
             </p>
 
             {schedules.length === 0 && (
-              <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500">
+              <div className="mb-3 p-4 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded text-center text-sm text-gray-500 dark:text-gray-400">
                 No schedules configured. Scoring will only run when triggered manually.
               </div>
             )}
@@ -431,14 +431,14 @@ function ClassifiersSection() {
 
             <div className="flex gap-2 items-center">
               <button onClick={() => setSchedules([...schedules, { enabled: true, frequency: 'daily', hour: 2, minute: 0 }])}
-                className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300">
+                className="px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
                 + Add Schedule
               </button>
               <button onClick={handleSaveSchedules} disabled={savingSchedules}
                 className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50">
                 {savingSchedules ? 'Saving...' : 'Save Schedules'}
               </button>
-              {scheduleError && <span className="text-xs text-red-600">{scheduleError}</span>}
+              {scheduleError && <span className="text-xs text-red-600 dark:text-red-400">{scheduleError}</span>}
             </div>
           </div>
         )}
@@ -464,10 +464,10 @@ function NewCorrelationRulesetLauncher({ onRefresh }) {
   };
 
   return (
-    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-center justify-between mb-4">
+    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg p-4 flex items-center justify-between mb-4">
       <div>
-        <div className="text-sm font-medium text-indigo-900">Create a new account correlation ruleset</div>
-        <div className="text-xs text-indigo-700 mt-0.5">
+        <div className="text-sm font-medium text-indigo-900 dark:text-indigo-200">Create a new account correlation ruleset</div>
+        <div className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
           Generates correlation signals and account type rules to link accounts across systems.
         </div>
       </div>
@@ -507,7 +507,7 @@ function CorrelationSection() {
   }, [authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const content = () => {
-    if (loading) return <p className="mt-4 text-sm text-gray-400">Loading...</p>;
+    if (loading) return <p className="mt-4 text-sm text-gray-400 dark:text-gray-500">Loading...</p>;
     if (!data?.available) {
       return (
         <div className="mt-4">
@@ -535,7 +535,7 @@ function CorrelationSection() {
         </div>
 
         {/* Sub-tabs */}
-        <div className="flex gap-2 border-b border-gray-200 mt-2">
+        <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mt-2">
           {[
             ['signals', `Correlation Signals (${signals.length})`],
             ['accountTypes', `Account Types (${accountTypeRules.length})`],
@@ -547,7 +547,7 @@ function CorrelationSection() {
               className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === key
                   ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
               {label}
@@ -557,30 +557,30 @@ function CorrelationSection() {
 
         {activeTab === 'signals' && (
           signals.length === 0
-            ? <p className="text-xs text-gray-400 mt-2">No correlation signals defined.</p>
-            : <div className="mt-2 overflow-x-auto rounded border border-gray-200">
+            ? <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">No correlation signals defined.</p>
+            : <div className="mt-2 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="bg-gray-50 text-left text-gray-500 uppercase tracking-wide">
+                    <tr className="bg-gray-50 dark:bg-gray-700/50 text-left text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                       <th className="px-3 py-2 font-semibold">Signal</th>
                       <th className="px-3 py-2 font-semibold">Type</th>
                       <th className="px-3 py-2 font-semibold">Weight</th>
                       <th className="px-3 py-2 font-semibold">Description</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {signals.map((s, i) => (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 font-medium text-gray-800">{s.name || s.signal || '—'}</td>
-                        <td className="px-3 py-2 text-gray-600">{s.type || s.matchType || '—'}</td>
+                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td className="px-3 py-2 font-medium text-gray-800 dark:text-gray-200">{s.name || s.signal || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{s.type || s.matchType || '—'}</td>
                         <td className="px-3 py-2 text-center">
                           <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
-                            (s.weight || 0) >= 70 ? 'bg-green-100 text-green-700' :
-                            (s.weight || 0) >= 40 ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-600'
+                            (s.weight || 0) >= 70 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                            (s.weight || 0) >= 40 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                            'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                           }`}>{s.weight ?? '—'}</span>
                         </td>
-                        <td className="px-3 py-2 text-gray-500">{s.description || '—'}</td>
+                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{s.description || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -590,54 +590,54 @@ function CorrelationSection() {
 
         {activeTab === 'accountTypes' && (
           accountTypeRules.length === 0
-            ? <p className="text-xs text-gray-400 mt-2">No account type rules defined.</p>
+            ? <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">No account type rules defined.</p>
             : <div className="mt-2 space-y-2">
                 {accountTypeRules.map((rule, i) => (
-                  <div key={i} className="p-3 bg-gray-50 rounded border border-gray-200">
+                  <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm text-gray-800">{rule.accountType || rule.type || `Rule ${i + 1}`}</span>
+                      <span className="font-medium text-sm text-gray-800 dark:text-gray-200">{rule.accountType || rule.type || `Rule ${i + 1}`}</span>
                       {rule.priority !== undefined && (
-                        <span className="text-xs text-gray-400">priority {rule.priority}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">priority {rule.priority}</span>
                       )}
                     </div>
                     {rule.patterns?.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {rule.patterns.map((p, j) => (
-                          <code key={j} className="text-xs bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-700">{p}</code>
+                          <code key={j} className="text-xs bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300">{p}</code>
                         ))}
                       </div>
                     )}
-                    {rule.description && <p className="text-xs text-gray-500 mt-1">{rule.description}</p>}
+                    {rule.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{rule.description}</p>}
                   </div>
                 ))}
               </div>
         )}
 
         {activeTab === 'hr' && hrConfig && (
-          <div className="mt-2 p-3 bg-gray-50 rounded border border-gray-200 space-y-2">
+          <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600 space-y-2">
             <div className="flex flex-wrap gap-2">
               <MetaBadge label="Enabled" value={hrConfig.enabled ? 'Yes' : 'No'} />
               {hrConfig.sourceSystem && <MetaBadge label="Source" value={hrConfig.sourceSystem} />}
             </div>
             {hrConfig.indicators?.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Indicators</p>
-                <div className="overflow-x-auto rounded border border-gray-200">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Indicators</p>
+                <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="bg-white text-left text-gray-500 uppercase tracking-wide">
+                      <tr className="bg-white dark:bg-gray-700/50 text-left text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                         <th className="px-3 py-2 font-semibold">Attribute</th>
                         <th className="px-3 py-2 font-semibold">Value</th>
                         <th className="px-3 py-2 font-semibold">Weight</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                       {hrConfig.indicators.map((ind, i) => (
-                        <tr key={i} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 font-mono text-gray-700">{ind.attribute}</td>
-                          <td className="px-3 py-2 font-mono text-gray-700">{ind.value}</td>
+                        <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                          <td className="px-3 py-2 font-mono text-gray-700 dark:text-gray-300">{ind.attribute}</td>
+                          <td className="px-3 py-2 font-mono text-gray-700 dark:text-gray-300">{ind.value}</td>
                           <td className="px-3 py-2 text-center">
-                            <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">{ind.weight ?? '—'}</span>
+                            <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">{ind.weight ?? '—'}</span>
                           </td>
                         </tr>
                       ))}
@@ -757,7 +757,7 @@ function PowerQueryExportSection() {
   return (
     <Section title="Excel Power Query Workbook" icon="📊">
       <div className="space-y-4 text-sm">
-        <p className="text-gray-700">
+        <p className="text-gray-700 dark:text-gray-300">
           Download a pre-configured Excel workbook with Power Query M code for every
           object type (Users, Resources, Assignments, etc). The workbook includes a
           read-only API token so refreshing the data on any user's machine just
@@ -775,14 +775,14 @@ function PowerQueryExportSection() {
           <button
             onClick={() => { setShowCreate(true); setNewToken(null); }}
             disabled={busy}
-            className="px-4 py-2 rounded text-sm font-medium text-blue-700 bg-white border border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+            className="px-4 py-2 rounded text-sm font-medium text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
           >
             Create token only…
           </button>
         </div>
 
         {showCreate && (
-          <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded">
+          <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded">
             <input
               type="text"
               autoFocus
@@ -790,7 +790,7 @@ function PowerQueryExportSection() {
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && createTokenOnly()}
               placeholder="Token name (e.g. 'PowerBI prod report')"
-              className="px-2 py-1 border border-gray-300 rounded text-sm flex-1"
+              className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm flex-1 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
             />
             <button
               onClick={createTokenOnly}
@@ -801,7 +801,7 @@ function PowerQueryExportSection() {
             </button>
             <button
               onClick={() => { setShowCreate(false); setName(''); }}
-              className="px-2 py-1 rounded text-sm text-gray-500 hover:bg-gray-200"
+              className="px-2 py-1 rounded text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
             >
               Cancel
             </button>
@@ -809,18 +809,18 @@ function PowerQueryExportSection() {
         )}
 
         {newToken && (
-          <div className="p-3 bg-amber-50 border border-amber-300 rounded">
-            <p className="font-medium text-amber-900 mb-1">⚠ Copy this token now — it will not be shown again</p>
-            <code className="block p-2 bg-white border border-amber-200 rounded text-xs break-all font-mono">{newToken}</code>
+          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded">
+            <p className="font-medium text-amber-900 dark:text-amber-200 mb-1">⚠ Copy this token now — it will not be shown again</p>
+            <code className="block p-2 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 rounded text-xs break-all font-mono dark:text-gray-200">{newToken}</code>
             <button
               onClick={() => { navigator.clipboard.writeText(newToken); }}
-              className="mt-2 px-3 py-1 rounded text-xs font-medium text-amber-900 bg-white border border-amber-300 hover:bg-amber-100"
+              className="mt-2 px-3 py-1 rounded text-xs font-medium text-amber-900 dark:text-amber-200 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
             >
               Copy to clipboard
             </button>
             <button
               onClick={() => setNewToken(null)}
-              className="mt-2 ml-2 px-3 py-1 rounded text-xs text-amber-700 hover:bg-amber-100"
+              className="mt-2 ml-2 px-3 py-1 rounded text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
             >
               Dismiss
             </button>
@@ -828,48 +828,48 @@ function PowerQueryExportSection() {
         )}
 
         {error && (
-          <div className="p-2 bg-red-50 border border-red-300 rounded text-red-800 text-xs">
+          <div className="p-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded text-red-800 dark:text-red-300 text-xs">
             {error}
           </div>
         )}
 
         <div>
-          <h4 className="font-medium text-gray-900 mb-2">Existing tokens</h4>
+          <h4 className="font-medium text-gray-900 dark:text-white mb-2">Existing tokens</h4>
           {loading ? (
-            <p className="text-gray-500 text-xs">Loading…</p>
+            <p className="text-gray-500 dark:text-gray-400 text-xs">Loading…</p>
           ) : tokens.length === 0 ? (
-            <p className="text-gray-500 text-xs">No tokens issued yet.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-xs">No tokens issued yet.</p>
           ) : (
-            <table className="w-full text-xs border border-gray-200 rounded overflow-hidden">
-              <thead className="bg-gray-50">
+            <table className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
+              <thead className="bg-gray-50 dark:bg-gray-700/50">
                 <tr className="text-left">
-                  <th className="px-2 py-1 font-medium text-gray-700">Name</th>
-                  <th className="px-2 py-1 font-medium text-gray-700">Prefix</th>
-                  <th className="px-2 py-1 font-medium text-gray-700">Created</th>
-                  <th className="px-2 py-1 font-medium text-gray-700">Last used</th>
-                  <th className="px-2 py-1 font-medium text-gray-700">Status</th>
+                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Name</th>
+                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Prefix</th>
+                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Created</th>
+                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Last used</th>
+                  <th className="px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Status</th>
                   <th className="px-2 py-1"></th>
                 </tr>
               </thead>
               <tbody>
                 {tokens.map(t => (
-                  <tr key={t.id} className="border-t border-gray-100">
-                    <td className="px-2 py-1 text-gray-900">{t.name}</td>
-                    <td className="px-2 py-1 font-mono text-gray-600">{t.tokenPrefix}…</td>
-                    <td className="px-2 py-1 text-gray-600">{fmtDate(t.createdAt)}</td>
-                    <td className="px-2 py-1 text-gray-600">{fmtDate(t.lastUsedAt)}</td>
+                  <tr key={t.id} className="border-t border-gray-100 dark:border-gray-700">
+                    <td className="px-2 py-1 text-gray-900 dark:text-gray-200">{t.name}</td>
+                    <td className="px-2 py-1 font-mono text-gray-600 dark:text-gray-400">{t.tokenPrefix}…</td>
+                    <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{fmtDate(t.createdAt)}</td>
+                    <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{fmtDate(t.lastUsedAt)}</td>
                     <td className="px-2 py-1">
                       {t.revoked
-                        ? <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-200 text-gray-700">Revoked</span>
+                        ? <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">Revoked</span>
                         : t.expiresAt && new Date(t.expiresAt) < new Date()
-                          ? <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-200 text-gray-700">Expired</span>
-                          : <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-800">Active</span>}
+                          ? <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">Expired</span>
+                          : <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">Active</span>}
                     </td>
                     <td className="px-2 py-1 text-right">
                       {!t.revoked && (
                         <button
                           onClick={() => revoke(t.id)}
-                          className="px-2 py-0.5 rounded text-[11px] text-red-700 hover:bg-red-50 border border-red-200"
+                          className="px-2 py-0.5 rounded text-[11px] text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-700"
                         >
                           Revoke
                         </button>
@@ -972,10 +972,10 @@ function CuratedDataSection() {
   return (
     <Section title="Curated Data" icon="📦" defaultOpen>
       <div className="mt-4 space-y-4">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Export and import manually curated data — user tags, group/resource tags, and business role categories —
           so they can be restored after recreating an environment.
-          Analyst overrides are managed separately via <code className="bg-gray-100 px-1 rounded text-xs">Export-FGCuratedData</code>.
+          Analyst overrides are managed separately via <code className="bg-gray-100 dark:bg-gray-700 dark:text-gray-300 px-1 rounded text-xs">Export-FGCuratedData</code>.
         </p>
 
         {/* Buttons */}
@@ -983,14 +983,14 @@ function CuratedDataSection() {
           <button
             onClick={handleExport}
             disabled={busy}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-400 dark:hover:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {exporting ? (
-              <svg className="w-4 h-4 animate-spin text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 animate-spin text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             ) : (
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
             )}
@@ -1025,7 +1025,7 @@ function CuratedDataSection() {
 
         {/* Error */}
         {error && (
-          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-300">
             <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -1035,14 +1035,14 @@ function CuratedDataSection() {
 
         {/* Import result */}
         {result && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
-            <p className="text-sm font-semibold text-green-800">Import complete</p>
+          <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg space-y-3">
+            <p className="text-sm font-semibold text-green-800 dark:text-green-300">Import complete</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Tags */}
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tags</p>
-                <div className="space-y-1 text-xs text-gray-700">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Tags</p>
+                <div className="space-y-1 text-xs text-gray-700 dark:text-gray-300">
                   <ResultRow label="Assignments inserted" value={result.assignmentsInserted} good />
                   {result.assignmentsSoftMatched > 0 && (
                     <ResultRow label="Matched by name (soft)" value={result.assignmentsSoftMatched} warn />
@@ -1056,8 +1056,8 @@ function CuratedDataSection() {
 
               {/* Categories */}
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Categories</p>
-                <div className="space-y-1 text-xs text-gray-700">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Categories</p>
+                <div className="space-y-1 text-xs text-gray-700 dark:text-gray-300">
                   <ResultRow label="AP assignments inserted" value={result.catAssignInserted} good />
                   {result.catAssignSoftMatched > 0 && (
                     <ResultRow label="Matched by name (soft)" value={result.catAssignSoftMatched} warn />
@@ -1071,7 +1071,7 @@ function CuratedDataSection() {
             </div>
 
             {(result.assignmentsNotFound > 0 || result.catAssignNotFound > 0) && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Entities not found: run a full sync first so the records exist in SQL, then retry the import.
               </p>
             )}
@@ -1083,10 +1083,10 @@ function CuratedDataSection() {
 }
 
 function ResultRow({ label, value, good, warn, bad }) {
-  const color = bad ? 'text-red-600' : warn ? 'text-amber-600' : good && value > 0 ? 'text-green-700' : 'text-gray-600';
+  const color = bad ? 'text-red-600 dark:text-red-400' : warn ? 'text-amber-600 dark:text-amber-400' : good && value > 0 ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-400';
   return (
     <div className="flex justify-between">
-      <span className="text-gray-500">{label}</span>
+      <span className="text-gray-500 dark:text-gray-400">{label}</span>
       <span className={`font-semibold ${color}`}>{value}</span>
     </div>
   );
@@ -1160,16 +1160,16 @@ function HistoryRetentionSection() {
   const valid = days !== '' && !isNaN(parseInt(days, 10)) && parseInt(days, 10) >= 0 && parseInt(days, 10) <= 3650;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-5 mb-4">
-      <h4 className="font-semibold text-gray-900 mb-1">Version History Retention</h4>
-      <p className="text-sm text-gray-600 mb-4">
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-4">
+      <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Version History Retention</h4>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
         How long row-level change history is kept in the audit log. Older entries are pruned automatically every 6 hours.
-        Set to <code>0</code> to disable pruning and keep history forever.
+        Set to <code className="dark:text-gray-300">0</code> to disable pruning and keep history forever.
       </p>
 
       <div className="flex items-end gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Retention (days)</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Retention (days)</label>
           <input
             type="number"
             min="0"
@@ -1177,30 +1177,30 @@ function HistoryRetentionSection() {
             value={days}
             onChange={e => setDays(e.target.value)}
             disabled={loading}
-            className="w-32 px-3 py-1.5 text-sm border rounded"
+            className="w-32 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200"
           />
         </div>
         <button
           onClick={save}
           disabled={!dirty || !valid || saving || loading}
-          className="px-4 py-1.5 text-sm font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-500"
+          className="px-4 py-1.5 text-sm font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button
           onClick={pruneNow}
           disabled={pruning || loading}
-          className="px-4 py-1.5 text-sm font-medium rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+          className="px-4 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
         >
           {pruning ? 'Pruning…' : 'Prune now'}
         </button>
         {totalRows != null && (
-          <span className="ml-2 text-xs text-gray-500">{totalRows.toLocaleString()} history rows stored</span>
+          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{totalRows.toLocaleString()} history rows stored</span>
         )}
       </div>
 
       {message && (
-        <div className={`mt-3 text-sm ${message.kind === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
+        <div className={`mt-3 text-sm ${message.kind === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
           {message.text}
         </div>
       )}
@@ -1239,32 +1239,32 @@ function DangerZoneSection({ onRefresh }) {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-red-200 overflow-hidden">
-      <div className="px-5 py-4 border-b border-red-100 bg-red-50">
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-800 overflow-hidden">
+      <div className="px-5 py-4 border-b border-red-100 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
         <div className="flex items-center gap-3">
           <span className="text-lg">⚠️</span>
-          <span className="font-medium text-red-900">Danger Zone</span>
+          <span className="font-medium text-red-900 dark:text-red-300">Danger Zone</span>
         </div>
       </div>
       <div className="p-5">
-        <h4 className="font-semibold text-gray-900 mb-1">Clean Database</h4>
-        <p className="text-sm text-gray-600 mb-4">
+        <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Clean Database</h4>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Wipes all identity data (users, groups, assignments, identities, governance, sync log) but
           preserves crawler configurations, risk profiles, and correlation rules. Use this when you want
           to re-sync from a clean slate without re-creating your crawler setup.
         </p>
 
         {result && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded">
-            <div className="font-medium text-green-800 text-sm mb-2">Database cleaned</div>
-            <div className="text-xs text-green-700">
+          <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded">
+            <div className="font-medium text-green-800 dark:text-green-300 text-sm mb-2">Database cleaned</div>
+            <div className="text-xs text-green-700 dark:text-green-400">
               Wiped {result.wiped?.length || 0} table{result.wiped?.length !== 1 ? 's' : ''}
               {result.skipped?.length > 0 && ` (${result.skipped.length} skipped)`}
             </div>
             {result.wiped?.length > 0 && (
               <details className="mt-2">
-                <summary className="text-xs text-green-700 cursor-pointer hover:underline">Show details</summary>
-                <ul className="mt-1 text-xs text-green-600 space-y-0.5">
+                <summary className="text-xs text-green-700 dark:text-green-400 cursor-pointer hover:underline">Show details</summary>
+                <ul className="mt-1 text-xs text-green-600 dark:text-green-400 space-y-0.5">
                   {result.wiped.map(w => (
                     <li key={w.table}>
                       <code>{w.table}</code>: {w.rowsAffected} rows{w.temporal ? ' (temporal)' : ''}
@@ -1273,14 +1273,14 @@ function DangerZoneSection({ onRefresh }) {
                 </ul>
               </details>
             )}
-            <button onClick={() => setResult(null)} className="mt-2 text-xs text-green-600 hover:text-green-800">Dismiss</button>
+            <button onClick={() => setResult(null)} className="mt-2 text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200">Dismiss</button>
           </div>
         )}
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
-            <div className="text-sm text-red-700">{error}</div>
-            <button onClick={() => setError(null)} className="mt-1 text-xs text-red-600 hover:text-red-800">Dismiss</button>
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded">
+            <div className="text-sm text-red-700 dark:text-red-300">{error}</div>
+            <button onClick={() => setError(null)} className="mt-1 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200">Dismiss</button>
           </div>
         )}
 
@@ -1294,9 +1294,9 @@ function DangerZoneSection({ onRefresh }) {
         )}
 
         {confirmStep === 1 && (
-          <div className="p-4 bg-yellow-50 border border-yellow-300 rounded">
-            <p className="text-sm text-yellow-900 font-medium mb-2">Are you sure?</p>
-            <p className="text-xs text-yellow-800 mb-3">
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded">
+            <p className="text-sm text-yellow-900 dark:text-yellow-200 font-medium mb-2">Are you sure?</p>
+            <p className="text-xs text-yellow-800 dark:text-yellow-300 mb-3">
               This will delete all identity data. Crawler configurations and risk profiles will be kept.
               You'll need to re-run your crawlers to populate the data again.
             </p>
@@ -1309,7 +1309,7 @@ function DangerZoneSection({ onRefresh }) {
               </button>
               <button
                 onClick={() => setConfirmStep(0)}
-                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-sm hover:bg-gray-300 dark:hover:bg-gray-600"
               >
                 Cancel
               </button>
@@ -1318,17 +1318,17 @@ function DangerZoneSection({ onRefresh }) {
         )}
 
         {confirmStep === 2 && (
-          <div className="p-4 bg-red-50 border border-red-300 rounded">
-            <p className="text-sm text-red-900 font-medium mb-2">Final confirmation</p>
-            <p className="text-xs text-red-800 mb-3">
-              Type <code className="px-1 bg-red-100 rounded">DELETE ALL DATA</code> to confirm:
+          <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded">
+            <p className="text-sm text-red-900 dark:text-red-200 font-medium mb-2">Final confirmation</p>
+            <p className="text-xs text-red-800 dark:text-red-300 mb-3">
+              Type <code className="px-1 bg-red-100 dark:bg-red-900/40 rounded">DELETE ALL DATA</code> to confirm:
             </p>
             <input
               type="text"
               value={typedConfirm}
               onChange={e => setTypedConfirm(e.target.value)}
               placeholder="DELETE ALL DATA"
-              className="w-full p-2 border rounded mb-3 text-sm font-mono"
+              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded mb-3 text-sm font-mono dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
             />
             <div className="flex gap-2">
               <button
@@ -1340,7 +1340,7 @@ function DangerZoneSection({ onRefresh }) {
               </button>
               <button
                 onClick={() => { setConfirmStep(0); setTypedConfirm(''); }}
-                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-sm hover:bg-gray-300 dark:hover:bg-gray-600"
               >
                 Cancel
               </button>
@@ -1517,13 +1517,13 @@ function LLMSettingsSection() {
   // list for Anthropic is not valid for OpenAI.
   useEffect(() => { setModels(null); setModelsError(null); }, [config.provider]);
 
-  if (loading) return <div className="text-sm text-gray-500 p-6">Loading…</div>;
+  if (loading) return <div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>;
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-lg border border-gray-200 p-5">
-        <h3 className="text-base font-semibold text-gray-900 mb-1">LLM Provider</h3>
-        <p className="text-sm text-gray-600 mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">LLM Provider</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Used by risk profiling, classifier generation and conversational refinement.
           The API key is encrypted at rest with envelope encryption — only the masked status is visible after saving.
         </p>
@@ -1531,11 +1531,11 @@ function LLMSettingsSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Provider */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Provider</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Provider</label>
             <select
               value={config.provider}
               onChange={e => setConfig(c => ({ ...c, provider: e.target.value }))}
-              className="w-full px-3 py-1.5 text-sm border rounded"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200"
             >
               {providers.map(p => (
                 <option key={p} value={p}>{p === 'azure-openai' ? 'Azure OpenAI' : p === 'anthropic' ? 'Anthropic Claude' : 'OpenAI'}</option>
@@ -1546,14 +1546,14 @@ function LLMSettingsSection() {
           {/* Model — dropdown after discovery, otherwise free-text input */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-medium text-gray-700">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                 {isAzure ? 'Deployment' : 'Model'}
               </label>
               <button
                 type="button"
                 onClick={handleRefreshModels}
                 disabled={modelsLoading || (!config.apiKey && !apiKeySet)}
-                className="text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400"
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 disabled:text-gray-400 dark:disabled:text-gray-600"
                 title={(!config.apiKey && !apiKeySet) ? 'Enter an API key first' : 'Fetch available models from the provider'}
               >
                 {modelsLoading ? 'Loading…' : models ? 'Refresh' : 'Discover models'}
@@ -1563,7 +1563,7 @@ function LLMSettingsSection() {
               <select
                 value={config.model || ''}
                 onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
-                className="w-full px-3 py-1.5 text-sm border rounded font-mono"
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded font-mono dark:bg-gray-700 dark:text-gray-200"
               >
                 <option value="">— select a model —</option>
                 {models.map(m => (
@@ -1576,14 +1576,14 @@ function LLMSettingsSection() {
                 value={config.model}
                 onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
                 placeholder={placeholderModel || (isAzure ? 'e.g. gpt-4o-prod' : '')}
-                className="w-full px-3 py-1.5 text-sm border rounded font-mono"
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded font-mono dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
               />
             )}
             {modelsError && (
-              <div className="text-xs text-red-600 mt-1">Model discovery failed: {modelsError}</div>
+              <div className="text-xs text-red-600 dark:text-red-400 mt-1">Model discovery failed: {modelsError}</div>
             )}
             {models && models.length === 0 && (
-              <div className="text-xs text-amber-600 mt-1">No models returned — check your API key permissions.</div>
+              <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">No models returned — check your API key permissions.</div>
             )}
           </div>
 
@@ -1591,33 +1591,33 @@ function LLMSettingsSection() {
           {isAzure && (
             <>
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Azure endpoint</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Azure endpoint</label>
                 <input
                   type="text"
                   value={config.endpoint}
                   onChange={e => setConfig(c => ({ ...c, endpoint: e.target.value }))}
                   placeholder="https://my-resource.openai.azure.com"
-                  className="w-full px-3 py-1.5 text-sm border rounded font-mono"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded font-mono dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Deployment</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Deployment</label>
                 <input
                   type="text"
                   value={config.deployment}
                   onChange={e => setConfig(c => ({ ...c, deployment: e.target.value }))}
                   placeholder="gpt-4o-prod"
-                  className="w-full px-3 py-1.5 text-sm border rounded font-mono"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded font-mono dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">API version</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">API version</label>
                 <input
                   type="text"
                   value={config.apiVersion}
                   onChange={e => setConfig(c => ({ ...c, apiVersion: e.target.value }))}
                   placeholder="2024-08-01-preview"
-                  className="w-full px-3 py-1.5 text-sm border rounded font-mono"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded font-mono dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
                 />
               </div>
             </>
@@ -1625,8 +1625,8 @@ function LLMSettingsSection() {
 
           {/* API key */}
           <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              API key {apiKeySet && <span className="ml-2 text-green-600">• stored</span>}
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              API key {apiKeySet && <span className="ml-2 text-green-600 dark:text-green-400">• stored</span>}
             </label>
             <input
               type="password"
@@ -1634,7 +1634,7 @@ function LLMSettingsSection() {
               onChange={e => setConfig(c => ({ ...c, apiKey: e.target.value }))}
               placeholder={apiKeySet ? '••••••••  (leave blank to keep existing)' : 'sk-...'}
               autoComplete="new-password"
-              className="w-full px-3 py-1.5 text-sm border rounded font-mono"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded font-mono dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
             />
           </div>
         </div>
@@ -1643,21 +1643,21 @@ function LLMSettingsSection() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-1.5 text-sm font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300"
+            className="px-4 py-1.5 text-sm font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
           <button
             onClick={handleTest}
             disabled={testing}
-            className="px-4 py-1.5 text-sm font-medium rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            className="px-4 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
           >
             {testing ? 'Testing…' : 'Test connection'}
           </button>
           {apiKeySet && (
             <button
               onClick={handleClear}
-              className="px-4 py-1.5 text-sm font-medium rounded border border-red-300 text-red-700 hover:bg-red-50"
+              className="px-4 py-1.5 text-sm font-medium rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
               Clear
             </button>
@@ -1665,12 +1665,12 @@ function LLMSettingsSection() {
         </div>
 
         {message && (
-          <div className={`mt-3 text-sm ${message.kind === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
+          <div className={`mt-3 text-sm ${message.kind === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
             {message.text}
           </div>
         )}
         {testResult && (
-          <div className={`mt-3 text-sm rounded border p-3 ${testResult.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          <div className={`mt-3 text-sm rounded border p-3 ${testResult.ok ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'}`}>
             {testResult.ok ? (
               <>
                 <div className="font-medium">Connection OK</div>
@@ -1695,10 +1695,10 @@ function NewRiskProfileLauncher({ onRiskScoresRefresh }) {
   const [open, setOpen] = useState(false);
   const [bumpKey, setBumpKey] = useState(0);
   return (
-    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-center justify-between">
+    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg p-4 flex items-center justify-between">
       <div>
-        <div className="text-sm font-medium text-indigo-900">Create a new risk profile</div>
-        <div className="text-xs text-indigo-700 mt-0.5">
+        <div className="text-sm font-medium text-indigo-900 dark:text-indigo-200">Create a new risk profile</div>
+        <div className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
           Walks you through generating an organisational profile and classifier set with the LLM, then optionally runs a scoring pass.
         </div>
       </div>
@@ -1762,18 +1762,18 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
   return (
     <div className="space-y-4">
       {/* Feature toggle card */}
-      <div className={`rounded-lg border p-5 ${enabled ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-300'}`}>
+      <div className={`rounded-lg border p-5 ${enabled ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' : 'bg-gray-50 dark:bg-gray-800/50 border-gray-300 dark:border-gray-600'}`}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold text-gray-900">Risk Scoring Feature</h3>
-            <p className="text-sm text-gray-600 mt-1">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Risk Scoring Feature</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Risk scoring assigns a 0-100 risk score to every identity based on direct classifier matches,
               membership analysis, structural hygiene checks, and cross-entity propagation.
               When disabled, the Risk Scores tab is hidden from the main navigation and the scoring engine
               is skipped during sync runs.
             </p>
             {error && (
-              <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">{error}</div>
+              <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
             )}
           </div>
           <div className="flex-shrink-0">
@@ -1781,7 +1781,7 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
               onClick={handleToggle}
               disabled={toggling || features === null}
               className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                enabled ? 'bg-emerald-600' : 'bg-gray-300'
+                enabled ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600'
               } disabled:opacity-50`}
               title={enabled ? 'Disable risk scoring' : 'Enable risk scoring'}
             >
@@ -1791,7 +1791,7 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
                 }`}
               />
             </button>
-            <div className="text-xs text-gray-500 text-center mt-1">
+            <div className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
               {toggling ? '...' : enabled ? 'Enabled' : 'Disabled'}
             </div>
           </div>
@@ -1806,7 +1806,7 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
           <ClassifiersSection />
         </>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-6 text-center text-sm text-gray-500 dark:text-gray-400">
           Risk Scoring is disabled. Enable the feature toggle above to configure profiles and classifiers.
         </div>
       )}
@@ -1816,7 +1816,7 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
 
 function AdminSubTabs({ activeTab, onTabChange }) {
   return (
-    <div className="border-b border-gray-200 mb-4">
+    <div className="border-b border-gray-200 dark:border-gray-700 mb-4">
       <nav className="flex gap-1 -mb-px">
         {ADMIN_TABS.map(tab => (
           <button
@@ -1824,8 +1824,8 @@ function AdminSubTabs({ activeTab, onTabChange }) {
             onClick={() => onTabChange(tab.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.key
-                ? 'border-indigo-600 text-indigo-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-indigo-600 text-indigo-700 dark:text-indigo-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
             {tab.label}
@@ -1871,8 +1871,8 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-3 px-2">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Admin</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{currentTab.description}</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Admin</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{currentTab.description}</p>
         </div>
       </div>
 
@@ -1880,7 +1880,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
 
       <div className="space-y-4 px-2">
         {activeTab === 'crawlers' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 p-6">Loading…</div>}>
+          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
             <CrawlersPage onNavigate={onNavigate} />
           </Suspense>
         )}
@@ -1899,25 +1899,25 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
         {activeTab === 'llm' && <LLMSettingsSection />}
 
         {activeTab === 'performance' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 p-6">Loading…</div>}>
+          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
             <PerfPage />
           </Suspense>
         )}
 
         {activeTab === 'containers' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 p-6">Loading…</div>}>
+          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
             <ContainerStatsPage />
           </Suspense>
         )}
 
         {activeTab === 'auth' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 p-6">Loading…</div>}>
+          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
             <AuthSettingsPage />
           </Suspense>
         )}
 
         {activeTab === 'about' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 p-6">Loading…</div>}>
+          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
             <AboutPage />
           </Suspense>
         )}
