@@ -4,7 +4,16 @@ function Invoke-FGGetRequest {
     Param
     (
         [Parameter(Mandatory = $true)]
-        [string]$URI
+        [string]$URI,
+
+        # Per-call overrides so callers can make tight-loop endpoints fail
+        # fast without deoptimising the default for long paginated fetches.
+        # The governance resource-scopes phase calls this helper once per
+        # access package (~500 calls) and wraps each call in its own skip-on-
+        # failure catch — so it passes -MaxRetries 1 -TimeoutSec 30 to cap
+        # any single AP at ~30s.
+        [int]$MaxRetries = 4,
+        [int]$TimeoutSec = 0
     )
 
     If (!($Global:AccessToken)) {
@@ -35,9 +44,12 @@ function Invoke-FGGetRequest {
     $pageCount = 0
     $startTime = Get-Date
 
-    # Retry settings for transient Graph API errors
-    $maxRetries = 3
-    $retryDelays = @(2, 5, 15)  # Exponential backoff in seconds
+    # Retry settings for transient Graph API errors. $MaxRetries is now a
+    # parameter; tight-loop callers (per-AP scope fetches) pass 1 so one bad
+    # call doesn't stall a 500-item loop. Default covers a 504 burst from
+    # the entitlement-management upstream (typically recovers in 30–60s).
+    $maxRetries  = $MaxRetries
+    $retryDelays = @(3, 10, 30, 60, 120, 180)  # used up to $maxRetries
 
     $pageCount++
     $Result = $null
@@ -46,7 +58,13 @@ function Invoke-FGGetRequest {
 
     while (-not $success -and $retryCount -le $maxRetries) {
         try {
-            $Result = Invoke-RestMethod -Method Get -Uri $URI -Headers @{"Authorization" = "Bearer $AccessToken" }
+            $rmParams = @{
+                Method = 'Get'
+                Uri    = $URI
+                Headers = @{"Authorization" = "Bearer $AccessToken" }
+            }
+            if ($TimeoutSec -gt 0) { $rmParams['TimeoutSec'] = $TimeoutSec }
+            $Result = Invoke-RestMethod @rmParams
             $success = $true
         }
         catch {
@@ -115,7 +133,13 @@ function Invoke-FGGetRequest {
 
         while (-not $success -and $retryCount -le $maxRetries) {
             try {
-                $Result = Invoke-RestMethod -Method Get -Uri $nextLink -Headers @{"Authorization" = "Bearer $AccessToken" }
+                $rmParams = @{
+                    Method = 'Get'
+                    Uri    = $nextLink
+                    Headers = @{"Authorization" = "Bearer $AccessToken" }
+                }
+                if ($TimeoutSec -gt 0) { $rmParams['TimeoutSec'] = $TimeoutSec }
+                $Result = Invoke-RestMethod @rmParams
                 $success = $true
             }
             catch {

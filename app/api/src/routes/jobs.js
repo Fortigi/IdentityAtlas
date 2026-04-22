@@ -45,7 +45,7 @@ const GRAPH_PERMISSION_MAP = {
   // DelegatedPermissionGrant.Read.All — required to read /oauth2PermissionGrants
   // so the crawler can ingest per-user delegated consents (user authorized app
   // X to read their mail on their behalf). Directory.Read.All is NOT sufficient.
-  '41ce6ca6-6826-4807-84f1-1c82854f7ee5': 'DelegatedPermissionGrant.Read.All',
+  '81b4724a-58aa-41c1-8a55-84ef97466587': 'DelegatedPermissionGrant.Read.All',
   // Role-management / PIM directory. Not strictly required but nice to surface
   // so the admin can see whether PIM-for-roles is available to the crawler.
   '483bed4a-2ad3-4361-a73b-c83ccdbdc53c': 'RoleManagement.Read.Directory',
@@ -74,7 +74,7 @@ const GRAPH_PERMISSION_ALIASES = {
   // RoleManagement.ReadWrite.Directory → RoleManagement.Read.Directory
   '9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8': 'RoleManagement.Read.Directory',
   // DelegatedPermissionGrant.ReadWrite.All → DelegatedPermissionGrant.Read.All
-  '8e8e4742-1d95-4f68-9d56-6ee75648c72a': 'DelegatedPermissionGrant.Read.All',
+  '41ce6ca6-6826-4807-84f1-1c82854f7ee5': 'DelegatedPermissionGrant.Read.All',
 };
 
 // Which permissions enable which object types
@@ -190,7 +190,10 @@ router.patch('/admin/crawler-configs/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid config ID' });
 
-  const { displayName, config } = req.body;
+  const { displayName, config, nextRunMode } = req.body;
+  if (nextRunMode !== undefined && nextRunMode !== 'full' && nextRunMode !== 'delta') {
+    return res.status(400).json({ error: 'nextRunMode must be "full" or "delta"' });
+  }
 
   try {
     const pool = await db.getPool();
@@ -210,12 +213,17 @@ router.patch('/admin/crawler-configs/:id', async (req, res) => {
       mergedConfig = { ...mergedConfig, ...incoming };
     }
 
-    const sets = ['config = @config', 'updatedAt = now()'];
+    const sets = ['config = @config', '"updatedAt" = now()'];
     const request = pool.request().input('id', id).input('config', JSON.stringify(mergedConfig));
 
     if (displayName !== undefined) {
       sets.push('"displayName" = @displayName');
       request.input('displayName', displayName.trim().slice(0, 255));
+    }
+
+    if (nextRunMode !== undefined) {
+      sets.push('"nextRunMode" = @nextRunMode');
+      request.input('nextRunMode', nextRunMode);
     }
 
     const result = await request.query(
@@ -678,15 +686,17 @@ router.post('/admin/crawler-jobs', async (req, res) => {
 
     // Resolve config: from configId (stored config) or inline
     let resolvedConfig = config || null;
+    let configNextRunMode = null;
     if (configId) {
       const cfgResult = await pool.request().input('configId', configId)
-        .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @configId AND "enabled" = TRUE`);
+        .query(`SELECT config, "nextRunMode" FROM "CrawlerConfigs" WHERE id = @configId AND "enabled" = TRUE`);
       if (cfgResult.recordset.length === 0) {
         return res.status(404).json({ error: 'Crawler config not found' });
       }
       // jsonb is auto-parsed by pg; legacy string column may still appear in tests.
       const raw = cfgResult.recordset[0].config;
       resolvedConfig = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      configNextRunMode = cfgResult.recordset[0].nextRunMode || 'delta';
     }
 
     // Validate entra-id has credentials
@@ -720,7 +730,7 @@ router.post('/admin/crawler-jobs', async (req, res) => {
     // "Force Stop" button on EVERY config of that type. Workers ignore
     // unknown fields so this is non-breaking.
     const configToStore = configId
-      ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId }
+      ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: configNextRunMode || 'delta' }
       : resolvedConfig;
     const configJson = configToStore ? JSON.stringify(configToStore) : null;
 

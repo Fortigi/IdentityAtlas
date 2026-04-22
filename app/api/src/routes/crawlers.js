@@ -383,6 +383,155 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/claim', async (req, res) => {
   }
 });
 
+// POST /api/crawlers/configs/:id/mark-delta-mode — Called by the worker
+// dispatcher after a successful FULL sync to flip the config back to
+// delta-mode-next-run. Operators explicitly request a full sync via the
+// UI (setting nextRunMode='full'); once that full run lands successfully,
+// we auto-reset so the subsequent scheduled run uses the fast delta path.
+selfServiceCrawlersRouter.post('/crawlers/configs/:id/mark-delta-mode', async (req, res) => {
+  if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid config id' });
+  try {
+    await db.query(
+      `UPDATE "CrawlerConfigs" SET "nextRunMode" = 'delta' WHERE id = $1`,
+      [id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('mark-delta-mode failed:', err.message);
+    res.status(500).json({ error: 'Failed to update run mode' });
+  }
+});
+
+// ─── Delta-token persistence (Graph /delta endpoints) ──────────────────────
+// Crawlers use Graph's /users/delta, /groups/delta, /servicePrincipals/delta
+// to fetch only what changed since the last call. Graph hands back an
+// `@odata.deltaLink` on the last page; we persist the token portion here and
+// give it back on the next run. Tokens are scoped to (systemId, endpoint)
+// since the exact query shape ($select etc.) is baked into the token.
+//
+// Lifecycle:
+//   - No row for (system, endpoint) → crawler does a full fetch (no token).
+//   - Successful full/delta fetch   → crawler PUTs the new token.
+//   - Graph 410/400 on stored token → crawler DELETEs the row and retries full.
+//   - Operator forces full resync   → config.nextRunMode='full' triggers the
+//                                     crawler to DELETE the token at phase start.
+selfServiceCrawlersRouter.get('/crawlers/delta-tokens/:endpoint', async (req, res) => {
+  if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const systemId = parseInt(req.query.systemId, 10);
+  if (!Number.isInteger(systemId) || systemId <= 0) {
+    return res.status(400).json({ error: 'systemId query param required' });
+  }
+  // Permit alphanumerics + / - . : _ — matches Graph endpoint path fragments.
+  const endpoint = String(req.params.endpoint || '');
+  if (!/^[a-zA-Z0-9/_\-.:]+$/.test(endpoint) || endpoint.length > 200) {
+    return res.status(400).json({ error: 'Invalid endpoint format' });
+  }
+  try {
+    const r = await db.query(
+      `SELECT "token", "lastSyncAt", "recordsLastSeen"
+         FROM "DeltaTokens"
+        WHERE "systemId" = $1 AND "endpoint" = $2`,
+      [systemId, endpoint]
+    );
+    if (r.rows.length === 0) return res.json({ token: null, lastSyncAt: null });
+    res.json(r.rows[0]);
+  } catch (err) {
+    console.error('Delta-token read failed:', err.message);
+    res.status(500).json({ error: 'Failed to read delta token' });
+  }
+});
+
+selfServiceCrawlersRouter.put('/crawlers/delta-tokens/:endpoint', async (req, res) => {
+  if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const endpoint = String(req.params.endpoint || '');
+  if (!/^[a-zA-Z0-9/_\-.:]+$/.test(endpoint) || endpoint.length > 200) {
+    return res.status(400).json({ error: 'Invalid endpoint format' });
+  }
+  const { systemId, token, recordsLastSeen } = req.body || {};
+  const sid = parseInt(systemId, 10);
+  if (!Number.isInteger(sid) || sid <= 0) return res.status(400).json({ error: 'systemId is required' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ error: 'token is required' });
+  // Graph delta tokens run a few KB. Cap at 64 KB to catch runaway payloads
+  // while still accommodating the nested $select/$filter tokens Graph hands out.
+  if (token.length > 64 * 1024) return res.status(400).json({ error: 'token too large' });
+  const seen = Number.isInteger(recordsLastSeen) && recordsLastSeen >= 0 ? recordsLastSeen : null;
+  try {
+    await db.query(
+      `INSERT INTO "DeltaTokens" ("systemId", "endpoint", "token", "lastSyncAt", "recordsLastSeen")
+       VALUES ($1, $2, $3, (now() AT TIME ZONE 'utc'), $4)
+       ON CONFLICT ("systemId", "endpoint") DO UPDATE
+          SET "token" = EXCLUDED."token",
+              "lastSyncAt" = EXCLUDED."lastSyncAt",
+              "recordsLastSeen" = EXCLUDED."recordsLastSeen"`,
+      [sid, endpoint, token, seen]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Delta-token write failed:', err.message);
+    res.status(500).json({ error: 'Failed to write delta token' });
+  }
+});
+
+selfServiceCrawlersRouter.delete('/crawlers/delta-tokens/:endpoint', async (req, res) => {
+  if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const systemId = parseInt(req.query.systemId, 10);
+  if (!Number.isInteger(systemId) || systemId <= 0) return res.status(400).json({ error: 'systemId query param required' });
+  const endpoint = String(req.params.endpoint || '');
+  if (!/^[a-zA-Z0-9/_\-.:]+$/.test(endpoint) || endpoint.length > 200) {
+    return res.status(400).json({ error: 'Invalid endpoint format' });
+  }
+  try {
+    await db.query(
+      `DELETE FROM "DeltaTokens" WHERE "systemId" = $1 AND "endpoint" = $2`,
+      [systemId, endpoint]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Delta-token delete failed:', err.message);
+    res.status(500).json({ error: 'Failed to delete delta token' });
+  }
+});
+
+// POST /api/crawlers/jobs/:id/phases — Crawlers write the structured per-phase
+// outcome here at end-of-run. This is what drives the "Details" drawer in the
+// Sync Log / Jobs UI. Called once just before the crawler returns (or throws)
+// so the data lands regardless of whether the scheduler ends up in `/complete`
+// or `/fail`. Idempotent: a re-call replaces the previous phases array.
+selfServiceCrawlersRouter.post('/crawlers/jobs/:id/phases', async (req, res) => {
+  if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid job id' });
+
+  const phases = req.body?.phases;
+  if (!Array.isArray(phases)) {
+    return res.status(400).json({ error: 'phases must be an array' });
+  }
+  // Cap at 200 entries and trim string fields so a runaway crawler can't
+  // blow up the row. Per-phase shape is loose on purpose — the UI renders
+  // whatever fields are present.
+  if (phases.length > 200) {
+    return res.status(400).json({ error: 'phases cannot exceed 200 entries' });
+  }
+
+  try {
+    await db.query(
+      `UPDATE "CrawlerJobs" SET "phases" = $2::jsonb WHERE id = $1`,
+      [id, JSON.stringify(phases)]
+    );
+    res.json({ ok: true, count: phases.length });
+  } catch (err) {
+    console.error('Job phases write failed:', err.message);
+    res.status(500).json({ error: 'Failed to write phases' });
+  }
+});
+
 selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });

@@ -8,8 +8,8 @@
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
-const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible', 'Owner', 'Governed'];
-const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo'];
+const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible', 'Owner', 'Governed', 'OAuth2Grant'];
+const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope'];
 
 // Schema definitions per entity type
 const SCHEMAS = {
@@ -321,12 +321,29 @@ export function validateEnvelope(body, entityType) {
     }
   }
 
-  if (!Array.isArray(body.records)) {
+  // PowerShell's ConvertTo-Json serializes empty arrays as `null` rather
+  // than `[]` — so an empty `records` from a PS crawler arrives as null.
+  // Treat null/undefined the same as an empty array so delta-only-deletes
+  // envelopes work. Only reject when `records` is present AND a non-array.
+  if (body.records !== undefined && body.records !== null && !Array.isArray(body.records)) {
     errors.push('records must be an array');
-  } else if (body.records.length === 0) {
+  } else if (
+    (!body.records || body.records.length === 0)
+    && (!Array.isArray(body.deletedIds) || body.deletedIds.length === 0)
+  ) {
+    // Allow empty records when the caller is only sending delta deletes.
+    // A delta run can legitimately contain zero upserts and N removes.
     errors.push('records array cannot be empty');
-  } else if (body.records.length > 50000) {
+  } else if (Array.isArray(body.records) && body.records.length > 50000) {
     errors.push('records array cannot exceed 50,000 items');
+  }
+
+  if (body.deletedIds !== undefined) {
+    if (!Array.isArray(body.deletedIds)) {
+      errors.push('deletedIds must be an array when provided');
+    } else if (body.deletedIds.length > 50000) {
+      errors.push('deletedIds array cannot exceed 50,000 items');
+    }
   }
 
   if (body.syncMode && !['full', 'delta'].includes(body.syncMode)) {
