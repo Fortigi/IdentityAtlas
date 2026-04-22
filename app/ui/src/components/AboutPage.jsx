@@ -66,7 +66,7 @@ function SbomTable({ rows }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm border-collapse">
         <thead>
-          <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <tr className="border-b border-gray-200 dark:border-gray-700 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
             <th className="py-2 pr-4 w-48">Package</th>
             <th className="py-2 pr-4 w-36">Version</th>
             <th className="py-2 pr-4">Purpose</th>
@@ -75,11 +75,11 @@ function SbomTable({ rows }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.name} className="border-b border-gray-100 hover:bg-gray-50">
-              <td className="py-2 pr-4 font-mono text-gray-800">{row.name}</td>
-              <td className="py-2 pr-4 font-mono text-gray-500 text-xs">{row.version}</td>
-              <td className="py-2 pr-4 text-gray-600">{row.purpose}</td>
-              <td className="py-2 text-gray-500">{row.license}</td>
+            <tr key={row.name} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td className="py-2 pr-4 font-mono text-gray-800 dark:text-gray-100">{row.name}</td>
+              <td className="py-2 pr-4 font-mono text-gray-500 dark:text-gray-400 text-xs">{row.version}</td>
+              <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{row.purpose}</td>
+              <td className="py-2 text-gray-500 dark:text-gray-400">{row.license}</td>
             </tr>
           ))}
         </tbody>
@@ -93,8 +93,8 @@ export default function AboutPage() {
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">About Identity Atlas</h1>
-        <p className="mt-2 text-gray-500">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">About Identity Atlas</h1>
+        <p className="mt-2 text-gray-500 dark:text-gray-400">
           Identity Atlas is an open-source role-mining and identity governance platform built by{' '}
           <a href="https://fortigi.nl" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Fortigi</a>.
           It pulls authorization data from Microsoft Graph and other systems into a PostgreSQL database and
@@ -132,23 +132,23 @@ export default function AboutPage() {
       </div>
 
       {/* License */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">License</h2>
-        <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-gray-50 rounded p-4 border border-gray-100 leading-relaxed">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">License</h2>
+        <pre className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-mono bg-gray-50 dark:bg-gray-900 rounded p-4 border border-gray-100 dark:border-gray-700 leading-relaxed">
           {MIT_LICENSE}
         </pre>
       </div>
 
       {/* Software BOM */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-1">Software Bill of Materials</h2>
-        <p className="text-sm text-gray-500 mb-6">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Software Bill of Materials</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           All direct dependencies use permissive open-source licenses (MIT, Apache 2.0, or PostgreSQL License).
         </p>
         <div className="space-y-8">
           {SBOM_SECTIONS.map((section) => (
             <div key={section.title}>
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-1 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 pb-1 border-b border-gray-100 dark:border-gray-700">
                 {section.title}
               </h3>
               <SbomTable rows={section.rows} />

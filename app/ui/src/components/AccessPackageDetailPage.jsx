@@ -21,35 +21,35 @@ const SCOPE_LABELS = {
 };
 
 function formatScope(val) {
-  if (!val) return '\u2014';
+  if (!val) return '—';
   return SCOPE_LABELS[val] || val;
 }
 
 const DECISION_STYLES = {
-  Approve: 'bg-green-100 text-green-800',
-  Deny: 'bg-red-100 text-red-800',
-  DontKnow: 'bg-yellow-100 text-yellow-800',
-  NotReviewed: 'bg-gray-100 text-gray-600',
+  Approve: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
+  Deny: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
+  DontKnow: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
+  NotReviewed: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
 };
 
 const DECISION_LABELS = {
   Approve: 'Approved',
   Deny: 'Denied',
-  DontKnow: 'Don\u2019t Know',
+  DontKnow: 'Don’t Know',
   NotReviewed: 'Not Reviewed',
 };
 
 const REQUEST_STATE_STYLES = {
-  PendingApproval: 'bg-yellow-100 text-yellow-800',
-  Delivering: 'bg-blue-100 text-blue-800',
-  Accepted: 'bg-green-100 text-green-800',
+  PendingApproval: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
+  Delivering: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
+  Accepted: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
 };
 
 const ASSIGNMENT_TYPE_STYLES = {
-  'Auto-assigned': 'bg-green-100 text-green-800 border-green-200',
-  'Request-based': 'bg-blue-100 text-blue-800 border-blue-200',
-  'Request-based with auto-removal': 'bg-orange-100 text-orange-800 border-orange-200',
-  'Both': 'bg-purple-100 text-purple-800 border-purple-200',
+  'Auto-assigned': 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700',
+  'Request-based': 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+  'Request-based with auto-removal': 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-700',
+  'Both': 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-700',
 };
 
 export default function AccessPackageDetailPage({ accessPackageId, cachedData, onCacheData, onClose }) {
@@ -116,86 +116,62 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     return () => { cancelled = true; };
   }, [accessPackageId, authFetch, cachedData?.core, onCacheData]);
 
-  // Lazy-load reviews
   const loadReviews = useCallback(() => {
     if (reviews) return;
     setReviewsLoading(true);
     authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/reviews`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => {
-        setReviews(d);
-        onCacheData?.(accessPackageId, 'access-package', { reviews: d });
-      })
+      .then(d => { setReviews(d); onCacheData?.(accessPackageId, 'access-package', { reviews: d }); })
       .catch(() => setReviews([]))
       .finally(() => setReviewsLoading(false));
   }, [accessPackageId, authFetch, reviews, onCacheData]);
 
-  // Lazy-load requests
   const loadRequests = useCallback(() => {
     if (requests) return;
     setRequestsLoading(true);
     authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/requests`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => {
-        setRequests(d);
-        onCacheData?.(accessPackageId, 'access-package', { requests: d });
-      })
+      .then(d => { setRequests(d); onCacheData?.(accessPackageId, 'access-package', { requests: d }); })
       .catch(() => setRequests([]))
       .finally(() => setRequestsLoading(false));
   }, [accessPackageId, authFetch, requests, onCacheData]);
 
-  // Lazy-load assignments
   const loadAssignments = useCallback(() => {
     if (assignments) return;
     setAssignmentsLoading(true);
     authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/assignments`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => {
-        setAssignments(d);
-        onCacheData?.(accessPackageId, 'access-package', { assignments: d });
-      })
+      .then(d => { setAssignments(d); onCacheData?.(accessPackageId, 'access-package', { assignments: d }); })
       .catch(() => setAssignments([]))
       .finally(() => setAssignmentsLoading(false));
   }, [accessPackageId, authFetch, assignments, onCacheData]);
 
-  // Lazy-load resource roles
   const loadResourceRoles = useCallback(() => {
     if (resourceRoles) return;
     setResourceRolesLoading(true);
     authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/resource-roles`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => {
-        setResourceRoles(d);
-        onCacheData?.(accessPackageId, 'access-package', { resourceRoles: d });
-      })
+      .then(d => { setResourceRoles(d); onCacheData?.(accessPackageId, 'access-package', { resourceRoles: d }); })
       .catch(() => setResourceRoles([]))
       .finally(() => setResourceRolesLoading(false));
   }, [accessPackageId, authFetch, resourceRoles, onCacheData]);
 
-  // Lazy-load policies
   const loadPolicies = useCallback(() => {
     if (policies) return;
     setPoliciesLoading(true);
     authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/policies`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => {
-        setPolicies(d);
-        onCacheData?.(accessPackageId, 'access-package', { policies: d });
-      })
+      .then(d => { setPolicies(d); onCacheData?.(accessPackageId, 'access-package', { policies: d }); })
       .catch(() => setPolicies([]))
       .finally(() => setPoliciesLoading(false));
   }, [accessPackageId, authFetch, policies, onCacheData]);
 
-  // Lazy-load history
   const loadHistory = useCallback(() => {
     if (history) return;
     setHistoryLoading(true);
     authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/history`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => {
-        setHistory(d);
-        onCacheData?.(accessPackageId, 'access-package', { history: d });
-      })
+      .then(d => { setHistory(d); onCacheData?.(accessPackageId, 'access-package', { history: d }); })
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false));
   }, [accessPackageId, authFetch, history, onCacheData]);
@@ -225,13 +201,13 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   }, [loadHistory]);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500">Loading business role details...</div>;
+    return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading business role details...</div>;
   }
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <h2 className="text-red-800 font-semibold">Error loading business role</h2>
-        <p className="text-red-600 mt-1 text-sm">{error}</p>
+      <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6">
+        <h2 className="text-red-800 dark:text-red-300 font-semibold">Error loading business role</h2>
+        <p className="text-red-600 dark:text-red-400 mt-1 text-sm">{error}</p>
       </div>
     );
   }
@@ -239,7 +215,6 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
 
   const { attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, historyCount, hasHistory, policyCount, assignmentType, category } = data;
   const catalogName = attributes.catalogName || null;
-  const catalogId = attributes.catalogId || null;
   const apDisplayName = attributes.displayName || '';
   const resolvedHistoryCount = history ? history.length : historyCount;
   const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
@@ -252,14 +227,14 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-lg font-bold">
+            <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-lg font-bold">
               AP
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-semibold text-gray-900">{attributes.displayName}</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{attributes.displayName}</h2>
                 {assignmentType && (
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${ASSIGNMENT_TYPE_STYLES[assignmentType] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${ASSIGNMENT_TYPE_STYLES[assignmentType] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600'}`}>
                     {assignmentType}
                   </span>
                 )}
@@ -273,44 +248,44 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
                 )}
               </div>
               {catalogName && (
-                <p className="text-sm text-gray-500">Catalog: {catalogName}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Catalog: {catalogName}</p>
               )}
             </div>
           </div>
           {attributes.description && (
-            <p className="text-sm text-gray-600 mt-2 max-w-2xl">{attributes.description}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">{attributes.description}</p>
           )}
-          <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+          <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
             {assignmentCount > 0 && <span>{assignmentCount} assignment{assignmentCount !== 1 ? 's' : ''}</span>}
             {groupCount > 0 && (
               <>
-                {assignmentCount > 0 && <span className="text-gray-400">|</span>}
+                {assignmentCount > 0 && <span className="text-gray-400 dark:text-gray-500">|</span>}
                 <span>{groupCount} group{groupCount !== 1 ? 's' : ''}</span>
               </>
             )}
             {reviewCount > 0 && (
               <>
-                {(assignmentCount > 0 || groupCount > 0) && <span className="text-gray-400">|</span>}
+                {(assignmentCount > 0 || groupCount > 0) && <span className="text-gray-400 dark:text-gray-500">|</span>}
                 <span>{reviewCount} review{reviewCount !== 1 ? 's' : ''}</span>
               </>
             )}
             {requests && requests.length > 0 && (
               <>
-                <span className="text-gray-400">|</span>
-                <span className="text-yellow-700 font-medium">{requests.length} pending request{requests.length !== 1 ? 's' : ''}</span>
+                <span className="text-gray-400 dark:text-gray-500">|</span>
+                <span className="text-yellow-700 dark:text-yellow-400 font-medium">{requests.length} pending request{requests.length !== 1 ? 's' : ''}</span>
               </>
             )}
           </div>
           {lastReviewDate && (
-            <div className="mt-2 text-sm text-gray-600">
-              <span className="text-gray-500">Last Certification:</span>{' '}
-              <span className="font-medium">{formatDate(lastReviewDate)}</span>
-              {lastReviewedBy && <span className="text-gray-500"> by {lastReviewedBy}</span>}
+            <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              <span className="text-gray-500 dark:text-gray-500">Last Certification:</span>{' '}
+              <span className="font-medium dark:text-gray-300">{formatDate(lastReviewDate)}</span>
+              {lastReviewedBy && <span className="text-gray-500 dark:text-gray-500"> by {lastReviewedBy}</span>}
             </div>
           )}
         </div>
         <button onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+          className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
           title="Close tab">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -328,9 +303,9 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
             {/* URL-shaped values render as clickable links (see renderAttributeValue);
                 ext.Link in particular becomes the "Open in Entra ID" affordance. */}
             {otherAttributes.map(([key, val]) => (
-              <tr key={key} className="border-b border-gray-50 last:border-b-0">
-                <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
+              <tr key={key} className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0">
+                <td className="py-1 pr-4 text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
+                <td className="py-1 text-gray-900 dark:text-gray-200 font-medium break-all">{renderAttributeValue(key, val)}</td>
               </tr>
             ))}
           </tbody>
@@ -348,11 +323,11 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
             loading={assignmentsLoading}
           >
             {assignments && assignments.length === 0 ? (
-              <p className="text-sm text-gray-400 italic p-4">No assignments found</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No assignments found</p>
             ) : assignments && (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                  <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                     <th className="px-4 py-2 font-medium">User</th>
                     <th className="px-4 py-2 font-medium">State</th>
                     <th className="px-4 py-2 font-medium">Status</th>
@@ -361,23 +336,23 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
                 </thead>
                 <tbody>
                   {assignments.map(a => (
-                    <tr key={a.id} className="border-b border-gray-50">
+                    <tr key={a.id} className="border-b border-gray-50 dark:border-gray-700/50">
                       <td className="px-4 py-2">
-                        <div className="text-gray-900 font-medium">{a.targetDisplayName || '\u2014'}</div>
-                        {a.targetUPN && <div className="text-xs text-gray-400">{a.targetUPN}</div>}
+                        <div className="text-gray-900 dark:text-gray-200 font-medium">{a.targetDisplayName || '—'}</div>
+                        {a.targetUPN && <div className="text-xs text-gray-400 dark:text-gray-500">{a.targetUPN}</div>}
                       </td>
                       <td className="px-4 py-2">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          a.assignmentState === 'Delivered' ? 'bg-green-100 text-green-800'
-                          : a.assignmentState === 'Delivering' ? 'bg-blue-100 text-blue-800'
-                          : a.assignmentState === 'Expired' ? 'bg-gray-100 text-gray-600'
-                          : 'bg-yellow-100 text-yellow-800'
+                          a.assignmentState === 'Delivered' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                          : a.assignmentState === 'Delivering' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                          : a.assignmentState === 'Expired' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                          : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
                         }`}>
-                          {a.assignmentState || '\u2014'}
+                          {a.assignmentState || '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-gray-500 text-xs">{a.assignmentStatus || '\u2014'}</td>
-                      <td className="px-4 py-2 text-gray-500 text-xs whitespace-nowrap">{formatDate(a.assignedDate)}</td>
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{a.assignmentStatus || '—'}</td>
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{formatDate(a.assignedDate)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -398,11 +373,11 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
             loading={resourceRolesLoading}
           >
             {resourceRoles && resourceRoles.length === 0 ? (
-              <p className="text-sm text-gray-400 italic p-4">No resource assignments found</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No resource assignments found</p>
             ) : resourceRoles && (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                  <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                     <th className="px-4 py-2 font-medium">Resource</th>
                     <th className="px-4 py-2 font-medium">Role</th>
                     <th className="px-4 py-2 font-medium">Type</th>
@@ -411,22 +386,22 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
                 </thead>
                 <tbody>
                   {resourceRoles.map(rr => (
-                    <tr key={rr.id} className="border-b border-gray-50">
+                    <tr key={rr.id} className="border-b border-gray-50 dark:border-gray-700/50">
                       <td className="px-4 py-2">
-                        <div className="text-gray-900 font-medium">{rr.groupDisplayName || rr.scopeDisplayName || '\u2014'}</div>
-                        {rr.scopeOriginSystem && <div className="text-xs text-gray-400">{rr.scopeOriginSystem}</div>}
+                        <div className="text-gray-900 dark:text-gray-200 font-medium">{rr.groupDisplayName || rr.scopeDisplayName || '—'}</div>
+                        {rr.scopeOriginSystem && <div className="text-xs text-gray-400 dark:text-gray-500">{rr.scopeOriginSystem}</div>}
                       </td>
                       <td className="px-4 py-2">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          rr.roleName === 'Owner' ? 'bg-purple-100 text-purple-800'
-                          : rr.roleName === 'Member' ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-600'
+                          rr.roleName === 'Owner' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
+                          : rr.roleName === 'Member' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                         }`}>
-                          {rr.roleName || '\u2014'}
+                          {rr.roleName || '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-gray-500 text-xs">{rr.resourceType || '\u2014'}</td>
-                      <td className="px-4 py-2 text-gray-500 text-xs whitespace-nowrap">{formatDate(rr.createdDateTime)}</td>
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{rr.resourceType || '—'}</td>
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{formatDate(rr.createdDateTime)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -447,11 +422,11 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
             loading={policiesLoading}
           >
             {policies && policies.length === 0 ? (
-              <p className="text-sm text-gray-400 italic p-4">No policies found</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No policies found</p>
             ) : policies && (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                  <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                     <th className="px-4 py-2 font-medium">Name</th>
                     <th className="px-4 py-2 font-medium">Type</th>
                     <th className="px-4 py-2 font-medium">Scope</th>
@@ -460,31 +435,31 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
                 </thead>
                 <tbody>
                   {policies.map(p => (
-                    <tr key={p.id} className="border-b border-gray-50">
+                    <tr key={p.id} className="border-b border-gray-50 dark:border-gray-700/50">
                       <td className="px-4 py-2">
-                        <div className="text-gray-900 font-medium">{p.displayName || '\u2014'}</div>
-                        {p.description && <div className="text-xs text-gray-400 mt-0.5 truncate max-w-xs" title={p.description}>{p.description}</div>}
+                        <div className="text-gray-900 dark:text-gray-200 font-medium">{p.displayName || '—'}</div>
+                        {p.description && <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate max-w-xs" title={p.description}>{p.description}</div>}
                       </td>
                       <td className="px-4 py-2">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          p.hasAutoAddRule ? 'bg-green-100 text-green-800'
-                          : p.hasAutoRemoveRule ? 'bg-orange-100 text-orange-800'
-                          : 'bg-blue-100 text-blue-800'
+                          p.hasAutoAddRule ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                          : p.hasAutoRemoveRule ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300'
+                          : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
                         }`}>
                           {p.hasAutoAddRule ? 'Auto-assigned'
                            : p.hasAutoRemoveRule ? 'Request-based with auto-removal'
                            : 'Request-based'}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-gray-600 text-xs">
+                      <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs">
                         <div>{formatScope(p.allowedTargetScope)}</div>
                         {p.autoAssignmentFilter && (
-                          <div className="mt-0.5 text-gray-400 font-mono text-[11px] leading-snug break-all" title="Auto-assignment filter rule">
+                          <div className="mt-0.5 text-gray-400 dark:text-gray-500 font-mono text-[11px] leading-snug break-all" title="Auto-assignment filter rule">
                             {p.autoAssignmentFilter}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-gray-500 text-xs whitespace-nowrap">
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
                         {formatDate(p.createdDateTime)}
                       </td>
                     </tr>
@@ -506,11 +481,11 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
           loading={reviewsLoading}
         >
           {reviews && reviews.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No certification decisions found yet</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No certification decisions found yet</p>
           ) : reviews && (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                   <th className="px-4 py-2 font-medium">User</th>
                   <th className="px-4 py-2 font-medium">Reviewed By</th>
                   <th className="px-4 py-2 font-medium">Decision</th>
@@ -521,17 +496,17 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
               </thead>
               <tbody>
                 {reviews.map(r => (
-                  <tr key={r.id} className="border-b border-gray-50">
-                    <td className="px-4 py-2 text-gray-900">{r.principalDisplayName || '\u2014'}</td>
-                    <td className="px-4 py-2 text-gray-600">{r.reviewedByDisplayName || '\u2014'}</td>
+                  <tr key={r.id} className="border-b border-gray-50 dark:border-gray-700/50">
+                    <td className="px-4 py-2 text-gray-900 dark:text-gray-200">{r.principalDisplayName || '—'}</td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{r.reviewedByDisplayName || '—'}</td>
                     <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${DECISION_STYLES[r.decision] || 'bg-gray-100 text-gray-600'}`}>
-                        {DECISION_LABELS[r.decision] || r.decision || '\u2014'}
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${DECISION_STYLES[r.decision] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+                        {DECISION_LABELS[r.decision] || r.decision || '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{r.recommendation || '\u2014'}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs whitespace-nowrap">{formatDate(r.reviewedDateTime)}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{r.reviewInstanceStatus || '\u2014'}</td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{r.recommendation || '—'}</td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{formatDate(r.reviewedDateTime)}</td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{r.reviewInstanceStatus || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -550,11 +525,11 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
           loading={requestsLoading}
         >
           {requests && requests.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No pending requests</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No pending requests</p>
           ) : requests && (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                   <th className="px-4 py-2 font-medium">Requestor</th>
                   <th className="px-4 py-2 font-medium">Type</th>
                   <th className="px-4 py-2 font-medium">State</th>
@@ -565,21 +540,21 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
               </thead>
               <tbody>
                 {requests.map(r => (
-                  <tr key={r.id} className="border-b border-gray-50">
-                    <td className="px-4 py-2 text-gray-900">
-                      <div>{r.requestorDisplayName || '\u2014'}</div>
-                      {r.requestorUPN && <div className="text-xs text-gray-400">{r.requestorUPN}</div>}
+                  <tr key={r.id} className="border-b border-gray-50 dark:border-gray-700/50">
+                    <td className="px-4 py-2 text-gray-900 dark:text-gray-200">
+                      <div>{r.requestorDisplayName || '—'}</div>
+                      {r.requestorUPN && <div className="text-xs text-gray-400 dark:text-gray-500">{r.requestorUPN}</div>}
                     </td>
-                    <td className="px-4 py-2 text-gray-600 text-xs">{r.requestType || '\u2014'}</td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs">{r.requestType || '—'}</td>
                     <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${REQUEST_STATE_STYLES[r.requestState] || 'bg-gray-100 text-gray-600'}`}>
-                        {r.requestState || '\u2014'}
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${REQUEST_STATE_STYLES[r.requestState] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+                        {r.requestState || '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{r.requestStatus || '\u2014'}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs whitespace-nowrap">{formatDate(r.createdDateTime)}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs truncate max-w-xs" title={r.justification || ''}>
-                      {r.justification || '\u2014'}
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{r.requestStatus || '—'}</td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{formatDate(r.createdDateTime)}</td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs truncate max-w-xs" title={r.justification || ''}>
+                      {r.justification || '—'}
                     </td>
                   </tr>
                 ))}
@@ -600,30 +575,30 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
           loading={historyLoading}
         >
           {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No changes recorded</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No changes recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                   <th className="px-4 py-2 font-medium w-44">Date</th>
                   <th className="px-4 py-2 font-medium">Changes</th>
                 </tr>
               </thead>
               <tbody>
                 {historyDiffs.map((diff, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    <td className="px-4 py-2 text-gray-600 text-xs align-top whitespace-nowrap">
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs align-top whitespace-nowrap">
                       {formatDate(diff.date)}
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-col gap-1">
                         {diff.changes.map((c, j) => (
                           <div key={j} className="text-xs">
-                            <span className="font-medium text-gray-700">{friendlyLabel(c.field)}</span>
-                            <span className="text-gray-400 mx-1">:</span>
-                            <span className="text-red-500 line-through mr-1">{c.from}</span>
-                            <span className="text-gray-400 mr-1">&rarr;</span>
-                            <span className="text-green-600">{c.to}</span>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(c.field)}</span>
+                            <span className="text-gray-400 dark:text-gray-500 mx-1">:</span>
+                            <span className="text-red-500 dark:text-red-400 line-through mr-1">{c.from}</span>
+                            <span className="text-gray-400 dark:text-gray-500 mr-1">&rarr;</span>
+                            <span className="text-green-600 dark:text-green-400">{c.to}</span>
                           </div>
                         ))}
                       </div>
@@ -638,5 +613,3 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     </div>
   );
 }
-
-
