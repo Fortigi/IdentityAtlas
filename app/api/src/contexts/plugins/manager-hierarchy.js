@@ -15,14 +15,34 @@ import * as db from '../../db/connection.js';
 export default {
   name: 'manager-hierarchy',
   displayName: 'Manager Hierarchy',
-  description: 'Builds a tree of Principals from their managerId chain. One node per manager; members are their direct reports. Requires that Principals.managerId is populated by the crawler.',
+  description:
+    'Builds a tree of Principals from their managerId chain. One node per ' +
+    'manager; members are their direct reports. Requires that Principals.' +
+    'managerId is populated by the crawler.',
   targetType: 'Principal',
   parametersSchema: {
     type: 'object',
     required: ['scopeSystemId'],
     properties: {
-      scopeSystemId: { type: 'integer', description: 'Systems.id — which system\'s principals to walk.' },
-      rootName:      { type: 'string',  default: 'Organization', description: 'Display name of the synthetic root node.' },
+      scopeSystemId: {
+        type: 'integer',
+        description: 'Systems.id — which system\'s principals to walk.',
+      },
+      rootName: {
+        type: 'string',
+        default: 'Organization',
+        description: 'Display name of the synthetic root node.',
+      },
+      excludeNamePatterns: {
+        type: 'array',
+        description:
+          'Display-name regex patterns for principals that should NOT become manager nodes ' +
+          'even if other principals point at them. Use to filter out external consultants whose ' +
+          'Entra managerId is the consultancy\'s internal admin rather than an operational report ' +
+          'line at your tenant. Example: ["\\\\(Quanza\\\\)"] strips every Quanza-tagged Entra admin. ' +
+          'Their supposed reports reattach to the tree root. Matching is case-insensitive.',
+        items: { type: 'string' },
+      },
     },
   },
   async run(params, ctx) {
@@ -30,12 +50,17 @@ export default {
     if (!Number.isFinite(scopeSystemId)) throw new Error('scopeSystemId is required and must be an integer');
     const rootName = (params.rootName || 'Organization').slice(0, 500);
 
-    // Fetch all principals for this system with a managerId (either set or
-    // null). We need the full set so we can (a) identify managers — principals
-    // referenced as someone else's managerId, and (b) know which principals
-    // sit at the top (no manager within this system). Department comes along
-    // so we can format the manager-node displayName as "<Department> (<Name>)"
-    // — much more useful than a bare person name when skimming the tree.
+    // Compile exclude patterns up front so we fail the run — not every row —
+    // on a malformed regex.
+    const excludeRegexes = (params.excludeNamePatterns || []).map((src, i) => {
+      try { return new RegExp(src, 'i'); }
+      catch (e) { throw new Error(`excludeNamePatterns[${i}] is not a valid regex: ${e.message}`); }
+    });
+    const matchesExclude = (name) => !!name && excludeRegexes.some(re => re.test(name));
+
+    // Fetch all principals for this system. Department comes along so we can
+    // format the manager-node displayName as "<Department> (<Name>)" — much
+    // more useful than a bare person name when skimming the tree.
     const rows = (await db.query(`
       SELECT id, "displayName", "managerId", department
         FROM "Principals"
@@ -47,9 +72,25 @@ export default {
       return { contexts: [], members: [] };
     }
 
-    // Only principals who are managers get their own context.
-    const managerIds = new Set(rows.filter(r => r.managerId).map(r => r.managerId));
     const byId = new Map(rows.map(r => [r.id, r]));
+
+    // Start from "every referenced managerId", then remove anyone whose
+    // displayName matches an excludeNamePattern. After exclusion, their
+    // would-be reports fall through to the "go to root" branch below.
+    const managerIds = new Set();
+    let excludedCount = 0;
+    for (const r of rows) {
+      if (!r.managerId) continue;
+      const mgr = byId.get(r.managerId);
+      if (mgr && matchesExclude(mgr.displayName)) {
+        excludedCount++;
+        continue;
+      }
+      managerIds.add(r.managerId);
+    }
+    if (excludedCount > 0) {
+      ctx.log?.(`Excluded ${excludedCount} principal(s) from becoming manager nodes via excludeNamePatterns.`);
+    }
 
     const contexts = [];
     const members  = [];
@@ -66,15 +107,11 @@ export default {
     });
 
     // One context per manager. parentExternalId = the manager's own managerId
-    // (i.e. the manager's manager) if that person is also a manager in this
-    // dataset; otherwise parent is the synthetic root.
+    // (if that person is also a non-excluded manager); otherwise root.
     for (const managerId of managerIds) {
       const mgr = byId.get(managerId);
       const mgrName = mgr?.displayName || `Manager ${managerId.slice(0, 8)}`;
       const dept = (mgr?.department || '').trim();
-      // "<Department> (<Name>)" when we have a department, bare name otherwise.
-      // The department is far more searchable/skimmable than the manager's name
-      // when an analyst is looking at the tree.
       const displayName = dept ? `${dept} (${mgrName})` : mgrName;
       const parentManagerId = mgr?.managerId && managerIds.has(mgr.managerId) ? mgr.managerId : null;
       contexts.push({
@@ -86,17 +123,16 @@ export default {
     }
 
     // Members: every principal with a managerId becomes a member of that
-    // manager's context. Principals without a managerId who ARE themselves
-    // managers are already context nodes; they don't need to be members too.
-    // Principals with no manager AND no reports go under the synthetic root.
+    // manager's context. If the manager was excluded or is not in the
+    // dataset, the principal goes to root instead — making it visible as
+    // "no real manager in this system" rather than hidden.
     for (const p of rows) {
       if (p.managerId && managerIds.has(p.managerId)) {
         members.push({ contextExternalId: p.managerId, memberId: p.id });
       } else if (!managerIds.has(p.id)) {
         members.push({ contextExternalId: rootExt, memberId: p.id });
       }
-      // else: p is a top-level manager (no managerId, but has reports) — they
-      //        appear in the tree as a node under the root, not as a member.
+      // else: p is a top-level manager (no managerId, but has reports).
     }
 
     ctx.log?.(`Built ${contexts.length} contexts, ${members.length} member rows.`);
