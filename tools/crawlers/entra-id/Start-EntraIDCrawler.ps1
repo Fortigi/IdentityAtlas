@@ -99,7 +99,19 @@ Param(
     # Optional CrawlerJobs.id — when set, the crawler reports fine-grained progress
     # back to the API so the UI can show a live "what is it doing right now" line.
     # Zero / unset = no progress reporting (script is being run standalone).
-    [int]$JobId = 0
+    [int]$JobId = 0,
+
+    # 'full'  — ignore any stored delta tokens and re-fetch everything; the
+    #           scoped-delete path removes rows that disappeared upstream.
+    # 'delta' — use `/delta` endpoints where available (users, service
+    #           principals) with stored deltatoken; first-ever run still
+    #           falls back to full because there's no token yet.
+    # The worker dispatcher reads `nextRunMode` from the CrawlerConfigs row
+    # and forwards it here; after a successful full run the dispatcher
+    # resets nextRunMode=delta so subsequent runs stay on the fast path
+    # until the operator toggles "Force full sync next run" in the UI.
+    [ValidateSet('full', 'delta')]
+    [string]$SyncMode = 'delta'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -180,6 +192,12 @@ function Send-IngestBatch {
         [string]$SyncMode = 'full',
         [hashtable]$Scope = @{},
         [array]$Records,
+        # Optional: a list of ids to DELETE at the target, alongside the
+        # upserts in $Records. The ingest API applies `records` first, then
+        # deletes any row matching `id IN (...)`. Used by delta flows where
+        # Graph `@removed` events give us tombstones that aren't deletable
+        # through the upsert path.
+        [string[]]$DeletedIds = @(),
         # 5000 strikes a balance between MERGE round-trip overhead and lock
         # duration. With RCSI enabled on the database, readers don't block on
         # writers, but smaller batches still make the crawler give back the
@@ -187,27 +205,55 @@ function Send-IngestBatch {
         [int]$BatchSize = 5000
     )
 
-    if (-not $Records -or $Records.Count -eq 0) {
+    $haveRecords = $Records -and $Records.Count -gt 0
+    $haveDeletes = $DeletedIds -and $DeletedIds.Count -gt 0
+    if (-not $haveRecords -and -not $haveDeletes) {
         Write-Host "  No records to send" -ForegroundColor Yellow
         return @{ inserted = 0; updated = 0; deleted = 0 }
     }
 
-    Write-Host "  Sending $($Records.Count) records to $Endpoint..." -ForegroundColor Cyan
+    if ($haveRecords) {
+        Write-Host "  Sending $($Records.Count) records to $Endpoint..." -NoNewline -ForegroundColor Cyan
+    } else {
+        Write-Host "  Sending $($DeletedIds.Count) deletes to $Endpoint..." -NoNewline -ForegroundColor Cyan
+    }
+    if ($haveRecords -and $haveDeletes) {
+        Write-Host " (+$($DeletedIds.Count) deletes)" -ForegroundColor Cyan
+    } else {
+        Write-Host '' -ForegroundColor Cyan
+    }
 
-    if ($Records.Count -le $BatchSize) {
-        # Single batch
+    if (-not $haveRecords -or $Records.Count -le $BatchSize) {
+        # Single batch (includes the deletes-only case where $Records may be empty)
         $body = @{
             systemId = $SystemId
             syncMode = $SyncMode
             scope    = $Scope
-            records  = $Records
+            records  = if ($haveRecords) { $Records } else { @() }
         }
+        if ($haveDeletes) { $body['deletedIds'] = $DeletedIds }
         $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
         Write-Host "  Result: $($result.inserted) inserted, $($result.updated) updated, $($result.deleted) deleted" -ForegroundColor Green
         return $result
     }
 
-    # Chunked session
+    # Chunked session (records exceed BatchSize)
+    # If $DeletedIds is also set, send them as a SEPARATE ingest call first
+    # — chunked sessions have start/continue/end semantics that don't mesh
+    # with in-band deletes, and the delete API call is small and fast.
+    $totalDeleted = 0
+    if ($haveDeletes) {
+        $delBody = @{
+            systemId   = $SystemId
+            syncMode   = $SyncMode
+            scope      = $Scope
+            records    = @()
+            deletedIds = $DeletedIds
+        }
+        $delRes = Invoke-IngestAPI -Endpoint $Endpoint -Body $delBody
+        $totalDeleted = ($delRes.deleted ?? 0)
+    }
+
     $totalInserted = 0
     $totalUpdated = 0
     $syncId = $null
@@ -237,9 +283,151 @@ function Send-IngestBatch {
         Write-Host "  Batch $batchNum/$totalBatches done" -ForegroundColor Gray
     }
 
-    $deleted = $result.deleted ?? 0
+    $deleted = ($result.deleted ?? 0) + $totalDeleted
     Write-Host "  Total: $totalInserted inserted, $totalUpdated updated, $deleted deleted" -ForegroundColor Green
     return @{ inserted = $totalInserted; updated = $totalUpdated; deleted = $deleted }
+}
+
+# ─── Delta-token helpers ─────────────────────────────────────────
+# Graph's /users/delta, /servicePrincipals/delta etc. return an
+# `@odata.deltaLink` on the last page containing a `$deltatoken=...` query
+# param. We persist just the token string per (systemId, endpoint) via the
+# API; next run passes it back as `?$deltatoken=<token>` to get only what
+# changed. If Graph rejects the token (typically HTTP 400 with code
+# "SyncStateNotFound" or 410), the caller DELETEs the row and falls back
+# to a full fetch — next run will save a fresh token.
+function Get-FGDeltaToken {
+    param([int]$SystemId, [string]$Endpoint)
+    try {
+        $headers = @{ 'Authorization' = "Bearer $ApiKey" }
+        $uri = "$ApiBaseUrl/crawlers/delta-tokens/$([uri]::EscapeDataString($Endpoint))?systemId=$SystemId"
+        $r = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -TimeoutSec 10
+        if ($r.token) { return $r.token }
+    } catch {
+        # Token not found is the common case on a first run. 500s are logged
+        # but we fall through to "no token" which is safe (full fetch).
+        Write-Host "  (delta token lookup for $Endpoint returned no token)" -ForegroundColor DarkGray
+    }
+    return $null
+}
+
+function Set-FGDeltaToken {
+    param([int]$SystemId, [string]$Endpoint, [string]$Token, [int]$RecordsLastSeen = 0)
+    if (-not $Token) { return }
+    try {
+        $headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
+        $uri = "$ApiBaseUrl/crawlers/delta-tokens/$([uri]::EscapeDataString($Endpoint))"
+        $body = @{ systemId = $SystemId; token = $Token; recordsLastSeen = $RecordsLastSeen } | ConvertTo-Json
+        Invoke-RestMethod -Uri $uri -Method Put -Headers $headers -Body $body -TimeoutSec 10 | Out-Null
+    } catch {
+        Write-Host "  (delta token save failed for ${Endpoint}: $($_.Exception.Message))" -ForegroundColor DarkGray
+    }
+}
+
+function Remove-FGDeltaToken {
+    param([int]$SystemId, [string]$Endpoint)
+    try {
+        $headers = @{ 'Authorization' = "Bearer $ApiKey" }
+        $uri = "$ApiBaseUrl/crawlers/delta-tokens/$([uri]::EscapeDataString($Endpoint))?systemId=$SystemId"
+        Invoke-RestMethod -Uri $uri -Method Delete -Headers $headers -TimeoutSec 10 | Out-Null
+    } catch { }
+}
+
+# Extract the deltatoken query-string value from a full Graph deltaLink URL.
+# The token may contain URL-escaped characters and we want to persist the
+# decoded value so we can re-embed it in URIs freely.
+function Get-FGDeltaTokenFromLink {
+    param([string]$DeltaLink)
+    if (-not $DeltaLink) { return $null }
+    if ($DeltaLink -match '[?&]\$deltatoken=([^&]+)') {
+        return [uri]::UnescapeDataString($matches[1])
+    }
+    return $null
+}
+
+# Delta-aware fetch: follows @odata.nextLink until exhausted, then returns
+# both the accumulated records AND the @odata.deltaLink from the terminal
+# page. Existing Invoke-FGGetRequest discards deltaLink — writing a
+# dedicated helper avoids mutating that contract.
+#
+# Returns: @{ value=@(...); deltaLink=<string>; deltaToken=<string or $null> }
+function Invoke-FGGetDeltaRequest {
+    param(
+        [Parameter(Mandatory)] [string]$URI,
+        [int]$MaxRetries = 4,
+        [int]$TimeoutSec = 0
+    )
+
+    if (-not $Global:AccessToken) {
+        Throw "No Access Token found."
+    }
+    Update-FGAccessTokenIfExpired -DebugFlag 'G'
+    $AccessToken = $Global:AccessToken
+
+    $retryDelays = @(3, 10, 30, 60, 120, 180)
+    $collected = [System.Collections.Generic.List[object]]::new()
+    $nextUri = $URI
+    $deltaLink = $null
+    $pageCount = 0
+
+    while ($nextUri) {
+        $pageCount++
+        $retryCount = 0
+        $success = $false
+        $Result = $null
+
+        while (-not $success -and $retryCount -le $MaxRetries) {
+            try {
+                $rmParams = @{
+                    Method  = 'Get'
+                    Uri     = $nextUri
+                    Headers = @{ 'Authorization' = "Bearer $AccessToken" }
+                }
+                if ($TimeoutSec -gt 0) { $rmParams['TimeoutSec'] = $TimeoutSec }
+                $Result = Invoke-RestMethod @rmParams
+                $success = $true
+            }
+            catch {
+                $statusCode = $null
+                if ($_.Exception.Response) {
+                    $statusCode = [int]$_.Exception.Response.StatusCode
+                }
+                $isTransient = $statusCode -in @(429, 500, 502, 503, 504) -or
+                               $_.Exception.Message -match 'UnknownError|ServiceNotAvailable|GatewayTimeout'
+                if ($isTransient -and $retryCount -lt $MaxRetries) {
+                    $retryCount++
+                    $waitTime = $retryDelays[$retryCount - 1]
+                    Write-Warning "[Invoke-FGGetDeltaRequest] Page ${pageCount}: Transient error (Status: $statusCode). Retry $retryCount/$MaxRetries after ${waitTime}s..."
+                    Start-Sleep -Seconds $waitTime
+                    Update-FGAccessTokenIfExpired -DebugFlag 'G'
+                    $AccessToken = $Global:AccessToken
+                } else {
+                    # 400/410 on a stored token is how Graph signals "token no
+                    # longer usable". Surface as a typed exception so the
+                    # caller can detect it and fall back to full fetch.
+                    if ($statusCode -in @(400, 410)) {
+                        throw [System.InvalidOperationException]::new("Delta token rejected by Graph (HTTP $statusCode): $($_.Exception.Message)")
+                    }
+                    throw $_
+                }
+            }
+        }
+
+        if ($Result.value) {
+            foreach ($v in $Result.value) { $collected.Add($v) }
+        }
+        $nextUri = $Result.'@odata.nextLink'
+        if (-not $nextUri) {
+            $deltaLink = $Result.'@odata.deltaLink'
+        }
+    }
+
+    $token = Get-FGDeltaTokenFromLink -DeltaLink $deltaLink
+    return @{
+        value      = $collected
+        deltaLink  = $deltaLink
+        deltaToken = $token
+    }
 }
 
 # ─── Helper: parallel Graph fetch for per-group children ─────────
@@ -419,6 +607,38 @@ function Update-CrawlerProgress {
 
 # ─── Main ─────────────────────────────────────────────────────────
 
+# Collected phase failures. Each main sync phase catches its own exceptions and
+# appends a short summary here so the crawl can continue. At end-of-run, if the
+# list is non-empty, we throw — the worker scheduler then marks the job
+# `failed` with a message listing all phase failures. This prevents the
+# April 2026 class of bug where silent phase 400s left the job marked
+# "completed successfully" even though users/reviews/policies were missing.
+$script:phaseErrors = [System.Collections.Generic.List[string]]::new()
+
+# Structured per-phase outcomes: one entry per phase (and per sub-phase in
+# governance). Posted as `phases` on the final sync-log write so the UI can
+# render a proper per-phase breakdown instead of parsing the single-line
+# errorMessage text. Shape is one hashtable per phase with:
+#   name, status ('ok' | 'failed'), durationMs, error?, records?
+$script:phases = [System.Collections.Generic.List[object]]::new()
+
+function Write-Phase {
+    param(
+        [Parameter(Mandatory)] [string]$Name,
+        [Parameter(Mandatory)] [TimeSpan]$Duration,
+        [string]$ErrorMsg = $null,
+        [hashtable]$Records = $null
+    )
+    $phase = @{
+        name       = $Name
+        status     = if ($ErrorMsg) { 'failed' } else { 'ok' }
+        durationMs = [int]$Duration.TotalMilliseconds
+    }
+    if ($ErrorMsg) { $phase.error = $ErrorMsg }
+    if ($Records)  { $phase.records = $Records }
+    $script:phases.Add($phase)
+}
+
 Write-Host "`n=== FortigiGraph EntraID Crawler ===" -ForegroundColor Cyan
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting EntraID sync via Ingest API" -ForegroundColor Cyan
 
@@ -528,9 +748,73 @@ if ($SyncPrincipals) {
     }
     $allUserAttrs = $coreUserAttrs + $extraSelectAttrs | Select-Object -Unique
     $userSelect = $allUserAttrs -join ','
-    # $expand=manager($select=id) pulls the manager reference inline — only the
-    # id is needed on the Principals side, the ingest endpoint resolves it.
-    $users = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/users?`$select=$userSelect&`$expand=manager(`$select=id)&`$top=999"
+
+    # ── Delta vs full fetch decision ─────────────────────────────
+    # `/users/delta` doesn't support $expand=manager (Graph limitation), so
+    # delta runs lose manager refresh. The recommended pattern is: full-mode
+    # runs still use /users?$expand=manager (authoritative managerId), AND
+    # prime a delta token by making a second "skipToken=latest" call at the
+    # end so the next delta run starts from the current state. Delta-mode
+    # runs use /users/delta?$deltatoken=<token> for changes only. If the
+    # token is rejected (400/410), we clear it and fall back to a full pass
+    # — the operator sees the slower run in the Details drawer.
+    $usersEndpoint  = 'users/delta'
+    $usersToken     = $null
+    $newUsersToken  = $null
+    $deltaHit       = $false
+    $removedUserIds = @()
+
+    if ($SyncMode -eq 'full') {
+        # Explicit full: wipe any stored token so stale context can't survive.
+        Remove-FGDeltaToken -SystemId $systemId -Endpoint $usersEndpoint
+    } elseif ($SyncMode -eq 'delta') {
+        $usersToken = Get-FGDeltaToken -SystemId $systemId -Endpoint $usersEndpoint
+    }
+
+    if ($usersToken) {
+        Write-Host "  Delta mode: fetching only changes since last run..." -ForegroundColor Gray
+        try {
+            $deltaUri = "https://graph.microsoft.com/beta/users/delta?`$deltatoken=$([uri]::EscapeDataString($usersToken))"
+            $resp = Invoke-FGGetDeltaRequest -URI $deltaUri
+            $users = @($resp.value | Where-Object { -not $_.'@removed' })
+            $removedUserIds = @($resp.value | Where-Object { $_.'@removed' } | ForEach-Object { $_.id })
+            $newUsersToken = $resp.deltaToken
+            $deltaHit = $true
+            Write-Host "  Delta: $($users.Count) changed + $($removedUserIds.Count) removed" -ForegroundColor Gray
+        } catch [System.InvalidOperationException] {
+            Write-Host "  Delta token rejected by Graph — clearing and falling back to full fetch" -ForegroundColor Yellow
+            Remove-FGDeltaToken -SystemId $systemId -Endpoint $usersEndpoint
+            $usersToken = $null
+            $users = $null
+        } catch {
+            Write-Host "  Delta fetch failed: $($_.Exception.Message) — falling back to full" -ForegroundColor Yellow
+            $usersToken = $null
+            $users = $null
+        }
+    }
+
+    if (-not $deltaHit) {
+        # Full path: authoritative fetch with manager expand. Then prime a
+        # delta token with a real /users/delta call — Graph only hands the
+        # token out after you've walked the entire collection, so we pay
+        # the full pagination cost here (~500KB × N pages). $select=id keeps
+        # the payload minimal. This is a one-time cost on forced-full runs
+        # (hourly runs after that use delta).
+        $users = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/users?`$select=$userSelect&`$expand=manager(`$select=id)&`$top=999"
+        try {
+            Write-Host "  Priming delta token (walks full /users/delta once)..." -ForegroundColor DarkGray
+            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/users/delta?`$select=id"
+            $newUsersToken = $primeResp.deltaToken
+            if ($newUsersToken) {
+                Write-Host "  Primed delta token for next run" -ForegroundColor DarkGray
+            } else {
+                Write-Host "  (priming call succeeded but no deltaLink returned — Graph may have paginated further)" -ForegroundColor DarkGray
+            }
+        } catch {
+            Write-Host "  (delta token priming skipped: $($_.Exception.Message))" -ForegroundColor DarkGray
+        }
+    }
+
     Update-CrawlerProgress -Detail "Building $($users.Count) user records..."
 
     $records = @($users | ForEach-Object {
@@ -577,8 +861,17 @@ if ($SyncPrincipals) {
     })
 
     Update-CrawlerProgress -Detail "Uploading $($records.Count) users to ingest API..."
-    Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
-        -Scope @{ principalType = 'User' } -Records $records
+    # In a delta-hit run we also forward @removed tombstone ids, and we use
+    # syncMode='delta' so the ingest engine DOESN'T scoped-delete any user
+    # we didn't touch (we only saw the changed subset).
+    $ingestMode = if ($deltaHit) { 'delta' } else { 'full' }
+    Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode $ingestMode `
+        -Scope @{ principalType = 'User' } -Records $records -DeletedIds $removedUserIds
+
+    # Save the fresh delta token (if we got one). Next run will pick it up.
+    if ($newUsersToken) {
+        Set-FGDeltaToken -SystemId $systemId -Endpoint $usersEndpoint -Token $newUsersToken -RecordsLastSeen $records.Count
+    }
 
     # ─── Upload user sign-in activity (aggregate per-principal) ──
     # The four signInActivity timestamps come back on the same /users call,
@@ -672,7 +965,11 @@ if ($SyncPrincipals) {
                 $idRec
             })
 
-            Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $systemId -SyncMode 'full' -Records $idRecords
+            # In delta mode we only have changed users, so full-mode
+            # scoped-delete would wipe unchanged identities. Use the same
+            # $ingestMode as Principals — delta runs upsert only, full runs
+            # reconcile deletes. Weekly full run cleans up filter drop-offs.
+            Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $systemId -SyncMode $ingestMode -Records $idRecords
 
             # Link identities to principals
             $idMembers = @($identityUsers | ForEach-Object {
@@ -681,10 +978,11 @@ if ($SyncPrincipals) {
                     principalId = $_.id
                 }
             })
-            Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode 'full' -Records $idMembers
+            Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode $ingestMode -Records $idMembers
         }
     }
     $__phaseSW.Stop(); $phaseTimings['Principals'] = $__phaseSW.Elapsed
+    Write-Phase -Name 'Principals' -Duration $__phaseSW.Elapsed
 }
 
 # ─── Sync Service Principals ─────────────────────────────────────
@@ -711,7 +1009,54 @@ if ($SyncServicePrincipals) {
         'servicePrincipalNames','homepage','publisherName'
     )
     $spSelect = $spSelectAttrs -join ','
-    $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=$spSelect&`$top=999"
+
+    # ── Delta vs full (same pattern as Users) ────────────────────
+    $spsEndpoint   = 'servicePrincipals/delta'
+    $spsToken      = $null
+    $newSpsToken   = $null
+    $spDeltaHit    = $false
+    $removedSpIds  = @()
+
+    if ($SyncMode -eq 'full') {
+        Remove-FGDeltaToken -SystemId $systemId -Endpoint $spsEndpoint
+    } elseif ($SyncMode -eq 'delta') {
+        $spsToken = Get-FGDeltaToken -SystemId $systemId -Endpoint $spsEndpoint
+    }
+
+    if ($spsToken) {
+        Write-Host "  Delta mode: fetching only changed SPs..." -ForegroundColor Gray
+        try {
+            $deltaUri = "https://graph.microsoft.com/beta/servicePrincipals/delta?`$deltatoken=$([uri]::EscapeDataString($spsToken))"
+            $resp = Invoke-FGGetDeltaRequest -URI $deltaUri
+            $sps = @($resp.value | Where-Object { -not $_.'@removed' })
+            $removedSpIds = @($resp.value | Where-Object { $_.'@removed' } | ForEach-Object { $_.id })
+            $newSpsToken = $resp.deltaToken
+            $spDeltaHit = $true
+            Write-Host "  Delta: $($sps.Count) changed + $($removedSpIds.Count) removed" -ForegroundColor Gray
+        } catch [System.InvalidOperationException] {
+            Write-Host "  SP delta token rejected — falling back to full" -ForegroundColor Yellow
+            Remove-FGDeltaToken -SystemId $systemId -Endpoint $spsEndpoint
+            $spsToken = $null
+            $sps = $null
+        } catch {
+            Write-Host "  SP delta fetch failed: $($_.Exception.Message) — falling back to full" -ForegroundColor Yellow
+            $spsToken = $null
+            $sps = $null
+        }
+    }
+
+    if (-not $spDeltaHit) {
+        $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=$spSelect&`$top=999"
+        try {
+            Write-Host "  Priming SP delta token (walks full /servicePrincipals/delta once)..." -ForegroundColor DarkGray
+            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/delta?`$select=id"
+            $newSpsToken = $primeResp.deltaToken
+            if ($newSpsToken) { Write-Host "  Primed SP delta token for next run" -ForegroundColor DarkGray }
+        } catch {
+            Write-Host "  (SP delta token priming skipped: $($_.Exception.Message))" -ForegroundColor DarkGray
+        }
+    }
+
     Update-CrawlerProgress -Detail "Classifying $($sps.Count) service principals..."
 
     # Bucket records by principalType so we can submit one scoped full-sync
@@ -762,12 +1107,30 @@ if ($SyncServicePrincipals) {
     Write-Host ("  Classified: {0} ServicePrincipal / {1} ManagedIdentity / {2} AIAgent" -f `
         $buckets.ServicePrincipal.Count, $buckets.ManagedIdentity.Count, $buckets.AIAgent.Count) -ForegroundColor Gray
 
+    # In delta mode, use syncMode='delta' (no scoped delete of unchanged
+    # records) and attach the @removed tombstones to the FIRST bucket's
+    # call — the /ingest/principals delete is id-scoped and doesn't care
+    # which principalType bucket the record originally lived in, so it
+    # only needs to run once per phase.
+    $spIngestMode = if ($spDeltaHit) { 'delta' } else { 'full' }
+    $firstBucket = $true
     foreach ($pt in @('ServicePrincipal','ManagedIdentity','AIAgent')) {
         $bucket = $buckets[$pt]
-        if ($bucket.Count -eq 0) { continue }
+        if ($bucket.Count -eq 0 -and (-not $firstBucket -or $removedSpIds.Count -eq 0)) { continue }
         Update-CrawlerProgress -Detail "Uploading $($bucket.Count) $pt records..."
-        Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
-            -Scope @{ principalType = $pt } -Records @($bucket)
+        $deletes = @()
+        if ($firstBucket -and $spDeltaHit -and $removedSpIds.Count -gt 0) {
+            $deletes = $removedSpIds
+            $firstBucket = $false
+        } elseif ($firstBucket) {
+            $firstBucket = $false
+        }
+        Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode $spIngestMode `
+            -Scope @{ principalType = $pt } -Records @($bucket) -DeletedIds $deletes
+    }
+
+    if ($newSpsToken) {
+        Set-FGDeltaToken -SystemId $systemId -Endpoint $spsEndpoint -Token $newSpsToken -RecordsLastSeen $sps.Count
     }
 
     # ─── SP sign-in activity (aggregate per SP) ──────────────────
@@ -831,6 +1194,7 @@ if ($SyncServicePrincipals) {
         Write-Host "  WARN: SP sign-in activity sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
     }
     $__phaseSW.Stop(); $phaseTimings['ServicePrincipals'] = $__phaseSW.Elapsed
+    Write-Phase -Name 'ServicePrincipals' -Duration $__phaseSW.Elapsed
 }
 
 # ─── Sync Sign-in Logs (per-(user, app) activity) ────────────────
@@ -862,21 +1226,51 @@ if ($SyncSignInLogs) {
         }
         Write-Host "  Indexed $($appIdToSpId.Count) app ids" -ForegroundColor Gray
 
-        # Delta window. 30d is Graph's retention cap; default 7 gives
-        # comfortable overlap on daily crawls.
-        $cutoff = (Get-Date).ToUniversalTime().AddDays(-$SignInLogsDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
-        $filter = [uri]::EscapeDataString("createdDateTime ge $cutoff")
-        $uri = "https://graph.microsoft.com/beta/auditLogs/signIns?`$filter=$filter&`$top=999"
+        # Day-sliced fetch. Fetching the full 7-day window as a single request
+        # has repeatedly failed mid-pagination with a 400 once Graph's
+        # skiptoken expires on a slow client. Slicing into 1-day windows means
+        # a single bad slice costs one day, not the whole phase. The downside
+        # is N round trips' worth of fixed overhead; in practice each slice
+        # pages through 20–30k events, so the overhead is negligible.
+        $agg = @{}
+        $skipped = 0
+        $sliceFailures = @()
+        $events = [System.Collections.Generic.List[object]]::new()
 
-        Update-CrawlerProgress -Detail "Fetching events since $cutoff..."
-        $events = Invoke-FGGetRequest -URI $uri
-        Write-Host "  Pulled $($events.Count) events" -ForegroundColor Gray
+        $nowUtc = (Get-Date).ToUniversalTime()
+        for ($d = 0; $d -lt $SignInLogsDays; $d++) {
+            $sliceEnd   = $nowUtc.AddDays(-$d).ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $sliceStart = $nowUtc.AddDays(-($d + 1)).ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $sliceFilter = [uri]::EscapeDataString("createdDateTime ge $sliceStart and createdDateTime lt $sliceEnd")
+            $sliceUri = "https://graph.microsoft.com/beta/auditLogs/signIns?`$filter=$sliceFilter&`$top=999"
+            Update-CrawlerProgress -Detail "Fetching day slice $($d + 1)/${SignInLogsDays}: $sliceStart..$sliceEnd"
+            try {
+                $sliceEvents = Invoke-FGGetRequest -URI $sliceUri
+                if ($sliceEvents) {
+                    foreach ($ev in $sliceEvents) { $events.Add($ev) }
+                }
+                Write-Host "  Slice $($d + 1)/$SignInLogsDays ($sliceStart..$sliceEnd): $(@($sliceEvents).Count) events" -ForegroundColor Gray
+            } catch {
+                # One bad slice (typically an expired skiptoken 400 deep in
+                # pagination) doesn't abort the whole phase — we record it
+                # and keep going. If *every* slice fails, the outer handler
+                # still flags the phase as failed.
+                $msg = $_.Exception.Message
+                Write-Host "  Slice $($d + 1)/$SignInLogsDays failed: $msg" -ForegroundColor Yellow
+                $sliceFailures += "day $($d + 1): $msg"
+            }
+        }
+        Write-Host "  Pulled $($events.Count) events across $SignInLogsDays slices ($(@($sliceFailures).Count) slice failure(s))" -ForegroundColor Gray
+        if ($sliceFailures.Count -gt 0 -and $sliceFailures.Count -eq $SignInLogsDays) {
+            throw "All $SignInLogsDays sign-in log slices failed: $($sliceFailures -join '; ')"
+        }
+        if ($sliceFailures.Count -gt 0) {
+            $script:phaseErrors.Add("SignInLogs: $($sliceFailures.Count) of $SignInLogsDays day slice(s) failed: $($sliceFailures -join '; ')")
+        }
 
         # Aggregate. Events older than an existing aggregate are skipped;
         # newer ones win via max(date). Success/failure split comes from
         # status.errorCode — 0 is a successful sign-in.
-        $agg = @{}
-        $skipped = 0
         foreach ($ev in $events) {
             if (-not $ev.userId -or -not $ev.appId) { $skipped++; continue }
             $spId = $appIdToSpId[$ev.appId]
@@ -926,9 +1320,13 @@ if ($SyncSignInLogs) {
         # 403 if the tenant hasn't consented AuditLog.Read.All, 429 if the
         # report is rate-limited. Fail soft — user/SP aggregate activity
         # from the cheaper endpoints still landed.
-        Write-Host "  WARN: Sign-in log sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  ERROR: Sign-in log sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("SignInLogs: $($_.Exception.Message)")
     }
     $__phaseSW.Stop(); $phaseTimings['SignInLogs'] = $__phaseSW.Elapsed
+    $__signInErr = $script:phaseErrors | Where-Object { $_.StartsWith('SignInLogs:') } | Select-Object -Last 1
+    $__signInErrMsg = if ($__signInErr) { $__signInErr.Substring('SignInLogs:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'SignInLogs' -Duration $__phaseSW.Elapsed -ErrorMsg $__signInErrMsg
 }
 
 # ─── Sync Resources (Groups) ─────────────────────────────────────
@@ -969,6 +1367,7 @@ if ($SyncResources) {
     Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ resourceType = 'EntraGroup' } -Records $records
     $__phaseSW.Stop(); $phaseTimings['Resources'] = $__phaseSW.Elapsed
+    Write-Phase -Name 'Resources' -Duration $__phaseSW.Elapsed
 }
 
 # ─── Sync Assignments (Group Members) ────────────────────────────
@@ -1024,12 +1423,16 @@ if ($SyncAssignments) {
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ assignmentType = 'Owner' } -Records $allOwners
     $__phaseSW.Stop(); $phaseTimings['Assignments'] = $__phaseSW.Elapsed
+    Write-Phase -Name 'Assignments' -Duration $__phaseSW.Elapsed
 }
 
 # ─── Sync PIM (Eligible group memberships) ───────────────────────
 # Privileged Identity Management gives users "Eligible" (not active) membership
-# in groups. Each group must be queried individually because the Graph API
-# requires a groupId filter on /privilegedAccess/group/eligibilitySchedules.
+# in groups. The Graph endpoint requires a `$filter=groupId eq '<id>'` — there
+# is no supported "list all" variant (an earlier attempt to drop the filter
+# returned 400). On a 9k-group tenant this phase is ~25 min; optimisation is
+# a separate problem (Graph $batch or a different endpoint). For now we
+# accept the duration in exchange for correctness.
 if ($SyncPim) {
     $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing PIM eligible memberships..." -ForegroundColor Cyan
@@ -1040,10 +1443,10 @@ if ($SyncPim) {
         Write-Host "  Checking $pimTotal groups for PIM eligibility..." -ForegroundColor Gray
         Update-CrawlerProgress -Step 'Syncing PIM eligibilities' -Pct 61 -Detail "0 of $pimTotal groups"
 
-        # Parallel PIM eligibility check. Same pattern as Get-FGGroupChildrenParallel
-        # but inlined because the URI is filter-based instead of /groups/{id}/sub.
-        # Most groups will return zero eligibilities (and Graph returns 4xx for some
-        # group types), so per-group errors are normal — we just count them.
+        # Per-group eligibility check. Parallel runspaces (16 in flight) keep
+        # this from being trivially serial. Most groups return zero rows (Graph
+        # returns 4xx for some group types) — per-group errors are normal and
+        # silently dropped.
         $pimRecordsList = [System.Collections.Generic.List[object]]::new()
         $pimGroupCount  = 0
         $pimBatchSize   = 200
@@ -1115,9 +1518,13 @@ if ($SyncPim) {
                 -Scope @{ assignmentType = 'Eligible' } -Records $pimRecords
         }
     } catch {
-        Write-Host "  PIM sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  PIM sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("PIM: $($_.Exception.Message)")
     }
     $__phaseSW.Stop(); $phaseTimings['PIM'] = $__phaseSW.Elapsed
+    $__pimErr = $script:phaseErrors | Where-Object { $_.StartsWith('PIM:') } | Select-Object -Last 1
+    $__pimErrMsg = if ($__pimErr) { $__pimErr.Substring('PIM:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'PIM' -Duration $__phaseSW.Elapsed -ErrorMsg $__pimErrMsg
 }
 
 # ─── Sync Governance ─────────────────────────────────────────────
@@ -1165,12 +1572,16 @@ if ($SyncGovernance) {
         # contains. Without these, the matrix view can't show the AP coloring on
         # user→group cells, because vw_UserPermissionAssignmentViaBusinessRole
         # joins via ResourceRelationships(relationshipType='Contains').
+        $__scopeSW = [Diagnostics.Stopwatch]::StartNew()
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access package resource scopes)..." -ForegroundColor Cyan
         try {
             $relRecords = @()
             foreach ($ap in $accessPackages) {
                 try {
-                    $apDetail = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages/$($ap.id)?`$expand=accessPackageResourceRoleScopes(`$expand=accessPackageResourceRole,accessPackageResourceScope)"
+                    # Tight retry/timeout budget — this fires once per AP (~500)
+                    # and we already skip on failure; a slow/wedged AP must not
+                    # stall the whole loop for minutes.
+                    $apDetail = Invoke-FGGetRequest -MaxRetries 1 -TimeoutSec 30 -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages/$($ap.id)?`$expand=accessPackageResourceRoleScopes(`$expand=accessPackageResourceRole,accessPackageResourceScope)"
                     foreach ($rrs in @($apDetail.accessPackageResourceRoleScopes)) {
                         $scope = $rrs.accessPackageResourceScope
                         $role = $rrs.accessPackageResourceRole
@@ -1202,14 +1613,25 @@ if ($SyncGovernance) {
             }
         }
         catch {
-            Write-Host "  Resource scope sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  Resource scope sync failed: $($_.Exception.Message)" -ForegroundColor Red
+            $script:phaseErrors.Add("Governance/ResourceScopes: $($_.Exception.Message)")
         }
+        $__scopeSW.Stop()
+        $__scopeErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/ResourceScopes:') } | Select-Object -Last 1
+        $__scopeErrMsg = if ($__scopeErr) { $__scopeErr.Substring('Governance/ResourceScopes:'.Length).Trim() } else { $null }
+        Write-Phase -Name 'Governance/ResourceScopes' -Duration $__scopeSW.Elapsed -ErrorMsg $__scopeErrMsg
 
         # ── Access Package Assignments (Governed) ────────────────────
         # Each assignment links a user (target) to an access package
+        $__apaSW = [Diagnostics.Stopwatch]::StartNew()
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access package assignments)..." -ForegroundColor Cyan
         try {
-            $assignments = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=999"
+            # $top=500 is a compromise — the upstream entitlement-management
+            # service is visibly strained on this endpoint on large tenants
+            # and 999 per page consistently produces 504 Gateway Timeout
+            # after the first few pages. 500 halves the per-page work and
+            # has empirically survived where 999 didn't.
+            $assignments = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=500"
 
             # Deduplicate by (resourceId, principalId) — keep the most recent active assignment.
             # Graph can return multiple assignments per user/AP (delivered, expired, removed, etc.)
@@ -1247,16 +1669,31 @@ if ($SyncGovernance) {
             }
         }
         catch {
-            Write-Host "  Access Package assignments sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  Access Package assignments sync failed: $($_.Exception.Message)" -ForegroundColor Red
+            $script:phaseErrors.Add("Governance/APAssignments: $($_.Exception.Message)")
         }
+        $__apaSW.Stop()
+        $__apaErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/APAssignments:') } | Select-Object -Last 1
+        $__apaErrMsg = if ($__apaErr) { $__apaErr.Substring('Governance/APAssignments:'.Length).Trim() } else { $null }
+        Write-Phase -Name 'Governance/APAssignments' -Duration $__apaSW.Elapsed -ErrorMsg $__apaErrMsg
 
         # ── Access Package Assignment Policies ───────────────────────
         # Drives the "Type" column on the Business Roles page (Auto-assigned vs
         # Request-based) and the hasReviewConfigured flag. Without this the page
         # shows blank type/review badges even when policies exist in Graph.
+        $__polSW = [Diagnostics.Stopwatch]::StartNew()
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (assignment policies)..." -ForegroundColor Cyan
         try {
-            $policies = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/assignmentPolicies?`$expand=accessPackage&`$top=999"
+            # This is the ONE governance endpoint we call via /v1.0, not
+            # /beta. Microsoft removed the `assignmentPolicies` segment from
+            # /beta some time before April 2026 (Graph responds with
+            # "Resource not found for the segment 'assignmentPolicies'" —
+            # HTTP 400); the /v1.0 surface still exposes it.
+            # $top isn't supported on this endpoint (returns 400), and the
+            # base /v1.0 response doesn't include accessPackageId, so we
+            # expand the accessPackage relationship to recover it. The
+            # fallback below (`$pol.accessPackage.id`) depends on this.
+            $policies = Invoke-FGGetRequest -URI "https://graph.microsoft.com/v1.0/identityGovernance/entitlementManagement/assignmentPolicies?`$expand=accessPackage"
             $polRecords = @()
             foreach ($pol in $policies) {
                 $apId = if ($pol.accessPackage) { $pol.accessPackage.id } else { $pol.accessPackageId }
@@ -1291,14 +1728,20 @@ if ($SyncGovernance) {
             }
         }
         catch {
-            Write-Host "  Assignment policy sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  Assignment policy sync failed: $($_.Exception.Message)" -ForegroundColor Red
+            $script:phaseErrors.Add("Governance/AssignmentPolicies: $($_.Exception.Message)")
         }
+        $__polSW.Stop()
+        $__polErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/AssignmentPolicies:') } | Select-Object -Last 1
+        $__polErrMsg = if ($__polErr) { $__polErr.Substring('Governance/AssignmentPolicies:'.Length).Trim() } else { $null }
+        Write-Phase -Name 'Governance/AssignmentPolicies' -Duration $__polSW.Elapsed -ErrorMsg $__polErrMsg
 
         # ── Access Reviews → CertificationDecisions ──────────────────
         # Drives the Last Review / Reviewer / Compliance columns on the Business
         # Roles page. Walks all access review definitions whose scope targets an
         # access package, then pulls instance decisions. Best-effort: tenant may
         # not use access reviews at all, in which case this is a no-op.
+        $__arvSW = [Diagnostics.Stopwatch]::StartNew()
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access review decisions)..." -ForegroundColor Cyan
         try {
             $reviewDefs = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions?`$top=100"
@@ -1349,15 +1792,22 @@ if ($SyncGovernance) {
             }
         }
         catch {
-            Write-Host "  Access review sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  Access review sync failed: $($_.Exception.Message)" -ForegroundColor Red
+            $script:phaseErrors.Add("Governance/AccessReviews: $($_.Exception.Message)")
             Write-Host "  This tenant may not use access reviews on access packages." -ForegroundColor Yellow
         }
+        $__arvSW.Stop()
+        $__arvErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/AccessReviews:') } | Select-Object -Last 1
+        $__arvErrMsg = if ($__arvErr) { $__arvErr.Substring('Governance/AccessReviews:'.Length).Trim() } else { $null }
+        Write-Phase -Name 'Governance/AccessReviews' -Duration $__arvSW.Elapsed -ErrorMsg $__arvErrMsg
     }
     catch {
         Write-Host "  Governance sync skipped: $($_.Exception.Message)" -ForegroundColor Yellow
         Write-Host "  This tenant may not have Entitlement Management (Access Packages) enabled." -ForegroundColor Yellow
     }
     $__phaseSW.Stop(); $phaseTimings['Governance'] = $__phaseSW.Elapsed
+    # Sub-phases already called Write-Phase individually. Don't double-add
+    # a top-level 'Governance' entry — the UI breakdown shows them directly.
 }
 
 # ─── Sync OAuth2 Delegated Grants ────────────────────────────────
@@ -1377,6 +1827,7 @@ if ($SyncGovernance) {
 # wiping out the Access Package 'Contains' relationships produced by the
 # governance sync above.
 if ($SyncOAuth2Grants) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing OAuth2 delegated grants..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing OAuth2 grants' -Pct 72 -Detail 'Fetching from Microsoft Graph...'
 
@@ -1558,9 +2009,14 @@ if ($SyncOAuth2Grants) {
         }
     }
     catch {
-        Write-Host "  OAuth2 grant sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  OAuth2 grant sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("OAuth2Grants: $($_.Exception.Message)")
         Write-Host "  (Requires DelegatedPermissionGrant.Read.All on the app registration.)" -ForegroundColor Yellow
     }
+    $__phaseSW.Stop(); $phaseTimings['OAuth2Grants'] = $__phaseSW.Elapsed
+    $__oauthErr = $script:phaseErrors | Where-Object { $_.StartsWith('OAuth2Grants:') } | Select-Object -Last 1
+    $__oauthErrMsg = if ($__oauthErr) { $__oauthErr.Substring('OAuth2Grants:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'OAuth2Grants' -Duration $__phaseSW.Elapsed -ErrorMsg $__oauthErrMsg
 }
 
 # ─── Refresh Views ───────────────────────────────────────────────
@@ -1576,6 +2032,7 @@ if ($RefreshViews) {
         Write-Host "  View refresh failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
     }
     $__phaseSW.Stop(); $phaseTimings['RefreshViews'] = $__phaseSW.Elapsed
+    Write-Phase -Name 'RefreshViews' -Duration $__phaseSW.Elapsed
 }
 
 # ─── Summary ─────────────────────────────────────────────────────
@@ -1608,15 +2065,44 @@ if ($phaseTimings.Count -gt 0) {
 # Write a single sync log entry covering the full crawler runtime so the
 # Sync Log page reflects the actual end-to-end duration (not just the per-batch
 # bulk insert timings written by individual ingest endpoints).
+$finalStatus = if ($script:phaseErrors.Count -gt 0) { 'Warning' } else { 'Success' }
+$finalError  = if ($script:phaseErrors.Count -gt 0) { ($script:phaseErrors -join ' | ') } else { $null }
+
+# Post the structured per-phase array so the Jobs UI can render a Details
+# drawer instead of parsing the single-line errorMessage. Best-effort — if
+# this fails we still fall through to the legacy sync-log write.
+if ($JobId -and $JobId -gt 0 -and $script:phases.Count -gt 0) {
+    try {
+        $headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
+        $payload = @{ phases = $script:phases } | ConvertTo-Json -Depth 10 -Compress
+        Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/jobs/$JobId/phases" -Method Post `
+            -Headers $headers -Body $payload -TimeoutSec 10 | Out-Null
+        Write-Host "  Posted $($script:phases.Count) phase record(s) to job API" -ForegroundColor DarkGray
+    } catch {
+        Write-Host "  (phases write failed: $($_.Exception.Message))" -ForegroundColor DarkGray
+    }
+}
 try {
     Invoke-IngestAPI -Endpoint 'ingest/sync-log' -Body @{
-        syncType    = 'EntraID-FullCrawl'
-        tableName   = $null
-        startTime   = $syncStart.ToString('o')
-        endTime     = (Get-Date).ToString('o')
-        recordCount = 0
-        status      = 'Success'
+        syncType     = 'EntraID-FullCrawl'
+        tableName    = $null
+        startTime    = $syncStart.ToString('o')
+        endTime      = (Get-Date).ToString('o')
+        recordCount  = 0
+        status       = $finalStatus
+        errorMessage = $finalError
     } | Out-Null
 } catch {
     Write-Host "  (sync log write failed: $($_.Exception.Message))" -ForegroundColor DarkGray
+}
+
+# If any main-phase failures occurred, throw so the worker scheduler marks
+# the job `failed` with a summary message. All successful phases have
+# already been ingested and are visible in the UI — this is strictly
+# about making the silent-failure case loud. See the $script:phaseErrors
+# comment at the top of the script for the motivation.
+if ($script:phaseErrors.Count -gt 0) {
+    $summary = "Crawl completed with $($script:phaseErrors.Count) phase failure(s):`n  - " + ($script:phaseErrors -join "`n  - ")
+    Write-Host "`n$summary" -ForegroundColor Red
+    throw $summary
 }
