@@ -9,7 +9,8 @@ describe('tokenize', () => {
 
   it('lowercases tokens', () => {
     expect(tokenize('APP_HAMIS_ADMINS')).toEqual(['hamis']);
-    expect(tokenize('MixedCase_HAMIS_Readers')).toEqual(['mixedcase']);
+    // "readers" is a stopword, but "mixedcase" and "hamis" both survive.
+    expect(tokenize('MixedCase_HAMIS_Readers')).toEqual(['mixedcase', 'hamis']);
   });
 
   it('drops short tokens', () => {
@@ -33,8 +34,8 @@ describe('tokenize', () => {
   });
 
   it('preserves non-stopword tokens in occurrence order', () => {
-    // minTokenLength 3 keeps "hcc"; it is not in DEFAULT_STOPWORDS.
-    expect(tokenize('sg_hamis_hcc_editors')).toEqual(['hamis', 'hcc', 'editors']);
+    // minTokenLength 3 keeps "hcc"; "editors" is a stopword so it's dropped.
+    expect(tokenize('sg_hamis_hcc_editors')).toEqual(['hamis', 'hcc']);
   });
 
   it('returns [] for empty / null input', () => {
