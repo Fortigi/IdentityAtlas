@@ -497,7 +497,7 @@ router.get('/users', async (req, res) => {
              u."department", u."jobTitle", u."companyName", u."accountEnabled",
              u."principalType", u."systemId", u."externalId",
              u."givenName", u."surname", u."employeeId", u."managerId",
-             u."contextId", u."createdDateTime", u."extendedAttributes",
+             u."createdDateTime", u."extendedAttributes",
              u."riskScore", u."riskTier",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
