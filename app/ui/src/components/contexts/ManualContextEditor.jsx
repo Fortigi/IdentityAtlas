@@ -120,10 +120,10 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
   }
 
   return (
-    <div className="bg-white border border-amber-200 rounded-lg p-6">
+    <div className="bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 rounded-lg p-6">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">Edit manual context</h3>
-        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Edit manual context</h3>
+        <span className="text-[10px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded px-1.5 py-0.5">
           Manual — analyst-owned
         </span>
       </div>
@@ -169,29 +169,29 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
         </Field>
       </div>
 
-      {error && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">{error}</div>}
+      {error && <div className="mt-3 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">{error}</div>}
 
       <div className="mt-4 flex items-center justify-between gap-2">
         <div>
           {confirmingDelete ? (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-red-700">Delete this context and all its members?</span>
+              <span className="text-[11px] text-red-700 dark:text-red-400">Delete this context and all its members?</span>
               <button
                 onClick={doDelete}
                 disabled={deleting}
-                className="px-3 py-1 text-xs rounded bg-red-600 text-white disabled:opacity-50 hover:bg-red-700"
+                className="px-3 py-1 text-xs rounded bg-red-600 dark:bg-red-700 text-white disabled:opacity-50 hover:bg-red-700 dark:hover:bg-red-600"
               >
                 {deleting ? 'Deleting…' : 'Yes, delete'}
               </button>
               <button
                 onClick={() => setConfirmingDelete(false)}
-                className="px-3 py-1 text-xs rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+                className="px-3 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300"
               >Cancel</button>
             </div>
           ) : (
             <button
               onClick={() => setConfirmingDelete(true)}
-              className="text-[11px] text-red-600 hover:text-red-700"
+              className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-700 dark:text-red-400"
             >Delete context…</button>
           )}
         </div>
@@ -200,7 +200,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
           <button
             onClick={save}
             disabled={!dirty || saving}
-            className="px-3 py-1 text-xs rounded bg-blue-600 text-white disabled:opacity-50 hover:bg-blue-700"
+            className="px-3 py-1 text-xs rounded bg-blue-600 dark:bg-blue-700 text-white disabled:opacity-50 hover:bg-blue-700 dark:hover:bg-blue-600"
           >{saving ? 'Saving…' : 'Save changes'}</button>
         </div>
       </div>
@@ -217,9 +217,9 @@ function indentFor(depth) {
 function Field({ label, help, full, children }) {
   return (
     <div className={full ? 'sm:col-span-2' : ''}>
-      <label className="block text-xs font-medium text-gray-700">{label}</label>
+      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">{label}</label>
       {children}
-      {help && <p className="text-[11px] text-gray-500 mt-0.5">{help}</p>}
+      {help && <p className="text-[11px] text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-0.5">{help}</p>}
     </div>
   );
 }

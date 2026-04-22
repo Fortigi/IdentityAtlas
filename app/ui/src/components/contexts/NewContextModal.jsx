@@ -67,9 +67,9 @@ export default function NewContextModal({ open, onClose, onCreated, onRunStarted
 }
 
 const TONE = {
-  slate: { bar: 'bg-slate-500', pill: 'bg-slate-100 text-slate-700 border-slate-200' },
-  blue:  { bar: 'bg-blue-500',  pill: 'bg-blue-100  text-blue-700  border-blue-200'  },
-  amber: { bar: 'bg-amber-500', pill: 'bg-amber-100 text-amber-700 border-amber-200' },
+  slate: { bar: 'bg-slate-500', pill: 'bg-slate-100 dark:bg-gray-700 text-slate-700 dark:text-gray-300 border-slate-200 dark:border-gray-600' },
+  blue:  { bar: 'bg-blue-500',  pill: 'bg-blue-100  text-blue-700 dark:text-blue-300  border-blue-200'  },
+  amber: { bar: 'bg-amber-500', pill: 'bg-amber-100 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700' },
 };
 
 function Card({ title, tone, description, cta, onClick }) {
@@ -77,13 +77,13 @@ function Card({ title, tone, description, cta, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="text-left border border-gray-200 rounded-lg p-3 hover:border-gray-300 hover:shadow-sm bg-white flex flex-col"
+      className="text-left border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:border-gray-300 dark:border-gray-600 hover:shadow-sm bg-white dark:bg-gray-800 flex flex-col"
     >
       <div className="flex items-center gap-2 mb-2">
         <span className={`inline-block w-2 h-4 rounded ${t.bar}`} aria-hidden="true" />
-        <span className="text-sm font-semibold text-gray-900">{title}</span>
+        <span className="text-sm font-semibold text-gray-900 dark:text-white">{title}</span>
       </div>
-      <p className="text-[11px] text-gray-600 flex-1">{description}</p>
+      <p className="text-[11px] text-gray-600 dark:text-gray-400 dark:text-gray-500 flex-1">{description}</p>
       <span className={`mt-3 self-start inline-flex items-center text-[11px] px-2 py-0.5 rounded border ${t.pill}`}>
         {cta}
       </span>

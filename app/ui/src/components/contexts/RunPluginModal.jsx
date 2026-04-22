@@ -132,7 +132,7 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
       onClose={onClose}
       width={620}
     >
-      {pluginsLoading && <div className="text-xs text-gray-500">Loading plugins…</div>}
+      {pluginsLoading && <div className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading plugins…</div>}
       {pluginsError && <ErrorBox message={pluginsError} />}
 
       {!selected && !pluginsLoading && (
@@ -142,7 +142,7 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
       {selected && (
         <>
           <div className="mb-3 flex items-center gap-2 text-[11px]">
-            <button onClick={() => setSelected(null)} className="text-blue-600 hover:underline">← Back to plugin list</button>
+            <button onClick={() => setSelected(null)} className="text-blue-600 dark:text-blue-400 hover:underline">← Back to plugin list</button>
           </div>
 
           <div className="space-y-3">
@@ -157,8 +157,8 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
           <ErrorBox message={error} />
 
           {dryResult && (
-            <div className="mt-4 border border-gray-200 rounded p-3 bg-gray-50">
-              <div className="text-xs font-semibold text-gray-800">
+            <div className="mt-4 border border-gray-200 dark:border-gray-700 rounded p-3 bg-gray-50 dark:bg-gray-700/50">
+              <div className="text-xs font-semibold text-gray-800 dark:text-gray-200">
                 Dry run: {dryResult.contextCount} contexts · {dryResult.memberCount} members
               </div>
               <DryRunSamples samples={dryResult.samples} />
@@ -166,7 +166,7 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
           )}
 
           <div className="mt-4 flex items-center justify-between gap-2">
-            <div className="text-[11px] text-gray-500">
+            <div className="text-[11px] text-gray-500 dark:text-gray-400 dark:text-gray-500">
               {missing.length > 0 ? `Missing: ${missing.join(', ')}` : 'Ready to dry-run or execute.'}
             </div>
             <div className="flex items-center gap-2">
@@ -188,7 +188,7 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
 // ─── Plugin picker (grouped by target type) ───────────────────────────────────
 function PluginPicker({ grouped, onPick }) {
   if (grouped.length === 0) {
-    return <p className="text-xs text-gray-500">No plugins are registered.</p>;
+    return <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">No plugins are registered.</p>;
   }
   return (
     <div className="space-y-3">
@@ -198,17 +198,17 @@ function PluginPicker({ grouped, onPick }) {
           <div key={targetType}>
             <div className="flex items-center gap-2 mb-1">
               <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass}`}>{t.label}</span>
-              <span className="text-[11px] text-gray-500">· {items.length}</span>
+              <span className="text-[11px] text-gray-500 dark:text-gray-400 dark:text-gray-500">· {items.length}</span>
             </div>
-            <ul className="border border-gray-200 rounded divide-y divide-gray-100">
+            <ul className="border border-gray-200 dark:border-gray-700 rounded divide-y divide-gray-100">
               {items.map(p => (
                 <li key={p.name}>
                   <button
                     onClick={() => onPick(p)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50"
                   >
-                    <div className="text-sm font-medium text-gray-900">{p.displayName}</div>
-                    {p.description && <div className="text-[11px] text-gray-500 line-clamp-2">{p.description}</div>}
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">{p.displayName}</div>
+                    {p.description && <div className="text-[11px] text-gray-500 dark:text-gray-400 dark:text-gray-500 line-clamp-2">{p.description}</div>}
                   </button>
                 </li>
               ))}
@@ -235,7 +235,7 @@ function groupByTargetType(plugins) {
 // gets a system-picker instead of a number input for ergonomics.
 function JsonSchemaForm({ schema, values, onChange, systems }) {
   if (!schema?.properties) {
-    return <p className="text-xs text-gray-500">This plugin takes no parameters.</p>;
+    return <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">This plugin takes no parameters.</p>;
   }
   const required = new Set(schema.required || []);
   const entries = Object.entries(schema.properties);
@@ -339,7 +339,7 @@ function JsonField({ label, help, spec, value, onChange }) {
         spellCheck={false}
         className="w-full border rounded px-2 py-1 text-xs font-mono"
       />
-      {err && <p className="text-[11px] text-red-700 mt-1">JSON error: {err}</p>}
+      {err && <p className="text-[11px] text-red-700 dark:text-red-400 mt-1">JSON error: {err}</p>}
     </Field>
   );
 }
@@ -356,24 +356,24 @@ function DryRunSamples({ samples }) {
   const ctxs = samples.contexts || [];
   const mbrs = samples.members || [];
   if (ctxs.length === 0 && mbrs.length === 0) {
-    return <p className="mt-1 text-[11px] text-gray-500">No preview rows.</p>;
+    return <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 dark:text-gray-500">No preview rows.</p>;
   }
   return (
     <div className="mt-2 space-y-2">
       {ctxs.length > 0 && (
         <details>
-          <summary className="text-[11px] text-gray-700 cursor-pointer">Preview contexts ({ctxs.length})</summary>
-          <ul className="text-[11px] text-gray-600 mt-1 pl-4 list-disc">
+          <summary className="text-[11px] text-gray-700 dark:text-gray-300 cursor-pointer">Preview contexts ({ctxs.length})</summary>
+          <ul className="text-[11px] text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1 pl-4 list-disc">
             {ctxs.map((c, i) => (
-              <li key={i}>{c.displayName} <span className="text-gray-400">({c.externalId})</span></li>
+              <li key={i}>{c.displayName} <span className="text-gray-400 dark:text-gray-500">({c.externalId})</span></li>
             ))}
           </ul>
         </details>
       )}
       {mbrs.length > 0 && (
         <details>
-          <summary className="text-[11px] text-gray-700 cursor-pointer">Preview members ({mbrs.length})</summary>
-          <ul className="text-[11px] text-gray-600 mt-1 pl-4 list-disc">
+          <summary className="text-[11px] text-gray-700 dark:text-gray-300 cursor-pointer">Preview members ({mbrs.length})</summary>
+          <ul className="text-[11px] text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1 pl-4 list-disc">
             {mbrs.slice(0, 10).map((m, i) => (
               <li key={i}>{m.memberId} → {m.contextExternalId}</li>
             ))}
