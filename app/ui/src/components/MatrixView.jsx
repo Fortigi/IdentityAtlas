@@ -810,21 +810,21 @@ export default function MatrixView({
       />
 
       {users.length === 0 || orderedGroups.length === 0 ? (
-        <div className="text-center text-gray-500 py-12">
+        <div className="text-center text-gray-500 dark:text-gray-400 py-12">
           {activeFilters.length > 0
             ? 'No data found for the current filters. Try removing some filters.'
             : 'No permission data available. Add a filter to narrow down the view.'}
         </div>
       ) : (
-        <div ref={scrollRef} className="relative border border-gray-200 rounded-lg overflow-auto max-h-[calc(100vh-280px)]">
+        <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto max-h-[calc(100vh-280px)]">
           {refreshing && (
-            <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center">
-              <div className="bg-white border border-gray-200 rounded-lg px-4 py-2 shadow-sm flex items-center gap-2">
+            <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 z-10 flex items-center justify-center">
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 shadow-sm flex items-center gap-2">
                 <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                <span className="text-sm text-gray-600">Updating...</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300">Updating...</span>
               </div>
             </div>
           )}
