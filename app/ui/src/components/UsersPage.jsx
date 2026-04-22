@@ -99,13 +99,13 @@ export default function UsersPage({ onOpenDetail }) {
     <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Users</h2>
-        <span className="text-sm text-gray-500">{ep.total.toLocaleString()} total</span>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Users</h2>
+        <span className="text-sm text-gray-500 dark:text-gray-400">{ep.total.toLocaleString()} total</span>
       </div>
 
       {/* Principal-type sub-tabs. Matches the underlined-pills style used by
           the Admin page's own sub-tab bar so the UX is consistent. */}
-      <div className="border-b border-gray-200 mb-4">
+      <div className="border-b border-gray-200 dark:border-gray-700 mb-4">
         <nav className="flex gap-1 -mb-px">
           {PRINCIPAL_TYPE_TABS.map(tab => (
             <button
@@ -114,7 +114,7 @@ export default function UsersPage({ onOpenDetail }) {
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTypeTab === tab.key
                   ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
               }`}
             >
               {tab.label}
@@ -125,7 +125,7 @@ export default function UsersPage({ onOpenDetail }) {
 
       {/* Tag management bar */}
       <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
-        <span className="font-medium text-gray-600">Tags:</span>
+        <span className="font-medium text-gray-600 dark:text-gray-400">Tags:</span>
         {ep.tags.map(t => (
           <span
             key={t.id}
@@ -157,7 +157,7 @@ export default function UsersPage({ onOpenDetail }) {
         ))}
         <button
           onClick={() => ep.setShowCreateTag(!ep.showCreateTag)}
-          className="px-2 py-0.5 rounded text-xs text-blue-600 hover:bg-blue-50 border border-blue-200 border-dashed"
+          className="px-2 py-0.5 rounded text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-700 border-dashed"
         >
           + New Tag
         </button>
@@ -165,14 +165,14 @@ export default function UsersPage({ onOpenDetail }) {
 
       {/* Create tag form */}
       {ep.showCreateTag && (
-        <div className="flex items-center gap-2 mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+        <div className="flex items-center gap-2 mb-3 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm">
           <input
             type="text"
             value={ep.newTagName}
             onChange={e => ep.setNewTagName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && ep.createTag()}
             placeholder="Tag name..."
-            className="px-2 py-1 border border-gray-300 rounded text-sm w-48"
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm w-48 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
             autoFocus
           />
           <div className="flex items-center gap-1">
@@ -194,7 +194,7 @@ export default function UsersPage({ onOpenDetail }) {
           </button>
           <button
             onClick={() => ep.setShowCreateTag(false)}
-            className="px-2 py-1 rounded text-sm text-gray-500 hover:bg-gray-200"
+            className="px-2 py-1 rounded text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -213,22 +213,22 @@ export default function UsersPage({ onOpenDetail }) {
           loading={ep.columnsLoading}
         />
 
-        <div className="border-l border-gray-300 h-5 mx-1" />
+        <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
 
         <input
           type="text"
           value={ep.search}
           onChange={e => ep.setSearch(e.target.value)}
           placeholder="Search by name or UPN..."
-          className="px-2 py-1 border border-gray-300 rounded text-xs w-56"
+          className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-56 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
 
         {ep.hasAnyFilter && (
           <>
-            <div className="border-l border-gray-300 h-5 mx-1" />
+            <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
             <button
               onClick={ep.clearAllFilters}
-              className="px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-100 border border-gray-200"
+              className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
             >
               Clear all
             </button>
@@ -238,13 +238,13 @@ export default function UsersPage({ onOpenDetail }) {
 
       {/* Action bar (visible when items selected) */}
       {ep.selected.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-          <span className="font-medium text-blue-700">{ep.selected.size} selected</span>
-          <div className="border-l border-blue-200 h-5" />
+        <div className="flex items-center gap-3 mb-3 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg text-sm">
+          <span className="font-medium text-blue-700 dark:text-blue-300">{ep.selected.size} selected</span>
+          <div className="border-l border-blue-200 dark:border-blue-700 h-5" />
           <select
             value={ep.actionTag}
             onChange={e => ep.setActionTag(e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-sm"
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-200"
           >
             <option value="">Select tag...</option>
             {ep.tags.map(t => (
@@ -261,17 +261,17 @@ export default function UsersPage({ onOpenDetail }) {
           <button
             onClick={ep.removeTagFromSelected}
             disabled={!ep.actionTag || ep.busy}
-            className="px-3 py-1 rounded text-sm font-medium text-red-600 hover:bg-red-50 border border-red-200 disabled:opacity-50"
+            className="px-3 py-1 rounded text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-700 disabled:opacity-50"
           >
             Remove Tag
           </button>
           {ep.hasAnyFilter && ep.total > ep.selected.size && (
             <>
-              <div className="border-l border-blue-200 h-5" />
+              <div className="border-l border-blue-200 dark:border-blue-700 h-5" />
               <button
                 onClick={ep.assignTagToAll}
                 disabled={!ep.actionTag || ep.busy}
-                className="px-3 py-1 rounded text-sm font-medium text-blue-700 hover:bg-blue-100 border border-blue-300 disabled:opacity-50"
+                className="px-3 py-1 rounded text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-300 dark:border-blue-700 disabled:opacity-50"
                 title={`Tag all ${ep.total} users matching current filters`}
               >
                 Tag all {ep.total} matching
@@ -280,7 +280,7 @@ export default function UsersPage({ onOpenDetail }) {
           )}
           <button
             onClick={() => ep.setSelected(new Set())}
-            className="px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-100 ml-auto"
+            className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 ml-auto"
           >
             Clear selection
           </button>
@@ -289,16 +289,16 @@ export default function UsersPage({ onOpenDetail }) {
 
       {/* Table */}
       {ep.loading ? (
-        <div className="text-center text-gray-500 py-12">Loading users...</div>
+        <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading users...</div>
       ) : ep.items.length === 0 ? (
-        <div className="text-center text-gray-500 py-12">
+        <div className="text-center text-gray-500 dark:text-gray-400 py-12">
           {ep.hasAnyFilter ? 'No users match the current filters.' : 'No users found.'}
         </div>
       ) : (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
+              <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
                 <th className="w-10 px-3 py-2">
                   <input
                     type="checkbox"
@@ -311,27 +311,27 @@ export default function UsersPage({ onOpenDetail }) {
                   <th
                     key={col.key}
                     onClick={() => ep.toggleSort(col.key)}
-                    className="text-left px-3 py-2 font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100"
+                    className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     <span className="inline-flex items-center gap-1">
                       {col.label}
                       {ep.sortCol === col.key ? (
-                        <span className="text-blue-600 text-[10px]">{ep.sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
+                        <span className="text-blue-600 text-[10px]">{ep.sortDir === 'asc' ? '▲' : '▼'}</span>
                       ) : (
-                        <span className="text-gray-300 text-[10px]">{'\u25B4'}</span>
+                        <span className="text-gray-300 dark:text-gray-500 text-[10px]">{'▴'}</span>
                       )}
                     </span>
                   </th>
                 ))}
-                <th className="text-left px-3 py-2 font-medium text-gray-700">Tags</th>
+                <th className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300">Tags</th>
               </tr>
             </thead>
             <tbody>
               {ep.sortedItems.map(u => (
                 <tr
                   key={u.id}
-                  className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                    ep.selected.has(u.id) ? 'bg-blue-50' : ''
+                  className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${
+                    ep.selected.has(u.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                   }`}
                   onClick={() => ep.toggleSelect(u.id)}
                 >
@@ -345,9 +345,9 @@ export default function UsersPage({ onOpenDetail }) {
                   </td>
                   <td className="px-3 py-2 font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
                     onClick={() => onOpenDetail?.('user', u.id, u.displayName)}>{u.displayName}</td>
-                  <td className="px-3 py-2 text-gray-600 text-xs">{u.userPrincipalName}</td>
-                  <td className="px-3 py-2 text-gray-600">{u.department || ''}</td>
-                  <td className="px-3 py-2 text-gray-600">{u.jobTitle || ''}</td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs">{u.userPrincipalName}</td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{u.department || ''}</td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{u.jobTitle || ''}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
                       {u.tags.map(t => (
@@ -370,7 +370,7 @@ export default function UsersPage({ onOpenDetail }) {
 
       {/* Pagination */}
       {ep.totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
+        <div className="flex items-center justify-between mt-3 text-sm text-gray-600 dark:text-gray-400">
           <span>
             Showing {ep.page * ep.PAGE_SIZE + 1}&ndash;{Math.min((ep.page + 1) * ep.PAGE_SIZE, ep.total)} of {ep.total.toLocaleString()}
           </span>
@@ -378,7 +378,7 @@ export default function UsersPage({ onOpenDetail }) {
             <button
               onClick={() => ep.setPage(p => Math.max(0, p - 1))}
               disabled={ep.page === 0}
-              className="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40"
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
             >
               Prev
             </button>
@@ -386,7 +386,7 @@ export default function UsersPage({ onOpenDetail }) {
             <button
               onClick={() => ep.setPage(p => Math.min(ep.totalPages - 1, p + 1))}
               disabled={ep.page >= ep.totalPages - 1}
-              className="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40"
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
             >
               Next
             </button>
