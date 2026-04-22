@@ -15,8 +15,12 @@ describe('tokenize', () => {
   });
 
   it('strips Dutch connective tokens like "van"', () => {
+    // "rol" is a tenant-specific AD prefix at Havenbedrijf Rotterdam — not
+    // filtered by default, but the analyst can add it via additionalStopwords.
+    // Here we just confirm that "van" and "eigenaren" (NL fillers/roles) are
+    // filtered out of the default set.
     expect(tokenize('AG_ROL_DMS_EIGENAREN VAN FINANCE (INKOOP)'))
-      .toEqual(['dms', 'finance', 'inkoop']);
+      .toEqual(['rol', 'dms', 'finance', 'inkoop']);
   });
 
   it('lowercases tokens', () => {
