@@ -1,1 +1,0 @@
-- Fixed business role assignments not displaying in the detail page (API was returning `state` instead of `assignmentState` and missing the `id` field)

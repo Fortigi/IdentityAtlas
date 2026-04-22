@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed business role assignments not displaying in the detail page (API was returning `state` instead of `assignmentState` and missing the `id` field)
+
+## Changes in this PR
+
 - Added dark mode support across the entire UI; toggle via the user avatar settings dropdown
 - Dark mode preference is persisted per browser in localStorage
 - All pages, tables, cards, modals, and the matrix view adapt to dark mode
