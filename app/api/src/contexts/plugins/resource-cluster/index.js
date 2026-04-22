@@ -1,104 +1,131 @@
-// ─── resource-cluster plugin ──────────────────────────────────────────────────
-// Groups resources that share a "name stem" — common prefixes (SG_, DL_,
-// M365_, …), environment suffixes (_P, _ACC, _TST, …) and role suffixes
-// (_Admin, _Users, …) are stripped, and resources whose stems match are
-// considered one logical cluster.
+// ─── resource-cluster plugin (token-based) ────────────────────────────────────
 //
-// Ported from the old risk-scoring buildClusters() path. The risk-scoring
-// engine still reads the classifier-match table and computes per-resource
-// scores, but clustering is now a separate concern exposed as a plugin so
-// analysts can re-run it from the UI without a full risk score.
+// Groups resources that share a significant token in their display name. A
+// "significant" token is one that survives the tokenizer — splitting on
+// -_./|\\\s, dropping short / numeric / stopword fragments. Names like
+// "SG_APP_HAMIS_Admins_P" and "GRP-HAMIS-Readers-TST" both survive as
+// {hamis} and land in the same HAMIS cluster, regardless of which prefix
+// or suffix the originating system put around them.
 //
-// Output:
-//   - one Context per cluster (contextType='ResourceCluster',
-//     targetType='Resource', variant='generated')
-//   - one ContextMember per resource in the cluster
+// A resource can belong to multiple clusters — a group named
+// "HAMIS_FINANCE_Admins" contributes to both a HAMIS cluster and a FINANCE
+// cluster (if both tokens clear the minMembers threshold). The plugin does
+// not try to pick "the" cluster per resource — overlap is the point, and
+// the analyst uses the cluster list to find related resources.
 //
-// Clusters of size < 2 are dropped — a single resource is not a cluster.
+// The older stem-stripper implementation lived here before and missed any
+// pattern that didn't match the hardcoded prefix/suffix whitelist. That was
+// the complaint that drove this rewrite.
 
-import { getGroupStem } from './stem.js';
+import { tokenize, buildStopwords, prettifyToken } from './tokenize.js';
 
 export const plugin = {
   name: 'resource-cluster',
   displayName: 'Resource Cluster',
   description:
-    'Groups resources by a normalised name stem. Prefixes (SG_, DL_, …), ' +
-    'environment suffixes (_P, _ACC, …) and role suffixes (_Admin, _Users, …) ' +
-    'are stripped so related resources from multiple systems cluster together.',
+    'Groups resources by the significant tokens in their display name. ' +
+    'Splits on separators, drops role/env/type/filler stopwords, and creates a ' +
+    'cluster per remaining token that appears in at least `minMembers` resources. ' +
+    'A resource can belong to multiple clusters.',
   targetType: 'Resource',
   parametersSchema: {
     type: 'object',
     properties: {
       scopeSystemId: {
         type: 'integer',
-        description:
-          'Systems.id — if set, only resources belonging to this system are clustered. Leave blank to cluster across all systems.',
-      },
-      minStemLength: {
-        type: 'integer',
-        default: 3,
-        description: 'Stems shorter than this are ignored to avoid noise clusters.',
+        description: 'Systems.id — if set, only resources from this system are clustered.',
       },
       minMembers: {
         type: 'integer',
         default: 4,
-        description: 'Drop clusters with fewer than this many members. Use a larger value to focus on meaningful groupings; a lower value (min 2) to see more fragmented clusters.',
+        description: 'Drop clusters with fewer than this many members. Lower = more clusters including noisy ones; higher = only strong signals.',
+      },
+      minTokenLength: {
+        type: 'integer',
+        default: 3,
+        description: 'Tokens shorter than this are ignored (drops "p", "it", numerics).',
+      },
+      maxTokenCoverage: {
+        type: 'number',
+        default: 0.7,
+        description: 'Reject tokens that appear in more than this fraction of resources (0..1). Filters out tokens so generic they would swallow the whole dataset.',
+      },
+      additionalStopwords: {
+        type: 'array',
+        description: 'Extra tokens to ignore on top of the defaults (role / env / type / filler). Lowercased at parse time.',
+        items: { type: 'string' },
       },
       rootName: {
         type: 'string',
         default: 'Resource Clusters',
-        description: 'Display name of the synthetic root node — every cluster is attached under this.',
+        description: 'Display name of the synthetic root node — every cluster attaches here.',
       },
     },
     required: [],
   },
 
   async run(params, { db }) {
-    const scopeSystemId = params.scopeSystemId ? parseInt(params.scopeSystemId, 10) : null;
-    const minStemLength = Math.max(parseInt(params.minStemLength, 10) || 3, 1);
-    const minMembers    = Math.max(parseInt(params.minMembers, 10)    || 4, 2);
-    const rootName      = (params.rootName || 'Resource Clusters').slice(0, 500);
+    const scopeSystemId     = params.scopeSystemId ? parseInt(params.scopeSystemId, 10) : null;
+    const minMembers        = Math.max(parseInt(params.minMembers, 10) || 4, 2);
+    const minTokenLength    = Math.max(parseInt(params.minTokenLength, 10) || 3, 1);
+    const maxTokenCoverage  = Number.isFinite(params.maxTokenCoverage) ? params.maxTokenCoverage : 0.7;
+    const rootName          = (params.rootName || 'Resource Clusters').slice(0, 500);
+    const stopwords         = buildStopwords(params.additionalStopwords);
 
     const rows = (await db.query(
-      `SELECT id, "displayName", "systemId"
+      `SELECT id, "displayName"
          FROM "Resources"
         WHERE $1::int IS NULL OR "systemId" = $1`,
       [scopeSystemId],
     )).rows;
 
-    // Group by stem. One entry per stem → array of resource rows.
-    const byStem = new Map();
-    for (const r of rows) {
-      const stem = getGroupStem(r.displayName || '');
-      if (!stem || stem.length < minStemLength) continue;
-      if (!byStem.has(stem)) byStem.set(stem, []);
-      byStem.get(stem).push(r);
+    if (rows.length === 0) {
+      return { contexts: [], members: [] };
     }
 
-    // Synthetic root. Everything attaches here so the tree selector shows
-    // one "Resource Clusters" entry rather than N flat roots.
+    // Build: token -> array of resource ids.
+    const byToken = new Map();
+    for (const r of rows) {
+      const tokens = tokenize(r.displayName || '', { minTokenLength, stopwords });
+      for (const t of tokens) {
+        if (!byToken.has(t)) byToken.set(t, []);
+        byToken.get(t).push(r.id);
+      }
+    }
+
+    // Apply the two filters: (a) minimum member count, (b) maximum coverage
+    // (don't let a token that appears in 80% of all resources become a
+    // cluster — that's just noise).
+    const total = rows.length;
+    const coverageCap = Math.max(minMembers, Math.floor(total * maxTokenCoverage));
+
     const rootExt = 'root';
     const contexts = [{
       externalId: rootExt,
       displayName: rootName,
-      description: `Stem-based clusters of resources (min ${minMembers} members per cluster).`,
+      description: `Token-based clusters of resources (min ${minMembers} members, max ${Math.round(maxTokenCoverage * 100)}% coverage per token).`,
       contextType: 'ResourceCluster',
     }];
     const members = [];
-    for (const [stem, group] of byStem) {
-      if (group.length < minMembers) continue;
+
+    // Sort by size desc so cluster-detail ordering is predictable even
+    // without the tree sort the runner already applies.
+    const sortedTokens = [...byToken.entries()]
+      .filter(([, ids]) => ids.length >= minMembers && ids.length <= coverageCap)
+      .sort((a, b) => b[1].length - a[1].length);
+
+    for (const [token, ids] of sortedTokens) {
+      const externalId = `token:${token}`;
       contexts.push({
-        externalId: `stem:${stem}`,
-        displayName: stem,
-        description: `${group.length} resources sharing name stem "${stem}"`,
+        externalId,
+        displayName: prettifyToken(token),
+        description: `${ids.length} resources whose name contains "${token}".`,
         contextType: 'ResourceCluster',
         parentExternalId: rootExt,
+        extendedAttributes: { token, memberCount: ids.length },
       });
-      for (const r of group) {
-        members.push({
-          contextExternalId: `stem:${stem}`,
-          memberId: r.id,
-        });
+      for (const rid of ids) {
+        members.push({ contextExternalId: externalId, memberId: rid });
       }
     }
 
