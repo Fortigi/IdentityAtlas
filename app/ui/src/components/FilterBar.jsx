@@ -55,7 +55,7 @@ export default function FilterBar({
 
   return (
     <>
-      <span className="font-medium text-gray-700">{label}</span>
+      <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
 
       {/* Active filter pills */}
       {myActiveFilters.map(af => {
@@ -63,13 +63,13 @@ export default function FilterBar({
         return (
           <span
             key={af.field}
-            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs"
+            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded text-xs"
           >
-            <span className="font-medium text-blue-700">{field?.label || af.field}:</span>
+            <span className="font-medium text-blue-700 dark:text-blue-300">{field?.label || af.field}:</span>
             <select
               value={af.value}
               onChange={e => onAddFilter(af.field, e.target.value)}
-              className="bg-transparent border-none text-blue-900 text-xs font-medium cursor-pointer p-0 pr-4"
+              className="bg-transparent border-none text-blue-900 dark:text-blue-200 text-xs font-medium cursor-pointer p-0 pr-4"
             >
               {getOptionsForField(af.field).map(v => (
                 <option key={v} value={v}>{v}</option>
@@ -77,7 +77,7 @@ export default function FilterBar({
             </select>
             <button
               onClick={() => onRemoveFilter(af.field)}
-              className="text-blue-400 hover:text-blue-700 font-bold ml-0.5"
+              className="text-blue-400 dark:text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 font-bold ml-0.5"
               title="Remove filter"
             >
               &times;
@@ -88,12 +88,12 @@ export default function FilterBar({
 
       {/* Add filter inline selector */}
       {adding ? (
-        <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 border border-gray-300 rounded text-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs">
           <select
             autoFocus
             value={selectedField}
             onChange={e => setSelectedField(e.target.value)}
-            className="bg-transparent border-none text-xs p-0 pr-4"
+            className="bg-transparent border-none text-xs dark:text-gray-200 p-0 pr-4"
           >
             <option value="">Select field...</option>
             {availableFields.map(f => (
@@ -102,11 +102,11 @@ export default function FilterBar({
           </select>
           {selectedField && (
             <>
-              <span className="text-gray-400">=</span>
+              <span className="text-gray-400 dark:text-gray-500">=</span>
               <select
                 value=""
                 onChange={e => handleAddValue(e.target.value)}
-                className="bg-transparent border-none text-xs p-0 pr-4"
+                className="bg-transparent border-none text-xs dark:text-gray-200 p-0 pr-4"
               >
                 <option value="">Select value...</option>
                 {newFilterOptions.map(v => (
@@ -117,13 +117,13 @@ export default function FilterBar({
           )}
           <button
             onClick={() => { setAdding(false); setSelectedField(''); }}
-            className="text-gray-400 hover:text-gray-700 font-bold"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-bold"
           >
             &times;
           </button>
         </span>
       ) : loading && filterFields.length === 0 ? (
-        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-gray-400">
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-gray-400 dark:text-gray-500">
           <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -134,7 +134,7 @@ export default function FilterBar({
         availableFields.length > 0 && (
           <button
             onClick={() => setAdding(true)}
-            className="px-2 py-1 rounded text-xs text-blue-600 hover:bg-blue-50 border border-blue-200 border-dashed"
+            className="px-2 py-1 rounded text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-700 border-dashed"
           >
             + Add filter
           </button>
@@ -144,7 +144,7 @@ export default function FilterBar({
       {myActiveFilters.length > 1 && (
         <button
           onClick={handleClearAll}
-          className="px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-100"
+          className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
           title="Clear all filters"
         >
           Clear all

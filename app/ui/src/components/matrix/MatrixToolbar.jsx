@@ -39,20 +39,20 @@ export default function MatrixToolbar({
           onRemoveFilter={onRemoveFilter}
         />
 
-        <div className="border-l border-gray-300 h-5 mx-1" />
+        <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
 
         <input
           type="text"
           value={filterText}
           onChange={e => setFilterText(e.target.value)}
           placeholder="Search users or resources..."
-          className="px-2 py-1 border border-gray-300 rounded text-xs w-44"
+          className="px-2 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:placeholder-gray-500 rounded text-xs w-44"
         />
 
-        <div className="border-l border-gray-300 h-5 mx-1" />
+        <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
 
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-600 whitespace-nowrap">Users:</label>
+          <label className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">Users:</label>
           <input
             type="range"
             min={5}
@@ -70,20 +70,20 @@ export default function MatrixToolbar({
             className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
               userLimit <= 0
                 ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
             title={userLimit <= 0 ? 'Click to limit to 25 users' : 'Click to show all users'}
           >
             All
           </button>
-          <span className="text-xs text-gray-700 font-medium tabular-nums w-8 text-right">
+          <span className="text-xs text-gray-700 dark:text-gray-300 font-medium tabular-nums w-8 text-right">
             {userLimit <= 0 ? stats.totalUsers : Math.min(userLimit, stats.totalUsers)}
           </span>
         </div>
 
-        <div className="text-xs text-gray-500 ml-auto">
+        <div className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
           {stats.users < stats.totalUsers ? (
-            <span className="text-amber-600 font-medium" title={
+            <span className="text-amber-600 dark:text-amber-400 font-medium" title={
               userLimit > 0 && stats.users >= userLimit
                 ? `Slider limits to ${userLimit} users`
                 : `${stats.totalUsers - stats.users} users have no assignments and are not shown`
@@ -100,7 +100,7 @@ export default function MatrixToolbar({
 
       {/* Row 2: Managed toggle + actions */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <div className="inline-flex rounded border border-gray-300 overflow-hidden">
+        <div className="inline-flex rounded border border-gray-300 dark:border-gray-600 overflow-hidden">
           {[
             { key: 'all',       label: 'All' },
             { key: 'unmanaged', label: 'Unmanaged' },
@@ -113,7 +113,7 @@ export default function MatrixToolbar({
               className={`px-2 py-1 text-xs font-medium transition-colors ${
                 managedFilter === opt.key
                   ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-50'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               {opt.label}
@@ -121,7 +121,7 @@ export default function MatrixToolbar({
           ))}
         </div>
 
-        <div className="border-l border-gray-300 h-5 mx-1" />
+        <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
 
         <button
           onClick={onExportExcel}
@@ -141,8 +141,8 @@ export default function MatrixToolbar({
           }}
           className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
             copied
-              ? 'bg-green-50 text-green-700 border-green-300'
-              : 'text-gray-600 hover:bg-gray-100 border-gray-200'
+              ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600'
           }`}
           title="Copy shareable link to clipboard"
         >
@@ -151,10 +151,10 @@ export default function MatrixToolbar({
 
         {hasCustomRowOrder && (
           <>
-            <div className="border-l border-gray-300 h-5 mx-1" />
+            <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
             <button
               onClick={onResetRowOrder}
-              className="px-2 py-1 rounded text-xs text-gray-600 hover:bg-gray-100 border border-gray-200"
+              className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
               title="Reset row order to default"
             >
               Reset Rows
@@ -164,10 +164,10 @@ export default function MatrixToolbar({
 
         {hasExpandableGroups && (
           <>
-            <div className="border-l border-gray-300 h-5 mx-1" />
+            <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
             <button
               onClick={onExpandAll}
-              className="px-2 py-1 rounded text-xs text-gray-600 hover:bg-gray-100 border border-gray-200"
+              className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
               title="Expand all nested groups (up to 4 levels)"
             >
               Expand All
@@ -175,7 +175,7 @@ export default function MatrixToolbar({
             {hasExpandedGroups && (
               <button
                 onClick={onCollapseAll}
-                className="px-2 py-1 rounded text-xs text-gray-600 hover:bg-gray-100 border border-gray-200"
+                className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
                 title="Collapse all nested groups"
               >
                 Collapse All
