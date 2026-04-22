@@ -192,14 +192,14 @@ The runner reconciles the plugin output with existing `Contexts` rows where `sou
 
 ### 4.2 Initial plugin set
 
-| Plugin | Target | Source | Replaces |
+| Plugin | Target | Source | Notes |
 |---|---|---|---|
-| `manager-hierarchy` | Identity | `Principals.managerId` joined to `Identities` | OrgChart logic in Entra crawler + `/api/org-chart` derived tree |
-| `department-tree` | Identity | `Principals.department` parsed by separator | The current `refresh-contexts` derived OrgUnit tree |
-| `ad-ou-from-dn` | Identity | `Principals.distinguishedName` parsed | New |
-| `app-grouping-by-pattern` | Resource | `Resources.displayName` regex/prefix | New (covers the "all groups for one app" example) |
-| `llm-resource-cluster` | Resource | LLM over resources within a system | The current Risk Scoring clusters |
-| `business-process-llm` | Resource | LLM seeded with a process description | New (covers the "procurement process" example) |
+| `manager-hierarchy` | Principal | `Principals.managerId` chain | Node displayName is `"<Department> (<Manager name>)"` when available. Replaces the old OrgChart logic in the Entra crawler + the `/api/org-chart` derived tree. |
+| `department-tree` | Principal | `Principals.department` parsed by separator | Replaces the former `refresh-contexts` derived OrgUnit tree. |
+| `ad-ou-from-dn` | Principal | LDAP DN (default: `extendedAttributes.onPremisesDistinguishedName`) | Field source is configurable via the `dnField` parameter. |
+| `app-grouping-by-pattern` | Resource | `Resources.displayName` regex | One bucket per `{name, regex}` pair; first-match wins; optional fallback bucket. |
+| `resource-cluster` | Resource | `Resources.displayName` tokenised + indexed | Deterministic, non-LLM. See [`resource-cluster-algorithm.md`](resource-cluster-algorithm.md). Replaces the former stem-based Risk-Scoring clusters. |
+| `business-process-llm` | Resource | LLM seeded with a process description | Registered with parameter shape; run loop still a stub. |
 
 ### 4.3 Where plugins run
 
