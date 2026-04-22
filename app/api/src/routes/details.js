@@ -478,7 +478,7 @@ router.get('/access-package/:id', async (req, res) => {
       apResult = await timedRequest(pool, 'ap-attributes', res)
         .input('id', apId)
         .query(`
-        SELECT ap.*, c."displayName" AS catalogName
+        SELECT ap.*, c."displayName" AS "catalogName"
         FROM "Resources" ap
         LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
         WHERE ap.id = @id AND ap."resourceType" = 'BusinessRole'
@@ -738,7 +738,7 @@ router.get('/access-package/:id/requests', async (req, res) => {
         SELECT
           req.id, req."requestType", req."requestState", req."requestStatus",
           req.justification, req."createdDateTime", req."completedDateTime",
-          u."displayName" AS requestorDisplayName, u.email AS requestorUPN
+          u."displayName" AS "requestorDisplayName", u.email AS "requestorUPN"
         FROM "AssignmentRequests" req
         LEFT JOIN "Principals" u ON req."requestorId" = u.id
         WHERE req."resourceId" = @id
