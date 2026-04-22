@@ -238,7 +238,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
         left={<AttributesTable entries={attributeEntries} />}
         right={
           <div className="space-y-4">
-            <div className="bg-white border border-gray-200 rounded-lg p-3">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
               <EntityGraph
                 centerLabel="Business Role"
                 centerSubLabel={attributes.displayName}
@@ -247,7 +247,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
                 onNodeClick={handleNodeClick}
               />
               {activeKey && (
-                <div className="text-xs text-gray-400 text-center pb-2">
+                <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-2">
                   Showing <span className="font-medium text-gray-600">{nodes.find(n => n.key === activeKey)?.label}</span>
                   {' — '}
                   <button onClick={() => setActiveKey(null)} className="text-gray-500 hover:text-gray-700 underline">clear</button>
@@ -258,7 +258,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
             {activeKey ? (
               <APRelationshipList nodeKey={activeKey} items={listCache[activeKey]} loading={listLoading} onOpenDetail={onOpenDetail} />
             ) : (
-              <div className="bg-white border border-dashed border-gray-200 rounded-lg p-6 text-center">
+              <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
                 <p className="text-sm text-gray-400">Click a node in the graph to see its details.</p>
               </div>
             )}
@@ -276,7 +276,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
           loading={historyLoading}
         >
           {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No changes recorded</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No changes recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -333,9 +333,9 @@ function APRelationshipList({ nodeKey, items, loading, onOpenDetail }) {
 
 function ListShell({ count, children }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700">Selected</h3>
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Selected</h3>
         <span className="text-xs text-gray-500">{count}</span>
       </div>
       <div className="max-h-[460px] overflow-y-auto">{children}</div>
@@ -348,7 +348,7 @@ function AssignmentsRows({ items, onOpenDetail }) {
     <ListShell count={items.length}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+          <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 sticky top-0">
             <th className="px-4 py-2 font-medium">User</th>
             <th className="px-4 py-2 font-medium">State</th>
             <th className="px-4 py-2 font-medium">Status</th>
@@ -357,7 +357,7 @@ function AssignmentsRows({ items, onOpenDetail }) {
         </thead>
         <tbody>
           {items.map((a, i) => (
-            <tr key={(a.principalId || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+            <tr key={(a.principalId || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/40">
               <td className="px-4 py-2">
                 {a.principalId ? (
                   <button onClick={() => onOpenDetail?.('user', a.principalId, a.targetDisplayName)}
@@ -392,7 +392,7 @@ function ResourceRoleRows({ items, onOpenDetail }) {
     <ListShell count={items.length}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+          <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 sticky top-0">
             <th className="px-4 py-2 font-medium">Resource</th>
             <th className="px-4 py-2 font-medium">Role</th>
             <th className="px-4 py-2 font-medium">Type</th>
@@ -402,7 +402,7 @@ function ResourceRoleRows({ items, onOpenDetail }) {
           {items.map((rr, i) => {
             const name = rr.resourceDisplayName || rr.scopeDisplayName || rr.groupDisplayName;
             return (
-              <tr key={(rr.childResourceId || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+              <tr key={(rr.childResourceId || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/40">
                 <td className="px-4 py-2">
                   {rr.childResourceId ? (
                     <button onClick={() => onOpenDetail?.('resource', rr.childResourceId, name)}
@@ -436,7 +436,7 @@ function PoliciesRows({ items }) {
     <ListShell count={items.length}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+          <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 sticky top-0">
             <th className="px-4 py-2 font-medium">Name</th>
             <th className="px-4 py-2 font-medium">Type</th>
             <th className="px-4 py-2 font-medium">Scope</th>
@@ -444,7 +444,7 @@ function PoliciesRows({ items }) {
         </thead>
         <tbody>
           {items.map((p, i) => (
-            <tr key={(p.id || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+            <tr key={(p.id || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/40">
               <td className="px-4 py-2">
                 <div className="text-gray-900 font-medium">{p.displayName || '—'}</div>
                 {p.description && <div className="text-xs text-gray-400 mt-0.5 truncate max-w-xs" title={p.description}>{p.description}</div>}
@@ -479,7 +479,7 @@ function ReviewsRows({ items }) {
     <ListShell count={items.length}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+          <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 sticky top-0">
             <th className="px-4 py-2 font-medium">User</th>
             <th className="px-4 py-2 font-medium">Reviewer</th>
             <th className="px-4 py-2 font-medium">Decision</th>
@@ -488,7 +488,7 @@ function ReviewsRows({ items }) {
         </thead>
         <tbody>
           {items.map((r, i) => (
-            <tr key={(r.id || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+            <tr key={(r.id || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/40">
               <td className="px-4 py-2 text-gray-900">{r.principalDisplayName || '—'}</td>
               <td className="px-4 py-2 text-gray-600">{r.reviewedByDisplayName || '—'}</td>
               <td className="px-4 py-2">
@@ -510,7 +510,7 @@ function RequestsRows({ items }) {
     <ListShell count={items.length}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200 sticky top-0">
+          <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 sticky top-0">
             <th className="px-4 py-2 font-medium">Requestor</th>
             <th className="px-4 py-2 font-medium">State</th>
             <th className="px-4 py-2 font-medium">Created</th>
@@ -518,7 +518,7 @@ function RequestsRows({ items }) {
         </thead>
         <tbody>
           {items.map((r, i) => (
-            <tr key={(r.id || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50">
+            <tr key={(r.id || '') + ':' + i} className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/40">
               <td className="px-4 py-2">
                 <div className="text-gray-900">{r.requestorDisplayName || '—'}</div>
                 {r.requestorUPN && <div className="text-xs text-gray-400">{r.requestorUPN}</div>}
@@ -542,7 +542,7 @@ function CatalogRows({ items }) {
     <ListShell count={items.length}>
       <div className="divide-y divide-gray-50">
         {items.map(c => (
-          <div key={c.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
+          <div key={c.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/40">
             <div className="min-w-0 flex-1">
               <span className="text-sm font-medium text-gray-900">{c.displayName || c.id}</span>
               {c.description && <div className="text-xs text-gray-400">{c.description}</div>}
