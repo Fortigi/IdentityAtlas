@@ -141,6 +141,10 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
   const totalPages = Math.ceil(memberTotal / PAGE_SIZE);
   const isManual = detail.attributes.variant === 'manual';
   const isGenerated = detail.attributes.variant === 'generated';
+  // Analyst-owned membership writes work for both manual + generated
+  // contexts. Synced is the only variant we refuse — the source system
+  // would overwrite the analyst edit on the next crawl.
+  const canEditMembers = isManual || isGenerated;
 
   async function removeMember(memberId) {
     try {
@@ -260,8 +264,14 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
           </div>
         </div>
 
-        {isManual && (
+        {canEditMembers && (
           <div className="mb-4">
+            {isGenerated && (
+              <p className="text-[11px] text-gray-500 mb-1">
+                Manually-added members (<code>addedBy=analyst</code>) survive future plugin runs.
+                Algorithm-produced members are replaced on every run.
+              </p>
+            )}
             <ContextMemberPicker
               contextId={contextId}
               targetType={detail.attributes.targetType}
@@ -285,7 +295,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                   <th className="pb-2 font-medium">Job Title</th>
                   <th className="pb-2 font-medium">Type</th>
                   <th className="pb-2 font-medium">Status</th>
-                  {isManual && <th className="pb-2 font-medium"></th>}
+                  {canEditMembers && <th className="pb-2 font-medium"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -310,16 +320,16 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                         </span>
                       )}
                     </td>
-                    {isManual && (
+                    {canEditMembers && (
                       <td className="py-1.5 text-right">
                         {includeDescendants ? (
                           <span className="text-[11px] text-gray-400" title="Turn off sub-context view to remove members">—</span>
                         ) : (
-                          <button
-                            onClick={e => { e.stopPropagation(); removeMember(m.id); }}
-                            className="text-[11px] text-red-600 hover:text-red-800"
-                            title="Remove from context"
-                          >Remove</button>
+                          <RemoveMemberButton
+                            memberRow={m}
+                            onRemove={removeMember}
+                            isGenerated={isGenerated}
+                          />
                         )}
                       </td>
                     )}
@@ -402,6 +412,31 @@ function ContextHeader({ attrs, onClose }) {
         </button>
       </div>
     </div>
+  );
+}
+
+// Per-row Remove button. On a manual context, every member was added by
+// an analyst and remove is final. On a generated context, members have
+// addedBy='algorithm' (plugin output) or 'analyst' (manual addition);
+// the remove button differentiates so the analyst knows whether the row
+// will come back on the next plugin run.
+function RemoveMemberButton({ memberRow, onRemove, isGenerated }) {
+  const isAlgoRow = memberRow.addedBy === 'algorithm';
+  if (isGenerated && isAlgoRow) {
+    return (
+      <button
+        onClick={e => { e.stopPropagation(); onRemove(memberRow.id); }}
+        className="text-[11px] text-amber-600 hover:text-amber-800"
+        title="Algorithm-produced member — removing now; the next plugin run will re-add it unless you tune plugin parameters."
+      >Remove (will return)</button>
+    );
+  }
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); onRemove(memberRow.id); }}
+      className="text-[11px] text-red-600 hover:text-red-800"
+      title="Remove from context"
+    >Remove</button>
   );
 }
 
