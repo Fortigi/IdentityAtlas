@@ -7,6 +7,18 @@ describe('tokenize', () => {
       .toEqual(['axiom']);
   });
 
+  it('treats parens / brackets / punctuation as separators', () => {
+    expect(tokenize('Eigenaren van Smart-Infra (INKOOP EN CONTRACTMANAGEMENT)'))
+      .toEqual(['smart', 'infra', 'inkoop', 'contractmanagement']);
+    expect(tokenize('Role: Procurement+Invoicing; Team=A&B'))
+      .toEqual(['procurement', 'invoicing']);
+  });
+
+  it('strips Dutch connective tokens like "van"', () => {
+    expect(tokenize('AG_ROL_DMS_EIGENAREN VAN FINANCE (INKOOP)'))
+      .toEqual(['dms', 'finance', 'inkoop']);
+  });
+
   it('lowercases tokens', () => {
     expect(tokenize('APP_AXIOM_ADMINS')).toEqual(['axiom']);
     // "readers" is a stopword, but "mixedcase" and "axiom" both survive.
