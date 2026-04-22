@@ -1,5 +1,6 @@
 import MatrixCell from './MatrixCell';
 import { getAccessPackageColor } from './MatrixColumnHeaders';
+import { useIsDark } from '../../contexts/ThemeContext';
 
 // Map AP resource role names to the same badge style used in user/group cells.
 // roleDisplayName from Graph can be "Member", "Owner", "Eligible Member", etc.
@@ -37,6 +38,7 @@ export default function MatrixGroupRow({
   sortableAttributes,
   sortableListeners,
 }) {
+  const isDark = useIsDark();
   const memberCount = group.memberCount;
   const isOwnerRow = !!group.realGroupId && !group.isNestedRow;
 
@@ -46,25 +48,25 @@ export default function MatrixGroupRow({
   const isExpanded = expandedGroups?.has(realGidForExpand);
   const isLoadingNested = loadingNested?.has(realGidForExpand);
 
-  const nestedBg = group.isNestedRow ? 'bg-gray-50/60' : 'bg-white';
+  const nestedBg = group.isNestedRow ? 'bg-gray-50/60 dark:bg-gray-700/40' : 'bg-white dark:bg-gray-800';
 
   return (
-    <tr ref={sortableRef} style={sortableStyle || {}} className={`hover:bg-gray-50/30 ${group.isNestedRow ? 'bg-gray-50/40' : ''}`}>
+    <tr ref={sortableRef} style={sortableStyle || {}} className={`hover:bg-gray-50/30 dark:hover:bg-gray-700/30 ${group.isNestedRow ? 'bg-gray-50/40 dark:bg-gray-700/30' : ''}`}>
       {/* Drag handle */}
       <td
-        className={`sticky left-0 z-10 ${nestedBg} border-r border-b border-gray-200 px-1 py-0 text-center ${!group.isNestedRow ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`sticky left-0 z-10 ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-1 py-0 text-center ${!group.isNestedRow ? 'cursor-grab active:cursor-grabbing' : ''}`}
         style={{ minWidth: '24px' }}
         {...(group.isNestedRow ? {} : (sortableAttributes || {}))}
         {...(group.isNestedRow ? {} : (sortableListeners || {}))}
       >
         {!group.isNestedRow && (
-          <span className="text-gray-300 text-xs select-none">&#x2630;</span>
+          <span className="text-gray-300 dark:text-gray-600 text-xs select-none">&#x2630;</span>
         )}
       </td>
 
       {/* Resource Name column - sticky left */}
       <td
-        className={`sticky ${nestedBg} border-r border-b border-gray-200 px-2 py-0.5 text-xs text-gray-900 font-medium`}
+        className={`sticky ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-900 dark:text-gray-100 font-medium`}
         style={{ left: '24px', minWidth: '275px', maxWidth: '275px', zIndex: 10 }}
         title={group.displayName}
       >
@@ -72,7 +74,7 @@ export default function MatrixGroupRow({
           {canExpand && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleExpand?.(realGidForExpand); }}
-              className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200"
+              className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
               title={isExpanded ? 'Collapse nested groups' : 'Expand nested groups'}
             >
               {isLoadingNested ? (
@@ -86,9 +88,9 @@ export default function MatrixGroupRow({
             </button>
           )}
           {group.isNestedRow && (
-            <span className="text-gray-300 text-[10px] mr-0.5 flex-shrink-0">{'\u2514'}</span>
+            <span className="text-gray-300 dark:text-gray-600 text-[10px] mr-0.5 flex-shrink-0">{'\u2514'}</span>
           )}
-          <div className="truncate cursor-pointer hover:text-blue-600"
+          <div className="truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
             onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}>
             {group.displayName}
           </div>
@@ -97,7 +99,7 @@ export default function MatrixGroupRow({
 
       {/* Type column - sticky left */}
       <td
-        className={`sticky ${nestedBg} border-r border-b border-gray-200 px-2 py-0.5 text-xs text-gray-500 truncate`}
+        className={`sticky ${nestedBg} border-r border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 truncate`}
         style={{ left: '299px', minWidth: '180px', maxWidth: '180px', zIndex: 10 }}
         title={group.groupType}
       >
@@ -132,7 +134,7 @@ export default function MatrixGroupRow({
         if (managed) {
           apCount = relevantApIds.length;
           const firstIdx = apIdToIndex?.get(relevantApIds[0]);
-          if (firstIdx != null) apColor = getAccessPackageColor(firstIdx);
+          if (firstIdx != null) apColor = getAccessPackageColor(firstIdx, isDark);
           apNames = relevantApIds.map(id => {
             const ap = accessPackages.find(a => a.id.toLowerCase() === id);
             return ap ? ap.displayName : id;
@@ -192,9 +194,9 @@ export default function MatrixGroupRow({
         return (
           <td
             key={ap.id}
-            className={`px-0 py-0 text-center border-r border-b border-gray-100 ${idx === 0 ? 'border-l-2 border-l-indigo-300' : isCategoryBoundary ? 'border-l-2 border-l-gray-400' : ''}`}
+            className={`px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700 ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
             style={{
-              backgroundColor: hasMapping ? getAccessPackageColor(idx) : undefined,
+              backgroundColor: hasMapping ? getAccessPackageColor(idx, isDark) : undefined,
               minWidth: '24px',
               width: '24px',
               height: '24px',
@@ -217,15 +219,15 @@ export default function MatrixGroupRow({
       })}
 
       {/* Right-side metadata: # | Description | Tags */}
-      <td className="border-l-2 border-b border-gray-200 px-2 py-0.5 text-xs text-gray-600 text-center"
+      <td className="border-l-2 border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 text-center"
           style={{ minWidth: '40px' }}>
         {memberCount}
       </td>
-      <td className="border-b border-gray-200 px-2 py-0.5 text-xs text-gray-400 max-w-[500px]"
+      <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-400 dark:text-gray-500 max-w-[500px]"
           title={group.description}>
         <div className="truncate">{group.description}</div>
       </td>
-      <td className="border-b border-gray-200 px-1 py-0.5"
+      <td className="border-b border-gray-200 dark:border-gray-700 px-1 py-0.5"
           style={{ minWidth: '120px', maxWidth: '180px' }}>
         <div className="flex flex-wrap gap-0.5">
           {(group.tags || []).map(t => (
