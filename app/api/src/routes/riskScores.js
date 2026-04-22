@@ -127,7 +127,7 @@ router.get('/risk-scores', async (req, res) => {
 
     // Top 10 principals by score
     const topUsers = await timedRequest(p, 'risk-top-users', res).query(`
-      SELECT rs.*, p."displayName", p.email AS userPrincipalName, p.department
+      SELECT rs.*, p."displayName", p.email AS "userPrincipalName", p.department
       FROM "RiskScores" rs
       INNER JOIN "Principals" p ON rs."entityId" = p.id AND ${TEMPORAL_FILTER}
       WHERE rs."entityType" = 'Principal'
@@ -164,7 +164,7 @@ router.get('/risk-scores', async (req, res) => {
     let resourceTypeBreakdown = null;
     try {
       const typeResult = await timedRequest(p, 'risk-resource-types', res).query(`
-        SELECT r."resourceType", COUNT(*) AS count, AVG(CAST(rs."riskScore" AS FLOAT)) AS avgScore
+        SELECT r."resourceType", COUNT(*) AS count, AVG(CAST(rs."riskScore" AS FLOAT)) AS "avgScore"
         FROM "RiskScores" rs
         INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${TEMPORAL_FILTER}
         WHERE rs."entityType" = 'Resource'
@@ -254,7 +254,7 @@ router.get('/risk-scores/users', async (req, res) => {
     request.input('offset', offset);
     request.input('limit', limit);
     const result = await request.query(`
-      SELECT rs.*, p."displayName", p.email AS userPrincipalName, p.department, p."jobTitle", p."companyName"
+      SELECT rs.*, p."displayName", p.email AS "userPrincipalName", p.department, p."jobTitle", p."companyName"
       FROM "RiskScores" rs
       INNER JOIN "Principals" p ON rs."entityId" = p.id AND ${TEMPORAL_FILTER}
       ${whereClause}
@@ -385,7 +385,7 @@ router.get('/risk-scores/business-roles', async (req, res) => {
     request.input('limit', limit);
     const result = await request.query(`
       SELECT rs.*, br."displayName", br.description, br."catalogId",
-             c."displayName" AS catalogName
+             c."displayName" AS "catalogName"
       FROM "RiskScores" rs
       INNER JOIN "Resources" br ON rs."entityId" = br.id AND br."resourceType" = 'BusinessRole' AND ${TEMPORAL_FILTER}
       LEFT JOIN "GovernanceCatalogs" c ON br."catalogId" = c.id AND ${TEMPORAL_FILTER}
@@ -449,7 +449,7 @@ router.get('/risk-scores/contexts', async (req, res) => {
     request.input('limit', limit);
     const result = await request.query(`
       SELECT rs.*, ou."displayName", ou.department, ou."memberCount", ou."managerId",
-             p."displayName" AS managerName
+             p."displayName" AS "managerName"
       FROM "RiskScores" rs
       INNER JOIN "Contexts" ou ON rs."entityId" = ou.id AND ${TEMPORAL_FILTER}
       LEFT JOIN "Principals" p ON ou."managerId" = p.id AND ${TEMPORAL_FILTER}

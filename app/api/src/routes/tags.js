@@ -241,7 +241,7 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
     let userTableForTags = 'GraphUsers';
     if (entityType === 'user') {
       try {
-        const tc = await p.request().query(`SELECT to_regclass('"Principals"') AS principalsExists`);
+        const tc = await p.request().query(`SELECT to_regclass('"Principals"') AS "principalsExists"`);
         if (tc.recordset[0].principalsExists) userTableForTags = 'Principals';
       } catch { /* ignore */ }
     }
