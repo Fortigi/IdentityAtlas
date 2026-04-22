@@ -22,16 +22,11 @@ const GREEN_LABEL    = '#4d7c0f';
 const GRAY_DIM       = '#d1d5db';
 const GRAY_DIM_TEXT  = '#9ca3af';
 
-// Accent colors for active relationship nodes — pick one to hint at category
-// (e.g. blue for memberships, amber for ownership, red for risk-heavy).
-const ACCENTS = {
-  lime:    { fill: 'url(#eg-grad-lime)',    stroke: '#4d7c0f', text: '#1a2e05', label: '#365314' },
-  blue:    { fill: 'url(#eg-grad-blue)',    stroke: '#1d4ed8', text: '#0c1950', label: '#1e3a8a' },
-  purple:  { fill: 'url(#eg-grad-purple)',  stroke: '#6d28d9', text: '#2e0a5a', label: '#5b21b6' },
-  amber:   { fill: 'url(#eg-grad-amber)',   stroke: '#b45309', text: '#451a03', label: '#92400e' },
-  red:     { fill: 'url(#eg-grad-red)',     stroke: '#b91c1c', text: '#450a0a', label: '#991b1b' },
-  emerald: { fill: 'url(#eg-grad-emerald)', stroke: '#047857', text: '#022c1c', label: '#065f46' },
-};
+// Visual language matches the dashboard BrainGraph — a single lime/green
+// palette for every active relationship node. Differentiation is carried
+// by label + position, not color; the accent prop is accepted but ignored
+// so callers don't have to change.
+const LIME_ACCENT = { fill: 'url(#eg-grad-lime)', stroke: '#4d7c0f', text: '#1a2e05', label: '#365314' };
 
 function formatCount(n) {
   if (n == null) return '';
@@ -71,35 +66,11 @@ export default function EntityGraph({ centerLabel, centerSubLabel, nodes = [], a
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" style={{ maxHeight: '420px' }}>
       <defs>
+        {/* Matches the dashboard BrainGraph gradient. */}
         <radialGradient id="eg-grad-lime" cx="35%" cy="30%">
           <stop offset="0%" stopColor="#d9f99d" />
-          <stop offset="55%" stopColor="#a3e635" />
+          <stop offset="40%" stopColor="#a3e635" />
           <stop offset="100%" stopColor="#65a30d" />
-        </radialGradient>
-        <radialGradient id="eg-grad-blue" cx="35%" cy="30%">
-          <stop offset="0%" stopColor="#dbeafe" />
-          <stop offset="55%" stopColor="#60a5fa" />
-          <stop offset="100%" stopColor="#2563eb" />
-        </radialGradient>
-        <radialGradient id="eg-grad-purple" cx="35%" cy="30%">
-          <stop offset="0%" stopColor="#ede9fe" />
-          <stop offset="55%" stopColor="#a78bfa" />
-          <stop offset="100%" stopColor="#7c3aed" />
-        </radialGradient>
-        <radialGradient id="eg-grad-amber" cx="35%" cy="30%">
-          <stop offset="0%" stopColor="#fef3c7" />
-          <stop offset="55%" stopColor="#fbbf24" />
-          <stop offset="100%" stopColor="#d97706" />
-        </radialGradient>
-        <radialGradient id="eg-grad-red" cx="35%" cy="30%">
-          <stop offset="0%" stopColor="#fee2e2" />
-          <stop offset="55%" stopColor="#f87171" />
-          <stop offset="100%" stopColor="#dc2626" />
-        </radialGradient>
-        <radialGradient id="eg-grad-emerald" cx="35%" cy="30%">
-          <stop offset="0%" stopColor="#d1fae5" />
-          <stop offset="55%" stopColor="#34d399" />
-          <stop offset="100%" stopColor="#059669" />
         </radialGradient>
         <radialGradient id="eg-grad-dim" cx="35%" cy="30%">
           <stop offset="0%" stopColor="#f7fee7" />
@@ -153,7 +124,7 @@ export default function EntityGraph({ centerLabel, centerSubLabel, nodes = [], a
         {positioned.map((n, i) => {
           const active = (n.count || 0) > 0;
           const selected = activeKey === n.key;
-          const accent = ACCENTS[n.accent] || ACCENTS.lime;
+          const accent = LIME_ACCENT;
           const r = radiusFor(n.count);
           const clickable = active && onNodeClick;
           return (
