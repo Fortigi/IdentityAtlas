@@ -315,13 +315,25 @@ router.patch('/contexts/:id', async (req, res) => {
 });
 
 // ─── DELETE /api/contexts/:id ────────────────────────────────────────
+// Manual and generated contexts are both deletable here. Synced contexts
+// are owned by their source system (crawler) and re-created on the next
+// crawl — deleting them through the API would just get them back.
+//
+// Deleting a generated context is legitimate when the analyst spots a
+// low-signal cluster and wants it gone; re-running the same plugin with
+// the same parameters will re-create it, so for persistent removal the
+// caller should also adjust plugin parameters (e.g., additionalStopwords).
 router.delete('/contexts/:id', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
   const ctx = await db.queryOne(`SELECT variant FROM "Contexts" WHERE id = $1`, [req.params.id]);
   if (!ctx) return res.status(404).json({ error: 'Context not found' });
-  if (ctx.variant !== 'manual') return res.status(400).json({ error: 'Only manual contexts can be deleted via this endpoint' });
+  if (ctx.variant === 'synced') {
+    return res.status(400).json({
+      error: 'Synced contexts are owned by their source system and can\'t be deleted via the API — remove the upstream record instead.',
+    });
+  }
 
   try {
     // ON DELETE CASCADE on parentContextId + the ContextMembers FK handles the rest.

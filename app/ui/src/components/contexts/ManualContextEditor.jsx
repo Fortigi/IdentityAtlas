@@ -34,16 +34,38 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
     setError(null); setSaved(false);
   }, [attrs.id, attrs.displayName, attrs.description, attrs.ownerUserId, attrs.parentContextId]);
 
-  // Load parent candidates: roots + sub-contexts of the same target type,
-  // excluding self (backend rejects cycles but we hide the obviously-wrong
-  // options so the user isn't tempted).
+  // Load parent candidates: every context of the same targetType (roots
+  // AND descendants) so a manual context can graft under any node in a
+  // generated tree — e.g., a sub-team under a generated manager node.
+  // We use /api/contexts/tree which returns the full nested structure,
+  // then flatten with depth indentation so the dropdown shows hierarchy.
+  // Self and self's descendants are excluded to prevent cycles (the
+  // server also rejects them, but it's nicer to hide the options).
   const loadCandidates = useCallback(async () => {
     try {
-      const r = await authFetch(`/api/contexts?targetType=${encodeURIComponent(attrs.targetType)}`);
-      if (r.ok) {
-        const body = await r.json();
-        setCandidates((body.data || []).filter(c => c.id !== contextId));
-      }
+      const r = await authFetch('/api/contexts/tree');
+      if (!r.ok) return;
+      const roots = await r.json();
+      const flat = [];
+      const descendantIds = new Set();
+      (function walk(nodes, depth, inSelfSubtree) {
+        for (const n of nodes) {
+          const isSelf = n.id === contextId;
+          const inSub = inSelfSubtree || isSelf;
+          if (inSub) descendantIds.add(n.id);
+          if (!isSelf && !inSub && n.targetType === attrs.targetType) {
+            flat.push({
+              id: n.id,
+              depth,
+              displayName: n.displayName,
+              contextType: n.contextType,
+              variant: n.variant,
+            });
+          }
+          if (n.children?.length) walk(n.children, depth + 1, inSub);
+        }
+      })(roots, 0, false);
+      setCandidates(flat);
     } catch { /* non-critical */ }
   }, [authFetch, attrs.targetType, contextId]);
 
@@ -127,16 +149,20 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
             className="w-full border rounded px-2 py-1 text-sm"
           />
         </Field>
-        <Field label="Parent" full help={`Picker is limited to ${attrs.targetType} trees.`}>
+        <Field
+          label="Parent"
+          full
+          help={`Any ${attrs.targetType}-targeted context (manual, synced, or generated). Indent shows tree depth.`}
+        >
           <select
             value={parentId || ''}
             onChange={e => setParentId(e.target.value || '')}
-            className="w-full border rounded px-2 py-1 text-sm"
+            className="w-full border rounded px-2 py-1 text-sm font-mono"
           >
             <option value="">(no parent — root)</option>
             {candidates.map(c => (
               <option key={c.id} value={c.id}>
-                {c.displayName} <span>({c.contextType})</span>
+                {indentFor(c.depth)}{c.displayName} · {c.contextType}
               </option>
             ))}
           </select>
@@ -180,6 +206,12 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
       </div>
     </div>
   );
+}
+
+// Non-breaking-space prefix so the <select> renders hierarchy indentation.
+// Ordinary spaces get collapsed by the browser in <option>.
+function indentFor(depth) {
+  return '\u00A0\u00A0'.repeat(depth) + (depth > 0 ? '└ ' : '');
 }
 
 function Field({ label, help, full, children }) {
