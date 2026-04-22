@@ -1,1 +1,0 @@
-- Fixed org chart direct reports not showing due to invalid ValidTo filtering (temporal tables were removed in v5)
