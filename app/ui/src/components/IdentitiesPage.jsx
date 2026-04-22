@@ -50,24 +50,24 @@ function VerifiedBadge({ verified }) {
 function OrphanedAccountsNotice({ orphanCount, onShowOrphans, allVisible }) {
   if (!Number(orphanCount)) return null;
   return (
-    <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
+    <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <svg className="w-5 h-5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
         <div>
           {allVisible
-            ? <><span className="text-sm font-medium text-orange-800">{orphanCount} identit{orphanCount !== 1 ? 'ies' : 'y'} have no HR anchor</span>
-                <span className="text-xs text-orange-600 ml-2">— no HR-authoritative account found. Re-run correlation with HR indicators to resolve.</span></>
-            : <><span className="text-sm font-medium text-orange-800">{orphanCount} orphaned account group{orphanCount !== 1 ? 's' : ''} not shown</span>
-                <span className="text-xs text-orange-600 ml-2">— correlated accounts with no HR-authoritative anchor</span></>
+            ? <><span className="text-sm font-medium text-orange-800 dark:text-orange-300">{orphanCount} identit{orphanCount !== 1 ? 'ies' : 'y'} have no HR anchor</span>
+                <span className="text-xs text-orange-600 dark:text-orange-400 ml-2">— no HR-authoritative account found. Re-run correlation with HR indicators to resolve.</span></>
+            : <><span className="text-sm font-medium text-orange-800 dark:text-orange-300">{orphanCount} orphaned account group{orphanCount !== 1 ? 's' : ''} not shown</span>
+                <span className="text-xs text-orange-600 dark:text-orange-400 ml-2">— correlated accounts with no HR-authoritative anchor</span></>
           }
         </div>
       </div>
       {!allVisible && (
         <button
           onClick={onShowOrphans}
-          className="text-xs text-orange-700 border border-orange-300 bg-white hover:bg-orange-50 px-3 py-1 rounded whitespace-nowrap"
+          className="text-xs text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-600 bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/50 px-3 py-1 rounded whitespace-nowrap"
         >
           Show orphaned accounts
         </button>
@@ -86,7 +86,7 @@ function OrphanBadge({ status }) {
     'no-regular-account': 'No Regular Account',
   };
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-700">
       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
       {labels[status] || status}
     </span>
@@ -110,15 +110,15 @@ function SummaryCards({ summary, hasHrColumns }) {
   const cards = hasHrColumns && summary.hrAnchoredCount != null ? [
     { label: 'Identities', value: summary.totalIdentities, color: 'text-emerald-700', primary: true },
     { label: 'Multi-Account', value: summary.multiAccountIdentities, color: 'text-blue-600' },
-    { label: 'Single Account', value: summary.singleAccountIdentities, color: 'text-gray-500' },
+    { label: 'Single Account', value: summary.singleAccountIdentities, color: 'text-gray-500 dark:text-gray-400' },
     { label: 'Verified', value: summary.verifiedCount, color: 'text-green-600' },
     { label: 'Avg Confidence', value: summary.avgConfidence ? `${Math.round(summary.avgConfidence)}%` : '—', color: 'text-indigo-600' },
-    { label: 'HR-Anchored', value: summary.hrAnchoredCount || 0, color: summary.hrAnchoredCount > 0 ? 'text-teal-600' : 'text-gray-400', title: 'Identities with a confirmed HR-authoritative account' },
-    { label: 'Orphaned', value: summary.orphanCount || 0, color: summary.orphanCount > 0 ? 'text-orange-600' : 'text-gray-400' },
+    { label: 'HR-Anchored', value: summary.hrAnchoredCount || 0, color: summary.hrAnchoredCount > 0 ? 'text-teal-600' : 'text-gray-400 dark:text-gray-500', title: 'Identities with a confirmed HR-authoritative account' },
+    { label: 'Orphaned', value: summary.orphanCount || 0, color: summary.orphanCount > 0 ? 'text-orange-600' : 'text-gray-400 dark:text-gray-500' },
   ] : [
-    { label: 'Total Identities', value: summary.totalIdentities, color: 'text-gray-900' },
+    { label: 'Total Identities', value: summary.totalIdentities, color: 'text-gray-900 dark:text-white' },
     { label: 'Multi-Account', value: summary.multiAccountIdentities, color: 'text-blue-600' },
-    { label: 'Single Account', value: summary.singleAccountIdentities, color: 'text-gray-500' },
+    { label: 'Single Account', value: summary.singleAccountIdentities, color: 'text-gray-500 dark:text-gray-400' },
     { label: 'Verified', value: summary.verifiedCount, color: 'text-green-600' },
     { label: 'Avg Confidence', value: summary.avgConfidence ? `${Math.round(summary.avgConfidence)}%` : '—', color: 'text-indigo-600' },
   ];
@@ -126,8 +126,8 @@ function SummaryCards({ summary, hasHrColumns }) {
   return (
     <div className={`grid gap-3 mb-4`} style={{ gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))` }}>
       {cards.map(c => (
-        <div key={c.label} title={c.title} className={`rounded-lg border px-4 py-3 ${c.primary ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
-          <div className="text-xs text-gray-500 mb-1">{c.label}</div>
+        <div key={c.label} title={c.title} className={`rounded-lg border px-4 py-3 ${c.primary ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'}`}>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{c.label}</div>
           <div className={`text-xl font-semibold ${c.color}`}>{c.value}</div>
         </div>
       ))}
@@ -142,14 +142,14 @@ function TypeDistribution({ distribution }) {
   const total = distribution.reduce((sum, d) => sum + d.cnt, 0);
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 mb-4">
-      <div className="text-xs text-gray-500 mb-2">Account Type Distribution</div>
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 mb-4">
+      <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Account Type Distribution</div>
       <div className="flex gap-4">
         {distribution.map(d => (
           <div key={d.accountType} className="flex items-center gap-2">
             <AccountTypeBadge type={d.accountType} />
-            <span className="text-sm text-gray-600">{d.cnt}</span>
-            <span className="text-xs text-gray-400">({Math.round(d.cnt / total * 100)}%)</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">{d.cnt}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">({Math.round(d.cnt / total * 100)}%)</span>
           </div>
         ))}
       </div>
@@ -238,8 +238,8 @@ function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefres
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="text-gray-400">Loading identity detail...</div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+        <div className="text-gray-400 dark:text-gray-500">Loading identity detail...</div>
       </div>
     );
   }
@@ -247,12 +247,12 @@ function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefres
   if (!identity) return null;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+      <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">{identity.displayName}</h3>
-          <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{identity.displayName}</h3>
+          <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
             <span>{identity.accountCount} account{identity.accountCount !== 1 ? 's' : ''}</span>
             <span>{identity.department || '—'}</span>
             <span>{identity.jobTitle || '—'}</span>
@@ -266,15 +266,15 @@ function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefres
             disabled={verifying}
             className={`text-xs px-3 py-1.5 rounded border ${
               identity.analystVerified
-                ? 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
-                : 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                ? 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                : 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-600 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/50'
             }`}
           >
             {identity.analystVerified ? 'Remove Verification' : 'Verify Identity'}
           </button>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -282,28 +282,28 @@ function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefres
       </div>
 
       {/* Identity attributes */}
-      <div className="px-6 py-3 border-b border-gray-100 grid grid-cols-4 gap-4 text-sm">
-        <div><span className="text-gray-500">Email:</span> <span className="text-gray-900">{identity.mail || '—'}</span></div>
-        <div><span className="text-gray-500">Employee ID:</span> <span className="text-gray-900">{identity.employeeId || '—'}</span></div>
-        <div><span className="text-gray-500">Company:</span> <span className="text-gray-900">{identity.companyName || '—'}</span></div>
-        <div><span className="text-gray-500">Location:</span> <span className="text-gray-900">{[identity.city, identity.country].filter(Boolean).join(', ') || '—'}</span></div>
+      <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700 grid grid-cols-4 gap-4 text-sm">
+        <div><span className="text-gray-500 dark:text-gray-400">Email:</span> <span className="text-gray-900 dark:text-white">{identity.mail || '—'}</span></div>
+        <div><span className="text-gray-500 dark:text-gray-400">Employee ID:</span> <span className="text-gray-900 dark:text-white">{identity.employeeId || '—'}</span></div>
+        <div><span className="text-gray-500 dark:text-gray-400">Company:</span> <span className="text-gray-900 dark:text-white">{identity.companyName || '—'}</span></div>
+        <div><span className="text-gray-500 dark:text-gray-400">Location:</span> <span className="text-gray-900 dark:text-white">{[identity.city, identity.country].filter(Boolean).join(', ') || '—'}</span></div>
       </div>
 
       {/* Correlation signals */}
       {identity.correlationSignals && (
-        <div className="px-6 py-2 border-b border-gray-100 text-xs text-gray-500">
+        <div className="px-6 py-2 border-b border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
           Signals: {identity.correlationSignals.split(',').map(s => (
-            <span key={s} className="inline-block bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded mr-1">{s.trim()}</span>
+            <span key={s} className="inline-block bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded mr-1">{s.trim()}</span>
           ))}
         </div>
       )}
 
       {/* Members table */}
       <div className="px-6 py-4">
-        <h4 className="text-sm font-medium text-gray-700 mb-3">Linked Accounts</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Linked Accounts</h4>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs text-gray-500 uppercase">
+            <tr className="border-b border-gray-200 dark:border-gray-700 text-left text-xs text-gray-500 dark:text-gray-400 uppercase">
               <th className="pb-2 pr-3">Account</th>
               <th className="pb-2 pr-3">UPN</th>
               <th className="pb-2 pr-3">Type</th>
@@ -318,21 +318,21 @@ function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefres
           </thead>
           <tbody>
             {members.map(m => (
-              <tr key={m.userId} className={`border-b border-gray-50 hover:bg-gray-50 ${m.analystOverride === 'rejected' ? 'opacity-50' : ''}`}>
+              <tr key={m.userId} className={`border-b border-gray-50 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${m.analystOverride === 'rejected' ? 'opacity-50' : ''}`}>
                 <td className="py-2 pr-3">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => onOpenDetail?.('user', m.userId, m.displayName)}
-                      className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                      className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
                     >
                       {m.displayName}
                     </button>
                     {m.isPrimary && (
-                      <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-200">Primary</span>
+                      <span className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-700">Primary</span>
                     )}
                   </div>
                 </td>
-                <td className="py-2 pr-3 text-gray-600 font-mono text-xs">{m.userPrincipalName}</td>
+                <td className="py-2 pr-3 text-gray-600 dark:text-gray-400 font-mono text-xs">{m.userPrincipalName}</td>
                 <td className="py-2 pr-3">
                   <div className="flex items-center gap-1">
                     <AccountTypeBadge type={m.accountType} />
@@ -347,34 +347,34 @@ function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefres
                 <td className="py-2 pr-3">
                   <span className={`inline-flex items-center gap-1 text-xs ${
                     m.accountEnabled === 'True' || m.userAccountEnabled === true
-                      ? 'text-green-600' : 'text-gray-400'
+                      ? 'text-green-600' : 'text-gray-400 dark:text-gray-500'
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${
                       m.accountEnabled === 'True' || m.userAccountEnabled === true
-                        ? 'bg-green-500' : 'bg-gray-300'
+                        ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
                     }`} />
                     {m.accountEnabled === 'True' || m.userAccountEnabled === true ? 'Enabled' : 'Disabled'}
                   </span>
                 </td>
                 <td className="py-2 pr-3"><ConfidenceBar confidence={m.signalConfidence} /></td>
-                <td className="py-2 pr-3 text-gray-600">{m.groupCount ?? '—'}</td>
-                <td className="py-2 pr-3 text-xs text-gray-500">
+                <td className="py-2 pr-3 text-gray-600 dark:text-gray-400">{m.groupCount ?? '—'}</td>
+                <td className="py-2 pr-3 text-xs text-gray-500 dark:text-gray-400">
                   {m.lastSignInDateTime ? new Date(m.lastSignInDateTime).toLocaleDateString() : '—'}
                 </td>
-                <td className="py-2 pr-3 text-xs text-gray-400 max-w-48 truncate" title={m.correlationSignals}>
+                <td className="py-2 pr-3 text-xs text-gray-400 dark:text-gray-500 max-w-48 truncate" title={m.correlationSignals}>
                   {m.correlationSignals || (m.isPrimary ? 'Primary account' : '—')}
                 </td>
                 <td className="py-2">
                   {m.analystOverride ? (
                     <div className="flex items-center gap-1">
                       <span className={`text-xs px-1.5 py-0.5 rounded ${
-                        m.analystOverride === 'confirmed' ? 'bg-green-50 text-green-700' :
-                        m.analystOverride === 'rejected' ? 'bg-red-50 text-red-700' :
-                        'bg-yellow-50 text-yellow-700'
+                        m.analystOverride === 'confirmed' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                        m.analystOverride === 'rejected' ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                        'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
                       }`}>{m.analystOverride}</span>
                       <button
                         onClick={() => handleRemoveOverride(m.userId)}
-                        className="text-xs text-gray-400 hover:text-red-600"
+                        className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400"
                         title="Remove override"
                       >x</button>
                     </div>
@@ -382,19 +382,19 @@ function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefres
                     <div className="flex gap-1">
                       <button
                         onClick={() => setOverrideForm({ userId: m.userId, action: 'confirmed', reason: '' })}
-                        className="text-xs text-green-600 hover:text-green-800 border border-green-200 rounded px-1.5 py-0.5"
+                        className="text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 border border-green-200 dark:border-green-700 rounded px-1.5 py-0.5"
                         title="Confirm this correlation"
                       >Confirm</button>
                       <button
                         onClick={() => setOverrideForm({ userId: m.userId, action: 'rejected', reason: '' })}
-                        className="text-xs text-red-600 hover:text-red-800 border border-red-200 rounded px-1.5 py-0.5"
+                        className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 border border-red-200 dark:border-red-700 rounded px-1.5 py-0.5"
                         title="Reject this correlation"
                       >Reject</button>
                     </div>
                   ) : null}
                   {overrideForm && overrideForm.userId === m.userId && (
-                    <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
-                      <div className="text-xs text-gray-500 mb-1">
+                    <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                         {overrideForm.action === 'confirmed' ? 'Confirm' : 'Reject'} this link — reason:
                       </div>
                       <input
@@ -402,7 +402,7 @@ function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefres
                         value={overrideForm.reason}
                         onChange={(e) => setOverrideForm({ ...overrideForm, reason: e.target.value })}
                         placeholder="Reason (min 3 chars)..."
-                        className="w-full text-xs border border-gray-300 rounded px-2 py-1 mb-1"
+                        className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 mb-1 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
                       />
                       <div className="flex gap-1">
                         <button
@@ -412,7 +412,7 @@ function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefres
                         >Save</button>
                         <button
                           onClick={() => setOverrideForm(null)}
-                          className="text-xs text-gray-500 px-2 py-0.5"
+                          className="text-xs text-gray-500 dark:text-gray-400 px-2 py-0.5"
                         >Cancel</button>
                       </div>
                     </div>
@@ -490,13 +490,13 @@ export default function IdentitiesPage({ onOpenDetail }) {
   if (!available) {
     return (
       <div className="p-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-          <h3 className="text-lg font-medium text-yellow-800 mb-2">Account Correlation Not Available</h3>
-          <p className="text-sm text-yellow-700">
-            Run <code className="bg-yellow-100 px-1.5 py-0.5 rounded font-mono text-xs">Invoke-FGAccountCorrelation</code> in PowerShell to generate identity correlations.
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-6 text-center">
+          <h3 className="text-lg font-medium text-yellow-800 dark:text-yellow-300 mb-2">Account Correlation Not Available</h3>
+          <p className="text-sm text-yellow-700 dark:text-yellow-400">
+            Run <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1.5 py-0.5 rounded font-mono text-xs">Invoke-FGAccountCorrelation</code> in PowerShell to generate identity correlations.
           </p>
-          <p className="text-xs text-yellow-600 mt-2">
-            First create a ruleset with <code className="bg-yellow-100 px-1 rounded font-mono">New-FGCorrelationRuleset | Save-FGCorrelationRuleset</code>
+          <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
+            First create a ruleset with <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded font-mono">New-FGCorrelationRuleset | Save-FGCorrelationRuleset</code>
           </p>
         </div>
       </div>
@@ -528,15 +528,15 @@ export default function IdentitiesPage({ onOpenDetail }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name, UPN, mail, department..."
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-72 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm w-72 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
 
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <span>Min accounts:</span>
           <select
             value={minAccounts}
             onChange={(e) => setMinAccounts(parseInt(e.target.value))}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
+            className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
           >
             <option value="1">All (1+)</option>
             <option value="2">Multi-account (2+)</option>
@@ -545,12 +545,12 @@ export default function IdentitiesPage({ onOpenDetail }) {
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <span>Type:</span>
           <select
             value={accountTypeFilter}
             onChange={(e) => setAccountTypeFilter(e.target.value)}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
+            className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
           >
             <option value="">All types</option>
             <option value="Admin">Has Admin</option>
@@ -560,12 +560,12 @@ export default function IdentitiesPage({ onOpenDetail }) {
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <span>Verified:</span>
           <select
             value={verifiedFilter}
             onChange={(e) => setVerifiedFilter(e.target.value)}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
+            className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
           >
             <option value="">All</option>
             <option value="true">Verified only</option>
@@ -575,12 +575,12 @@ export default function IdentitiesPage({ onOpenDetail }) {
 
         {hasHrColumns && (
           <>
-            <label className="flex items-center gap-2 text-sm text-gray-600">
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
               <span>View:</span>
               <select
                 value={hrAnchoredFilter}
                 onChange={(e) => { setHrAnchoredFilter(e.target.value); if (e.target.value !== 'false') setOrphanFilter(''); }}
-                className={`border rounded px-2 py-1 text-sm ${hrAnchoredFilter === 'true' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : hrAnchoredFilter === 'false' ? 'border-orange-300 bg-orange-50 text-orange-800' : 'border-gray-300'}`}
+                className={`border rounded px-2 py-1 text-sm ${hrAnchoredFilter === 'true' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : hrAnchoredFilter === 'false' ? 'border-orange-300 bg-orange-50 text-orange-800' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}
               >
                 <option value="true">Identities (HR-anchored)</option>
                 <option value="false">Orphaned accounts</option>
@@ -589,12 +589,12 @@ export default function IdentitiesPage({ onOpenDetail }) {
             </label>
 
             {hrAnchoredFilter === 'false' && (
-              <label className="flex items-center gap-2 text-sm text-gray-600">
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <span>Orphan type:</span>
                 <select
                   value={orphanFilter}
                   onChange={(e) => setOrphanFilter(e.target.value)}
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
                 >
                   <option value="">All orphans</option>
                   <option value="any">Has orphan status</option>
@@ -607,12 +607,12 @@ export default function IdentitiesPage({ onOpenDetail }) {
           </>
         )}
 
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <span>Sort:</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
+            className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
           >
             <option value="accountCount">Account Count</option>
             <option value="confidence">Confidence</option>
@@ -621,7 +621,7 @@ export default function IdentitiesPage({ onOpenDetail }) {
           </select>
         </label>
 
-        <span className="text-xs text-gray-400 ml-auto">
+        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
           {total} {hasHrColumns && hrAnchoredFilter === 'true' ? `real identit${total === 1 ? 'y' : 'ies'}` : hrAnchoredFilter === 'false' ? `orphaned group${total === 1 ? '' : 's'}` : `identit${total === 1 ? 'y' : 'ies'}`}
           {hasHrColumns && summary && hrAnchoredFilter !== 'true' && (summary.hrAnchoredCount ?? 0) > 0 && ` · ${summary.hrAnchoredCount} HR-anchored`}
         </span>
@@ -629,9 +629,9 @@ export default function IdentitiesPage({ onOpenDetail }) {
 
       {/* Identity List */}
       {loading && data.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">Loading identities...</div>
+        <div className="text-center py-12 text-gray-400 dark:text-gray-500">Loading identities...</div>
       ) : data.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           {'No accounts match your filters'}
         </div>
       ) : (
@@ -639,7 +639,7 @@ export default function IdentitiesPage({ onOpenDetail }) {
           {data.map(identity => (
             <div
               key={identity.id}
-              className="bg-white rounded-lg border border-gray-200 px-4 py-3 hover:border-blue-300 transition-colors"
+              className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
             >
               <div className="flex items-center gap-4">
                 {/* Name + account count — clickable to open detail tab */}
@@ -647,18 +647,18 @@ export default function IdentitiesPage({ onOpenDetail }) {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => onOpenDetail('identity', identity.id, identity.displayName)}
-                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline text-left"
+                      className="font-medium text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 hover:underline text-left"
                     >
                       {identity.displayName}
                     </button>
-                    <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                    <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
                       {identity.accountCount} account{identity.accountCount !== 1 ? 's' : ''}
                     </span>
                     <VerifiedBadge verified={identity.analystVerified} />
                     <HrBadge isHrAnchored={identity.isHrAnchored} />
                     <OrphanBadge status={identity.orphanStatus} />
                   </div>
-                  <div className="text-xs text-gray-500 mt-0.5">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {identity.primaryAccountUpn}
                     {identity.department && ` · ${identity.department}`}
                     {identity.jobTitle && ` · ${identity.jobTitle}`}
@@ -674,12 +674,12 @@ export default function IdentitiesPage({ onOpenDetail }) {
 
                 {/* Confidence */}
                 <div className="flex flex-col items-end gap-0.5">
-                  <span className="text-xs text-gray-400 uppercase tracking-wide leading-none">Confidence</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide leading-none">Confidence</span>
                   <ConfidenceBar confidence={identity.correlationConfidence} />
                 </div>
 
                 {/* Signals */}
-                <div className="text-xs text-gray-400 w-32 truncate" title={identity.correlationSignals}>
+                <div className="text-xs text-gray-400 dark:text-gray-500 w-32 truncate" title={identity.correlationSignals}>
                   {identity.correlationSignals || '-'}
                 </div>
               </div>
@@ -690,17 +690,17 @@ export default function IdentitiesPage({ onOpenDetail }) {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
+        <div className="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-400">
           <button
             onClick={() => setOffset(Math.max(0, offset - pageSize))}
             disabled={offset === 0}
-            className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50"
+            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700/50"
           >Previous</button>
           <span>Page {currentPage} of {totalPages}</span>
           <button
             onClick={() => setOffset(offset + pageSize)}
             disabled={currentPage >= totalPages}
-            className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50"
+            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700/50"
           >Next</button>
         </div>
       )}

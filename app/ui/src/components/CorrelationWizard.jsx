@@ -65,13 +65,13 @@ export default function CorrelationWizard({ onClose, onSaved }) {
   }, [authFetch]);
 
   if (llmReady === null) {
-    return <Modal onClose={onClose} title="Account Correlation Wizard"><div className="p-6">Loading…</div></Modal>;
+    return <Modal onClose={onClose} title="Account Correlation Wizard"><div className="p-6 dark:text-gray-300">Loading…</div></Modal>;
   }
   if (!llmReady) {
     return (
       <Modal onClose={onClose} title="Account Correlation Wizard">
         <div className="p-6">
-          <div className="text-sm text-amber-700">
+          <div className="text-sm text-amber-700 dark:text-amber-400">
             No LLM provider is configured yet. Open <strong>Admin → LLM Settings</strong> to add credentials, then come back.
           </div>
         </div>
@@ -176,19 +176,19 @@ export default function CorrelationWizard({ onClose, onSaved }) {
     <Modal onClose={onClose} title="Account Correlation Wizard">
       <div className="flex flex-col h-[80vh]">
         {/* Progress bar */}
-        <div className="flex border-b border-gray-200 px-6 py-3 bg-gray-50">
+        <div className="flex border-b border-gray-200 dark:border-gray-700 px-6 py-3 bg-gray-50 dark:bg-gray-700/50">
           {STEPS.map((s, i) => {
             const done = i < stepIdx;
             const active = i === stepIdx;
             return (
               <div key={s.key} className="flex-1 flex items-center">
-                <div className={`flex items-center gap-2 ${active ? 'font-semibold text-indigo-700' : done ? 'text-gray-700' : 'text-gray-400'}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${active ? 'bg-indigo-600 text-white' : done ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
+                <div className={`flex items-center gap-2 ${active ? 'font-semibold text-indigo-700 dark:text-indigo-400' : done ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${active ? 'bg-indigo-600 text-white' : done ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600'}`}>
                     {done ? '✓' : i + 1}
                   </div>
                   <span className="text-sm">{s.label}</span>
                 </div>
-                {i < STEPS.length - 1 && <div className={`flex-1 h-px ml-3 ${done ? 'bg-green-500' : 'bg-gray-200'}`} />}
+                {i < STEPS.length - 1 && <div className={`flex-1 h-px ml-3 ${done ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-600'}`} />}
               </div>
             );
           })}
@@ -230,10 +230,10 @@ export default function CorrelationWizard({ onClose, onSaved }) {
         </div>
 
         {/* Footer buttons */}
-        <div className="flex justify-between items-center border-t border-gray-200 px-6 py-4 bg-gray-50">
+        <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 px-6 py-4 bg-gray-50 dark:bg-gray-700/50">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
           >
             {savedRulesetId ? 'Close' : 'Cancel'}
           </button>
@@ -241,7 +241,7 @@ export default function CorrelationWizard({ onClose, onSaved }) {
             {stepIdx > 0 && !savedRulesetId && (
               <button
                 onClick={() => setStepIdx(stepIdx - 1)}
-                className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
               >
                 Back
               </button>
@@ -250,7 +250,7 @@ export default function CorrelationWizard({ onClose, onSaved }) {
               <button
                 onClick={handleGenerate}
                 disabled={!domain || generating}
-                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300"
+                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
               >
                 {generating ? `Generating… (${elapsedSec}s)` : 'Generate Ruleset'}
               </button>
@@ -259,7 +259,7 @@ export default function CorrelationWizard({ onClose, onSaved }) {
               <button
                 onClick={() => setStepIdx(2)}
                 disabled={!ruleset}
-                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300"
+                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
               >
                 Continue to Save
               </button>
@@ -268,7 +268,7 @@ export default function CorrelationWizard({ onClose, onSaved }) {
               <button
                 onClick={handleSave}
                 disabled={savingRuleset}
-                className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300"
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
               >
                 {savingRuleset ? 'Saving…' : 'Save Ruleset'}
               </button>
@@ -285,41 +285,41 @@ function SourcesStep({ domain, setDomain, orgName, setOrgName, hints, setHints, 
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Organisation Domain *</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organisation Domain *</label>
         <input
           type="text"
           value={domain}
           onChange={e => setDomain(e.target.value)}
           placeholder="example.com"
-          className="w-full px-3 py-2 border rounded"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Organisation Name</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organisation Name</label>
         <input
           type="text"
           value={orgName}
           onChange={e => setOrgName(e.target.value)}
           placeholder="Acme Corporation"
-          className="w-full px-3 py-2 border rounded"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Additional Context</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Additional Context</label>
         <textarea
           value={hints}
           onChange={e => setHints(e.target.value)}
           placeholder="E.g., 'We use service accounts prefixed with svc- and shared mailboxes for teams'"
           rows={4}
-          className="w-full px-3 py-2 border rounded"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
       </div>
       {systems.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Connected Systems ({systems.length})</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Connected Systems ({systems.length})</label>
           <div className="flex flex-wrap gap-1.5">
             {systems.map(s => (
-              <span key={s.id} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">{s.name}</span>
+              <span key={s.id} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">{s.name}</span>
             ))}
           </div>
         </div>
@@ -331,12 +331,12 @@ function SourcesStep({ domain, setDomain, orgName, setOrgName, hints, setHints, 
 // ── Step 2: Generate & Refine ──
 function GenerateStep({ ruleset, transcript, chatInput, setChatInput, onRefine, refining, genError, llmModel, elapsedSec }) {
   if (!ruleset && !genError) {
-    return <div className="text-sm text-gray-500">Generating ruleset…</div>;
+    return <div className="text-sm text-gray-500 dark:text-gray-400">Generating ruleset…</div>;
   }
 
   if (genError) {
     return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+      <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-400">
         <strong>Generation failed:</strong> {genError}
       </div>
     );
@@ -348,22 +348,22 @@ function GenerateStep({ ruleset, transcript, chatInput, setChatInput, onRefine, 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-gray-900">Generated Ruleset</h3>
-        {llmModel && <span className="text-xs text-gray-500">Model: {llmModel}</span>}
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white">Generated Ruleset</h3>
+        {llmModel && <span className="text-xs text-gray-500 dark:text-gray-400">Model: {llmModel}</span>}
       </div>
 
       {/* Correlation Signals */}
       <div>
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Correlation Signals ({signals.length})</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Correlation Signals ({signals.length})</h4>
         <div className="space-y-1">
           {signals.map((s, i) => (
-            <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+            <div key={i} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded text-xs">
               <div>
-                <span className="font-medium text-gray-800">{s.name || s.signal}</span>
-                <span className="text-gray-500 ml-2">({s.type})</span>
-                {s.description && <p className="text-gray-500 mt-0.5">{s.description}</p>}
+                <span className="font-medium text-gray-800 dark:text-gray-200">{s.name || s.signal}</span>
+                <span className="text-gray-500 dark:text-gray-400 ml-2">({s.type})</span>
+                {s.description && <p className="text-gray-500 dark:text-gray-400 mt-0.5">{s.description}</p>}
               </div>
-              <span className={`px-2 py-0.5 rounded font-semibold ${s.weight >= 70 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+              <span className={`px-2 py-0.5 rounded font-semibold ${s.weight >= 70 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
                 {s.weight}
               </span>
             </div>
@@ -373,19 +373,19 @@ function GenerateStep({ ruleset, transcript, chatInput, setChatInput, onRefine, 
 
       {/* Account Type Rules */}
       <div>
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Account Type Rules ({accountTypes.length})</h4>
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Account Type Rules ({accountTypes.length})</h4>
         <div className="space-y-1">
           {accountTypes.map((rule, i) => (
-            <div key={i} className="p-2 bg-gray-50 rounded text-xs">
-              <div className="font-medium text-gray-800">{rule.accountType}</div>
+            <div key={i} className="p-2 bg-gray-50 dark:bg-gray-700/50 rounded text-xs">
+              <div className="font-medium text-gray-800 dark:text-gray-200">{rule.accountType}</div>
               {rule.patterns && rule.patterns.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {rule.patterns.map((p, pi) => (
-                    <code key={pi} className="text-xs bg-white px-1.5 py-0.5 rounded border">{p}</code>
+                    <code key={pi} className="text-xs bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-600 dark:text-gray-300">{p}</code>
                   ))}
                 </div>
               )}
-              {rule.description && <p className="text-gray-500 mt-1">{rule.description}</p>}
+              {rule.description && <p className="text-gray-500 dark:text-gray-400 mt-1">{rule.description}</p>}
             </div>
           ))}
         </div>
@@ -393,11 +393,11 @@ function GenerateStep({ ruleset, transcript, chatInput, setChatInput, onRefine, 
 
       {/* Chat history */}
       {transcript.length > 0 && (
-        <div className="border-t border-gray-200 pt-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Refinement History</h4>
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Refinement History</h4>
           <div className="space-y-2">
             {transcript.map((msg, i) => (
-              <div key={i} className={`text-sm ${msg.role === 'user' ? 'text-gray-700' : 'text-gray-500'}`}>
+              <div key={i} className={`text-sm ${msg.role === 'user' ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
                 <strong>{msg.role === 'user' ? 'You' : 'Assistant'}:</strong> {msg.content}
               </div>
             ))}
@@ -406,8 +406,8 @@ function GenerateStep({ ruleset, transcript, chatInput, setChatInput, onRefine, 
       )}
 
       {/* Chat input */}
-      <div className="border-t border-gray-200 pt-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Refine the ruleset</label>
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Refine the ruleset</label>
         <div className="flex gap-2">
           <input
             type="text"
@@ -415,13 +415,13 @@ function GenerateStep({ ruleset, transcript, chatInput, setChatInput, onRefine, 
             onChange={e => setChatInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !refining && onRefine()}
             placeholder="E.g., 'Add a signal for department matching' or 'Remove the fuzzy name match'"
-            className="flex-1 px-3 py-2 border rounded text-sm"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
             disabled={refining}
           />
           <button
             onClick={onRefine}
             disabled={!chatInput.trim() || refining}
-            className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300"
+            className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
           >
             {refining ? `${elapsedSec}s…` : 'Send'}
           </button>
@@ -435,9 +435,9 @@ function GenerateStep({ ruleset, transcript, chatInput, setChatInput, onRefine, 
 function SaveStep({ rulesetName, setRulesetName, savedRulesetId }) {
   if (savedRulesetId) {
     return (
-      <div className="p-4 bg-green-50 border border-green-200 rounded">
-        <div className="text-sm font-medium text-green-800">Ruleset saved successfully!</div>
-        <div className="text-xs text-green-700 mt-1">ID: {savedRulesetId}</div>
+      <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded">
+        <div className="text-sm font-medium text-green-800 dark:text-green-300">Ruleset saved successfully!</div>
+        <div className="text-xs text-green-700 dark:text-green-400 mt-1">ID: {savedRulesetId}</div>
       </div>
     );
   }
@@ -445,16 +445,16 @@ function SaveStep({ rulesetName, setRulesetName, savedRulesetId }) {
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Ruleset Version Name</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ruleset Version Name</label>
         <input
           type="text"
           value={rulesetName}
           onChange={e => setRulesetName(e.target.value)}
           placeholder="1.0"
-          className="w-full px-3 py-2 border rounded"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
       </div>
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-gray-500 dark:text-gray-400">
         This ruleset will be saved to the database and can be used for account correlation.
         You can create multiple versions and compare them later.
       </p>
@@ -465,11 +465,11 @@ function SaveStep({ rulesetName, setRulesetName, savedRulesetId }) {
 // ── Modal wrapper ──
 function Modal({ onClose, title, children }) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
