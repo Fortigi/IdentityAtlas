@@ -12,7 +12,7 @@ function JsonNode({ data, depth = 0, label = null }) {
   if (!isExpandable) {
     return (
       <span>
-        {label && <span className="text-blue-600">{JSON.stringify(label)}: </span>}
+        {label && <span className="text-blue-600 dark:text-blue-400">{JSON.stringify(label)}: </span>}
         <Value value={data} />
       </span>
     );
@@ -30,45 +30,45 @@ function JsonNode({ data, depth = 0, label = null }) {
     <div>
       <div
         onClick={() => setCollapsed(!collapsed)}
-        className="cursor-pointer hover:bg-gray-100 rounded px-1 -mx-1 inline-block select-none"
+        className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 -mx-1 inline-block select-none"
       >
-        <span className="text-gray-400 mr-1">{collapsed ? '▶' : '▼'}</span>
-        {label && <span className="text-blue-600">{JSON.stringify(label)}: </span>}
-        <span className="text-gray-500">{bracket[0]}</span>
+        <span className="text-gray-400 dark:text-gray-500 mr-1">{collapsed ? '▶' : '▼'}</span>
+        {label && <span className="text-blue-600 dark:text-blue-400">{JSON.stringify(label)}: </span>}
+        <span className="text-gray-500 dark:text-gray-400">{bracket[0]}</span>
         {collapsed && (
-          <span className="text-gray-400 text-xs ml-1">{preview}</span>
+          <span className="text-gray-400 dark:text-gray-500 text-xs ml-1">{preview}</span>
         )}
-        {collapsed && <span className="text-gray-500 ml-1">{bracket[1]}</span>}
+        {collapsed && <span className="text-gray-500 dark:text-gray-400 ml-1">{bracket[1]}</span>}
       </div>
       {!collapsed && (
-        <div className="ml-4 border-l border-gray-200 pl-2">
+        <div className="ml-4 border-l border-gray-200 dark:border-gray-700 pl-2">
           {entries.map(([k, v]) => (
             <div key={k}>
               <JsonNode data={v} depth={depth + 1} label={isArray ? null : k} />
-              {isArray || <span className="text-gray-400">,</span>}
+              {isArray || <span className="text-gray-400 dark:text-gray-500">,</span>}
             </div>
           ))}
         </div>
       )}
-      {!collapsed && <div className="text-gray-500">{bracket[1]}</div>}
+      {!collapsed && <div className="text-gray-500 dark:text-gray-400">{bracket[1]}</div>}
     </div>
   );
 }
 
 function Value({ value }) {
-  if (value === null) return <span className="text-purple-600">null</span>;
+  if (value === null) return <span className="text-purple-600 dark:text-purple-400">null</span>;
   if (typeof value === 'boolean')
-    return <span className="text-orange-600">{String(value)}</span>;
+    return <span className="text-orange-600 dark:text-orange-400">{String(value)}</span>;
   if (typeof value === 'number')
-    return <span className="text-green-600">{value}</span>;
+    return <span className="text-green-600 dark:text-green-400">{value}</span>;
   if (typeof value === 'string')
-    return <span className="text-red-600">{JSON.stringify(value)}</span>;
-  return <span className="text-gray-600">{String(value)}</span>;
+    return <span className="text-red-600 dark:text-red-400">{JSON.stringify(value)}</span>;
+  return <span className="text-gray-600 dark:text-gray-400">{String(value)}</span>;
 }
 
 export default function JsonViewer({ data }) {
   return (
-    <div className="text-xs bg-gray-50 border rounded p-3 overflow-auto max-h-96 font-mono">
+    <div className="text-xs bg-gray-50 dark:bg-gray-900 border dark:border-gray-700 rounded p-3 overflow-auto max-h-96 font-mono dark:text-gray-200">
       <JsonNode data={data} />
     </div>
   );

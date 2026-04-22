@@ -45,15 +45,15 @@ export default function SystemsPage() {
   useEffect(() => { fetchSystems(); }, [fetchSystems]);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500">Loading systems...</div>;
+    return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading systems...</div>;
   }
 
   if (error) {
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-red-800 font-semibold">Error loading systems</h2>
-          <p className="text-red-600 mt-1 text-sm">{error}</p>
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6">
+          <h2 className="text-red-800 dark:text-red-300 font-semibold">Error loading systems</h2>
+          <p className="text-red-600 dark:text-red-400 mt-1 text-sm">{error}</p>
         </div>
       </div>
     );
@@ -62,13 +62,13 @@ export default function SystemsPage() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900">Systems</h2>
-        <span className="text-sm text-gray-500">{systems.length} connected</span>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Systems</h2>
+        <span className="text-sm text-gray-500 dark:text-gray-400">{systems.length} connected</span>
       </div>
 
       {systems.length === 0 ? (
-        <div className="text-center text-gray-500 py-12">
-          No systems configured. Run <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Start-FGSync</code> to sync data and register systems.
+        <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+          No systems configured. Run <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm dark:text-gray-200">Start-FGSync</code> to sync data and register systems.
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
@@ -82,8 +82,8 @@ export default function SystemsPage() {
             return (
               <div
                 key={sys.id}
-                className={`bg-white border rounded-lg shadow-sm transition-shadow hover:shadow-md ${
-                  isExpanded ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200'
+                className={`bg-white dark:bg-gray-800 border rounded-lg shadow-sm transition-shadow hover:shadow-md ${
+                  isExpanded ? 'border-blue-300 dark:border-blue-700 ring-1 ring-blue-200 dark:ring-blue-700' : 'border-gray-200 dark:border-gray-700'
                 }`}
               >
                 {/* Card header */}
@@ -93,18 +93,18 @@ export default function SystemsPage() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-sm font-bold flex-shrink-0">
                         {(sys.systemType || 'S')[0].toUpperCase()}
                       </div>
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900">{sys.displayName || sys.id}</h3>
-                        <p className="text-xs text-gray-500">Type: {sys.systemType || 'Unknown'}</p>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{sys.displayName || sys.id}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Type: {sys.systemType || 'Unknown'}</p>
                       </div>
                     </div>
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                       enabled
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                     }`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${enabled ? 'bg-green-500' : 'bg-red-500'}`} />
                       {enabled ? 'Enabled' : 'Disabled'}
@@ -112,17 +112,17 @@ export default function SystemsPage() {
                   </div>
 
                   {/* Stats row */}
-                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-600">
+                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-600 dark:text-gray-400">
                     <span>
-                      <span className="font-medium text-gray-900">{(sys.principalCount || 0).toLocaleString()}</span> Users
+                      <span className="font-medium text-gray-900 dark:text-white">{(sys.principalCount || 0).toLocaleString()}</span> Users
                     </span>
                     <span>
-                      <span className="font-medium text-gray-900">{(sys.resourceCount || 0).toLocaleString()}</span> Resources
+                      <span className="font-medium text-gray-900 dark:text-white">{(sys.resourceCount || 0).toLocaleString()}</span> Resources
                     </span>
                     <span>
-                      <span className="font-medium text-gray-900">{(sys.assignmentCount || 0).toLocaleString()}</span> Assignments
+                      <span className="font-medium text-gray-900 dark:text-white">{(sys.assignmentCount || 0).toLocaleString()}</span> Assignments
                     </span>
-                    <span className="ml-auto text-gray-400">
+                    <span className="ml-auto text-gray-400 dark:text-gray-500">
                       Last sync: {formatRelativeTime(sys.lastSyncTime)}
                     </span>
                   </div>
@@ -131,7 +131,7 @@ export default function SystemsPage() {
                   {resourceTypes.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {resourceTypes.map(rt => (
-                        <span key={rt} className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                        <span key={rt} className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
                           {rt}
                         </span>
                       ))}
@@ -140,7 +140,7 @@ export default function SystemsPage() {
 
                   {/* Owners */}
                   {owners.length > 0 && (
-                    <div className="text-xs text-gray-500 mt-2">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       Owners: {owners.join(', ')}
                     </div>
                   )}
@@ -148,43 +148,43 @@ export default function SystemsPage() {
 
                 {/* Expanded detail */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 px-5 py-4 bg-gray-50/50">
+                  <div className="border-t border-gray-100 dark:border-gray-700 px-5 py-4 bg-gray-50/50 dark:bg-gray-700/50">
                     {sys.description && (
                       <div className="mb-3">
-                        <p className="text-xs font-medium text-gray-500">Description</p>
-                        <p className="text-sm text-gray-700 mt-0.5">{sys.description}</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Description</p>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{sys.description}</p>
                       </div>
                     )}
 
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <p className="font-medium text-gray-500">System ID</p>
-                        <p className="text-gray-700 mt-0.5 font-mono text-[11px] break-all">{sys.id}</p>
+                        <p className="font-medium text-gray-500 dark:text-gray-400">System ID</p>
+                        <p className="text-gray-700 dark:text-gray-300 mt-0.5 font-mono text-[11px] break-all">{sys.id}</p>
                       </div>
                       <div>
-                        <p className="font-medium text-gray-500">System Type</p>
-                        <p className="text-gray-700 mt-0.5">{sys.systemType || 'Unknown'}</p>
+                        <p className="font-medium text-gray-500 dark:text-gray-400">System Type</p>
+                        <p className="text-gray-700 dark:text-gray-300 mt-0.5">{sys.systemType || 'Unknown'}</p>
                       </div>
                       {sys.tenantId && (
                         <div>
-                          <p className="font-medium text-gray-500">Tenant ID</p>
-                          <p className="text-gray-700 mt-0.5 font-mono text-[11px] break-all">{sys.tenantId}</p>
+                          <p className="font-medium text-gray-500 dark:text-gray-400">Tenant ID</p>
+                          <p className="text-gray-700 dark:text-gray-300 mt-0.5 font-mono text-[11px] break-all">{sys.tenantId}</p>
                         </div>
                       )}
                       {sys.connectionInfo && (
                         <div>
-                          <p className="font-medium text-gray-500">Connection Info</p>
-                          <p className="text-gray-700 mt-0.5">{sys.connectionInfo}</p>
+                          <p className="font-medium text-gray-500 dark:text-gray-400">Connection Info</p>
+                          <p className="text-gray-700 dark:text-gray-300 mt-0.5">{sys.connectionInfo}</p>
                         </div>
                       )}
                     </div>
 
                     {assignmentTypes.length > 0 && (
                       <div className="mt-3">
-                        <p className="text-xs font-medium text-gray-500 mb-1">Assignment Types</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Assignment Types</p>
                         <div className="flex flex-wrap gap-1">
                           {assignmentTypes.map(at => (
-                            <span key={at} className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                            <span key={at} className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
                               {at}
                             </span>
                           ))}
@@ -193,7 +193,7 @@ export default function SystemsPage() {
                     )}
 
                     {sys.createdAt && (
-                      <div className="mt-3 text-xs text-gray-400">
+                      <div className="mt-3 text-xs text-gray-400 dark:text-gray-500">
                         Created: {new Date(sys.createdAt).toLocaleString()}
                         {sys.updatedAt && ` | Updated: ${new Date(sys.updatedAt).toLocaleString()}`}
                       </div>
