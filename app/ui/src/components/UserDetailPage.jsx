@@ -144,13 +144,13 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   }, [loadOauth2]);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500">Loading user details...</div>;
+    return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading user details...</div>;
   }
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <h2 className="text-red-800 font-semibold">Error loading user</h2>
-        <p className="text-red-600 mt-1 text-sm">{error}</p>
+      <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6">
+        <h2 className="text-red-800 dark:text-red-300 font-semibold">Error loading user</h2>
+        <p className="text-red-600 dark:text-red-400 mt-1 text-sm">{error}</p>
       </div>
     );
   }
@@ -173,28 +173,28 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-semibold text-gray-900">{attributes.displayName}</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{attributes.displayName}</h2>
                 {attributes.principalType && (
-                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">
                     {attributes.principalType}
                   </span>
                 )}
               </div>
-              <p className="text-sm text-gray-500">{attributes.userPrincipalName || attributes.email}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{attributes.userPrincipalName || attributes.email}</p>
               {(attributes.systemDisplayName || attributes.systemId) && (
-                <p className="text-xs text-gray-400">System: {attributes.systemDisplayName || attributes.systemId}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">System: {attributes.systemDisplayName || attributes.systemId}</p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+          <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
             {attributes.jobTitle && <span>{attributes.jobTitle}</span>}
-            {attributes.department && <span className="text-gray-400">|</span>}
+            {attributes.department && <span className="text-gray-400 dark:text-gray-500">|</span>}
             {attributes.department && <span>{attributes.department}</span>}
-            {attributes.companyName && <span className="text-gray-400">|</span>}
+            {attributes.companyName && <span className="text-gray-400 dark:text-gray-500">|</span>}
             {attributes.companyName && <span>{attributes.companyName}</span>}
           </div>
           {lastActivity?.lastActivityDateTime && (
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400">
+            <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400 dark:text-gray-500">
               <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -213,7 +213,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
           )}
         </div>
         <button onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+          className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
           title="Close tab">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -229,8 +229,8 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
 
       {/* Manager */}
       {managerLoaded && manager && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4 mb-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Manager</h3>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mt-4 mb-4">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Manager</h3>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
               {(manager.displayName || '?')[0]}
@@ -242,8 +242,8 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               >
                 {manager.displayName}
               </button>
-              <div className="text-xs text-gray-400">
-                {[manager.jobTitle, manager.department].filter(Boolean).join(' \u2022 ') || '\u2014'}
+              <div className="text-xs text-gray-400 dark:text-gray-500">
+                {[manager.jobTitle, manager.department].filter(Boolean).join(' • ') || '—'}
               </div>
             </div>
             {manager.riskTier && manager.riskTier !== 'None' && manager.riskTier !== 'Minimal' && (
@@ -266,11 +266,11 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
             loading={reportsLoading}
           >
             {reports && reports.length === 0 ? (
-              <p className="text-sm text-gray-400 italic p-4">No direct reports</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No direct reports</p>
             ) : reports ? (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 dark:divide-gray-700">
                 {reports.map(r => (
-                  <div key={r.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50">
+                  <div key={r.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
                       {(r.displayName || '?')[0]}
                     </div>
@@ -281,8 +281,8 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                       >
                         {r.displayName}
                       </button>
-                      <div className="text-xs text-gray-400">
-                        {[r.jobTitle, r.department].filter(Boolean).join(' \u2022 ') || '\u2014'}
+                      <div className="text-xs text-gray-400 dark:text-gray-500">
+                        {[r.jobTitle, r.department].filter(Boolean).join(' • ') || '—'}
                       </div>
                     </div>
                     {r.riskTier && r.riskTier !== 'None' && r.riskTier !== 'Minimal' && (
@@ -291,7 +291,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                       </span>
                     )}
                     {r.riskScore != null && (
-                      <span className="text-xs font-mono text-gray-400 w-6 text-right">{r.riskScore}</span>
+                      <span className="text-xs font-mono text-gray-400 dark:text-gray-500 w-6 text-right">{r.riskScore}</span>
                     )}
                   </div>
                 ))}
@@ -309,9 +309,9 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                 That's how ext.Link on synced objects becomes the replacement for the
                 old hardcoded "Open in Entra ID" button we removed. */}
             {otherAttributes.map(([key, val]) => (
-              <tr key={key} className="border-b border-gray-50 last:border-b-0">
-                <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
+              <tr key={key} className="border-b border-gray-50 dark:border-gray-700 last:border-b-0">
+                <td className="py-1 pr-4 text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
+                <td className="py-1 text-gray-900 dark:text-white font-medium break-all">{renderAttributeValue(key, val)}</td>
               </tr>
             ))}
           </tbody>
@@ -327,9 +327,9 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                 {Object.entries(attributes.extendedAttributesParsed)
                   .filter(([, val]) => val != null)
                   .map(([key, val]) => (
-                    <tr key={key} className="border-b border-gray-50 last:border-b-0">
-                      <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                      <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
+                    <tr key={key} className="border-b border-gray-50 dark:border-gray-700 last:border-b-0">
+                      <td className="py-1 pr-4 text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
+                      <td className="py-1 text-gray-900 dark:text-white font-medium break-all">{renderAttributeValue(key, val)}</td>
                     </tr>
                   ))}
               </tbody>
@@ -350,11 +350,11 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
             loading={oauth2Loading}
           >
             {oauth2Grants && oauth2Grants.length === 0 ? (
-              <p className="text-sm text-gray-400 italic p-4">No grants recorded</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No grants recorded</p>
             ) : oauth2Grants ? (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                  <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
                     <th className="px-4 py-2 font-medium">Client application</th>
                     <th className="px-4 py-2 font-medium">Target API</th>
                     <th className="px-4 py-2 font-medium">Scope</th>
@@ -368,7 +368,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                     const targetName = grantExt.targetApiDisplayName || scopeExt.targetApiDisplayName || scopeExt.targetApiSpId || '—';
                     const scopeValue = grantExt.scope || scopeExt.scope || g.scopeDisplayName || '—';
                     return (
-                      <tr key={g.scopeResourceId + ':' + (grantExt.grantId || '')} className="border-b border-gray-50 last:border-b-0">
+                      <tr key={g.scopeResourceId + ':' + (grantExt.grantId || '')} className="border-b border-gray-50 dark:border-gray-700 last:border-b-0">
                         <td className="px-4 py-2">
                           {g.clientSpId ? (
                             <button
@@ -378,11 +378,11 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                               {clientName}
                             </button>
                           ) : (
-                            <span className="text-gray-900">{clientName}</span>
+                            <span className="text-gray-900 dark:text-white">{clientName}</span>
                           )}
                         </td>
-                        <td className="px-4 py-2 text-gray-700">{targetName}</td>
-                        <td className="px-4 py-2 font-mono text-xs text-gray-900">{scopeValue}</td>
+                        <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{targetName}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-gray-900 dark:text-white">{scopeValue}</td>
                       </tr>
                     );
                   })}
@@ -404,29 +404,29 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
           loading={historyLoading}
         >
           {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No changes recorded</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No changes recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
                   <th className="px-4 py-2 font-medium w-44">Date</th>
                   <th className="px-4 py-2 font-medium">Changes</th>
                 </tr>
               </thead>
               <tbody>
                 {historyDiffs.map((diff, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    <td className="px-4 py-2 text-gray-600 text-xs align-top whitespace-nowrap">
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700">
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs align-top whitespace-nowrap">
                       {formatDate(diff.date)}
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-col gap-1">
                         {diff.changes.map((c, j) => (
                           <div key={j} className="text-xs">
-                            <span className="font-medium text-gray-700">{friendlyLabel(c.field)}</span>
-                            <span className="text-gray-400 mx-1">:</span>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(c.field)}</span>
+                            <span className="text-gray-400 dark:text-gray-500 mx-1">:</span>
                             <span className="text-red-500 line-through mr-1">{c.from}</span>
-                            <span className="text-gray-400 mr-1">&rarr;</span>
+                            <span className="text-gray-400 dark:text-gray-500 mr-1">&rarr;</span>
                             <span className="text-green-600">{c.to}</span>
                           </div>
                         ))}
@@ -458,9 +458,9 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
   const typeColor = ACCOUNT_TYPE_COLORS[memberInfo.accountType] || ACCOUNT_TYPE_COLORS.Regular;
 
   return (
-    <div className="bg-white border border-emerald-200 rounded-lg p-4 mt-4 mb-4">
+    <div className="bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-700 rounded-lg p-4 mt-4 mb-4">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
           <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
           </svg>
@@ -477,12 +477,12 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-gray-900 text-sm">{identity.displayName}</span>
+            <span className="font-medium text-gray-900 dark:text-white text-sm">{identity.displayName}</span>
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${typeColor}`}>
               {memberInfo.accountType}
             </span>
             {memberInfo.isPrimary && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">Primary</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">Primary</span>
             )}
             {memberInfo.isHrAuthoritative && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200" title={`HR Score: ${memberInfo.hrScore}`}>HR Source</span>
@@ -493,12 +493,12 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
               }`}>{memberInfo.analystOverride}</span>
             )}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {identity.accountCount} account{identity.accountCount !== 1 ? 's' : ''} · primary: {identity.primaryAccountUpn}
             {identity.correlationConfidence != null && ` · ${identity.correlationConfidence}% confidence`}
           </div>
           {memberInfo.correlationSignals && (
-            <div className="text-xs text-gray-400 mt-0.5">
+            <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               Signals: {memberInfo.correlationSignals}
             </div>
           )}
@@ -509,13 +509,13 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
         <div className="mt-3">
           <button
             onClick={() => setExpanded(v => !v)}
-            className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1"
           >
             <span>{expanded ? '▼' : '▶'}</span>
             {expanded ? 'Hide' : 'Show'} other accounts ({otherMembers.length})
           </button>
           {expanded && (
-            <div className="mt-2 space-y-1 border-t border-gray-100 pt-2">
+            <div className="mt-2 space-y-1 border-t border-gray-100 dark:border-gray-700 pt-2">
               {otherMembers.map(m => {
                 const tc = ACCOUNT_TYPE_COLORS[m.accountType] || ACCOUNT_TYPE_COLORS.Regular;
                 return (
@@ -523,9 +523,9 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full font-medium border ${tc}`}>{m.accountType}</span>
                     {m.isPrimary && <span className="text-blue-600 font-medium">Primary</span>}
                     {m.isHrAuthoritative && <span className="text-emerald-700 font-medium">HR</span>}
-                    <span className="text-gray-700 font-medium truncate max-w-48">{m.displayName}</span>
-                    <span className="text-gray-400 truncate max-w-64">{m.userPrincipalName}</span>
-                    <span className={`ml-auto ${m.accountEnabled === 'True' || m.accountEnabled === true ? 'text-green-500' : 'text-gray-300'}`}>
+                    <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-48">{m.displayName}</span>
+                    <span className="text-gray-400 dark:text-gray-500 truncate max-w-64">{m.userPrincipalName}</span>
+                    <span className={`ml-auto ${m.accountEnabled === 'True' || m.accountEnabled === true ? 'text-green-500' : 'text-gray-300 dark:text-gray-500'}`}>
                       {m.accountEnabled === 'True' || m.accountEnabled === true ? '●' : '○'}
                     </span>
                   </div>
@@ -538,4 +538,3 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
     </div>
   );
 }
-

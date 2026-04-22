@@ -39,7 +39,7 @@ function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNam
 
   return (
     <td
-      className="px-0 py-0 text-center border-r border-b border-gray-100"
+      className="px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700"
       style={{
         backgroundColor: bgColor,
         minWidth: '24px',
@@ -78,7 +78,7 @@ function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNam
       )}
       {apCount > 1 && (
         <span
-          className="absolute -top-1 -right-1 flex items-center justify-center w-3 h-3 rounded-full text-[7px] font-bold leading-none bg-white text-gray-700 border border-gray-300 shadow-sm"
+          className="absolute -top-1 -right-1 flex items-center justify-center w-3 h-3 rounded-full text-[7px] font-bold leading-none bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-500 shadow-sm"
           style={{ zIndex: 1 }}
         >
           {apCount}

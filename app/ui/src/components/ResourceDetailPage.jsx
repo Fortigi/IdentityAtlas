@@ -6,10 +6,10 @@ import { renderAttributeValue } from '../utils/renderAttribute';
 import { Section, CollapsibleSection } from './DetailSection';
 
 const RESOURCE_TYPE_COLORS = {
-  EntraGroup: 'bg-blue-100 text-blue-700',
-  EntraAppRole: 'bg-purple-100 text-purple-700',
-  EntraDirectoryRole: 'bg-orange-100 text-orange-700',
-  EntraAdminUnit: 'bg-teal-100 text-teal-700',
+  EntraGroup: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+  EntraAppRole: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+  EntraDirectoryRole: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+  EntraAdminUnit: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
 };
 
 const HEADER_FIELDS = ['description', 'resourceType', 'groupTypeCalculated'];
@@ -22,10 +22,10 @@ function parseExtendedAttributes(val) {
 }
 
 const ASSIGNMENT_TYPE_COLORS = {
-  Direct: 'bg-green-100 text-green-700',
-  Governed: 'bg-blue-100 text-blue-700',
-  Owner: 'bg-amber-100 text-amber-700',
-  Eligible: 'bg-purple-100 text-purple-700',
+  Direct: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  Governed: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+  Owner: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+  Eligible: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
 };
 
 export default function ResourceDetailPage({ resourceId, cachedData, onCacheData, onClose, onOpenDetail }) {
@@ -138,13 +138,13 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
   }, [loadHistory]);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500">Loading resource details...</div>;
+    return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading resource details...</div>;
   }
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <h2 className="text-red-800 font-semibold">Error loading resource</h2>
-        <p className="text-red-600 mt-1 text-sm">{error}</p>
+      <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6">
+        <h2 className="text-red-800 dark:text-red-300 font-semibold">Error loading resource</h2>
+        <p className="text-red-600 dark:text-red-400 mt-1 text-sm">{error}</p>
       </div>
     );
   }
@@ -152,7 +152,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
 
   const { attributes, tags, memberCount, accessPackageCount, parentResourceCount, historyCount, hasHistory } = data;
   const resourceType = attributes.resourceType || attributes.groupTypeCalculated || '';
-  const typeBadgeClass = RESOURCE_TYPE_COLORS[resourceType] || 'bg-gray-100 text-gray-700';
+  const typeBadgeClass = RESOURCE_TYPE_COLORS[resourceType] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
   const extAttrs = parseExtendedAttributes(attributes.extendedAttributes);
   const resolvedHistoryCount = history ? history.length : historyCount;
   const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
@@ -165,11 +165,11 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-lg font-bold">
+            <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center justify-center text-lg font-bold">
               R
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">{attributes.displayName}</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{attributes.displayName}</h2>
               <div className="flex items-center gap-2 mt-0.5">
                 {resourceType && (
                   <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${typeBadgeClass}`}>
@@ -177,7 +177,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
                   </span>
                 )}
                 {attributes.systemId && (
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
                     System: {attributes.systemId}
                   </span>
                 )}
@@ -185,7 +185,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
             </div>
           </div>
           {attributes.description && (
-            <p className="text-sm text-gray-600 mt-2 max-w-2xl">{attributes.description}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">{attributes.description}</p>
           )}
           {tags && tags.length > 0 && (
             <div className="flex gap-1.5 mt-2">
@@ -199,7 +199,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
           )}
         </div>
         <button onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+          className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
           title="Close tab">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -217,9 +217,9 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
             {/* URL-shaped values render as clickable links (see renderAttributeValue);
                 ext.Link in particular becomes the "Open in Entra ID" affordance. */}
             {otherAttributes.map(([key, val]) => (
-              <tr key={key} className="border-b border-gray-50 last:border-b-0">
-                <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                <td className="py-1 text-gray-900 font-medium break-all">{renderAttributeValue(key, val)}</td>
+              <tr key={key} className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0">
+                <td className="py-1 pr-4 text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
+                <td className="py-1 text-gray-900 dark:text-gray-200 font-medium break-all">{renderAttributeValue(key, val)}</td>
               </tr>
             ))}
           </tbody>
@@ -235,9 +235,9 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
                 {Object.entries(extAttrs)
                   .filter(([, val]) => val != null)
                   .map(([key, val]) => (
-                    <tr key={key} className="border-b border-gray-50 last:border-b-0">
-                      <td className="py-1 pr-4 text-gray-500 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                      <td className="py-1 text-gray-900 font-medium break-all">
+                    <tr key={key} className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0">
+                      <td className="py-1 pr-4 text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
+                      <td className="py-1 text-gray-900 dark:text-gray-200 font-medium break-all">
                         {typeof val === 'object' ? JSON.stringify(val) : renderAttributeValue(key, val)}
                       </td>
                     </tr>
@@ -258,11 +258,11 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
           loading={assignmentsLoading}
         >
           {assignments && assignments.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No assignments</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No assignments</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                   <th className="px-4 py-2 font-medium">User</th>
                   <th className="px-4 py-2 font-medium">Type</th>
                   <th className="px-4 py-2 font-medium">Assignment</th>
@@ -271,20 +271,20 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
               </thead>
               <tbody>
                 {(assignments || []).map((a, i) => (
-                  <tr key={i} className="border-b border-gray-50">
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
                     <td className="px-4 py-2">
                       <button
                         onClick={() => onOpenDetail?.('user', a.principalId, a.principalDisplayName)}
-                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
                       >{a.principalDisplayName || a.principalId}</button>
                     </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{a.principalType}</td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{a.principalType}</td>
                     <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${ASSIGNMENT_TYPE_COLORS[a.assignmentType] || 'bg-gray-100 text-gray-700'}`}>
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${ASSIGNMENT_TYPE_COLORS[a.assignmentType] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
                         {a.assignmentType}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{a.assignmentStatus || a.state || '\u2014'}</td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{a.assignmentStatus || a.state || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -303,29 +303,29 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
           loading={businessRolesLoading}
         >
           {businessRoles && businessRoles.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">Not part of any business role</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">Not part of any business role</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                   <th className="px-4 py-2 font-medium">Business Role</th>
                   <th className="px-4 py-2 font-medium">Role Name</th>
                 </tr>
               </thead>
               <tbody>
                 {(businessRoles || []).map((br, i) => (
-                  <tr key={i} className="border-b border-gray-50">
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
                     <td className="px-4 py-2">
                       {br.businessRoleId ? (
                         <button
                           onClick={() => onOpenDetail?.('resource', br.businessRoleId, br.businessRoleName || 'Unnamed')}
-                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                        >{br.businessRoleName || <span className="text-gray-400 italic">Unnamed</span>}</button>
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
+                        >{br.businessRoleName || <span className="text-gray-400 dark:text-gray-500 italic">Unnamed</span>}</button>
                       ) : (
-                        <span className="text-gray-400 italic">{br.businessRoleName || 'Unnamed'}</span>
+                        <span className="text-gray-400 dark:text-gray-500 italic">{br.businessRoleName || 'Unnamed'}</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-gray-500">{(br.roleName && br.roleName !== '-') ? br.roleName : '\u2014'}</td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{(br.roleName && br.roleName !== '-') ? br.roleName : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -344,11 +344,11 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
           loading={parentResourcesLoading}
         >
           {parentResources && parentResources.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">Not a member of any other resource</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">Not a member of any other resource</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                   <th className="px-4 py-2 font-medium">Parent Resource</th>
                   <th className="px-4 py-2 font-medium">Type</th>
                   <th className="px-4 py-2 font-medium">Relationship</th>
@@ -356,19 +356,19 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
               </thead>
               <tbody>
                 {(parentResources || []).map((pr, i) => (
-                  <tr key={i} className="border-b border-gray-50">
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
                     <td className="px-4 py-2">
                       <button
                         onClick={() => onOpenDetail?.('resource', pr.parentResourceId, pr.parentDisplayName)}
-                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
                       >{pr.parentDisplayName || pr.parentResourceId}</button>
                     </td>
                     <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${RESOURCE_TYPE_COLORS[pr.parentResourceType] || 'bg-gray-100 text-gray-700'}`}>
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${RESOURCE_TYPE_COLORS[pr.parentResourceType] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
                         {pr.parentResourceType}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{pr.relationshipType}{pr.roleName ? ` (${pr.roleName})` : ''}</td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{pr.relationshipType}{pr.roleName ? ` (${pr.roleName})` : ''}</td>
                   </tr>
                 ))}
               </tbody>
@@ -388,30 +388,30 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
           loading={historyLoading}
         >
           {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No changes recorded</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No changes recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 bg-gray-50 border-b border-gray-200">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                   <th className="px-4 py-2 font-medium w-44">Date</th>
                   <th className="px-4 py-2 font-medium">Changes</th>
                 </tr>
               </thead>
               <tbody>
                 {historyDiffs.map((diff, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    <td className="px-4 py-2 text-gray-600 text-xs align-top whitespace-nowrap">
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs align-top whitespace-nowrap">
                       {formatDate(diff.date)}
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-col gap-1">
                         {diff.changes.map((c, j) => (
                           <div key={j} className="text-xs">
-                            <span className="font-medium text-gray-700">{friendlyLabel(c.field)}</span>
-                            <span className="text-gray-400 mx-1">:</span>
-                            <span className="text-red-500 line-through mr-1">{c.from}</span>
-                            <span className="text-gray-400 mr-1">&rarr;</span>
-                            <span className="text-green-600">{c.to}</span>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(c.field)}</span>
+                            <span className="text-gray-400 dark:text-gray-500 mx-1">:</span>
+                            <span className="text-red-500 dark:text-red-400 line-through mr-1">{c.from}</span>
+                            <span className="text-gray-400 dark:text-gray-500 mr-1">&rarr;</span>
+                            <span className="text-green-600 dark:text-green-400">{c.to}</span>
                           </div>
                         ))}
                       </div>
@@ -426,5 +426,3 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
     </div>
   );
 }
-
-
