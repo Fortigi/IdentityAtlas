@@ -59,16 +59,40 @@ function Record([string]$name, [bool]$passed, [string]$detail = '') {
 
 function Get-Json([string]$path) {
     $url = "$ApiBaseUrl$path"
-    try {
-        return Invoke-RestMethod -Uri $url -Method GET -TimeoutSec 30
-    } catch {
-        # Return a marker so callers can distinguish "no rows" from "error".
-        return [pscustomobject]@{ __error = $_.Exception.Message; __statusCode = $_.Exception.Response.StatusCode.value__ }
+    # Two retries with short backoff. The pg pool + perf middleware
+    # occasionally races on the first hit from a cold test process.
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            return Invoke-RestMethod -Uri $url -Method GET -TimeoutSec 30 -DisableKeepAlive
+        } catch {
+            $status = $null
+            if ($_.Exception.Response) { $status = $_.Exception.Response.StatusCode.value__ }
+            if ($attempt -lt 3 -and ($null -eq $status -or $status -ge 500)) {
+                Start-Sleep -Milliseconds 300
+                continue
+            }
+            return [pscustomobject]@{
+                __error = $_.Exception.Message
+                __statusCode = $status
+            }
+        }
     }
 }
 
 # Row-display-name heuristic: pick the first populated string field from a
 # short priority list. If we can't find one, the row is just a GUID.
+function Test-IsError($x) {
+    # An array returned by Invoke-RestMethod exposes `.__error` on each
+    # element, which lights up as a whitespace-joined string of nulls and
+    # evaluates truthy — masking the real success path. Only the sentinel
+    # PSCustomObject we return from Get-Json carries an actual __error
+    # property, so check for that specifically.
+    if ($null -eq $x) { return $false }
+    if ($x -is [array]) { return $false }
+    if ($x -isnot [System.Management.Automation.PSCustomObject]) { return $false }
+    return ($null -ne $x.PSObject.Properties['__error'])
+}
+
 function Get-DisplayNameField($row) {
     foreach ($key in @(
         'displayName', 'principalDisplayName', 'targetDisplayName',
@@ -88,11 +112,28 @@ Write-Host ("  API base: {0}" -f $ApiBaseUrl)
 Write-Host "`n  Sampling entities from the running stack..." -ForegroundColor Gray
 
 $usersResp = Get-Json "/permissions/users?limit=$SampleSize"
-if ($usersResp.__error) {
-    # /permissions may require auth; try matrix endpoint or fall back via /identities
-    $usersResp = @{ users = @() }
+$userIds = @()
+if (-not (Test-IsError $usersResp) -and $usersResp.users) {
+    $userIds = @(($usersResp.users | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
 }
-$userIds = @(($usersResp.users | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
+# Permissions endpoint requires auth in some configurations. Fall back to
+# pulling member principalIds out of the identity detail responses —
+# every identity has at least one linked account even when the summary
+# row doesn't expose the primary account directly.
+if ($userIds.Count -eq 0) {
+    $idents = Get-Json "/identities?limit=10"
+    if (-not (Test-IsError $idents) -and $idents.data) {
+        foreach ($row in $idents.data) {
+            if ($userIds.Count -ge $SampleSize) { break }
+            $detail = Get-Json "/identities/$($row.id)"
+            if (Test-IsError $detail) { continue }
+            foreach ($m in $detail.members) {
+                if ($userIds.Count -ge $SampleSize) { break }
+                if ($m.principalId) { $userIds += $m.principalId }
+            }
+        }
+    }
+}
 
 $resourcesResp = Get-Json "/resources?limit=$SampleSize"
 $resourceIds   = @(($resourcesResp.data  | Where-Object { $_.id }) | Select-Object -First $SampleSize -ExpandProperty id)
@@ -118,7 +159,7 @@ if ($userIds.Count -eq 0 -and $resourceIds.Count -eq 0 -and $identityIds.Count -
 Write-Host "`n  -- User graph nodes --" -ForegroundColor Gray
 foreach ($uid in $userIds) {
     $core = Get-Json "/user/$uid"
-    if ($core.__error) { Record "User/$uid/Core" $false "HTTP $($core.__statusCode): $($core.__error)"; continue }
+    if (Test-IsError $core) { Record "User/$uid/Core" $false "HTTP $($core.__statusCode): $($core.__error)"; continue }
     $userName = $core.attributes.displayName
 
     # Node → (expected count source, list endpoint, filter in list)
@@ -138,7 +179,7 @@ foreach ($uid in $userIds) {
         if ([int]$spec.count -le 0) { continue }  # only test active nodes — dimmed ones stay dim
 
         $resp = Get-Json $spec.url
-        if ($resp.__error) { Record "User/$userName/$($spec.node)/Http" $false "HTTP $($resp.__statusCode)"; continue }
+        if (Test-IsError $resp) { Record "User/$userName/$($spec.node)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; continue }
 
         $rows = $resp
         if ($spec.unwrap)    { $rows = $resp.$($spec.unwrap) }
@@ -160,7 +201,7 @@ foreach ($uid in $userIds) {
 Write-Host "`n  -- Resource graph nodes --" -ForegroundColor Gray
 foreach ($rid in $resourceIds) {
     $core = Get-Json "/resources/$rid"
-    if ($core.__error) { Record "Resource/$rid/Core" $false "HTTP $($core.__statusCode)"; continue }
+    if (Test-IsError $core) { Record "Resource/$rid/Core" $false "HTTP $($core.__statusCode)"; continue }
     $resName = $core.attributes.displayName
 
     $specs = @(
@@ -175,7 +216,7 @@ foreach ($rid in $resourceIds) {
     foreach ($spec in $specs) {
         if ([int]$spec.count -le 0) { continue }
         $resp = Get-Json $spec.url
-        if ($resp.__error) { Record "Resource/$resName/$($spec.node)/Http" $false "HTTP $($resp.__statusCode)"; continue }
+        if (Test-IsError $resp) { Record "Resource/$resName/$($spec.node)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; continue }
 
         $rows = if ($spec.filter) { @($resp | Where-Object { $_.assignmentType -eq $spec.filter }) } else { $resp }
         $rowCount = if ($rows -is [array]) { $rows.Count } else { if ($rows) { 1 } else { 0 } }
@@ -192,7 +233,7 @@ foreach ($rid in $resourceIds) {
 Write-Host "`n  -- Identity graph nodes --" -ForegroundColor Gray
 foreach ($iid in $identityIds) {
     $core = Get-Json "/identities/$iid"
-    if ($core.__error) { Record "Identity/$iid/Core" $false "HTTP $($core.__statusCode)"; continue }
+    if (Test-IsError $core) { Record "Identity/$iid/Core" $false "HTTP $($core.__statusCode)"; continue }
     $idName = $core.identity.displayName
 
     Record "Identity/$idName/accounts/Clickable" ($core.members.Count -gt 0) "accounts=$($core.members.Count)"
@@ -207,7 +248,7 @@ foreach ($iid in $identityIds) {
         $count = [int]($agg.$type)
         if ($count -le 0) { continue }
         $resp = Get-Json "/identities/$iid/assignments?type=$type"
-        if ($resp.__error) { Record "Identity/$idName/$type/Http" $false "HTTP $($resp.__statusCode)"; continue }
+        if (Test-IsError $resp) { Record "Identity/$idName/$type/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; continue }
         $rowCount = if ($resp -is [array]) { $resp.Count } else { if ($resp) { 1 } else { 0 } }
         Record "Identity/$idName/$type/Clickable" ($rowCount -gt 0) "count=$count rows=$rowCount"
         if ($rowCount -gt 0) {
@@ -221,7 +262,7 @@ foreach ($iid in $identityIds) {
 Write-Host "`n  -- Business Role graph nodes --" -ForegroundColor Gray
 foreach ($bid in $brIds) {
     $core = Get-Json "/access-package/$bid"
-    if ($core.__error) { Record "BR/$bid/Core" $false "HTTP $($core.__statusCode)"; continue }
+    if (Test-IsError $core) { Record "BR/$bid/Core" $false "HTTP $($core.__statusCode)"; continue }
     $brName = $core.attributes.displayName
 
     $specs = @(
@@ -235,7 +276,7 @@ foreach ($bid in $brIds) {
     foreach ($spec in $specs) {
         if ([int]$spec.count -le 0) { continue }
         $resp = Get-Json $spec.url
-        if ($resp.__error) { Record "BR/$brName/$($spec.node)/Http" $false "HTTP $($resp.__statusCode)"; continue }
+        if (Test-IsError $resp) { Record "BR/$brName/$($spec.node)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"; continue }
         $rowCount = if ($resp -is [array]) { $resp.Count } else { if ($resp) { 1 } else { 0 } }
         Record "BR/$brName/$($spec.node)/Clickable" ($rowCount -gt 0) "count=$($spec.count) rows=$rowCount"
         if ($rowCount -gt 0) {
