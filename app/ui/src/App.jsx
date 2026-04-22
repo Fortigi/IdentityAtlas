@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { usePermissions } from './hooks/usePermissions';
 import { useAuth } from './auth/AuthGate';
+import { useTheme } from './hooks/useTheme';
+import { ThemeContext } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy-load page components (route-based code splitting)
@@ -121,6 +123,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
   const [riskScoresRefreshKey, setRiskScoresRefreshKey] = useState(0);
+  const { isDark, toggleDark } = useTheme();
 
   const navTabs = useMemo(() =>
     ALL_NAV_TABS.filter(tab => {
@@ -295,13 +298,13 @@ export default function App() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-          <h2 className="text-red-800 font-semibold text-lg">Backend not responding</h2>
-          <p className="text-red-600 mt-2 text-sm">{error}</p>
-          <p className="text-red-500 mt-2 text-xs">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-6 max-w-md">
+          <h2 className="text-red-800 dark:text-red-300 font-semibold text-lg">Backend not responding</h2>
+          <p className="text-red-600 dark:text-red-400 mt-2 text-sm">{error}</p>
+          <p className="text-red-500 dark:text-red-400 mt-2 text-xs">
             If a crawler is currently running, this page may be temporarily slow — wait a moment and refresh.
-            Otherwise check that the web container is running: <code className="bg-red-100 px-1 rounded">docker compose ps web</code> · <code className="bg-red-100 px-1 rounded">docker compose logs web</code>
+            Otherwise check that the web container is running: <code className="bg-red-100 dark:bg-red-900 px-1 rounded">docker compose ps web</code> · <code className="bg-red-100 dark:bg-red-900 px-1 rounded">docker compose logs web</code>
           </p>
         </div>
       </div>
@@ -350,16 +353,17 @@ export default function App() {
   };
 
   return (
+    <ThemeContext.Provider value={isDark}>
     <ErrorBoundary>
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Identity Atlas" className="h-10 w-10" />
+            <img src="/logo.png" alt="Identity Atlas" className="h-10 w-10 rounded-lg dark:bg-white/10 dark:p-0.5" />
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Identity <span style={{ color: '#65b425' }}>Atlas</span></h1>
-              <p className="text-xs text-gray-500">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Identity <span style={{ color: '#65b425' }}>Atlas</span></h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Universal authorization intelligence
               </p>
             </div>
@@ -367,36 +371,52 @@ export default function App() {
           <div className="flex items-center gap-3 relative" ref={settingsRef}>
             <button
               onClick={() => setSettingsOpen(prev => !prev)}
-              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               title="Settings"
             >
-              <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
+              <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex items-center justify-center text-xs font-bold">
                 {(account?.name || account?.username || '?')[0].toUpperCase()}
               </div>
               <span className="hidden sm:inline">{account?.name || account?.username || 'User'}</span>
-              <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {settingsOpen && (
-              <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+              <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
                 {/* User info */}
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="text-sm font-medium text-gray-900">{account?.name || 'User'}</p>
-                  {account?.username && <p className="text-xs text-gray-500">{account.username}</p>}
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{account?.name || 'User'}</p>
+                  {account?.username && <p className="text-xs text-gray-500 dark:text-gray-400">{account.username}</p>}
+                </div>
+
+                {/* Dark mode toggle */}
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Dark Mode</span>
+                    <button
+                      onClick={toggleDark}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isDark ? 'bg-blue-500' : 'bg-gray-300'}`}
+                    >
+                      <span
+                        className="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
+                        style={{ transform: isDark ? 'translateX(18px)' : 'translateX(2px)' }}
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Tab visibility toggles */}
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Visible Tabs</p>
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Visible Tabs</p>
                   {optionalTabs.map(tab => (
                     <label key={tab.key} className="flex items-center justify-between py-1.5 cursor-pointer group">
-                      <span className="text-sm text-gray-700 group-hover:text-gray-900">{tab.label}</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">{tab.label}</span>
                       <button
                         onClick={() => toggleTab(tab.key)}
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                          visibleTabs?.includes(tab.key) ? 'bg-blue-500' : 'bg-gray-300'
+                          visibleTabs?.includes(tab.key) ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
                         }`}
                       >
                         <span
@@ -413,7 +433,7 @@ export default function App() {
                   <div className="px-4 py-2">
                     <button
                       onClick={() => { setSettingsOpen(false); logout(); }}
-                      className="text-sm text-gray-500 hover:text-gray-700 w-full text-left py-1"
+                      className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 w-full text-left py-1"
                     >
                       Sign out
                     </button>
@@ -432,8 +452,8 @@ export default function App() {
               onClick={() => navigate(tab.key)}
               className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors whitespace-nowrap ${
                 page === tab.key
-                  ? 'bg-gray-50 text-blue-600 border-gray-200'
-                  : 'bg-transparent text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
+                  ? 'bg-gray-50 dark:bg-gray-900 text-blue-600 dark:text-blue-400 border-gray-200 dark:border-gray-600'
+                  : 'bg-transparent text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
               }`}
             >
               {tab.label}
@@ -445,22 +465,22 @@ export default function App() {
             const tabKey = `${tab.type}:${tab.id}`;
             const isActive = page === tabKey;
             const icon = tab.type === 'user' ? 'U' : tab.type === 'resource' ? 'R' : tab.type === 'group' ? 'G' : tab.type === 'department' ? 'D' : tab.type === 'context' ? 'OU' : 'AP';
-            const iconBg = tab.type === 'user' ? 'bg-blue-100 text-blue-700' : tab.type === 'resource' ? 'bg-purple-100 text-purple-700' : tab.type === 'group' ? 'bg-purple-100 text-purple-700' : tab.type === 'department' ? 'bg-green-100 text-green-700' : tab.type === 'context' ? 'bg-sky-100 text-sky-700' : 'bg-indigo-100 text-indigo-700';
+            const iconBg = tab.type === 'user' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : tab.type === 'resource' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : tab.type === 'group' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : tab.type === 'department' ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' : tab.type === 'context' ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300';
             return (
               <button
                 key={tabKey}
                 onClick={() => navigate(tabKey)}
                 className={`group flex items-center gap-1.5 pl-2 pr-1 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors whitespace-nowrap max-w-[200px] ${
                   isActive
-                    ? 'bg-gray-50 text-blue-600 border-gray-200'
-                    : 'bg-transparent text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
+                    ? 'bg-gray-50 dark:bg-gray-900 text-blue-600 dark:text-blue-400 border-gray-200 dark:border-gray-600'
+                    : 'bg-transparent text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                 }`}
               >
                 <span className={`inline-flex items-center justify-center w-4 h-4 rounded-sm text-[9px] font-bold ${iconBg}`}>{icon}</span>
                 <span className="truncate max-w-[140px]">{tab.displayName}</span>
                 <span
                   onClick={(e) => { e.stopPropagation(); closeDetailTab(tab.type, tab.id); }}
-                  className="ml-0.5 p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="ml-0.5 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Close"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -475,7 +495,7 @@ export default function App() {
 
       {/* Content */}
       <main className="p-6">
-        <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading...</div></div>}>
+        <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
           {isDetailPage ? (
             renderDetailPage()
           ) : page === 'dashboard' ? (
@@ -502,7 +522,7 @@ export default function App() {
             <AdminPage onNavigate={navigate} onRefresh={forceRefresh} onRiskScoresRefresh={() => setRiskScoresRefreshKey(k => k + 1)} />
           ) : loading ? (
             <div className="flex items-center justify-center h-64">
-              <div className="text-gray-500">Loading permission data...</div>
+              <div className="text-gray-500 dark:text-gray-400">Loading permission data...</div>
             </div>
           ) : (
             <MatrixView
@@ -529,20 +549,21 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 bg-white px-6 py-2 text-xs text-gray-400 text-center flex items-center justify-center gap-2">
+      <footer className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-2 text-xs text-gray-400 dark:text-gray-500 text-center flex items-center justify-center gap-2">
         <button
           onClick={() => navigate('admin?sub=about')}
-          className="hover:text-gray-600 hover:underline focus:outline-none"
+          className="hover:text-gray-600 dark:hover:text-gray-300 hover:underline focus:outline-none"
         >
           Identity Atlas{moduleVersion ? ` v${moduleVersion}` : ''}
         </button>
         {/^\d+\.\d+\.\d{8}\.\d{4}$/.test(moduleVersion) && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-300">
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700">
             edge
           </span>
         )}
       </footer>
     </div>
     </ErrorBoundary>
+    </ThemeContext.Provider>
   );
 }
