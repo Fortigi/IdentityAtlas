@@ -29,7 +29,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-180px)] bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-180px)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
       <div className="flex flex-1 min-h-0">
         <div className="w-80 flex-shrink-0">
           <ContextTreeSelector
@@ -43,13 +43,13 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
 
         <div className="flex-1 min-w-0 overflow-auto flex flex-col">
           {rootsError && (
-            <div className="p-4 text-sm text-red-700 bg-red-50 border-b border-red-100">
+            <div className="p-4 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-b border-red-100">
               {rootsError}
             </div>
           )}
 
           {!selectedRoot && !rootsLoading && (
-            <div className="flex-1 flex items-center justify-center p-8 text-sm text-gray-500">
+            <div className="flex-1 flex items-center justify-center p-8 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">
               Select a tree on the left, or click <span className="font-semibold">+ New</span> to create one.
             </div>
           )}
@@ -58,7 +58,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
             <>
               <SelectedRootHeader root={selectedRoot} viewMode={viewMode} onChangeViewMode={setViewMode} />
               {subtreeLoading ? (
-                <div className="p-4 text-sm text-gray-500">Loading subtree…</div>
+                <div className="p-4 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading subtree…</div>
               ) : viewMode === 'tree' ? (
                 <ContextTreeView nodes={nodes} onOpenDetail={open} />
               ) : (
@@ -89,37 +89,37 @@ function SelectedRootHeader({ root, viewMode, onChangeViewMode }) {
   const v = variantMeta(root.variant);
   const t = targetTypeMeta(root.targetType);
   return (
-    <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-4">
+    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4">
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`w-1.5 h-6 ${v.dotClass} rounded`} aria-hidden="true" />
-          <h2 className="text-base font-semibold text-gray-900 truncate">{root.displayName}</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white truncate">{root.displayName}</h2>
           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass}`}>{t.label}</span>
           <span className={`inline-flex items-center gap-1 text-[10px] ${v.textClass}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${v.dotClass}`} />{v.label}
           </span>
           {root.scopeSystemName && (
-            <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+            <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-400 border border-slate-200 dark:border-gray-600">
               {root.scopeSystemName}
             </span>
           )}
           {root.ownerUserId && (
-            <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200" title="Owner">
+            <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700" title="Owner">
               Owner: {root.ownerUserId}
             </span>
           )}
         </div>
-        {root.description && <p className="text-xs text-gray-500 mt-1 truncate">{root.description}</p>}
+        {root.description && <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1 truncate">{root.description}</p>}
       </div>
 
-      <div className="flex items-center gap-1 bg-gray-100 rounded p-0.5">
+      <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded p-0.5">
         <button
           onClick={() => onChangeViewMode('tree')}
-          className={`px-2.5 py-1 text-xs rounded ${viewMode === 'tree' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}`}
+          className={`px-2.5 py-1 text-xs rounded ${viewMode === 'tree' ? 'bg-white dark:bg-gray-800 shadow-sm text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 dark:text-gray-500'}`}
         >Tree</button>
         <button
           onClick={() => onChangeViewMode('list')}
-          className={`px-2.5 py-1 text-xs rounded ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}`}
+          className={`px-2.5 py-1 text-xs rounded ${viewMode === 'list' ? 'bg-white dark:bg-gray-800 shadow-sm text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 dark:text-gray-500'}`}
         >List</button>
       </div>
     </div>

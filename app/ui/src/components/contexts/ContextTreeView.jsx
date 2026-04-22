@@ -55,7 +55,7 @@ function TreeNode({ node, depth, isLast, onOpenDetail }) {
           <button
             aria-expanded={expanded}
             onClick={() => setExpanded(prev => !prev)}
-            className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded shrink-0"
+            className="w-5 h-5 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded shrink-0"
             title={expanded ? 'Collapse' : 'Expand'}
           >
             {expanded ? '▾' : '▸'}
@@ -66,13 +66,13 @@ function TreeNode({ node, depth, isLast, onOpenDetail }) {
 
         <button
           onClick={() => onOpenDetail(node.id, node.displayName)}
-          className="flex items-center gap-2 min-w-0 px-3 py-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm transition-shadow text-left shrink max-w-full"
+          className="flex items-center gap-2 min-w-0 px-3 py-1.5 rounded-full border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-slate-50 dark:bg-gray-700/50 hover:border-slate-300 dark:border-gray-500 hover:shadow-sm transition-shadow text-left shrink max-w-full"
         >
           <span
             className={`w-2.5 h-2.5 rounded-full ${v.dotClass} ring-2 ring-white outline outline-1 outline-slate-200 shrink-0`}
             aria-hidden="true"
           />
-          <span className="font-medium text-gray-900 truncate">{node.displayName}</span>
+          <span className="font-medium text-gray-900 dark:text-white truncate">{node.displayName}</span>
           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap shrink-0`}>
             {t.label}
           </span>
@@ -105,10 +105,10 @@ function MemberCount({ direct, total }) {
   const t = total  || 0;
   if (t > d) {
     return (
-      <span className="text-[11px] text-gray-400 whitespace-nowrap shrink-0">
-        {d} · <span className="text-gray-600">{t}</span>
+      <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap shrink-0">
+        {d} · <span className="text-gray-600 dark:text-gray-400 dark:text-gray-500">{t}</span>
       </span>
     );
   }
-  return <span className="text-[11px] text-gray-400 whitespace-nowrap shrink-0">{d}</span>;
+  return <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap shrink-0">{d}</span>;
 }

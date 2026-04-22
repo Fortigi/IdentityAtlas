@@ -99,7 +99,7 @@ export default function ContextFilterControl({ value = [], onChange }) {
 
   return (
     <div ref={wrapperRef} className="relative inline-flex items-center gap-1 flex-wrap">
-      <span className="text-xs text-gray-600 mr-1">Context:</span>
+      <span className="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mr-1">Context:</span>
 
       {value.map(v => {
         const row = contextsById.get(v.id);
@@ -108,13 +108,13 @@ export default function ContextFilterControl({ value = [], onChange }) {
         return (
           <span
             key={v.id}
-            className="inline-flex items-center gap-1 text-[11px] bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5"
+            className="inline-flex items-center gap-1 text-[11px] bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded px-1.5 py-0.5"
             title={row ? `${row.contextType} · ${row.targetType}${row.scopeSystemName ? ' · ' + row.scopeSystemName : ''}` : v.id}
           >
             {variant && <span className={`w-1.5 h-1.5 rounded-full ${variant.dotClass}`} aria-hidden="true" />}
             <span className="max-w-[14rem] truncate">{row ? row.displayName : v.id.slice(0, 8)}</span>
             {target && <span className={`text-[9px] px-1 rounded border ${target.badgeClass}`}>{target.label}</span>}
-            <label className="inline-flex items-center gap-0.5 text-slate-500 cursor-pointer" title="Include descendants">
+            <label className="inline-flex items-center gap-0.5 text-slate-500 dark:text-gray-400 cursor-pointer" title="Include descendants">
               <input
                 type="checkbox"
                 checked={v.includeChildren}
@@ -125,7 +125,7 @@ export default function ContextFilterControl({ value = [], onChange }) {
             </label>
             <button
               onClick={() => remove(v.id)}
-              className="text-slate-500 hover:text-slate-700 ml-0.5"
+              className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:text-gray-300 ml-0.5"
               aria-label="Remove context filter"
             >×</button>
           </span>
@@ -134,22 +134,22 @@ export default function ContextFilterControl({ value = [], onChange }) {
 
       <button
         onClick={() => setOpen(o => !o)}
-        className="px-2 py-0.5 text-[11px] rounded border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700"
+        className="px-2 py-0.5 text-[11px] rounded border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:border-gray-400 hover:text-gray-700 dark:text-gray-300"
       >+ context</button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-30 w-80 max-h-80 overflow-auto">
-          <div className="p-2 border-b border-gray-100">
+        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-30 w-80 max-h-80 overflow-auto">
+          <div className="p-2 border-b border-gray-100 dark:border-gray-700">
             <input
               autoFocus
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search trees…"
-              className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+              className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
             />
           </div>
           {filteredRoots.length === 0 ? (
-            <div className="p-3 text-xs text-gray-500">No trees. Create one on the Contexts tab.</div>
+            <div className="p-3 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">No trees. Create one on the Contexts tab.</div>
           ) : (
             <ul>
               {filteredRoots.map(r => {
@@ -160,7 +160,7 @@ export default function ContextFilterControl({ value = [], onChange }) {
                     <button
                       disabled={alreadyIn}
                       onClick={() => add(r.id)}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-gray-50 ${alreadyIn ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 ${alreadyIn ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
                       <span className="truncate">{r.displayName}</span>
                       <span className={`text-[10px] px-1 rounded border ${t.badgeClass} ml-2`}>{t.label}</span>
