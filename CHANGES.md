@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed org chart direct reports not showing due to invalid ValidTo filtering (temporal tables were removed in v5)
+
+## Changes in this PR
+
 - Fixed business role assignments not displaying in the detail page (API was returning `state` instead of `assignmentState` and missing the `id` field)
 
 ## Changes in this PR
