@@ -252,8 +252,8 @@ export default function AccessPackagesPage({ onOpenDetail }) {
     <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Business Roles</h2>
-        <span className="text-sm text-gray-500">{total.toLocaleString()} total</span>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Business Roles</h2>
+        <span className="text-sm text-gray-500 dark:text-gray-400">{total.toLocaleString()} total</span>
         <button
           onClick={handleExportExcel}
           disabled={!!exportStatus}
@@ -266,7 +266,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
 
       {/* Category management bar */}
       <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
-        <span className="font-medium text-gray-600">Categories:</span>
+        <span className="font-medium text-gray-600 dark:text-gray-400">Categories:</span>
         {categories.map(c => (
           <span
             key={c.id}
@@ -293,8 +293,8 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer border ${
             categoryFilter === 'uncategorized'
-              ? 'ring-2 ring-offset-1 ring-blue-400 bg-gray-100 border-gray-400 text-gray-600'
-              : 'hover:opacity-80 bg-gray-50 border-gray-300 text-gray-500'
+              ? 'ring-2 ring-offset-1 ring-blue-400 bg-gray-100 dark:bg-gray-700 border-gray-400 dark:border-gray-500 text-gray-600 dark:text-gray-400'
+              : 'hover:opacity-80 bg-gray-50 dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400'
           }`}
           onClick={() => setCategoryFilter(categoryFilter === 'uncategorized' ? null : 'uncategorized')}
           title="Show business roles without a category"
@@ -303,7 +303,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         </span>
         <button
           onClick={() => setShowCreateCategory(!showCreateCategory)}
-          className="px-2 py-0.5 rounded text-xs text-blue-600 hover:bg-blue-50 border border-blue-200 border-dashed"
+          className="px-2 py-0.5 rounded text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-700 border-dashed"
         >
           + New Category
         </button>
@@ -311,14 +311,14 @@ export default function AccessPackagesPage({ onOpenDetail }) {
 
       {/* Create category form */}
       {showCreateCategory && (
-        <div className="flex items-center gap-2 mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+        <div className="flex items-center gap-2 mb-3 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm">
           <input
             type="text"
             value={newCategoryName}
             onChange={e => setNewCategoryName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && createCategory()}
             placeholder="Category name..."
-            className="px-2 py-1 border border-gray-300 rounded text-sm w-48"
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm w-48 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
             autoFocus
           />
           <div className="flex items-center gap-1">
@@ -340,7 +340,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
           </button>
           <button
             onClick={() => setShowCreateCategory(false)}
-            className="px-2 py-1 rounded text-sm text-gray-500 hover:bg-gray-200"
+            className="px-2 py-1 rounded text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -354,12 +354,12 @@ export default function AccessPackagesPage({ onOpenDetail }) {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search by name or catalog..."
-          className="px-2 py-1 border border-gray-300 rounded text-xs w-56"
+          className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-56 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
         <select
           value={typeFilter || ''}
           onChange={e => setTypeFilter(e.target.value || null)}
-          className="px-2 py-1 border border-gray-300 rounded text-xs"
+          className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs dark:bg-gray-700 dark:text-gray-200"
         >
           <option value="">All types</option>
           {ASSIGNMENT_TYPES.map(t => (
@@ -368,10 +368,10 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         </select>
         {hasAnyFilter && (
           <>
-            <div className="border-l border-gray-300 h-5 mx-1" />
+            <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
             <button
               onClick={() => { setCategoryFilter(null); setTypeFilter(null); setSearch(''); }}
-              className="px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-100 border border-gray-200"
+              className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
             >
               Clear all
             </button>
@@ -381,13 +381,13 @@ export default function AccessPackagesPage({ onOpenDetail }) {
 
       {/* Action bar (visible when items selected) */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-          <span className="font-medium text-blue-700">{selected.size} selected</span>
-          <div className="border-l border-blue-200 h-5" />
+        <div className="flex items-center gap-3 mb-3 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg text-sm">
+          <span className="font-medium text-blue-700 dark:text-blue-300">{selected.size} selected</span>
+          <div className="border-l border-blue-200 dark:border-blue-700 h-5" />
           <select
             value={actionCategory}
             onChange={e => setActionCategory(e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-sm"
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-200"
           >
             <option value="">Select category...</option>
             {categories.map(c => (
@@ -404,13 +404,13 @@ export default function AccessPackagesPage({ onOpenDetail }) {
           <button
             onClick={removeCategoryFromSelected}
             disabled={busy}
-            className="px-3 py-1 rounded text-sm font-medium text-red-600 hover:bg-red-50 border border-red-200 disabled:opacity-50"
+            className="px-3 py-1 rounded text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-700 disabled:opacity-50"
           >
             Remove Category
           </button>
           <button
             onClick={() => setSelected(new Set())}
-            className="px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-100 ml-auto"
+            className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 ml-auto"
           >
             Clear selection
           </button>
@@ -419,16 +419,16 @@ export default function AccessPackagesPage({ onOpenDetail }) {
 
       {/* Table */}
       {loading ? (
-        <div className="text-center text-gray-500 py-12">Loading business roles...</div>
+        <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading business roles...</div>
       ) : packages.length === 0 ? (
-        <div className="text-center text-gray-500 py-12">
+        <div className="text-center text-gray-500 dark:text-gray-400 py-12">
           {hasAnyFilter ? 'No business roles match the current filters.' : 'No business roles found.'}
         </div>
       ) : (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
+              <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
                 <th className="w-10 px-3 py-2">
                   <input
                     type="checkbox"
@@ -447,28 +447,28 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                   <th
                     key={col.key}
                     onClick={() => toggleSort(col.key)}
-                    className="text-left px-3 py-2 font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100"
+                    className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     <span className="inline-flex items-center gap-1">
                       {col.label}
                       {sortCol === col.key ? (
-                        <span className="text-blue-600 text-[10px]">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
+                        <span className="text-blue-600 text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>
                       ) : (
-                        <span className="text-gray-300 text-[10px]">{'\u25B4'}</span>
+                        <span className="text-gray-300 dark:text-gray-500 text-[10px]">{'▴'}</span>
                       )}
                     </span>
                   </th>
                 ))}
                 <th
                   onClick={() => toggleSort('category')}
-                  className="text-left px-3 py-2 font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100"
+                  className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   <span className="inline-flex items-center gap-1">
                     Category
                     {sortCol === 'category' ? (
-                      <span className="text-blue-600 text-[10px]">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
+                      <span className="text-blue-600 text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>
                     ) : (
-                      <span className="text-gray-300 text-[10px]">{'\u25B4'}</span>
+                      <span className="text-gray-300 dark:text-gray-500 text-[10px]">{'▴'}</span>
                     )}
                   </span>
                 </th>
@@ -478,8 +478,8 @@ export default function AccessPackagesPage({ onOpenDetail }) {
               {sortedPackages.map(ap => (
                 <tr
                   key={ap.id}
-                  className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                    selected.has(ap.id) ? 'bg-blue-50' : ''
+                  className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${
+                    selected.has(ap.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                   }`}
                   onClick={() => toggleSelect(ap.id)}
                 >
@@ -525,8 +525,8 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                           {ap.complianceStatus === 'Missed' && ap.daysOverdue > 0 && ` (${ap.daysOverdue}d ago)`}
                         </span>
                         {ap.reviewerInfo && (ap.complianceStatus === 'Missed' || ap.complianceStatus === 'In Progress') && (
-                          <div className="mt-0.5 text-gray-500 text-[11px] leading-tight" title={`Reviewer: ${ap.reviewerInfo}`}>
-                            <span className="text-gray-400">Reviewer: </span>{ap.reviewerInfo}
+                          <div className="mt-0.5 text-gray-500 dark:text-gray-400 text-[11px] leading-tight" title={`Reviewer: ${ap.reviewerInfo}`}>
+                            <span className="text-gray-400 dark:text-gray-500">Reviewer: </span>{ap.reviewerInfo}
                           </div>
                         )}
                         {ap.missedReviewsCount > 0 && (
@@ -540,7 +540,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                       </div>
                     ) : ap.totalAssignments === 0 ? (
                       <span
-                        className="text-gray-400 text-xs"
+                        className="text-gray-400 dark:text-gray-500 text-xs"
                         title={ap.hasReviewConfigured
                           ? 'Review is configured but there are no active assignments — nothing to review'
                           : 'No active assignments'}
@@ -556,8 +556,8 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                           Pending first review
                         </span>
                         {ap.reviewerInfo && (
-                          <div className="mt-0.5 text-gray-500 text-[11px] leading-tight" title={`Reviewer: ${ap.reviewerInfo}`}>
-                            <span className="text-gray-400">Reviewer: </span>{ap.reviewerInfo}
+                          <div className="mt-0.5 text-gray-500 dark:text-gray-400 text-[11px] leading-tight" title={`Reviewer: ${ap.reviewerInfo}`}>
+                            <span className="text-gray-400 dark:text-gray-500">Reviewer: </span>{ap.reviewerInfo}
                           </div>
                         )}
                         {ap.missedReviewsCount > 0 && (
@@ -571,17 +571,17 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                       </div>
                     ) : (
                       <span
-                        className="text-gray-400 text-xs"
+                        className="text-gray-400 dark:text-gray-500 text-xs"
                         title="No certification is configured on any assignment policy for this business role"
                       >
                         Not required
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-gray-600 text-xs whitespace-nowrap">
-                    {ap.lastReviewDate ? formatDate(ap.lastReviewDate) : <span className="text-gray-300">-</span>}
+                  <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">
+                    {ap.lastReviewDate ? formatDate(ap.lastReviewDate) : <span className="text-gray-300 dark:text-gray-500">-</span>}
                   </td>
-                  <td className="px-3 py-2 text-gray-500 text-xs">
+                  <td className="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs">
                     {ap.lastReviewedBy ? (
                       /^AAD Access Review/i.test(ap.lastReviewedBy) ? (
                         <span
@@ -595,7 +595,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                         ap.lastReviewedBy
                       )
                     ) : (
-                      <span className="text-gray-300">-</span>
+                      <span className="text-gray-300 dark:text-gray-500">-</span>
                     )}
                   </td>
                   <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
@@ -603,7 +603,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                       value={ap.category?.id || ''}
                       onChange={e => assignCategoryToOne(ap.id, e.target.value ? parseInt(e.target.value) : null)}
                       disabled={busy}
-                      className="px-1.5 py-0.5 border border-gray-200 rounded text-xs bg-white"
+                      className="px-1.5 py-0.5 border border-gray-200 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 dark:text-gray-200"
                       style={ap.category ? {
                         backgroundColor: ap.category.color + '20',
                         borderColor: ap.category.color,
@@ -625,7 +625,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
+        <div className="flex items-center justify-between mt-3 text-sm text-gray-600 dark:text-gray-400">
           <span>
             Showing {page * PAGE_SIZE + 1}&ndash;{Math.min((page + 1) * PAGE_SIZE, total)} of {total.toLocaleString()}
           </span>
@@ -633,7 +633,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
             <button
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40"
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
             >
               Prev
             </button>
@@ -641,7 +641,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
             <button
               onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1}
-              className="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40"
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
             >
               Next
             </button>

@@ -1,0 +1,5 @@
+- Added dark mode support across the entire UI; toggle via the user avatar settings dropdown
+- Dark mode preference is persisted per browser in localStorage
+- All pages, tables, cards, modals, and the matrix view adapt to dark mode
+- Access Package column colors switch to a darker saturated palette in dark mode so they remain distinct and legible
+- Risk tier badges (Critical/High/Medium/Low/Minimal) use appropriately shifted dark variants

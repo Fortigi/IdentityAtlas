@@ -2,15 +2,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { TIER_STYLES } from '../utils/tierStyles';
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
 const TIER_ORDER = { Critical: 5, High: 4, Medium: 3, Low: 2, Minimal: 1, None: 0 };
 const TIER_DISPLAY = ['Critical', 'High', 'Medium', 'Low', 'Minimal'];
 const TIER_BAR_COLORS = {
   Critical: '#ef4444', High: '#f97316', Medium: '#eab308', Low: '#3b82f6', Minimal: '#9ca3af', None: '#e5e7eb',
 };
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function computeRisk(members) {
   const tierCounts = {};
@@ -61,8 +57,6 @@ function collectSubDepts(node, depth = 0) {
   return depts;
 }
 
-// ─── Build department tree from flat user list (for refresh/no-cache case) ───
-
 function buildDeptTree(users, targetDeptName) {
   const userMap = new Map();
   const childrenMap = new Map();
@@ -74,7 +68,6 @@ function buildDeptTree(users, targetDeptName) {
     }
   }
 
-  // Find root
   let bestRoot = null;
   let bestCount = -1;
   for (const u of users) {
@@ -122,7 +115,6 @@ function buildDeptTree(users, targetDeptName) {
   const rootDeptName = bestRoot.department || '(No department)';
   const rootResult = buildChildren([bestRoot], rootDeptName);
 
-  // Count subtree
   function countSubtree(node) {
     let indirect = 0;
     for (const child of node.children) indirect += countSubtree(child);
@@ -132,7 +124,6 @@ function buildDeptTree(users, targetDeptName) {
     return node.subtreeCount;
   }
 
-  // Find the target department in the tree
   function findDept(nodes, name) {
     for (const n of nodes) {
       if (n.department === name) return n;
@@ -149,13 +140,11 @@ function buildDeptTree(users, targetDeptName) {
   return findDept(rootResult.nodes, targetDeptName);
 }
 
-// ─── Small components ────────────────────────────────────────────────────────
-
 function TierBadge({ tier, showAll }) {
   if (!showAll && (!tier || tier === 'None' || tier === 'Minimal')) return null;
   const s = TIER_STYLES[tier] || TIER_STYLES.None;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${s.bg} ${s.text} ${s.border} border whitespace-nowrap`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${s.bg} ${s.text} ${s.border} border ${s.darkBg} ${s.darkText} ${s.darkBorder} whitespace-nowrap`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {tier}
     </span>
@@ -175,8 +164,6 @@ function Avatar({ name, tier }) {
   );
 }
 
-// ─── Risk summary section ────────────────────────────────────────────────────
-
 function buildSummaryText(directMembers, allMembers, directRisk, allRisk, node) {
   const parts = [];
   const direct = directMembers.length;
@@ -185,7 +172,6 @@ function buildSummaryText(directMembers, allMembers, directRisk, allRisk, node) 
 
   if (scored.length === 0) return 'No risk score data available for this department.';
 
-  // Tier breakdown sentence
   const tierParts = TIER_DISPLAY
     .filter(t => allRisk.tierCounts[t] > 0)
     .map(t => `${allRisk.tierCounts[t]} ${t.toLowerCase()}`);
@@ -194,7 +180,6 @@ function buildSummaryText(directMembers, allMembers, directRisk, allRisk, node) 
     parts.push(`Of ${total} total member${total !== 1 ? 's' : ''} (${direct} direct${total > direct ? `, ${total - direct} indirect` : ''}), ${pct === 100 ? 'all have' : `${scored.length} have`} risk scores: ${tierParts.join(', ')}.`);
   }
 
-  // Highest risk tier explanation
   const highTiers = TIER_DISPLAY.filter(t => (TIER_ORDER[t] || 0) >= 3 && allRisk.tierCounts[t] > 0);
   if (highTiers.length > 0) {
     const highCount = highTiers.reduce((sum, t) => sum + (allRisk.tierCounts[t] || 0), 0);
@@ -204,7 +189,6 @@ function buildSummaryText(directMembers, allMembers, directRisk, allRisk, node) 
     parts.push(`No members are rated medium risk or above. The department's risk posture is ${allRisk.maxTier.toLowerCase()}.`);
   }
 
-  // Score spread
   const scores = scored.map(m => m.riskScore);
   const min = Math.min(...scores);
   const max = Math.max(...scores);
@@ -219,7 +203,6 @@ function RiskSummary({ directMembers, allMembers, directRisk, allRisk, subDepts,
   const scored = allMembers.filter(m => m.riskScore != null);
   if (scored.length === 0) return null;
 
-  // Score stats
   const scores = scored.map(m => m.riskScore).sort((a, b) => a - b);
   const min = scores[0];
   const max = scores[scores.length - 1];
@@ -227,10 +210,8 @@ function RiskSummary({ directMembers, allMembers, directRisk, allRisk, subDepts,
     ? Math.round((scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2)
     : scores[Math.floor(scores.length / 2)];
 
-  // Top 5 highest risk members
   const topRisk = [...scored].sort((a, b) => b.riskScore - a.riskScore).slice(0, 5);
 
-  // Tier distribution for bar
   const allTiers = [...TIER_DISPLAY, 'None'];
   const tierSegments = allTiers
     .map(t => ({ tier: t, count: allRisk.tierCounts[t] || 0 }))
@@ -240,19 +221,17 @@ function RiskSummary({ directMembers, allMembers, directRisk, allRisk, subDepts,
   const summaryText = buildSummaryText(directMembers, allMembers, directRisk, allRisk, node);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-      <div className="px-6 py-3 border-b border-gray-100 bg-gray-50">
-        <h3 className="text-sm font-semibold text-gray-700">Risk Summary</h3>
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm overflow-hidden">
+      <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Risk Summary</h3>
       </div>
 
       <div className="px-6 py-4 space-y-4">
-        {/* Text explanation */}
-        <p className="text-sm text-gray-600 leading-relaxed">{summaryText}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{summaryText}</p>
 
-        {/* Distribution bar */}
         <div>
-          <div className="text-xs text-gray-500 mb-1.5">Risk distribution</div>
-          <div className="flex h-6 rounded-md overflow-hidden border border-gray-200">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Risk distribution</div>
+          <div className="flex h-6 rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
             {tierSegments.map(s => {
               const pct = (s.count / totalScored) * 100;
               return (
@@ -269,7 +248,7 @@ function RiskSummary({ directMembers, allMembers, directRisk, allRisk, subDepts,
           </div>
           <div className="flex gap-3 mt-1.5">
             {tierSegments.map(s => (
-              <div key={s.tier} className="flex items-center gap-1 text-[10px] text-gray-500">
+              <div key={s.tier} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: TIER_BAR_COLORS[s.tier] }} />
                 {s.tier} ({s.count})
               </div>
@@ -277,11 +256,9 @@ function RiskSummary({ directMembers, allMembers, directRisk, allRisk, subDepts,
           </div>
         </div>
 
-        {/* Stats + Top risk in two columns */}
         <div className="grid grid-cols-2 gap-4">
-          {/* Score stats */}
           <div>
-            <div className="text-xs text-gray-500 mb-2">Score statistics</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Score statistics</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
               {[
                 { label: 'Average', value: allRisk.avgScore },
@@ -291,27 +268,26 @@ function RiskSummary({ directMembers, allMembers, directRisk, allRisk, subDepts,
                 { label: 'Scored', value: `${scored.length} / ${allMembers.length}` },
               ].map(s => (
                 <div key={s.label} className="flex justify-between text-xs py-0.5">
-                  <span className="text-gray-400">{s.label}</span>
-                  <span className="font-mono text-gray-700">{s.value}</span>
+                  <span className="text-gray-400 dark:text-gray-500">{s.label}</span>
+                  <span className="font-mono text-gray-700 dark:text-gray-300">{s.value}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Top risk contributors */}
           <div>
-            <div className="text-xs text-gray-500 mb-2">Highest risk members</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Highest risk members</div>
             <div className="space-y-1">
               {topRisk.map(user => (
                 <div key={user.id} className="flex items-center gap-2 text-xs">
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: TIER_BAR_COLORS[user.riskTier || 'None'] }} />
                   <button
                     onClick={() => onOpenDetail('user', user.id, user.displayName)}
-                    className="text-blue-700 hover:text-blue-900 hover:underline truncate"
+                    className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline truncate"
                   >
                     {user.displayName}
                   </button>
-                  <span className="ml-auto font-mono text-gray-400 shrink-0">{user.riskScore}</span>
+                  <span className="ml-auto font-mono text-gray-400 dark:text-gray-500 shrink-0">{user.riskScore}</span>
                   <TierBadge tier={user.riskTier} />
                 </div>
               ))}
@@ -323,8 +299,6 @@ function RiskSummary({ directMembers, allMembers, directRisk, allRisk, subDepts,
   );
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
-
 export default function DepartmentDetailPage({ departmentName, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
   const [tab, setTab] = useState('direct');
@@ -332,7 +306,6 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
   const [loading, setLoading] = useState(!cachedData?.node);
   const [error, setError] = useState(null);
 
-  // Fetch org chart data and rebuild tree if no cached data
   useEffect(() => {
     if (node) return;
     let cancelled = false;
@@ -377,7 +350,6 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
   const displayMembers = tab === 'direct' ? directMembers : tab === 'indirect' ? indirectMembers : allMembers;
   const displayRisk = tab === 'direct' ? directRisk : tab === 'indirect' ? indirectRisk : allRisk;
 
-  // Sort members by risk score descending, then name
   const sortedMembers = useMemo(() => {
     return [...displayMembers].sort((a, b) => {
       const riskDiff = (b.riskScore || 0) - (a.riskScore || 0);
@@ -389,17 +361,17 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading department details...</div>
+        <div className="text-gray-500 dark:text-gray-400">Loading department details...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto mt-12">
-        <h2 className="text-red-800 font-semibold text-lg">Failed to load department</h2>
-        <p className="text-red-600 mt-2 text-sm">{error}</p>
-        <button onClick={onClose} className="mt-3 text-sm text-red-700 underline hover:text-red-900">Close</button>
+      <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6 max-w-md mx-auto mt-12">
+        <h2 className="text-red-800 dark:text-red-300 font-semibold text-lg">Failed to load department</h2>
+        <p className="text-red-600 dark:text-red-400 mt-2 text-sm">{error}</p>
+        <button onClick={onClose} className="mt-3 text-sm text-red-700 dark:text-red-400 underline hover:text-red-900 dark:hover:text-red-300">Close</button>
       </div>
     );
   }
@@ -409,15 +381,15 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-100 text-green-700 flex items-center justify-center text-lg font-bold">D</div>
+                <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 flex items-center justify-center text-lg font-bold">D</div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">{node.department}</h2>
-                  <div className="text-sm text-gray-500 mt-0.5">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{node.department}</h2>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                     {node.directCount || directMembers.length} direct member{(node.directCount || directMembers.length) !== 1 ? 's' : ''}
                     {(node.indirectCount || 0) > 0 && (
                       <span> | {node.indirectCount} indirect</span>
@@ -433,7 +405,7 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
               <TierBadge tier={directRisk.maxTier} showAll />
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
                 title="Close"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -444,14 +416,13 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
           </div>
         </div>
 
-        {/* Risk distribution overview */}
         {TIER_DISPLAY.some(t => allRisk.tierCounts[t] > 0) && (
-          <div className="flex gap-2 px-6 py-3 border-b border-gray-100">
-            <span className="text-xs text-gray-500 mr-1 self-center">Overall risk:</span>
+          <div className="flex gap-2 px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+            <span className="text-xs text-gray-500 dark:text-gray-400 mr-1 self-center">Overall risk:</span>
             {TIER_DISPLAY.filter(t => allRisk.tierCounts[t] > 0).map(t => {
               const s = TIER_STYLES[t];
               return (
-                <span key={t} className={`${s.bg} ${s.text} text-xs px-2.5 py-0.5 rounded-full border ${s.border}`}>
+                <span key={t} className={`${s.bg} ${s.text} ${s.darkBg} ${s.darkText} text-xs px-2.5 py-0.5 rounded-full border ${s.border} ${s.darkBorder}`}>
                   {allRisk.tierCounts[t]} {t}
                 </span>
               );
@@ -459,15 +430,14 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
           </div>
         )}
 
-        {/* Sub-departments summary */}
         {subDepts.length > 0 && (
-          <div className="px-6 py-3 border-b border-gray-100">
-            <div className="text-xs font-medium text-gray-500 mb-2">Sub-departments</div>
+          <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Sub-departments</div>
             <div className="flex flex-wrap gap-1.5">
               {subDepts.map((d, i) => (
-                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                  {d.depth > 0 && <span className="text-gray-300">{'  '.repeat(d.depth)}</span>}
-                  {d.name} <span className="text-gray-400">({d.directCount})</span>
+                <span key={i} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                  {d.depth > 0 && <span className="text-gray-300 dark:text-gray-500">{'  '.repeat(d.depth)}</span>}
+                  {d.name} <span className="text-gray-400 dark:text-gray-500">({d.directCount})</span>
                 </span>
               ))}
             </div>
@@ -475,7 +445,6 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
         )}
       </div>
 
-      {/* Risk summary */}
       {allMembers.some(m => m.riskScore != null) && (
         <RiskSummary
           directMembers={directMembers}
@@ -489,9 +458,8 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
       )}
 
       {/* Members section */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 px-6 bg-gray-50">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm overflow-hidden">
+        <div className="flex border-b border-gray-200 dark:border-gray-700 px-6 bg-gray-50 dark:bg-gray-700/50">
           {[
             { key: 'direct', label: 'Direct Members', count: directMembers.length },
             ...(indirectMembers.length > 0
@@ -506,8 +474,8 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
               onClick={() => setTab(t.key)}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 tab === t.key
-                  ? 'border-blue-500 text-blue-700'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-blue-500 text-blue-700 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
               {t.label} ({t.count})
@@ -515,15 +483,14 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
           ))}
         </div>
 
-        {/* Tab risk distribution */}
         {TIER_DISPLAY.some(t => displayRisk.tierCounts[t] > 0) && (
-          <div className="flex gap-2 px-6 py-2 border-b border-gray-100">
-            <span className="text-xs text-gray-400 mr-1 self-center">Avg. score: {displayRisk.avgScore}</span>
-            <span className="text-gray-200 self-center">|</span>
+          <div className="flex gap-2 px-6 py-2 border-b border-gray-100 dark:border-gray-700">
+            <span className="text-xs text-gray-400 dark:text-gray-500 mr-1 self-center">Avg. score: {displayRisk.avgScore}</span>
+            <span className="text-gray-200 dark:text-gray-600 self-center">|</span>
             {TIER_DISPLAY.filter(t => displayRisk.tierCounts[t] > 0).map(t => {
               const s = TIER_STYLES[t];
               return (
-                <span key={t} className={`${s.bg} ${s.text} text-[11px] px-2 py-0.5 rounded-full border ${s.border}`}>
+                <span key={t} className={`${s.bg} ${s.text} ${s.darkBg} ${s.darkText} text-[11px] px-2 py-0.5 rounded-full border ${s.border} ${s.darkBorder}`}>
                   {displayRisk.tierCounts[t]} {t}
                 </span>
               );
@@ -531,33 +498,32 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
           </div>
         )}
 
-        {/* Members list */}
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-gray-50 dark:divide-gray-700">
           {sortedMembers.map(user => (
-            <div key={`${user.id}-${user._dept || ''}`} className="flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50">
+            <div key={`${user.id}-${user._dept || ''}`} className="flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <Avatar name={user.displayName} tier={user.riskTier} />
               <div className="min-w-0 flex-1">
                 <button
                   onClick={() => onOpenDetail('user', user.id, user.displayName)}
-                  className="text-sm text-blue-700 hover:text-blue-900 hover:underline truncate text-left block font-medium"
+                  className="text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline truncate text-left block font-medium"
                 >
                   {user.displayName}
                 </button>
-                <div className="text-xs text-gray-400 truncate">
-                  {user.jobTitle || '\u2014'}
+                <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                  {user.jobTitle || '—'}
                   {tab !== 'direct' && user._dept && (
-                    <span className="ml-1.5 text-gray-300">({user._dept})</span>
+                    <span className="ml-1.5 text-gray-300 dark:text-gray-600">({user._dept})</span>
                   )}
                 </div>
               </div>
               <TierBadge tier={user.riskTier} />
               {user.riskScore != null && (
-                <span className="text-xs font-mono text-gray-400 w-8 text-right shrink-0">{user.riskScore}</span>
+                <span className="text-xs font-mono text-gray-400 dark:text-gray-500 w-8 text-right shrink-0">{user.riskScore}</span>
               )}
             </div>
           ))}
           {sortedMembers.length === 0 && (
-            <div className="px-6 py-8 text-center text-sm text-gray-400">No members found.</div>
+            <div className="px-6 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No members found.</div>
           )}
         </div>
       </div>
