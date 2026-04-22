@@ -218,8 +218,8 @@ async function fetchUsers(pool, res) {
     cols += ', riskHierarchyDirectReports, riskHierarchyTotalReports';
   }
 
-  // For Principals, filter to current records only
-  const whereClause = userTable === 'Principals' ? `WHERE ValidTo = '9999-12-31 23:59:59.9999999'` : '';
+  // v5 Principals has no temporal columns — history lives in _history table.
+  const whereClause = '';
 
   const result = await timedRequest(pool, 'org-chart-users', res).query(`
     SELECT ${cols} FROM ${userTable} ${whereClause}
@@ -342,10 +342,8 @@ router.get('/org-chart/user/:id/manager', async (req, res) => {
     const request = timedRequest(p, 'org-user-manager', res);
     request.input('id', req.params.id);
 
-    // For Principals table, filter for current records only (temporal table)
-    const whereClause = userTable === 'Principals'
-      ? `WHERE u.id = @id AND u."ValidTo" = '9999-12-31 23:59:59.9999999' AND m."ValidTo" = '9999-12-31 23:59:59.9999999'`
-      : `WHERE u.id = @id`;
+    // v5 Principals has no ValidTo column — no temporal filter needed.
+    const whereClause = `WHERE u.id = @id`;
 
     const result = await request.query(`
       SELECT ${managerCols}
@@ -393,10 +391,9 @@ router.get('/org-chart/user/:id/reports', async (req, res) => {
     const request = timedRequest(p, 'org-user-reports', res);
     request.input('id', req.params.id);
 
-    // For Principals table, filter for current records only (temporal table)
-    const whereClause = userTable === 'Principals'
-      ? `WHERE "managerId" = @id AND "ValidTo" = '9999-12-31 23:59:59.9999999'`
-      : `WHERE "managerId" = @id`;
+    // v5 Principals has no `ValidTo` column — version history lives in
+    // the `_history` table instead, so we don't need a temporal filter.
+    const whereClause = `WHERE "managerId" = @id`;
 
     const result = await request.query(`
       SELECT ${cols}
