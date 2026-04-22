@@ -9,7 +9,8 @@ describe('tokenize', () => {
 
   it('lowercases tokens', () => {
     expect(tokenize('APP_AXIOM_ADMINS')).toEqual(['axiom']);
-    expect(tokenize('MixedCase_AXIOM_Readers')).toEqual(['mixedcase']);
+    // "readers" is a stopword, but "mixedcase" and "axiom" both survive.
+    expect(tokenize('MixedCase_AXIOM_Readers')).toEqual(['mixedcase', 'axiom']);
   });
 
   it('drops short tokens', () => {
@@ -33,8 +34,8 @@ describe('tokenize', () => {
   });
 
   it('preserves non-stopword tokens in occurrence order', () => {
-    // minTokenLength 3 keeps "hcc"; it is not in DEFAULT_STOPWORDS.
-    expect(tokenize('sg_axiom_hcc_editors')).toEqual(['axiom', 'hcc', 'editors']);
+    // minTokenLength 3 keeps "hcc"; "editors" is a stopword so it's dropped.
+    expect(tokenize('sg_axiom_hcc_editors')).toEqual(['axiom', 'hcc']);
   });
 
   it('returns [] for empty / null input', () => {
