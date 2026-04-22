@@ -346,14 +346,22 @@ router.delete('/contexts/:id', async (req, res) => {
 });
 
 // ─── POST /api/contexts/:id/members ──────────────────────────────────
-// Add a member to a manual context. Body: { memberId }.
+// Add a member to a manual or generated context. Body: { memberId }.
+//
+// Synced contexts are rejected because the source system owns them —
+// the next crawl would wipe the addition. Manual and generated are both
+// OK: the plugin runner's reconcile step only deletes ContextMembers
+// rows with addedBy='algorithm', so an analyst-added row (addedBy=
+// 'analyst') survives every subsequent plugin run.
 router.post('/contexts/:id/members', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
   const ctx = await db.queryOne(`SELECT variant, "targetType" FROM "Contexts" WHERE id = $1`, [req.params.id]);
   if (!ctx) return res.status(404).json({ error: 'Context not found' });
-  if (ctx.variant !== 'manual') return res.status(400).json({ error: 'Only manual contexts accept ad-hoc member writes' });
+  if (ctx.variant === 'synced') {
+    return res.status(400).json({ error: 'Synced contexts are owned by their source system — add the member upstream instead.' });
+  }
 
   const { memberId } = req.body || {};
   if (!memberId || !UUID_RE.test(memberId)) return res.status(400).json({ error: 'memberId (uuid) is required' });
@@ -373,6 +381,7 @@ router.post('/contexts/:id/members', async (req, res) => {
 });
 
 // ─── DELETE /api/contexts/:id/members/:memberId ──────────────────────
+// Removal rules mirror POST: manual + generated OK, synced rejected.
 router.delete('/contexts/:id/members/:memberId', async (req, res) => {
   if (!UUID_RE.test(req.params.id) || !UUID_RE.test(req.params.memberId)) {
     return res.status(400).json({ error: 'Invalid ID format' });
@@ -381,7 +390,9 @@ router.delete('/contexts/:id/members/:memberId', async (req, res) => {
 
   const ctx = await db.queryOne(`SELECT variant FROM "Contexts" WHERE id = $1`, [req.params.id]);
   if (!ctx) return res.status(404).json({ error: 'Context not found' });
-  if (ctx.variant !== 'manual') return res.status(400).json({ error: 'Only manual contexts accept ad-hoc member writes' });
+  if (ctx.variant === 'synced') {
+    return res.status(400).json({ error: 'Synced contexts are owned by their source system.' });
+  }
 
   try {
     await db.query(`DELETE FROM "ContextMembers" WHERE "contextId" = $1 AND "memberId" = $2`, [req.params.id, req.params.memberId]);
