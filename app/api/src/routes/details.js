@@ -643,7 +643,7 @@ router.get('/access-package/:id/assignments', async (req, res) => {
         .input('id', req.params.id)
         .query(`
         SELECT
-          a."principalId", a.state, a."assignmentStatus",
+          a.id, a."principalId", a.state AS "assignmentState", a."assignmentStatus",
           u."displayName" AS "targetDisplayName",
           u.email AS "targetUPN",
           NULL::timestamptz AS "assignedDate"

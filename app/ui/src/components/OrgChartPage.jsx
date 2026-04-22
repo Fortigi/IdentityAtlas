@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
-import { TIER_STYLES } from '../utils/tierStyles';
+import { TIER_STYLES, tierBoxStyle } from '../utils/tierStyles';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useIsDark } from '../contexts/ThemeContext';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ function TierBadge({ tier, showAll }) {
   if (!showAll && (!tier || tier === 'None' || tier === 'Minimal')) return null;
   const s = TIER_STYLES[tier] || TIER_STYLES.None;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${s.bg} ${s.text} ${s.border} border whitespace-nowrap`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${s.bg} ${s.darkBg} ${s.text} ${s.darkText} ${s.border} ${s.darkBorder} border whitespace-nowrap`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {tier}
     </span>
@@ -68,9 +69,17 @@ function Avatar({ name, tier }) {
 // ─── Department box (the clickable card in the flowchart) ────────────────────
 
 function DeptBox({ node, isMatch, onClick, onDetails, hasChildren }) {
+  const isDark = useIsDark();
   const s = TIER_STYLES[node.risk.maxTier] || TIER_STYLES.None;
   const direct = node.directCount || node.risk.totalPeople;
   const indirect = node.indirectCount || 0;
+
+  const boxStyle = node.isContext
+    ? {
+        backgroundColor: isDark ? '#0c1a2e' : '#f0f9ff',
+        borderColor: isDark ? '#164e63' : '#bae6fd',
+      }
+    : tierBoxStyle(node.risk.maxTier, isDark);
 
   return (
     <div className="relative min-w-[150px] max-w-[220px]">
@@ -79,22 +88,19 @@ function DeptBox({ node, isMatch, onClick, onDetails, hasChildren }) {
         className={`w-full border-2 rounded-lg px-4 py-3 transition-all cursor-pointer text-center hover:shadow-md ${
           isMatch ? 'ring-2 ring-blue-400' : ''
         }`}
-        style={{
-          backgroundColor: node.isContext ? '#f0f9ff' : s.box,
-          borderColor: node.isContext ? '#bae6fd' : s.boxBorder,
-        }}
+        style={boxStyle}
       >
-        <div className="font-semibold text-sm text-gray-900 leading-tight">
+        <div className="font-semibold text-sm text-gray-900 dark:text-white leading-tight">
           {node.department}
         </div>
         {node.isContext && node.contextType && (
-          <div className="text-[9px] text-sky-600 mt-0.5">{node.contextType}</div>
+          <div className="text-[9px] text-sky-600 dark:text-sky-300 mt-0.5">{node.contextType}</div>
         )}
         {node.isContext && node.managerDisplayName && (
-          <div className="text-[10px] text-gray-500 mt-0.5 truncate">{node.managerDisplayName}</div>
+          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">{node.managerDisplayName}</div>
         )}
-        <div className="text-[10px] text-gray-500 mt-1">
-          {direct} direct{indirect > 0 && <span className="text-gray-400"> | {indirect} indirect</span>}
+        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+          {direct} direct{indirect > 0 && <span className="text-gray-400 dark:text-gray-500"> | {indirect} indirect</span>}
         </div>
 
         {/* Risk badge top-right */}
@@ -110,7 +116,7 @@ function DeptBox({ node, isMatch, onClick, onDetails, hasChildren }) {
         <div className="text-center mt-0.5">
           <button
             onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline"
+            className="text-[10px] text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
           >
             expand
           </button>
@@ -154,7 +160,7 @@ function OrgNode({ node, depth, onDetails, expandedMap, toggleExpand, matchNodeI
         {hasChildren && !isExpanded && (
           <button
             onClick={() => toggleExpand(node.id)}
-            className="mt-1 ml-4 text-[10px] text-blue-600 hover:text-blue-800 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5"
+            className="mt-1 ml-4 text-[10px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded px-1.5 py-0.5"
           >
             +{sortedChildren.length} sub-dept{sortedChildren.length !== 1 ? 's' : ''}
           </button>
@@ -168,11 +174,11 @@ function OrgNode({ node, depth, onDetails, expandedMap, toggleExpand, matchNodeI
                 <div key={child.id} className="relative pl-6">
                   {/* Vertical line running down from top; stops at connector for last child */}
                   <div
-                    className="absolute left-0 top-0 w-0 border-l-2 border-gray-300"
+                    className="absolute left-0 top-0 w-0 border-l-2 border-gray-300 dark:border-gray-600"
                     style={{ height: isLast ? '20px' : '100%' }}
                   />
                   {/* Horizontal connector from vertical line to box */}
-                  <div className="absolute left-0 top-5 w-6 border-t-2 border-gray-300" />
+                  <div className="absolute left-0 top-5 w-6 border-t-2 border-gray-300 dark:border-gray-600" />
                   <div className="pb-2">
                     <OrgNode
                       node={child}
@@ -206,7 +212,7 @@ function OrgNode({ node, depth, onDetails, expandedMap, toggleExpand, matchNodeI
       {hasChildren && isExpanded && (
         <>
           {/* Vertical stem down from parent */}
-          <div className="w-0.5 h-6 bg-gray-300" />
+          <div className="w-0.5 h-6 bg-gray-300 dark:bg-gray-600" />
 
           {/* Children row — sorted by member count descending (biggest left) */}
           <div className="flex justify-center">
@@ -219,9 +225,9 @@ function OrgNode({ node, depth, onDetails, expandedMap, toggleExpand, matchNodeI
                 <div key={child.id} className="flex flex-col items-center shrink-0">
                   {/* Connector: horizontal bar edge-to-edge (no padding so adjacent segments connect) */}
                   <div className="flex w-full h-5">
-                    <div className={`flex-1 ${!isFirst && !isSingle ? 'border-t-2 border-gray-300' : ''}`} />
-                    <div className="w-0.5 bg-gray-300" />
-                    <div className={`flex-1 ${!isLast && !isSingle ? 'border-t-2 border-gray-300' : ''}`} />
+                    <div className={`flex-1 ${!isFirst && !isSingle ? 'border-t-2 border-gray-300 dark:border-gray-600' : ''}`} />
+                    <div className="w-0.5 bg-gray-300 dark:bg-gray-600" />
+                    <div className={`flex-1 ${!isLast && !isSingle ? 'border-t-2 border-gray-300 dark:border-gray-600' : ''}`} />
                   </div>
 
                   {/* Recurse — padding here so boxes have spacing but connectors touch */}
@@ -611,26 +617,26 @@ export default function OrgChartPage({ onOpenDetail, onCacheData }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading org chart data...</div>
+        <div className="text-gray-500 dark:text-gray-400">Loading org chart data...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto mt-12">
-        <h2 className="text-red-800 font-semibold text-lg">Failed to load org chart</h2>
-        <p className="text-red-600 mt-2 text-sm">{error}</p>
-        <button onClick={fetchData} className="mt-3 text-sm text-red-700 underline hover:text-red-900">Retry</button>
+      <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6 max-w-md mx-auto mt-12">
+        <h2 className="text-red-800 dark:text-red-300 font-semibold text-lg">Failed to load org chart</h2>
+        <p className="text-red-600 dark:text-red-400 mt-2 text-sm">{error}</p>
+        <button onClick={fetchData} className="mt-3 text-sm text-red-700 dark:text-red-400 underline hover:text-red-900 dark:hover:text-red-300">Retry</button>
       </div>
     );
   }
 
   if (data && data.available === false) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 max-w-lg mx-auto mt-12">
-        <h2 className="text-amber-800 font-semibold text-lg">Org Chart Not Available</h2>
-        <p className="text-amber-700 mt-2 text-sm">
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-6 max-w-lg mx-auto mt-12">
+        <h2 className="text-amber-800 dark:text-amber-300 font-semibold text-lg">Org Chart Not Available</h2>
+        <p className="text-amber-700 dark:text-amber-400 mt-2 text-sm">
           {data.message || 'User data with manager information is required.'}
         </p>
       </div>
@@ -639,7 +645,7 @@ export default function OrgChartPage({ onOpenDetail, onCacheData }) {
 
   if (!rootNode) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-400 text-sm">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center text-gray-400 dark:text-gray-500 text-sm">
         No users with manager data found. Run a sync that includes manager information first.
       </div>
     );
@@ -648,34 +654,34 @@ export default function OrgChartPage({ onOpenDetail, onCacheData }) {
   return (
     <div>
       {/* Toolbar */}
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 mb-4 flex items-center gap-4 flex-wrap">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 mb-4 flex items-center gap-4 flex-wrap">
         <div className="flex-1 min-w-[200px] max-w-sm">
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by name, title, or department..."
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+            className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-gray-200"
             aria-label="Search org chart"
           />
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={expandAll} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50">
+          <button onClick={expandAll} className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700">
             Expand All
           </button>
-          <button onClick={collapseAll} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded px-2 py-1 hover:bg-gray-50">
+          <button onClick={collapseAll} className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700">
             Collapse All
           </button>
         </div>
         {debouncedSearch && (
-          <div className="text-xs text-gray-400">
+          <div className="text-xs text-gray-400 dark:text-gray-500">
             {matchCount} match{matchCount !== 1 ? 'es' : ''} in {matchNodeIds.size} department{matchNodeIds.size !== 1 ? 's' : ''}
           </div>
         )}
       </div>
 
       {/* Org chart */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 overflow-x-auto">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 overflow-x-auto">
         <div className="inline-flex py-4 min-w-full justify-center">
           <OrgNode
             node={rootNode}
