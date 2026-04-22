@@ -203,16 +203,26 @@ router.get('/identities/:id', async (req, res) => {
     const identity = identityResult.recordset[0];
 
     // Fetch all member accounts — try Principals first (userId column), fall back to GraphUsers
+    // IdentityMembers stores displayName opportunistically; many rows have
+    // null there so we coalesce with the Principals record and pull UPN out
+    // of Principals.email (v5 has no separate userPrincipalName column).
     let membersResult;
     try {
       membersResult = await timedRequest(p, 'identity-members', res)
         .input('identityId', identityId)
         .query(`
-          SELECT m.*, u.department, u."jobTitle", u."createdDateTime", u."accountEnabled" AS userAccountEnabled
+          SELECT m."identityId", m."principalId", m."isPrimary", m."isHrAuthoritative",
+                 m."accountType", m."accountTypePattern", m."accountEnabled",
+                 m."correlationSignals", m."signalConfidence", m."hrScore",
+                 m."hrIndicators", m."analystOverride",
+                 COALESCE(m."displayName", u."displayName") AS "displayName",
+                 u.email AS "userPrincipalName",
+                 u.department, u."jobTitle", u."createdDateTime",
+                 u."accountEnabled" AS "userAccountEnabled"
           FROM "IdentityMembers" m
           LEFT JOIN "Principals" u ON m."principalId" = u.id
           WHERE m."identityId" = @identityId
-          ORDER BY m."isPrimary" DESC, m."accountType" ASC
+          ORDER BY m."isPrimary" DESC NULLS LAST, m."accountType" ASC
         `);
     } catch {
       membersResult = await timedRequest(p, 'identity-members-legacy', res)

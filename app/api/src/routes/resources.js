@@ -310,7 +310,7 @@ router.get('/resources/:id/business-roles', async (req, res) => {
     const r = await timedRequest(pool, 'resource-business-roles', res)
       .input('id', req.params.id)
       .query(`
-        SELECT DISTINCT rr."parentResourceId" AS businessRoleId, br."displayName" AS businessRoleName,
+        SELECT DISTINCT rr."parentResourceId" AS "businessRoleId", br."displayName" AS "businessRoleName",
                rr."roleName", rr."relationshipType"
         FROM "ResourceRelationships" rr
         INNER JOIN "Resources" br ON rr."parentResourceId" = br.id
@@ -336,8 +336,8 @@ router.get('/resources/:id/parent-resources', async (req, res) => {
     const r = await timedRequest(pool, 'resource-parents', res)
       .input('id', req.params.id)
       .query(`
-        SELECT rr."parentResourceId", pr."displayName" AS parentDisplayName,
-               pr."resourceType" AS parentResourceType, rr."relationshipType", rr."roleName"
+        SELECT rr."parentResourceId", pr."displayName" AS "parentDisplayName",
+               pr."resourceType" AS "parentResourceType", rr."relationshipType", rr."roleName"
         FROM "ResourceRelationships" rr
         INNER JOIN "Resources" pr ON rr."parentResourceId" = pr.id
         WHERE rr."childResourceId" = @id
