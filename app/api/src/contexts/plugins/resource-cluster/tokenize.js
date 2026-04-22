@@ -19,14 +19,30 @@
 
 // Role / authority suffixes, lowercased. Covers EN + NL variants.
 const ROLE_WORDS = [
+  // English
   'admin', 'admins', 'administrator', 'administrators',
   'user', 'users', 'member', 'members', 'owner', 'owners',
   'readonly', 'readwrite', 'fullaccess', 'full', 'access',
   'viewer', 'viewers', 'reader', 'readers', 'writer', 'writers',
   'contributor', 'contributors', 'editor', 'editors',
   'guest', 'guests',
-  'beheer', 'beheerder', 'beheerders', 'gebruiker', 'gebruikers',
-  'leden', 'lid', 'eigenaar', 'eigenaars',
+  'manager', 'managers', 'developer', 'developers',
+  'support', 'supporter', 'supporters', 'approver', 'approvers',
+  'helpdesk', 'operator', 'operators', 'analyst', 'analysts',
+  // Dutch
+  'beheer', 'beheerder', 'beheerders', 'beheren',
+  'gebruiker', 'gebruikers', 'medewerker', 'medewerkers',
+  'leden', 'lid', 'eigenaar', 'eigenaars', 'eigenaren',
+  'bezoeker', 'bezoekers', 'toegang',
+];
+
+// Dutch connectives / prepositions that clutter descriptive display names
+// like "Eigenaren van Smart Infra — Lot Sensorenplatform (Inkoop en …)".
+const NL_FILLER = [
+  'van', 'voor', 'naar', 'bij', 'aan', 'uit', 'over', 'onder',
+  'tot', 'met', 'als', 'ook', 'door', 'nog',
+  'het', 'deze', 'dit', 'die', 'dat', 'zijn', 'haar', 'onze',
+  // 'de', 'en', 'op', 'te' are <3 chars; minTokenLength drops them.
 ];
 
 // Environment / lifecycle tokens.
@@ -56,10 +72,15 @@ export const DEFAULT_STOPWORDS = new Set([
   ...ENV_WORDS,
   ...TYPE_WORDS,
   ...FILLER_WORDS,
+  ...NL_FILLER,
 ]);
 
-// Splits on runs of [-_./|\s]; keeps alphanumeric tokens.
-const SEPARATOR_RE = /[-_./|\s\\]+/;
+// Anything that isn't an ASCII letter or digit is treated as a separator.
+// This intentionally breaks on any punctuation, parens, brackets, spaces,
+// underscores, slashes, etc. — display names like
+// "Eigenaren van … (INKOOP EN CONTRACTMANAGEMENT)" and
+// "Role: Procurement+Invoicing" both tokenize cleanly.
+const SEPARATOR_RE = /[^a-zA-Z0-9]+/;
 const NUMERIC_RE = /^\d+$/;
 
 export function tokenize(name, {
