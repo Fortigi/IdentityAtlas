@@ -12,6 +12,7 @@ import permissionsRouter from './routes/permissions.js';
 import tagsRouter from './routes/tags.js';
 import categoriesRouter from './routes/categories.js';
 import detailsRouter from './routes/details.js';
+import recentChangesRouter from './routes/recentChanges.js';
 import governanceRouter from './routes/governance.js';
 import perfRouter from './routes/perf.js';
 import riskRouter from './routes/riskScores.js';
@@ -89,14 +90,11 @@ loadAuthConfig().catch(err => {
 });
 
 // ─── Security headers ────────────────────────────────────────────
-// BEHIND_TLS: set to "true" only when a TLS terminator (Caddy, nginx, Azure
-// Front Door, etc.) is in front of this container. When false (the default
-// for plain docker-compose dev stacks), we drop two directives that assume
-// HTTPS and break plain-http dev URLs:
-//   - CSP `upgrade-insecure-requests` rewrites every asset URL to https://
-//     — on a sidekick VM served over http://ip:3001 this blanks the page.
-//   - Strict-Transport-Security HSTS-pins the host for months in the
-//     browser, so even after fixing the server, the pin survives.
+// HSTS and CSP `upgrade-insecure-requests` are opt-in via BEHIND_TLS=true.
+// The default deployment story is plain HTTP on port 3001; sending these
+// headers over HTTP traps browsers into HTTPS-only for a year and then fails
+// because there's no TLS listener. Set BEHIND_TLS=true only when a TLS
+// terminator (Caddy, nginx, Azure Front Door) sits in front of the container.
 const behindTls = process.env.BEHIND_TLS === 'true';
 app.use(helmet({
   contentSecurityPolicy: {
@@ -112,7 +110,7 @@ app.use(helmet({
       ],
       frameSrc: ["'self'", 'https://login.microsoftonline.com'],
       imgSrc: ["'self'", 'data:'],
-      ...(behindTls ? {} : { 'upgrade-insecure-requests': null }),
+      upgradeInsecureRequests: behindTls ? [] : null,
     },
   },
   strictTransportSecurity: behindTls,
@@ -243,6 +241,7 @@ app.use('/api', authMiddleware, permissionsRouter);
 app.use('/api', authMiddleware, tagsRouter);
 app.use('/api', authMiddleware, categoriesRouter);
 app.use('/api', authMiddleware, detailsRouter);
+app.use('/api', authMiddleware, recentChangesRouter);
 app.use('/api', authMiddleware, riskRouter);
 app.use('/api', authMiddleware, orgChartRouter);
 app.use('/api', authMiddleware, clusterRouter);
