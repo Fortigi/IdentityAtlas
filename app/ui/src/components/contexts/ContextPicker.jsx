@@ -290,7 +290,7 @@ function PickerNode({ node, depth, isLast, expanded, onToggleExpand, matchedSet,
             className={`w-2.5 h-2.5 rounded-full ${v.dotClass} ring-2 ring-white dark:ring-gray-800 outline outline-1 outline-slate-200 dark:outline-gray-600 shrink-0`}
             aria-hidden="true"
           />
-          <span className="font-medium text-gray-900 dark:text-white truncate">{node.displayName}</span>
+          <span className="font-medium text-gray-900 dark:text-white truncate" title={node.displayName}>{node.displayName}</span>
           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap shrink-0`}>{t.label}</span>
           {node.contextType && (
             <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap shrink-0">{node.contextType}</span>
@@ -337,7 +337,7 @@ function PickerListRow({ node, value, onPick }) {
       >
         <span style={{ paddingLeft: `${node._depth * 16}px` }} className="inline-block" />
         <span className={`w-2 h-2 rounded-full ${v.dotClass} shrink-0`} aria-hidden="true" />
-        <span className="font-medium text-gray-900 dark:text-white truncate flex-1 min-w-0">{node.displayName}</span>
+        <span className="font-medium text-gray-900 dark:text-white truncate flex-1 min-w-0" title={node.displayName}>{node.displayName}</span>
         <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">{node.contextType}</span>
         <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap`}>{t.label}</span>
         <MemberCount direct={node.directMemberCount} total={node.totalMemberCount} />
