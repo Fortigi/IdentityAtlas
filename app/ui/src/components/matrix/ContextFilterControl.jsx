@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthGate';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
+import ContextPicker from '../contexts/ContextPicker';
 
 // ─── Matrix context-filter chip widget ────────────────────────────────────────
 // Small chip bar that displays active context filters and lets the analyst add
-// new ones via a popover picker. Each chip has a × to remove and a checkbox
-// to toggle "include descendants".
+// new ones via the shared ContextPicker modal. Each chip has a × to remove and
+// a checkbox to toggle "include descendants".
 //
 // The state is owned by the caller (MatrixView); this component is a
 // controlled view: value = [{ id, includeChildren }], onChange emits a new
@@ -13,35 +14,12 @@ import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 
 export default function ContextFilterControl({ value = [], onChange }) {
   const { authFetch } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [contextsById, setContextsById] = useState(new Map());
-  const [allRoots, setAllRoots] = useState([]);
-  const [search, setSearch] = useState('');
-  const wrapperRef = useRef(null);
 
-  // Load roots once (for the picker); also resolve labels for any chips that
-  // aren't in the root list (sub-contexts get labels via the same endpoint
-  // when expanded).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await authFetch('/api/contexts');
-        if (r.ok) {
-          const body = await r.json();
-          if (cancelled) return;
-          const rows = body.data || [];
-          setAllRoots(rows);
-          const map = new Map(rows.map(c => [c.id, c]));
-          setContextsById(map);
-        }
-      } catch { /* non-critical */ }
-    })();
-    return () => { cancelled = true; };
-  }, [authFetch]);
-
-  // If the user bookmarked a filter that references a sub-context, fetch it
-  // so the chip has a label. Only fires for ids we don't yet know.
+  // Resolve labels for any chips we don't yet have. ContextPicker fetches
+  // its own data on open, but the chips need labels from the moment a
+  // bookmarked URL hydrates them.
   useEffect(() => {
     const missing = value.filter(v => !contextsById.has(v.id));
     if (missing.length === 0) return;
@@ -65,32 +43,14 @@ export default function ContextFilterControl({ value = [], onChange }) {
     return () => { cancelled = true; };
   }, [value, contextsById, authFetch]);
 
-  // Close popover on outside click.
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [open]);
-
   const selectedIds = useMemo(() => new Set(value.map(v => v.id)), [value]);
 
-  const filteredRoots = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return allRoots;
-    return allRoots.filter(r =>
-      (r.displayName || '').toLowerCase().includes(q) ||
-      (r.contextType || '').toLowerCase().includes(q)
-    );
-  }, [allRoots, search]);
-
-  function add(id) {
-    if (selectedIds.has(id)) return;
-    onChange([...value, { id, includeChildren: true }]);
-    setOpen(false);
-    setSearch('');
+  function add(node) {
+    if (selectedIds.has(node.id)) return;
+    onChange([...value, { id: node.id, includeChildren: true }]);
+    // Cache the picked node's label so the chip renders immediately
+    // without a round-trip.
+    setContextsById(prev => new Map(prev).set(node.id, node));
   }
   function remove(id) { onChange(value.filter(v => v.id !== id)); }
   function toggleChildren(id) {
@@ -98,8 +58,8 @@ export default function ContextFilterControl({ value = [], onChange }) {
   }
 
   return (
-    <div ref={wrapperRef} className="relative inline-flex items-center gap-1 flex-wrap">
-      <span className="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mr-1">Context:</span>
+    <div className="inline-flex items-center gap-1 flex-wrap">
+      <span className="text-xs text-gray-600 dark:text-gray-400 mr-1">Context:</span>
 
       {value.map(v => {
         const row = contextsById.get(v.id);
@@ -125,7 +85,7 @@ export default function ContextFilterControl({ value = [], onChange }) {
             </label>
             <button
               onClick={() => remove(v.id)}
-              className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:text-gray-300 ml-0.5"
+              className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-300 ml-0.5"
               aria-label="Remove context filter"
             >×</button>
           </span>
@@ -133,45 +93,18 @@ export default function ContextFilterControl({ value = [], onChange }) {
       })}
 
       <button
-        onClick={() => setOpen(o => !o)}
-        className="px-2 py-0.5 text-[11px] rounded border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:border-gray-400 hover:text-gray-700 dark:text-gray-300"
+        onClick={() => setPickerOpen(true)}
+        className="px-2 py-0.5 text-[11px] rounded border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
       >+ context</button>
 
-      {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-30 w-80 max-h-80 overflow-auto">
-          <div className="p-2 border-b border-gray-100 dark:border-gray-700">
-            <input
-              autoFocus
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search trees…"
-              className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
-            />
-          </div>
-          {filteredRoots.length === 0 ? (
-            <div className="p-3 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">No trees. Create one on the Contexts tab.</div>
-          ) : (
-            <ul>
-              {filteredRoots.map(r => {
-                const t = targetTypeMeta(r.targetType);
-                const alreadyIn = selectedIds.has(r.id);
-                return (
-                  <li key={r.id}>
-                    <button
-                      disabled={alreadyIn}
-                      onClick={() => add(r.id)}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 ${alreadyIn ? 'opacity-40 cursor-not-allowed' : ''}`}
-                    >
-                      <span className="truncate">{r.displayName}</span>
-                      <span className={`text-[10px] px-1 rounded border ${t.badgeClass} ml-2`}>{t.label}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      )}
+      <ContextPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onPick={add}
+        excludeIds={selectedIds}
+        title="Add context filter"
+        subtitle="Pick any tree or sub-tree to constrain the matrix. Already-selected contexts are hidden."
+      />
     </div>
   );
 }

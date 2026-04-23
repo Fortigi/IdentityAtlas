@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthGate';
+import ContextPicker from './ContextPicker';
 
 // ─── Manual-context inline editor ─────────────────────────────────────────────
 // Rename, edit description, set parent (picker restricted to same targetType),
@@ -17,7 +18,9 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
   const [description, setDescription] = useState(attrs.description || '');
   const [ownerUserId, setOwnerUserId] = useState(attrs.ownerUserId || '');
   const [parentId, setParentId] = useState(attrs.parentContextId || '');
-  const [candidates, setCandidates] = useState([]);
+  const [parentLabel, setParentLabel] = useState(attrs.parentDisplayName || '');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [excludeIds, setExcludeIds] = useState(() => new Set([contextId]));
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -31,45 +34,32 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
     setDescription(attrs.description || '');
     setOwnerUserId(attrs.ownerUserId || '');
     setParentId(attrs.parentContextId || '');
+    setParentLabel(attrs.parentDisplayName || '');
     setError(null); setSaved(false);
-  }, [attrs.id, attrs.displayName, attrs.description, attrs.ownerUserId, attrs.parentContextId]);
+  }, [attrs.id, attrs.displayName, attrs.description, attrs.ownerUserId, attrs.parentContextId, attrs.parentDisplayName]);
 
-  // Load parent candidates: every context of the same targetType (roots
-  // AND descendants) so a manual context can graft under any node in a
-  // generated tree — e.g., a sub-team under a generated manager node.
-  // We use /api/contexts/tree which returns the full nested structure,
-  // then flatten with depth indentation so the dropdown shows hierarchy.
-  // Self and self's descendants are excluded to prevent cycles (the
-  // server also rejects them, but it's nicer to hide the options).
-  const loadCandidates = useCallback(async () => {
+  // Compute the set of context ids that can NOT be picked as a parent:
+  // self + self's descendants (would create a cycle). The picker fetches
+  // its own tree, so we just give it the id list to filter out.
+  const refreshExcludes = useCallback(async () => {
     try {
       const r = await authFetch('/api/contexts/tree');
       if (!r.ok) return;
       const roots = await r.json();
-      const flat = [];
-      const descendantIds = new Set();
-      (function walk(nodes, depth, inSelfSubtree) {
+      const ids = new Set([contextId]);
+      (function walk(nodes, inSubtree) {
         for (const n of nodes) {
           const isSelf = n.id === contextId;
-          const inSub = inSelfSubtree || isSelf;
-          if (inSub) descendantIds.add(n.id);
-          if (!isSelf && !inSub && n.targetType === attrs.targetType) {
-            flat.push({
-              id: n.id,
-              depth,
-              displayName: n.displayName,
-              contextType: n.contextType,
-              variant: n.variant,
-            });
-          }
-          if (n.children?.length) walk(n.children, depth + 1, inSub);
+          const inSub = inSubtree || isSelf;
+          if (inSub) ids.add(n.id);
+          if (n.children?.length) walk(n.children, inSub);
         }
-      })(roots, 0, false);
-      setCandidates(flat);
-    } catch { /* non-critical */ }
-  }, [authFetch, attrs.targetType, contextId]);
+      })(roots, false);
+      setExcludeIds(ids);
+    } catch { /* non-critical — picker still works without */ }
+  }, [authFetch, contextId]);
 
-  useEffect(() => { loadCandidates(); }, [loadCandidates]);
+  useEffect(() => { refreshExcludes(); }, [refreshExcludes]);
 
   const dirty = (
     displayName !== (attrs.displayName || '') ||
@@ -152,20 +142,28 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
         <Field
           label="Parent"
           full
-          help={`Any ${attrs.targetType}-targeted context (manual, synced, or generated). Indent shows tree depth.`}
+          help={`Any ${attrs.targetType}-targeted context (manual, synced, or generated).`}
         >
-          <select
-            value={parentId || ''}
-            onChange={e => setParentId(e.target.value || '')}
-            className="w-full border rounded px-2 py-1 text-sm font-mono"
-          >
-            <option value="">(no parent — root)</option>
-            {candidates.map(c => (
-              <option key={c.id} value={c.id}>
-                {indentFor(c.depth)}{c.displayName} · {c.contextType}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="flex-1 text-left px-2 py-1 text-sm border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 truncate"
+              title="Open picker"
+            >
+              {parentId
+                ? <span className="text-gray-900 dark:text-white">{parentLabel || parentId.slice(0, 8)}</span>
+                : <span className="text-gray-400 dark:text-gray-500">(no parent — root)</span>}
+            </button>
+            {parentId && (
+              <button
+                type="button"
+                onClick={() => { setParentId(''); setParentLabel(''); }}
+                className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                title="Clear — make this a root context"
+              >clear</button>
+            )}
+          </div>
         </Field>
       </div>
 
@@ -204,15 +202,24 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
           >{saving ? 'Saving…' : 'Save changes'}</button>
         </div>
       </div>
+
+      <ContextPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onPick={(node) => {
+          setParentId(node.id);
+          setParentLabel(node.displayName);
+        }}
+        value={parentId || null}
+        targetType={attrs.targetType}
+        excludeIds={excludeIds}
+        title="Pick a parent context"
+        subtitle="Self and descendants are hidden so you can't create a cycle."
+      />
     </div>
   );
 }
 
-// Non-breaking-space prefix so the <select> renders hierarchy indentation.
-// Ordinary spaces get collapsed by the browser in <option>.
-function indentFor(depth) {
-  return '\u00A0\u00A0'.repeat(depth) + (depth > 0 ? '└ ' : '');
-}
 
 function Field({ label, help, full, children }) {
   return (
