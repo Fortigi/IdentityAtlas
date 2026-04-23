@@ -43,9 +43,13 @@ function createIngestHandler(entityType) {
     // sending delta-only-deletes — empty arrays serialize to null).
     if (!Array.isArray(body.records)) body.records = [];
 
-    const recResult = validateRecords(body.records, entityType, body.idGeneration);
+    const recResult = validateRecords(body.records, entityType, body.idGeneration, body.syncMode);
     if (!recResult.valid) {
-      console.warn(`Ingest validation failed [${entityType}]: ${recResult.errors.length} record error(s)`);
+      const preview = recResult.errors.slice(0, 5).join(' | ');
+      console.warn(
+        `Ingest validation failed [${entityType}] (${body.syncMode || 'full'} mode): ` +
+        `${recResult.errors.length} record error(s) — first ${Math.min(5, recResult.errors.length)}: ${preview}`
+      );
       return res.status(400).json({ error: 'Record validation failed', details: recResult.errors });
     }
 
