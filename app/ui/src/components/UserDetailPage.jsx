@@ -6,7 +6,9 @@ import { CollapsibleSection } from './DetailSection';
 import EntityGraph from './EntityGraph';
 import EntityDetailLayout, { AttributesTable, buildAttributeEntries } from './EntityDetailLayout';
 import ExpandedItemsList from './ExpandedItemsList';
+import RecentChangesSection from './RecentChangesSection';
 import useExpandableGraph from '../hooks/useExpandableGraph';
+import useRecentChanges from '../hooks/useRecentChanges';
 import { getRootNodes } from './entityGraphShape';
 
 const HEADER_FIELDS = ['userPrincipalName', 'email', 'department', 'jobTitle', 'companyName'];
@@ -97,13 +99,16 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     });
   }, [loadHistory]);
 
-  // Root-ring nodes + extras are rebuilt whenever the core/manager/identity
-  // state changes. The hook then manages click-driven fanout expansion.
+  const recent = useRecentChanges('user', userId, authFetch);
+
+  // Root-ring nodes + extras are rebuilt whenever the core/manager/identity/
+  // recent-changes state changes. The hook then manages click-driven fanout.
   const rootExtras = useMemo(() => ({
     manager,
     identityInfo,
     contextId: data?.attributes?.contextId,
-  }), [manager, identityInfo, data]);
+    recent,
+  }), [manager, identityInfo, data, recent]);
 
   const rootNodes = useMemo(() => (
     data ? getRootNodes('user', data, rootExtras) : []
@@ -238,6 +243,15 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
             onNavigateToIdentities={() => { window.location.hash = 'identities'; }}
           />
         )}
+
+        <RecentChangesSection
+          events={recent.events}
+          addedCount={recent.addedCount}
+          removedCount={recent.removedCount}
+          sinceDays={recent.sinceDays}
+          loading={recent.loading}
+          onOpenDetail={onOpenDetail}
+        />
 
         <CollapsibleSection
           title="Version History"
