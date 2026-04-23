@@ -1,5 +1,8 @@
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
 import { getUserColumns as getUserCols, getGroupColumns as getGroupCols, getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getUserColumnValues, getPrincipalOrUserColumnValues, getGroupColumnValues, getResourceColumnValues, FILTERABLE_TYPES } from '../db/columnCache.js';
+import { getOrCreateTagRoot } from '../bootstrap.js';
+import { recalcMemberCountsForChain } from '../contexts/memberCounts.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -81,72 +84,118 @@ router.get('/tags', async (req, res) => {
   }
 });
 
-// ─── POST /api/tags ───────────────────────────────────────────────
+// ─── Tag routes (Phase 8 — Contexts-backed) ────────────────────────
+// Tags are stored as manual Contexts rows with contextType='Tag'. The
+// GraphTags / GraphTagAssignments VIEWS provide read compatibility for
+// existing JOIN-based queries; write paths target Contexts +
+// ContextMembers directly because Postgres views are not updatable by
+// default.
+
+const ENTITY_TO_TARGET = { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Reverse map for emitting back the entityType value the UI sends in.
+const TARGET_TO_ENTITY = { Principal: 'user', Resource: 'resource', Identity: 'identity' };
+
+function tagRowFromContext(c, assignmentCount) {
+  return {
+    id: c.id,
+    name: c.displayName,
+    color: (c.extendedAttributes && c.extendedAttributes.tagColor) || '#3b82f6',
+    entityType: TARGET_TO_ENTITY[c.targetType] || 'resource',
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+    assignmentCount: assignmentCount != null ? assignmentCount : undefined,
+  };
+}
+
+// POST /api/tags
 router.post('/tags', async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { name, color, entityType } = req.body;
     if (!name || !entityType) return res.status(400).json({ error: 'name and entityType required' });
-    if (!['user', 'group', 'resource', 'identity'].includes(entityType)) return res.status(400).json({ error: 'entityType must be user, group, resource, or identity' });
-    if (color && !HEX_COLOR_RE.test(color)) return res.status(400).json({ error: 'color must be a hex value like #3b82f6' });
-
-    const p = await db.getPool();
-    await ensureTagTables(p);
-    const result = await p.request()
-      .input('name', name.trim())
-      .input('color', color || '#3b82f6')
-      .input('entityType', entityType)
-      .query(`
-        INSERT INTO "GraphTags" (name, color, "entityType")
-              VALUES (@name, @color, @entityType)
-              RETURNING *
-      `);
-    res.status(201).json(result.recordset[0]);
-  } catch (err) {
-    if (err.message?.includes('UQ_GraphTags_Name_Type')) {
-      return res.status(409).json({ error: 'A tag with this name already exists for this entity type' });
+    if (!ENTITY_TO_TARGET[entityType]) {
+      return res.status(400).json({ error: 'entityType must be one of user, group, resource, or identity' });
     }
+    if (color && !HEX_COLOR_RE.test(color)) return res.status(400).json({ error: 'color must be a hex value like #3b82f6' });
+    const targetType = ENTITY_TO_TARGET[entityType];
+
+    // Enforce name-uniqueness per target type (the old UQ_GraphTags_Name_Type constraint).
+    const dup = await db.queryOne(
+      `SELECT id FROM "Contexts" WHERE "contextType" = 'Tag' AND "variant" = 'manual'
+         AND "targetType" = $1 AND "displayName" = $2`,
+      [targetType, name.trim()]
+    );
+    if (dup) return res.status(409).json({ error: 'A tag with this name already exists for this entity type' });
+
+    const createdBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'unknown';
+    const ext = JSON.stringify({ tagColor: color || '#3b82f6' });
+    const id = randomUUID();
+    // Attach to the synthetic Tags root so all tags live under one tree
+    // in the Contexts selector instead of one tag per top-level entry.
+    const parentId = await getOrCreateTagRoot(targetType);
+    const { rows } = await db.query(
+      `INSERT INTO "Contexts"
+         (id, variant, "targetType", "contextType", "displayName", "parentContextId", "createdByUser", "extendedAttributes")
+       VALUES ($1, 'manual', $2, 'Tag', $3, $4, $5, $6::jsonb)
+       RETURNING *`,
+      [id, targetType, name.trim(), parentId, createdBy, ext]
+    );
+    res.status(201).json(tagRowFromContext(rows[0], 0));
+  } catch (err) {
     console.error('POST /tags failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ─── PATCH /api/tags/:id ──────────────────────────────────────────
+// PATCH /api/tags/:id
 router.patch('/tags/:id', async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
+    const id = req.params.id;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid tag ID' });
+
     const { name, color } = req.body;
     if (color && !HEX_COLOR_RE.test(color)) return res.status(400).json({ error: 'color must be a hex value like #3b82f6' });
-    const p = await db.getPool();
-    await ensureTagTables(p);
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'Invalid tag ID' });
-    const request = p.request().input('id', id);
-    const sets = [];
-    if (name) { sets.push('"name" = @name'); request.input('name', name.trim()); }
-    if (color) { sets.push('"color" = @color'); request.input('color', color); }
-    if (sets.length === 0) return res.status(400).json({ error: 'Nothing to update' });
-    const result = await request.query(
-      `UPDATE "GraphTags" SET ${sets.join(', ')} WHERE id = @id RETURNING *`
+
+    const existing = await db.queryOne(
+      `SELECT * FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag'`,
+      [id]
     );
-    res.json(result.recordset[0] || null);
+    if (!existing) return res.status(404).json({ error: 'Tag not found' });
+
+    const sets = [];
+    const params = [];
+    if (name) { params.push(name.trim()); sets.push(`"displayName" = $${params.length}`); }
+    if (color) {
+      const ext = { ...(existing.extendedAttributes || {}), tagColor: color };
+      params.push(JSON.stringify(ext));
+      sets.push(`"extendedAttributes" = $${params.length}::jsonb`);
+    }
+    if (sets.length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    params.push(id);
+    const { rows } = await db.query(
+      `UPDATE "Contexts" SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`,
+      params
+    );
+    res.json(tagRowFromContext(rows[0]));
   } catch (err) {
     console.error('PATCH /tags failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ─── DELETE /api/tags/:id ─────────────────────────────────────────
+// DELETE /api/tags/:id
 router.delete('/tags/:id', async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'Invalid tag ID' });
-    const p = await db.getPool();
-    await ensureTagTables(p);
-    await p.request()
-      .input('id', id)
-      .query('DELETE FROM "GraphTags" WHERE id = @id');
+    const id = req.params.id;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid tag ID' });
+    await db.query(
+      `DELETE FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag'`,
+      [id]
+    );
     res.json({ ok: true });
   } catch (err) {
     console.error('DELETE /tags failed:', err.message);
@@ -154,71 +203,68 @@ router.delete('/tags/:id', async (req, res) => {
   }
 });
 
-// ─── POST /api/tags/:id/assign ────────────────────────────────────
+// POST /api/tags/:id/assign
 router.post('/tags/:id/assign', async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
+    const id = req.params.id;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid tag ID' });
     const { entityIds } = req.body;
-    if (!Array.isArray(entityIds) || entityIds.length === 0) {
-      return res.status(400).json({ error: 'entityIds array required' });
-    }
-    if (entityIds.length > 500) {
-      return res.status(400).json({ error: 'Maximum 500 entity IDs per request' });
-    }
-    const p = await db.getPool();
-    await ensureTagTables(p);
-    const tagId = parseInt(req.params.id, 10);
-    if (isNaN(tagId)) return res.status(400).json({ error: 'Invalid tag ID' });
+    if (!Array.isArray(entityIds) || entityIds.length === 0) return res.status(400).json({ error: 'entityIds array required' });
+    if (entityIds.length > 500) return res.status(400).json({ error: 'Maximum 500 entity IDs per request' });
 
-    // Batch insert all assignments in a single query (avoids N+1 round-trips)
-    const request = p.request().input('tagId', tagId);
-    const valueParams = entityIds.map((eid, i) => {
-      request.input(`eid${i}`, String(eid).toUpperCase());
-      return `@eid${i}`;
-    });
-    const result = await request.query(`
-      INSERT INTO "GraphTagAssignments" ("tagId", "entityId")
-      SELECT @tagId, eid FROM (VALUES ${valueParams.map(p => `(${p})`).join(',')}) AS t(eid)
-      WHERE NOT EXISTS (
-        SELECT 1 FROM "GraphTagAssignments" WHERE "tagId" = @tagId AND "entityId" = t.eid
-      );
-      SELECT @@ROWCOUNT AS inserted;
-    `);
-    res.json({ ok: true, inserted: result.recordset[0]?.inserted || 0 });
+    const ctx = await db.queryOne(
+      `SELECT id, "targetType" FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag'`,
+      [id]
+    );
+    if (!ctx) return res.status(404).json({ error: 'Tag not found' });
+
+    // Normalise each entityId: the UI sends uppercase strings for legacy reasons;
+    // ContextMembers stores UUIDs directly.
+    const normalised = entityIds
+      .map(e => String(e).toLowerCase())
+      .filter(e => UUID_RE.test(e));
+    if (normalised.length === 0) return res.json({ ok: true, inserted: 0 });
+
+    // One round-trip: unnest a uuid array and ON CONFLICT-skip duplicates.
+    const result = await db.query(
+      `INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
+       SELECT $1, $2, eid::uuid, 'analyst'
+         FROM unnest($3::text[]) AS t(eid)
+       ON CONFLICT ("contextId", "memberId") DO NOTHING`,
+      [id, ctx.targetType, normalised]
+    );
+    await recalcMemberCountsForChain(id);
+    res.json({ ok: true, inserted: result.rowCount || 0 });
   } catch (err) {
     console.error('POST /tags/:id/assign failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ─── POST /api/tags/:id/unassign ──────────────────────────────────
+// POST /api/tags/:id/unassign
 router.post('/tags/:id/unassign', async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
+    const id = req.params.id;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid tag ID' });
     const { entityIds } = req.body;
-    if (!Array.isArray(entityIds) || entityIds.length === 0) {
-      return res.status(400).json({ error: 'entityIds array required' });
-    }
-    if (entityIds.length > 500) {
-      return res.status(400).json({ error: 'Maximum 500 entity IDs per request' });
-    }
-    const p = await db.getPool();
-    await ensureTagTables(p);
-    const tagId = parseInt(req.params.id, 10);
-    if (isNaN(tagId)) return res.status(400).json({ error: 'Invalid tag ID' });
+    if (!Array.isArray(entityIds) || entityIds.length === 0) return res.status(400).json({ error: 'entityIds array required' });
+    if (entityIds.length > 500) return res.status(400).json({ error: 'Maximum 500 entity IDs per request' });
 
-    // Batch delete all assignments in a single query (avoids N+1 round-trips)
-    const request = p.request().input('tagId', tagId);
-    const idParams = entityIds.map((eid, i) => {
-      request.input(`eid${i}`, String(eid).toUpperCase());
-      return `@eid${i}`;
-    });
-    const result = await request.query(`
-      DELETE FROM "GraphTagAssignments"
-      WHERE "tagId" = @tagId AND "entityId" IN (${idParams.join(',')});
-      SELECT @@ROWCOUNT AS deleted;
-    `);
-    res.json({ ok: true, deleted: result.recordset[0]?.deleted || 0 });
+    const normalised = entityIds
+      .map(e => String(e).toLowerCase())
+      .filter(e => UUID_RE.test(e));
+    if (normalised.length === 0) return res.json({ ok: true, deleted: 0 });
+
+    const result = await db.query(
+      `DELETE FROM "ContextMembers"
+         WHERE "contextId" = $1
+           AND "memberId" = ANY($2::uuid[])`,
+      [id, normalised]
+    );
+    await recalcMemberCountsForChain(id);
+    res.json({ ok: true, deleted: result.rowCount || 0 });
   } catch (err) {
     console.error('POST /tags/:id/unassign failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -235,8 +281,15 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
 
     const p = await db.getPool();
     await ensureTagTables(p);
-    const tagId = parseInt(req.params.id, 10);
-    if (isNaN(tagId)) return res.status(400).json({ error: 'Invalid tag ID' });
+    const tagId = req.params.id;
+    if (!UUID_RE.test(tagId)) return res.status(400).json({ error: 'Invalid tag ID' });
+
+    // Resolve the tag's targetType for the INSERT below.
+    const ctx = await db.queryOne(
+      `SELECT id, "targetType" FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag'`,
+      [tagId]
+    );
+    if (!ctx) return res.status(404).json({ error: 'Tag not found' });
     // Determine user table: prefer Principals for users
     let userTableForTags = 'GraphUsers';
     if (entityType === 'user') {
@@ -278,17 +331,19 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
       where += buildFilterWhere(request, filters, colNames, alias, 'bf');
     }
 
-    // Safety cap: limit bulk assignment to 50,000 rows to prevent runaway operations
+    // Safety cap: limit bulk assignment to 50,000 rows to prevent runaway operations.
+    // Tags now live in Contexts — write directly to ContextMembers, skip dupes via
+    // ON CONFLICT.
+    request.input('memberType', ctx.targetType);
     const result = await request.query(`
-      INSERT INTO "GraphTagAssignments" ("tagId", "entityId")
-      SELECT @tagId, UPPER((${alias}.id)::text)
-      FROM ${table} ${alias}
-      WHERE (${where})
-        AND UPPER((${alias}.id)::text) NOT IN (
-          SELECT "entityId" FROM "GraphTagAssignments" WHERE "tagId" = @tagId
-        );
+      INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
+      SELECT @tagId, @memberType, ${alias}.id::uuid, 'analyst'
+        FROM ${table} ${alias}
+       WHERE (${where})
+      ON CONFLICT ("contextId", "memberId") DO NOTHING;
       SELECT @@ROWCOUNT AS inserted;
     `);
+    await recalcMemberCountsForChain(tagId);
     res.json({ ok: true, inserted: result.recordset[0]?.inserted || 0 });
   } catch (err) {
     console.error('POST /tags/:id/assign-by-filter failed:', err.message);
@@ -297,11 +352,12 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
 });
 
 // ─── Helper: parse tag string from SQL into array ─────────────────
+// Tag IDs are UUID strings (v6) — do not parseInt.
 function parseTags(tagString) {
   if (!tagString) return [];
   return tagString.split('|').map(t => {
     const parts = t.split(':');
-    return { id: parseInt(parts[0]), name: parts[1], color: parts[2] };
+    return { id: parts[0], name: parts[1], color: parts[2] };
   });
 }
 
@@ -402,7 +458,7 @@ router.get('/users', async (req, res) => {
     if (!useSql) return res.json({ data: [], total: 0 });
 
     const search = (req.query.search || '').trim().slice(0, 200);
-    const tagId = req.query.tagId ? parseInt(req.query.tagId) : null;
+    const tagId = req.query.tagId && UUID_RE.test(String(req.query.tagId)) ? String(req.query.tagId) : null;
     // Cap at 10k to match the bulk-list endpoints. The UI defaults to 100
     // and never asks for more; the higher cap is there so Power Query /
     // BI exports can page through the full dataset in fewer round trips.
@@ -459,7 +515,7 @@ router.get('/users', async (req, res) => {
              u."department", u."jobTitle", u."companyName", u."accountEnabled",
              u."principalType", u."systemId", u."externalId",
              u."givenName", u."surname", u."employeeId", u."managerId",
-             u."contextId", u."createdDateTime", u."extendedAttributes",
+             u."createdDateTime", u."extendedAttributes",
              u."riskScore", u."riskTier",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
@@ -501,7 +557,7 @@ router.get('/groups', async (req, res) => {
     if (!useSql) return res.json({ data: [], total: 0 });
 
     const search = (req.query.search || '').trim().slice(0, 200);
-    const tagId = req.query.tagId ? parseInt(req.query.tagId) : null;
+    const tagId = req.query.tagId && UUID_RE.test(String(req.query.tagId)) ? String(req.query.tagId) : null;
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
     const resourceType = (req.query.resourceType || '').trim();

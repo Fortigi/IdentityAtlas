@@ -1,415 +1,77 @@
-// ─── Org Chart API Routes ─────────────────────────────────────────────
+// Minimal /api/org-chart adapter — kept alive for the entity-detail page
+// and the entity-graph component, both of which fetch a user's manager and
+// direct reports via these endpoints. The original route was deleted in
+// the Phase-10 cleanup; this rewrite is a much smaller surface (only what
+// the UI actually calls) and queries Principals.managerId directly rather
+// than rebuilding the old org-chart-cache code path.
 //
-// Reads manager hierarchy from the managerId column on GraphUsers and
-// builds a nested tree for org-chart visualization.  Risk columns are
-// included when present (riskScore, riskTier, riskHierarchy*).
-//
-// GET    /api/org-chart                  - Full manager tree (cached 5 min)
-// GET    /api/org-chart/subtree/:id      - Single manager's subtree
-// POST   /api/org-chart/invalidate       - Clear the cache
-// GET    /api/org-chart/user/:id/manager - User's direct manager
-// GET    /api/org-chart/user/:id/reports - User's direct reports
+// Long-term these calls should move into the Principal detail endpoint
+// (one round trip instead of three), but until that refactor lands the
+// UI keeps calling here.
 
 import { Router } from 'express';
-import { timedRequest } from '../perf/sqlTimer.js';
+import * as db from '../db/connection.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-let db = null;
-if (useSql) {
-  db = await import('../db/connection.js');
-}
-
-// ─── Cache (5-minute TTL) ────────────────────────────────────────────
-let cachedUsers = null;
-let cacheTimestamp = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000;
-
-function isCacheValid() {
-  return cachedUsers !== null && (Date.now() - cacheTimestamp) < CACHE_TTL_MS;
-}
-
-// ─── Contexts table detection ─────────────────────────────────────────
-// When Contexts table exists, the frontend can use /api/contexts/tree
-// for faster tree building instead of loading all users.
-
-let hasContextsTable = null;
-let contextsCheckTime = 0;
-
-async function checkContexts(pool) {
-  const now = Date.now();
-  if (hasContextsTable !== null && now - contextsCheckTime < 300000) return hasContextsTable;
-  try {
-    const r = await pool.request().query(`
-      SELECT to_regclass('"Contexts"') AS "contextsExists"
-    `);
-    hasContextsTable = !!r.recordset[0].contextsExists;
-    contextsCheckTime = now;
-  } catch {
-    hasContextsTable = false;
-  }
-  return hasContextsTable;
-}
-
-// ─── User table detection ────────────────────────────────────────────
-
-// Determine which user table to use: Principals preferred, GraphUsers fallback
-let _orgUserTable = null;
-let _orgUserTableTime = 0;
-const ORG_TABLE_TTL = 5 * 60 * 1000;
-
-async function getOrgUserTable(pool) {
-  const now = Date.now();
-  if (_orgUserTable && (now - _orgUserTableTime) < ORG_TABLE_TTL) return _orgUserTable;
-  try {
-    const r = await pool.request().query(`SELECT to_regclass('"Principals"') AS "principalsExists"`);
-    _orgUserTable = r.recordset[0].principalsExists ? 'Principals' : 'GraphUsers';
-  } catch {
-    _orgUserTable = 'GraphUsers';
-  }
-  _orgUserTableTime = now;
-  return _orgUserTable;
-}
-
-// ─── Column detection helpers ────────────────────────────────────────
-
-async function hasManagerColumn(pool, res) {
-  const table = await getOrgUserTable(pool);
-  try {
-    const result = await timedRequest(pool, 'org-col-check-managerId', res)
-      .input('tableName', table)
-      .query(`
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = @tableName AND column_name = 'managerId'
-      `);
-    return result.recordset.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-async function hasRiskColumns(pool, res) {
-  const table = await getOrgUserTable(pool);
-  try {
-    const result = await timedRequest(pool, 'org-col-check-risk', res)
-      .input('tableName', table)
-      .query(`
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = @tableName AND column_name = 'riskScore'
-      `);
-    return result.recordset.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-async function hasHierarchyColumns(pool, res) {
-  const table = await getOrgUserTable(pool);
-  try {
-    const result = await timedRequest(pool, 'org-col-check-hierarchy', res)
-      .input('tableName', table)
-      .query(`
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = @tableName
-          AND column_name = 'riskHierarchyDirectReports'
-      `);
-    return result.recordset.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-// ─── Tree building ───────────────────────────────────────────────────
-
-function buildTree(users) {
-  const byId = new Map();
-  for (const u of users) {
-    byId.set(u.id, { ...u, children: [] });
-  }
-
-  const roots = [];
-  const orphans = [];
-
-  for (const node of byId.values()) {
-    if (node.managerId && byId.has(node.managerId)) {
-      byId.get(node.managerId).children.push(node);
-    } else if (!node.managerId) {
-      // No manager — will be classified as root or orphan below
-      roots.push(node);
-    } else {
-      // Has managerId but manager not in dataset
-      orphans.push(node);
-    }
-  }
-
-  // Separate roots (have children) from orphans (no manager, no children)
-  const realRoots = [];
-  for (const node of roots) {
-    if (node.children.length > 0) {
-      realRoots.push(node);
-    } else {
-      orphans.push(node);
-    }
-  }
-
-  // Compute subtree aggregates (totalUsers, riskCounts per tier)
-  function computeAggregates(node) {
-    let total = 1;
-    const riskCounts = {};
-    if (node.riskTier) {
-      riskCounts[node.riskTier] = (riskCounts[node.riskTier] || 0) + 1;
-    }
-
-    for (const child of node.children) {
-      const childAgg = computeAggregates(child);
-      total += childAgg.totalUsers;
-      for (const [tier, count] of Object.entries(childAgg.riskCounts)) {
-        riskCounts[tier] = (riskCounts[tier] || 0) + count;
-      }
-    }
-
-    node.totalUsers = total;
-    node.riskCounts = riskCounts;
-    return { totalUsers: total, riskCounts };
-  }
-
-  for (const root of realRoots) {
-    computeAggregates(root);
-  }
-
-  // Sort roots by subtree size descending
-  realRoots.sort((a, b) => b.totalUsers - a.totalUsers);
-
-  // Build department summary
-  const departments = {};
-  for (const u of users) {
-    const dept = u.department || 'Unknown';
-    departments[dept] = (departments[dept] || 0) + 1;
-  }
-
-  return {
-    available: true,
-    totalUsers: users.length,
-    roots: realRoots,
-    orphans: orphans.slice(0, 100),
-    departments,
-  };
-}
-
-// ─── Fetch flat user list ────────────────────────────────────────────
-
-async function fetchUsers(pool, res) {
-  const userTable = await getOrgUserTable(pool);
-  const hasRisk = await hasRiskColumns(pool, res);
-  const hasHierarchy = hasRisk && await hasHierarchyColumns(pool, res);
-
-  // Postgres folds unquoted identifiers to lowercase — Principals' real
-  // columns are camelCase so every identifier must be double-quoted.
-  let cols = 'id, "managerId", "displayName", department, "jobTitle", "companyName", "accountEnabled"';
-  if (userTable === 'Principals') {
-    cols += ', "principalType"';
-  } else {
-    cols += ', "userType"';
-  }
-  if (hasRisk) {
-    cols += ', "riskScore", "riskTier"';
-  }
-  if (hasHierarchy) {
-    cols += ', "riskHierarchyDirectReports", "riskHierarchyTotalReports"';
-  }
-
-  // v5 Principals has no temporal columns — history lives in _history table.
-  const whereClause = '';
-
-  const result = await timedRequest(pool, 'org-chart-users', res).query(`
-    SELECT ${cols} FROM "${userTable}" ${whereClause}
-  `);
-
-  return result.recordset;
-}
-
-// ─── Helper: find node by id in tree ─────────────────────────────────
-
-function findNode(roots, id) {
-  for (const root of roots) {
-    if (root.id === id) return root;
-    const found = findNode(root.children, id);
-    if (found) return found;
-  }
-  return null;
-}
-
-// ─── GET /api/org-chart ──────────────────────────────────────────────
-router.get('/org-chart', async (req, res) => {
-  try {
-    if (!useSql) {
-      return res.json({ available: false, message: 'Org chart requires SQL mode.' });
-    }
-
-    const p = await db.getPool();
-
-    if (!(await hasManagerColumn(p, res))) {
-      return res.json({ available: false, message: 'managerId column not found. Sync users with manager data first.' });
-    }
-
-    if (isCacheValid()) {
-      return res.json({ available: true, users: cachedUsers });
-    }
-
-    const users = await fetchUsers(p, res);
-    cachedUsers = users;
-    cacheTimestamp = Date.now();
-
-    const contextsAvailable = await checkContexts(p);
-    return res.json({ available: true, users, hasContexts: contextsAvailable });
-  } catch (err) {
-    console.error('Org chart query failed:', err.message);
-    return res.status(500).json({ error: 'Failed to load org chart' });
-  }
-});
-
-// ─── GET /api/org-chart/subtree/:id ──────────────────────────────────
-router.get('/org-chart/subtree/:id', async (req, res) => {
-  try {
-    if (!useSql) {
-      return res.json({ available: false, message: 'Org chart requires SQL mode.' });
-    }
-
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid ID format' });
-    }
-
-    const p = await db.getPool();
-
-    if (!(await hasManagerColumn(p, res))) {
-      return res.json({ available: false, message: 'managerId column not found.' });
-    }
-
-    // Ensure cache is populated
-    if (!isCacheValid()) {
-      cachedUsers = await fetchUsers(p, res);
-      cacheTimestamp = Date.now();
-    }
-
-    // Build tree on demand for subtree lookup
-    const tree = buildTree(cachedUsers);
-    const node = findNode(tree.roots, req.params.id);
-    if (!node) {
-      return res.status(404).json({ error: 'Manager not found in org tree' });
-    }
-
-    return res.json({ available: true, subtree: node });
-  } catch (err) {
-    console.error('Org chart subtree query failed:', err.message);
-    return res.status(500).json({ error: 'Failed to load subtree' });
-  }
-});
-
-// ─── POST /api/org-chart/invalidate ──────────────────────────────────
-router.post('/org-chart/invalidate', async (req, res) => {
-  cachedUsers = null;
-  cacheTimestamp = 0;
-  return res.json({ success: true });
-});
-
-// ─── GET /api/org-chart/user/:id/manager ─────────────────────────────
+// GET /api/org-chart/user/:id/manager
 router.get('/org-chart/user/:id/manager', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
+  if (!useSql) return res.json({ manager: null });
   try {
-    if (!useSql) {
-      return res.json({ manager: null, available: false });
-    }
-
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid ID format' });
-    }
-
-    const p = await db.getPool();
-
-    if (!(await hasManagerColumn(p, res))) {
-      return res.json({ manager: null, available: false });
-    }
-
-    const userTable = await getOrgUserTable(p);
-    const hasRisk = await hasRiskColumns(p, res);
-
-    let managerCols = 'm.id, m."displayName", m."jobTitle", m.department';
-    if (hasRisk) {
-      managerCols += ', m."riskScore", m."riskTier"';
-    }
-
-    const request = timedRequest(p, 'org-user-manager', res);
-    request.input('id', req.params.id);
-
-    // v5 Principals has no ValidTo column — no temporal filter needed.
-    const whereClause = `WHERE u.id = @id`;
-
-    const result = await request.query(`
-      SELECT ${managerCols}
-      FROM "${userTable}" u
-      INNER JOIN "${userTable}" m ON u."managerId" = m.id
-      ${whereClause}
-    `);
-
-    return res.json({
-      manager: result.recordset.length > 0 ? result.recordset[0] : null,
-      available: true,
-    });
+    const row = await db.queryOne(
+      `SELECT m.id, m."displayName", m.email, m.department, m."jobTitle", m."companyName"
+         FROM "Principals" p
+         JOIN "Principals" m ON m.id = p."managerId"
+        WHERE p.id = $1`,
+      [req.params.id]
+    );
+    res.json({ manager: row || null });
   } catch (err) {
-    console.error('Org chart manager query failed:', err.message);
-    return res.status(500).json({ error: 'Failed to load manager' });
+    console.error('GET /org-chart/user/:id/manager failed:', err.message);
+    res.status(500).json({ error: 'Failed to load manager' });
   }
 });
 
-// ─── GET /api/org-chart/user/:id/reports ─────────────────────────────
+// GET /api/org-chart/user/:id/reports
+// Returns every Principal that lists this user as their managerId.
 router.get('/org-chart/user/:id/reports', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
+  if (!useSql) return res.json({ reports: [], totalCount: 0 });
   try {
-    if (!useSql) {
-      return res.json({ reports: [], available: false });
-    }
-
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid ID format' });
-    }
-
-    const p = await db.getPool();
-
-    if (!(await hasManagerColumn(p, res))) {
-      return res.json({ reports: [], available: false });
-    }
-
-    const userTable = await getOrgUserTable(p);
-    const hasRisk = await hasRiskColumns(p, res);
-
-    let cols = 'id, "displayName", "jobTitle", department';
-    if (hasRisk) {
-      cols += ', "riskScore", "riskTier"';
-    }
-
-    const request = timedRequest(p, 'org-user-reports', res);
-    request.input('id', req.params.id);
-
-    // v5 Principals has no `ValidTo` column — version history lives in
-    // the `_history` table instead, so we don't need a temporal filter.
-    const whereClause = `WHERE "managerId" = @id`;
-
-    const result = await request.query(`
-      SELECT ${cols}
-      FROM "${userTable}"
-      ${whereClause}
-      ORDER BY "displayName"
-    `);
-
-    return res.json({
-      reports: result.recordset,
-      available: true,
-    });
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 1000);
+    const rows = (await db.query(
+      `SELECT id, "displayName", email, department, "jobTitle", "companyName"
+         FROM "Principals"
+        WHERE "managerId" = $1
+        ORDER BY "displayName"
+        LIMIT $2`,
+      [req.params.id, limit]
+    )).rows;
+    res.json({ reports: rows, totalCount: rows.length });
   } catch (err) {
-    console.error('Org chart reports query failed:', err.message);
-    return res.status(500).json({ error: 'Failed to load direct reports' });
+    console.error('GET /org-chart/user/:id/reports failed:', err.message);
+    res.status(500).json({ error: 'Failed to load reports' });
+  }
+});
+
+// GET /api/org-chart  — DepartmentDetailPage probes this to know whether
+// org-chart data is available. Return availability based on whether the
+// manager-hierarchy plugin has produced anything.
+router.get('/org-chart', async (req, res) => {
+  if (!useSql) return res.json({ available: false });
+  try {
+    const row = await db.queryOne(
+      `SELECT count(*)::int AS n
+         FROM "Contexts"
+        WHERE "contextType" = 'ManagerHierarchy'
+          AND variant       = 'generated'`
+    );
+    res.json({ available: !!(row && row.n > 0) });
+  } catch {
+    res.json({ available: false });
   }
 });
 

@@ -328,28 +328,70 @@ if ($systemsCsv) {
 }
 
 # ─── 2. Contexts.csv (optional) ──────────────────────────────────
+#
+# v6 context model: every row is a `variant='synced'` context with an
+# explicit `targetType` and `contextType`. The CSV defaults targetType
+# to Identity and contextType to OrgUnit so legacy CSV feeds keep working;
+# richer CSVs can set both columns per-row. See
+# docs/architecture/context-redesign.md for the data model.
 Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 2: Contexts..." -ForegroundColor Cyan
 Update-CrawlerProgress -Step 'Syncing contexts' -Pct 12
 $contexts = Read-CsvFile 'Contexts.csv'
 if ($contexts) {
     Assert-Columns 'Contexts.csv' $contexts @('ExternalId','DisplayName')
     $cols = $contexts[0].PSObject.Properties.Name
-    $hCT = $cols -contains 'ContextType'; $hD = $cols -contains 'Description'
-    $hP = $cols -contains 'ParentExternalId'; $hSys = $cols -contains 'SystemName'
+    $hCT  = $cols -contains 'ContextType'
+    $hTT  = $cols -contains 'TargetType'
+    $hD   = $cols -contains 'Description'
+    $hP   = $cols -contains 'ParentExternalId'
+    $hSys = $cols -contains 'SystemName'
+    $hOwn = $cols -contains 'OwnerUserId'
     $records = [System.Collections.Generic.List[object]]::new($contexts.Count)
     foreach ($r in $contexts) {
         if (-not $r.ExternalId) { continue }
         $sid = if ($hSys -and $r.SystemName -and $systemLookup.ContainsKey($r.SystemName)) { $systemLookup[$r.SystemName] } else { $fallbackSystemId }
         [void]$records.Add(@{
-            _systemId = $sid; externalId = $r.ExternalId; displayName = $r.DisplayName
-            contextType = if ($hCT -and $r.ContextType) { $r.ContextType } else { 'OrgUnit' }
-            department = if ($hD) { $r.Description } else { $null }
+            _systemId        = $sid
+            externalId       = $r.ExternalId
+            displayName      = $r.DisplayName
+            variant          = 'synced'
+            targetType       = if ($hTT -and $r.TargetType) { $r.TargetType } else { 'Identity' }
+            contextType      = if ($hCT -and $r.ContextType) { $r.ContextType } else { 'OrgUnit' }
+            scopeSystemId    = $sid
+            description      = if ($hD) { $r.Description } else { $null }
             parentExternalId = if ($hP) { $r.ParentExternalId } else { $null }
+            ownerUserId      = if ($hOwn) { $r.OwnerUserId } else { $null }
         })
     }
     $contexts = $null
-    Send-GroupedBySystem -Endpoint 'ingest/contexts' -Scope @{ contextType = 'OrgUnit' } -Records $records
+    Send-GroupedBySystem -Endpoint 'ingest/contexts' -Scope @{ variant = 'synced' } -Records $records
     $records = $null; [System.GC]::Collect()
+}
+
+# ─── 2b. ContextMembers.csv (optional) ───────────────────────────
+#
+# Explicit membership rows: (ContextExternalId, MemberExternalId, MemberType).
+# The ingest engine resolves externalIds to UUIDs within the referenced system
+# before writing to ContextMembers. Only supplied when the source CSV has real
+# membership data — otherwise memberships come from a later plugin run
+# (manager-hierarchy, department-tree, etc.).
+$cmembers = Read-CsvFile 'ContextMembers.csv'
+if ($cmembers) {
+    Assert-Columns 'ContextMembers.csv' $cmembers @('ContextExternalId','MemberExternalId','MemberType')
+    $cmRec = [System.Collections.Generic.List[object]]::new($cmembers.Count)
+    foreach ($r in $cmembers) {
+        if (-not $r.ContextExternalId -or -not $r.MemberExternalId) { continue }
+        [void]$cmRec.Add(@{
+            _systemId         = $fallbackSystemId
+            contextExternalId = $r.ContextExternalId
+            memberExternalId  = $r.MemberExternalId
+            memberType        = $r.MemberType
+            addedBy           = 'sync'
+        })
+    }
+    $cmembers = $null
+    Send-GroupedBySystem -Endpoint 'ingest/context-members' -Records $cmRec
+    $cmRec = $null; [System.GC]::Collect()
 }
 
 # ─── 3. Resources.csv (required) ─────────────────────────────────
@@ -586,13 +628,15 @@ try {
     Write-Host "  Done" -ForegroundColor Green
 } catch { Write-Host "  (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }
 
-# ─── Refresh views + contexts ────────────────────────────────────
+# ─── Refresh views ──────────────────────────────────────────────
+# v6: /ingest/refresh-contexts is gone. Context generation (from Principals'
+# department column, manager hierarchy, AD DNs, etc.) moved out of the crawler
+# into context-algorithm plugin runs. An operator triggers those from the
+# Contexts tab after the sync completes, or schedules them separately.
 if ($RefreshViews) {
     Update-CrawlerProgress -Step 'Refreshing views' -Pct 88
     try { Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null; Write-Host "  Views refreshed" -ForegroundColor Green } catch { }
 }
-Update-CrawlerProgress -Step 'Refreshing contexts' -Pct 92
-try { $ctx = Invoke-IngestAPI -Endpoint 'ingest/refresh-contexts' -Body @{}; Write-Host "  Contexts: $($ctx.contextsCreated) row(s)" -ForegroundColor Green } catch { Write-Host "  Context refresh failed (non-critical)" -ForegroundColor Yellow }
 
 # ─── Summary ─────────────────────────────────────────────────────
 $elapsed = (Get-Date) - $syncStart
