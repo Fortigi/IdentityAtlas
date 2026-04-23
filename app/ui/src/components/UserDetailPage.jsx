@@ -124,7 +124,8 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
         if (ctxId) {
           const r = await authFetch(`/api/contexts/${encodeURIComponent(ctxId)}`);
           const d = r.ok ? await r.json() : null;
-          items = d?.context ? [d.context] : (d ? [d] : []);
+          // /api/contexts/:id returns { attributes, members, subContexts }
+          if (d?.attributes) items = [d.attributes];
         }
       } else if (key?.startsWith('groups-')) {
         const r = await authFetch(`/api/user/${encodeURIComponent(userId)}/memberships`);

@@ -122,7 +122,8 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
         if (ctxId) {
           const r = await authFetch(`/api/contexts/${encodeURIComponent(ctxId)}`);
           const d = r.ok ? await r.json() : null;
-          items = d?.context ? [d.context] : (d ? [d] : []);
+          // /api/contexts/:id returns { attributes, members, subContexts }
+          if (d?.attributes) items = [d.attributes];
         }
       }
       setListCache(prev => ({ ...prev, [key]: items }));
