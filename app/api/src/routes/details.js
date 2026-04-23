@@ -158,6 +158,16 @@ router.get('/user/:id', async (req, res) => {
       directReportCount = r.recordset[0].cnt;
     } catch { /* managerId may not exist on older deployments */ }
 
+    // Context-membership count (v6 — replaces the old Principals.contextId
+    // single-context column with a many-to-many ContextMembers join).
+    let contextCount = 0;
+    try {
+      const r = await timedRequest(pool, 'user-context-count', res)
+        .input('id', userId)
+        .query(`SELECT COUNT(*)::int AS cnt FROM "ContextMembers" WHERE "memberId"::text = @id`);
+      contextCount = r.recordset[0].cnt;
+    } catch { /* ContextMembers may not exist on older deployments */ }
+
     res.json({
       attributes,
       tags,
@@ -168,11 +178,34 @@ router.get('/user/:id', async (req, res) => {
       hasHistory: historyCount > 0,
       oauth2GrantCount,
       directReportCount,
+      contextCount,
       lastActivity: null,
     });
   } catch (err) {
     console.error('Error fetching user detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch user details' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────
+// GET /api/user/:id/contexts — Lazy-loaded context memberships (v6)
+// ────────────────────────────────────────────────────────────────
+router.get('/user/:id/contexts', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.json([]);
+  try {
+    const pool = await db.getPool();
+    const r = await timedRequest(pool, 'user-contexts', res)
+      .input('id', req.params.id)
+      .query(`SELECT c.id, c."displayName", c."contextType", c."targetType", c.variant
+                FROM "ContextMembers" cm
+                JOIN "Contexts" c ON c.id = cm."contextId"
+               WHERE cm."memberId"::text = @id
+               ORDER BY c."contextType", c."displayName"`);
+    res.json(r.recordset);
+  } catch (err) {
+    console.error('Error fetching user contexts:', err.message);
+    res.status(500).json({ error: 'Failed to fetch user contexts' });
   }
 });
 

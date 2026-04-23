@@ -269,10 +269,42 @@ router.get('/resources/:id', async (req, res) => {
       historyCount = r?.cnt ?? 0;
     } catch { /* _history may not exist on older deployments */ }
 
-    res.json({ attributes, tags, memberCount, assignmentByType, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0 });
+    // 6. Context-membership count (v6 — Resources.contextId column was
+    // dropped in favor of the many-to-many ContextMembers join).
+    let contextCount = 0;
+    try {
+      const r = await db.queryOne(
+        `SELECT COUNT(*)::int AS cnt FROM "ContextMembers" WHERE "memberId"::text = $1`,
+        [resourceId]
+      );
+      contextCount = r?.cnt ?? 0;
+    } catch { /* ContextMembers may not exist on older deployments */ }
+
+    res.json({ attributes, tags, memberCount, assignmentByType, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0, contextCount });
   } catch (err) {
     console.error('Error fetching resource detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch resource details' });
+  }
+});
+
+// ─── GET /api/resources/:id/contexts ────────────────────────────
+// Lazy-loaded list of contexts this resource is a member of (v6).
+router.get('/resources/:id/contexts', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.json([]);
+  try {
+    const rows = (await db.query(
+      `SELECT c.id, c."displayName", c."contextType", c."targetType", c.variant
+         FROM "ContextMembers" cm
+         JOIN "Contexts" c ON c.id = cm."contextId"
+        WHERE cm."memberId"::text = $1
+        ORDER BY c."contextType", c."displayName"`,
+      [req.params.id]
+    )).rows;
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /resources/:id/contexts failed:', err.message);
+    res.status(500).json({ error: 'Failed to fetch resource contexts' });
   }
 });
 
