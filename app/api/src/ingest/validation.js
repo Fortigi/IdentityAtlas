@@ -365,7 +365,7 @@ export function validateEnvelope(body, entityType) {
  * Validate individual records against the entity schema.
  * Returns { valid: true, warnings: [] } or { valid: false, errors: [...] }.
  */
-export function validateRecords(records, entityType, idGeneration) {
+export function validateRecords(records, entityType, idGeneration, syncMode = 'full') {
   const schema = SCHEMAS[entityType];
   if (!schema) {
     return { valid: false, errors: [`Unknown entity type: ${entityType}`] };
@@ -377,10 +377,15 @@ export function validateRecords(records, entityType, idGeneration) {
   for (let i = 0; i < records.length && errors.length < maxErrors; i++) {
     const rec = records[i];
 
-    // Check required fields
-    for (const field of schema.required) {
-      if (rec[field] === undefined || rec[field] === null || rec[field] === '') {
-        errors.push(`Record ${i}: missing required field '${field}'`);
+    // Check required fields — skip in delta mode. Graph's /delta endpoints
+    // return partial records (only changed fields), so a required field
+    // like `displayName` may legitimately be missing on an update. The
+    // engine's COALESCE upsert preserves the existing value in that case.
+    if (syncMode !== 'delta') {
+      for (const field of schema.required) {
+        if (rec[field] === undefined || rec[field] === null || rec[field] === '') {
+          errors.push(`Record ${i}: missing required field '${field}'`);
+        }
       }
     }
 
