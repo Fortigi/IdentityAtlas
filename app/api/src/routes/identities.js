@@ -32,6 +32,17 @@ async function hasTable(_pool, tableName) {
   return !!r?.t;
 }
 
+// Tag rows come back from SQL as "id:name:color|id:name:color" strings so
+// we don't have to LEFT JOIN + GROUP BY every column. Matches the shape
+// used by the Resources endpoint.
+function parseTagString(tagString) {
+  if (!tagString) return [];
+  return tagString.split('|').map(t => {
+    const parts = t.split(':');
+    return { id: parseInt(parts[0]), name: parts[1], color: parts[2] };
+  });
+}
+
 // GET /api/identities — summary + paginated list
 router.get('/identities', async (req, res) => {
   if (!useSql) return res.json({ available: false, data: [], total: 0, summary: null });
@@ -46,6 +57,18 @@ router.get('/identities', async (req, res) => {
     const { search, minAccounts, accountType, confidence, verified, hrAnchored, orphanStatus, sort, limit, offset } = req.query;
     const pageLimit = Math.min(parseInt(limit) || 50, 500);
     const pageOffset = parseInt(offset) || 0;
+
+    // Attribute filters (JSON blob from the useEntityPage filter bar). Accept
+    // a `__identityTag` virtual field for tag-name filtering.
+    let attrFilters = {};
+    if (req.query.filters) {
+      try { attrFilters = JSON.parse(req.query.filters); } catch { /* ignore bad JSON */ }
+    }
+    let identityTagFilter = null;
+    if (attrFilters['__identityTag']) {
+      identityTagFilter = String(attrFilters['__identityTag']);
+      delete attrFilters['__identityTag'];
+    }
 
     // Column-existence check runs first because it determines the shape of
     // the summary query below. It's a tiny catalog lookup — keeping it out
@@ -127,6 +150,30 @@ router.get('/identities', async (req, res) => {
       }
     }
 
+    // Apply the attribute filters that useEntityPage sends (simple
+    // field=value equality on whitelisted columns).
+    const IDENTITY_FILTER_COLS = new Set([
+      'displayName', 'email', 'department', 'jobTitle', 'companyName',
+      'city', 'country', 'employeeId', 'accountCount',
+    ]);
+    for (const [field, value] of Object.entries(attrFilters)) {
+      if (!IDENTITY_FILTER_COLS.has(field)) continue;
+      if (value == null || value === '') continue;
+      const key = `flt_${field}`;
+      where += ` AND "${field}" = @${key}`;
+      inputs[key] = value;
+    }
+
+    // Tag filter (virtual field).
+    let identityTagJoin = '';
+    if (identityTagFilter) {
+      identityTagJoin = `
+        INNER JOIN "GraphTagAssignments" _ita ON _ita."entityId" = UPPER(i.id::text)
+        INNER JOIN "GraphTags" _it ON _ita."tagId" = _it.id
+          AND _it."name" = @__identityTag AND _it."entityType" = 'identity'`;
+      inputs.__identityTag = identityTagFilter;
+    }
+
     // Sort
     const ALLOWED_SORTS = {
       'accountCount': '"accountCount" DESC',
@@ -147,28 +194,38 @@ router.get('/identities', async (req, res) => {
     dataReq.input('pageLimit', pageLimit);
 
     const [countResult, dataResult] = await Promise.all([
-      countReq.query(`SELECT COUNT(*) AS total FROM "Identities" ${where}`),
+      countReq.query(`SELECT COUNT(*)::int AS total FROM "Identities" i ${identityTagJoin} ${where}`),
       dataReq.query(`
-        SELECT id, "displayName", "primaryPrincipalId" AS "primaryAccountId", email AS "primaryAccountUpn",
-          "accountCount", NULL AS "accountTypes",
-          "correlationConfidence", NULL AS "correlationSignals", NULL AS department, "jobTitle",
-          NULL AS "managerId", email AS mail,
-          "givenName", surname, "employeeId", NULL AS "companyName", NULL AS employeeType,
-          NULL AS city, NULL AS country, NULL AS "officeLocation",
-          NULL AS "accountEnabled", "correlatedAt", "analystVerified", "analystNotes"
-          ${hasHrCols ? ', "isHrAnchored", NULL AS "hrAccountId", "orphanStatus"' : ''}
-        FROM "Identities"
+        SELECT i.id, i."displayName", i."primaryPrincipalId" AS "primaryAccountId", i.email AS "primaryAccountUpn",
+          i."accountCount", NULL AS "accountTypes",
+          i."correlationConfidence", NULL AS "correlationSignals", i.department, i."jobTitle",
+          NULL AS "managerId", i.email AS mail,
+          i."givenName", i.surname, i."employeeId", i."companyName", NULL AS "employeeType",
+          i.city, i.country, i."officeLocation",
+          NULL AS "accountEnabled", i."correlatedAt", i."analystVerified", i."analystNotes",
+          (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
+             FROM "GraphTagAssignments" ta
+             INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" = 'identity'
+            WHERE ta."entityId" = UPPER(i.id::text)
+          ) AS "tagString"
+          ${hasHrCols ? ', i."isHrAnchored", NULL AS "hrAccountId", i."orphanStatus"' : ''}
+        FROM "Identities" i
+        ${identityTagJoin}
         ${where}
         ORDER BY ${orderBy}
         LIMIT @pageLimit OFFSET @pageOffset
       `),
     ]);
     const total = countResult.recordset[0].total;
+    const data = dataResult.recordset.map(row => {
+      const { tagString, ...rest } = row;
+      return { ...rest, tags: parseTagString(tagString) };
+    });
 
     res.json({
       available: true,
       summary,
-      data: dataResult.recordset,
+      data,
       total,
       hasHrColumns: hasHrCols,
     });
@@ -551,6 +608,57 @@ router.delete('/identities/:id/members/:userId/override', async (req, res) => {
   } catch (err) {
     console.error('Error removing member override:', err.message);
     res.status(500).json({ error: 'Failed to remove member override' });
+  }
+});
+
+// ─── GET /api/identity-columns ──────────────────────────────────────────
+// Column discovery for the Identities page filter bar. Returns distinct
+// values for a small whitelist of filterable columns, plus the virtual
+// __identityTag column populated with existing tag names. Mirrors the
+// /api/resource-columns shape the useEntityPage hook expects.
+router.get('/identity-columns', async (req, res) => {
+  if (!useSql) return res.json([]);
+  const schemaOnly = req.query.schema === 'true';
+  const FILTER_COLS = [
+    'displayName', 'email', 'department', 'jobTitle',
+    'companyName', 'city', 'country', 'employeeId',
+  ];
+  try {
+    const p = await db.getPool();
+    if (!(await hasTable(p, 'Identities'))) return res.json([]);
+
+    const grouped = {};
+    if (schemaOnly) {
+      for (const col of FILTER_COLS) grouped[col] = [];
+    } else {
+      // One pass per column — each read is cheap (a few hundred distinct
+      // values at most on a real tenant) and keeps the SQL trivial.
+      for (const col of FILTER_COLS) {
+        try {
+          const r = await p.request().query(
+            `SELECT DISTINCT "${col}" AS v FROM "Identities" WHERE "${col}" IS NOT NULL AND "${col}" <> '' ORDER BY "${col}" LIMIT 500`
+          );
+          grouped[col] = r.recordset.map(x => x.v);
+        } catch { grouped[col] = []; }
+      }
+    }
+
+    // Virtual tag-name column.
+    try {
+      const r = await p.request().query(`
+        SELECT t.name
+          FROM "GraphTags" t
+         WHERE t."entityType" = 'identity'
+           AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = t.id)
+         ORDER BY t.name
+      `);
+      grouped['__identityTag'] = schemaOnly ? [] : r.recordset.map(x => x.name);
+    } catch { /* GraphTags may not exist yet */ }
+
+    return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
+  } catch (err) {
+    console.error('identity-columns failed:', err.message);
+    return res.json([]);
   }
 });
 

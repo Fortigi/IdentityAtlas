@@ -87,7 +87,7 @@ router.post('/tags', async (req, res) => {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { name, color, entityType } = req.body;
     if (!name || !entityType) return res.status(400).json({ error: 'name and entityType required' });
-    if (!['user', 'group', 'resource'].includes(entityType)) return res.status(400).json({ error: 'entityType must be user, group, or resource' });
+    if (!['user', 'group', 'resource', 'identity'].includes(entityType)) return res.status(400).json({ error: 'entityType must be user, group, resource, or identity' });
     if (color && !HEX_COLOR_RE.test(color)) return res.status(400).json({ error: 'color must be a hex value like #3b82f6' });
 
     const p = await db.getPool();
@@ -245,7 +245,10 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
         if (tc.recordset[0].principalsExists) userTableForTags = 'Principals';
       } catch { /* ignore */ }
     }
-    const table = entityType === 'user' ? userTableForTags : (entityType === 'resource' ? 'Resources' : 'GraphGroups');
+    const table = entityType === 'user' ? userTableForTags
+                 : entityType === 'resource' ? 'Resources'
+                 : entityType === 'identity' ? 'Identities'
+                 : 'GraphGroups';
     const alias = 'e';
     const search = (rawSearch || '').trim().slice(0, 200);
     const upnColForSearch = userTableForTags === 'Principals' ? 'email' : 'userPrincipalName';
@@ -256,6 +259,8 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
       request.input('search', `%${search}%`);
       if (entityType === 'user') {
         where += ` AND (${alias}.displayName LIKE @search OR ${alias}.${upnColForSearch} LIKE @search)`;
+      } else if (entityType === 'identity') {
+        where += ` AND (${alias}.displayName LIKE @search OR ${alias}.email LIKE @search)`;
       } else {
         where += ` AND (${alias}.displayName LIKE @search OR ${alias}.description LIKE @search)`;
       }
