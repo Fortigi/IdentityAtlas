@@ -12,6 +12,7 @@ import permissionsRouter from './routes/permissions.js';
 import tagsRouter from './routes/tags.js';
 import categoriesRouter from './routes/categories.js';
 import detailsRouter from './routes/details.js';
+import recentChangesRouter from './routes/recentChanges.js';
 import governanceRouter from './routes/governance.js';
 import perfRouter from './routes/perf.js';
 import riskRouter from './routes/riskScores.js';
@@ -89,6 +90,11 @@ loadAuthConfig().catch(err => {
 });
 
 // ─── Security headers ────────────────────────────────────────────
+// HSTS and CSP `upgrade-insecure-requests` are opt-in via BEHIND_TLS=true.
+// The default deployment story is plain HTTP on port 3001; sending these
+// headers over HTTP traps browsers into HTTPS-only for a year and then fails
+// because there's no TLS listener.
+const behindTls = process.env.BEHIND_TLS === 'true';
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -103,8 +109,10 @@ app.use(helmet({
       ],
       frameSrc: ["'self'", 'https://login.microsoftonline.com'],
       imgSrc: ["'self'", 'data:'],
+      upgradeInsecureRequests: behindTls ? [] : null,
     },
   },
+  strictTransportSecurity: behindTls,
   crossOriginEmbedderPolicy: false,  // Required for MSAL redirects
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
@@ -232,6 +240,7 @@ app.use('/api', authMiddleware, permissionsRouter);
 app.use('/api', authMiddleware, tagsRouter);
 app.use('/api', authMiddleware, categoriesRouter);
 app.use('/api', authMiddleware, detailsRouter);
+app.use('/api', authMiddleware, recentChangesRouter);
 app.use('/api', authMiddleware, riskRouter);
 app.use('/api', authMiddleware, orgChartRouter);
 app.use('/api', authMiddleware, clusterRouter);
