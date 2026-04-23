@@ -13,10 +13,19 @@
 //
 // Return shape:
 //   { principalClauses: string[], resourceClauses: string[],
+//     innerPrincipalClauses: string[], innerResourceClauses: string[],
 //     bindings: { name: value } }
 //
 // Clauses use @-style placeholder names. Bindings are the map from
 // placeholder-name → value. The caller feeds them to request.input().
+//
+// principalClauses / resourceClauses reference the outer matrix query's
+// `p.` (view alias) and `r.` (Resources alias). innerPrincipalClauses /
+// innerResourceClauses use unqualified column names so they can be dropped
+// inside a top-N `SELECT "principalId" FROM vw_… GROUP BY` subquery that
+// has no aliases. Pushing the filter into the top-N avoids picking the
+// most-permissioned 25 users tenant-wide and then throwing them all out
+// because none happen to be in the filtered context.
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -27,6 +36,8 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export function buildContextFilterSql(resolvedFilters) {
   const principalClauses = [];
   const resourceClauses = [];
+  const innerPrincipalClauses = [];
+  const innerResourceClauses = [];
   const bindings = {};
 
   for (let i = 0; i < resolvedFilters.length; i++) {
@@ -58,16 +69,27 @@ export function buildContextFilterSql(resolvedFilters) {
     if (f.targetType === 'Identity' || f.targetType === 'Principal') {
       // principalId is UUID, ContextMembers.memberId is UUID — direct IN works.
       principalClauses.push(`p."principalId" IN ${scope}`);
+      innerPrincipalClauses.push(`"principalId" IN ${scope}`);
     } else if (f.targetType === 'Resource') {
       resourceClauses.push(`r.id IN ${scope}`);
+      // The top-N view has "resourceId" (not r.id); same scope sub-select works.
+      innerResourceClauses.push(`"resourceId" IN ${scope}`);
     } else if (f.targetType === 'System') {
       // System memberIds are integers stored as text in the member column.
-      // Resolve to systemId set, then constrain r.systemId.
+      // Resolve to systemId set, then constrain r.systemId. Can't push into
+      // the top-N because vw_ResourceUserPermissionAssignments doesn't expose
+      // systemId — left in outer WHERE only.
       resourceClauses.push(`r."systemId"::text IN ${scope}`);
     }
   }
 
-  return { principalClauses, resourceClauses, bindings };
+  return {
+    principalClauses,
+    resourceClauses,
+    innerPrincipalClauses,
+    innerResourceClauses,
+    bindings,
+  };
 }
 
 // memberType values stored in ContextMembers map 1:1 to Contexts.targetType.
