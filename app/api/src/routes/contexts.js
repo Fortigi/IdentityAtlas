@@ -56,9 +56,9 @@ router.get('/contexts', async (req, res) => {
 
     const result = await timedRequest(p, 'contexts-list', res).query(`
       SELECT ctx.*,
-          mgr."displayName" AS managerDisplayName,
-          mgr.email AS managerEmail,
-          parent."displayName" AS parentDisplayName
+          mgr."displayName" AS "managerDisplayName",
+          mgr.email AS "managerEmail",
+          parent."displayName" AS "parentDisplayName"
       FROM "Contexts" ctx
       LEFT JOIN "Principals" mgr ON ctx."managerId" = mgr.id
       LEFT JOIN "Contexts" parent ON ctx."parentContextId" = parent.id
@@ -86,7 +86,7 @@ router.get('/contexts/tree', async (req, res) => {
     const result = await timedRequest(p, 'contexts-tree', res).query(`
       SELECT ctx.id, ctx."displayName", ctx."contextType", ctx."parentContextId",
              ctx."memberCount", ctx."totalMemberCount", ctx."managerId", ctx.department,
-             mgr."displayName" AS managerDisplayName
+             mgr."displayName" AS "managerDisplayName"
       FROM "Contexts" ctx
       LEFT JOIN "Principals" mgr ON ctx."managerId" = mgr.id
       WHERE 1=1

@@ -42,7 +42,7 @@ async function checkContexts(pool) {
   if (hasContextsTable !== null && now - contextsCheckTime < 300000) return hasContextsTable;
   try {
     const r = await pool.request().query(`
-      SELECT to_regclass('"Contexts"') AS contextsExists
+      SELECT to_regclass('"Contexts"') AS "contextsExists"
     `);
     hasContextsTable = !!r.recordset[0].contextsExists;
     contextsCheckTime = now;
@@ -63,7 +63,7 @@ async function getOrgUserTable(pool) {
   const now = Date.now();
   if (_orgUserTable && (now - _orgUserTableTime) < ORG_TABLE_TTL) return _orgUserTable;
   try {
-    const r = await pool.request().query(`SELECT to_regclass('"Principals"') AS principalsExists`);
+    const r = await pool.request().query(`SELECT to_regclass('"Principals"') AS "principalsExists"`);
     _orgUserTable = r.recordset[0].principalsExists ? 'Principals' : 'GraphUsers';
   } catch {
     _orgUserTable = 'GraphUsers';
@@ -204,23 +204,26 @@ async function fetchUsers(pool, res) {
   const hasRisk = await hasRiskColumns(pool, res);
   const hasHierarchy = hasRisk && await hasHierarchyColumns(pool, res);
 
-  let cols = 'id, managerId, displayName, department, jobTitle, companyName, accountEnabled';
-  // userType exists on GraphUsers; Principals uses principalType
+  // Postgres folds unquoted identifiers to lowercase — Principals' real
+  // columns are camelCase so every identifier must be double-quoted.
+  let cols = 'id, "managerId", "displayName", department, "jobTitle", "companyName", "accountEnabled"';
   if (userTable === 'Principals') {
-    cols += ', principalType';
+    cols += ', "principalType"';
   } else {
-    cols += ', userType';
+    cols += ', "userType"';
   }
   if (hasRisk) {
-    cols += ', riskScore, riskTier';
+    cols += ', "riskScore", "riskTier"';
   }
   if (hasHierarchy) {
-    cols += ', riskHierarchyDirectReports, riskHierarchyTotalReports';
+    cols += ', "riskHierarchyDirectReports", "riskHierarchyTotalReports"';
   }
 
-  // No filtering needed in v5 — temporal tables (ValidTo) removed in postgres migration
+  // v5 Principals has no temporal columns — history lives in _history table.
+  const whereClause = '';
+
   const result = await timedRequest(pool, 'org-chart-users', res).query(`
-    SELECT ${cols} FROM ${userTable}
+    SELECT ${cols} FROM "${userTable}" ${whereClause}
   `);
 
   return result.recordset;
@@ -332,20 +335,22 @@ router.get('/org-chart/user/:id/manager', async (req, res) => {
     const userTable = await getOrgUserTable(p);
     const hasRisk = await hasRiskColumns(p, res);
 
-    let managerCols = 'm.id, m.displayName, m.jobTitle, m.department';
+    let managerCols = 'm.id, m."displayName", m."jobTitle", m.department';
     if (hasRisk) {
-      managerCols += ', m.riskScore, m.riskTier';
+      managerCols += ', m."riskScore", m."riskTier"';
     }
 
     const request = timedRequest(p, 'org-user-manager', res);
     request.input('id', req.params.id);
 
-    // No ValidTo filtering in v5 — temporal tables removed in postgres migration
+    // v5 Principals has no ValidTo column — no temporal filter needed.
+    const whereClause = `WHERE u.id = @id`;
+
     const result = await request.query(`
       SELECT ${managerCols}
-      FROM ${userTable} u
-      INNER JOIN ${userTable} m ON u."managerId" = m.id
-      WHERE u.id = @id
+      FROM "${userTable}" u
+      INNER JOIN "${userTable}" m ON u."managerId" = m.id
+      ${whereClause}
     `);
 
     return res.json({
@@ -379,19 +384,22 @@ router.get('/org-chart/user/:id/reports', async (req, res) => {
     const userTable = await getOrgUserTable(p);
     const hasRisk = await hasRiskColumns(p, res);
 
-    let cols = 'id, displayName, jobTitle, department';
+    let cols = 'id, "displayName", "jobTitle", department';
     if (hasRisk) {
-      cols += ', riskScore, riskTier';
+      cols += ', "riskScore", "riskTier"';
     }
 
     const request = timedRequest(p, 'org-user-reports', res);
     request.input('id', req.params.id);
 
-    // No ValidTo filtering in v5 — temporal tables removed in postgres migration
+    // v5 Principals has no `ValidTo` column — version history lives in
+    // the `_history` table instead, so we don't need a temporal filter.
+    const whereClause = `WHERE "managerId" = @id`;
+
     const result = await request.query(`
       SELECT ${cols}
-      FROM ${userTable}
-      WHERE "managerId" = @id
+      FROM "${userTable}"
+      ${whereClause}
       ORDER BY "displayName"
     `);
 

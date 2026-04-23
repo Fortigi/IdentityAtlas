@@ -1,49 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
-import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
-import { renderAttributeValue } from '../utils/renderAttribute';
-import { Section, CollapsibleSection } from './DetailSection';
+import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
+import { CollapsibleSection } from './DetailSection';
+import EntityGraph from './EntityGraph';
+import EntityDetailLayout, { AttributesTable, buildAttributeEntries } from './EntityDetailLayout';
+import ExpandedItemsList from './ExpandedItemsList';
+import RecentChangesSection from './RecentChangesSection';
+import useExpandableGraph from '../hooks/useExpandableGraph';
+import useRecentChanges from '../hooks/useRecentChanges';
+import { getRootNodes } from './entityGraphShape';
 
 const HEADER_FIELDS = ['catalogName', 'catalogId', 'description'];
-const HIDDEN_FIELDS = new Set(['displayName', ...HEADER_FIELDS, 'ValidFrom', 'ValidTo']);
-
-const SCOPE_LABELS = {
-  allMemberUsers:                          'All member users',
-  allDirectoryUsers:                       'All directory users',
-  specificDirectoryUsers:                  'Specific directory users',
-  allDirectoryServicePrincipals:           'All service principals',
-  specificDirectoryServicePrincipals:      'Specific service principals',
-  specificConnectedOrganizationUsers:      'Specific connected org users',
-  allConfiguredConnectedOrganizationUsers: 'All configured connected org users',
-  allExternalUsers:                        'All external users',
-  notSpecified:                            'Not specified',
-};
-
-function formatScope(val) {
-  if (!val) return '—';
-  return SCOPE_LABELS[val] || val;
-}
-
-const DECISION_STYLES = {
-  Approve: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
-  Deny: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
-  DontKnow: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
-  NotReviewed: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
-};
-
-const DECISION_LABELS = {
-  Approve: 'Approved',
-  Deny: 'Denied',
-  DontKnow: 'Don’t Know',
-  NotReviewed: 'Not Reviewed',
-};
-
-const REQUEST_STATE_STYLES = {
-  PendingApproval: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
-  Delivering: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
-  Accepted: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
-};
+const HIDDEN_FIELDS = new Set([
+  'displayName', ...HEADER_FIELDS, 'ValidFrom', 'ValidTo', 'extendedAttributes',
+]);
 
 const ASSIGNMENT_TYPE_STYLES = {
   'Auto-assigned': 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700',
@@ -52,42 +23,18 @@ const ASSIGNMENT_TYPE_STYLES = {
   'Both': 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-700',
 };
 
-export default function AccessPackageDetailPage({ accessPackageId, cachedData, onCacheData, onClose }) {
+export default function AccessPackageDetailPage({ accessPackageId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
 
-  // Core data (fast - attributes, counts)
   const [data, setData] = useState(cachedData?.core || null);
   const [loading, setLoading] = useState(!cachedData?.core);
   const [error, setError] = useState(null);
 
-  // Lazy-loaded sections
-  const [reviewsOpen, setReviewsOpen] = useState(false);
-  const [reviews, setReviews] = useState(cachedData?.reviews || null);
-  const [reviewsLoading, setReviewsLoading] = useState(false);
-
-  const [requestsOpen, setRequestsOpen] = useState(false);
-  const [requests, setRequests] = useState(cachedData?.requests || null);
-  const [requestsLoading, setRequestsLoading] = useState(false);
-
-  const [assignmentsOpen, setAssignmentsOpen] = useState(false);
-  const [assignments, setAssignments] = useState(cachedData?.assignments || null);
-  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
-
-  const [resourceRolesOpen, setResourceRolesOpen] = useState(false);
-  const [resourceRoles, setResourceRoles] = useState(cachedData?.resourceRoles || null);
-  const [resourceRolesLoading, setResourceRolesLoading] = useState(false);
-
-  const [policiesOpen, setPoliciesOpen] = useState(false);
-  const [policies, setPolicies] = useState(cachedData?.policies || null);
-  const [policiesLoading, setPoliciesLoading] = useState(false);
-
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState(cachedData?.history || null);
   const [historyLoading, setHistoryLoading] = useState(false);
-
   const [riskData, setRiskData] = useState(null);
 
-  // Fetch risk score data
   useEffect(() => {
     (async () => {
       try {
@@ -97,7 +44,6 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     })();
   }, [authFetch, accessPackageId]);
 
-  // Fetch core data
   useEffect(() => {
     if (cachedData?.core) return;
     let cancelled = false;
@@ -116,89 +62,42 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     return () => { cancelled = true; };
   }, [accessPackageId, authFetch, cachedData?.core, onCacheData]);
 
-  const loadReviews = useCallback(() => {
-    if (reviews) return;
-    setReviewsLoading(true);
-    authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/reviews`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setReviews(d); onCacheData?.(accessPackageId, 'access-package', { reviews: d }); })
-      .catch(() => setReviews([]))
-      .finally(() => setReviewsLoading(false));
-  }, [accessPackageId, authFetch, reviews, onCacheData]);
-
-  const loadRequests = useCallback(() => {
-    if (requests) return;
-    setRequestsLoading(true);
-    authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/requests`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setRequests(d); onCacheData?.(accessPackageId, 'access-package', { requests: d }); })
-      .catch(() => setRequests([]))
-      .finally(() => setRequestsLoading(false));
-  }, [accessPackageId, authFetch, requests, onCacheData]);
-
-  const loadAssignments = useCallback(() => {
-    if (assignments) return;
-    setAssignmentsLoading(true);
-    authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/assignments`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setAssignments(d); onCacheData?.(accessPackageId, 'access-package', { assignments: d }); })
-      .catch(() => setAssignments([]))
-      .finally(() => setAssignmentsLoading(false));
-  }, [accessPackageId, authFetch, assignments, onCacheData]);
-
-  const loadResourceRoles = useCallback(() => {
-    if (resourceRoles) return;
-    setResourceRolesLoading(true);
-    authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/resource-roles`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setResourceRoles(d); onCacheData?.(accessPackageId, 'access-package', { resourceRoles: d }); })
-      .catch(() => setResourceRoles([]))
-      .finally(() => setResourceRolesLoading(false));
-  }, [accessPackageId, authFetch, resourceRoles, onCacheData]);
-
-  const loadPolicies = useCallback(() => {
-    if (policies) return;
-    setPoliciesLoading(true);
-    authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/policies`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setPolicies(d); onCacheData?.(accessPackageId, 'access-package', { policies: d }); })
-      .catch(() => setPolicies([]))
-      .finally(() => setPoliciesLoading(false));
-  }, [accessPackageId, authFetch, policies, onCacheData]);
-
   const loadHistory = useCallback(() => {
     if (history) return;
     setHistoryLoading(true);
     authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/history`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setHistory(d); onCacheData?.(accessPackageId, 'access-package', { history: d }); })
+      .then(d => {
+        setHistory(d);
+        onCacheData?.(accessPackageId, 'access-package', { history: d });
+      })
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false));
   }, [accessPackageId, authFetch, history, onCacheData]);
 
-  const toggleReviews = useCallback(() => {
-    setReviewsOpen(prev => { if (!prev) loadReviews(); return !prev; });
-  }, [loadReviews]);
-
-  const toggleRequests = useCallback(() => {
-    setRequestsOpen(prev => { if (!prev) loadRequests(); return !prev; });
-  }, [loadRequests]);
-
-  const toggleAssignments = useCallback(() => {
-    setAssignmentsOpen(prev => { if (!prev) loadAssignments(); return !prev; });
-  }, [loadAssignments]);
-
-  const toggleResourceRoles = useCallback(() => {
-    setResourceRolesOpen(prev => { if (!prev) loadResourceRoles(); return !prev; });
-  }, [loadResourceRoles]);
-
-  const togglePolicies = useCallback(() => {
-    setPoliciesOpen(prev => { if (!prev) loadPolicies(); return !prev; });
-  }, [loadPolicies]);
-
   const toggleHistory = useCallback(() => {
     setHistoryOpen(prev => { if (!prev) loadHistory(); return !prev; });
   }, [loadHistory]);
+
+  const recent = useRecentChanges('access-package', accessPackageId, authFetch);
+
+  const rootExtras = useMemo(() => ({
+    catalogId: data?.attributes?.catalogId,
+    catalogName: data?.attributes?.catalogName,
+    recent,
+  }), [data, recent]);
+
+  const rootNodes = useMemo(() => (
+    data ? getRootNodes('access-package', data, rootExtras) : []
+  ), [data, rootExtras]);
+
+  const graph = useExpandableGraph({
+    rootEntityKind: 'access-package',
+    rootEntityId: accessPackageId,
+    rootExtras,
+    rootNodes,
+    authFetch,
+  });
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading business role details...</div>;
@@ -213,74 +112,51 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   }
   if (!data) return null;
 
-  const { attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, historyCount, hasHistory, policyCount, assignmentType, category } = data;
-  const catalogName = attributes.catalogName || null;
-  const apDisplayName = attributes.displayName || '';
-  const resolvedHistoryCount = history ? history.length : historyCount;
-  const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
+  const { attributes, historyCount, lastReviewDate, lastReviewedBy, assignmentType, category } = data;
 
+  const resolvedHistoryCount = history ? history.length : historyCount;
+  const attributeEntries = buildAttributeEntries(
+    attributes,
+    attributes.extendedAttributesParsed || (typeof attributes.extendedAttributes === 'object' ? attributes.extendedAttributes : null),
+    HIDDEN_FIELDS,
+  );
   const historyDiffs = history ? computeHistoryDiffs(history) : [];
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-lg font-bold">
-              AP
-            </div>
+            <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-lg font-bold">AP</div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{attributes.displayName}</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>
                 {assignmentType && (
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${ASSIGNMENT_TYPE_STYLES[assignmentType] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600'}`}>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${ASSIGNMENT_TYPE_STYLES[assignmentType] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
                     {assignmentType}
                   </span>
                 )}
                 {category && (
-                  <span
-                    className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
-                    style={{ backgroundColor: category.color + '20', borderColor: category.color, color: category.color }}
-                  >
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
+                    style={{ backgroundColor: category.color + '20', borderColor: category.color, color: category.color }}>
                     {category.name}
                   </span>
                 )}
               </div>
-              {catalogName && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Catalog: {catalogName}</p>
+              {attributes.catalogName && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Catalog: {attributes.catalogName}</p>
               )}
             </div>
           </div>
           {attributes.description && (
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">{attributes.description}</p>
           )}
-          <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-            {assignmentCount > 0 && <span>{assignmentCount} assignment{assignmentCount !== 1 ? 's' : ''}</span>}
-            {groupCount > 0 && (
-              <>
-                {assignmentCount > 0 && <span className="text-gray-400 dark:text-gray-500">|</span>}
-                <span>{groupCount} group{groupCount !== 1 ? 's' : ''}</span>
-              </>
-            )}
-            {reviewCount > 0 && (
-              <>
-                {(assignmentCount > 0 || groupCount > 0) && <span className="text-gray-400 dark:text-gray-500">|</span>}
-                <span>{reviewCount} review{reviewCount !== 1 ? 's' : ''}</span>
-              </>
-            )}
-            {requests && requests.length > 0 && (
-              <>
-                <span className="text-gray-400 dark:text-gray-500">|</span>
-                <span className="text-yellow-700 dark:text-yellow-400 font-medium">{requests.length} pending request{requests.length !== 1 ? 's' : ''}</span>
-              </>
-            )}
-          </div>
           {lastReviewDate && (
             <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              <span className="text-gray-500 dark:text-gray-500">Last Certification:</span>{' '}
-              <span className="font-medium dark:text-gray-300">{formatDate(lastReviewDate)}</span>
-              {lastReviewedBy && <span className="text-gray-500 dark:text-gray-500"> by {lastReviewedBy}</span>}
+              <span className="text-gray-500 dark:text-gray-400">Last Certification:</span>{' '}
+              <span className="font-medium">{formatDate(lastReviewDate)}</span>
+              {lastReviewedBy && <span className="text-gray-500 dark:text-gray-400"> by {lastReviewedBy}</span>}
             </div>
           )}
         </div>
@@ -293,279 +169,53 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
         </button>
       </div>
 
-      {/* Risk Score */}
-      {riskData && <RiskScoreSection attributes={riskData} entityType="business-roles" entityId={accessPackageId} authFetch={authFetch} />}
+      <EntityDetailLayout
+        left={<AttributesTable entries={attributeEntries} />}
+        right={
+          <div className="space-y-4">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <EntityGraph
+                centerLabel="Business Role"
+                centerSubLabel={attributes.displayName}
+                nodes={graph.nodesWithExpansion}
+                expandedPath={graph.expandedPath}
+                onNodeClick={graph.handleNodeClick}
+              />
+              {graph.pathDepth > 0 && (
+                <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-2">
+                  <span className="font-medium text-gray-600 dark:text-gray-300">{graph.activeListLabel}</span>
+                  {' — '}
+                  <button onClick={graph.reset} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">collapse</button>
+                </div>
+              )}
+            </div>
 
-      {/* Attributes */}
-      <Section title="Attributes" count={otherAttributes.length}>
-        <table className="w-full text-sm">
-          <tbody>
-            {/* URL-shaped values render as clickable links (see renderAttributeValue);
-                ext.Link in particular becomes the "Open in Entra ID" affordance. */}
-            {otherAttributes.map(([key, val]) => (
-              <tr key={key} className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0">
-                <td className="py-1 pr-4 text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                <td className="py-1 text-gray-900 dark:text-gray-200 font-medium break-all">{renderAttributeValue(key, val)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
-
-      {/* Assignments (users assigned to this AP) */}
-      {assignmentCount > 0 && (
-        <div className="mt-6">
-          <CollapsibleSection
-            title="Assignments"
-            count={assignmentCount}
-            open={assignmentsOpen}
-            onToggle={toggleAssignments}
-            loading={assignmentsLoading}
-          >
-            {assignments && assignments.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No assignments found</p>
-            ) : assignments && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-                    <th className="px-4 py-2 font-medium">User</th>
-                    <th className="px-4 py-2 font-medium">State</th>
-                    <th className="px-4 py-2 font-medium">Status</th>
-                    <th className="px-4 py-2 font-medium">Assigned</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignments.map(a => (
-                    <tr key={a.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                      <td className="px-4 py-2">
-                        <div className="text-gray-900 dark:text-gray-200 font-medium">{a.targetDisplayName || '—'}</div>
-                        {a.targetUPN && <div className="text-xs text-gray-400 dark:text-gray-500">{a.targetUPN}</div>}
-                      </td>
-                      <td className="px-4 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          a.assignmentState === 'Delivered' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                          : a.assignmentState === 'Delivering' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
-                          : a.assignmentState === 'Expired' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                          : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
-                        }`}>
-                          {a.assignmentState || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{a.assignmentStatus || '—'}</td>
-                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{formatDate(a.assignedDate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {graph.pathDepth > 0 ? (
+              <ExpandedItemsList
+                label={graph.activeListLabel}
+                items={graph.activeListItems}
+                loading={graph.loading}
+                onOpenDetail={onOpenDetail}
+              />
+            ) : (
+              <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
+                <p className="text-sm text-gray-400 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
+              </div>
             )}
-          </CollapsibleSection>
-        </div>
-      )}
+          </div>
+        }
+      >
+        {riskData && <RiskScoreSection attributes={riskData} entityType="business-roles" entityId={accessPackageId} authFetch={authFetch} />}
 
-      {/* Resource Assignments (groups/resources in this AP) */}
-      {groupCount > 0 && (
-        <div className="mt-4">
-          <CollapsibleSection
-            title="Resource Assignments"
-            count={groupCount}
-            open={resourceRolesOpen}
-            onToggle={toggleResourceRoles}
-            loading={resourceRolesLoading}
-          >
-            {resourceRoles && resourceRoles.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No resource assignments found</p>
-            ) : resourceRoles && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-                    <th className="px-4 py-2 font-medium">Resource</th>
-                    <th className="px-4 py-2 font-medium">Role</th>
-                    <th className="px-4 py-2 font-medium">Type</th>
-                    <th className="px-4 py-2 font-medium">Added</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resourceRoles.map(rr => (
-                    <tr key={rr.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                      <td className="px-4 py-2">
-                        <div className="text-gray-900 dark:text-gray-200 font-medium">{rr.groupDisplayName || rr.scopeDisplayName || '—'}</div>
-                        {rr.scopeOriginSystem && <div className="text-xs text-gray-400 dark:text-gray-500">{rr.scopeOriginSystem}</div>}
-                      </td>
-                      <td className="px-4 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          rr.roleName === 'Owner' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
-                          : rr.roleName === 'Member' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                        }`}>
-                          {rr.roleName || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{rr.resourceType || '—'}</td>
-                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{formatDate(rr.createdDateTime)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CollapsibleSection>
-        </div>
-      )}
+        <RecentChangesSection
+          events={recent.events}
+          addedCount={recent.addedCount}
+          removedCount={recent.removedCount}
+          sinceDays={recent.sinceDays}
+          loading={recent.loading}
+          onOpenDetail={onOpenDetail}
+        />
 
-      {/* Assignment Policies */}
-      {policyCount > 0 && (
-        <div className="mt-6">
-          <CollapsibleSection
-            title="Assignment Policies"
-            count={policyCount}
-            open={policiesOpen}
-            onToggle={togglePolicies}
-            loading={policiesLoading}
-          >
-            {policies && policies.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No policies found</p>
-            ) : policies && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-                    <th className="px-4 py-2 font-medium">Name</th>
-                    <th className="px-4 py-2 font-medium">Type</th>
-                    <th className="px-4 py-2 font-medium">Scope</th>
-                    <th className="px-4 py-2 font-medium">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {policies.map(p => (
-                    <tr key={p.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                      <td className="px-4 py-2">
-                        <div className="text-gray-900 dark:text-gray-200 font-medium">{p.displayName || '—'}</div>
-                        {p.description && <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate max-w-xs" title={p.description}>{p.description}</div>}
-                      </td>
-                      <td className="px-4 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          p.hasAutoAddRule ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                          : p.hasAutoRemoveRule ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300'
-                          : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
-                        }`}>
-                          {p.hasAutoAddRule ? 'Auto-assigned'
-                           : p.hasAutoRemoveRule ? 'Request-based with auto-removal'
-                           : 'Request-based'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs">
-                        <div>{formatScope(p.allowedTargetScope)}</div>
-                        {p.autoAssignmentFilter && (
-                          <div className="mt-0.5 text-gray-400 dark:text-gray-500 font-mono text-[11px] leading-snug break-all" title="Auto-assignment filter rule">
-                            {p.autoAssignmentFilter}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
-                        {formatDate(p.createdDateTime)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CollapsibleSection>
-        </div>
-      )}
-
-      {/* Access Reviews */}
-      <div className="mt-6">
-        <CollapsibleSection
-          title="Certification Decisions"
-          count={reviewCount}
-          open={reviewsOpen}
-          onToggle={toggleReviews}
-          loading={reviewsLoading}
-        >
-          {reviews && reviews.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No certification decisions found yet</p>
-          ) : reviews && (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-                  <th className="px-4 py-2 font-medium">User</th>
-                  <th className="px-4 py-2 font-medium">Reviewed By</th>
-                  <th className="px-4 py-2 font-medium">Decision</th>
-                  <th className="px-4 py-2 font-medium">Recommendation</th>
-                  <th className="px-4 py-2 font-medium">Date</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reviews.map(r => (
-                  <tr key={r.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="px-4 py-2 text-gray-900 dark:text-gray-200">{r.principalDisplayName || '—'}</td>
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{r.reviewedByDisplayName || '—'}</td>
-                    <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${DECISION_STYLES[r.decision] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
-                        {DECISION_LABELS[r.decision] || r.decision || '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{r.recommendation || '—'}</td>
-                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{formatDate(r.reviewedDateTime)}</td>
-                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{r.reviewInstanceStatus || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CollapsibleSection>
-      </div>
-
-      {/* Pending Requests */}
-      <div className="mt-4">
-        <CollapsibleSection
-          title="Pending Requests"
-          count={requests ? requests.length : pendingRequestCount}
-          open={requestsOpen}
-          onToggle={toggleRequests}
-          loading={requestsLoading}
-        >
-          {requests && requests.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No pending requests</p>
-          ) : requests && (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-                  <th className="px-4 py-2 font-medium">Requestor</th>
-                  <th className="px-4 py-2 font-medium">Type</th>
-                  <th className="px-4 py-2 font-medium">State</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Created</th>
-                  <th className="px-4 py-2 font-medium">Justification</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map(r => (
-                  <tr key={r.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="px-4 py-2 text-gray-900 dark:text-gray-200">
-                      <div>{r.requestorDisplayName || '—'}</div>
-                      {r.requestorUPN && <div className="text-xs text-gray-400 dark:text-gray-500">{r.requestorUPN}</div>}
-                    </td>
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs">{r.requestType || '—'}</td>
-                    <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${REQUEST_STATE_STYLES[r.requestState] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
-                        {r.requestState || '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{r.requestStatus || '—'}</td>
-                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{formatDate(r.createdDateTime)}</td>
-                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs truncate max-w-xs" title={r.justification || ''}>
-                      {r.justification || '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CollapsibleSection>
-      </div>
-
-      {/* Version History */}
-      <div className="mt-4">
         <CollapsibleSection
           title="Version History"
           count={resolvedHistoryCount}
@@ -579,7 +229,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
                   <th className="px-4 py-2 font-medium w-44">Date</th>
                   <th className="px-4 py-2 font-medium">Changes</th>
                 </tr>
@@ -587,9 +237,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
               <tbody>
                 {historyDiffs.map((diff, i) => (
                   <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs align-top whitespace-nowrap">
-                      {formatDate(diff.date)}
-                    </td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs align-top whitespace-nowrap">{formatDate(diff.date)}</td>
                     <td className="px-4 py-2">
                       <div className="flex flex-col gap-1">
                         {diff.changes.map((c, j) => (
@@ -609,7 +257,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
             </table>
           )}
         </CollapsibleSection>
-      </div>
+      </EntityDetailLayout>
     </div>
   );
 }

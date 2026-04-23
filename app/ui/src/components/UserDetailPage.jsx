@@ -1,24 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
-import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
-import { renderAttributeValue } from '../utils/renderAttribute';
-import { tierClass } from '../utils/tierStyles';
-import { Section, CollapsibleSection } from './DetailSection';
+import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
+import { CollapsibleSection } from './DetailSection';
+import EntityGraph from './EntityGraph';
+import EntityDetailLayout, { AttributesTable, buildAttributeEntries } from './EntityDetailLayout';
+import ExpandedItemsList from './ExpandedItemsList';
+import RecentChangesSection from './RecentChangesSection';
+import useExpandableGraph from '../hooks/useExpandableGraph';
+import useRecentChanges from '../hooks/useRecentChanges';
+import { getRootNodes } from './entityGraphShape';
 
 const HEADER_FIELDS = ['userPrincipalName', 'email', 'department', 'jobTitle', 'companyName'];
-const HIDDEN_FIELDS = new Set(['displayName', ...HEADER_FIELDS, ...RISK_FIELDS, 'ValidFrom', 'ValidTo', 'extendedAttributes', 'extendedAttributesParsed']);
-
-function safeParse(val) {
-  if (!val) return {};
-  if (typeof val === 'object') return val;
-  try { return JSON.parse(val) || {}; } catch { return {}; }
-}
+const HIDDEN_FIELDS = new Set([
+  'displayName', ...HEADER_FIELDS, ...RISK_FIELDS,
+  'ValidFrom', 'ValidTo', 'extendedAttributes', 'extendedAttributesParsed',
+  // These columns show up as graph nodes instead of attribute rows so the
+  // visualization doesn't feel duplicated by the table.
+  'managerId', 'contextId',
+]);
 
 export default function UserDetailPage({ userId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
 
-  // Core data (fast — attributes, tags, counts)
+  // Core data (attributes, tags, all counts incl. membership breakdown)
   const [data, setData] = useState(cachedData?.core || null);
   const [loading, setLoading] = useState(!cachedData?.core);
   const [error, setError] = useState(null);
@@ -28,24 +33,17 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   const [history, setHistory] = useState(cachedData?.history || null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Lazy-loaded OAuth2 delegated grants
-  const [oauth2Open, setOauth2Open] = useState(false);
-  const [oauth2Grants, setOauth2Grants] = useState(cachedData?.oauth2Grants || null);
-  const [oauth2Loading, setOauth2Loading] = useState(false);
+  // Identity membership banner
+  const [identityInfo, setIdentityInfo] = useState(undefined);
 
-  // Identity membership
-  const [identityInfo, setIdentityInfo] = useState(undefined); // undefined = not fetched, null = no identity
-
-  // Manager and direct reports
+  // Manager (one record) — fetched eagerly because the header uses it and
+  // the graph shows the manager node.
   const [manager, setManager] = useState(null);
   const [managerLoaded, setManagerLoaded] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(false);
-  const [reports, setReports] = useState(null);
-  const [reportsLoading, setReportsLoading] = useState(false);
 
-  // Fetch core data (attributes + tags + counts)
+  // Core fetch
   useEffect(() => {
-    if (cachedData?.core) return; // Already cached
+    if (cachedData?.core) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -62,7 +60,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     return () => { cancelled = true; };
   }, [userId, authFetch, cachedData?.core, onCacheData]);
 
-  // Fetch identity membership
   useEffect(() => {
     let cancelled = false;
     authFetch(`/api/identities/by-user/${encodeURIComponent(userId)}`)
@@ -72,7 +69,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     return () => { cancelled = true; };
   }, [userId, authFetch]);
 
-  // Fetch manager (lightweight — one record)
   useEffect(() => {
     let cancelled = false;
     authFetch(`/api/org-chart/user/${encodeURIComponent(userId)}/manager`)
@@ -83,25 +79,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     return () => { cancelled = true; };
   }, [userId, authFetch]);
 
-  // Lazy-load direct reports
-  const loadReports = useCallback(() => {
-    if (reports) return;
-    setReportsLoading(true);
-    authFetch(`/api/org-chart/user/${encodeURIComponent(userId)}/reports`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setReports(d?.reports || []))
-      .catch(() => setReports([]))
-      .finally(() => setReportsLoading(false));
-  }, [userId, authFetch, reports]);
-
-  const toggleReports = useCallback(() => {
-    setReportsOpen(prev => {
-      if (!prev) loadReports();
-      return !prev;
-    });
-  }, [loadReports]);
-
-  // Lazy-load history
   const loadHistory = useCallback(() => {
     if (history) return;
     setHistoryLoading(true);
@@ -122,26 +99,28 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     });
   }, [loadHistory]);
 
-  // Lazy-load OAuth2 grants
-  const loadOauth2 = useCallback(() => {
-    if (oauth2Grants) return;
-    setOauth2Loading(true);
-    authFetch(`/api/user/${encodeURIComponent(userId)}/oauth2-grants`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => {
-        setOauth2Grants(d);
-        onCacheData?.(userId, 'user', { oauth2Grants: d });
-      })
-      .catch(() => setOauth2Grants([]))
-      .finally(() => setOauth2Loading(false));
-  }, [userId, authFetch, oauth2Grants, onCacheData]);
+  const recent = useRecentChanges('user', userId, authFetch);
 
-  const toggleOauth2 = useCallback(() => {
-    setOauth2Open(prev => {
-      if (!prev) loadOauth2();
-      return !prev;
-    });
-  }, [loadOauth2]);
+  // Root-ring nodes + extras are rebuilt whenever the core/manager/identity/
+  // recent-changes state changes. The hook then manages click-driven fanout.
+  const rootExtras = useMemo(() => ({
+    manager,
+    identityInfo,
+    contextId: data?.attributes?.contextId,
+    recent,
+  }), [manager, identityInfo, data, recent]);
+
+  const rootNodes = useMemo(() => (
+    data ? getRootNodes('user', data, rootExtras) : []
+  ), [data, rootExtras]);
+
+  const graph = useExpandableGraph({
+    rootEntityKind: 'user',
+    rootEntityId: userId,
+    rootExtras,
+    rootNodes,
+    authFetch,
+  });
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading user details...</div>;
@@ -156,24 +135,23 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   }
   if (!data) return null;
 
-  const { attributes, tags, historyCount, hasHistory, lastActivity, oauth2GrantCount } = data;
+  const { attributes, tags, historyCount, lastActivity } = data;
   const resolvedHistoryCount = history ? history.length : historyCount;
-  const otherAttributes = [['id', attributes.id], ...Object.entries(attributes).filter(([k]) => !HIDDEN_FIELDS.has(k) && k !== 'id')];
-
+  const attributeEntries = buildAttributeEntries(attributes, attributes.extendedAttributesParsed, HIDDEN_FIELDS);
   const historyDiffs = history ? computeHistoryDiffs(history) : [];
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-bold">
+            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex items-center justify-center text-lg font-bold">
               {(attributes.displayName || '?')[0]}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{attributes.displayName}</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>
                 {attributes.principalType && (
                   <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">
                     {attributes.principalType}
@@ -221,180 +199,60 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
         </button>
       </div>
 
-      {/* Risk Assessment */}
-      <RiskScoreSection attributes={attributes} entityType="user" entityId={userId} authFetch={authFetch} />
-
-      {/* Identity Membership */}
-      {identityInfo && <IdentityMembershipSection identityInfo={identityInfo} onNavigateToIdentities={() => { window.location.hash = 'identities'; }} />}
-
-      {/* Manager */}
-      {managerLoaded && manager && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mt-4 mb-4">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Manager</h3>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
-              {(manager.displayName || '?')[0]}
+      <EntityDetailLayout
+        left={<AttributesTable entries={attributeEntries} />}
+        right={
+          <div className="space-y-4">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <EntityGraph
+                centerLabel="User"
+                centerSubLabel={attributes.displayName}
+                nodes={graph.nodesWithExpansion}
+                expandedPath={graph.expandedPath}
+                onNodeClick={graph.handleNodeClick}
+              />
+              {graph.pathDepth > 0 && (
+                <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-2">
+                  <span className="font-medium text-gray-600 dark:text-gray-300">{graph.activeListLabel}</span>
+                  {' — '}
+                  <button onClick={graph.reset} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">collapse</button>
+                </div>
+              )}
             </div>
-            <div className="min-w-0 flex-1">
-              <button
-                onClick={() => onOpenDetail?.('user', manager.id, manager.displayName)}
-                className="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
-              >
-                {manager.displayName}
-              </button>
-              <div className="text-xs text-gray-400 dark:text-gray-500">
-                {[manager.jobTitle, manager.department].filter(Boolean).join(' • ') || '—'}
+
+            {graph.pathDepth > 0 ? (
+              <ExpandedItemsList
+                label={graph.activeListLabel}
+                items={graph.activeListItems}
+                loading={graph.loading}
+                onOpenDetail={onOpenDetail}
+              />
+            ) : (
+              <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
+                <p className="text-sm text-gray-400 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
               </div>
-            </div>
-            {manager.riskTier && manager.riskTier !== 'None' && manager.riskTier !== 'Minimal' && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tierClass(manager.riskTier)}`}>
-                {manager.riskTier}
-              </span>
             )}
           </div>
-        </div>
-      )}
+        }
+      >
+        <RiskScoreSection attributes={attributes} entityType="user" entityId={userId} authFetch={authFetch} />
 
-      {/* Direct Reports */}
-      {managerLoaded && (
-        <div className="mb-4">
-          <CollapsibleSection
-            title="Direct Reports"
-            count={attributes.riskHierarchyDirectReports || null}
-            open={reportsOpen}
-            onToggle={toggleReports}
-            loading={reportsLoading}
-          >
-            {reports && reports.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No direct reports</p>
-            ) : reports ? (
-              <div className="divide-y divide-gray-50 dark:divide-gray-700">
-                {reports.map(r => (
-                  <div key={r.id} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
-                      {(r.displayName || '?')[0]}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <button
-                        onClick={() => onOpenDetail?.('user', r.id, r.displayName)}
-                        className="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
-                      >
-                        {r.displayName}
-                      </button>
-                      <div className="text-xs text-gray-400 dark:text-gray-500">
-                        {[r.jobTitle, r.department].filter(Boolean).join(' • ') || '—'}
-                      </div>
-                    </div>
-                    {r.riskTier && r.riskTier !== 'None' && r.riskTier !== 'Minimal' && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tierClass(r.riskTier)}`}>
-                        {r.riskTier}
-                      </span>
-                    )}
-                    {r.riskScore != null && (
-                      <span className="text-xs font-mono text-gray-400 dark:text-gray-500 w-6 text-right">{r.riskScore}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </CollapsibleSection>
-        </div>
-      )}
+        {identityInfo && (
+          <IdentityMembershipSection
+            identityInfo={identityInfo}
+            onNavigateToIdentities={() => { window.location.hash = 'identities'; }}
+          />
+        )}
 
-      {/* Attributes - single column table */}
-      <Section title="Attributes" count={otherAttributes.length}>
-        <table className="w-full text-sm">
-          <tbody>
-            {/* URL-shaped values render as clickable links (see renderAttributeValue).
-                That's how ext.Link on synced objects becomes the replacement for the
-                old hardcoded "Open in Entra ID" button we removed. */}
-            {otherAttributes.map(([key, val]) => (
-              <tr key={key} className="border-b border-gray-50 dark:border-gray-700 last:border-b-0">
-                <td className="py-1 pr-4 text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                <td className="py-1 text-gray-900 dark:text-white font-medium break-all">{renderAttributeValue(key, val)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
+        <RecentChangesSection
+          events={recent.events}
+          addedCount={recent.addedCount}
+          removedCount={recent.removedCount}
+          sinceDays={recent.sinceDays}
+          loading={recent.loading}
+          onOpenDetail={onOpenDetail}
+        />
 
-      {/* Extended Attributes (Principals model) */}
-      {attributes.extendedAttributesParsed && Object.keys(attributes.extendedAttributesParsed).length > 0 && (
-        <div className="mt-4">
-          <Section title="Extended Attributes" count={Object.keys(attributes.extendedAttributesParsed).filter(k => attributes.extendedAttributesParsed[k] != null).length}>
-            <table className="w-full text-sm">
-              <tbody>
-                {Object.entries(attributes.extendedAttributesParsed)
-                  .filter(([, val]) => val != null)
-                  .map(([key, val]) => (
-                    <tr key={key} className="border-b border-gray-50 dark:border-gray-700 last:border-b-0">
-                      <td className="py-1 pr-4 text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">{friendlyLabel(key)}</td>
-                      <td className="py-1 text-gray-900 dark:text-white font-medium break-all">{renderAttributeValue(key, val)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </Section>
-        </div>
-      )}
-
-      {/* OAuth2 Delegated Grants - collapsible, lazy-loaded */}
-      {(oauth2GrantCount > 0 || (oauth2Grants && oauth2Grants.length > 0)) && (
-        <div className="mt-4">
-          <CollapsibleSection
-            title="OAuth2 Delegated Grants"
-            count={oauth2Grants ? oauth2Grants.length : oauth2GrantCount}
-            countLabel={(oauth2Grants ? oauth2Grants.length : oauth2GrantCount) === 1 ? 'grant' : 'grants'}
-            open={oauth2Open}
-            onToggle={toggleOauth2}
-            loading={oauth2Loading}
-          >
-            {oauth2Grants && oauth2Grants.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No grants recorded</p>
-            ) : oauth2Grants ? (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
-                    <th className="px-4 py-2 font-medium">Client application</th>
-                    <th className="px-4 py-2 font-medium">Target API</th>
-                    <th className="px-4 py-2 font-medium">Scope</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {oauth2Grants.map(g => {
-                    const grantExt = safeParse(g.grantExtendedAttributes);
-                    const scopeExt = safeParse(g.scopeExtendedAttributes);
-                    const clientName = g.clientDisplayName || grantExt.clientDisplayName || grantExt.clientSpId || '—';
-                    const targetName = grantExt.targetApiDisplayName || scopeExt.targetApiDisplayName || scopeExt.targetApiSpId || '—';
-                    const scopeValue = grantExt.scope || scopeExt.scope || g.scopeDisplayName || '—';
-                    return (
-                      <tr key={g.scopeResourceId + ':' + (grantExt.grantId || '')} className="border-b border-gray-50 dark:border-gray-700 last:border-b-0">
-                        <td className="px-4 py-2">
-                          {g.clientSpId ? (
-                            <button
-                              onClick={() => onOpenDetail?.('resource', g.clientSpId, clientName)}
-                              className="text-blue-700 hover:text-blue-900 hover:underline text-left"
-                            >
-                              {clientName}
-                            </button>
-                          ) : (
-                            <span className="text-gray-900 dark:text-white">{clientName}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{targetName}</td>
-                        <td className="px-4 py-2 font-mono text-xs text-gray-900 dark:text-white">{scopeValue}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : null}
-          </CollapsibleSection>
-        </div>
-      )}
-
-      {/* Version History - collapsible, lazy-loaded */}
-      <div className="mt-6">
         <CollapsibleSection
           title="Version History"
           count={resolvedHistoryCount}
@@ -408,14 +266,14 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
                   <th className="px-4 py-2 font-medium w-44">Date</th>
                   <th className="px-4 py-2 font-medium">Changes</th>
                 </tr>
               </thead>
               <tbody>
                 {historyDiffs.map((diff, i) => (
-                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700">
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
                     <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs align-top whitespace-nowrap">
                       {formatDate(diff.date)}
                     </td>
@@ -425,9 +283,9 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                           <div key={j} className="text-xs">
                             <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(c.field)}</span>
                             <span className="text-gray-400 dark:text-gray-500 mx-1">:</span>
-                            <span className="text-red-500 line-through mr-1">{c.from}</span>
+                            <span className="text-red-500 dark:text-red-400 line-through mr-1">{c.from}</span>
                             <span className="text-gray-400 dark:text-gray-500 mr-1">&rarr;</span>
-                            <span className="text-green-600">{c.to}</span>
+                            <span className="text-green-600 dark:text-green-400">{c.to}</span>
                           </div>
                         ))}
                       </div>
@@ -438,10 +296,12 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
             </table>
           )}
         </CollapsibleSection>
-      </div>
+      </EntityDetailLayout>
     </div>
   );
 }
+
+// ─── Identity Membership banner — unchanged from v1 ────────────────────
 
 const ACCOUNT_TYPE_COLORS = {
   Regular:  'bg-blue-100 text-blue-800 border-blue-200',
@@ -458,18 +318,15 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
   const typeColor = ACCOUNT_TYPE_COLORS[memberInfo.accountType] || ACCOUNT_TYPE_COLORS.Regular;
 
   return (
-    <div className="bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-700 rounded-lg p-4 mt-4 mb-4">
+    <div className="bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-700 rounded-lg p-4">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
           <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
           </svg>
           Identity Membership
         </h3>
-        <button
-          onClick={onNavigateToIdentities}
-          className="text-xs text-emerald-700 hover:text-emerald-900 hover:underline"
-        >
+        <button onClick={onNavigateToIdentities} className="text-xs text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 hover:underline">
           View all identities →
         </button>
       </div>
@@ -477,12 +334,12 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-gray-900 dark:text-white text-sm">{identity.displayName}</span>
+            <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{identity.displayName}</span>
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${typeColor}`}>
               {memberInfo.accountType}
             </span>
             {memberInfo.isPrimary && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">Primary</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">Primary</span>
             )}
             {memberInfo.isHrAuthoritative && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200" title={`HR Score: ${memberInfo.hrScore}`}>HR Source</span>
@@ -507,10 +364,7 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
 
       {otherMembers.length > 0 && (
         <div className="mt-3">
-          <button
-            onClick={() => setExpanded(v => !v)}
-            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1"
-          >
+          <button onClick={() => setExpanded(v => !v)} className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1">
             <span>{expanded ? '▼' : '▶'}</span>
             {expanded ? 'Hide' : 'Show'} other accounts ({otherMembers.length})
           </button>
@@ -525,7 +379,7 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
                     {m.isHrAuthoritative && <span className="text-emerald-700 font-medium">HR</span>}
                     <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-48">{m.displayName}</span>
                     <span className="text-gray-400 dark:text-gray-500 truncate max-w-64">{m.userPrincipalName}</span>
-                    <span className={`ml-auto ${m.accountEnabled === 'True' || m.accountEnabled === true ? 'text-green-500' : 'text-gray-300 dark:text-gray-500'}`}>
+                    <span className={`ml-auto ${m.accountEnabled === 'True' || m.accountEnabled === true ? 'text-green-500' : 'text-gray-300'}`}>
                       {m.accountEnabled === 'True' || m.accountEnabled === true ? '●' : '○'}
                     </span>
                   </div>
