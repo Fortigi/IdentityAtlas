@@ -6,7 +6,9 @@ import { CollapsibleSection } from './DetailSection';
 import EntityGraph from './EntityGraph';
 import EntityDetailLayout, { AttributesTable, buildAttributeEntries } from './EntityDetailLayout';
 import ExpandedItemsList from './ExpandedItemsList';
+import RecentChangesSection from './RecentChangesSection';
 import useExpandableGraph from '../hooks/useExpandableGraph';
+import useRecentChanges from '../hooks/useRecentChanges';
 import { getRootNodes } from './entityGraphShape';
 
 const HEADER_FIELDS = ['catalogName', 'catalogId', 'description'];
@@ -77,10 +79,13 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     setHistoryOpen(prev => { if (!prev) loadHistory(); return !prev; });
   }, [loadHistory]);
 
+  const recent = useRecentChanges('access-package', accessPackageId, authFetch);
+
   const rootExtras = useMemo(() => ({
     catalogId: data?.attributes?.catalogId,
     catalogName: data?.attributes?.catalogName,
-  }), [data]);
+    recent,
+  }), [data, recent]);
 
   const rootNodes = useMemo(() => (
     data ? getRootNodes('access-package', data, rootExtras) : []
@@ -201,6 +206,15 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
         }
       >
         {riskData && <RiskScoreSection attributes={riskData} entityType="business-roles" entityId={accessPackageId} authFetch={authFetch} />}
+
+        <RecentChangesSection
+          events={recent.events}
+          addedCount={recent.addedCount}
+          removedCount={recent.removedCount}
+          sinceDays={recent.sinceDays}
+          loading={recent.loading}
+          onOpenDetail={onOpenDetail}
+        />
 
         <CollapsibleSection
           title="Version History"

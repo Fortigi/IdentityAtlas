@@ -6,7 +6,9 @@ import { CollapsibleSection } from './DetailSection';
 import EntityGraph from './EntityGraph';
 import EntityDetailLayout, { AttributesTable, buildAttributeEntries } from './EntityDetailLayout';
 import ExpandedItemsList from './ExpandedItemsList';
+import RecentChangesSection from './RecentChangesSection';
 import useExpandableGraph from '../hooks/useExpandableGraph';
+import useRecentChanges from '../hooks/useRecentChanges';
 import { getRootNodes } from './entityGraphShape';
 
 const RESOURCE_TYPE_COLORS = {
@@ -90,9 +92,12 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
     });
   }, [loadHistory]);
 
+  const recent = useRecentChanges('resource', resourceId, authFetch);
+
   const rootExtras = useMemo(() => ({
     contextId: data?.attributes?.contextId,
-  }), [data]);
+    recent,
+  }), [data, recent]);
 
   const rootNodes = useMemo(() => (
     data ? getRootNodes('resource', data, rootExtras) : []
@@ -208,6 +213,15 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
         }
       >
         <RiskScoreSection attributes={attributes} entityType="group" entityId={resourceId} authFetch={authFetch} />
+
+        <RecentChangesSection
+          events={recent.events}
+          addedCount={recent.addedCount}
+          removedCount={recent.removedCount}
+          sinceDays={recent.sinceDays}
+          loading={recent.loading}
+          onOpenDetail={onOpenDetail}
+        />
 
         <CollapsibleSection
           title="Version History"

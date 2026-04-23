@@ -286,5 +286,29 @@ foreach ($bid in $brIds) {
     }
 }
 
+# ── Recent-changes endpoints ─────────────────────────────────────────
+# Every entity detail page now fetches a relationship-change timeline;
+# this probe makes sure the endpoint shape is correct for each kind
+# even if the instance has no actual changes yet (empty events array
+# is still a valid 200 response).
+Write-Host "`n  -- Recent-changes endpoints --" -ForegroundColor Gray
+
+$recentProbes = @()
+if ($userIds.Count -gt 0)     { $recentProbes += @{ kind = 'User';     url = "/user/$($userIds[0])/recent-changes" } }
+if ($resourceIds.Count -gt 0) { $recentProbes += @{ kind = 'Resource'; url = "/resources/$($resourceIds[0])/recent-changes" } }
+if ($identityIds.Count -gt 0) { $recentProbes += @{ kind = 'Identity'; url = "/identities/$($identityIds[0])/recent-changes" } }
+if ($brIds.Count -gt 0)       { $recentProbes += @{ kind = 'BR';       url = "/access-package/$($brIds[0])/recent-changes" } }
+
+foreach ($p in $recentProbes) {
+    $resp = Get-Json $p.url
+    if (Test-IsError $resp) {
+        Record "RecentChanges/$($p.kind)/Http" $false "HTTP $($resp.__statusCode) $($resp.__error)"
+        continue
+    }
+    Record "RecentChanges/$($p.kind)/ShapeOk"     ([bool]($resp.PSObject.Properties['events'] -and $resp.PSObject.Properties['addedCount'] -and $resp.PSObject.Properties['removedCount'])) "fields present"
+    Record "RecentChanges/$($p.kind)/ArrayEvents" ($resp.events -is [array] -or $null -eq $resp.events) "events is array"
+    Record "RecentChanges/$($p.kind)/SinceDays"   ([int]$resp.sinceDays -gt 0) "sinceDays=$($resp.sinceDays)"
+}
+
 Write-Host ("`n  Results: {0} pass / {1} fail" -f $passes, $failures) -ForegroundColor $(if ($failures -eq 0) { 'Green' } else { 'Red' })
 exit $failures
