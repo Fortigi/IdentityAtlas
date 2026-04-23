@@ -245,13 +245,12 @@ router.get('/identities/:id', async (req, res) => {
   try {
     const p = await db.getPool();
 
-    // Fetch identity with context name
+    // Fetch identity. Context membership is no longer a column on Identities
+    // (v6 context redesign) — membership now lives in ContextMembers and is
+    // surfaced through the dedicated /api/contexts/* endpoints.
     const identityResult = await timedRequest(p, 'identity-detail', res)
       .input('id', identityId)
-      .query(`SELECT i.*, c."displayName" AS "contextDisplayName"
-              FROM "Identities" i
-              LEFT JOIN "Contexts" c ON i."contextId" = c.id
-              WHERE i.id = @id`);
+      .query(`SELECT i.* FROM "Identities" i WHERE i.id = @id`);
 
     if (identityResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Identity not found' });
@@ -371,14 +370,50 @@ router.get('/identities/:id', async (req, res) => {
       }
     } catch { /* ResourceAssignments may not exist */ }
 
+    // Context-membership count across the identity's linked principal IDs.
+    let contextCount = 0;
+    try {
+      const r = await timedRequest(p, 'identity-context-count', res)
+        .input('identityId', identityId)
+        .query(`SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
+                  FROM "IdentityMembers" m
+                  JOIN "ContextMembers" cm ON cm."memberId" = m."principalId"
+                 WHERE m."identityId" = @identityId`);
+      contextCount = r.recordset[0]?.cnt || 0;
+    } catch { /* ContextMembers may not exist */ }
+
     res.json({
       identity,
       members: membersResult.recordset,
       aggregateAssignments: aggregate,
+      contextCount,
     });
   } catch (err) {
     console.error('Error fetching identity detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch identity detail' });
+  }
+});
+
+// GET /api/identities/:id/contexts — Lazy-loaded context memberships
+// across every linked account. Distinct on context.id so the same context
+// joined via two different accounts only appears once.
+router.get('/identities/:id/contexts', async (req, res) => {
+  if (!useSql) return res.json([]);
+  try {
+    const p = await db.getPool();
+    const r = await timedRequest(p, 'identity-contexts', res)
+      .input('identityId', req.params.id)
+      .query(`SELECT DISTINCT ON (c.id) c.id, c."displayName", c."contextType",
+                     c."targetType", c.variant
+                FROM "IdentityMembers" m
+                JOIN "ContextMembers" cm ON cm."memberId" = m."principalId"
+                JOIN "Contexts" c ON c.id = cm."contextId"
+               WHERE m."identityId" = @identityId
+               ORDER BY c.id, c."contextType", c."displayName"`);
+    res.json(r.recordset);
+  } catch (err) {
+    console.error('GET /identities/:id/contexts failed:', err.message);
+    res.status(500).json({ error: 'Failed to fetch identity contexts' });
   }
 });
 

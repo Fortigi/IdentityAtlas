@@ -36,7 +36,7 @@ test.describe('Users Page', () => {
 
     // Results should be filtered — verify page is still alive (nav visible)
     // Table may be hidden if no results match the search term
-    await expect(page.locator('nav')).toBeVisible();
+    await expect(page.locator('nav').first()).toBeVisible();
   });
 
   test('tag management UI is present', async ({ page }) => {

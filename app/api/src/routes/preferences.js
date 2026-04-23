@@ -7,7 +7,7 @@ import * as db from '../db/connection.js';
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
-const OPTIONAL_TABS = ['risk-scores', 'identities', 'org-chart', 'performance', 'admin'];
+const OPTIONAL_TABS = ['risk-scores', 'identities', 'performance', 'admin'];
 
 function getUserId(req) {
   if (req.user?.oid) return req.user.oid;

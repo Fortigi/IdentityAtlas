@@ -53,12 +53,14 @@ function capItems(items, extraCountKey) {
 // ─── User ────────────────────────────────────────────────────────────
 
 function userRootNodes(core, identityInfo, manager) {
-  const a = core.attributes || {};
   const m = core.membershipByType || {};
   return [
-    { key: 'manager',         label: 'Manager',        count: manager ? 1 : 0, kind: 'category' },
-    { key: 'reports',         label: 'Direct Reports', count: core.directReportCount || 0, kind: 'category' },
-    { key: 'context',         label: 'Context',        count: a.contextId ? 1 : 0, kind: 'category' },
+    { key: 'manager',         label: 'Manager',           count: manager ? 1 : 0, kind: 'category' },
+    { key: 'reports',         label: 'Direct Reports',    count: core.directReportCount || 0, kind: 'category' },
+    // v6: a Principal can belong to many Contexts (one row in ContextMembers
+    // per membership). The count comes from /api/user/:id (contextCount);
+    // the items are loaded lazily via /api/user/:id/contexts.
+    { key: 'contexts',        label: 'Contexts',          count: core.contextCount || 0, kind: 'category' },
     { key: 'groups-direct',   label: 'Groups (Direct)',   count: m.Direct || 0, kind: 'category' },
     { key: 'groups-indirect', label: 'Groups (Indirect)', count: m.Indirect || 0, kind: 'category' },
     { key: 'groups-owner',    label: 'Groups Owned',      count: m.Owner || 0, kind: 'category' },
@@ -86,7 +88,7 @@ function recentRootNodes(recent) {
 }
 
 async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
-  const { manager, identityInfo, contextId } = extras;
+  const { manager, identityInfo } = extras;
   const get = (p) => authFetch(p).then(r => r.ok ? r.json() : []);
 
   if (categoryKey === 'manager') {
@@ -96,12 +98,9 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
     const d = await authFetch(`/api/org-chart/user/${encodeURIComponent(userId)}/reports`).then(r => r.ok ? r.json() : {});
     return (d.reports || []).map(r => toItem(r, 'user'));
   }
-  if (categoryKey === 'context') {
-    if (!contextId) return [];
-    const r = await authFetch(`/api/contexts/${encodeURIComponent(contextId)}`);
-    if (!r.ok) return [];
-    const d = await r.json();
-    return d?.attributes ? [toItem(d.attributes, 'context')] : [];
+  if (categoryKey === 'contexts') {
+    const rows = await get(`/api/user/${encodeURIComponent(userId)}/contexts`);
+    return rows.map(c => toItem(c, 'context'));
   }
   if (categoryKey?.startsWith('groups-')) {
     const all = await get(`/api/user/${encodeURIComponent(userId)}/memberships`);
@@ -130,7 +129,6 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
 
 function resourceRootNodes(core) {
   const a = core.assignmentByType || {};
-  const attrs = core.attributes || {};
   return [
     { key: 'members-direct',   label: 'Direct Members', count: a.Direct || 0, kind: 'category' },
     { key: 'members-governed', label: 'Governed',        count: a.Governed || 0, kind: 'category' },
@@ -138,12 +136,13 @@ function resourceRootNodes(core) {
     { key: 'members-eligible', label: 'Eligible',        count: a.Eligible || 0, kind: 'category' },
     { key: 'business-roles',   label: 'Business Roles',  count: core.accessPackageCount || 0, kind: 'category' },
     { key: 'parents',          label: 'Member Of',       count: core.parentResourceCount || 0, kind: 'category' },
-    { key: 'context',          label: 'Context',         count: attrs.contextId ? 1 : 0, kind: 'category' },
+    // v6: many-to-many context membership via ContextMembers, not a single
+    // contextId column on Resources.
+    { key: 'contexts',         label: 'Contexts',        count: core.contextCount || 0, kind: 'category' },
   ];
 }
 
-async function fetchResourceItems(resourceId, categoryKey, authFetch, extras = {}) {
-  const { contextId } = extras;
+async function fetchResourceItems(resourceId, categoryKey, authFetch, _extras = {}) {
   const get = (p) => authFetch(p).then(r => r.ok ? r.json() : []);
 
   if (categoryKey?.startsWith('members-')) {
@@ -165,12 +164,9 @@ async function fetchResourceItems(resourceId, categoryKey, authFetch, extras = {
       id: p.parentResourceId, displayName: p.parentDisplayName,
     }, p.parentResourceType === 'BusinessRole' ? 'access-package' : 'resource'));
   }
-  if (categoryKey === 'context') {
-    if (!contextId) return [];
-    const r = await authFetch(`/api/contexts/${encodeURIComponent(contextId)}`);
-    if (!r.ok) return [];
-    const d = await r.json();
-    return d?.attributes ? [toItem(d.attributes, 'context')] : [];
+  if (categoryKey === 'contexts') {
+    const rows = await get(`/api/resources/${encodeURIComponent(resourceId)}/contexts`);
+    return rows.map(c => toItem(c, 'context'));
   }
   return [];
 }
@@ -232,10 +228,9 @@ async function fetchAccessPackageItems(apId, categoryKey, authFetch, extras = {}
 
 function identityRootNodes(core) {
   const agg = core.aggregateAssignments || {};
-  const identity = core.identity || {};
   return [
     { key: 'accounts',        label: 'Linked Accounts', count: (core.members || []).length, kind: 'category' },
-    { key: 'context',         label: 'Context',         count: identity.contextId ? 1 : 0, kind: 'category' },
+    { key: 'contexts',        label: 'Contexts',        count: core.contextCount || 0, kind: 'category' },
     { key: 'groups-direct',   label: 'Groups (Direct)', count: agg.Direct || 0, kind: 'category' },
     { key: 'groups-governed', label: 'Governed',        count: agg.Governed || 0, kind: 'category' },
     { key: 'groups-owner',    label: 'Owned',           count: agg.Owner || 0, kind: 'category' },
@@ -245,16 +240,14 @@ function identityRootNodes(core) {
 }
 
 async function fetchIdentityItems(identityId, categoryKey, authFetch, extras = {}) {
-  const { members, contextId } = extras;
+  const { members } = extras;
   if (categoryKey === 'accounts') {
     return (members || []).map(m => toItem({ id: m.principalId, displayName: m.displayName }, 'user'));
   }
-  if (categoryKey === 'context') {
-    if (!contextId) return [];
-    const r = await authFetch(`/api/contexts/${encodeURIComponent(contextId)}`);
-    if (!r.ok) return [];
-    const d = await r.json();
-    return d?.attributes ? [toItem(d.attributes, 'context')] : [];
+  if (categoryKey === 'contexts') {
+    const rows = await authFetch(`/api/identities/${encodeURIComponent(identityId)}/contexts`)
+      .then(r => r.ok ? r.json() : []);
+    return rows.map(c => toItem(c, 'context'));
   }
   const typeMap = {
     'groups-direct':   'Direct',
@@ -385,15 +378,14 @@ export function isExpandableItem(entityKind) {
 // fanouts without re-fetching the same endpoints.
 export function extrasFromCore(entityKind, core) {
   if (!core) return {};
+  // v6: Principals/Identities/Resources don't carry a contextId column any
+  // more; the contexts category fetches its list lazily via the dedicated
+  // endpoint, so no per-core extras are needed here for it.
   switch (entityKind) {
-    case 'user':
-      return { contextId: core.attributes?.contextId };
-    case 'resource':
-      return { contextId: core.attributes?.contextId };
     case 'access-package':
       return { catalogId: core.attributes?.catalogId, catalogName: core.attributes?.catalogName };
     case 'identity':
-      return { members: core.members, contextId: core.identity?.contextId };
+      return { members: core.members };
     case 'context':
       return { members: core.members, subContexts: core.subContexts };
     default:
