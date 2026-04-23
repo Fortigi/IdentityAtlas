@@ -1618,7 +1618,11 @@ function RecentJobs({ jobs, onForceStop }) {
                 ? formatDurationHMS(Math.round((new Date(j.completedAt) - new Date(j.startedAt)) / 1000))
                 : j.startedAt ? 'running...' : '—';
               const isTerminal = j.status !== 'running' && j.status !== 'queued';
-              const hasDetails = isTerminal && ((Array.isArray(j.phases) && j.phases.length > 0) || j.errorMessage);
+              // Always show Details — the modal's Trace tab is useful even
+              // for queued/running jobs (live tail), and for completed jobs
+              // with neither phases nor errorMessage the modal still shows
+              // a sensible empty state.
+              const hasDetails = true;
               return (
                 <tr key={j.id}>
                   <td className="p-3 font-medium dark:text-gray-200">{j.jobType}</td>
