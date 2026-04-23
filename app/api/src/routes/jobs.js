@@ -5,8 +5,16 @@
  */
 import { Router } from 'express';
 import * as db from '../db/connection.js';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readdirSync, promises as fs } from 'fs';
+import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
+
+const TRACE_DIR = '/data/uploads/jobs';
+// Tail endpoint returns at most this many bytes per request. If the file is
+// larger than offset + MAX, the client polls again with the new offset. Keeps
+// any single response small enough that a ~10 MB log on a long crawl streams
+// to the UI in a dozen or so polls rather than one giant payload.
+const MAX_TRACE_CHUNK = 256 * 1024;  // 256 KB
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -791,6 +799,54 @@ router.get('/admin/crawler-jobs/:id', async (req, res) => {
   } catch (err) {
     console.error('Error fetching crawler job:', err.message);
     res.status(500).json({ error: 'Failed to fetch job' });
+  }
+});
+
+// GET /api/admin/crawler-jobs/:id/log — tail the per-job trace log.
+//
+// The worker's Invoke-CrawlerJob.ps1 wraps each run in Start-Transcript,
+// writing every Write-Host line (plus child script output) to
+// /data/uploads/jobs/{id}.log. That volume is also mounted into the web
+// container, so we can read it here.
+//
+// Query params:
+//   offset — byte position to read from (client passes back the totalLength
+//            it received last time for efficient incremental polling)
+// Response:
+//   { text: <string>, offset: <int>, totalLength: <int>, truncated: <bool>,
+//     exists: <bool> }
+//
+// `truncated=true` means the response was capped at MAX_TRACE_CHUNK bytes
+// — the client should poll again with the new offset (offset + text.length).
+router.get('/admin/crawler-jobs/:id/log', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id < 0) return res.status(400).json({ error: 'Invalid job ID' });
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+
+  const logPath = path.join(TRACE_DIR, `${id}.log`);
+  try {
+    const stat = await fs.stat(logPath);
+    const totalLength = stat.size;
+    if (offset >= totalLength) {
+      return res.json({ text: '', offset, totalLength, truncated: false, exists: true });
+    }
+    const length = Math.min(MAX_TRACE_CHUNK, totalLength - offset);
+    const fh = await fs.open(logPath, 'r');
+    try {
+      const buf = Buffer.alloc(length);
+      await fh.read(buf, 0, length, offset);
+      const text = buf.toString('utf8');
+      const truncated = (offset + length) < totalLength;
+      return res.json({ text, offset, totalLength, truncated, exists: true });
+    } finally {
+      await fh.close();
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return res.json({ text: '', offset: 0, totalLength: 0, truncated: false, exists: false });
+    }
+    console.error(`Error reading trace log for job ${id}:`, err.message);
+    res.status(500).json({ error: 'Failed to read trace log' });
   }
 });
 

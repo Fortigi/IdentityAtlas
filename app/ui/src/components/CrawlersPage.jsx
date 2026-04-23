@@ -1402,8 +1402,66 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
 // duration, and error text per phase. Falls back to the raw errorMessage
 // text when a legacy job pre-dates the phases column.
 function JobPhasesModal({ job, onClose }) {
+  const { authFetch } = useAuth();
+  const [activeTab, setActiveTab] = useState('phases');
+  const [trace, setTrace] = useState({ text: '', totalLength: 0, exists: false });
+  const [traceError, setTraceError] = useState(null);
+  const traceRef = useRef(null);
+
+  const phases = Array.isArray(job?.phases) ? job.phases : [];
+  const isRunning = job && (job.status === 'running' || job.status === 'queued');
+
+  // Incremental trace fetcher. `offset` is the byte we last consumed; the
+  // endpoint returns bytes from there to EOF (up to 256 KB) plus the
+  // server-side totalLength. We advance offset by what we actually read so
+  // the next call only ships new bytes.
+  useEffect(() => {
+    if (!job || activeTab !== 'trace') return;
+    let cancelled = false;
+    let timerId = null;
+    let currentOffset = 0;
+    let currentText = '';
+
+    const poll = async () => {
+      try {
+        const r = await authFetch(`/api/admin/crawler-jobs/${job.id}/log?offset=${currentOffset}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        if (cancelled) return;
+        currentText += d.text || '';
+        currentOffset += (d.text || '').length;
+        setTrace({ text: currentText, totalLength: d.totalLength, exists: d.exists });
+        setTraceError(null);
+
+        // Keep chasing the tail: if the server had more than we just read
+        // (truncated=true) OR the job is still running, schedule another tick.
+        // Truncated path fires immediately; running path waits 3s.
+        const keepGoing = d.truncated || (isRunning && currentOffset === d.totalLength);
+        if (keepGoing && !cancelled) {
+          timerId = setTimeout(poll, d.truncated ? 50 : 3000);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setTraceError(err.message);
+          if (isRunning) timerId = setTimeout(poll, 5000);
+        }
+      }
+    };
+    poll();
+    return () => { cancelled = true; if (timerId) clearTimeout(timerId); };
+  }, [job?.id, activeTab, isRunning, authFetch]);
+
+  // Auto-scroll the trace pane to the bottom when new bytes arrive, but only
+  // if the user hadn't scrolled up to read history.
+  useEffect(() => {
+    const el = traceRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (atBottom) el.scrollTop = el.scrollHeight;
+  }, [trace.text]);
+
   if (!job) return null;
-  const phases = Array.isArray(job.phases) ? job.phases : [];
+
   const fmtMs = (ms) => {
     if (ms == null) return '—';
     if (ms < 1000) return `${ms} ms`;
@@ -1419,8 +1477,25 @@ function JobPhasesModal({ job, onClose }) {
     if (status === 'skipped') return <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-400"  title="Skipped" />;
     return <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300" />;
   };
+  const fmtBytes = (n) => {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  };
   const okCount     = phases.filter(p => p.status === 'ok').length;
   const failedCount = phases.filter(p => p.status === 'failed').length;
+
+  const tabBtn = (id, label) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`px-3 py-1.5 text-sm rounded-t border-b-2 -mb-px transition-colors ${
+        activeTab === id
+          ? 'border-indigo-600 text-indigo-700 font-medium'
+          : 'border-transparent text-gray-500 hover:text-gray-700'
+      }`}
+    >{label}</button>
+  );
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -1439,8 +1514,17 @@ function JobPhasesModal({ job, onClose }) {
             </svg>
           </button>
         </div>
-        <div className="overflow-auto p-6">
-          {phases.length === 0 ? (
+        <div className="px-6 pt-3 border-b border-gray-200 flex items-center gap-1">
+          {tabBtn('phases', 'Phases')}
+          {tabBtn('trace', 'Trace')}
+          {activeTab === 'trace' && trace.exists && (
+            <span className="ml-auto text-xs text-gray-500">
+              {fmtBytes(trace.totalLength)}{isRunning && <span className="ml-2 text-blue-600">● live</span>}
+            </span>
+          )}
+        </div>
+        <div className="overflow-auto p-6 flex-1">
+          {activeTab === 'phases' && (phases.length === 0 ? (
             <div>
               <p className="text-sm text-gray-600 mb-2">No per-phase breakdown available for this job.</p>
               {job.errorMessage && (
@@ -1478,6 +1562,23 @@ function JobPhasesModal({ job, onClose }) {
                 ))}
               </tbody>
             </table>
+          ))}
+          {activeTab === 'trace' && (
+            !trace.exists ? (
+              <div className="text-sm text-gray-500">
+                {isRunning
+                  ? 'Waiting for the worker to produce output…'
+                  : 'No trace captured for this job. Traces are written by runs after this feature shipped — older jobs have phases only.'}
+              </div>
+            ) : (
+              <pre
+                ref={traceRef}
+                className="bg-gray-900 text-gray-100 text-xs font-mono p-3 rounded overflow-auto whitespace-pre-wrap break-words max-h-[60vh]"
+              >{trace.text || '(empty)'}</pre>
+            )
+          )}
+          {activeTab === 'trace' && traceError && (
+            <div className="mt-2 text-xs text-red-600">Failed to refresh trace: {traceError}</div>
           )}
         </div>
       </div>
