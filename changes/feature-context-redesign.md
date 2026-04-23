@@ -32,6 +32,7 @@
 
 - New chip widget on the Matrix toolbar lets analysts pick one or more contexts to filter by, each with an "+sub" checkbox to include descendants. Filters AND together.
 - `/api/permissions` accepts a `contextFilters` JSON query param. The `contexts/contextFilters.js` helper compiles the filter into SQL fragments using a recursive CTE on `parentContextId`. Identity/Principal-targeted filters constrain the row axis; Resource and System targets constrain the column axis.
+- The filter is also pushed into the top-N user subquery — otherwise the matrix picked the 25 most-permissioned users tenant-wide and then intersected, leaving the view empty whenever the top-25 and the filtered context didn't overlap.
 - Filter selections live in the matrix hash so filtered views can be bookmarked.
 
 ### Tags as Contexts
