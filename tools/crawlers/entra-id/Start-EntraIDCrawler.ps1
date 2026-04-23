@@ -154,11 +154,18 @@ function Invoke-IngestAPI {
             $responseBody = $null
             try {
                 $statusCode = $_.Exception.Response.StatusCode.value__
-                $stream = $_.Exception.Response.GetResponseStream()
-                if ($stream) {
-                    $reader = [System.IO.StreamReader]::new($stream)
-                    $responseBody = $reader.ReadToEnd()
-                    $reader.Close()
+                # PS7 drains the response stream before the exception bubbles
+                # up, so the body is in ErrorDetails.Message. Fall back to
+                # the stream read for older engines or edge cases.
+                if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                    $responseBody = $_.ErrorDetails.Message
+                } else {
+                    $stream = $_.Exception.Response.GetResponseStream()
+                    if ($stream) {
+                        $reader = [System.IO.StreamReader]::new($stream)
+                        $responseBody = $reader.ReadToEnd()
+                        $reader.Close()
+                    }
                 }
             } catch {}
 
@@ -711,6 +718,7 @@ if ($SyncPrincipals) {
     $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing principals (users)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing users' -Pct 12 -Detail 'Fetching from Microsoft Graph...'
+    try {
 
     # Build $select dynamically — core attributes + custom.
     # signInActivity and userType are included so the risk scoring engine can
@@ -981,8 +989,13 @@ if ($SyncPrincipals) {
             Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode $ingestMode -Records $idMembers
         }
     }
+    } catch {
+        $script:phaseErrors.Add("Principals: $($_.Exception.Message)")
+        Write-Host "  Principals phase failed: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    $__principalsErrMsg = $script:phaseErrors | Where-Object { $_.StartsWith('Principals: ') } | Select-Object -Last 1
     $__phaseSW.Stop(); $phaseTimings['Principals'] = $__phaseSW.Elapsed
-    Write-Phase -Name 'Principals' -Duration $__phaseSW.Elapsed
+    Write-Phase -Name 'Principals' -Duration $__phaseSW.Elapsed -ErrorMsg $__principalsErrMsg
 }
 
 # ─── Sync Service Principals ─────────────────────────────────────
@@ -999,6 +1012,7 @@ if ($SyncServicePrincipals) {
     $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing service principals..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing service principals' -Pct 18 -Detail 'Fetching from Microsoft Graph...'
+    try {
 
     # `tags` and `servicePrincipalType` drive classification; `appId`,
     # `appOwnerOrganizationId`, and `notes` go into extendedAttributes for
@@ -1193,8 +1207,13 @@ if ($SyncServicePrincipals) {
         # Fail soft — SP data itself still lands, activity just stays stale.
         Write-Host "  WARN: SP sign-in activity sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
     }
+    } catch {
+        $script:phaseErrors.Add("ServicePrincipals: $($_.Exception.Message)")
+        Write-Host "  ServicePrincipals phase failed: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    $__spErrMsg = $script:phaseErrors | Where-Object { $_.StartsWith('ServicePrincipals: ') } | Select-Object -Last 1
     $__phaseSW.Stop(); $phaseTimings['ServicePrincipals'] = $__phaseSW.Elapsed
-    Write-Phase -Name 'ServicePrincipals' -Duration $__phaseSW.Elapsed
+    Write-Phase -Name 'ServicePrincipals' -Duration $__phaseSW.Elapsed -ErrorMsg $__spErrMsg
 }
 
 # ─── Sync Sign-in Logs (per-(user, app) activity) ────────────────
@@ -1334,6 +1353,7 @@ if ($SyncResources) {
     $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing resources (groups)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing groups' -Pct 20 -Detail 'Fetching groups from Microsoft Graph...'
+    try {
     $coreGroupAttrs = @('id','displayName','description','mail','visibility','createdDateTime','groupTypes','securityEnabled','mailEnabled')
     $allGroupAttrs = $coreGroupAttrs + $CustomGroupAttributes | Select-Object -Unique
     $groupSelect = $allGroupAttrs -join ','
@@ -1366,8 +1386,13 @@ if ($SyncResources) {
 
     Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ resourceType = 'EntraGroup' } -Records $records
+    } catch {
+        $script:phaseErrors.Add("Resources: $($_.Exception.Message)")
+        Write-Host "  Resources phase failed: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    $__resourcesErrMsg = $script:phaseErrors | Where-Object { $_.StartsWith('Resources: ') } | Select-Object -Last 1
     $__phaseSW.Stop(); $phaseTimings['Resources'] = $__phaseSW.Elapsed
-    Write-Phase -Name 'Resources' -Duration $__phaseSW.Elapsed
+    Write-Phase -Name 'Resources' -Duration $__phaseSW.Elapsed -ErrorMsg $__resourcesErrMsg
 }
 
 # ─── Sync Assignments (Group Members) ────────────────────────────
@@ -1376,6 +1401,7 @@ if ($SyncAssignments) {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing assignments (group memberships)..." -ForegroundColor Cyan
     $totalGroups = $groups.Count
     Update-CrawlerProgress -Step 'Syncing group memberships' -Pct 25 -Detail "0 of $totalGroups groups"
+    try {
 
     # Parallel fetch — see Get-FGGroupChildrenParallel for design notes.
     $memberResult = Get-FGGroupChildrenParallel `
@@ -1422,8 +1448,13 @@ if ($SyncAssignments) {
     Update-CrawlerProgress -Detail "Uploading $($allOwners.Count) owner assignments..."
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ assignmentType = 'Owner' } -Records $allOwners
+    } catch {
+        $script:phaseErrors.Add("Assignments: $($_.Exception.Message)")
+        Write-Host "  Assignments phase failed: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    $__assignErrMsg = $script:phaseErrors | Where-Object { $_.StartsWith('Assignments: ') } | Select-Object -Last 1
     $__phaseSW.Stop(); $phaseTimings['Assignments'] = $__phaseSW.Elapsed
-    Write-Phase -Name 'Assignments' -Duration $__phaseSW.Elapsed
+    Write-Phase -Name 'Assignments' -Duration $__phaseSW.Elapsed -ErrorMsg $__assignErrMsg
 }
 
 # ─── Sync PIM (Eligible group memberships) ───────────────────────
