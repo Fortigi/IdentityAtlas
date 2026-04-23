@@ -1819,7 +1819,11 @@ if ($SyncGovernance) {
                     $instances = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($def.id)/instances?`$top=100"
                     foreach ($inst in $instances) {
                         try {
-                            $decisions = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($def.id)/instances/$($inst.id)/decisions?`$top=999"
+                            # Graph caps this collection at 100 per page and
+                            # rejects larger $top values with 400. Drop the
+                            # query-string entirely and rely on
+                            # Invoke-FGGetRequest's @odata.nextLink paging.
+                            $decisions = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($def.id)/instances/$($inst.id)/decisions"
                             foreach ($d in $decisions) {
                                 $certRecords += @{
                                     id                          = $d.id
@@ -1840,7 +1844,18 @@ if ($SyncGovernance) {
                                 }
                             }
                         } catch {
-                            Write-Host "    Skipping instance $($inst.id): $($_.Exception.Message)" -ForegroundColor Yellow
+                            # PS7 drains the response stream before the exception
+                            # bubbles — the body (the actual Graph error JSON) is
+                            # in ErrorDetails.Message. Including it in the log
+                            # makes the next unrecognized error diagnosable from
+                            # the Trace tab alone.
+                            $body = $null
+                            if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                                $body = $_.ErrorDetails.Message
+                                if ($body.Length -gt 300) { $body = $body.Substring(0, 300) + '...' }
+                            }
+                            $detail = if ($body) { "$($_.Exception.Message) | $body" } else { $_.Exception.Message }
+                            Write-Host "    Skipping instance $($inst.id): $detail" -ForegroundColor Yellow
                         }
                     }
                 } catch {
