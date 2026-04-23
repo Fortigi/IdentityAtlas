@@ -23,17 +23,21 @@ A generic PostgreSQL trigger function (`fg_record_history`) fires on INSERT, UPD
 
 ### Tracked Tables
 
-| Table | Tracked |
-|-------|---------|
-| `Principals` | Yes |
-| `Resources` | Yes |
-| `ResourceAssignments` | Yes |
-| `ResourceRelationships` | Yes |
-| `AssignmentPolicies` | Yes |
-| `GovernanceCatalogs` | Yes |
-| `Systems` | Yes |
+| Table | Tracked | Row key strategy |
+|-------|---------|------------------|
+| `Principals` | Yes | surrogate `id` |
+| `Resources` | Yes | surrogate `id` |
+| `ResourceAssignments` | Yes | composite `resourceId\|principalId\|assignmentType` |
+| `ResourceRelationships` | Yes | composite `parentResourceId\|childResourceId\|relationshipType` |
+| `IdentityMembers` | Yes | composite `identityId\|principalId` |
+| `AssignmentPolicies` | Yes | surrogate `id` |
+| `GovernanceCatalogs` | Yes | surrogate `id` |
+| `Systems` | Yes | surrogate `id` |
 | `PrincipalActivity` | **No** — upsert-based; daily sign-in timestamps would generate excessive audit noise |
 | `RiskScores` | **No** — recalculated on each scoring run |
+
+!!! note "Composite-key tables (migration 018)"
+    Some relationship tables have no surrogate `id` column — the primary key is a tuple of foreign keys. Migration 018 (April 2026) updated `fg_record_history()` to synthesise a deterministic `a|b|c` row key for these tables so their changes land in `_history`. Before 018, those inserts and deletes were silently skipped, which is why the Recent Changes timeline on v5 installations only backfills from the date that migration ran, not from initial data load.
 
 ### No-op Filtering
 

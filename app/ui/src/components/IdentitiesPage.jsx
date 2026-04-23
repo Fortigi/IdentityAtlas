@@ -1,707 +1,327 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
-import ConfidenceBar from './ConfidenceBar';
-import { TIER_STYLES } from '../utils/tierStyles';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import useEntityPage from '../hooks/useEntityPage';
+import FilterBar from './FilterBar';
+import { TAG_COLORS } from '../utils/colors';
 
-function RiskTierBadge({ tier }) {
-  if (!tier || tier === 'None') return null;
-  const s = TIER_STYLES[tier] || TIER_STYLES.Minimal;
-  return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`} title={`Risk: ${tier}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {tier}
-    </span>
-  );
-}
+// Identities list — intentionally a stripped-down Resources-style table.
+// Account-correlation controls (verify / confirm / reject, correlation
+// signals, confidence bars, HR anchor badges, orphan status) will get
+// their own dedicated UI later; this page is just "flat list + tags".
 
-const TYPE_STYLES = {
-  Regular:  { bg: 'bg-blue-100',   text: 'text-blue-800',   border: 'border-blue-200',   dot: 'bg-blue-500' },
-  Admin:    { bg: 'bg-red-100',    text: 'text-red-800',    border: 'border-red-200',    dot: 'bg-red-500' },
-  Test:     { bg: 'bg-amber-100',  text: 'text-amber-800',  border: 'border-amber-200',  dot: 'bg-amber-500' },
-  Service:  { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200', dot: 'bg-purple-500' },
-  Shared:   { bg: 'bg-teal-100',   text: 'text-teal-800',   border: 'border-teal-200',   dot: 'bg-teal-500' },
-  External: { bg: 'bg-gray-100',   text: 'text-gray-600',   border: 'border-gray-200',   dot: 'bg-gray-400' },
+const FIELD_LABELS = {
+  displayName:      'Name',
+  email:            'Email',
+  department:       'Department',
+  jobTitle:         'Job Title',
+  companyName:      'Company',
+  city:             'City',
+  country:          'Country',
+  employeeId:       'Employee ID',
+  accountCount:     'Accounts',
+  __identityTag:    'Identity Tag',
 };
 
-function AccountTypeBadge({ type }) {
-  const s = TYPE_STYLES[type] || TYPE_STYLES.Regular;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text} ${s.border} border`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {type}
-    </span>
-  );
-}
-
-
-function VerifiedBadge({ verified }) {
-  if (!verified) return null;
-  return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-      Verified
-    </span>
-  );
-}
-
-// ─── Orphaned Accounts Notice ────────────────────────────────────────────
-
-function OrphanedAccountsNotice({ orphanCount, onShowOrphans, allVisible }) {
-  if (!Number(orphanCount)) return null;
-  return (
-    <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <svg className="w-5 h-5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-        </svg>
-        <div>
-          {allVisible
-            ? <><span className="text-sm font-medium text-orange-800 dark:text-orange-300">{orphanCount} identit{orphanCount !== 1 ? 'ies' : 'y'} have no HR anchor</span>
-                <span className="text-xs text-orange-600 dark:text-orange-400 ml-2">— no HR-authoritative account found. Re-run correlation with HR indicators to resolve.</span></>
-            : <><span className="text-sm font-medium text-orange-800 dark:text-orange-300">{orphanCount} orphaned account group{orphanCount !== 1 ? 's' : ''} not shown</span>
-                <span className="text-xs text-orange-600 dark:text-orange-400 ml-2">— correlated accounts with no HR-authoritative anchor</span></>
-          }
-        </div>
-      </div>
-      {!allVisible && (
-        <button
-          onClick={onShowOrphans}
-          className="text-xs text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-600 bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/50 px-3 py-1 rounded whitespace-nowrap"
-        >
-          Show orphaned accounts
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ─── Summary Cards ──────────────────────────────────────────────────────
-
-function OrphanBadge({ status }) {
-  if (!status) return null;
-  const labels = {
-    'no-hr-anchor': 'No HR Anchor',
-    'disabled-no-anchor': 'Disabled',
-    'no-regular-account': 'No Regular Account',
-  };
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-700">
-      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-      {labels[status] || status}
-    </span>
-  );
-}
-
-function HrBadge({ isHrAnchored }) {
-  if (!isHrAnchored) return null;
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
-      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" /></svg>
-      HR Source
-    </span>
-  );
-}
-
-function SummaryCards({ summary, hasHrColumns }) {
-  if (!summary) return null;
-
-  // Lead with total identities; when HR columns exist, add HR-anchored + orphaned as supporting stats
-  const cards = hasHrColumns && summary.hrAnchoredCount != null ? [
-    { label: 'Identities', value: summary.totalIdentities, color: 'text-emerald-700', primary: true },
-    { label: 'Multi-Account', value: summary.multiAccountIdentities, color: 'text-blue-600' },
-    { label: 'Single Account', value: summary.singleAccountIdentities, color: 'text-gray-500 dark:text-gray-400' },
-    { label: 'Verified', value: summary.verifiedCount, color: 'text-green-600' },
-    { label: 'Avg Confidence', value: summary.avgConfidence ? `${Math.round(summary.avgConfidence)}%` : '—', color: 'text-indigo-600' },
-    { label: 'HR-Anchored', value: summary.hrAnchoredCount || 0, color: summary.hrAnchoredCount > 0 ? 'text-teal-600' : 'text-gray-400 dark:text-gray-500', title: 'Identities with a confirmed HR-authoritative account' },
-    { label: 'Orphaned', value: summary.orphanCount || 0, color: summary.orphanCount > 0 ? 'text-orange-600' : 'text-gray-400 dark:text-gray-500' },
-  ] : [
-    { label: 'Total Identities', value: summary.totalIdentities, color: 'text-gray-900 dark:text-white' },
-    { label: 'Multi-Account', value: summary.multiAccountIdentities, color: 'text-blue-600' },
-    { label: 'Single Account', value: summary.singleAccountIdentities, color: 'text-gray-500 dark:text-gray-400' },
-    { label: 'Verified', value: summary.verifiedCount, color: 'text-green-600' },
-    { label: 'Avg Confidence', value: summary.avgConfidence ? `${Math.round(summary.avgConfidence)}%` : '—', color: 'text-indigo-600' },
-  ];
-
-  return (
-    <div className={`grid gap-3 mb-4`} style={{ gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))` }}>
-      {cards.map(c => (
-        <div key={c.label} title={c.title} className={`rounded-lg border px-4 py-3 ${c.primary ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'}`}>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{c.label}</div>
-          <div className={`text-xl font-semibold ${c.color}`}>{c.value}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Account Type Distribution ──────────────────────────────────────────
-
-function TypeDistribution({ distribution }) {
-  if (!distribution || distribution.length === 0) return null;
-  const total = distribution.reduce((sum, d) => sum + d.cnt, 0);
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 mb-4">
-      <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Account Type Distribution</div>
-      <div className="flex gap-4">
-        {distribution.map(d => (
-          <div key={d.accountType} className="flex items-center gap-2">
-            <AccountTypeBadge type={d.accountType} />
-            <span className="text-sm text-gray-600 dark:text-gray-400">{d.cnt}</span>
-            <span className="text-xs text-gray-400 dark:text-gray-500">({Math.round(d.cnt / total * 100)}%)</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Identity Detail Panel ──────────────────────────────────────────────
-
-function IdentityDetail({ identityId, authFetch, onClose, onOpenDetail, onRefresh }) {
-  const [identity, setIdentity] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [verifying, setVerifying] = useState(false);
-  const [overrideForm, setOverrideForm] = useState(null); // { userId, action, reason }
-
-  const fetchDetail = useCallback(async () => {
-    try {
-      const res = await authFetch(`/api/identities/${identityId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setIdentity(data.identity);
-        setMembers(data.members);
-      }
-    } catch (err) {
-      console.error('Failed to load identity detail:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [identityId, authFetch]);
-
-  useEffect(() => { fetchDetail(); }, [fetchDetail]);
-
-  const handleVerify = async () => {
-    setVerifying(true);
-    try {
-      const res = await authFetch(`/api/identities/${identityId}/verify`, {
-        method: identity.analystVerified ? 'DELETE' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: '' }),
-      });
-      if (res.ok) {
-        await fetchDetail();
-        onRefresh?.();
-      }
-    } catch (err) {
-      console.error('Failed to update verification:', err);
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handleMemberOverride = async (userId) => {
-    if (!overrideForm || overrideForm.userId !== userId) return;
-    if (!overrideForm.reason || overrideForm.reason.trim().length < 3) return;
-
-    try {
-      const res = await authFetch(`/api/identities/${identityId}/members/${userId}/override`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: overrideForm.action, reason: overrideForm.reason.trim() }),
-      });
-      if (res.ok) {
-        setOverrideForm(null);
-        await fetchDetail();
-        onRefresh?.();
-      }
-    } catch (err) {
-      console.error('Failed to save member override:', err);
-    }
-  };
-
-  const handleRemoveOverride = async (userId) => {
-    try {
-      const res = await authFetch(`/api/identities/${identityId}/members/${userId}/override`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        await fetchDetail();
-        onRefresh?.();
-      }
-    } catch (err) {
-      console.error('Failed to remove override:', err);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div className="text-gray-400 dark:text-gray-500">Loading identity detail...</div>
-      </div>
-    );
-  }
-
-  if (!identity) return null;
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{identity.displayName}</h3>
-          <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
-            <span>{identity.accountCount} account{identity.accountCount !== 1 ? 's' : ''}</span>
-            <span>{identity.department || '—'}</span>
-            <span>{identity.jobTitle || '—'}</span>
-            <ConfidenceBar confidence={identity.correlationConfidence} />
-            <VerifiedBadge verified={identity.analystVerified} />
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleVerify}
-            disabled={verifying}
-            className={`text-xs px-3 py-1.5 rounded border ${
-              identity.analystVerified
-                ? 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
-                : 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-600 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/50'
-            }`}
-          >
-            {identity.analystVerified ? 'Remove Verification' : 'Verify Identity'}
-          </button>
-          <button
-            onClick={onClose}
-            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-      </div>
-
-      {/* Identity attributes */}
-      <div className="px-6 py-3 border-b border-gray-100 dark:border-gray-700 grid grid-cols-4 gap-4 text-sm">
-        <div><span className="text-gray-500 dark:text-gray-400">Email:</span> <span className="text-gray-900 dark:text-white">{identity.mail || '—'}</span></div>
-        <div><span className="text-gray-500 dark:text-gray-400">Employee ID:</span> <span className="text-gray-900 dark:text-white">{identity.employeeId || '—'}</span></div>
-        <div><span className="text-gray-500 dark:text-gray-400">Company:</span> <span className="text-gray-900 dark:text-white">{identity.companyName || '—'}</span></div>
-        <div><span className="text-gray-500 dark:text-gray-400">Location:</span> <span className="text-gray-900 dark:text-white">{[identity.city, identity.country].filter(Boolean).join(', ') || '—'}</span></div>
-      </div>
-
-      {/* Correlation signals */}
-      {identity.correlationSignals && (
-        <div className="px-6 py-2 border-b border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
-          Signals: {identity.correlationSignals.split(',').map(s => (
-            <span key={s} className="inline-block bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded mr-1">{s.trim()}</span>
-          ))}
-        </div>
-      )}
-
-      {/* Members table */}
-      <div className="px-6 py-4">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Linked Accounts</h4>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-700 text-left text-xs text-gray-500 dark:text-gray-400 uppercase">
-              <th className="pb-2 pr-3">Account</th>
-              <th className="pb-2 pr-3">UPN</th>
-              <th className="pb-2 pr-3">Type</th>
-              <th className="pb-2 pr-3">Risk</th>
-              <th className="pb-2 pr-3">Status</th>
-              <th className="pb-2 pr-3">Confidence</th>
-              <th className="pb-2 pr-3">Groups</th>
-              <th className="pb-2 pr-3">Last Sign-In</th>
-              <th className="pb-2 pr-3">Signals</th>
-              <th className="pb-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map(m => (
-              <tr key={m.userId} className={`border-b border-gray-50 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${m.analystOverride === 'rejected' ? 'opacity-50' : ''}`}>
-                <td className="py-2 pr-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => onOpenDetail?.('user', m.userId, m.displayName)}
-                      className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
-                    >
-                      {m.displayName}
-                    </button>
-                    {m.isPrimary && (
-                      <span className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-700">Primary</span>
-                    )}
-                  </div>
-                </td>
-                <td className="py-2 pr-3 text-gray-600 dark:text-gray-400 font-mono text-xs">{m.userPrincipalName}</td>
-                <td className="py-2 pr-3">
-                  <div className="flex items-center gap-1">
-                    <AccountTypeBadge type={m.accountType} />
-                    {m.isHrAuthoritative && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200" title={`HR Score: ${m.hrScore}, Indicators: ${m.hrIndicators || 'none'}`}>
-                        HR
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="py-2 pr-3"><RiskTierBadge tier={m.riskTier} /></td>
-                <td className="py-2 pr-3">
-                  <span className={`inline-flex items-center gap-1 text-xs ${
-                    m.accountEnabled === 'True' || m.userAccountEnabled === true
-                      ? 'text-green-600' : 'text-gray-400 dark:text-gray-500'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      m.accountEnabled === 'True' || m.userAccountEnabled === true
-                        ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                    }`} />
-                    {m.accountEnabled === 'True' || m.userAccountEnabled === true ? 'Enabled' : 'Disabled'}
-                  </span>
-                </td>
-                <td className="py-2 pr-3"><ConfidenceBar confidence={m.signalConfidence} /></td>
-                <td className="py-2 pr-3 text-gray-600 dark:text-gray-400">{m.groupCount ?? '—'}</td>
-                <td className="py-2 pr-3 text-xs text-gray-500 dark:text-gray-400">
-                  {m.lastSignInDateTime ? new Date(m.lastSignInDateTime).toLocaleDateString() : '—'}
-                </td>
-                <td className="py-2 pr-3 text-xs text-gray-400 dark:text-gray-500 max-w-48 truncate" title={m.correlationSignals}>
-                  {m.correlationSignals || (m.isPrimary ? 'Primary account' : '—')}
-                </td>
-                <td className="py-2">
-                  {m.analystOverride ? (
-                    <div className="flex items-center gap-1">
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${
-                        m.analystOverride === 'confirmed' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
-                        m.analystOverride === 'rejected' ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-                        'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-                      }`}>{m.analystOverride}</span>
-                      <button
-                        onClick={() => handleRemoveOverride(m.userId)}
-                        className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400"
-                        title="Remove override"
-                      >x</button>
-                    </div>
-                  ) : !m.isPrimary ? (
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => setOverrideForm({ userId: m.userId, action: 'confirmed', reason: '' })}
-                        className="text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 border border-green-200 dark:border-green-700 rounded px-1.5 py-0.5"
-                        title="Confirm this correlation"
-                      >Confirm</button>
-                      <button
-                        onClick={() => setOverrideForm({ userId: m.userId, action: 'rejected', reason: '' })}
-                        className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 border border-red-200 dark:border-red-700 rounded px-1.5 py-0.5"
-                        title="Reject this correlation"
-                      >Reject</button>
-                    </div>
-                  ) : null}
-                  {overrideForm && overrideForm.userId === m.userId && (
-                    <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                        {overrideForm.action === 'confirmed' ? 'Confirm' : 'Reject'} this link — reason:
-                      </div>
-                      <input
-                        type="text"
-                        value={overrideForm.reason}
-                        onChange={(e) => setOverrideForm({ ...overrideForm, reason: e.target.value })}
-                        placeholder="Reason (min 3 chars)..."
-                        className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 mb-1 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
-                      />
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => handleMemberOverride(m.userId)}
-                          disabled={!overrideForm.reason || overrideForm.reason.trim().length < 3}
-                          className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded disabled:opacity-50"
-                        >Save</button>
-                        <button
-                          onClick={() => setOverrideForm(null)}
-                          className="text-xs text-gray-500 dark:text-gray-400 px-2 py-0.5"
-                        >Cancel</button>
-                      </div>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Page Component ────────────────────────────────────────────────
+const TABLE_COLUMNS = [
+  { key: 'displayName',       label: 'Name' },
+  { key: 'primaryAccountUpn', label: 'Email' },
+  { key: 'accountCount',      label: 'Accounts' },
+  { key: 'department',        label: 'Department' },
+  { key: 'jobTitle',          label: 'Job Title' },
+];
 
 export default function IdentitiesPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
-  const [data, setData] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [total, setTotal] = useState(0);
-  const [available, setAvailable] = useState(true);
-  const [hasHrColumns, setHasHrColumns] = useState(false);
-  const [loading, setLoading] = useState(true);
-  // expandedId removed — identities now open as detail tabs
 
-  // Filters
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebouncedValue(search, 300);
-  const [minAccounts, setMinAccounts] = useState(1); // Default: show all identities
-  const [accountTypeFilter, setAccountTypeFilter] = useState('');
-  const [verifiedFilter, setVerifiedFilter] = useState('');
-  const [hrAnchoredFilter, setHrAnchoredFilter] = useState(''); // default: all identities
-  const [orphanFilter, setOrphanFilter] = useState('');
-  const [sortBy, setSortBy] = useState('accountCount');
-  const [offset, setOffset] = useState(0);
-  const [pageSize] = useState(50);
+  const ep = useEntityPage({
+    authFetch,
+    entityType: 'identity',
+    listEndpoint: '/api/identities',
+    columnsEndpoint: '/api/identity-columns',
+    tagFilterKey: '__identityTag',
+  });
 
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (debouncedSearch) params.set('search', debouncedSearch);
-      if (minAccounts > 1) params.set('minAccounts', minAccounts);
-      if (accountTypeFilter) params.set('accountType', accountTypeFilter);
-      if (verifiedFilter) params.set('verified', verifiedFilter);
-      if (hrAnchoredFilter) params.set('hrAnchored', hrAnchoredFilter);
-      if (orphanFilter) params.set('orphanStatus', orphanFilter);
-      if (sortBy) params.set('sort', sortBy);
-      params.set('limit', pageSize);
-      params.set('offset', offset);
-
-      const res = await authFetch(`/api/identities?${params}`);
-      if (res.ok) {
-        const result = await res.json();
-        setAvailable(result.available);
-        setSummary(result.summary);
-        setData(result.data || []);
-        setTotal(result.total || 0);
-        setHasHrColumns(result.hasHrColumns || false);
-      }
-    } catch (err) {
-      console.error('Failed to load identities:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [authFetch, debouncedSearch, minAccounts, accountTypeFilter, verifiedFilter, hrAnchoredFilter, orphanFilter, sortBy, offset, pageSize]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  // Reset offset on filter change
-  useEffect(() => { setOffset(0); }, [debouncedSearch, minAccounts, accountTypeFilter, verifiedFilter, hrAnchoredFilter, orphanFilter]);
-
-  if (!available) {
-    return (
-      <div className="p-6">
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-6 text-center">
-          <h3 className="text-lg font-medium text-yellow-800 dark:text-yellow-300 mb-2">Account Correlation Not Available</h3>
-          <p className="text-sm text-yellow-700 dark:text-yellow-400">
-            Run <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1.5 py-0.5 rounded font-mono text-xs">Invoke-FGAccountCorrelation</code> in PowerShell to generate identity correlations.
-          </p>
-          <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-            First create a ruleset with <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded font-mono">New-FGCorrelationRuleset | Save-FGCorrelationRuleset</code>
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const totalPages = Math.ceil(total / pageSize);
-  const currentPage = Math.floor(offset / pageSize) + 1;
+  const filterFields = useMemo(() => ep.getFilterFields(FIELD_LABELS), [ep]);
 
   return (
-    <div className="p-4">
-      {/* Summary */}
-      <SummaryCards summary={summary} hasHrColumns={hasHrColumns} />
-      <TypeDistribution distribution={summary?.accountTypeDistribution} />
-
-      {/* Orphaned accounts notice — when not already viewing orphans */}
-      {hasHrColumns && hrAnchoredFilter !== 'false' && (
-        <OrphanedAccountsNotice
-          orphanCount={summary?.orphanCount}
-          allVisible={hrAnchoredFilter === ''}
-          onShowOrphans={() => { setHrAnchoredFilter('false'); setOrphanFilter('any'); setMinAccounts(1); }}
-        />
-      )}
-
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, UPN, mail, department..."
-          className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm w-72 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
-        />
-
-        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <span>Min accounts:</span>
-          <select
-            value={minAccounts}
-            onChange={(e) => setMinAccounts(parseInt(e.target.value))}
-            className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
-          >
-            <option value="1">All (1+)</option>
-            <option value="2">Multi-account (2+)</option>
-            <option value="3">3+</option>
-            <option value="4">4+</option>
-          </select>
-        </label>
-
-        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <span>Type:</span>
-          <select
-            value={accountTypeFilter}
-            onChange={(e) => setAccountTypeFilter(e.target.value)}
-            className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
-          >
-            <option value="">All types</option>
-            <option value="Admin">Has Admin</option>
-            <option value="Test">Has Test</option>
-            <option value="Service">Has Service</option>
-            <option value="Shared">Has Shared</option>
-          </select>
-        </label>
-
-        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <span>Verified:</span>
-          <select
-            value={verifiedFilter}
-            onChange={(e) => setVerifiedFilter(e.target.value)}
-            className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
-          >
-            <option value="">All</option>
-            <option value="true">Verified only</option>
-            <option value="false">Unverified only</option>
-          </select>
-        </label>
-
-        {hasHrColumns && (
-          <>
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <span>View:</span>
-              <select
-                value={hrAnchoredFilter}
-                onChange={(e) => { setHrAnchoredFilter(e.target.value); if (e.target.value !== 'false') setOrphanFilter(''); }}
-                className={`border rounded px-2 py-1 text-sm ${hrAnchoredFilter === 'true' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : hrAnchoredFilter === 'false' ? 'border-orange-300 bg-orange-50 text-orange-800' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}
-              >
-                <option value="true">Identities (HR-anchored)</option>
-                <option value="false">Orphaned accounts</option>
-                <option value="">All correlated groups</option>
-              </select>
-            </label>
-
-            {hrAnchoredFilter === 'false' && (
-              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <span>Orphan type:</span>
-                <select
-                  value={orphanFilter}
-                  onChange={(e) => setOrphanFilter(e.target.value)}
-                  className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
-                >
-                  <option value="">All orphans</option>
-                  <option value="any">Has orphan status</option>
-                  <option value="no-hr-anchor">No HR Anchor</option>
-                  <option value="disabled-no-anchor">Disabled</option>
-                  <option value="no-regular-account">No Regular Account</option>
-                </select>
-              </label>
-            )}
-          </>
-        )}
-
-        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <span>Sort:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-gray-200"
-          >
-            <option value="accountCount">Account Count</option>
-            <option value="confidence">Confidence</option>
-            <option value="displayName">Name</option>
-            <option value="department">Department</option>
-          </select>
-        </label>
-
-        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
-          {total} {hasHrColumns && hrAnchoredFilter === 'true' ? `real identit${total === 1 ? 'y' : 'ies'}` : hrAnchoredFilter === 'false' ? `orphaned group${total === 1 ? '' : 's'}` : `identit${total === 1 ? 'y' : 'ies'}`}
-          {hasHrColumns && summary && hrAnchoredFilter !== 'true' && (summary.hrAnchoredCount ?? 0) > 0 && ` · ${summary.hrAnchoredCount} HR-anchored`}
-        </span>
+    <div className="max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Identities</h2>
+        <span className="text-sm text-gray-500 dark:text-gray-400">{ep.total.toLocaleString()} total</span>
       </div>
 
-      {/* Identity List */}
-      {loading && data.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 dark:text-gray-500">Loading identities...</div>
-      ) : data.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-          {'No accounts match your filters'}
+      {/* Tag management bar */}
+      <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
+        <span className="font-medium text-gray-600 dark:text-gray-400">Tags:</span>
+        {ep.tags.map(t => (
+          <span
+            key={t.id}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer border ${
+              ep.activeTagFilter === t.name
+                ? 'ring-2 ring-offset-1 ring-blue-400'
+                : 'hover:opacity-80'
+            }`}
+            style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}
+            onClick={() => {
+              if (ep.activeTagFilter === t.name) {
+                ep.removeFilter('__identityTag');
+              } else {
+                ep.addFilter('__identityTag', t.name);
+              }
+            }}
+            title={`${t.assignmentCount} identities tagged -- click to filter`}
+          >
+            {t.name}
+            <span className="text-[10px] opacity-70">({t.assignmentCount})</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); ep.deleteTag(t.id); }}
+              className="ml-0.5 hover:opacity-100 opacity-50"
+              title="Delete tag"
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+        <button
+          onClick={() => ep.setShowCreateTag(!ep.showCreateTag)}
+          className="px-2 py-0.5 rounded text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-700 border-dashed"
+        >
+          + New Tag
+        </button>
+      </div>
+
+      {/* Create tag form */}
+      {ep.showCreateTag && (
+        <div className="flex items-center gap-2 mb-3 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm">
+          <input
+            type="text"
+            value={ep.newTagName}
+            onChange={e => ep.setNewTagName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && ep.createTag()}
+            placeholder="Tag name..."
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm w-48 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
+            autoFocus
+          />
+          <div className="flex items-center gap-1">
+            {TAG_COLORS.map(c => (
+              <button
+                key={c}
+                onClick={() => ep.setNewTagColor(c)}
+                className={`w-5 h-5 rounded-full border-2 ${ep.newTagColor === c ? 'border-gray-800 scale-110' : 'border-transparent'}`}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+          <button
+            onClick={ep.createTag}
+            disabled={!ep.newTagName.trim() || ep.busy}
+            className="px-3 py-1 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+          >
+            Create
+          </button>
+          <button
+            onClick={() => ep.setShowCreateTag(false)}
+            className="px-2 py-1 rounded text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Filter bar + search */}
+      <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
+        <FilterBar
+          label="Filters:"
+          filterFields={filterFields}
+          activeFilters={ep.activeFilters}
+          getOptionsForField={ep.getOptionsForField}
+          onAddFilter={ep.addFilter}
+          onRemoveFilter={ep.removeFilter}
+          loading={ep.columnsLoading}
+        />
+
+        <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
+
+        <input
+          type="text"
+          value={ep.search}
+          onChange={e => ep.setSearch(e.target.value)}
+          placeholder="Search by name, email, job title, employee ID..."
+          className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-64 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
+        />
+
+        {ep.hasAnyFilter && (
+          <>
+            <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
+            <button
+              onClick={ep.clearAllFilters}
+              className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
+            >
+              Clear all
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Action bar */}
+      {ep.selected.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg text-sm">
+          <span className="font-medium text-blue-700 dark:text-blue-300">{ep.selected.size} selected</span>
+          <div className="border-l border-blue-200 dark:border-blue-700 h-5" />
+          <select
+            value={ep.actionTag}
+            onChange={e => ep.setActionTag(e.target.value)}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-200"
+          >
+            <option value="">Select tag...</option>
+            {ep.tags.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+          <button
+            onClick={ep.assignTag}
+            disabled={!ep.actionTag || ep.busy}
+            className="px-3 py-1 rounded text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+          >
+            Assign Tag
+          </button>
+          <button
+            onClick={ep.removeTagFromSelected}
+            disabled={!ep.actionTag || ep.busy}
+            className="px-3 py-1 rounded text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-700 disabled:opacity-50"
+          >
+            Remove Tag
+          </button>
+          {ep.hasAnyFilter && ep.total > ep.selected.size && (
+            <>
+              <div className="border-l border-blue-200 dark:border-blue-700 h-5" />
+              <button
+                onClick={ep.assignTagToAll}
+                disabled={!ep.actionTag || ep.busy}
+                className="px-3 py-1 rounded text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-300 dark:border-blue-700 disabled:opacity-50"
+                title={`Tag all ${ep.total} identities matching current filters`}
+              >
+                Tag all {ep.total} matching
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => ep.setSelected(new Set())}
+            className="px-2 py-1 rounded text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 ml-auto"
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
+
+      {/* Table */}
+      {ep.loading ? (
+        <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading identities...</div>
+      ) : ep.items.length === 0 ? (
+        <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+          {ep.hasAnyFilter ? 'No identities match the current filters.' : 'No identities found.'}
         </div>
       ) : (
-        <div className="space-y-2">
-          {data.map(identity => (
-            <div
-              key={identity.id}
-              className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                {/* Name + account count — clickable to open detail tab */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => onOpenDetail('identity', identity.id, identity.displayName)}
-                      className="font-medium text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 hover:underline text-left"
-                    >
-                      {identity.displayName}
-                    </button>
-                    <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
-                      {identity.accountCount} account{identity.accountCount !== 1 ? 's' : ''}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
+                <th className="w-10 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={ep.allOnPageSelected}
+                    onChange={ep.toggleSelectAll}
+                    className="rounded"
+                  />
+                </th>
+                {TABLE_COLUMNS.map(col => (
+                  <th
+                    key={col.key}
+                    onClick={() => ep.toggleSort(col.key)}
+                    className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {col.label}
+                      {ep.sortCol === col.key ? (
+                        <span className="text-blue-600 text-[10px]">{ep.sortDir === 'asc' ? '▲' : '▼'}</span>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-500 text-[10px]">{'▴'}</span>
+                      )}
                     </span>
-                    <VerifiedBadge verified={identity.analystVerified} />
-                    <HrBadge isHrAnchored={identity.isHrAnchored} />
-                    <OrphanBadge status={identity.orphanStatus} />
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {identity.primaryAccountUpn}
-                    {identity.department && ` · ${identity.department}`}
-                    {identity.jobTitle && ` · ${identity.jobTitle}`}
-                  </div>
-                </div>
-
-                {/* Account type badges */}
-                <div className="flex gap-1">
-                  {identity.accountTypes?.split(',').map(t => (
-                    <AccountTypeBadge key={t} type={t.trim()} />
-                  ))}
-                </div>
-
-                {/* Confidence */}
-                <div className="flex flex-col items-end gap-0.5">
-                  <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide leading-none">Confidence</span>
-                  <ConfidenceBar confidence={identity.correlationConfidence} />
-                </div>
-
-                {/* Signals */}
-                <div className="text-xs text-gray-400 dark:text-gray-500 w-32 truncate" title={identity.correlationSignals}>
-                  {identity.correlationSignals || '-'}
-                </div>
-              </div>
-            </div>
-          ))}
+                  </th>
+                ))}
+                <th className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300">Tags</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ep.sortedItems.map(i => (
+                <tr
+                  key={i.id}
+                  className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${
+                    ep.selected.has(i.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                  }`}
+                  onClick={() => ep.toggleSelect(i.id)}
+                >
+                  <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={ep.selected.has(i.id)}
+                      onChange={() => ep.toggleSelect(i.id)}
+                      className="rounded"
+                    />
+                  </td>
+                  <td className="px-3 py-2 font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                      onClick={() => onOpenDetail?.('identity', i.id, i.displayName)}>
+                    {i.displayName}
+                  </td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs font-mono">{i.primaryAccountUpn || ''}</td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs">{i.accountCount ?? ''}</td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs">{i.department || ''}</td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs">{i.jobTitle || ''}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {(i.tags || []).map(t => (
+                        <span
+                          key={t.id}
+                          className="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium border"
+                          style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}
+                        >
+                          {t.name}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-400">
-          <button
-            onClick={() => setOffset(Math.max(0, offset - pageSize))}
-            disabled={offset === 0}
-            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-          >Previous</button>
-          <span>Page {currentPage} of {totalPages}</span>
-          <button
-            onClick={() => setOffset(offset + pageSize)}
-            disabled={currentPage >= totalPages}
-            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-          >Next</button>
+      {ep.totalPages > 1 && (
+        <div className="flex items-center justify-between mt-3 text-sm text-gray-600 dark:text-gray-400">
+          <span>
+            Showing {ep.page * ep.PAGE_SIZE + 1}&ndash;{Math.min((ep.page + 1) * ep.PAGE_SIZE, ep.total)} of {ep.total.toLocaleString()}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => ep.setPage(p => Math.max(0, p - 1))}
+              disabled={ep.page === 0}
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span>Page {ep.page + 1} of {ep.totalPages}</span>
+            <button
+              onClick={() => ep.setPage(p => Math.min(ep.totalPages - 1, p + 1))}
+              disabled={ep.page >= ep.totalPages - 1}
+              className="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>
