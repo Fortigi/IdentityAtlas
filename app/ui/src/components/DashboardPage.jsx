@@ -136,7 +136,7 @@ export default function DashboardPage({ onNavigate }) {
                 <StatCard label="Resources"      value={stats.resources}     onClick={() => onNavigate?.('resources')} />
                 <StatCard label="Business Roles" value={stats.businessRoles} onClick={() => onNavigate?.('access-packages')} />
                 <StatCard label="Identities"     value={stats.identities}    onClick={() => onNavigate?.('identities')} />
-                <StatCard label="Contexts"       value={stats.contexts}      onClick={() => onNavigate?.('org-chart')} />
+                <StatCard label="Contexts"       value={stats.contexts}      onClick={() => onNavigate?.('contexts')} />
                 <StatCard label="Assignments"      value={stats.assignments}     />
                 <StatCard label="Relationships"    value={stats.relationships}  />
                 <StatCard label="Identity Members" value={stats.identityMembers} onClick={() => onNavigate?.('identities')} />
