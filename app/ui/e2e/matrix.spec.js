@@ -14,7 +14,8 @@ test.describe('Matrix View', () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    // Default landing page is Dashboard since v6 — matrix tests must navigate explicitly.
+    await page.goto('/#matrix');
     await page.waitForLoadState('networkidle');
   });
 
@@ -67,13 +68,16 @@ test.describe('Matrix View', () => {
     const addFilter = page.getByText('+ Add filter').or(page.getByText('Add filter'));
     if (await addFilter.count() > 0) {
       await addFilter.first().click();
-      // Should show a list of filterable fields
-      await page.waitForTimeout(300);
-      // Check that some filter fields appear (department, jobTitle, etc.)
-      const filterOption = page.getByText('department').or(page.getByText('Department'));
-      if (await filterOption.count() > 0) {
-        await expect(filterOption.first()).toBeVisible();
-      }
+      // Should reveal a <select> with filter fields. We assert against the
+      // select element itself — option elements inside an unopened native
+      // <select> are reported "hidden" by Playwright, so checking option
+      // visibility is a false negative.
+      const fieldSelect = page.locator('select').first();
+      await expect(fieldSelect).toBeVisible({ timeout: 2000 });
+      // Sanity check: the select should expose at least one real option
+      // (department / jobTitle / etc. — exact field set is data-dependent).
+      const optionCount = await fieldSelect.locator('option').count();
+      expect(optionCount).toBeGreaterThan(1); // 1 = the "Select field..." placeholder
     }
   });
 
