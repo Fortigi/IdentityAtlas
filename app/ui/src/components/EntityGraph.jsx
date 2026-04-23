@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useCallback } from 'react';
+import { useMemo, useState, useRef } from 'react';
 
 // ─── EntityGraph ──────────────────────────────────────────────────────
 // Radial graph: the current entity sits in the middle, relationship nodes
@@ -155,7 +155,11 @@ export default function EntityGraph({
     return rect.width > 0 ? width / rect.width : 1;
   }
 
-  const onPointerDown = useCallback((e) => {
+  // Plain functions — React Compiler memoizes them automatically. Manual
+  // useCallback() wrappers here were confusing the compiler (one of the
+  // handlers closes over `toViewBoxScale`, a helper redefined on every
+  // render, which made "existing memoization could not be preserved").
+  function onPointerDown(e) {
     // Only the primary button initiates a pan; right-click and middle
     // pass through.
     if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -164,9 +168,9 @@ export default function EntityGraph({
       panX: pan.x, panY: pan.y,
       moved: false,
     };
-  }, [pan.x, pan.y]);
+  }
 
-  const onPointerMove = useCallback((e) => {
+  function onPointerMove(e) {
     if (!dragRef.current) return;
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
@@ -180,29 +184,29 @@ export default function EntityGraph({
       x: dragRef.current.panX + dx * k,
       y: dragRef.current.panY + dy * k,
     });
-  }, []);
+  }
 
-  const onPointerUp = useCallback(() => {
+  function onPointerUp() {
     dragRef.current = null;
-  }, []);
+  }
 
   // Suppress the click that immediately follows a drag. Otherwise a long
   // drag that ends over a node would pop the node detail.
-  const onClickCapture = useCallback((e) => {
+  function onClickCapture(e) {
     if (dragRef.current?.moved) {
       e.stopPropagation();
       e.preventDefault();
     }
-  }, []);
+  }
 
-  const onWheel = useCallback((e) => {
+  function onWheel(e) {
     if (!svgRef.current) return;
     e.preventDefault();
     setScale(prev => {
       const next = Math.max(0.4, Math.min(3, prev * (e.deltaY > 0 ? 0.9 : 1.1)));
       return Number(next.toFixed(2));
     });
-  }, []);
+  }
 
   function resetView() {
     setPan({ x: 0, y: 0 });
