@@ -166,7 +166,7 @@ foreach ($uid in $userIds) {
     $specs = @(
         @{ node='manager';           count = $(if ($core.attributes.managerId) { 1 } else { 0 });                       url = "/org-chart/user/$uid/manager";     unwrap = 'manager' }
         @{ node='reports';           count = $core.directReportCount;                                                    url = "/org-chart/user/$uid/reports";      unwrap = 'reports' }
-        @{ node='context';           count = $(if ($core.attributes.contextId) { 1 } else { 0 });                        url = "/contexts/$($core.attributes.contextId)"; unwrapObj = 'context' }
+        @{ node='context';           count = $(if ($core.attributes.contextId) { 1 } else { 0 });                        url = "/contexts/$($core.attributes.contextId)"; unwrap = 'attributes' }
         @{ node='groups-direct';     count = $core.membershipByType.Direct;                                              url = "/user/$uid/memberships";            filter = 'Direct' }
         @{ node='groups-indirect';   count = $core.membershipByType.Indirect;                                            url = "/user/$uid/memberships";            filter = 'Indirect' }
         @{ node='groups-owner';      count = $core.membershipByType.Owner;                                               url = "/user/$uid/memberships";            filter = 'Owner' }
