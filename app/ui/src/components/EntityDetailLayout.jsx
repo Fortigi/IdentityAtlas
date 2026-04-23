@@ -40,11 +40,14 @@ export function AttributesTable({ title = 'Attributes', entries }) {
       {visible.length === 0 ? (
         <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No attributes</p>
       ) : (
-        <div className="max-h-[560px] overflow-y-auto">
+        <div>
           {/* table-fixed + a hard column width on the label keeps a long
               extensionAttribute_<32-hex>_<key> label from blowing the
               label column past 1/3 and squeezing the value column down
-              to ~10px (which made values wrap one character per line). */}
+              to ~10px (which made values wrap one character per line).
+              No max-height: let the panel grow as long as the data needs.
+              Page-level scrolling beats table-level scrolling for long
+              attribute lists with extension keys. */}
           <table className="w-full text-sm table-fixed">
             <colgroup>
               <col className="w-[40%]" />
