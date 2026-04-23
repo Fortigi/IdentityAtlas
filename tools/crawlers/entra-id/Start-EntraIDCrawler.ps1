@@ -1770,6 +1770,7 @@ if ($SyncGovernance) {
         # not use access reviews at all, in which case this is a no-op.
         $__arvSW = [Diagnostics.Stopwatch]::StartNew()
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access review decisions)..." -ForegroundColor Cyan
+        Update-CrawlerProgress -Step 'Syncing access review decisions' -Pct 74 -Detail 'Fetching review definitions from Graph...'
         try {
             $reviewDefs = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions?`$top=100"
             Write-Host "  Found $($reviewDefs.Count) review definitions; filtering to access-package scoped..." -ForegroundColor Gray
@@ -1777,7 +1778,16 @@ if ($SyncGovernance) {
             $skippedNoScope     = 0
             $skippedNoApMatch   = 0
             $sampleLogged       = 0
+            $defIndex           = 0
+            $defTotal           = $reviewDefs.Count
             foreach ($def in $reviewDefs) {
+                $defIndex++
+                # Keep the UI's step/detail line fresh — this phase can walk
+                # hundreds of definitions × many instances and previously
+                # looked frozen for the entire run.
+                if (($defIndex % 25) -eq 1) {
+                    Update-CrawlerProgress -Detail "Access reviews: $defIndex of $defTotal definitions..."
+                }
                 # Graph's access-review scope shape evolved: older definitions
                 # used `scope.query`, newer ones use `resourceScope.query`
                 # (with `principalScope` carrying the who). Access-package
