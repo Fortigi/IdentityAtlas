@@ -4,6 +4,7 @@ import { ensureTagTables } from './tags.js';
 import { ensureCategoryTables } from './categories.js';
 import { getUserColumns, getGroupColumns, getResourceColumns, getPrincipalOrUserColumns, getUserColumnValues, getPrincipalOrUserColumnValues, FILTERABLE_TYPES } from '../db/columnCache.js';
 import { timedRequest } from '../perf/sqlTimer.js';
+import { buildContextFilterSql, parseAndResolveContextFilters } from '../contexts/contextFilters.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -158,6 +159,35 @@ router.get('/permissions', async (req, res) => {
         ? dynamicUserColsList.join(',\n            ') + ','
         : '';
 
+      // Resolve context filters (Phase 6). Each filter references a Contexts
+      // row; we look up its targetType so the SQL helper knows which side of
+      // the matrix (principals vs resources) to constrain.
+      const resolvedContextFilters = await parseAndResolveContextFilters(
+        req.query.contextFilters,
+        async (ids) => {
+          if (!ids || ids.length === 0) return [];
+          const r = await db.query(
+            `SELECT id, "targetType" FROM "Contexts" WHERE id = ANY($1::uuid[])`,
+            [ids],
+          );
+          return r.rows || [];
+        },
+      );
+      const {
+        principalClauses: ctxPrincipalClauses,
+        resourceClauses: ctxResourceClauses,
+        innerPrincipalClauses: ctxInnerPrincipalClauses,
+        innerResourceClauses: ctxInnerResourceClauses,
+        bindings: ctxBindings,
+      } = buildContextFilterSql(resolvedContextFilters);
+      const ctxPrincipalWhere = ctxPrincipalClauses.length ? ' AND ' + ctxPrincipalClauses.join(' AND ') : '';
+      const ctxResourceWhere  = ctxResourceClauses.length  ? ' AND ' + ctxResourceClauses.join(' AND ') : '';
+      // Apply context filters inside the top-N subquery too, so the top-25
+      // users are picked from within the filter (not just intersected after).
+      const ctxInnerWhere =
+        (ctxInnerPrincipalClauses.length ? ' AND ' + ctxInnerPrincipalClauses.join(' AND ') : '') +
+        (ctxInnerResourceClauses.length  ? ' AND ' + ctxInnerResourceClauses.join(' AND ')  : '');
+
       // Extract special tag filters before regular validation
       let userTagFilter = null;
       let groupTagFilter = null;
@@ -207,6 +237,10 @@ router.get('/permissions', async (req, res) => {
           const realCol = GROUP_ALIAS_TO_COL[f.field] || f.field;
           groupFilterWhere += ` AND r."${realCol}"::text = @gf${i}`;
           request.input(`gf${i}`, f.value);
+        }
+        // Context-filter bindings (Phase 6).
+        for (const [name, val] of Object.entries(ctxBindings)) {
+          request.input(name, val);
         }
         if (userTagFilter) {
           userTagJoin = `
@@ -276,6 +310,7 @@ router.get('/permissions', async (req, res) => {
           userIdClause = `p."principalId" IN (
             SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
             WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
+              ${ctxInnerWhere}
             GROUP BY "principalId"
             ORDER BY COUNT(*) DESC
             LIMIT @userLimit
@@ -309,6 +344,8 @@ router.get('/permissions', async (req, res) => {
           WHERE (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
             AND ${userIdClause}
             ${groupFilterWhere}
+            ${ctxPrincipalWhere}
+            ${ctxResourceWhere}
         `);
 
         // Total user count — cheap from Principals, no need to scan the view.
@@ -334,9 +371,15 @@ router.get('/permissions', async (req, res) => {
             apWhere = `WHERE ap."userId" = ANY(@apPrincipalIds)`;
           } else {
             apReq.input('apUserLimit', userLimit);
+            // Context-filter bindings also needed here so the inner subquery
+            // resolves the same top-N set as the main query.
+            for (const [name, val] of Object.entries(ctxBindings)) {
+              apReq.input(name, val);
+            }
             apWhere = `WHERE ap."userId" IN (
               SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
               WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
+                ${ctxInnerWhere}
               GROUP BY "principalId"
               ORDER BY COUNT(*) DESC
               LIMIT @apUserLimit
@@ -408,6 +451,8 @@ router.get('/permissions', async (req, res) => {
         WHERE (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
           ${filterWhere}
           ${groupFilterWhere}
+          ${ctxPrincipalWhere}
+          ${ctxResourceWhere}
       `);
       // Total user count — same query as the limited branch for consistency.
       // Using Principals count (not distinct memberIds in the result) so the

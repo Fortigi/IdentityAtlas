@@ -51,14 +51,14 @@ $ctxSecurity  = New-DemoGuid 'ctx-security-team'
 $ctxAUNL      = New-DemoGuid 'ctx-au-netherlands'
 
 $contexts = @(
-    @{ id = $ctxRoot;     displayName = 'Fortigi Demo Corp';  contextType = 'Department'; systemId = $sysHR; sourceType = 'Synced' }
-    @{ id = $ctxEng;      displayName = 'Engineering';        contextType = 'Department'; systemId = $sysHR; parentContextId = $ctxRoot;  sourceType = 'Synced' }
-    @{ id = $ctxFin;      displayName = 'Finance';            contextType = 'Department'; systemId = $sysHR; parentContextId = $ctxRoot;  sourceType = 'Synced' }
-    @{ id = $ctxSales;    displayName = 'Sales';              contextType = 'Department'; systemId = $sysHR; parentContextId = $ctxRoot;  sourceType = 'Synced' }
-    @{ id = $ctxOps;      displayName = 'Operations';         contextType = 'Department'; systemId = $sysHR; parentContextId = $ctxRoot;  sourceType = 'Synced' }
-    @{ id = $ctxPlatform; displayName = 'Platform Team';      contextType = 'Team';       systemId = $sysHR; parentContextId = $ctxEng;   sourceType = 'Synced' }
-    @{ id = $ctxSecurity; displayName = 'Security Team';      contextType = 'Team';       systemId = $sysHR; parentContextId = $ctxEng;   sourceType = 'Synced' }
-    @{ id = $ctxAUNL;     displayName = 'AU-Netherlands';     contextType = 'AdministrativeUnit'; systemId = $sysEntraId; sourceType = 'Synced' }
+    @{ id = $ctxRoot;     displayName = 'Fortigi Demo Corp';  contextType = 'Department'; targetType = 'Principal'; variant = 'synced'; scopeSystemId = $sysHR }
+    @{ id = $ctxEng;      displayName = 'Engineering';        contextType = 'Department'; targetType = 'Principal'; variant = 'synced'; scopeSystemId = $sysHR; parentContextId = $ctxRoot }
+    @{ id = $ctxFin;      displayName = 'Finance';            contextType = 'Department'; targetType = 'Principal'; variant = 'synced'; scopeSystemId = $sysHR; parentContextId = $ctxRoot }
+    @{ id = $ctxSales;    displayName = 'Sales';              contextType = 'Department'; targetType = 'Principal'; variant = 'synced'; scopeSystemId = $sysHR; parentContextId = $ctxRoot }
+    @{ id = $ctxOps;      displayName = 'Operations';         contextType = 'Department'; targetType = 'Principal'; variant = 'synced'; scopeSystemId = $sysHR; parentContextId = $ctxRoot }
+    @{ id = $ctxPlatform; displayName = 'Platform Team';      contextType = 'Team';       targetType = 'Principal'; variant = 'synced'; scopeSystemId = $sysHR; parentContextId = $ctxEng }
+    @{ id = $ctxSecurity; displayName = 'Security Team';      contextType = 'Team';       targetType = 'Principal'; variant = 'synced'; scopeSystemId = $sysHR; parentContextId = $ctxEng }
+    @{ id = $ctxAUNL;     displayName = 'AU-Netherlands';     contextType = 'AdministrativeUnit'; targetType = 'Principal'; variant = 'synced'; scopeSystemId = $sysEntraId }
 )
 
 # ─── Principals ───────────────────────────────────────────────────
@@ -109,7 +109,6 @@ foreach ($emp in $employees) {
         jobTitle        = $emp.title
         companyName     = 'Fortigi Demo Corp'
         managerId       = $mgrGuid
-        contextId       = $ctxAUNL
     }
 }
 
@@ -246,7 +245,6 @@ foreach ($emp in $employees) {
         givenName   = $nameParts[0]
         surname     = $nameParts[1]
         companyName = 'Fortigi Demo Corp'
-        contextId   = $emp.ctx
     }
 
     # Primary principal link
@@ -262,7 +260,7 @@ foreach ($emp in $employees) {
 
 # Disabled employee identity
 $idDisabled = New-DemoGuid 'identity-E0041'
-$identities += @{ id = $idDisabled; displayName = 'Alex Former'; email = 'alex.former@fortigidemo.com'; department = 'Sales'; employeeId = 'E0041'; contextId = $ctxSales }
+$identities += @{ id = $idDisabled; displayName = 'Alex Former'; email = 'alex.former@fortigidemo.com'; department = 'Sales'; employeeId = 'E0041' }
 $identityMembers += @{ identityId = $idDisabled; principalId = $guidDisabled; displayName = 'Alex Former'; accountType = 'EntraID'; isPrimary = $true; accountEnabled = $false }
 
 # Multi-system: Hassan Ibrahim has Omada account too

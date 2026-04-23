@@ -35,9 +35,6 @@
 .PARAMETER SyncGovernance
     Sync catalogs, access packages, policies, reviews (default: true)
 
-.PARAMETER SyncContexts
-    Sync calculated department contexts (default: true)
-
 .PARAMETER SyncOAuth2Grants
     Sync OAuth2 delegated permission grants — per-user consents (a user
     authorized app X to call API Y with scope Z on their behalf). Tenant-wide
@@ -67,7 +64,6 @@ Param(
     [switch]$SyncResources = $true,
     [switch]$SyncAssignments = $true,
     [switch]$SyncGovernance = $true,
-    [switch]$SyncContexts = $true,
     [switch]$SyncPim = $false,
     [switch]$SyncSignInLogs = $false,
     [switch]$SyncOAuth2Grants = $false,
