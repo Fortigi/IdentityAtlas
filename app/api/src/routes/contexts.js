@@ -19,6 +19,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import * as db from '../db/connection.js';
+import { recalcMemberCountsForChain } from '../contexts/memberCounts.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -372,7 +373,7 @@ router.post('/contexts/:id/members', async (req, res) => {
       VALUES ($1, $2, $3, 'analyst')
       ON CONFLICT ("contextId", "memberId") DO NOTHING
     `, [req.params.id, ctx.targetType, memberId]);
-    await recalcDirectMemberCount(req.params.id);
+    await recalcMemberCountsForChain(req.params.id);
     res.status(201).json({ contextId: req.params.id, memberId, memberType: ctx.targetType });
   } catch (err) {
     console.error('POST /contexts/:id/members failed:', err.message);
@@ -396,7 +397,7 @@ router.delete('/contexts/:id/members/:memberId', async (req, res) => {
 
   try {
     await db.query(`DELETE FROM "ContextMembers" WHERE "contextId" = $1 AND "memberId" = $2`, [req.params.id, req.params.memberId]);
-    await recalcDirectMemberCount(req.params.id);
+    await recalcMemberCountsForChain(req.params.id);
     res.status(204).end();
   } catch (err) {
     console.error('DELETE /contexts/:id/members/:memberId failed:', err.message);
@@ -469,17 +470,8 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
   return { rows, total };
 }
 
-async function recalcDirectMemberCount(contextId) {
-  // The fast path: a single UPDATE that uses a sub-select. Cheap enough to
-  // call after every analyst mutation.
-  await db.query(`
-    UPDATE "Contexts"
-       SET "directMemberCount" = COALESCE((
-             SELECT COUNT(*)::int FROM "ContextMembers" WHERE "contextId" = $1
-           ), 0),
-           "lastCalculatedAt" = now() AT TIME ZONE 'utc'
-     WHERE id = $1
-  `, [contextId]);
-}
+// (recalcDirectMemberCount has been replaced by the shared
+// recalcMemberCountsForChain helper in contexts/memberCounts.js, which also
+// rolls up totalMemberCount on every ancestor.)
 
 export default router;
