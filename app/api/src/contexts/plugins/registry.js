@@ -9,8 +9,6 @@
 import managerHierarchy    from './manager-hierarchy.js';
 import departmentTree      from './department-tree.js';
 import adOuFromDn          from './ad-ou-from-dn.js';
-import appGroupingByPattern from './app-grouping-by-pattern.js';
-import businessProcessLlm  from './business-process-llm.js';
 import { plugin as resourceCluster } from './resource-cluster/index.js';
 
 /** @type {import('./types.js').ContextPlugin[]} */
@@ -18,8 +16,6 @@ export const REGISTERED_PLUGINS = [
   managerHierarchy,
   departmentTree,
   adOuFromDn,
-  appGroupingByPattern,
-  businessProcessLlm,
   resourceCluster,
 ];
 
