@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { getUserColumns as getUserCols, getGroupColumns as getGroupCols, getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getUserColumnValues, getPrincipalOrUserColumnValues, getGroupColumnValues, getResourceColumnValues, FILTERABLE_TYPES } from '../db/columnCache.js';
+import { getOrCreateTagRoot } from '../bootstrap.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -125,12 +126,15 @@ router.post('/tags', async (req, res) => {
     const createdBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'unknown';
     const ext = JSON.stringify({ tagColor: color || '#3b82f6' });
     const id = randomUUID();
+    // Attach to the synthetic Tags root so all tags live under one tree
+    // in the Contexts selector instead of one tag per top-level entry.
+    const parentId = await getOrCreateTagRoot(targetType);
     const { rows } = await db.query(
       `INSERT INTO "Contexts"
-         (id, variant, "targetType", "contextType", "displayName", "createdByUser", "extendedAttributes")
-       VALUES ($1, 'manual', $2, 'Tag', $3, $4, $5::jsonb)
+         (id, variant, "targetType", "contextType", "displayName", "parentContextId", "createdByUser", "extendedAttributes")
+       VALUES ($1, 'manual', $2, 'Tag', $3, $4, $5, $6::jsonb)
        RETURNING *`,
-      [id, targetType, name.trim(), createdBy, ext]
+      [id, targetType, name.trim(), parentId, createdBy, ext]
     );
     res.status(201).json(tagRowFromContext(rows[0], 0));
   } catch (err) {
