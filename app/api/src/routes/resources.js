@@ -21,12 +21,12 @@ function cleanRow(row) {
   return clean;
 }
 
-// Helper: parse tag string from SQL into array
+// Helper: parse tag string from SQL into array. Tag IDs are UUID strings (v6).
 function parseTags(tagString) {
   if (!tagString) return [];
   return tagString.split('|').map(t => {
     const parts = t.split(':');
-    return { id: parseInt(parts[0]), name: parts[1], color: parts[2] };
+    return { id: parts[0], name: parts[1], color: parts[2] };
   });
 }
 
@@ -43,7 +43,7 @@ router.get('/resources', async (req, res) => {
     const search = (req.query.search || '').trim().slice(0, 200);
     const resourceType = (req.query.resourceType || '').trim();
     const systemId = (req.query.systemId || '').trim();
-    const tagId = req.query.tagId ? parseInt(req.query.tagId) : null;
+    const tagId = req.query.tagId ? String(req.query.tagId) : null;
     // Cap matches the bulk-list endpoints; UI defaults to 100, Power Query
     // walks in 1000-record pages.
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 10000);
@@ -120,7 +120,7 @@ router.get('/resources', async (req, res) => {
     const result = await request.query(`
       SELECT r.id, r."displayName", r."description", r."resourceType", r."systemId", r."enabled",
              r."createdDateTime", r."extendedAttributes",
-             r."mail", r."visibility", r."externalId", r."contextId",
+             r."mail", r."visibility", r."externalId",
              r."catalogId", r."isHidden", r."modifiedDateTime",
              r."riskScore", r."riskTier",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
@@ -269,10 +269,42 @@ router.get('/resources/:id', async (req, res) => {
       historyCount = r?.cnt ?? 0;
     } catch { /* _history may not exist on older deployments */ }
 
-    res.json({ attributes, tags, memberCount, assignmentByType, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0 });
+    // 6. Context-membership count (v6 — Resources.contextId column was
+    // dropped in favor of the many-to-many ContextMembers join).
+    let contextCount = 0;
+    try {
+      const r = await db.queryOne(
+        `SELECT COUNT(*)::int AS cnt FROM "ContextMembers" WHERE "memberId"::text = $1`,
+        [resourceId]
+      );
+      contextCount = r?.cnt ?? 0;
+    } catch { /* ContextMembers may not exist on older deployments */ }
+
+    res.json({ attributes, tags, memberCount, assignmentByType, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0, contextCount });
   } catch (err) {
     console.error('Error fetching resource detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch resource details' });
+  }
+});
+
+// ─── GET /api/resources/:id/contexts ────────────────────────────
+// Lazy-loaded list of contexts this resource is a member of (v6).
+router.get('/resources/:id/contexts', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.json([]);
+  try {
+    const rows = (await db.query(
+      `SELECT c.id, c."displayName", c."contextType", c."targetType", c.variant
+         FROM "ContextMembers" cm
+         JOIN "Contexts" c ON c.id = cm."contextId"
+        WHERE cm."memberId"::text = $1
+        ORDER BY c."contextType", c."displayName"`,
+      [req.params.id]
+    )).rows;
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /resources/:id/contexts failed:', err.message);
+    res.status(500).json({ error: 'Failed to fetch resource contexts' });
   }
 });
 

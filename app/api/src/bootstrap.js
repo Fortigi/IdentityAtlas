@@ -20,6 +20,7 @@ import * as db from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
 import { selfTest as vaultSelfTest } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
+import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
 
@@ -205,6 +206,77 @@ function ensureVaultKey() {
   if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed after key generation');
 }
 
+// ─── Tag-root bootstrap ─────────────────────────────────────────────────────
+// Tags are stored as Contexts (contextType='Tag', variant='manual'). Without
+// a parent they all sit at the top of the tree selector — one root per tag
+// — which clutters the UI fast. We group them under a synthetic "Tags" root
+// per targetType (Principal for user-tags, Resource for resource-tags). The
+// same-targetType-throughout-a-tree invariant means we need one root per
+// targetType rather than a single shared root.
+//
+// Idempotent: creates the roots if missing, reparents any orphan tags
+// (parentContextId IS NULL) on every boot. Tags created via /api/tags
+// after this also attach under the right root.
+async function ensureTagRoots() {
+  const TARGET_TYPES = ['Principal', 'Resource', 'Identity'];
+  for (const targetType of TARGET_TYPES) {
+    let root = await db.queryOne(
+      `SELECT id FROM "Contexts"
+        WHERE "contextType" = 'TagGroup'
+          AND "targetType"  = $1
+          AND "parentContextId" IS NULL
+        LIMIT 1`,
+      [targetType]
+    );
+    if (!root) {
+      const id = crypto.randomUUID();
+      await db.query(
+        `INSERT INTO "Contexts"
+           (id, variant, "targetType", "contextType", "displayName", description, "createdByUser")
+         VALUES ($1, 'manual', $2, 'TagGroup', 'Tags', $3, 'system-bootstrap')`,
+        [id, targetType, `Synthetic root grouping all ${targetType} tags. Created by bootstrap.`]
+      );
+      root = { id };
+      console.log(`Tag-root: created Tags root for ${targetType}`);
+    }
+    const r = await db.query(
+      `UPDATE "Contexts"
+          SET "parentContextId" = $1
+        WHERE "contextType"     = 'Tag'
+          AND "targetType"      = $2
+          AND "parentContextId" IS NULL`,
+      [root.id, targetType]
+    );
+    if (r.rowCount > 0) {
+      console.log(`Tag-root: reparented ${r.rowCount} orphan ${targetType} tag(s)`);
+    }
+  }
+}
+
+// Used by tags.js POST. Returns the id of the Tags-group root for a given
+// targetType, creating it if missing. Concurrency-safe: a duplicate INSERT
+// is impossible because the SELECT-INSERT path runs inside one HTTP request
+// and ensureTagRoots() at boot has already created the rows in practice.
+export async function getOrCreateTagRoot(targetType) {
+  let row = await db.queryOne(
+    `SELECT id FROM "Contexts"
+      WHERE "contextType" = 'TagGroup'
+        AND "targetType"  = $1
+        AND "parentContextId" IS NULL
+      LIMIT 1`,
+    [targetType]
+  );
+  if (row) return row.id;
+  const id = crypto.randomUUID();
+  await db.query(
+    `INSERT INTO "Contexts"
+       (id, variant, "targetType", "contextType", "displayName", description, "createdByUser")
+     VALUES ($1, 'manual', $2, 'TagGroup', 'Tags', $3, 'system-bootstrap')`,
+    [id, targetType, `Synthetic root grouping all ${targetType} tags. Created on demand.`]
+  );
+  return id;
+}
+
 export async function bootstrapWorker() {
   if (process.env.USE_SQL !== 'true') return;
   try {
@@ -212,6 +284,19 @@ export async function bootstrapWorker() {
     const pool = await db.getPool();
     await runMigrations(pool);
     await ensureBuiltinCrawler();
+    try {
+      await seedContextAlgorithms();
+    } catch (err) {
+      // Non-critical: the ContextAlgorithms table is created by migration 018
+      // so this can fail on fresh boots if that migration hasn't run yet —
+      // it just means the Contexts plugins picker will be empty until next boot.
+      console.warn('Context-algorithm seeding skipped:', err.message);
+    }
+    try {
+      await ensureTagRoots();
+    } catch (err) {
+      console.warn('Tag-root bootstrap skipped:', err.message);
+    }
     startHistoryPruneJob();
     startScheduler();
     // Reap stale jobs: on every web container start, mark ALL jobs stuck in

@@ -18,9 +18,10 @@ const ResourceDetailPage = lazy(() => import('./components/ResourceDetailPage'))
 const AccessPackageDetailPage = lazy(() => import('./components/AccessPackageDetailPage'));
 const SystemsPage = lazy(() => import('./components/SystemsPage'));
 const RiskScoringPage = lazy(() => import('./components/RiskScoringPage'));
-const OrgChartPage = lazy(() => import('./components/OrgChartPage'));
+const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const DepartmentDetailPage = lazy(() => import('./components/DepartmentDetailPage'));
 const ContextDetailPage = lazy(() => import('./components/ContextDetailPage'));
+const RunDetailPage = lazy(() => import('./components/RunDetailPage'));
 const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
 const IdentityDetailPage = lazy(() => import('./components/IdentityDetailPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
@@ -47,7 +48,18 @@ function parseMatrixParams(params) {
   }
   const managed = params.get('managed') || 'all';
   const search = params.get('q') || '';
-  return { limit, filters, managed, search };
+  let contextFilters = [];
+  if (params.has('cf')) {
+    try {
+      const raw = JSON.parse(params.get('cf'));
+      if (Array.isArray(raw)) {
+        contextFilters = raw
+          .filter(x => x && typeof x.id === 'string')
+          .map(x => ({ id: x.id, includeChildren: !!x.includeChildren }));
+      }
+    } catch { /* ignore malformed cf */ }
+  }
+  return { limit, filters, managed, search, contextFilters };
 }
 
 function buildMatrixHash(state) {
@@ -59,6 +71,9 @@ function buildMatrixHash(state) {
   }
   if (state.managed && state.managed !== 'all') params.set('managed', state.managed);
   if (state.search) params.set('q', state.search);
+  if (state.contextFilters && state.contextFilters.length > 0) {
+    params.set('cf', JSON.stringify(state.contextFilters));
+  }
   const qs = params.toString();
   return `matrix${qs ? '?' + qs : ''}`;
 }
@@ -96,7 +111,7 @@ const ALL_NAV_TABS = [
   { key: 'sync-log',         label: 'Sync Log' },
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring',        optional: true },
   { key: 'identities',       label: 'Identities',   feature: 'accountCorrelation', optional: true },
-  { key: 'org-chart',        label: 'Org Chart',                                    optional: true },
+  { key: 'contexts',         label: 'Contexts' },
   { key: 'admin',            label: 'Admin' },
 ];
 
@@ -113,8 +128,9 @@ export default function App() {
   const [activeFilters, setActiveFilters] = useState(initial.filters);
   const [managedFilter, setManagedFilter] = useState(initial.managed);
   const [filterText, setFilterText] = useState(initial.search);
+  const [contextFilters, setContextFilters] = useState(initial.contextFilters || []);
 
-  const { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error, forceRefresh } = usePermissions(userLimit, activeFilters);
+  const { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error, forceRefresh } = usePermissions(userLimit, activeFilters, contextFilters);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -197,7 +213,7 @@ export default function App() {
   const [detailTabs, setDetailTabs] = useState(() => {
     // Restore detail tab from URL on load (e.g., bookmarked #user:abc)
     const { page: initPage } = parseHash();
-    if (initPage.startsWith('user:') || initPage.startsWith('group:') || initPage.startsWith('resource:') || initPage.startsWith('access-package:') || initPage.startsWith('department:') || initPage.startsWith('context:') || initPage.startsWith('identity:')) {
+    if (initPage.startsWith('user:') || initPage.startsWith('group:') || initPage.startsWith('resource:') || initPage.startsWith('access-package:') || initPage.startsWith('department:') || initPage.startsWith('context:') || initPage.startsWith('identity:') || initPage.startsWith('run:')) {
       const sepIdx = initPage.indexOf(':');
       const type = initPage.substring(0, sepIdx);
       const id = initPage.substring(sepIdx + 1);
@@ -238,7 +254,7 @@ export default function App() {
         .map(t => t.returnPage === tabKey ? { ...t, returnPage: closing?.returnPage } : t);
       // Only navigate when closing the active tab
       if (isActive) {
-        navigate(closing?.returnPage ?? (type === 'department' || type === 'context' ? 'org-chart' : type === 'identity' ? 'identities' : type === 'resource' ? 'resources' : 'matrix'));
+        navigate(closing?.returnPage ?? (type === 'run' ? 'contexts' : type === 'department' || type === 'context' ? 'contexts' : type === 'identity' ? 'identities' : type === 'resource' ? 'resources' : 'matrix'));
       }
       return remaining;
     });
@@ -247,7 +263,7 @@ export default function App() {
 
   // When navigating to a detail tab via URL that isn't tracked yet, add it
   useEffect(() => {
-    if (page.startsWith('user:') || page.startsWith('group:') || page.startsWith('resource:') || page.startsWith('access-package:') || page.startsWith('department:') || page.startsWith('context:') || page.startsWith('identity:')) {
+    if (page.startsWith('user:') || page.startsWith('group:') || page.startsWith('resource:') || page.startsWith('access-package:') || page.startsWith('department:') || page.startsWith('context:') || page.startsWith('identity:') || page.startsWith('run:')) {
       const sepIdx = page.indexOf(':');
       const type = page.substring(0, sepIdx);
       const id = page.substring(sepIdx + 1);
@@ -277,13 +293,14 @@ export default function App() {
         filters: activeFilters,
         managed: managedFilter,
         search: filterText,
+        contextFilters,
       });
       if (window.location.hash !== '#' + newHash) {
         history.replaceState(null, '', '#' + newHash);
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [page, userLimit, activeFilters, managedFilter, filterText]);
+  }, [page, userLimit, activeFilters, managedFilter, filterText, contextFilters]);
 
   // Build shareable URL (stable reference for children)
   const shareUrl = useMemo(() => buildMatrixUrl({
@@ -291,10 +308,11 @@ export default function App() {
     filters: activeFilters,
     managed: managedFilter,
     search: filterText,
-  }), [userLimit, activeFilters, managedFilter, filterText]);
+    contextFilters,
+  }), [userLimit, activeFilters, managedFilter, filterText, contextFilters]);
 
   // Check if current page is a detail tab
-  const isDetailPage = page.startsWith('user:') || page.startsWith('group:') || page.startsWith('resource:') || page.startsWith('access-package:') || page.startsWith('department:') || page.startsWith('context:') || page.startsWith('identity:');
+  const isDetailPage = page.startsWith('user:') || page.startsWith('group:') || page.startsWith('resource:') || page.startsWith('access-package:') || page.startsWith('department:') || page.startsWith('context:') || page.startsWith('identity:') || page.startsWith('run:');
 
   if (error) {
     return (
@@ -348,6 +366,11 @@ export default function App() {
       const id = page.substring(9);
       const cacheKey = `identity:${id}`;
       return <IdentityDetailPage key={cacheKey} identityId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('identity', id)} onOpenDetail={openDetailTab} />;
+    }
+    if (page.startsWith('run:')) {
+      const id = page.substring(4);
+      const cacheKey = `run:${id}`;
+      return <RunDetailPage key={cacheKey} runId={id} onClose={() => closeDetailTab('run', id)} onOpenDetail={openDetailTab} />;
     }
     return null;
   };
@@ -514,8 +537,8 @@ export default function App() {
             <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />
           ) : page === 'identities' ? (
             <IdentitiesPage onOpenDetail={openDetailTab} />
-          ) : page === 'org-chart' ? (
-            <OrgChartPage onOpenDetail={openDetailTab} onCacheData={onCacheData} />
+          ) : page === 'contexts' ? (
+            <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />
           ) : page === 'performance' || page === 'crawlers' || page === 'admin' ? (
             // Crawlers and Performance now live under Admin as sub-tabs.
             // Legacy #crawlers and #performance hashes redirect to the matching sub-tab.
@@ -538,6 +561,8 @@ export default function App() {
               setManagedFilter={setManagedFilter}
               filterText={filterText}
               setFilterText={setFilterText}
+              contextFilters={contextFilters}
+              setContextFilters={setContextFilters}
               userColumns={userColumns}
               groupTagMap={groupTagMap}
               refreshing={refreshing}
