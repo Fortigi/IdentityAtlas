@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { getUserColumns as getUserCols, getGroupColumns as getGroupCols, getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getUserColumnValues, getPrincipalOrUserColumnValues, getGroupColumnValues, getResourceColumnValues, FILTERABLE_TYPES } from '../db/columnCache.js';
 import { getOrCreateTagRoot } from '../bootstrap.js';
+import { recalcMemberCountsForChain } from '../contexts/memberCounts.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -228,6 +229,7 @@ router.post('/tags/:id/assign', async (req, res) => {
        ON CONFLICT ("contextId", "memberId") DO NOTHING`,
       [id, ctx.targetType, normalised]
     );
+    await recalcMemberCountsForChain(id);
     res.json({ ok: true, inserted: result.rowCount || 0 });
   } catch (err) {
     console.error('POST /tags/:id/assign failed:', err.message);
@@ -256,6 +258,7 @@ router.post('/tags/:id/unassign', async (req, res) => {
            AND "memberId" = ANY($2::uuid[])`,
       [id, normalised]
     );
+    await recalcMemberCountsForChain(id);
     res.json({ ok: true, deleted: result.rowCount || 0 });
   } catch (err) {
     console.error('POST /tags/:id/unassign failed:', err.message);
@@ -330,6 +333,7 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
       ON CONFLICT ("contextId", "memberId") DO NOTHING;
       SELECT @@ROWCOUNT AS inserted;
     `);
+    await recalcMemberCountsForChain(tagId);
     res.json({ ok: true, inserted: result.recordset[0]?.inserted || 0 });
   } catch (err) {
     console.error('POST /tags/:id/assign-by-filter failed:', err.message);
