@@ -72,7 +72,10 @@ export default function ContextFilterControl({ value = [], onChange }) {
             title={row ? `${row.contextType} · ${row.targetType}${row.scopeSystemName ? ' · ' + row.scopeSystemName : ''}` : v.id}
           >
             {variant && <span className={`w-1.5 h-1.5 rounded-full ${variant.dotClass}`} aria-hidden="true" />}
-            <span className="max-w-[14rem] truncate">{row ? row.displayName : v.id.slice(0, 8)}</span>
+            <span
+              className="max-w-[14rem] truncate"
+              title={row ? row.displayName : v.id}
+            >{row ? row.displayName : v.id.slice(0, 8)}</span>
             {target && <span className={`text-[9px] px-1 rounded border ${target.badgeClass}`}>{target.label}</span>}
             <label className="inline-flex items-center gap-0.5 text-slate-500 dark:text-gray-400 cursor-pointer" title="Include descendants">
               <input
