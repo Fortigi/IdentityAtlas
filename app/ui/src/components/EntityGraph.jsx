@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useCallback } from 'react';
 
 // ─── EntityGraph ──────────────────────────────────────────────────────
 // Radial graph: the current entity sits in the middle, relationship nodes
@@ -136,8 +136,106 @@ export default function EntityGraph({
 
   const expandedSet = useMemo(() => new Set(expandedPath), [expandedPath]);
 
+  // ─── Pan + zoom on the workspace ─────────────────────────────────────
+  // Deep expansions can run past the viewBox edges. Wrap the contents in
+  // a translatable/scalable group; allow pointer drag for pan, wheel for
+  // zoom. A Reset button restores 1× / centered.
+  const [pan, setPan]     = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
+  const svgRef = useRef(null);
+  const dragRef = useRef(null);     // { startX, startY, panX, panY, moved }
+
+  // Convert a pixel delta on the rendered SVG to a viewBox-coordinate
+  // delta. The SVG scales `width`/`height` to its rendered box, so one
+  // CSS pixel == (width / boundingClientRect.width) viewBox units.
+  function toViewBoxScale() {
+    const svg = svgRef.current;
+    if (!svg) return 1;
+    const rect = svg.getBoundingClientRect();
+    return rect.width > 0 ? width / rect.width : 1;
+  }
+
+  const onPointerDown = useCallback((e) => {
+    // Only the primary button initiates a pan; right-click and middle
+    // pass through.
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    dragRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      panX: pan.x, panY: pan.y,
+      moved: false,
+    };
+  }, [pan.x, pan.y]);
+
+  const onPointerMove = useCallback((e) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    // Tiny twitches between mousedown and mouseup shouldn't be treated
+    // as drags — they'd swallow legitimate node clicks. Only commit a
+    // pan once the pointer has actually travelled.
+    if (!dragRef.current.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+    dragRef.current.moved = true;
+    const k = toViewBoxScale();
+    setPan({
+      x: dragRef.current.panX + dx * k,
+      y: dragRef.current.panY + dy * k,
+    });
+  }, []);
+
+  const onPointerUp = useCallback(() => {
+    dragRef.current = null;
+  }, []);
+
+  // Suppress the click that immediately follows a drag. Otherwise a long
+  // drag that ends over a node would pop the node detail.
+  const onClickCapture = useCallback((e) => {
+    if (dragRef.current?.moved) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, []);
+
+  const onWheel = useCallback((e) => {
+    if (!svgRef.current) return;
+    e.preventDefault();
+    setScale(prev => {
+      const next = Math.max(0.4, Math.min(3, prev * (e.deltaY > 0 ? 0.9 : 1.1)));
+      return Number(next.toFixed(2));
+    });
+  }, []);
+
+  function resetView() {
+    setPan({ x: 0, y: 0 });
+    setScale(1);
+  }
+
+  const isDirty = pan.x !== 0 || pan.y !== 0 || scale !== 1;
+
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" style={{ maxHeight: '560px' }}>
+    <div className="relative">
+      {isDirty && (
+        <button
+          onClick={resetView}
+          className="absolute top-2 right-2 z-10 px-2 py-0.5 text-[11px] rounded border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 backdrop-blur-sm shadow-sm"
+          title="Reset graph view to default position and zoom"
+        >Reset view</button>
+      )}
+      <span className="absolute bottom-2 left-2 z-10 text-[10px] text-gray-400 dark:text-gray-500 select-none pointer-events-none">
+        drag to pan · wheel to zoom{scale !== 1 ? ` · ${Math.round(scale * 100)}%` : ''}
+      </span>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full h-auto cursor-grab active:cursor-grabbing"
+        style={{ maxHeight: '560px', touchAction: 'none' }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onPointerLeave={onPointerUp}
+        onClickCapture={onClickCapture}
+        onWheel={onWheel}
+      >
       <defs>
         <radialGradient id="eg-grad-lime" cx="35%" cy="30%">
           <stop offset="0%" stopColor="#d9f99d" />
@@ -173,6 +271,11 @@ export default function EntityGraph({
           <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
+
+      {/* Pan + zoom transform wraps every visual layer so they move
+          together. Origin of scale is the centre of the viewBox so a
+          symmetric zoom doesn't drag content off to one corner. */}
+      <g transform={`translate(${pan.x} ${pan.y}) translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`}>
 
       {/* Edges — parent to each child, drawn behind the nodes */}
       <g>
@@ -289,7 +392,9 @@ export default function EntityGraph({
           </text>
         )}
       </g>
+      </g>{/* end pan/zoom wrapper */}
     </svg>
+    </div>
   );
 }
 
