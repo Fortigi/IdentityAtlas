@@ -101,7 +101,8 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
         if (identity?.contextId) {
           const r = await authFetch(`/api/contexts/${encodeURIComponent(identity.contextId)}`);
           const d = r.ok ? await r.json() : null;
-          items = d?.context ? [d.context] : (d ? [d] : []);
+          // /api/contexts/:id returns { attributes, members, subContexts }
+          if (d?.attributes) items = [d.attributes];
         }
       } else if (['groups-direct', 'groups-governed', 'groups-owner', 'groups-eligible', 'oauth2-grants'].includes(key)) {
         const type = {
