@@ -69,6 +69,22 @@ function userRootNodes(core, identityInfo, manager) {
   ];
 }
 
+// "Recently Added" / "Recently Removed" pseudo-categories prepended
+// when the entity has a non-zero recent-changes bucket. The fanout
+// items come from the cached recent-changes payload, not from a
+// separate API call, so clicking the node is instant.
+function recentRootNodes(recent) {
+  if (!recent) return [];
+  const out = [];
+  if ((recent.addedCount || 0) > 0) {
+    out.push({ key: 'recently-added',   label: 'Recently Added',   count: recent.addedCount,   kind: 'category', recent: 'added' });
+  }
+  if ((recent.removedCount || 0) > 0) {
+    out.push({ key: 'recently-removed', label: 'Recently Removed', count: recent.removedCount, kind: 'category', recent: 'removed' });
+  }
+  return out;
+}
+
 async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
   const { manager, identityInfo, contextId } = extras;
   const get = (p) => authFetch(p).then(r => r.ok ? r.json() : []);
@@ -293,17 +309,38 @@ function toItem(row, entityKind) {
 }
 
 export function getRootNodes(entityKind, core, extras = {}) {
+  let base;
   switch (entityKind) {
-    case 'user':           return userRootNodes(core, extras.identityInfo, extras.manager);
-    case 'resource':       return resourceRootNodes(core);
-    case 'access-package': return accessPackageRootNodes(core);
-    case 'identity':       return identityRootNodes(core);
-    case 'context':        return contextRootNodes(core);
+    case 'user':           base = userRootNodes(core, extras.identityInfo, extras.manager); break;
+    case 'resource':       base = resourceRootNodes(core); break;
+    case 'access-package': base = accessPackageRootNodes(core); break;
+    case 'identity':       base = identityRootNodes(core); break;
+    case 'context':        base = contextRootNodes(core); break;
     default:               return [];
   }
+  // Recent-change pseudo-categories go first so they read as "see this
+  // first when something just moved" rather than buried at the end.
+  return [...recentRootNodes(extras.recent), ...base];
 }
 
 export async function fetchCategoryItems(entityKind, entityId, categoryKey, authFetch, extras = {}) {
+  // Recently-added / Recently-removed don't hit an endpoint — we already
+  // have the events on the root entity's recent-changes bundle. Each
+  // event's counterparty becomes a satellite tagged with its recency
+  // state so the graph colours them accordingly.
+  if (categoryKey === 'recently-added' || categoryKey === 'recently-removed') {
+    const bucket = extras.recent?.[categoryKey === 'recently-added' ? 'added' : 'removed'] || [];
+    const items = bucket.map(evt => ({
+      key: `${evt.counterpartyKind || 'leaf'}:${evt.counterpartyId || evt.at}`,
+      label: evt.counterpartyLabel || evt.summary,
+      kind: 'item',
+      entityKind: evt.counterpartyKind || 'leaf',
+      entityId: evt.counterpartyId,
+      recent: categoryKey === 'recently-added' ? 'added' : 'removed',
+    }));
+    return capItems(items);
+  }
+
   let items = [];
   switch (entityKind) {
     case 'user':           items = await fetchUserItems(entityId, categoryKey, authFetch, extras); break;
@@ -311,6 +348,12 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
     case 'access-package': items = await fetchAccessPackageItems(entityId, categoryKey, authFetch, extras); break;
     case 'identity':       items = await fetchIdentityItems(entityId, categoryKey, authFetch, extras); break;
     case 'context':        items = await fetchContextItems(entityId, categoryKey, authFetch, extras); break;
+  }
+  // Tag items that were added inside the recent window so the graph can
+  // highlight them inside regular fanouts too.
+  const addedIds = extras.recent?.addedIds;
+  if (addedIds && addedIds.size > 0 && items.length > 0) {
+    items = items.map(it => addedIds.has(it.entityId) ? { ...it, recent: 'added' } : it);
   }
   return capItems(items);
 }

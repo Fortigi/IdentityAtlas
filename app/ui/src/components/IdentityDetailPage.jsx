@@ -5,7 +5,9 @@ import ConfidenceBar from './ConfidenceBar';
 import EntityGraph from './EntityGraph';
 import EntityDetailLayout, { AttributesTable, buildAttributeEntries } from './EntityDetailLayout';
 import ExpandedItemsList from './ExpandedItemsList';
+import RecentChangesSection from './RecentChangesSection';
 import useExpandableGraph from '../hooks/useExpandableGraph';
+import useRecentChanges from '../hooks/useRecentChanges';
 import { getRootNodes } from './entityGraphShape';
 
 const SYSTEM_COLS = new Set([
@@ -69,10 +71,13 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
     finally { setVerifying(false); }
   };
 
+  const recent = useRecentChanges('identity', identityId, authFetch);
+
   const rootExtras = useMemo(() => ({
     members,
     contextId: identity?.contextId,
-  }), [members, identity]);
+    recent,
+  }), [members, identity, recent]);
 
   // Pack the identity core payload into the shape getRootNodes expects.
   const core = useMemo(() => (
@@ -206,6 +211,15 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
         }
       >
         {riskData && <RiskScoreSection attributes={riskData} entityType="identities" entityId={identityId} authFetch={authFetch} />}
+
+        <RecentChangesSection
+          events={recent.events}
+          addedCount={recent.addedCount}
+          removedCount={recent.removedCount}
+          sinceDays={recent.sinceDays}
+          loading={recent.loading}
+          onOpenDetail={onOpenDetail}
+        />
 
         {identity.correlationSignals && (
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">

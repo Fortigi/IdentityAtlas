@@ -22,7 +22,14 @@ const GREEN_LABEL   = '#4d7c0f';
 const GRAY_DIM      = '#d1d5db';
 const GRAY_DIM_TEXT = '#9ca3af';
 
-const LIME_ACCENT = { fill: 'url(#eg-grad-lime)', stroke: '#4d7c0f', text: '#1a2e05', label: '#365314' };
+const LIME_ACCENT     = { fill: 'url(#eg-grad-lime)',    stroke: '#4d7c0f', text: '#1a2e05', label: '#365314' };
+// Yellow-amber "fresh" tint for nodes that represent a relationship
+// added inside the recent-changes window. Reads clearly against the
+// green palette without screaming for attention.
+const ADDED_ACCENT    = { fill: 'url(#eg-grad-added)',   stroke: '#a16207', text: '#422006', label: '#854d0e' };
+// Muted rose for removed relationships — still legible but clearly
+// different from any "healthy" node.
+const REMOVED_ACCENT  = { fill: 'url(#eg-grad-removed)', stroke: '#9f1239', text: '#4c0519', label: '#881337' };
 
 // Layout tuning — tweaked to keep 3 expansion levels readable.
 const ROOT_RADIUS_MIN  = 80;
@@ -137,6 +144,20 @@ export default function EntityGraph({
           <stop offset="40%" stopColor="#a3e635" />
           <stop offset="100%" stopColor="#65a30d" />
         </radialGradient>
+        {/* Recent-added — pale yellow fading into amber. Light enough
+            that it doesn't shout, distinct enough to pop against green. */}
+        <radialGradient id="eg-grad-added" cx="35%" cy="30%">
+          <stop offset="0%"  stopColor="#fef9c3" />
+          <stop offset="40%" stopColor="#fde047" />
+          <stop offset="100%" stopColor="#ca8a04" />
+        </radialGradient>
+        {/* Recent-removed — rose-pink so strikethrough/gone reads
+            instantly without any danger-red alarm. */}
+        <radialGradient id="eg-grad-removed" cx="35%" cy="30%">
+          <stop offset="0%"  stopColor="#ffe4e6" />
+          <stop offset="40%" stopColor="#fb7185" />
+          <stop offset="100%" stopColor="#e11d48" />
+        </radialGradient>
         <radialGradient id="eg-grad-dim" cx="35%" cy="30%">
           <stop offset="0%" stopColor="#f7fee7" />
           <stop offset="100%" stopColor="#ecfccb" />
@@ -189,7 +210,12 @@ export default function EntityGraph({
           const active = isItem ? true : (n.count || 0) > 0;
           const selected = activeKey === n.key;
           const onPath = expandedSet.has(n.key);
-          const accent = LIME_ACCENT;
+          // Recent-change nodes (categories with recent: 'added'/'removed'
+          // or items tagged the same way when they're inside a normal
+          // fanout) pick a different accent so the eye finds them fast.
+          const accent = n.recent === 'added' ? ADDED_ACCENT
+                       : n.recent === 'removed' ? REMOVED_ACCENT
+                       : LIME_ACCENT;
           const r = radiusFor(isItem ? 1 : n.count, n.depth);
           const clickable = (active || isItem) && onNodeClick;
           return (
@@ -202,7 +228,9 @@ export default function EntityGraph({
                 <circle cx={n.x} cy={n.y} r={r + 6} fill="none" stroke={accent.stroke} strokeWidth={2} opacity={0.7} />
               )}
               {(active && !selected) && (
-                <circle cx={n.x} cy={n.y} r={r + 4} fill="none" stroke={GREEN_MID} strokeWidth={1.1} opacity={onPath ? 0.6 : 0.35}>
+                <circle cx={n.x} cy={n.y} r={r + 4} fill="none"
+                  stroke={n.recent === 'added' ? '#fde047' : n.recent === 'removed' ? '#fb7185' : GREEN_MID}
+                  strokeWidth={1.1} opacity={onPath ? 0.6 : 0.35}>
                   <animate attributeName="r" values={`${r + 4};${r + 8};${r + 4}`} dur={`${3.5 + i * 0.25}s`} repeatCount="indefinite" />
                   <animate attributeName="opacity" values="0.4;0.05;0.4" dur={`${3.5 + i * 0.25}s`} repeatCount="indefinite" />
                 </circle>
@@ -214,7 +242,9 @@ export default function EntityGraph({
                 fill={active ? accent.fill : 'url(#eg-grad-dim)'}
                 stroke={active ? accent.stroke : GRAY_DIM}
                 strokeWidth={active ? 1.75 : 1.25}
-                filter={active ? 'url(#eg-glow)' : undefined}
+                /* Green glow only suits the green palette — skip it for
+                   amber/rose recent nodes so the colour stays clean. */
+                filter={active && !n.recent ? 'url(#eg-glow)' : undefined}
               />
               {isItem ? (
                 // Item nodes show an initial letter; the label underneath
