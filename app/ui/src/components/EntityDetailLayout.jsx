@@ -41,21 +41,29 @@ export function AttributesTable({ title = 'Attributes', entries }) {
         <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No attributes</p>
       ) : (
         <div className="max-h-[560px] overflow-y-auto">
-          <table className="w-full text-sm">
+          {/* table-fixed + a hard column width on the label keeps a long
+              extensionAttribute_<32-hex>_<key> label from blowing the
+              label column past 1/3 and squeezing the value column down
+              to ~10px (which made values wrap one character per line). */}
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+              <col className="w-[40%]" />
+              <col className="w-[60%]" />
+            </colgroup>
             <tbody>
               {visible.map(([key, val, meta]) => (
                 <tr key={key} className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0 hover:bg-gray-50/50 dark:hover:bg-gray-700/30">
-                  <td className="py-1.5 pl-4 pr-3 text-gray-500 dark:text-gray-400 whitespace-nowrap align-top w-1/3">
-                    <span className="flex items-center gap-1.5">
-                      {friendlyLabel(key)}
+                  <td className="py-1.5 pl-4 pr-3 text-gray-500 dark:text-gray-400 align-top break-words">
+                    <span className="inline-flex items-start gap-1.5">
+                      <span className="break-all">{friendlyLabel(key)}</span>
                       {meta?.extended && (
-                        <span className="inline-block px-1 py-0 rounded text-[9px] font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600" title="From extendedAttributes">ext</span>
+                        <span className="inline-block px-1 py-0 rounded text-[9px] font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 shrink-0" title="From extendedAttributes">ext</span>
                       )}
                     </span>
                   </td>
-                  <td className="py-1.5 pr-4 text-gray-900 dark:text-gray-100 font-medium break-all align-top">
+                  <td className="py-1.5 pr-4 text-gray-900 dark:text-gray-100 font-medium align-top break-words">
                     {typeof val === 'object' && !Array.isArray(val) && !(val && val.props)
-                      ? <span className="text-gray-600 dark:text-gray-300 font-mono text-xs">{JSON.stringify(val)}</span>
+                      ? <span className="text-gray-600 dark:text-gray-300 font-mono text-xs break-all">{JSON.stringify(val)}</span>
                       : renderAttributeValue(key, val)}
                   </td>
                 </tr>
