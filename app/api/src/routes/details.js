@@ -107,15 +107,23 @@ router.get('/user/:id', async (req, res) => {
       tags = r.recordset;
     } catch { /* table may not exist */ }
 
-    // 3. Counts
+    // 3. Counts — membership broken down by type so the entity graph can
+    //    show a node per type (Direct / Indirect / Owner / Eligible) without
+    //    pulling the full membership list.
+    const membershipByType = { Direct: 0, Indirect: 0, Owner: 0, Eligible: 0 };
     let membershipCount = 0;
     try {
-      const r = await timedRequest(pool, 'user-membership-count', res)
+      const r = await timedRequest(pool, 'user-membership-breakdown', res)
         .input('id', userId)
-        .query(`SELECT COUNT(DISTINCT "resourceId")::int AS cnt
+        .query(`SELECT "membershipType",
+                       COUNT(DISTINCT "resourceId")::int AS cnt
                   FROM "vw_ResourceUserPermissionAssignments"
-                 WHERE "principalId"::text = @id`);
-      membershipCount = r.recordset[0].cnt;
+                 WHERE "principalId"::text = @id
+                 GROUP BY "membershipType"`);
+      for (const row of r.recordset) {
+        if (row.membershipType in membershipByType) membershipByType[row.membershipType] = row.cnt;
+      }
+      membershipCount = Object.values(membershipByType).reduce((a, b) => a + b, 0);
     } catch { /* view may not exist */ }
 
     let accessPackageCount = 0;
@@ -141,7 +149,27 @@ router.get('/user/:id', async (req, res) => {
       oauth2GrantCount = r.recordset[0].cnt;
     } catch { /* column may not exist on older deployments */ }
 
-    res.json({ attributes, tags, membershipCount, accessPackageCount, historyCount, hasHistory: historyCount > 0, oauth2GrantCount, lastActivity: null });
+    // Direct-report count: cheap query on managerId FK.
+    let directReportCount = 0;
+    try {
+      const r = await timedRequest(pool, 'user-reports-count', res)
+        .input('id', userId)
+        .query(`SELECT COUNT(*)::int AS cnt FROM "Principals" WHERE "managerId" = @id`);
+      directReportCount = r.recordset[0].cnt;
+    } catch { /* managerId may not exist on older deployments */ }
+
+    res.json({
+      attributes,
+      tags,
+      membershipCount,
+      membershipByType,
+      accessPackageCount,
+      historyCount,
+      hasHistory: historyCount > 0,
+      oauth2GrantCount,
+      directReportCount,
+      lastActivity: null,
+    });
   } catch (err) {
     console.error('Error fetching user detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch user details' });
@@ -404,7 +432,7 @@ router.get('/group/:id/access-packages', async (req, res) => {
       .query(`
       SELECT DISTINCT
         rrs."parentResourceId" AS "resourceId",
-        ap."displayName" AS accessPackageName,
+        ap."displayName" AS "accessPackageName",
         rrs.roleName
       FROM "ResourceRelationships" rrs
       LEFT JOIN "Resources" ap ON rrs."parentResourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
@@ -450,7 +478,7 @@ router.get('/access-package/:id', async (req, res) => {
       apResult = await timedRequest(pool, 'ap-attributes', res)
         .input('id', apId)
         .query(`
-        SELECT ap.*, c."displayName" AS catalogName
+        SELECT ap.*, c."displayName" AS "catalogName"
         FROM "Resources" ap
         LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
         WHERE ap.id = @id AND ap."resourceType" = 'BusinessRole'
@@ -540,8 +568,8 @@ router.get('/access-package/:id', async (req, res) => {
         .query(`
         SELECT
           COUNT(*) AS total,
-          SUM(CASE WHEN "hasAutoAddRule" = TRUE THEN 1 ELSE 0 END) AS autoAdd,
-          SUM(CASE WHEN COALESCE("hasAutoAddRule", 0) = 0 AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END) AS autoRemoveOnly
+          SUM(CASE WHEN "hasAutoAddRule" = TRUE THEN 1 ELSE 0 END) AS "autoAdd",
+          SUM(CASE WHEN COALESCE("hasAutoAddRule", 0) = 0 AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END) AS "autoRemoveOnly"
         FROM "AssignmentPolicies"
         WHERE "resourceId" = @id
       `);
@@ -606,21 +634,25 @@ router.get('/access-package/:id/assignments', async (req, res) => {
     try {
       // v5: assignedDate comes from the _history audit table (earliest INSERT
       // for this assignment row). Falls back to NULL when no history exists.
+      // ResourceAssignments has no surrogate `id` column in v5 — the primary
+      // key is (resourceId, principalId, assignmentType). That means we can't
+      // drive the _history lookup from a.id; the audit rows key off the
+      // composite too. Skip the assignedDate lookup for now (it's a nice-to
+      // have) and fall back to the assignment row itself.
+      // ResourceAssignments has no surrogate `id` column in v5 — the
+      // primary key is (resourceId, principalId, assignmentType). The
+      // merge with main re-introduced `a.id` which 500'd the query and
+      // blanked the whole assignments list again.
       r = await timedRequest(pool, 'ap-assignments', res)
         .input('id', req.params.id)
         .query(`
         SELECT
-          a.id, a."principalId", a.state AS "assignmentState", a."assignmentStatus",
+          a."principalId", a.state AS "assignmentState", a."assignmentStatus",
           u."displayName" AS "targetDisplayName",
           u.email AS "targetUPN",
-          h.assigned AS "assignedDate"
+          NULL::timestamptz AS "assignedDate"
         FROM "ResourceAssignments" a
         LEFT JOIN "Principals" u ON a."principalId" = u.id
-        LEFT JOIN LATERAL (
-          SELECT MIN("changedAt") AS assigned
-          FROM "_history"
-          WHERE "tableName" = 'ResourceAssignments' AND "rowId" = a.id::text
-        ) h ON true
         WHERE a."resourceId" = @id
           AND a."assignmentType" = 'Governed'
           AND (a.state = 'Delivered' OR a.state IS NULL)
@@ -710,7 +742,7 @@ router.get('/access-package/:id/requests', async (req, res) => {
         SELECT
           req.id, req."requestType", req."requestState", req."requestStatus",
           req.justification, req."createdDateTime", req."completedDateTime",
-          u."displayName" AS requestorDisplayName, u.email AS requestorUPN
+          u."displayName" AS "requestorDisplayName", u.email AS "requestorUPN"
         FROM "AssignmentRequests" req
         LEFT JOIN "Principals" u ON req."requestorId" = u.id
         WHERE req."resourceId" = @id
@@ -725,7 +757,7 @@ router.get('/access-package/:id/requests', async (req, res) => {
         SELECT
           req.id, req."requestType", req."requestState", req."requestStatus",
           req.justification, req."createdDateTime", req."completedDateTime",
-          u."displayName" AS requestorDisplayName, u.userPrincipalName AS requestorUPN
+          u."displayName" AS "requestorDisplayName", u.userPrincipalName AS "requestorUPN"
         FROM "AssignmentRequests" req
         LEFT JOIN GraphUsers u ON req."requestorId" = u.id
         WHERE req."resourceId" = @id
@@ -770,7 +802,7 @@ router.get('/access-package/:id/policies', async (req, res) => {
       SELECT id, "displayName", description, "allowedTargetScope",
              COALESCE("hasAutoAddRule", CAST(0 AS BOOLEAN)) AS "hasAutoAddRule",
              COALESCE("hasAutoRemoveRule", CAST(0 AS BOOLEAN)) AS "hasAutoRemoveRule",
-             JSON_VALUE("automaticRequestSettings", '$.filter.rule') AS autoAssignmentFilter,
+             JSON_VALUE("automaticRequestSettings", '$.filter.rule') AS "autoAssignmentFilter",
              "createdDateTime", "modifiedDateTime"
       FROM "AssignmentPolicies"
       WHERE "resourceId" = @id

@@ -32,6 +32,17 @@ async function hasTable(_pool, tableName) {
   return !!r?.t;
 }
 
+// Tag rows come back from SQL as "id:name:color|id:name:color" strings so
+// we don't have to LEFT JOIN + GROUP BY every column. Matches the shape
+// used by the Resources endpoint.
+function parseTagString(tagString) {
+  if (!tagString) return [];
+  return tagString.split('|').map(t => {
+    const parts = t.split(':');
+    return { id: parseInt(parts[0]), name: parts[1], color: parts[2] };
+  });
+}
+
 // GET /api/identities — summary + paginated list
 router.get('/identities', async (req, res) => {
   if (!useSql) return res.json({ available: false, data: [], total: 0, summary: null });
@@ -47,6 +58,18 @@ router.get('/identities', async (req, res) => {
     const pageLimit = Math.min(parseInt(limit) || 50, 500);
     const pageOffset = parseInt(offset) || 0;
 
+    // Attribute filters (JSON blob from the useEntityPage filter bar). Accept
+    // a `__identityTag` virtual field for tag-name filtering.
+    let attrFilters = {};
+    if (req.query.filters) {
+      try { attrFilters = JSON.parse(req.query.filters); } catch { /* ignore bad JSON */ }
+    }
+    let identityTagFilter = null;
+    if (attrFilters['__identityTag']) {
+      identityTagFilter = String(attrFilters['__identityTag']);
+      delete attrFilters['__identityTag'];
+    }
+
     // Column-existence check runs first because it determines the shape of
     // the summary query below. It's a tiny catalog lookup — keeping it out
     // of the parallel batch is cheap.
@@ -61,13 +84,13 @@ router.get('/identities', async (req, res) => {
     const [summaryResult, typeDistResult] = await Promise.all([
       timedRequest(p, 'identity-summary', res).query(`
         SELECT
-          COUNT(*) AS totalIdentities,
-          SUM(CASE WHEN "accountCount" > 1 THEN 1 ELSE 0 END) AS multiAccountIdentities,
-          SUM(CASE WHEN "accountCount" = 1 THEN 1 ELSE 0 END) AS singleAccountIdentities,
-          SUM("accountCount") AS totalAccounts,
-          SUM(CASE WHEN "analystVerified" = TRUE THEN 1 ELSE 0 END) AS verifiedCount,
-          AVG(CAST("correlationConfidence" AS FLOAT)) AS avgConfidence,
-          MAX("correlatedAt") AS lastCorrelatedAt
+          COUNT(*) AS "totalIdentities",
+          SUM(CASE WHEN "accountCount" > 1 THEN 1 ELSE 0 END) AS "multiAccountIdentities",
+          SUM(CASE WHEN "accountCount" = 1 THEN 1 ELSE 0 END) AS "singleAccountIdentities",
+          SUM("accountCount") AS "totalAccounts",
+          SUM(CASE WHEN "analystVerified" = TRUE THEN 1 ELSE 0 END) AS "verifiedCount",
+          AVG(CAST("correlationConfidence" AS FLOAT)) AS "avgConfidence",
+          MAX("correlatedAt") AS "lastCorrelatedAt"
           ${hasHrCols ? `, SUM(CASE WHEN "isHrAnchored" = true THEN 1 ELSE 0 END) AS "hrAnchoredCount",
           SUM(CASE WHEN "orphanStatus" IS NOT NULL THEN 1 ELSE 0 END) AS "orphanCount"` : ''}
         FROM "Identities"
@@ -127,6 +150,30 @@ router.get('/identities', async (req, res) => {
       }
     }
 
+    // Apply the attribute filters that useEntityPage sends (simple
+    // field=value equality on whitelisted columns).
+    const IDENTITY_FILTER_COLS = new Set([
+      'displayName', 'email', 'department', 'jobTitle', 'companyName',
+      'city', 'country', 'employeeId', 'accountCount',
+    ]);
+    for (const [field, value] of Object.entries(attrFilters)) {
+      if (!IDENTITY_FILTER_COLS.has(field)) continue;
+      if (value == null || value === '') continue;
+      const key = `flt_${field}`;
+      where += ` AND "${field}" = @${key}`;
+      inputs[key] = value;
+    }
+
+    // Tag filter (virtual field).
+    let identityTagJoin = '';
+    if (identityTagFilter) {
+      identityTagJoin = `
+        INNER JOIN "GraphTagAssignments" _ita ON _ita."entityId" = UPPER(i.id::text)
+        INNER JOIN "GraphTags" _it ON _ita."tagId" = _it.id
+          AND _it."name" = @__identityTag AND _it."entityType" = 'identity'`;
+      inputs.__identityTag = identityTagFilter;
+    }
+
     // Sort
     const ALLOWED_SORTS = {
       'accountCount': '"accountCount" DESC',
@@ -147,28 +194,38 @@ router.get('/identities', async (req, res) => {
     dataReq.input('pageLimit', pageLimit);
 
     const [countResult, dataResult] = await Promise.all([
-      countReq.query(`SELECT COUNT(*) AS total FROM "Identities" ${where}`),
+      countReq.query(`SELECT COUNT(*)::int AS total FROM "Identities" i ${identityTagJoin} ${where}`),
       dataReq.query(`
-        SELECT id, "displayName", "primaryPrincipalId" AS primaryAccountId, email AS primaryAccountUpn,
-          "accountCount", NULL AS "accountTypes",
-          "correlationConfidence", NULL AS "correlationSignals", NULL AS department, "jobTitle",
-          NULL AS "managerId", email AS mail,
-          "givenName", surname, "employeeId", NULL AS "companyName", NULL AS employeeType,
-          NULL AS city, NULL AS country, NULL AS "officeLocation",
-          NULL AS "accountEnabled", "correlatedAt", "analystVerified", "analystNotes"
-          ${hasHrCols ? ', "isHrAnchored", NULL AS "hrAccountId", "orphanStatus"' : ''}
-        FROM "Identities"
+        SELECT i.id, i."displayName", i."primaryPrincipalId" AS "primaryAccountId", i.email AS "primaryAccountUpn",
+          i."accountCount", NULL AS "accountTypes",
+          i."correlationConfidence", NULL AS "correlationSignals", i.department, i."jobTitle",
+          NULL AS "managerId", i.email AS mail,
+          i."givenName", i.surname, i."employeeId", i."companyName", NULL AS "employeeType",
+          i.city, i.country, i."officeLocation",
+          NULL AS "accountEnabled", i."correlatedAt", i."analystVerified", i."analystNotes",
+          (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
+             FROM "GraphTagAssignments" ta
+             INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" = 'identity'
+            WHERE ta."entityId" = UPPER(i.id::text)
+          ) AS "tagString"
+          ${hasHrCols ? ', i."isHrAnchored", NULL AS "hrAccountId", i."orphanStatus"' : ''}
+        FROM "Identities" i
+        ${identityTagJoin}
         ${where}
         ORDER BY ${orderBy}
         LIMIT @pageLimit OFFSET @pageOffset
       `),
     ]);
     const total = countResult.recordset[0].total;
+    const data = dataResult.recordset.map(row => {
+      const { tagString, ...rest } = row;
+      return { ...rest, tags: parseTagString(tagString) };
+    });
 
     res.json({
       available: true,
       summary,
-      data: dataResult.recordset,
+      data,
       total,
       hasHrColumns: hasHrCols,
     });
@@ -191,7 +248,7 @@ router.get('/identities/:id', async (req, res) => {
     // Fetch identity with context name
     const identityResult = await timedRequest(p, 'identity-detail', res)
       .input('id', identityId)
-      .query(`SELECT i.*, c."displayName" AS contextDisplayName
+      .query(`SELECT i.*, c."displayName" AS "contextDisplayName"
               FROM "Identities" i
               LEFT JOIN "Contexts" c ON i."contextId" = c.id
               WHERE i.id = @id`);
@@ -203,22 +260,32 @@ router.get('/identities/:id', async (req, res) => {
     const identity = identityResult.recordset[0];
 
     // Fetch all member accounts — try Principals first (userId column), fall back to GraphUsers
+    // IdentityMembers stores displayName opportunistically; many rows have
+    // null there so we coalesce with the Principals record and pull UPN out
+    // of Principals.email (v5 has no separate userPrincipalName column).
     let membersResult;
     try {
       membersResult = await timedRequest(p, 'identity-members', res)
         .input('identityId', identityId)
         .query(`
-          SELECT m.*, u.department, u."jobTitle", u."createdDateTime", u."accountEnabled" AS userAccountEnabled
+          SELECT m."identityId", m."principalId", m."isPrimary", m."isHrAuthoritative",
+                 m."accountType", m."accountTypePattern", m."accountEnabled",
+                 m."correlationSignals", m."signalConfidence", m."hrScore",
+                 m."hrIndicators", m."analystOverride",
+                 COALESCE(m."displayName", u."displayName") AS "displayName",
+                 u.email AS "userPrincipalName",
+                 u.department, u."jobTitle", u."createdDateTime",
+                 u."accountEnabled" AS "userAccountEnabled"
           FROM "IdentityMembers" m
           LEFT JOIN "Principals" u ON m."principalId" = u.id
           WHERE m."identityId" = @identityId
-          ORDER BY m."isPrimary" DESC, m."accountType" ASC
+          ORDER BY m."isPrimary" DESC NULLS LAST, m."accountType" ASC
         `);
     } catch {
       membersResult = await timedRequest(p, 'identity-members-legacy', res)
         .input('identityId', identityId)
         .query(`
-          SELECT m.*, u.department, u."jobTitle", u.lastSignInDateTime, u."createdDateTime", u."accountEnabled" AS userAccountEnabled
+          SELECT m.*, u.department, u."jobTitle", u.lastSignInDateTime, u."createdDateTime", u."accountEnabled" AS "userAccountEnabled"
           FROM "IdentityMembers" m
           LEFT JOIN GraphUsers u ON m."principalId" = u.id
           WHERE m."identityId" = @identityId
@@ -260,7 +327,7 @@ router.get('/identities/:id', async (req, res) => {
       const groupCountResult = await timedRequest(p, 'identity-member-groups', res)
         .input('identityId', identityId)
         .query(`
-          SELECT m."principalId", COUNT(DISTINCT gm."resourceId") AS groupCount
+          SELECT m."principalId", COUNT(DISTINCT gm."resourceId") AS "groupCount"
           FROM "IdentityMembers" m
           LEFT JOIN "ResourceAssignments" gm ON m."principalId" = gm."principalId" AND gm."assignmentType" = 'Direct'
           WHERE m."identityId" = @identityId
@@ -284,13 +351,77 @@ router.get('/identities/:id', async (req, res) => {
       }
     }
 
+    // Aggregate relationship counts across every linked account — the entity
+    // graph shows these as nodes ("32 groups across 3 accounts", "4 access
+    // packages"). One query joins IdentityMembers to ResourceAssignments and
+    // groups by assignmentType so we stay cheap.
+    const aggregate = { Direct: 0, Governed: 0, Owner: 0, Eligible: 0, OAuth2Grant: 0 };
+    try {
+      const aggResult = await timedRequest(p, 'identity-aggregate-counts', res)
+        .input('identityId', identityId)
+        .query(`
+          SELECT ra."assignmentType", COUNT(DISTINCT ra."resourceId")::int AS cnt
+          FROM "IdentityMembers" m
+          JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
+          WHERE m."identityId" = @identityId
+          GROUP BY ra."assignmentType"
+        `);
+      for (const row of aggResult.recordset) {
+        if (row.assignmentType in aggregate) aggregate[row.assignmentType] = row.cnt;
+      }
+    } catch { /* ResourceAssignments may not exist */ }
+
     res.json({
       identity,
       members: membersResult.recordset,
+      aggregateAssignments: aggregate,
     });
   } catch (err) {
     console.error('Error fetching identity detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch identity detail' });
+  }
+});
+
+// GET /api/identities/:id/assignments?type=Direct|Governed|Owner|Eligible|OAuth2Grant
+// Flattens assignments across every linked account — used by the identity
+// detail graph when the user clicks a relationship node.
+router.get('/identities/:id/assignments', async (req, res) => {
+  if (!useSql) return res.json([]);
+  const identityId = req.params.id;
+  if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
+  const ALLOWED = ['Direct', 'Governed', 'Owner', 'Eligible', 'OAuth2Grant'];
+  const type = req.query.type;
+  if (!ALLOWED.includes(type)) return res.status(400).json({ error: 'Invalid assignment type' });
+
+  try {
+    const p = await db.getPool();
+    const r = await timedRequest(p, 'identity-assignments', res)
+      .input('identityId', identityId)
+      .input('type', type)
+      .query(`
+        SELECT ra."resourceId",
+               r."displayName"   AS "resourceDisplayName",
+               r."resourceType",
+               m."principalId",
+               COALESCE(p."displayName", m."displayName") AS "principalDisplayName",
+               p."email"         AS "userPrincipalName",
+               m."accountType",
+               m."isPrimary",
+               ra.state,
+               ra."assignmentStatus",
+               ra."expirationDateTime"
+        FROM "IdentityMembers" m
+        JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
+        LEFT JOIN "Resources" r ON r.id = ra."resourceId"
+        LEFT JOIN "Principals" p ON p.id = m."principalId"
+        WHERE m."identityId" = @identityId
+          AND ra."assignmentType" = @type
+        ORDER BY r."displayName", p."displayName"
+      `);
+    res.json(r.recordset);
+  } catch (err) {
+    console.error('Error fetching identity assignments:', err.message);
+    res.status(500).json({ error: 'Failed to fetch identity assignments' });
   }
 });
 
@@ -394,7 +525,9 @@ router.get('/identities/by-user/:userId', async (req, res) => {
       return res.json({ identity: null, memberInfo: null });
     }
 
-    // Find identity membership for this user
+    // Find identity membership for this user. Identities has `email`, not
+    // `primaryAccountUpn` / `primaryAccountId` columns — map them through
+    // aliases so the response keeps the field names the frontend expects.
     const memberResult = await timedRequest(p, 'identity-by-user-member', res)
       .input('userId', userId)
       .query(`
@@ -475,6 +608,57 @@ router.delete('/identities/:id/members/:userId/override', async (req, res) => {
   } catch (err) {
     console.error('Error removing member override:', err.message);
     res.status(500).json({ error: 'Failed to remove member override' });
+  }
+});
+
+// ─── GET /api/identity-columns ──────────────────────────────────────────
+// Column discovery for the Identities page filter bar. Returns distinct
+// values for a small whitelist of filterable columns, plus the virtual
+// __identityTag column populated with existing tag names. Mirrors the
+// /api/resource-columns shape the useEntityPage hook expects.
+router.get('/identity-columns', async (req, res) => {
+  if (!useSql) return res.json([]);
+  const schemaOnly = req.query.schema === 'true';
+  const FILTER_COLS = [
+    'displayName', 'email', 'department', 'jobTitle',
+    'companyName', 'city', 'country', 'employeeId',
+  ];
+  try {
+    const p = await db.getPool();
+    if (!(await hasTable(p, 'Identities'))) return res.json([]);
+
+    const grouped = {};
+    if (schemaOnly) {
+      for (const col of FILTER_COLS) grouped[col] = [];
+    } else {
+      // One pass per column — each read is cheap (a few hundred distinct
+      // values at most on a real tenant) and keeps the SQL trivial.
+      for (const col of FILTER_COLS) {
+        try {
+          const r = await p.request().query(
+            `SELECT DISTINCT "${col}" AS v FROM "Identities" WHERE "${col}" IS NOT NULL AND "${col}" <> '' ORDER BY "${col}" LIMIT 500`
+          );
+          grouped[col] = r.recordset.map(x => x.v);
+        } catch { grouped[col] = []; }
+      }
+    }
+
+    // Virtual tag-name column.
+    try {
+      const r = await p.request().query(`
+        SELECT t.name
+          FROM "GraphTags" t
+         WHERE t."entityType" = 'identity'
+           AND EXISTS (SELECT 1 FROM "GraphTagAssignments" ta WHERE ta."tagId" = t.id)
+         ORDER BY t.name
+      `);
+      grouped['__identityTag'] = schemaOnly ? [] : r.recordset.map(x => x.name);
+    } catch { /* GraphTags may not exist yet */ }
+
+    return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
+  } catch (err) {
+    console.error('identity-columns failed:', err.message);
+    return res.json([]);
   }
 });
 
