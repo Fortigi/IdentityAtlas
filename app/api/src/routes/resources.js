@@ -202,19 +202,25 @@ router.get('/resources/:id', async (req, res) => {
       tags = r.recordset;
     } catch { /* table may not exist */ }
 
-    // 3. Member count
+    // 3. Member count — broken down by assignmentType so the entity graph
+    //    can show a node per type (Direct / Governed / Owner / Eligible).
     let memberCount = 0;
+    const assignmentByType = { Direct: 0, Governed: 0, Owner: 0, Eligible: 0 };
     try {
-      const r = await timedRequest(pool, 'resource-member-count', res)
+      const r = await timedRequest(pool, 'resource-member-breakdown', res)
         .input('id', resourceId)
         .query(`
-          SELECT COUNT(DISTINCT "principalId") AS cnt
+          SELECT "assignmentType", COUNT(DISTINCT "principalId")::int AS cnt
           FROM "ResourceAssignments"
           WHERE "resourceId" = @id
+          GROUP BY "assignmentType"
         `);
-      memberCount = r.recordset[0].cnt;
+      for (const row of r.recordset) {
+        if (row.assignmentType in assignmentByType) assignmentByType[row.assignmentType] = row.cnt;
+      }
+      memberCount = Object.values(assignmentByType).reduce((a, b) => a + b, 0);
     } catch {
-      // Fall back to permission view
+      // Fall back to permission view (no type breakdown there — leave counts 0)
       try {
         const table = await getPermissionTable(pool);
         const r = await timedRequest(pool, 'resource-member-count-view', res)
@@ -263,7 +269,7 @@ router.get('/resources/:id', async (req, res) => {
       historyCount = r?.cnt ?? 0;
     } catch { /* _history may not exist on older deployments */ }
 
-    res.json({ attributes, tags, memberCount, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0 });
+    res.json({ attributes, tags, memberCount, assignmentByType, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0 });
   } catch (err) {
     console.error('Error fetching resource detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch resource details' });
@@ -304,7 +310,7 @@ router.get('/resources/:id/business-roles', async (req, res) => {
     const r = await timedRequest(pool, 'resource-business-roles', res)
       .input('id', req.params.id)
       .query(`
-        SELECT DISTINCT rr."parentResourceId" AS businessRoleId, br."displayName" AS businessRoleName,
+        SELECT DISTINCT rr."parentResourceId" AS "businessRoleId", br."displayName" AS "businessRoleName",
                rr."roleName", rr."relationshipType"
         FROM "ResourceRelationships" rr
         INNER JOIN "Resources" br ON rr."parentResourceId" = br.id
@@ -330,8 +336,8 @@ router.get('/resources/:id/parent-resources', async (req, res) => {
     const r = await timedRequest(pool, 'resource-parents', res)
       .input('id', req.params.id)
       .query(`
-        SELECT rr."parentResourceId", pr."displayName" AS parentDisplayName,
-               pr."resourceType" AS parentResourceType, rr."relationshipType", rr."roleName"
+        SELECT rr."parentResourceId", pr."displayName" AS "parentDisplayName",
+               pr."resourceType" AS "parentResourceType", rr."relationshipType", rr."roleName"
         FROM "ResourceRelationships" rr
         INNER JOIN "Resources" pr ON rr."parentResourceId" = pr.id
         WHERE rr."childResourceId" = @id

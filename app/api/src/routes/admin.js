@@ -182,7 +182,7 @@ router.get('/admin/export/curated', async (req, res) => {
       const tagRows = await pool.request().query(`
         SELECT t.id, t.name, t.color, t."entityType",
                ta."entityId",
-               COALESCE(gu."displayName", r."displayName") AS entityDisplayName,
+               COALESCE(gu."displayName", r."displayName") AS "entityDisplayName",
                ${hasResources ? 'r."resourceType"' : 'NULL'} AS "resourceType"
         FROM "GraphTags" t
         LEFT JOIN "GraphTagAssignments" ta ON ta."tagId" = t.id
@@ -213,7 +213,7 @@ router.get('/admin/export/curated', async (req, res) => {
     let categories = [];
     if (await tableExists(pool, 'GovernanceCategories')) {
       const catRows = await pool.request().query(`
-        SELECT c.id, c.name, c.color, ca."resourceId", ap."displayName" AS businessRoleDisplayName
+        SELECT c.id, c.name, c.color, ca."resourceId", ap."displayName" AS "businessRoleDisplayName"
         FROM "GovernanceCategories" c
         LEFT JOIN "GovernanceCategoryAssignments" ca ON ca."categoryId" = c.id
         LEFT JOIN "Resources" ap

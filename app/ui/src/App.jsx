@@ -350,7 +350,7 @@ export default function App() {
     if (page.startsWith('access-package:')) {
       const id = page.substring(15);
       const cacheKey = `access-package:${id}`;
-      return <AccessPackageDetailPage key={cacheKey} accessPackageId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('access-package', id)} />;
+      return <AccessPackageDetailPage key={cacheKey} accessPackageId={id} cachedData={detailCacheRef.current[cacheKey]} onCacheData={onCacheData} onClose={() => closeDetailTab('access-package', id)} onOpenDetail={openDetailTab} />;
     }
     if (page.startsWith('department:')) {
       const name = page.substring(11);

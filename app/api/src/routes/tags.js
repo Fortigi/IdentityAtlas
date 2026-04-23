@@ -91,15 +91,18 @@ router.get('/tags', async (req, res) => {
 // ContextMembers directly because Postgres views are not updatable by
 // default.
 
-const ENTITY_TO_TARGET = { user: 'Principal', group: 'Resource', resource: 'Resource' };
+const ENTITY_TO_TARGET = { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Reverse map for emitting back the entityType value the UI sends in.
+const TARGET_TO_ENTITY = { Principal: 'user', Resource: 'resource', Identity: 'identity' };
 
 function tagRowFromContext(c, assignmentCount) {
   return {
     id: c.id,
     name: c.displayName,
     color: (c.extendedAttributes && c.extendedAttributes.tagColor) || '#3b82f6',
-    entityType: c.targetType === 'Principal' ? 'user' : 'resource',
+    entityType: TARGET_TO_ENTITY[c.targetType] || 'resource',
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     assignmentCount: assignmentCount != null ? assignmentCount : undefined,
@@ -112,7 +115,9 @@ router.post('/tags', async (req, res) => {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { name, color, entityType } = req.body;
     if (!name || !entityType) return res.status(400).json({ error: 'name and entityType required' });
-    if (!ENTITY_TO_TARGET[entityType]) return res.status(400).json({ error: 'entityType must be user, group, or resource' });
+    if (!ENTITY_TO_TARGET[entityType]) {
+      return res.status(400).json({ error: 'entityType must be one of user, group, resource, or identity' });
+    }
     if (color && !HEX_COLOR_RE.test(color)) return res.status(400).json({ error: 'color must be a hex value like #3b82f6' });
     const targetType = ENTITY_TO_TARGET[entityType];
 
@@ -289,11 +294,14 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
     let userTableForTags = 'GraphUsers';
     if (entityType === 'user') {
       try {
-        const tc = await p.request().query(`SELECT to_regclass('"Principals"') AS principalsExists`);
+        const tc = await p.request().query(`SELECT to_regclass('"Principals"') AS "principalsExists"`);
         if (tc.recordset[0].principalsExists) userTableForTags = 'Principals';
       } catch { /* ignore */ }
     }
-    const table = entityType === 'user' ? userTableForTags : (entityType === 'resource' ? 'Resources' : 'GraphGroups');
+    const table = entityType === 'user' ? userTableForTags
+                 : entityType === 'resource' ? 'Resources'
+                 : entityType === 'identity' ? 'Identities'
+                 : 'GraphGroups';
     const alias = 'e';
     const search = (rawSearch || '').trim().slice(0, 200);
     const upnColForSearch = userTableForTags === 'Principals' ? 'email' : 'userPrincipalName';
@@ -304,6 +312,8 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
       request.input('search', `%${search}%`);
       if (entityType === 'user') {
         where += ` AND (${alias}.displayName LIKE @search OR ${alias}.${upnColForSearch} LIKE @search)`;
+      } else if (entityType === 'identity') {
+        where += ` AND (${alias}.displayName LIKE @search OR ${alias}.email LIKE @search)`;
       } else {
         where += ` AND (${alias}.displayName LIKE @search OR ${alias}.description LIKE @search)`;
       }
