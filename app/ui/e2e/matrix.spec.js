@@ -14,7 +14,8 @@ test.describe('Matrix View', () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    // Default landing page is Dashboard since v6 — matrix tests must navigate explicitly.
+    await page.goto('/#matrix');
     await page.waitForLoadState('networkidle');
   });
 
