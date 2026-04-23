@@ -64,6 +64,38 @@ function Set-JobResult {
     Write-Host "  Job result: $($Result | ConvertTo-Json -Compress)" -ForegroundColor Gray
 }
 
+# ─── Per-job trace log ───────────────────────────────────────────────
+# Every line this dispatcher and its child scripts print is captured to
+# /data/uploads/jobs/{id}.log so the UI's "Trace" tab can show operators
+# exactly what the crawler was doing at each step — without requiring
+# SSH into the worker container. The job_data volume is shared between
+# worker and web, so the web container can read the file back out.
+$traceDir  = '/data/uploads/jobs'
+$traceFile = Join-Path $traceDir "$JobId.log"
+$transcriptStarted = $false
+try {
+    New-Item -ItemType Directory -Path $traceDir -Force -ErrorAction SilentlyContinue | Out-Null
+    Start-Transcript -Path $traceFile -Force | Out-Null
+    $transcriptStarted = $true
+} catch {
+    Write-Host "  (trace: failed to start transcript: $($_.Exception.Message))" -ForegroundColor Yellow
+}
+
+# Retention — keep the 20 most recent job logs, drop the rest. Cheap to
+# run here (a few dozen `stat`s against a single directory) and avoids
+# adding a separate cron or web-bootstrap hook.
+try {
+    $keep = 20
+    $all = Get-ChildItem -Path $traceDir -Filter '*.log' -File -ErrorAction SilentlyContinue |
+        Sort-Object -Property LastWriteTime -Descending
+    if ($all -and $all.Count -gt $keep) {
+        $all | Select-Object -Skip $keep | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+} catch {
+    # Non-fatal: a failed retention sweep never blocks the job itself.
+}
+
+try {
 switch ($JobType) {
 
     'demo' {
@@ -264,5 +296,10 @@ switch ($JobType) {
 
     default {
         throw "Unknown job type: $JobType"
+    }
+}
+} finally {
+    if ($transcriptStarted) {
+        try { Stop-Transcript | Out-Null } catch {}
     }
 }
