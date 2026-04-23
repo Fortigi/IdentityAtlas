@@ -1772,14 +1772,49 @@ if ($SyncGovernance) {
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access review decisions)..." -ForegroundColor Cyan
         try {
             $reviewDefs = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions?`$top=100"
+            Write-Host "  Found $($reviewDefs.Count) review definitions; filtering to access-package scoped..." -ForegroundColor Gray
             $certRecords = @()
+            $skippedNoScope     = 0
+            $skippedNoApMatch   = 0
+            $sampleLogged       = 0
             foreach ($def in $reviewDefs) {
-                $scopeQuery = if ($def.scope) { $def.scope.query } else { $null }
-                if (-not $scopeQuery -or $scopeQuery -notmatch 'accessPackages') { continue }
-                # Extract the access package id from the scope query
+                # Graph's access-review scope shape evolved: older definitions
+                # used `scope.query`, newer ones use `resourceScope.query`
+                # (with `principalScope` carrying the who). Access-package
+                # reviews created since ~2024 all live in `resourceScope`.
+                # Collect every query string we can find and test all of them.
+                $queryStrings = @()
+                if ($def.scope         -and $def.scope.query)         { $queryStrings += $def.scope.query }
+                if ($def.resourceScope -and $def.resourceScope.query) { $queryStrings += $def.resourceScope.query }
+                if ($def.scopes) {
+                    foreach ($s in $def.scopes) {
+                        if ($s.query) { $queryStrings += $s.query }
+                    }
+                }
+                if ($queryStrings.Count -eq 0) {
+                    $skippedNoScope++
+                    if ($sampleLogged -lt 2) {
+                        Write-Host "    (sample skip, no scope/resourceScope.query on def $($def.id): $($def | ConvertTo-Json -Depth 3 -Compress))" -ForegroundColor DarkGray
+                        $sampleLogged++
+                    }
+                    continue
+                }
+                # Match both shapes:
+                #   path-style:   ".../accessPackages/<uuid>/..."
+                #   filter-style: "accessPackage/id eq '<uuid>'"
                 $apId = $null
-                if ($scopeQuery -match "accessPackages/([0-9a-fA-F-]{36})") { $apId = $Matches[1] }
-                if (-not $apId) { continue }
+                foreach ($q in $queryStrings) {
+                    if ($q -match "accessPackages/([0-9a-fA-F-]{36})")         { $apId = $Matches[1]; break }
+                    elseif ($q -match "accessPackage/id eq '([0-9a-fA-F-]{36})'") { $apId = $Matches[1]; break }
+                }
+                if (-not $apId) {
+                    $skippedNoApMatch++
+                    if ($sampleLogged -lt 2) {
+                        Write-Host "    (sample skip, no AP id in queries: $($queryStrings -join ' | '))" -ForegroundColor DarkGray
+                        $sampleLogged++
+                    }
+                    continue
+                }
                 try {
                     $instances = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($def.id)/instances?`$top=100"
                     foreach ($inst in $instances) {
@@ -1812,6 +1847,7 @@ if ($SyncGovernance) {
                     Write-Host "  Skipping review definition $($def.id): $($_.Exception.Message)" -ForegroundColor Yellow
                 }
             }
+            Write-Host "  Review definitions: $($reviewDefs.Count) total; skipped $skippedNoScope (no scope) + $skippedNoApMatch (no access-package id) = $($skippedNoScope + $skippedNoApMatch) skipped; kept $($reviewDefs.Count - $skippedNoScope - $skippedNoApMatch)" -ForegroundColor Gray
             if ($certRecords.Count -gt 0) {
                 Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $systemId -SyncMode 'full' -Records $certRecords
             } else {
