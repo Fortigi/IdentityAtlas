@@ -218,7 +218,7 @@ function ensureVaultKey() {
 // (parentContextId IS NULL) on every boot. Tags created via /api/tags
 // after this also attach under the right root.
 async function ensureTagRoots() {
-  const TARGET_TYPES = ['Principal', 'Resource'];
+  const TARGET_TYPES = ['Principal', 'Resource', 'Identity'];
   for (const targetType of TARGET_TYPES) {
     let root = await db.queryOne(
       `SELECT id FROM "Contexts"
