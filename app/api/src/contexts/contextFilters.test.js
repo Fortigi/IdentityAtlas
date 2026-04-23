@@ -9,7 +9,40 @@ describe('buildContextFilterSql', () => {
     const out = buildContextFilterSql([]);
     expect(out.principalClauses).toEqual([]);
     expect(out.resourceClauses).toEqual([]);
+    expect(out.innerPrincipalClauses).toEqual([]);
+    expect(out.innerResourceClauses).toEqual([]);
     expect(out.bindings).toEqual({});
+  });
+
+  it('emits unaliased inner clauses alongside aliased outer ones for Principal filters', () => {
+    // The inner clauses get inlined into the top-N subquery in permissions.js
+    // where "principalId" has no alias — no `p.` prefix is allowed.
+    const out = buildContextFilterSql([
+      { id: UUID_A, includeChildren: false, targetType: 'Principal' },
+    ]);
+    expect(out.principalClauses[0]).toMatch(/^p\."principalId" IN/);
+    expect(out.innerPrincipalClauses).toHaveLength(1);
+    expect(out.innerPrincipalClauses[0]).toMatch(/^"principalId" IN/);
+    expect(out.innerPrincipalClauses[0]).not.toMatch(/p\./);
+  });
+
+  it('emits unaliased inner resource clause for Resource filters', () => {
+    const out = buildContextFilterSql([
+      { id: UUID_A, includeChildren: true, targetType: 'Resource' },
+    ]);
+    expect(out.resourceClauses[0]).toMatch(/^r\.id IN/);
+    expect(out.innerResourceClauses).toHaveLength(1);
+    // Top-N subquery reads from vw_ResourceUserPermissionAssignments which
+    // exposes "resourceId" (not r.id).
+    expect(out.innerResourceClauses[0]).toMatch(/^"resourceId" IN/);
+  });
+
+  it('does not emit an inner clause for System filters (view has no systemId)', () => {
+    const out = buildContextFilterSql([
+      { id: UUID_A, includeChildren: false, targetType: 'System' },
+    ]);
+    expect(out.resourceClauses).toHaveLength(1);
+    expect(out.innerResourceClauses).toHaveLength(0);
   });
 
   it('generates a principal clause for Identity target', () => {

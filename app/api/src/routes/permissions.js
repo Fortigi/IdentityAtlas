@@ -173,10 +173,20 @@ router.get('/permissions', async (req, res) => {
           return r.rows || [];
         },
       );
-      const { principalClauses: ctxPrincipalClauses, resourceClauses: ctxResourceClauses, bindings: ctxBindings } =
-        buildContextFilterSql(resolvedContextFilters);
+      const {
+        principalClauses: ctxPrincipalClauses,
+        resourceClauses: ctxResourceClauses,
+        innerPrincipalClauses: ctxInnerPrincipalClauses,
+        innerResourceClauses: ctxInnerResourceClauses,
+        bindings: ctxBindings,
+      } = buildContextFilterSql(resolvedContextFilters);
       const ctxPrincipalWhere = ctxPrincipalClauses.length ? ' AND ' + ctxPrincipalClauses.join(' AND ') : '';
       const ctxResourceWhere  = ctxResourceClauses.length  ? ' AND ' + ctxResourceClauses.join(' AND ') : '';
+      // Apply context filters inside the top-N subquery too, so the top-25
+      // users are picked from within the filter (not just intersected after).
+      const ctxInnerWhere =
+        (ctxInnerPrincipalClauses.length ? ' AND ' + ctxInnerPrincipalClauses.join(' AND ') : '') +
+        (ctxInnerResourceClauses.length  ? ' AND ' + ctxInnerResourceClauses.join(' AND ')  : '');
 
       // Extract special tag filters before regular validation
       let userTagFilter = null;
@@ -300,6 +310,7 @@ router.get('/permissions', async (req, res) => {
           userIdClause = `p."principalId" IN (
             SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
             WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
+              ${ctxInnerWhere}
             GROUP BY "principalId"
             ORDER BY COUNT(*) DESC
             LIMIT @userLimit
@@ -360,9 +371,15 @@ router.get('/permissions', async (req, res) => {
             apWhere = `WHERE ap."userId" = ANY(@apPrincipalIds)`;
           } else {
             apReq.input('apUserLimit', userLimit);
+            // Context-filter bindings also needed here so the inner subquery
+            // resolves the same top-N set as the main query.
+            for (const [name, val] of Object.entries(ctxBindings)) {
+              apReq.input(name, val);
+            }
             apWhere = `WHERE ap."userId" IN (
               SELECT "principalId" FROM "vw_ResourceUserPermissionAssignments"
               WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')
+                ${ctxInnerWhere}
               GROUP BY "principalId"
               ORDER BY COUNT(*) DESC
               LIMIT @apUserLimit
