@@ -6,7 +6,7 @@ Permissions are scattered across identity systems, directories, and SaaS platfor
 
 ## Quick Start
 
-**Prerequisites:** Docker and Docker Compose.
+**Prerequisites:** Docker and Docker Compose. See [Sizing](docs/architecture/docker-setup.md#sizing) for RAM/disk guidance — 4 GB suffices for a demo or a small tenant, but tenants above ~2k principals with activity sync enabled should plan for 12 GB or more.
 
 ```bash
 # 1. Download the compose file and environment template

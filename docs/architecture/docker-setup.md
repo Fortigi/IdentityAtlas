@@ -87,6 +87,58 @@ IMAGE_TAG=5.2.0.0 docker compose -f docker-compose.prod.yml up -d --pull always
 
 ---
 
+## Sizing
+
+Identity Atlas runs all three services (postgres, web, worker) on one host. These numbers are the floor — RAM first, disk second. The RAM figure is what the crawler's peak workload needs in steady state; tight provisioning causes the container runtime to thrash when a sync runs, not at idle. The disk figure is for the `postgres_data` volume plus the backing image layers.
+
+| Tenant shape | Principals | Activity sync | RAM | Disk |
+|---|---|---|---|---|
+| Small | < 2k | off | **4 GB** | 20 GB |
+| Small + activity | < 2k | on (7 days) | **6 GB** | 40 GB |
+| Medium | 2k – 10k | off | **6 GB** | 40 GB |
+| Medium + activity | 2k – 10k | on (7 days) | **12 GB** | 60 GB |
+| Large | 10k – 50k | mixed | **16+ GB** | 100+ GB |
+| Enterprise | 50k+ | on | **24+ GB** | 250+ GB |
+
+### Why activity data dominates
+
+"Activity sync" above means the Entra ID crawler's **sign-in logs** option (and, going forward, other activity feeds: audit logs, MFA challenges, consent events). Principal and resource tables stay roughly proportional to your org chart — a 10k-user tenant has ~10k rows in `Principals`. **Activity tables are one-to-many over time**: the same 10k tenant emits ~170,000 sign-in events per week (`/auditLogs/signIns`), 17× the user count.
+
+Three levers control the activity footprint:
+
+- **`signInLogsDays`** (crawler wizard → Advanced) — linear in RAM and disk. Default 7 days. Graph retains 30, so at the extreme you multiply the numbers above by ~4.
+- **Retention policy in `PrincipalActivity`** — we only store the latest event per `(principalId, appId)` pair, so the table doesn't grow indefinitely. But each daily crawl holds the raw slice in memory before dedup.
+- **Number of active crawlers** — each additional connected system (CSV imports, future SailPoint/Omada connectors, etc.) adds its own principal/resource/activity rows. Plan ~50% headroom above the shape in the table for a second system.
+
+### What to watch as usage grows
+
+Until the admin capacity dashboard ships, use these spot-checks:
+
+```bash
+# Host memory pressure during a crawl
+ssh <host> 'free -h && swapon --show'
+
+# Postgres disk usage by table (top 10)
+docker compose exec postgres psql -U identity_atlas -d identity_atlas -c \
+  "SELECT schemaname, relname, pg_size_pretty(pg_total_relation_size(relid))
+     FROM pg_catalog.pg_statio_user_tables
+    ORDER BY pg_total_relation_size(relid) DESC LIMIT 10;"
+
+# Crawler duration trend — a run that doubles week-over-week is your early warning
+docker compose exec postgres psql -U identity_atlas -d identity_atlas -c \
+  "SELECT \"jobType\", \"startedAt\", \"completedAt\" - \"startedAt\" AS duration
+     FROM \"CrawlerJobs\" WHERE status='completed'
+    ORDER BY \"startedAt\" DESC LIMIT 20;"
+```
+
+**Red flags**: swap in use at all (disable swap and size RAM properly), `PrincipalActivity` > 40% of total DB size (tune `signInLogsDays` down or plan a vertical scale), a single crawler run taking longer than the scheduled interval.
+
+### Swap
+
+Do **not** rely on swap to carry crawler peaks. The workloads here (Node's V8 heap, PowerShell's .NET object graph, Postgres shared buffers) all degrade sharply under paging. If the table above says 12 GB, give it 12 GB of real RAM. A small swap partition (1–2 GB) as a safety net against OOM-kills is fine; anything larger invites false confidence.
+
+---
+
 ## Developer Setup (From Source)
 
 For contributors who want to build and modify the code locally.
