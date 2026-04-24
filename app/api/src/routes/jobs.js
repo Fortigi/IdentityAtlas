@@ -5,8 +5,16 @@
  */
 import { Router } from 'express';
 import * as db from '../db/connection.js';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readdirSync, promises as fs } from 'fs';
+import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
+
+const TRACE_DIR = '/data/uploads/jobs';
+// Tail endpoint returns at most this many bytes per request. If the file is
+// larger than offset + MAX, the client polls again with the new offset. Keeps
+// any single response small enough that a ~10 MB log on a long crawl streams
+// to the UI in a dozen or so polls rather than one giant payload.
+const MAX_TRACE_CHUNK = 256 * 1024;  // 256 KB
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -45,7 +53,7 @@ const GRAPH_PERMISSION_MAP = {
   // DelegatedPermissionGrant.Read.All — required to read /oauth2PermissionGrants
   // so the crawler can ingest per-user delegated consents (user authorized app
   // X to read their mail on their behalf). Directory.Read.All is NOT sufficient.
-  '41ce6ca6-6826-4807-84f1-1c82854f7ee5': 'DelegatedPermissionGrant.Read.All',
+  '81b4724a-58aa-41c1-8a55-84ef97466587': 'DelegatedPermissionGrant.Read.All',
   // Role-management / PIM directory. Not strictly required but nice to surface
   // so the admin can see whether PIM-for-roles is available to the crawler.
   '483bed4a-2ad3-4361-a73b-c83ccdbdc53c': 'RoleManagement.Read.Directory',
@@ -74,7 +82,7 @@ const GRAPH_PERMISSION_ALIASES = {
   // RoleManagement.ReadWrite.Directory → RoleManagement.Read.Directory
   '9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8': 'RoleManagement.Read.Directory',
   // DelegatedPermissionGrant.ReadWrite.All → DelegatedPermissionGrant.Read.All
-  '8e8e4742-1d95-4f68-9d56-6ee75648c72a': 'DelegatedPermissionGrant.Read.All',
+  '41ce6ca6-6826-4807-84f1-1c82854f7ee5': 'DelegatedPermissionGrant.Read.All',
 };
 
 // Which permissions enable which object types
@@ -193,7 +201,10 @@ router.patch('/admin/crawler-configs/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid config ID' });
 
-  const { displayName, config } = req.body;
+  const { displayName, config, nextRunMode } = req.body;
+  if (nextRunMode !== undefined && nextRunMode !== 'full' && nextRunMode !== 'delta') {
+    return res.status(400).json({ error: 'nextRunMode must be "full" or "delta"' });
+  }
 
   try {
     const pool = await db.getPool();
@@ -213,12 +224,17 @@ router.patch('/admin/crawler-configs/:id', async (req, res) => {
       mergedConfig = { ...mergedConfig, ...incoming };
     }
 
-    const sets = ['config = @config', 'updatedAt = now()'];
+    const sets = ['config = @config', '"updatedAt" = now()'];
     const request = pool.request().input('id', id).input('config', JSON.stringify(mergedConfig));
 
     if (displayName !== undefined) {
       sets.push('"displayName" = @displayName');
       request.input('displayName', displayName.trim().slice(0, 255));
+    }
+
+    if (nextRunMode !== undefined) {
+      sets.push('"nextRunMode" = @nextRunMode');
+      request.input('nextRunMode', nextRunMode);
     }
 
     const result = await request.query(
@@ -660,9 +676,12 @@ router.post('/admin/discover-graph-attributes', async (req, res) => {
 router.post('/admin/crawler-jobs', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
-  const { jobType, config, configId } = req.body;
+  const { jobType, config, configId, syncMode: explicitSyncMode } = req.body;
   if (!jobType || !VALID_JOB_TYPES.includes(jobType)) {
     return res.status(400).json({ error: `jobType must be one of: ${VALID_JOB_TYPES.join(', ')}` });
+  }
+  if (explicitSyncMode !== undefined && explicitSyncMode !== 'full' && explicitSyncMode !== 'delta') {
+    return res.status(400).json({ error: 'syncMode must be "full" or "delta"' });
   }
 
   try {
@@ -681,15 +700,17 @@ router.post('/admin/crawler-jobs', async (req, res) => {
 
     // Resolve config: from configId (stored config) or inline
     let resolvedConfig = config || null;
+    let configNextRunMode = null;
     if (configId) {
       const cfgResult = await pool.request().input('configId', configId)
-        .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @configId AND "enabled" = TRUE`);
+        .query(`SELECT config, "nextRunMode" FROM "CrawlerConfigs" WHERE id = @configId AND "enabled" = TRUE`);
       if (cfgResult.recordset.length === 0) {
         return res.status(404).json({ error: 'Crawler config not found' });
       }
       // jsonb is auto-parsed by pg; legacy string column may still appear in tests.
       const raw = cfgResult.recordset[0].config;
       resolvedConfig = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      configNextRunMode = cfgResult.recordset[0].nextRunMode || 'delta';
     }
 
     // Validate entra-id has credentials
@@ -722,9 +743,14 @@ router.post('/admin/crawler-jobs', async (req, res) => {
     // manual "Run Now" requests, which made the Crawlers page render the
     // "Force Stop" button on EVERY config of that type. Workers ignore
     // unknown fields so this is non-breaking.
+    // Explicit syncMode in the request body wins (the "Run Delta" / "Run
+    // Full" buttons). Falls back to the stored config's nextRunMode toggle,
+    // then delta. Inline configs without a configId still accept an explicit
+    // syncMode so API clients can control it.
+    const effectiveSyncMode = explicitSyncMode || configNextRunMode || 'delta';
     const configToStore = configId
-      ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId }
-      : resolvedConfig;
+      ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
+      : (resolvedConfig ? { ...resolvedConfig, _syncMode: effectiveSyncMode } : null);
     const configJson = configToStore ? JSON.stringify(configToStore) : null;
 
     const result = await pool.request()
@@ -781,6 +807,54 @@ router.get('/admin/crawler-jobs/:id', async (req, res) => {
   } catch (err) {
     console.error('Error fetching crawler job:', err.message);
     res.status(500).json({ error: 'Failed to fetch job' });
+  }
+});
+
+// GET /api/admin/crawler-jobs/:id/log — tail the per-job trace log.
+//
+// The worker's Invoke-CrawlerJob.ps1 wraps each run in Start-Transcript,
+// writing every Write-Host line (plus child script output) to
+// /data/uploads/jobs/{id}.log. That volume is also mounted into the web
+// container, so we can read it here.
+//
+// Query params:
+//   offset — byte position to read from (client passes back the totalLength
+//            it received last time for efficient incremental polling)
+// Response:
+//   { text: <string>, offset: <int>, totalLength: <int>, truncated: <bool>,
+//     exists: <bool> }
+//
+// `truncated=true` means the response was capped at MAX_TRACE_CHUNK bytes
+// — the client should poll again with the new offset (offset + text.length).
+router.get('/admin/crawler-jobs/:id/log', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id < 0) return res.status(400).json({ error: 'Invalid job ID' });
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+
+  const logPath = path.join(TRACE_DIR, `${id}.log`);
+  try {
+    const stat = await fs.stat(logPath);
+    const totalLength = stat.size;
+    if (offset >= totalLength) {
+      return res.json({ text: '', offset, totalLength, truncated: false, exists: true });
+    }
+    const length = Math.min(MAX_TRACE_CHUNK, totalLength - offset);
+    const fh = await fs.open(logPath, 'r');
+    try {
+      const buf = Buffer.alloc(length);
+      await fh.read(buf, 0, length, offset);
+      const text = buf.toString('utf8');
+      const truncated = (offset + length) < totalLength;
+      return res.json({ text, offset, totalLength, truncated, exists: true });
+    } finally {
+      await fh.close();
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return res.json({ text: '', offset: 0, totalLength: 0, truncated: false, exists: false });
+    }
+    console.error(`Error reading trace log for job ${id}:`, err.message);
+    res.status(500).json({ error: 'Failed to read trace log' });
   }
 });
 

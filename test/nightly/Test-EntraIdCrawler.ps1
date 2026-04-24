@@ -78,7 +78,17 @@ Param(
     [scriptblock]$WriteResult,
     [int]$PerJobTimeoutSeconds = 600,
     [string[]]$Scenarios,
-    [switch]$KeepConfigs
+    [switch]$KeepConfigs,
+    # When true (the default on CI against the demo tenant), the pre-flight
+    # fails if *any* permission in GRAPH_PERMISSION_MAP is reported as
+    # ungranted. This is how we catch regressions like the April 2026
+    # DelegatedPermissionGrant.Read.All GUID bug, where the endpoint silently
+    # reported a granted permission as missing because the wizard was asking
+    # about the wrong app-role id. Pass -StrictPermissions:$false to run
+    # against a tenant with intentionally reduced permissions.
+    # ([bool] rather than [switch] so a default of $true doesn't trip
+    # PSAvoidDefaultValueSwitchParameter.)
+    [bool]$StrictPermissions = $true
 )
 
 $ErrorActionPreference = 'Continue'
@@ -303,6 +313,12 @@ function Invoke-Scenario {
 # ─── Pre-flight: validate creds before running any scenario ───────
 # We do this once even though it's also implicitly tested below — fast feedback
 # if the secrets file is wrong before we burn time on a job.
+#
+# Under -StrictPermissions (default), every permission in the wizard's
+# GRAPH_PERMISSION_MAP must come back as granted. This catches GUID-mapping
+# bugs in jobs.js where a permission is granted on the app registration but
+# the wizard reports it missing because it's checking the wrong app-role id
+# (April 2026 regression for DelegatedPermissionGrant.Read.All).
 Write-Host "  Pre-flight: validating credentials..." -ForegroundColor Gray
 try {
     $vr = Invoke-LocalApi -Path '/admin/validate-graph-credentials' -Method POST -Body @{
@@ -315,8 +331,26 @@ try {
         if ($WriteResult) { & $WriteResult 'EntraID-Crawler-Tests' $false 'pre-flight validation failed' }
         return
     }
-    $grantedCount = ($vr.permissions.PSObject.Properties | Where-Object { $_.Value }).Count
+    $grantedProps = @($vr.permissions.PSObject.Properties | Where-Object { $_.Value })
+    $missingProps = @($vr.permissions.PSObject.Properties | Where-Object { -not $_.Value })
+    $grantedCount = $grantedProps.Count
     Report-Result 'EntraID/Validate-Only' $true "org=$($vr.organization) · $grantedCount permissions granted"
+
+    # Per-permission assertions — one row per permission in the response so a
+    # single missing grant stands out in the results table.
+    foreach ($p in $vr.permissions.PSObject.Properties) {
+        Report-Result "EntraID/Validate-Only/Permission/$($p.Name)" ([bool]$p.Value) $(if ($p.Value) { 'granted' } else { 'NOT granted' })
+    }
+
+    if ($StrictPermissions -and $missingProps.Count -gt 0) {
+        $names = ($missingProps | ForEach-Object { $_.Name }) -join ', '
+        Report-Result 'EntraID/Validate-Only/AllGranted' $false "missing: $names"
+        if ($WriteResult) { & $WriteResult 'EntraID-Crawler-Tests' $false "pre-flight: $($missingProps.Count) permission(s) missing" }
+        return
+    }
+    if ($StrictPermissions) {
+        Report-Result 'EntraID/Validate-Only/AllGranted' $true "all $grantedCount permissions granted"
+    }
 } catch {
     Report-Result 'EntraID/Validate-Only' $false $_.Exception.Message
     if ($WriteResult) { & $WriteResult 'EntraID-Crawler-Tests' $false 'pre-flight validation threw' }
@@ -586,20 +620,78 @@ foreach ($scenario in $Scenarios) {
         }
 
         'Full-Sync' {
+            # Every object type in ENTRA_OBJECT_TYPES is enabled here so the
+            # scenario proves that every permission on the demo app
+            # registration does something useful. If a new object type is
+            # added to jobs.js, add it here too — a partial full-sync
+            # defeats the point of this test.
             Invoke-Scenario -Name 'Full-Sync' `
                 -SelectedObjects @{
                     identity           = $true
                     context            = $true
                     usersGroupsMembers = $true
+                    servicePrincipals  = $true
                     identityGovernance = $true
                     appsAppRoles       = $true
                     directoryRoles     = $true
+                    pim                = $true
+                    signInLogs         = $true
+                    oauth2Grants       = $true
                 } `
                 -ExtraAssertions {
                     # Basic existence checks
                     Assert-ApiCount -Name 'EntraID/Full-Sync/UsersExist'         -Path '/users?pageSize=1'           -MinExpected 1
                     Assert-ApiCount -Name 'EntraID/Full-Sync/ResourcesExist'     -Path '/resources?pageSize=1'       -MinExpected 1
                     Assert-ApiCount -Name 'EntraID/Full-Sync/SystemsExist'       -Path '/systems'                    -MinExpected 1
+
+                    # Per-object-type presence checks — prove each enabled
+                    # object type actually produced rows (or at least that
+                    # the read-side endpoint responds cleanly when it may
+                    # legitimately be empty on the demo tenant).
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/Context'          -Path '/contexts'                                    -MinExpected 1
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/Identities'       -Path '/identities?pageSize=1'                       -MinExpected 1
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/UsersGroups'      -Path '/resources?resourceType=EntraGroup&limit=1'   -MinExpected 1
+
+                    # ServicePrincipals — the /users endpoint has no
+                    # principalType filter, so we fetch a page and check the
+                    # mix ourselves. A non-zero count proves the SP sync ran.
+                    try {
+                        $usersPage = Invoke-LocalApi -Path '/users?limit=2000'
+                        $spCount = @($usersPage.data | Where-Object { $_.principalType -eq 'ServicePrincipal' -or $_.principalType -eq 'ManagedIdentity' -or $_.principalType -eq 'AIAgent' }).Count
+                        if ($spCount -ge 1) {
+                            Report-Result 'EntraID/Full-Sync/ServicePrincipals' $true "spCount=$spCount"
+                        } else {
+                            Report-Result 'EntraID/Full-Sync/ServicePrincipals' $false 'no principals with principalType in (ServicePrincipal,ManagedIdentity,AIAgent)'
+                        }
+                    } catch {
+                        Report-Result 'EntraID/Full-Sync/ServicePrincipals' $false $_.Exception.Message
+                    }
+
+                    # OAuth2 delegated grants — best-effort: prove the
+                    # endpoint responds. A clean demo tenant may have zero
+                    # per-user consents, so count ≥ 0 is fine (the query
+                    # succeeding at all confirms the crawler didn't poison
+                    # the Resources table).
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/OAuth2Grants'     -Path '/resources?resourceType=DelegatedPermission&limit=1' -MinExpected 0
+
+                    # PIM eligible memberships surface through /permissions
+                    # with membershipType='Eligible'. We just confirm the
+                    # endpoint responds; a non-PIM-enabled tenant returns
+                    # zero eligible rows, which is correct.
+                    try {
+                        Invoke-LocalApi -Path '/permissions?userLimit=1' | Out-Null
+                        Report-Result 'EntraID/Full-Sync/PimEndpoint' $true 'permissions endpoint queryable'
+                    } catch {
+                        Report-Result 'EntraID/Full-Sync/PimEndpoint' $false $_.Exception.Message
+                    }
+
+                    # NOTE: `directoryRoles` and `appsAppRoles` are listed in
+                    # ENTRA_OBJECT_TYPES and we enable them above so the
+                    # crawler's wiring is exercised, but Start-EntraIDCrawler
+                    # does not currently emit rows for them (April 2026 —
+                    # crawler docstring claims it does, but the code path
+                    # isn't there yet). Add count assertions here once the
+                    # crawler writes those resource types.
 
                     # Deep regression checks. These exist because the naive
                     # "did anything come back" assertion silently passed during

@@ -80,12 +80,27 @@ async function recentlyQueuedJobExists(configId, jobType) {
 async function queueScheduledJob(configRow, scheduleIndex) {
   const cfg = typeof configRow.config === 'string' ? JSON.parse(configRow.config) : configRow.config;
 
+  // Resolve the effective syncMode for this scheduled run.
+  //   1. Explicit `syncMode` on the schedule entry itself (operator config —
+  //      e.g. "daily deltas at 02/08/14/20, weekly full on Sunday").
+  //   2. Otherwise fall through to the config-level `nextRunMode` override
+  //      (the "Force full sync next run" toggle on the crawler card, which
+  //      stays sticky until the scheduler itself resets it below).
+  //   3. Otherwise default to 'delta'.
+  const schedules = cfg.schedules?.length ? cfg.schedules : (cfg.schedule ? [cfg.schedule] : []);
+  const thisSchedule = schedules[scheduleIndex] || {};
+  const scheduleSyncMode = ['full', 'delta'].includes(thisSchedule.syncMode) ? thisSchedule.syncMode : null;
+  const effectiveSyncMode = scheduleSyncMode
+    || (['full', 'delta'].includes(configRow.nextRunMode) ? configRow.nextRunMode : null)
+    || 'delta';
+
   // Stamp the config with the schedule's configId so we can look it up later
   // without adding a new column. Non-breaking: workers ignore unknown fields.
   const jobConfig = {
     ...cfg,
     _scheduledByConfigId: configRow.id,
     _scheduleIndex: scheduleIndex,
+    _syncMode: effectiveSyncMode,
   };
 
   // The jobType is derived from crawlerType. The CrawlerConfigs.crawlerType is
@@ -153,7 +168,7 @@ async function tick() {
     // Load all enabled crawler configs that have at least one schedule
     // Support both 'schedules' (array, new format) and 'schedule' (object, legacy)
     const crawlerRows = await db.query(
-      `SELECT id, "crawlerType", "displayName", config
+      `SELECT id, "crawlerType", "displayName", config, "nextRunMode"
          FROM "CrawlerConfigs"
         WHERE enabled = TRUE
           AND (

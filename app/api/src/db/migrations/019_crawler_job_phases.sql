@@ -1,0 +1,23 @@
+-- Per-phase outcomes on CrawlerJobs.
+--
+-- The previous single-string `errorMessage` only records the FAILED phases,
+-- and only as free text. The UI needs a structured breakdown so operators
+-- can tell which phases succeeded, which failed, how long each took, and
+-- what record counts each produced — without parsing a wall of text.
+--
+-- Shape (one object per phase):
+--   {
+--     "name":       "Governance/AssignmentPolicies",
+--     "status":     "ok" | "failed" | "skipped",
+--     "startedAt":  "2026-04-21T07:56:00Z",
+--     "endedAt":    "2026-04-21T07:56:04Z",
+--     "durationMs": 4000,
+--     "records":    { "inserted": 0, "updated": 150 }  -- phase-specific
+--     "error":      "HTTP 400 — Resource not found..."  -- only on failed
+--   }
+--
+-- Nullable so existing rows are unaffected. Crawlers that haven't been
+-- updated yet simply leave it null and the UI falls back to the old
+-- single-line errorMessage.
+ALTER TABLE "CrawlerJobs"
+    ADD COLUMN IF NOT EXISTS "phases" JSONB;

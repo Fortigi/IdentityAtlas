@@ -93,7 +93,8 @@ loadAuthConfig().catch(err => {
 // HSTS and CSP `upgrade-insecure-requests` are opt-in via BEHIND_TLS=true.
 // The default deployment story is plain HTTP on port 3001; sending these
 // headers over HTTP traps browsers into HTTPS-only for a year and then fails
-// because there's no TLS listener.
+// because there's no TLS listener. Set BEHIND_TLS=true only when a TLS
+// terminator (Caddy, nginx, Azure Front Door) sits in front of the container.
 const behindTls = process.env.BEHIND_TLS === 'true';
 app.use(helmet({
   contentSecurityPolicy: {

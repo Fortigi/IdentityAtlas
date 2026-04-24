@@ -64,6 +64,38 @@ function Set-JobResult {
     Write-Host "  Job result: $($Result | ConvertTo-Json -Compress)" -ForegroundColor Gray
 }
 
+# ─── Per-job trace log ───────────────────────────────────────────────
+# Every line this dispatcher and its child scripts print is captured to
+# /data/uploads/jobs/{id}.log so the UI's "Trace" tab can show operators
+# exactly what the crawler was doing at each step — without requiring
+# SSH into the worker container. The job_data volume is shared between
+# worker and web, so the web container can read the file back out.
+$traceDir  = '/data/uploads/jobs'
+$traceFile = Join-Path $traceDir "$JobId.log"
+$transcriptStarted = $false
+try {
+    New-Item -ItemType Directory -Path $traceDir -Force -ErrorAction SilentlyContinue | Out-Null
+    Start-Transcript -Path $traceFile -Force | Out-Null
+    $transcriptStarted = $true
+} catch {
+    Write-Host "  (trace: failed to start transcript: $($_.Exception.Message))" -ForegroundColor Yellow
+}
+
+# Retention — keep the 20 most recent job logs, drop the rest. Cheap to
+# run here (a few dozen `stat`s against a single directory) and avoids
+# adding a separate cron or web-bootstrap hook.
+try {
+    $keep = 20
+    $all = Get-ChildItem -Path $traceDir -Filter '*.log' -File -ErrorAction SilentlyContinue |
+        Sort-Object -Property LastWriteTime -Descending
+    if ($all -and $all.Count -gt $keep) {
+        $all | Select-Object -Skip $keep | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+} catch {
+    # Non-fatal: a failed retention sweep never blocks the job itself.
+}
+
+try {
 switch ($JobType) {
 
     'demo' {
@@ -121,6 +153,15 @@ switch ($JobType) {
                 ConfigFile = $tempConfig
                 JobId      = $JobId
             }
+
+            # Forward sync mode. POST /admin/crawler-jobs stamps `_syncMode`
+            # into the config blob from CrawlerConfigs.nextRunMode. Absent/
+            # unknown values default to 'delta' so legacy configs keep
+            # working (they simply haven't opted into delta yet — the
+            # crawler's priming call still harvests a token the first run).
+            $syncMode = if ($Config['_syncMode'] -in @('full','delta')) { $Config['_syncMode'] } else { 'delta' }
+            $crawlerParams['SyncMode'] = $syncMode
+            Write-Host "  Sync mode: $syncMode" -ForegroundColor Gray
 
             # Apply sync toggles from selectedObjects or direct config keys
             $objects = $Config['selectedObjects']
@@ -191,6 +232,23 @@ switch ($JobType) {
             }
 
             Update-JobProgress -Step 'Complete' -Pct 100
+
+            # If this was a full-mode run (operator-requested re-sync), flip
+            # the source config back to delta so the next scheduled run uses
+            # the fast path. Failure here is non-fatal: next run will just
+            # also be full, which is slow but correct.
+            if ($syncMode -eq 'full' -and $Config['_scheduledByConfigId']) {
+                try {
+                    $cid = [int]$Config['_scheduledByConfigId']
+                    $headers = @{ 'Authorization' = "Bearer $ApiKey" }
+                    Invoke-RestMethod -Uri "$apiBaseUrl/crawlers/configs/$cid/mark-delta-mode" `
+                        -Method Post -Headers $headers -TimeoutSec 10 | Out-Null
+                    Write-Host "  Reset nextRunMode to 'delta' on config $cid" -ForegroundColor Gray
+                } catch {
+                    Write-Host "  (mark-delta-mode failed: $($_.Exception.Message))" -ForegroundColor DarkGray
+                }
+            }
+
             Set-JobResult @{ status = 'Entra ID sync completed successfully' }
         }
         finally {
@@ -238,5 +296,10 @@ switch ($JobType) {
 
     default {
         throw "Unknown job type: $JobType"
+    }
+}
+} finally {
+    if ($transcriptStarted) {
+        try { Stop-Transcript | Out-Null } catch {}
     }
 }
