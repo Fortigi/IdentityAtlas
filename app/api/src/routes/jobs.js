@@ -676,9 +676,12 @@ router.post('/admin/discover-graph-attributes', async (req, res) => {
 router.post('/admin/crawler-jobs', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
-  const { jobType, config, configId } = req.body;
+  const { jobType, config, configId, syncMode: explicitSyncMode } = req.body;
   if (!jobType || !VALID_JOB_TYPES.includes(jobType)) {
     return res.status(400).json({ error: `jobType must be one of: ${VALID_JOB_TYPES.join(', ')}` });
+  }
+  if (explicitSyncMode !== undefined && explicitSyncMode !== 'full' && explicitSyncMode !== 'delta') {
+    return res.status(400).json({ error: 'syncMode must be "full" or "delta"' });
   }
 
   try {
@@ -740,9 +743,14 @@ router.post('/admin/crawler-jobs', async (req, res) => {
     // manual "Run Now" requests, which made the Crawlers page render the
     // "Force Stop" button on EVERY config of that type. Workers ignore
     // unknown fields so this is non-breaking.
+    // Explicit syncMode in the request body wins (the "Run Delta" / "Run
+    // Full" buttons). Falls back to the stored config's nextRunMode toggle,
+    // then delta. Inline configs without a configId still accept an explicit
+    // syncMode so API clients can control it.
+    const effectiveSyncMode = explicitSyncMode || configNextRunMode || 'delta';
     const configToStore = configId
-      ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: configNextRunMode || 'delta' }
-      : resolvedConfig;
+      ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
+      : (resolvedConfig ? { ...resolvedConfig, _syncMode: effectiveSyncMode } : null);
     const configJson = configToStore ? JSON.stringify(configToStore) : null;
 
     const result = await pool.request()

@@ -1091,31 +1091,11 @@ function ValidationAndDeploy({ validation, credentials, onDeploy, onCancel, load
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
 function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob }) {
   const cfg = config.config || {};
-  const [savingNextRunMode, setSavingNextRunMode] = useState(false);
-  const { authFetch } = useAuth();
 
-  // Force-full-sync-next-run toggle. Default: 'delta' (fast). Flipping to
-  // 'full' makes the next scheduled or manual run wipe delta tokens and
-  // fetch everything; the worker flips it back to 'delta' when that run
-  // completes successfully.
-  const handleToggleForceFull = async () => {
-    const next = config.nextRunMode === 'full' ? 'delta' : 'full';
-    setSavingNextRunMode(true);
-    try {
-      await authFetch(`/api/admin/crawler-configs/${config.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nextRunMode: next }),
-      });
-      // Optimistic: mutate the local object so the UI reflects the change
-      // without needing a parent-component reload.
-      config.nextRunMode = next;
-    } catch (err) {
-      alert(`Failed to update run mode: ${err.message || err}`);
-    } finally {
-      setSavingNextRunMode(false);
-    }
-  };
+  // Sync mode is now chosen per-run: two buttons (Run Delta / Run Full)
+  // on this card, or per-schedule via the Mode dropdown on each schedule
+  // entry. The old `nextRunMode` column on CrawlerConfigs still works as
+  // a server-side scheduler fallback but has no UI surface anymore.
 
   const objectLabels = [];
   if (cfg.selectedObjects?.identity) objectLabels.push('Identity');
@@ -1158,12 +1138,22 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
               Force Stop
             </button>
           ) : (
-            <button
-              onClick={() => onRunNow(config.id)}
-              className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
-            >
-              Run Now
-            </button>
+            <>
+              <button
+                onClick={() => onRunNow(config.id, 'delta')}
+                title="Queue a delta run — fetches only what changed since the last successful sync."
+                className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+              >
+                Run Delta
+              </button>
+              <button
+                onClick={() => onRunNow(config.id, 'full')}
+                title="Queue a full run — re-fetches everything, resets delta tokens."
+                className="px-3 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700"
+              >
+                Run Full
+              </button>
+            </>
           )}
           <button onClick={() => onEdit(config)}
             className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
@@ -1217,31 +1207,6 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
         </div>
       )}
 
-      {/* Sync mode toggle — entra-id only, since the delta path is Graph-specific */}
-      {config.crawlerType === 'entra-id' && (
-        <div className="flex items-center justify-between mt-2 text-xs">
-          <span className="text-gray-500">
-            Next run:{' '}
-            <span className={config.nextRunMode === 'full' ? 'text-amber-700 font-medium' : 'text-green-700 font-medium'}>
-              {config.nextRunMode === 'full' ? 'Full re-sync' : 'Delta (fast)'}
-            </span>
-          </span>
-          <button
-            onClick={handleToggleForceFull}
-            disabled={savingNextRunMode}
-            className={`px-2 py-0.5 rounded border ${
-              config.nextRunMode === 'full'
-                ? 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
-                : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
-            } ${savingNextRunMode ? 'opacity-50' : ''}`}
-            title={config.nextRunMode === 'full'
-              ? 'Cancel — go back to delta on next run'
-              : 'Force a full re-sync on the next run. Slow but guaranteed-complete; resets to delta automatically after the run succeeds.'}
-          >
-            {savingNextRunMode ? '...' : config.nextRunMode === 'full' ? 'Cancel full sync' : 'Force full sync next run'}
-          </button>
-        </div>
-      )}
       {/* Identity filter badge */}
       {cfg.identityFilter?.attribute && (
         <div className="text-xs text-gray-500 mt-1 dark:text-gray-400">
@@ -2637,11 +2602,12 @@ export default function CrawlersPage({ onNavigate }) {
 
   // ── Job actions ───────────────────────────────────────────────
 
-  const submitJob = async (jobType, config = null, configId = null) => {
+  const submitJob = async (jobType, config = null, configId = null, syncMode = null) => {
     try {
       const body = { jobType };
       if (config) body.config = config;
       if (configId) body.configId = configId;
+      if (syncMode) body.syncMode = syncMode;
       const r = await authFetch('/api/admin/crawler-jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2659,9 +2625,9 @@ export default function CrawlersPage({ onNavigate }) {
     }
   };
 
-  const handleRunNow = (configId) => {
+  const handleRunNow = (configId, syncMode = null) => {
     const cfg = configs.find(c => c.id === configId);
-    if (cfg) submitJob(cfg.crawlerType, null, configId);
+    if (cfg) submitJob(cfg.crawlerType, null, configId, syncMode);
   };
 
   const handleForceStop = async (jobId) => {
