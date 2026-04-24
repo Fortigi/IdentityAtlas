@@ -294,6 +294,58 @@ switch ($JobType) {
         Set-JobResult @{ status = 'CSV import completed successfully' }
     }
 
+    'azure-devops' {
+        Update-JobProgress -Step 'Preparing Azure DevOps sync' -Pct 5
+
+        $credentials  = $Config['credentials']
+        $orgUrl       = $credentials['organizationUrl']
+        $secret       = $Config['_resolvedSecret']   # resolved from vault by scheduler/jobs.js
+
+        if (-not $orgUrl) { throw "Azure DevOps config is missing credentials.organizationUrl" }
+        if (-not $secret)  { throw "Azure DevOps config is missing resolved credential — job may have been queued without secret resolution" }
+
+        Update-JobProgress -Step 'Running Azure DevOps crawler' -Pct 10
+
+        $crawlerParams = @{
+            ApiBaseUrl      = $apiBaseUrl
+            ApiKey          = $ApiKey
+            OrganizationUrl = $orgUrl
+            Secret          = $secret
+            JobId           = $JobId
+        }
+
+        # Map selectedObjects to crawler switches
+        $objects = $Config['selectedObjects']
+        if ($objects) {
+            if ($objects.ContainsKey('users'))    { $crawlerParams['SyncUsers']    = [bool]$objects['users'] }
+            if ($objects.ContainsKey('projects')) { $crawlerParams['SyncProjects'] = [bool]$objects['projects'] }
+            if ($objects.ContainsKey('teams'))    { $crawlerParams['SyncTeams']    = [bool]$objects['teams'] }
+            if ($objects.ContainsKey('groups'))   { $crawlerParams['SyncGroups']   = [bool]$objects['groups'] }
+            if ($objects.ContainsKey('repos'))    { $crawlerParams['SyncRepos']    = [bool]$objects['repos'] }
+        }
+
+        # Options
+        $options = $Config['options']
+        if ($options) {
+            if ($options.ContainsKey('correlateWithEntraId')) { $crawlerParams['CorrelateWithEntraId'] = [bool]$options['correlateWithEntraId'] }
+            if ($options.ContainsKey('includeStakeholders'))  { $crawlerParams['IncludeStakeholders']  = [bool]$options['includeStakeholders'] }
+        }
+
+        & /app/tools/crawlers/azure-devops/Start-AzureDevOpsCrawler.ps1 @crawlerParams
+
+        Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
+        try {
+            if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) {
+                Invoke-FGAccountCorrelation
+            }
+        } catch {
+            Write-Host "  Account correlation failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+
+        Update-JobProgress -Step 'Complete' -Pct 100
+        Set-JobResult @{ status = 'Azure DevOps sync completed successfully' }
+    }
+
     default {
         throw "Unknown job type: $JobType"
     }

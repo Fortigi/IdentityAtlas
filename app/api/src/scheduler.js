@@ -27,6 +27,7 @@
 
 import * as db from './db/connection.js';
 import { runScoring } from './riskscoring/engine.js';
+import { getSecret } from './secrets/vault.js';
 
 const TICK_INTERVAL_MS = 60_000;
 const FIRST_RUN_DELAY_MS = 45_000;
@@ -106,7 +107,7 @@ async function queueScheduledJob(configRow, scheduleIndex) {
   // The jobType is derived from crawlerType. The CrawlerConfigs.crawlerType is
   // the canonical source — 'entra-id' or 'csv'.
   const jobType = configRow.crawlerType;
-  if (!['entra-id', 'csv'].includes(jobType)) {
+  if (!['entra-id', 'csv', 'azure-devops'].includes(jobType)) {
     console.warn(`Scheduler: unsupported crawlerType '${jobType}' for config ${configRow.id}`);
     return;
   }
@@ -115,6 +116,26 @@ async function queueScheduledJob(configRow, scheduleIndex) {
   if (jobType === 'entra-id') {
     if (!jobConfig.tenantId || !jobConfig.clientId || !jobConfig.clientSecret) {
       console.warn(`Scheduler: config ${configRow.id} missing Entra credentials — skipping scheduled run`);
+      return;
+    }
+  }
+
+  // ADO: resolve vault secret and embed it ephemerally so the worker can use it without vault access
+  if (jobType === 'azure-devops') {
+    const secretRef = jobConfig.credentials?.secretRef;
+    if (!secretRef) {
+      console.warn(`Scheduler: config ${configRow.id} missing ADO secretRef — skipping scheduled run`);
+      return;
+    }
+    try {
+      const resolvedSecret = await getSecret(secretRef);
+      if (!resolvedSecret) {
+        console.warn(`Scheduler: ADO secret not found in vault for config ${configRow.id} — skipping`);
+        return;
+      }
+      jobConfig._resolvedSecret = resolvedSecret;
+    } catch (err) {
+      console.warn(`Scheduler: failed to resolve ADO secret for config ${configRow.id}: ${err.message}`);
       return;
     }
   }

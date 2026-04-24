@@ -69,7 +69,7 @@ export default function FilterBar({
             <select
               value={af.value}
               onChange={e => onAddFilter(af.field, e.target.value)}
-              className="bg-transparent border-none text-blue-900 dark:text-blue-200 text-xs font-medium cursor-pointer p-0 pr-4"
+              className="bg-blue-50 dark:bg-blue-950 border-none text-blue-900 dark:text-blue-200 text-xs font-medium cursor-pointer p-0 pr-4 rounded"
             >
               {getOptionsForField(af.field).map(v => (
                 <option key={v} value={v}>{v}</option>
@@ -93,7 +93,7 @@ export default function FilterBar({
             autoFocus
             value={selectedField}
             onChange={e => setSelectedField(e.target.value)}
-            className="bg-transparent border-none text-xs dark:text-gray-200 p-0 pr-4"
+            className="bg-gray-50 dark:bg-gray-700 border-none text-xs text-gray-900 dark:text-gray-200 p-0 pr-4 rounded"
           >
             <option value="">Select field...</option>
             {availableFields.map(f => (
@@ -106,7 +106,7 @@ export default function FilterBar({
               <select
                 value=""
                 onChange={e => handleAddValue(e.target.value)}
-                className="bg-transparent border-none text-xs dark:text-gray-200 p-0 pr-4"
+                className="bg-gray-50 dark:bg-gray-700 border-none text-xs text-gray-900 dark:text-gray-200 p-0 pr-4 rounded"
               >
                 <option value="">Select value...</option>
                 {newFilterOptions.map(v => (

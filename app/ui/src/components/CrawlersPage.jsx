@@ -68,6 +68,12 @@ const CRAWLER_TYPES = [
     available: true,
   },
   {
+    id: 'azure-devops',
+    name: 'Azure DevOps',
+    description: 'Sync users, projects, teams, and security groups from an Azure DevOps organization',
+    available: true,
+  },
+  {
     id: 'csv',
     name: 'CSV Import',
     description: 'Upload semicolon-delimited CSV files exported from Omada, SailPoint, or other IGA systems',
@@ -236,6 +242,293 @@ const DEFAULT_GROUP_ATTRS = [
   'isAssignableToRole', 'theme', 'preferredLanguage', 'preferredDataLocation',
   'onPremisesSyncEnabled',
 ];
+
+// ─── Azure DevOps Wizard (multi-step) ────────────────────────────────────────
+//
+// Steps:
+//   1. Crawler name + PAT credentials → Validate
+//   2. Scope selection (Users, Projects, Teams, Security Groups) — pre-checked by validation
+//   3. Options (identity correlation, include stakeholders)
+//   4. Schedule
+function AzureDevOpsWizard({ onComplete, onCancel, validateFn, discoverProjectsFn, initialConfig, isEdit }) {
+  const [step, setStep] = useState(1);
+
+  const [crawlerName, setCrawlerName]     = useState(initialConfig?.displayName || '');
+  const [orgUrl, setOrgUrl]               = useState(initialConfig?.credentials?.organizationUrl || '');
+  const [pat, setPat]                     = useState('');
+
+  const [validation, setValidation]       = useState(initialConfig?.validation || null);
+  const [validating, setValidating]       = useState(false);
+  const [validationError, setValidationError] = useState(null);
+
+  const [selectedObjects, setSelectedObjects] = useState(initialConfig?.selectedObjects || { users: true, projects: true, teams: true, groups: true, repos: false });
+  const [options, setOptions]             = useState(initialConfig?.options || { correlateWithEntraId: true, includeStakeholders: false });
+  const [schedules, setSchedules]         = useState(() => {
+    if (initialConfig?.schedules?.length) return initialConfig.schedules;
+    if (initialConfig?.schedule) return [initialConfig.schedule];
+    return [];
+  });
+  const [saving, setSaving]               = useState(false);
+
+  const adoSteps = [
+    { n: 1, label: 'Credentials' },
+    { n: 2, label: 'Scope' },
+    { n: 3, label: 'Options' },
+    { n: 4, label: 'Schedule' },
+  ];
+
+  const handleValidate = async () => {
+    setValidating(true);
+    setValidationError(null);
+    try {
+      if (isEdit && !pat) {
+        // Edit mode without re-entering credentials — skip validation, synthesise a
+        // validation object that keeps the scope checkboxes visible and editable.
+        setValidation(initialConfig?.validation || {
+          organization: orgUrl, organizationName: orgUrl,
+          testedScopes: { projects: true, teams: true, users: true, groups: true, repos: false },
+          objectTypes: [
+            { key: 'users',    label: 'Users & Access Levels', description: 'All organization members with their access level' },
+            { key: 'projects', label: 'Projects',              description: 'All ADO projects' },
+            { key: 'teams',    label: 'Teams & Members',       description: 'Project teams and memberships' },
+            { key: 'groups',   label: 'Security Groups',       description: 'Security groups and memberships' },
+            { key: 'repos',    label: 'Repositories',          description: 'Git repositories and ACLs' },
+          ],
+        });
+        setStep(2);
+        return;
+      }
+      const result = await validateFn({
+        organizationUrl: orgUrl.trim(),
+        personalAccessToken: pat.trim(),
+      });
+      if (result.valid) {
+        setValidation(result);
+        // Pre-check scope based on what's accessible
+        if (!initialConfig?.selectedObjects) {
+          setSelectedObjects({
+            users:    !!result.testedScopes?.users,
+            projects: !!result.testedScopes?.projects,
+            teams:    !!result.testedScopes?.teams,
+            groups:   !!result.testedScopes?.groups,
+            repos:    !!result.testedScopes?.repos,
+          });
+        }
+        setStep(2);
+      } else {
+        setValidationError(result.error || 'Validation failed');
+      }
+    } catch (err) {
+      setValidationError(err.message);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const config = {
+      displayName: crawlerName.trim() || `Azure DevOps — ${validation?.organizationName || orgUrl}`,
+      credentials: {
+        organizationUrl: orgUrl.trim(),
+        personalAccessToken: pat.trim() || undefined,
+      },
+      selectedObjects,
+      options,
+      schedules,
+    };
+    try {
+      await onComplete(config);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const credentialsFilled = orgUrl.trim() && (pat.trim() || (isEdit && !pat));
+
+  return (
+    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit' : 'Add'} Azure DevOps Crawler</h3>
+        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
+      </div>
+
+      <StepIndicator steps={adoSteps} step={step} />
+
+      {/* ─── Step 1: Credentials ─────────────────────────────────── */}
+      {step === 1 && (
+        <div>
+          <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">
+            Enter a name and your Azure DevOps credentials. We'll verify connectivity and check which data scopes are accessible.
+          </p>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1 dark:text-gray-200">Crawler Name *</label>
+            <input type="text" value={crawlerName} onChange={e => setCrawlerName(e.target.value)}
+              placeholder="e.g., Azure DevOps — Contoso"
+              className="w-full max-w-md p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1 dark:text-gray-200">Organization URL *</label>
+            <input type="text" value={orgUrl} onChange={e => setOrgUrl(e.target.value)}
+              placeholder="https://dev.azure.com/myorg"
+              className="w-full max-w-md p-2 border border-gray-200 rounded font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
+            <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">Accepts https://dev.azure.com/myorg, https://myorg.visualstudio.com, or just "myorg".</p>
+          </div>
+
+          <div className="mb-4 max-w-md">
+            <label className="block text-sm font-medium mb-1 dark:text-gray-200">
+              Personal Access Token {isEdit ? '(leave blank to keep)' : '*'}
+            </label>
+            <input type="password" value={pat} onChange={e => setPat(e.target.value)}
+              placeholder={isEdit ? '••••••••' : 'Enter PAT'}
+              className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
+            <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">
+              Required scopes: <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">vso.project</code>{' '}
+              <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">vso.graph</code>{' '}
+              <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">vso.memberentitlementmanagement</code>{' '}
+              + <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">vso.code</code> for repositories
+            </p>
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-300 space-y-1">
+              <p className="font-medium">PAT access scope affects what Identity Atlas can see</p>
+              <p>
+                A PAT inherits the permissions of the user who created it. If that user does not have access to all projects in the organization,
+                the crawler will find security groups from those projects (via the org-wide groups API) but will not be able to resolve their parent project names.
+                Those groups will appear in Identity Atlas without a parent project label.
+              </p>
+              <p>
+                To get full parent-project resolution, ensure the PAT owner has at least <strong>Project Reader</strong> access on every project in the organization.
+              </p>
+            </div>
+          </div>
+
+          {validationError && (
+            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">{validationError}</div>
+          )}
+          <div className="flex justify-end">
+            <button onClick={handleValidate}
+              disabled={validating || !crawlerName.trim() || !orgUrl.trim() || !credentialsFilled}
+              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              {validating ? 'Validating...' : (isEdit && !pat ? 'Next' : 'Validate & Next')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Step 2: Scope Selection ──────────────────────────────── */}
+      {step === 2 && (
+        <div>
+          <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">
+            Choose what to sync from <span className="font-medium text-gray-700 dark:text-gray-300">{validation?.organizationName || orgUrl}</span>.
+            Checkboxes are pre-filled based on the scopes accessible with your credentials.
+          </p>
+
+          <div className="space-y-3 mb-6">
+            {(validation?.objectTypes || [{ key: 'users', label: 'Users & Access Levels', description: 'All organization members with their access level' }, { key: 'projects', label: 'Projects', description: 'All ADO projects' }, { key: 'teams', label: 'Teams & Members', description: 'Project teams and memberships' }, { key: 'groups', label: 'Security Groups', description: 'Security groups and memberships' }]).map(ot => {
+              const accessible = validation?.testedScopes?.[ot.key] !== false;
+              const scopeError = validation?.testedScopes?.[`${ot.key}Error`];
+              return (
+                <label key={ot.key} className={`flex items-start gap-3 p-3 rounded-lg border ${accessible ? 'border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : 'border-gray-100 dark:border-gray-700 opacity-60 cursor-not-allowed'}`}>
+                  <input type="checkbox"
+                    checked={!!selectedObjects[ot.key]}
+                    disabled={!accessible}
+                    onChange={() => setSelectedObjects(prev => ({ ...prev, [ot.key]: !prev[ot.key] }))}
+                    className="mt-0.5 rounded accent-indigo-600 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium dark:text-white">{ot.label}</span>
+                      {!accessible && (
+                        <span className="text-xs px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded dark:bg-amber-900/20 dark:text-amber-300">No permission</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ot.description}</p>
+                    {!accessible && scopeError && (
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1 break-words">API error: {scopeError}</p>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-between">
+            <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">Back</button>
+            <button onClick={() => setStep(3)} disabled={!Object.values(selectedObjects).some(Boolean)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">Next</button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Step 3: Options ─────────────────────────────────────── */}
+      {step === 3 && (
+        <div>
+          <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">Configure additional sync options.</p>
+
+          <div className="space-y-4 mb-6">
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40">
+              <input type="checkbox"
+                checked={!!options.correlateWithEntraId}
+                onChange={e => setOptions(prev => ({ ...prev, correlateWithEntraId: e.target.checked }))}
+                className="mt-0.5 rounded accent-indigo-600 flex-shrink-0" />
+              <div>
+                <span className="text-sm font-medium dark:text-white">Auto-link ADO users to Entra ID identities</span>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  ADO users backed by Entra ID accounts (AAD origin) are automatically correlated to matching Entra ID principals using the Identity model. Requires an Entra ID crawler to also be configured.
+                </p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40">
+              <input type="checkbox"
+                checked={!!options.includeStakeholders}
+                onChange={e => setOptions(prev => ({ ...prev, includeStakeholders: e.target.checked }))}
+                className="mt-0.5 rounded accent-indigo-600 flex-shrink-0" />
+              <div>
+                <span className="text-sm font-medium dark:text-white">Include Stakeholder users</span>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Stakeholders have free, limited access in ADO. Disable this to reduce noise from external collaborators or occasional users.
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex justify-between">
+            <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">Back</button>
+            <button onClick={() => setStep(4)} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next</button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Step 4: Schedule ─────────────────────────────────────── */}
+      {step === 4 && (
+        <div>
+          <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">
+            Add one or more schedules, or leave empty to run manually only.
+          </p>
+          {schedules.map((s, i) => (
+            <ScheduleEditor key={i}
+              schedule={{ enabled: true, ...s }}
+              onChange={updated => setSchedules(schedules.map((x, idx) => idx === i ? { ...updated, enabled: true } : x))}
+              onRemove={() => setSchedules(schedules.filter((_, idx) => idx !== i))}
+            />
+          ))}
+          <button onClick={() => setSchedules([...schedules, { enabled: true, frequency: 'daily', hour: 2, minute: 0 }])}
+            className="mb-4 px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
+            + Add Schedule
+          </button>
+          <div className="flex justify-between mt-2">
+            <button onClick={() => setStep(3)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">Back</button>
+            <button onClick={handleSave} disabled={saving}
+              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              {saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Add Crawler')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Entra ID Wizard (multi-step) ─────────────────────────────────────────────
 //
@@ -1182,6 +1475,20 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
               ? objectLabels.map(l => <span key={l} className="inline-block mr-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded dark:bg-indigo-900/30 dark:text-indigo-300">{l}</span>)
               : <span className="text-gray-400 text-xs dark:text-gray-500">none</span>
             }
+          </div>
+        </div>
+      )}
+
+      {config.crawlerType === 'azure-devops' && (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
+          <div><span className="text-gray-500 dark:text-gray-400">Organization:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.credentials?.organizationUrl || '—'}</span></div>
+          <div><span className="text-gray-500 dark:text-gray-400">Auth:</span> <span className="font-mono text-xs dark:text-gray-300">PAT</span></div>
+          <div><span className="text-gray-500 dark:text-gray-400">Credential:</span> <span className="text-gray-400 dark:text-gray-500">{SECRET_MASK}</span></div>
+          <div>
+            <span className="text-gray-500 dark:text-gray-400">Scope:</span>{' '}
+            {Object.entries(cfg.selectedObjects || {}).filter(([, v]) => v).map(([k]) => (
+              <span key={k} className="inline-block mr-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded dark:bg-indigo-900/30 dark:text-indigo-300 capitalize">{k}</span>
+            ))}
           </div>
         </div>
       )}
@@ -2500,6 +2807,9 @@ export default function CrawlersPage({ onNavigate }) {
     } else if (type === 'entra-id') {
       setEditingConfig(null);
       setWizardStep('entra-wizard');
+    } else if (type === 'azure-devops') {
+      setEditingConfig(null);
+      setWizardStep('ado-wizard');
     } else if (type === 'csv') {
       setEditingConfig(null);
       setWizardStep('csv-wizard');
@@ -2509,13 +2819,34 @@ export default function CrawlersPage({ onNavigate }) {
     }
   };
 
-  // Wizard helper: validate credentials
+  // Wizard helper: validate Entra ID credentials
   const validateCredentials = async (creds) => {
     const r = await authFetch('/api/admin/validate-graph-credentials', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(creds),
     });
+    return await r.json();
+  };
+
+  // Wizard helper: validate ADO credentials
+  const validateAdoCredentials = async (creds) => {
+    const r = await authFetch('/api/admin/validate-ado-credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(creds),
+    });
+    return await r.json();
+  };
+
+  // Wizard helper: discover ADO projects for scope filtering
+  const discoverAdoProjects = async (params) => {
+    const r = await authFetch('/api/admin/discover-ado-projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `HTTP ${r.status}`); }
     return await r.json();
   };
 
@@ -2589,6 +2920,42 @@ export default function CrawlersPage({ onNavigate }) {
     }
   };
 
+  // ADO wizard completion: create or update a CrawlerConfig (credentials go to vault server-side)
+  const handleAdoWizardComplete = async (wizardConfig) => {
+    try {
+      const { displayName, credentials, selectedObjects, options, schedules } = wizardConfig;
+
+      // Send the full credentials object — server strips the raw secret and stores it in vault
+      const configPayload = { credentials, selectedObjects, options };
+      if (schedules?.length) configPayload.schedules = schedules;
+
+      let r;
+      if (editingConfig?.id) {
+        r = await authFetch(`/api/admin/crawler-configs/${editingConfig.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ displayName, config: configPayload }),
+        });
+      } else {
+        r = await authFetch('/api/admin/crawler-configs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ crawlerType: 'azure-devops', displayName, config: configPayload }),
+        });
+      }
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${r.status}`);
+      }
+      setWizardStep(null);
+      setEditingConfig(null);
+      fetchConfigs();
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
   // Open the wizard in edit mode for an existing config
   const handleEditConfig = (config) => {
     // The config from the API has secrets masked — wizard handles this
@@ -2597,7 +2964,9 @@ export default function CrawlersPage({ onNavigate }) {
       displayName: config.displayName,
       ...(config.config || {}),
     });
-    setWizardStep(config.crawlerType === 'csv' ? 'csv-wizard' : 'entra-wizard');
+    if (config.crawlerType === 'csv') setWizardStep('csv-wizard');
+    else if (config.crawlerType === 'azure-devops') setWizardStep('ado-wizard');
+    else setWizardStep('entra-wizard');
   };
 
   // ── Job actions ───────────────────────────────────────────────
@@ -2812,6 +3181,16 @@ export default function CrawlersPage({ onNavigate }) {
           discoverFn={discoverAttributes}
           initialConfig={editingConfig}
           isEdit={!!editingConfig?.id}
+        />
+      )}
+      {wizardStep === 'ado-wizard' && (
+        <AzureDevOpsWizard
+          onComplete={handleAdoWizardComplete}
+          onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
+          validateFn={validateAdoCredentials}
+          discoverProjectsFn={discoverAdoProjects}
+          initialConfig={editingConfig}
+          isEdit={!!editingConfig}
         />
       )}
       {wizardStep === 'csv-wizard' && (

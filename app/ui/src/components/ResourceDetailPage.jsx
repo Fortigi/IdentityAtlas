@@ -223,6 +223,150 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
           onOpenDetail={onOpenDetail}
         />
 
+      {/* Assigned Users */}
+      <div className="mt-6">
+        <CollapsibleSection
+          title="Assigned Users"
+          count={assignments ? assignments.length : memberCount}
+          open={assignmentsOpen}
+          onToggle={() => { if (!assignmentsOpen) loadAssignments(); setAssignmentsOpen(p => !p); }}
+          loading={assignmentsLoading}
+        >
+          {assignments && assignments.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No assignments</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+                  <th className="px-4 py-2 font-medium">User</th>
+                  <th className="px-4 py-2 font-medium">Type</th>
+                  <th className="px-4 py-2 font-medium">Assignment</th>
+                  <th className="px-4 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(assignments || []).map((a, i) => (
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => onOpenDetail?.('user', a.principalId, a.principalDisplayName)}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
+                      >{a.principalDisplayName || a.principalId}</button>
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{a.principalType}</td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${ASSIGNMENT_TYPE_COLORS[a.assignmentType] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                        {a.assignmentType}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{a.assignmentStatus || a.state || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CollapsibleSection>
+      </div>
+
+      {/* Business Roles containing this resource */}
+      <div className="mt-6">
+        <CollapsibleSection
+          title="Business Roles"
+          count={businessRoles ? businessRoles.length : accessPackageCount}
+          open={businessRolesOpen}
+          onToggle={() => { if (!businessRolesOpen) loadBusinessRoles(); setBusinessRolesOpen(p => !p); }}
+          loading={businessRolesLoading}
+        >
+          {businessRoles && businessRoles.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">Not part of any business role</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+                  <th className="px-4 py-2 font-medium">Business Role</th>
+                  <th className="px-4 py-2 font-medium">Role Name</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(businessRoles || []).map((br, i) => (
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                    <td className="px-4 py-2">
+                      {br.businessRoleId ? (
+                        <button
+                          onClick={() => onOpenDetail?.('resource', br.businessRoleId, br.businessRoleName || 'Unnamed')}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
+                        >{br.businessRoleName || <span className="text-gray-400 dark:text-gray-500 italic">Unnamed</span>}</button>
+                      ) : (
+                        <span className="text-gray-400 dark:text-gray-500 italic">{br.businessRoleName || 'Unnamed'}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{(br.roleName && br.roleName !== '-') ? br.roleName : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CollapsibleSection>
+      </div>
+
+      {/* Parent Resources — hierarchical parent-child relationships */}
+      <div className="mt-6">
+        <CollapsibleSection
+          title="Parent Resources"
+          count={parentResources ? parentResources.length : parentResourceCount}
+          open={parentResourcesOpen}
+          onToggle={() => { if (!parentResourcesOpen) loadParentResources(); setParentResourcesOpen(p => !p); }}
+          loading={parentResourcesLoading}
+        >
+          {parentResources && parentResources.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No parent resources</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+                  <th className="px-4 py-2 font-medium">Parent Resource</th>
+                  <th className="px-4 py-2 font-medium">Type</th>
+                  <th className="px-4 py-2 font-medium">Relationship</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(parentResources || []).map((pr, i) => (
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                    <td className="px-4 py-2">
+                      {(() => {
+                        const name = pr.parentDisplayName || pr.parentResourceId;
+                        const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(name);
+                        return isGuid ? (
+                          <span
+                            className="italic text-gray-400 dark:text-gray-500 cursor-help border-b border-dotted border-gray-300 dark:border-gray-600"
+                            title={`A parent relationship exists but the parent resource could not be retrieved — the credentials used by the${attributes.systemName ? ` "${attributes.systemName}"` : ''} crawler may not have sufficient permissions to access it.`}
+                          >{name}</span>
+                        ) : (
+                          <button
+                            onClick={() => onOpenDetail?.('resource', pr.parentResourceId, pr.parentDisplayName)}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium"
+                          >{name}</button>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${RESOURCE_TYPE_COLORS[pr.parentResourceType] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                        {pr.parentResourceType}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">
+                      {pr.roleName || (pr.relationshipType === 'Contains' ? 'Contained in' : pr.relationshipType)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CollapsibleSection>
+      </div>
+
+      {/* Version History */}
+      <div className="mt-6">
         <CollapsibleSection
           title="Version History"
           count={resolvedHistoryCount}

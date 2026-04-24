@@ -7,7 +7,9 @@ import { Router } from 'express';
 import * as db from '../db/connection.js';
 import { existsSync, readdirSync, promises as fs } from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
+import { putSecret, getSecret, deleteSecret } from '../secrets/vault.js';
 
 const TRACE_DIR = '/data/uploads/jobs';
 // Tail endpoint returns at most this many bytes per request. If the file is
@@ -19,7 +21,7 @@ const MAX_TRACE_CHUNK = 256 * 1024;  // 256 KB
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
-const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv'];
+const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv', 'azure-devops'];
 const MAX_RECENT_JOBS = 50;
 const SECRET_MASK = '••••••••';
 
@@ -118,11 +120,55 @@ const ENTRA_OBJECT_TYPES = [
   { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
 ];
 
+// ─── Azure DevOps constants & helpers ────────────────────────────────────────
+
+const ADO_OBJECT_TYPES = [
+  { key: 'users',    label: 'Users & Access Levels',  description: 'All organization members with their access level (Basic, Stakeholder, Visual Studio)' },
+  { key: 'projects', label: 'Projects',               description: 'All Azure DevOps projects in the organization' },
+  { key: 'teams',    label: 'Teams & Members',        description: 'Project teams and their memberships' },
+  { key: 'groups',   label: 'Security Groups',        description: 'Organization and project-level security groups and their memberships' },
+  { key: 'repos',    label: 'Repositories & ACLs',   description: 'Git repositories per project and their security ACLs (explicit allow/deny per identity)' },
+];
+
+// Normalise an ADO organization URL to { orgName, orgUrl }.
+// Accepts: https://dev.azure.com/myorg, https://myorg.visualstudio.com, or just "myorg".
+function parseAdoOrgUrl(raw) {
+  const s = (raw || '').trim().replace(/\/$/, '');
+  const devAzure = s.match(/dev\.azure\.com\/([^/?#]+)/);
+  if (devAzure) return { orgName: devAzure[1], orgUrl: `https://dev.azure.com/${devAzure[1]}` };
+  const visualStudio = s.match(/^https?:\/\/([^.]+)\.visualstudio\.com/i);
+  if (visualStudio) return { orgName: visualStudio[1], orgUrl: `https://dev.azure.com/${visualStudio[1]}` };
+  // Bare org name (no slashes/dots → treat as org name)
+  if (s && !s.includes('/') && !s.includes('.')) return { orgName: s, orgUrl: `https://dev.azure.com/${s}` };
+  return { orgName: null, orgUrl: s };
+}
+
+// Build a Basic Authorization header from a PAT.
+function buildAdoAuthHeader(_authMode, creds) {
+  const encoded = Buffer.from(`:${creds.personalAccessToken}`).toString('base64');
+  return `Basic ${encoded}`;
+}
+
+// Store a PAT in the vault. Returns the stable secretRef key used for retrieval.
+async function storeAdoSecret(_authMode, creds, existingRef) {
+  const rawSecret = creds.personalAccessToken;
+  if (!rawSecret || rawSecret === SECRET_MASK) return existingRef || null;
+  const secretRef = existingRef || `ado-crawler-${randomUUID()}`;
+  await putSecret(secretRef, 'ado-crawler', rawSecret, 'Personal Access Token');
+  return secretRef;
+}
+
 function maskConfig(config) {
   if (!config) return null;
   const parsed = typeof config === 'string' ? JSON.parse(config) : config;
   const masked = { ...parsed };
+  // Entra ID
   if (masked.clientSecret) masked.clientSecret = SECRET_MASK;
+  // Azure DevOps — mask the vault key reference, strip any ephemeral resolved secret
+  if (masked.credentials?.secretRef) {
+    masked.credentials = { ...masked.credentials, secretRef: SECRET_MASK };
+  }
+  if (masked._resolvedSecret !== undefined) delete masked._resolvedSecret;
   return masked;
 }
 
@@ -160,10 +206,28 @@ router.post('/admin/crawler-configs', async (req, res) => {
 
   try {
     const pool = await db.getPool();
+    let configToStore = config || {};
+
+    // ADO: store the PAT in the vault before writing the config row.
+    if (crawlerType === 'azure-devops') {
+      const creds = configToStore.credentials || {};
+      const secretRef = await storeAdoSecret(null, creds, null);
+      if (secretRef) {
+        configToStore = {
+          ...configToStore,
+          credentials: {
+            ...creds,
+            personalAccessToken: undefined,
+            secretRef,
+          },
+        };
+      }
+    }
+
     const result = await pool.request()
       .input('crawlerType', crawlerType)
       .input('displayName', displayName.trim().slice(0, 255))
-      .input('config', JSON.stringify(config || {}))
+      .input('config', JSON.stringify(configToStore))
       .query(`INSERT INTO "CrawlerConfigs" ("crawlerType", "displayName", config)
               VALUES (@crawlerType, @displayName, @config)
               RETURNING *`);
@@ -217,9 +281,21 @@ router.patch('/admin/crawler-configs/:id', async (req, res) => {
     let mergedConfig = (typeof existing.recordset[0].config === "string" ? JSON.parse(existing.recordset[0].config) : existing.recordset[0].config);
     if (config) {
       const incoming = { ...config };
-      // If secret is the mask or empty, keep existing
+      // Entra ID: If secret is the mask or empty, keep existing
       if (!incoming.clientSecret || incoming.clientSecret === SECRET_MASK) {
         incoming.clientSecret = mergedConfig.clientSecret;
+      }
+      // ADO: update vault entry if a new PAT is provided; otherwise keep the existing secretRef
+      const existingCrawlerType = existing.recordset[0].crawlerType || mergedConfig._crawlerType;
+      if (existingCrawlerType === 'azure-devops' || mergedConfig.credentials?.secretRef) {
+        const incomingCreds = incoming.credentials || {};
+        const existingRef = mergedConfig.credentials?.secretRef;
+        const secretRef = await storeAdoSecret(null, incomingCreds, existingRef);
+        incoming.credentials = {
+          ...incomingCreds,
+          personalAccessToken: undefined,
+          secretRef: secretRef || existingRef,
+        };
       }
       mergedConfig = { ...mergedConfig, ...incoming };
     }
@@ -256,11 +332,24 @@ router.delete('/admin/crawler-configs/:id', async (req, res) => {
 
   try {
     const pool = await db.getPool();
+
+    // Read before delete to clean up ADO vault secret
+    const existing = await pool.request().input('id', id)
+      .query(`SELECT "crawlerType", config FROM "CrawlerConfigs" WHERE id = @id`);
+    if (existing.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
+    const existingRow = existing.recordset[0];
+    const existingCfg = typeof existingRow.config === 'string' ? JSON.parse(existingRow.config) : existingRow.config;
+
     const result = await pool.request().input('id', id)
       .query(`DELETE FROM "CrawlerConfigs" WHERE id = @id`);
     if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Config not found' });
-    // Best-effort cleanup of any uploaded CSV files for this config
+
+    // Best-effort cleanup: ADO vault secret + CSV upload folder
+    if (existingRow.crawlerType === 'azure-devops' && existingCfg?.credentials?.secretRef) {
+      deleteSecret(existingCfg.credentials.secretRef).catch(() => {});
+    }
     deleteConfigFolder(id).catch(() => {});
+
     res.json({ message: 'Config removed' });
   } catch (err) {
     console.error('Error removing crawler config:', err.message);
@@ -376,6 +465,149 @@ router.post('/admin/validate-graph-credentials', async (req, res) => {
   } catch (err) {
     console.error('Error validating credentials:', err.message);
     res.json({ valid: false, error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// AZURE DEVOPS CREDENTIAL VALIDATION
+// ═══════════════════════════════════════════════════════════════════
+
+// POST /api/admin/validate-ado-credentials
+// Tests connectivity to an ADO organization and checks which data scopes are accessible.
+router.post('/admin/validate-ado-credentials', async (req, res) => {
+  const { organizationUrl, personalAccessToken } = req.body;
+  if (!organizationUrl) return res.status(400).json({ error: 'organizationUrl is required' });
+  if (!personalAccessToken) return res.status(400).json({ error: 'personalAccessToken is required' });
+
+  const { orgName, orgUrl } = parseAdoOrgUrl(organizationUrl);
+  if (!orgName) return res.status(400).json({ error: 'Could not parse organization name from URL. Use https://dev.azure.com/myorg or just myorg.' });
+
+  try {
+    const authHeader = buildAdoAuthHeader('pat', { personalAccessToken });
+
+    // Connectivity check — projects endpoint is universally accessible if credentials are valid
+    const projectsRes = await fetch(`${orgUrl}/_apis/projects?api-version=7.1&$top=1`, {
+      headers: { Authorization: authHeader },
+    });
+    if (!projectsRes.ok) {
+      const err = await projectsRes.json().catch(() => ({}));
+      const msg = err.message || err.typeKey || `HTTP ${projectsRes.status}`;
+      return res.json({ valid: false, error: `Cannot reach Azure DevOps organization '${orgName}': ${msg}` });
+    }
+
+    // Get organization display name from connection data
+    let organizationName = orgName;
+    try {
+      const connRes = await fetch(`${orgUrl}/_apis/connectiondata?api-version=7.1`, {
+        headers: { Authorization: authHeader },
+      });
+      if (connRes.ok) {
+        const conn = await connRes.json();
+        organizationName = conn.authenticatedUser?.customDisplayName
+          || conn.locationServiceData?.organizationName
+          || orgName;
+      }
+    } catch { /* non-critical */ }
+
+    // Test data scopes in parallel.
+    const usersProbeUrl = `https://vsaex.dev.azure.com/${orgName}/_apis/memberentitlements?api-version=7.1-preview.2&$top=1`;
+
+    const probeResult = async (url, headers) => {
+      try {
+        const r = await fetch(url, { headers });
+        if (r.ok) return { ok: true };
+        const body = await r.json().catch(() => ({}));
+        const msg = body.message || body.typeKey || `HTTP ${r.status}`;
+        console.warn(`ADO scope probe failed [${r.status}] ${url}: ${msg}`);
+        return { ok: false, error: msg };
+      } catch (err) {
+        console.warn(`ADO scope probe error ${url}: ${err.message}`);
+        return { ok: false, error: err.message };
+      }
+    };
+
+    const [usersRes, groupsRes, reposRes] = await Promise.all([
+      probeResult(usersProbeUrl, { Authorization: authHeader }),
+      probeResult(`https://vssps.dev.azure.com/${orgName}/_apis/graph/groups?api-version=7.1-preview.1&$top=1`, { Authorization: authHeader }),
+      // Test repo access by listing repos in the first project (if any)
+      fetch(`${orgUrl}/_apis/projects?api-version=7.1&$top=1`, {
+        headers: { Authorization: authHeader },
+      }).then(async r => {
+        if (!r.ok) return { ok: false };
+        const d = await r.json().catch(() => ({}));
+        const firstProject = d.value?.[0]?.id;
+        if (!firstProject) return { ok: true }; // no projects, assume access is fine
+        return probeResult(`${orgUrl}/${firstProject}/_apis/git/repositories?api-version=7.1`, { Authorization: authHeader });
+      }).catch(err => ({ ok: false, error: err.message })),
+    ]);
+
+    res.json({
+      valid: true,
+      organization: orgName,
+      organizationName,
+      testedScopes: {
+        projects:   true,
+        teams:      true,
+        users:      usersRes.ok,
+        usersError: usersRes.error,
+        groups:     groupsRes.ok,
+        groupsError: groupsRes.error,
+        repos:      reposRes.ok,
+        reposError: reposRes.error,
+      },
+      objectTypes: ADO_OBJECT_TYPES,
+    });
+  } catch (err) {
+    console.error('Error validating ADO credentials:', err.message);
+    res.json({ valid: false, error: err.message });
+  }
+});
+
+// POST /api/admin/discover-ado-projects
+// Returns the list of projects accessible with the given credentials.
+// Used by the wizard Step 3 "Selected projects" filter.
+router.post('/admin/discover-ado-projects', async (req, res) => {
+  const { organizationUrl, personalAccessToken, configId } = req.body;
+
+  let resolvedPat = personalAccessToken;
+
+  // Resolve PAT from stored config when editing without re-entering credentials
+  if (configId && useSql) {
+    try {
+      const pool = await db.getPool();
+      const cfgRes = await pool.request().input('id', configId)
+        .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
+      if (cfgRes.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
+      const cfg = typeof cfgRes.recordset[0].config === 'string' ? JSON.parse(cfgRes.recordset[0].config) : cfgRes.recordset[0].config;
+      if (cfg.credentials?.secretRef) {
+        const secret = await getSecret(cfg.credentials.secretRef);
+        if (secret) resolvedPat = secret;
+      }
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to load config' });
+    }
+  }
+
+  const { orgName, orgUrl } = parseAdoOrgUrl(organizationUrl);
+  if (!orgName) return res.status(400).json({ error: 'organizationUrl is required' });
+
+  try {
+    const authHeader = buildAdoAuthHeader('pat', { personalAccessToken: resolvedPat });
+    const projectsRes = await fetch(`${orgUrl}/_apis/projects?api-version=7.1&$top=300&$skip=0`, {
+      headers: { Authorization: authHeader },
+    });
+    if (!projectsRes.ok) return res.status(400).json({ error: `ADO projects API returned ${projectsRes.status}` });
+    const data = await projectsRes.json();
+    const projects = (data.value || []).map(p => ({
+      id:          p.id,
+      name:        p.name,
+      description: p.description,
+      visibility:  p.visibility,
+    }));
+    res.json({ projects });
+  } catch (err) {
+    console.error('Error discovering ADO projects:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -718,6 +950,19 @@ router.post('/admin/crawler-jobs', async (req, res) => {
       if (!resolvedConfig?.tenantId || !resolvedConfig?.clientId || !resolvedConfig?.clientSecret) {
         return res.status(400).json({ error: 'Entra ID jobs require tenantId, clientId, and clientSecret' });
       }
+    }
+
+    // ADO: resolve the vault secret and embed it ephemerally in the job config
+    if (jobType === 'azure-devops') {
+      const secretRef = resolvedConfig?.credentials?.secretRef;
+      if (!secretRef) {
+        return res.status(400).json({ error: 'Azure DevOps config is missing credential reference — please re-configure the crawler' });
+      }
+      const resolvedSecret = await getSecret(secretRef);
+      if (!resolvedSecret) {
+        return res.status(400).json({ error: 'Azure DevOps credentials not found in vault — please re-configure the crawler' });
+      }
+      resolvedConfig = { ...resolvedConfig, _resolvedSecret: resolvedSecret };
     }
 
     // For CSV jobs, inject the per-config upload folder so the worker knows where

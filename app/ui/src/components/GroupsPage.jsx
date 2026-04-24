@@ -19,6 +19,7 @@ const FIELD_LABELS = {
   resourceProvisioningOptions: 'Provisioning',
   __resourceTag: 'Resource Tag',
   __groupTag: 'Group Tag',
+  __systemName: 'Source System',
 };
 
 const TABLE_COLUMNS = [
@@ -269,8 +270,24 @@ export default function ResourcesPage({ onOpenDetail }) {
                       className="rounded"
                     />
                   </td>
-                  <td className="px-3 py-2 font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-                    onClick={() => onOpenDetail?.('resource', g.id, g.displayName)}>{g.displayName}</td>
+                  <td className="px-3 py-2 cursor-pointer" onClick={() => onOpenDetail?.('resource', g.id, g.displayName)}>
+                    <span className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">{g.displayName}</span>
+                    {g.parentDisplayName && (() => {
+                      const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(g.parentDisplayName);
+                      return (
+                        <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+                          {isGuid ? (
+                            <span
+                              className="italic text-gray-300 dark:text-gray-600 cursor-help border-b border-dotted border-gray-300 dark:border-gray-600"
+                              title={`A parent relationship exists but the parent resource could not be retrieved — the credentials used by the${g.systemName ? ` "${g.systemName}"` : ''} crawler may not have sufficient permissions to access it.`}
+                            >parent not accessible</span>
+                          ) : (
+                            <><span className="text-gray-300 dark:text-gray-600">in </span>{g.parentDisplayName}</>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs">{g.resourceType || g.groupTypeCalculated || ''}</td>
                   <td className="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs max-w-xs truncate" title={g.description || ''}>
                     {g.description || ''}

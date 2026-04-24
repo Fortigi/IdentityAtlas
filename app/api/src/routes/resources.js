@@ -67,6 +67,13 @@ router.get('/resources', async (req, res) => {
       delete attrFilters['__groupTag'];
     }
 
+    // Extract virtual system name filter (filters via joined Systems table)
+    let systemNameFilter = null;
+    if (attrFilters['__systemName']) {
+      systemNameFilter = String(attrFilters['__systemName']);
+      delete attrFilters['__systemName'];
+    }
+
     const p = await db.getPool();
     await ensureTagTables(p);
 
@@ -113,6 +120,10 @@ router.get('/resources', async (req, res) => {
       request.input('__resourceTag', resourceTagFilter);
     }
     where += filterWhere;
+    if (systemNameFilter) {
+      where += ` AND s."displayName" = @__systemName`;
+      request.input('__systemName', systemNameFilter);
+    }
 
     // Returns every Resources column so the same endpoint feeds the UI grid
     // AND the Power Query Excel export (which auto-expands extendedAttributes
@@ -123,18 +134,28 @@ router.get('/resources', async (req, res) => {
              r."mail", r."visibility", r."externalId",
              r."catalogId", r."isHidden", r."modifiedDateTime",
              r."riskScore", r."riskTier",
+             s."displayName" AS "systemName",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" IN ('resource', 'group')
                WHERE ta."entityId" = UPPER(r.id::text)
-             ) AS "tagString"
+             ) AS "tagString",
+             (SELECT COALESCE(rp."displayName", rr."parentResourceId"::text)
+                FROM "ResourceRelationships" rr
+                LEFT JOIN "Resources" rp ON rp.id = rr."parentResourceId"
+               WHERE rr."childResourceId" = r.id AND rr."relationshipType" = 'Contains'
+               LIMIT 1
+             ) AS "parentDisplayName"
         FROM "Resources" r
+        LEFT JOIN "Systems" s ON s.id = r."systemId"
         ${resourceTagJoin}
        WHERE ${where}
        ORDER BY r."displayName"
        LIMIT @limit OFFSET @offset;
 
-      SELECT COUNT(*)::int AS total FROM "Resources" r ${resourceTagJoin} WHERE ${where};
+      SELECT COUNT(*)::int AS total FROM "Resources" r
+        ${systemNameFilter ? 'LEFT JOIN "Systems" s ON s.id = r."systemId"' : ''}
+        ${resourceTagJoin} WHERE ${where};
     `);
 
     const data = result.recordsets[0].map(row => {
@@ -174,7 +195,12 @@ router.get('/resources/:id', async (req, res) => {
     // 1. Current attributes
     const resourceResult = await timedRequest(pool, 'resource-attributes', res)
       .input('id', resourceId)
-      .query(`SELECT * FROM "Resources" WHERE id = @id`);
+      .query(`
+        SELECT r.*, s."displayName" AS "systemName"
+        FROM "Resources" r
+        LEFT JOIN "Systems" s ON s.id = r."systemId"
+        WHERE r.id = @id
+      `);
 
     if (resourceResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Resource not found' });
@@ -371,9 +397,9 @@ router.get('/resources/:id/parent-resources', async (req, res) => {
         SELECT rr."parentResourceId", pr."displayName" AS "parentDisplayName",
                pr."resourceType" AS "parentResourceType", rr."relationshipType", rr."roleName"
         FROM "ResourceRelationships" rr
-        INNER JOIN "Resources" pr ON rr."parentResourceId" = pr.id
+        LEFT JOIN "Resources" pr ON pr.id = rr."parentResourceId"
         WHERE rr."childResourceId" = @id
-        ORDER BY rr."relationshipType", pr."displayName"
+        ORDER BY rr."relationshipType", COALESCE(pr."displayName", rr."parentResourceId"::text)
       `);
     res.json(r.recordset);
   } catch (err) {
@@ -463,6 +489,17 @@ router.get('/resource-columns', async (req, res) => {
       const resourceTags = tagResult.recordset.map(r => r.name);
       grouped['__resourceTag'] = schemaOnly ? [] : resourceTags;
     } catch { /* tag tables may not exist yet */ }
+
+    // Add virtual systemName column (source crawler / system display names)
+    try {
+      const sysResult = await p.request().query(`
+        SELECT DISTINCT s."displayName" AS name
+        FROM "Systems" s
+        WHERE EXISTS (SELECT 1 FROM "Resources" r WHERE r."systemId" = s.id)
+        ORDER BY s."displayName"
+      `);
+      grouped['__systemName'] = schemaOnly ? [] : sysResult.recordset.map(r => r.name);
+    } catch { /* Systems table may not exist yet */ }
 
     return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
   } catch (err) {
