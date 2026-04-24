@@ -188,6 +188,24 @@ function Invoke-IngestAPI {
     }
 }
 
+# Force a collection to always serialize as a JSON array — even when it
+# happens to contain exactly 0 or 1 items. PowerShell's ConvertTo-Json
+# collapses a single-element array stored as a hashtable value into a bare
+# object (`@{r=@($x)} | ConvertTo-Json` → `{"r":{...}}`, not `{"r":[{...}]}`),
+# which made every delta run that happened to find exactly one changed
+# principal fail at the server with `"records must be an array"`. A
+# `List[object]` always round-trips as a JSON array regardless of count;
+# the leading unary `,` stops the pipeline from re-unwrapping the list
+# back into individual items on return.
+function ConvertTo-JsonArray {
+    param([object]$Items)
+    $list = [System.Collections.Generic.List[object]]::new()
+    if ($null -ne $Items) {
+        foreach ($it in @($Items)) { [void]$list.Add($it) }
+    }
+    return ,$list
+}
+
 function Send-IngestBatch {
     param(
         [string]$Endpoint,
@@ -232,9 +250,9 @@ function Send-IngestBatch {
             systemId = $SystemId
             syncMode = $SyncMode
             scope    = $Scope
-            records  = if ($haveRecords) { $Records } else { @() }
+            records  = if ($haveRecords) { ConvertTo-JsonArray $Records } else { ConvertTo-JsonArray $null }
         }
-        if ($haveDeletes) { $body['deletedIds'] = $DeletedIds }
+        if ($haveDeletes) { $body['deletedIds'] = ConvertTo-JsonArray $DeletedIds }
         $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
         Write-Host "  Result: $($result.inserted) inserted, $($result.updated) updated, $($result.deleted) deleted" -ForegroundColor Green
         return $result
@@ -250,8 +268,8 @@ function Send-IngestBatch {
             systemId   = $SystemId
             syncMode   = $SyncMode
             scope      = $Scope
-            records    = @()
-            deletedIds = $DeletedIds
+            records    = ConvertTo-JsonArray $null
+            deletedIds = ConvertTo-JsonArray $DeletedIds
         }
         $delRes = Invoke-IngestAPI -Endpoint $Endpoint -Body $delBody
         $totalDeleted = ($delRes.deleted ?? 0)
@@ -270,7 +288,7 @@ function Send-IngestBatch {
             systemId    = $SystemId
             syncMode    = $SyncMode
             scope       = $Scope
-            records     = $batch
+            records     = ConvertTo-JsonArray $batch
             syncSession = if ($isFirst) { 'start' } elseif ($isLast) { 'end' } else { 'continue' }
         }
         if ($syncId) { $body.syncId = $syncId }
