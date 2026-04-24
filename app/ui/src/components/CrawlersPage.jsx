@@ -1138,6 +1138,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
     if (s.frequency === 'weekly') {
       label += ` on ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][s.day ?? 0]}`;
     }
+    label += s.syncMode === 'full' ? ' · full' : ' · delta';
     return label;
   };
 
@@ -1501,7 +1502,15 @@ function JobPhasesModal({ job, onClose }) {
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Job {job.id} — {job.jobType}</h2>
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <span>Job {job.id} — {job.jobType}</span>
+              {job.config?._syncMode === 'full' && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800" title="Full sync: re-fetches everything.">full</span>
+              )}
+              {job.config?._syncMode === 'delta' && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700" title="Delta sync: fetches only what changed.">delta</span>
+              )}
+            </h2>
             <div className="text-xs text-gray-500 mt-0.5">
               {new Date(job.createdAt).toLocaleString()} ·
               {' '}<span className={job.status === 'failed' ? 'text-red-600' : job.status === 'completed' ? 'text-green-600' : 'text-gray-600'}>{job.status}</span>
@@ -1605,6 +1614,7 @@ function RecentJobs({ jobs, onForceStop }) {
           <thead className="bg-gray-50 dark:bg-gray-700/50">
             <tr>
               <th className="text-left p-3 font-medium dark:text-gray-300">Type</th>
+              <th className="text-left p-3 font-medium dark:text-gray-300">Mode</th>
               <th className="text-left p-3 font-medium dark:text-gray-300">Status</th>
               <th className="text-left p-3 font-medium dark:text-gray-300">Created</th>
               <th className="text-left p-3 font-medium dark:text-gray-300">Duration</th>
@@ -1623,9 +1633,19 @@ function RecentJobs({ jobs, onForceStop }) {
               // with neither phases nor errorMessage the modal still shows
               // a sensible empty state.
               const hasDetails = true;
+              // Effective syncMode: set by the scheduler on scheduled runs
+              // (`config._syncMode`) and by the manual Run-Now path. Older
+              // jobs won't have it — show '—'.
+              const jobSyncMode = j.config?._syncMode;
+              const modeBadge = jobSyncMode === 'full'
+                ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" title="Full: re-fetches everything from the source, ignores any stored delta tokens.">full</span>
+                : jobSyncMode === 'delta'
+                  ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700/40 dark:text-slate-300" title="Delta: fetches only what changed since the last successful run.">delta</span>
+                  : <span className="text-gray-400 text-xs">—</span>;
               return (
                 <tr key={j.id}>
                   <td className="p-3 font-medium dark:text-gray-200">{j.jobType}</td>
+                  <td className="p-3">{modeBadge}</td>
                   <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[j.status] || ''}`}>{j.status}</span></td>
                   <td className="p-3 text-gray-500 dark:text-gray-400">{new Date(j.createdAt).toLocaleString()}</td>
                   <td className="p-3 text-gray-500 dark:text-gray-400">{duration}</td>
