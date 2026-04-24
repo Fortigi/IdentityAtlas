@@ -48,7 +48,11 @@ describe('validateEnvelope', () => {
   it('rejects missing records field', () => {
     const result = validateEnvelope({ systemId: validBase.systemId }, 'principals');
     expect(result.valid).toBe(false);
-    expect(result.errors.some(e => /records must be an array/.test(e))).toBe(true);
+    // validateEnvelope treats undefined/null `records` as an empty array
+    // (PowerShell's ConvertTo-Json serialises @() as null, so we have to
+    // be lenient there). A body with no records AND no deletedIds still
+    // fails, but with "cannot be empty" rather than "must be an array".
+    expect(result.errors.some(e => /records.*cannot be empty|records must be an array/.test(e))).toBe(true);
   });
 
   it('rejects empty records array', () => {
