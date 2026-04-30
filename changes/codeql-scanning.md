@@ -1,1 +1,0 @@
-- Added CodeQL static analysis scanning on all pull requests — automatically detects security vulnerabilities and code quality issues in JavaScript and TypeScript
