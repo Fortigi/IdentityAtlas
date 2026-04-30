@@ -1868,14 +1868,11 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
   // Listen for hash changes (e.g. clicking version link from footer) and update activeTab
   useEffect(() => {
     const handleHashChange = () => {
-      const newTab = getInitialTab();
-      if (newTab !== activeTab) {
-        setActiveTab(newTab);
-      }
+      setActiveTab(getInitialTab());
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [activeTab]);
+  }, []); // Only register once on mount - React bails out if state value unchanged
 
   const currentTab = ADMIN_TABS.find(t => t.key === activeTab) || ADMIN_TABS[0];
 
