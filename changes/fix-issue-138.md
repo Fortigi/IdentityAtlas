@@ -1,1 +1,0 @@
-- Fixed version link in footer not navigating to Admin → About when clicked from admin pages
