@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- CI automation (version bumps, releases, hotfixes) now authenticates via the Fortigi CI Bot GitHub App instead of a personal access token, so repository rules apply to all human contributors without exception
+
+## Changes in this PR
+
 - Added CodeQL static analysis scanning on all pull requests — automatically detects security vulnerabilities and code quality issues in JavaScript and TypeScript
 
 ## Changes in this PR
