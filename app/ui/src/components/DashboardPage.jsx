@@ -19,6 +19,17 @@ const GITHUB_BASE = 'https://github.com/Fortigi/IdentityAtlas';
 const DOCS_URL = 'https://fortigi.github.io/IdentityAtlas';
 const SUPPORT_EMAIL = 'support@identityatlas.io';
 
+function changesUrl(v) {
+  if (v) {
+    const parts = v.split('.');
+    // Release format: Major.Minor.Patch.0 — 3rd segment is a small patch number, not a date
+    if (parts.length === 4 && parseInt(parts[2], 10) < 10000) {
+      return `${GITHUB_BASE}/blob/v${parts[0]}.${parts[1]}.${parts[2]}/CHANGES.md`;
+    }
+  }
+  return `${GITHUB_BASE}/blob/main/CHANGES.md`;
+}
+
 function formatNumber(n) {
   if (n == null) return '—';
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -211,7 +222,7 @@ export default function DashboardPage({ onNavigate }) {
             {version?.version ? `v${version.version}` : 'v5.0'}
           </div>
           <div className="mt-3 text-xs">
-            <a href={`${GITHUB_BASE}/blob/main/CHANGES.md`} target="_blank" rel="noopener noreferrer" className="text-lime-700 hover:text-lime-800 font-medium hover:underline inline-flex items-center gap-1">
+            <a href={changesUrl(version?.version)} target="_blank" rel="noopener noreferrer" className="text-lime-700 hover:text-lime-800 font-medium hover:underline inline-flex items-center gap-1">
               What is new →
             </a>
           </div>
