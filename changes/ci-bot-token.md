@@ -1,1 +1,0 @@
-- CI automation (version bumps, releases, hotfixes) now authenticates via the Fortigi CI Bot GitHub App instead of a personal access token, so repository rules apply to all human contributors without exception
