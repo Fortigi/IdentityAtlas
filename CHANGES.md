@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed version link in footer not navigating to Admin → About when clicked from admin pages
+
+## Changes in this PR
+
 - Fixed "What is new" link on the dashboard — it now points to the changelog for the installed version instead of always showing the latest.
 
 ## Changes in this PR
