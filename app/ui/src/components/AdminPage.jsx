@@ -1865,6 +1865,18 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
     }
   }, [activeTab]);
 
+  // Listen for hash changes (e.g. clicking version link from footer) and update activeTab
+  useEffect(() => {
+    const handleHashChange = () => {
+      const newTab = getInitialTab();
+      if (newTab !== activeTab) {
+        setActiveTab(newTab);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activeTab]);
+
   const currentTab = ADMIN_TABS.find(t => t.key === activeTab) || ADMIN_TABS[0];
 
   return (
