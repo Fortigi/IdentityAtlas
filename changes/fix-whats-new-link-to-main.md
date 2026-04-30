@@ -1,2 +1,0 @@
-- Updated GitHub Actions to Node.js 24 runtime: checkout@v6, setup-node@v6, setup-python@v6, upload-artifact@v7, deploy-pages@v5, docker/setup-buildx-action@v4, docker/build-push-action@v7, docker/login-action@v4
-- Updated Node.js install version in CI workflows from 20 (EOL) to 22 LTS
