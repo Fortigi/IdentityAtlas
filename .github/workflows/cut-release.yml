@@ -37,10 +37,17 @@ jobs:
             exit 1
           fi
 
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
       - uses: actions/checkout@v6
         with:
           ref: main
-          token: ${{ secrets.VERSION_BUMP_PAT }}
+          token: ${{ steps.bot-token.outputs.token }}
 
       - name: Create and push release tag
         run: |
