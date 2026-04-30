@@ -78,7 +78,7 @@ jobs:
       matrix: ${{ steps.run.outputs.matrix }}
       has_issues: ${{ steps.run.outputs.has_issues }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: |
             CLAUDE.md
@@ -124,7 +124,7 @@ jobs:
             --repo "${{ github.repository }}" \
             --add-label "fix-in-progress"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
