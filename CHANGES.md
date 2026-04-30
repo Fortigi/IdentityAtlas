@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed "What is new" link on the dashboard — it now points to the changelog for the installed version instead of always showing the latest.
+
+## Changes in this PR
+
 - Fixed the Crawlers wizard incorrectly reporting `DelegatedPermissionGrant.Read.All` as missing when it had been granted. The wizard was checking for the GUID that belongs to `DelegatedPermissionGrant.ReadWrite.All`, so the real Read.All grant was never detected. `ReadWrite.All` is now correctly recognised as a superset of `Read.All`.
 - Fixed the Entra ID crawler silently dropping OAuth2 delegated-grant resource-relationships (every consent was rejected with a 400). The validation whitelist was missing `DelegatesScope`, the relationship type introduced with the OAuth2 grants feature.
 - Fixed the Entra ID crawler silently failing every `assignmentPolicies` fetch (so Access Packages showed blank Type/Review columns). Microsoft removed the `assignmentPolicies` segment from the `/beta` Graph surface — the call now goes via `/v1.0` (which still exposes it). The unused `$expand=accessPackage` and `$top=999` parameters were also dropped; `accessPackageId` is already on the base object, and this endpoint rejects `$top`.
