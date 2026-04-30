@@ -1,0 +1,1 @@
+- Moved About page (license + SBOM) from the main navigation into Admin → About
