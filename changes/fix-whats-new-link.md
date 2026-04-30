@@ -1,0 +1,1 @@
+- Fixed "What is new" link on the dashboard — it now points to the changelog for the installed version instead of always showing the latest.
