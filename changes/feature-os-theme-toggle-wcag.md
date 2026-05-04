@@ -1,0 +1,2 @@
+- Added a three-way Theme toggle (Light / Auto / Dark) to the settings dropdown, replacing the previous on/off switch. The "Auto" setting follows the OS color scheme and updates live when the system preference changes. Existing dark-mode preferences are automatically migrated on first load.
+- Fixed WCAG 2.0 AA contrast violations in tag and category badge colors: all ten colors were replaced with darker equivalents, achieving a minimum 4.5:1 contrast ratio.
