@@ -13,3 +13,4 @@ tools/csv-templates/demodata/
 tools/csv-templates/demodataTransformed/
 .claude/settings.local.json
 Config/
+.aider*
