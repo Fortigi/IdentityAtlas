@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added `.gitattributes` to enforce LF line endings on all text files, preventing CRLF from being introduced on Windows checkouts
+
+## Changes in this PR
+
 - CI automation (version bumps, releases, hotfixes) now authenticates via the Fortigi CI Bot GitHub App instead of a personal access token, so repository rules apply to all human contributors without exception
 
 ## Changes in this PR

@@ -1,1 +1,0 @@
-- Added `.gitattributes` to enforce LF line endings on all text files, preventing CRLF from being introduced on Windows checkouts
