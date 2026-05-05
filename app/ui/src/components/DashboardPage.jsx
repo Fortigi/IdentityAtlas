@@ -84,9 +84,9 @@ export default function DashboardPage({ onNavigate }) {
         {/* Header with big logo */}
         <div className="mb-10 flex flex-col sm:flex-row items-center sm:items-end gap-6">
           <img
-            src="/logo.png"
+            src={isDark ? '/logo-dark.png' : '/logo.png'}
             alt="Identity Atlas"
-            className="w-40 h-40 sm:w-48 sm:h-48 flex-shrink-0 drop-shadow-[0_0_35px_rgba(132,204,22,0.3)] dark:brightness-90 dark:drop-shadow-[0_0_20px_rgba(132,204,22,0.15)]"
+            className="w-40 h-40 sm:w-48 sm:h-48 flex-shrink-0 drop-shadow-[0_0_35px_rgba(132,204,22,0.3)]"
           />
           <div className="flex-1 pb-4 text-center sm:text-left">
             <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed max-w-xl">

@@ -383,7 +383,7 @@ export default function App() {
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Identity Atlas" className="h-10 w-10 rounded-lg dark:bg-white/10 dark:p-0.5" />
+            <img src={isDark ? '/logo-dark.png' : '/logo.png'} alt="Identity Atlas" className="h-10 w-10 rounded-lg" />
             <div>
               <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Identity <span style={{ color: '#65b425' }}>Atlas</span></h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">

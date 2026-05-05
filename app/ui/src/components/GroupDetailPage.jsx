@@ -111,7 +111,7 @@ export default function GroupDetailPage({ groupId, cachedData, onCacheData, onCl
           )}
         </div>
         <button onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+          className="text-gray-500 hover:text-gray-700 p-1 rounded hover:bg-gray-100"
           title="Close tab">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -149,7 +149,7 @@ export default function GroupDetailPage({ groupId, cachedData, onCacheData, onCl
           loading={historyLoading}
         >
           {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-400 italic p-4">No changes recorded</p>
+            <p className="text-sm text-gray-500 italic p-4">No changes recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -169,9 +169,9 @@ export default function GroupDetailPage({ groupId, cachedData, onCacheData, onCl
                         {diff.changes.map((c, j) => (
                           <div key={j} className="text-xs">
                             <span className="font-medium text-gray-700">{friendlyLabel(c.field)}</span>
-                            <span className="text-gray-400 mx-1">:</span>
+                            <span className="text-gray-500 mx-1">:</span>
                             <span className="text-red-500 line-through mr-1">{c.from}</span>
-                            <span className="text-gray-400 mr-1">&rarr;</span>
+                            <span className="text-gray-500 mr-1">&rarr;</span>
                             <span className="text-green-600">{c.to}</span>
                           </div>
                         ))}
