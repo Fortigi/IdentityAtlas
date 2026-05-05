@@ -113,9 +113,9 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
   }
   if (!identity) {
     return (
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center text-gray-400 dark:text-gray-500 text-sm">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center text-gray-500 dark:text-gray-400 text-sm">
         Identity not found.
-        <button onClick={onClose} className="ml-2 text-blue-500 underline hover:text-blue-700">Close</button>
+        <button onClick={onClose} className="ml-2 text-blue-700 underline hover:text-blue-900">Close</button>
       </div>
     );
   }

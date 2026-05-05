@@ -139,7 +139,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
   const [riskScoresRefreshKey, setRiskScoresRefreshKey] = useState(0);
-  const { isDark, toggleDark } = useTheme();
+  const { isDark, mode, setTheme } = useTheme();
 
   const navTabs = useMemo(() =>
     ALL_NAV_TABS.filter(tab => {
@@ -376,14 +376,14 @@ export default function App() {
   };
 
   return (
-    <ThemeContext.Provider value={isDark}>
+    <ThemeContext.Provider value={{ isDark, mode }}>
     <ErrorBoundary>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Identity Atlas" className="h-10 w-10 rounded-lg dark:bg-white/10 dark:p-0.5" />
+            <img src={isDark ? '/logo-dark.png' : '/logo.png'} alt="Identity Atlas" className="h-10 w-10 rounded-lg" />
             <div>
               <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Identity <span style={{ color: '#65b425' }}>Atlas</span></h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -414,19 +414,51 @@ export default function App() {
                   {account?.username && <p className="text-xs text-gray-500 dark:text-gray-400">{account.username}</p>}
                 </div>
 
-                {/* Dark mode toggle */}
+                {/* Theme selector */}
                 <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Dark Mode</span>
-                    <button
-                      onClick={toggleDark}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isDark ? 'bg-blue-500' : 'bg-gray-300'}`}
-                    >
-                      <span
-                        className="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
-                        style={{ transform: isDark ? 'translateX(18px)' : 'translateX(2px)' }}
-                      />
-                    </button>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-gray-700 dark:text-gray-300 shrink-0">Theme</span>
+                    <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs">
+                      {[
+                        {
+                          value: 'light', label: 'Light',
+                          icon: <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="5" strokeWidth={2}/>
+                            <path strokeWidth={2} strokeLinecap="round"
+                              d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                          </svg>,
+                        },
+                        {
+                          value: 'auto', label: 'Auto',
+                          icon: <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <rect x="2" y="3" width="20" height="14" rx="2" strokeWidth={2}/>
+                            <path strokeWidth={2} strokeLinecap="round" d="M8 21h8M12 17v4"/>
+                          </svg>,
+                        },
+                        {
+                          value: 'dark', label: 'Dark',
+                          icon: <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeWidth={2} strokeLinecap="round"
+                              d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                          </svg>,
+                        },
+                      ].map(({ value, label, icon }) => (
+                        <button
+                          key={value}
+                          onClick={() => setTheme(value)}
+                          aria-label={label}
+                          aria-pressed={mode === value}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 transition-colors ${
+                            mode === value
+                              ? 'bg-blue-500 text-white'
+                              : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          {icon}
+                          <span>{label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
