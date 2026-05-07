@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@yao-pkg/pkg": "^5.14.0",
+    "esbuild": "^0.28.0",
     "patch-package": "^8.0.1",
     "vitest": "^2.0.0"
   },
@@ -22,10 +23,11 @@
       "src/db/migrations/*.sql",
       "src/openapi.yaml",
       "dist-frontend/**/*",
-      "bundled-scripts/**/*"
-    ],
-    "scripts": [
-      "src/**/*.js"
+      "bundled-scripts/**/*",
+      "node_modules/@embedded-postgres/windows-x64/native/**/*",
+      "node_modules/embedded-postgres/**/*.js",
+      "node_modules/@embedded-postgres/windows-x64/dist/**/*",
+      "src/app-bundle.mjs"
     ]
   },
   "dependencies": {

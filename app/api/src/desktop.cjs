@@ -11,16 +11,14 @@
 // Subsequent launches skip the PG download (binaries already in installationDir)
 // and open the existing database (data persists in pgdata\).
 //
-// Env vars set here override everything in index.js — set them BEFORE the
-// dynamic import so they're visible at module evaluation time.
+// CJS (.cjs) so that @yao-pkg/pkg can bundle it without Babel ESM parse errors.
+// ESM-only deps (embedded-postgres, index.js) are loaded via dynamic import().
 
-import { exec } from 'child_process';
-import { join, dirname } from 'path';
-import { homedir } from 'os';
-import { mkdirSync, existsSync, readdirSync, copyFileSync, statSync } from 'fs';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+'use strict';
+const { exec }   = require('child_process');
+const { join }   = require('path');
+const { homedir } = require('os');
+const { mkdirSync, existsSync, readdirSync, copyFileSync, statSync } = require('fs');
 
 // User data lives here — survives updates, never inside the .exe snapshot.
 const DATA_DIR = join(homedir(), 'AppData', 'Roaming', 'IdentityAtlas');
@@ -29,8 +27,13 @@ const DATA_DIR = join(homedir(), 'AppData', 'Roaming', 'IdentityAtlas');
 // PowerShell can execute them (snapshot paths are read-only for execution).
 const SCRIPTS_DIR = join(DATA_DIR, 'scripts');
 
+// PostgreSQL native binaries are extracted to a writable location because
+// Windows cannot execute binaries directly from the pkg snapshot.
+const PG_NATIVE_DIR = join(DATA_DIR, 'postgres', 'native');
+
 // Frontend static files are bundled as pkg assets under dist-frontend/ relative
 // to this file. Express can serve them from the pkg snapshot FS directly.
+// __dirname is native in CJS — no import.meta.url needed.
 const FRONTEND_DIST_IN_PKG = join(__dirname, '../dist-frontend');
 
 // ─── Configure environment before loading index.js ───────────────────────────
@@ -38,7 +41,7 @@ const FRONTEND_DIST_IN_PKG = join(__dirname, '../dist-frontend');
 process.env.USE_SQL       = 'true';
 process.env.PORT          = process.env.PORT || '3001';
 process.env.NODE_ENV      = process.env.NODE_ENV || 'production';
-process.env.DATABASE_URL  = `postgres://postgres@127.0.0.1:5433/identity_atlas`;
+process.env.DATABASE_URL  = 'postgres://postgres@127.0.0.1:5433/identity_atlas';
 
 // Path overrides — redirect everything that would go to /data/uploads to the
 // writable APPDATA directory.
@@ -50,6 +53,9 @@ process.env.TRACE_DIR       = join(DATA_DIR, 'jobs');
 // with node, fall back to the normal ../../frontend/dist location.
 if (process.pkg) {
   process.env.FRONTEND_DIST = FRONTEND_DIST_IN_PKG;
+  // Tell the patched @embedded-postgres/windows-x64 where to find binaries.
+  // Set before any import() calls so the module reads the right value.
+  process.env.EMBEDDED_PG_NATIVE_DIR = PG_NATIVE_DIR;
 }
 
 // ─── Script extraction ────────────────────────────────────────────────────────
@@ -115,11 +121,17 @@ async function main() {
 
   extractScripts();
 
+  // Extract PG native binaries so Windows can execute them (snapshot = read-only).
+  if (process.pkg) {
+    const pgBinSrc = join(__dirname, '../node_modules/@embedded-postgres/windows-x64/native');
+    extractDir(pgBinSrc, PG_NATIVE_DIR);
+  }
+
   console.log('Identity Atlas Desktop — starting PostgreSQL...');
   console.log(`  Data directory: ${DATA_DIR}`);
 
   // embedded-postgres downloads PG binaries on first run, then reuses them.
-  // installationDir and dataDir must be outside the pkg snapshot (writable).
+  // databaseDir must be outside the pkg snapshot (writable).
   const epModule = await import('embedded-postgres');
   const EmbeddedPostgres = epModule.default ?? epModule.EmbeddedPostgres;
   const pg = new EmbeddedPostgres({
@@ -143,8 +155,13 @@ async function main() {
 
   console.log('PostgreSQL started. Loading API...');
 
-  // Dynamic import runs after env vars are set, so bootstrap.js picks them up.
-  await import('./index.js');
+  // In pkg mode use the esbuild ESM bundle added to pkg.assets (pkg can't follow
+  // dynamic import() calls). In dev mode use index.js directly.
+  if (process.pkg) {
+    await import('./app-bundle.mjs');
+  } else {
+    await import('./index.js');
+  }
 
   await waitForHealth('http://localhost:3001/api/health', 60_000);
   console.log('Identity Atlas ready at http://localhost:3001');
@@ -156,7 +173,7 @@ async function main() {
   exec(`${openCmd} http://localhost:3001`);
 
   // Start in-process job worker (polls job queue, spawns pwsh.exe for each job)
-  const { startWorker } = await import('./desktop-worker.js');
+  const { startWorker } = require('./desktop-worker.cjs');
   startWorker();
 
   // Graceful shutdown: stop PG cleanly after Express shuts down

@@ -5,7 +5,8 @@
 //   1. Build the React UI (app/ui → app/ui/dist/)
 //   2. Copy dist/ to app/api/dist-frontend/ (pkg bundles it as an asset from there)
 //   3. Copy PowerShell crawler scripts to app/api/bundled-scripts/ (pkg asset)
-//   4. Run @yao-pkg/pkg to produce dist/IdentityAtlas.exe
+//   4. esbuild: bundle src/index.js → src/app-bundle.cjs (CJS, all deps inlined)
+//   5. Run @yao-pkg/pkg to produce dist/IdentityAtlas.exe
 //
 // Usage:
 //   node scripts/build-desktop.js [--skip-ui-build]
@@ -38,11 +39,11 @@ function run(cmd, cwd) {
 
 // ─── Step 1: Build React UI ───────────────────────────────────────────────────
 if (!skipUiBuild) {
-  console.log('\n[1/4] Building React UI...');
+  console.log('\n[1/5] Building React UI...');
   run('npm ci --prefer-offline', UI_ROOT);
   run('npm run build', UI_ROOT);
 } else {
-  console.log('\n[1/4] Skipping UI build (--skip-ui-build)');
+  console.log('\n[1/5] Skipping UI build (--skip-ui-build)');
 }
 
 if (!existsSync(FRONTEND_DIST_SRC)) {
@@ -50,7 +51,7 @@ if (!existsSync(FRONTEND_DIST_SRC)) {
 }
 
 // ─── Step 2: Copy frontend dist into api/ so pkg can bundle it as an asset ───
-console.log('\n[2/4] Copying frontend dist...');
+console.log('\n[2/5] Copying frontend dist...');
 if (existsSync(FRONTEND_DIST_DEST)) {
   rmSync(FRONTEND_DIST_DEST, { recursive: true, force: true });
 }
@@ -60,7 +61,7 @@ console.log(`  → ${FRONTEND_DIST_DEST}`);
 // ─── Step 3: Copy PowerShell scripts into api/ for bundling ──────────────────
 // Bundled layout mirrors the Docker container's /app/ layout so IA_APP_ROOT
 // points to the same relative structure that scheduler.ps1 expects.
-console.log('\n[3/4] Copying PowerShell scripts...');
+console.log('\n[3/5] Copying PowerShell scripts...');
 if (existsSync(SCRIPTS_DEST)) {
   rmSync(SCRIPTS_DEST, { recursive: true, force: true });
 }
@@ -101,11 +102,29 @@ for (const dir of DIRS_TO_BUNDLE) {
 
 console.log(`  → ${SCRIPTS_DEST}`);
 
-// ─── Step 4: Run pkg ─────────────────────────────────────────────────────────
-console.log('\n[4/4] Running @yao-pkg/pkg...');
+// ─── Step 4: Bundle Express app with esbuild ─────────────────────────────────
+// pkg cannot follow dynamic import() calls; esbuild produces a self-contained
+// ESM bundle of src/index.js that is added to pkg.assets and loaded at runtime
+// via dynamic import().  ESM format is required because routes use top-level await.
+console.log('\n[4/5] Bundling Express app with esbuild...');
+const APP_BUNDLE = join(API_ROOT, 'src', 'app-bundle.mjs');
+run(
+  `npx esbuild src/index.js ` +
+  `--bundle ` +
+  `--platform=node ` +
+  `--format=esm ` +
+  `--outfile=${APP_BUNDLE} ` +
+  `--external:pg-native ` +
+  `--log-level=warning`
+);
+console.log(`  → ${APP_BUNDLE}`);
+
+// ─── Step 5: Run pkg ─────────────────────────────────────────────────────────
+console.log('\n[5/5] Running @yao-pkg/pkg...');
 mkdirSync(OUTPUT_DIR, { recursive: true });
 run(
-  `npx @yao-pkg/pkg src/desktop.js ` +
+  `npx @yao-pkg/pkg src/desktop.cjs ` +
+  `--config package.json ` +
   `--target node20-win-x64 ` +
   `--output ${OUTPUT_EXE} ` +
   `--compress GZip`

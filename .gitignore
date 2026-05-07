@@ -13,3 +13,10 @@ tools/csv-templates/demodata/
 tools/csv-templates/demodataTransformed/
 .claude/settings.local.json
 Config/
+
+# Desktop build artifacts
+app/api/dist/
+app/api/dist-frontend/
+app/api/bundled-scripts/
+app/api/src/app-bundle.mjs
+app/ui/dist/

@@ -1,11 +1,17 @@
 diff --git a/node_modules/@embedded-postgres/windows-x64/dist/index.js b/node_modules/@embedded-postgres/windows-x64/dist/index.js
-index 3b73726..eaac5a4 100644
+index 3b73726..c88f1e3
 --- a/node_modules/@embedded-postgres/windows-x64/dist/index.js
 +++ b/node_modules/@embedded-postgres/windows-x64/dist/index.js
-@@ -1,4 +1,6 @@
+@@ -1,4 +1,9 @@
  import path from 'path';
+-export const pg_ctl = path.resolve(__dirname, '..', 'native', 'bin', 'pg_ctl.exe');
+-export const initdb = path.resolve(__dirname, '..', 'native', 'bin', 'initdb.exe');
+-export const postgres = path.resolve(__dirname, '..', 'native', 'bin', 'postgres.exe');
 +import { fileURLToPath } from 'url';
 +const __dirname = path.dirname(fileURLToPath(import.meta.url));
- export const pg_ctl = path.resolve(__dirname, '..', 'native', 'bin', 'pg_ctl.exe');
- export const initdb = path.resolve(__dirname, '..', 'native', 'bin', 'initdb.exe');
- export const postgres = path.resolve(__dirname, '..', 'native', 'bin', 'postgres.exe');
++// EMBEDDED_PG_NATIVE_DIR lets the desktop .exe redirect binaries to an
++// extracted writable location (pkg snapshot paths can't be executed by Windows).
++const nativeDir = process.env.EMBEDDED_PG_NATIVE_DIR || path.resolve(__dirname, '..', 'native');
++export const pg_ctl  = path.join(nativeDir, 'bin', 'pg_ctl.exe');
++export const initdb  = path.join(nativeDir, 'bin', 'initdb.exe');
++export const postgres = path.join(nativeDir, 'bin', 'postgres.exe');

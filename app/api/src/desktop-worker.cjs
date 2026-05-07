@@ -9,14 +9,13 @@
 // If pwsh.exe is not found, jobs are claimed and immediately failed with a
 // descriptive error so the UI shows something useful.
 //
-// The API key is read from the file that bootstrap.js writes on first start.
-// We retry for up to 5 minutes to handle the race between first-boot key
-// generation and the worker's first poll.
+// CJS (.cjs) so that @yao-pkg/pkg can bundle it without Babel ESM parse errors.
 
-import { spawn } from 'child_process';
-import { join } from 'path';
-import { homedir } from 'os';
-import { readFileSync } from 'fs';
+'use strict';
+const { spawn }      = require('child_process');
+const { join }       = require('path');
+const { homedir }    = require('os');
+const { readFileSync } = require('fs');
 
 const API_URL  = `http://localhost:${process.env.PORT || '3001'}/api`;
 const DATA_DIR = join(homedir(), 'AppData', 'Roaming', 'IdentityAtlas');
@@ -107,8 +106,10 @@ async function pollAndDispatch() {
   dispatchJob(apiKey, job);
 }
 
-export function startWorker() {
+function startWorker() {
   setTimeout(pollAndDispatch, FIRST_POLL_DELAY);
   setInterval(pollAndDispatch, POLL_INTERVAL_MS);
   console.log('Desktop worker started (polls every 30s for crawler jobs)');
 }
+
+module.exports = { startWorker };
