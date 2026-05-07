@@ -8,7 +8,7 @@
     "dev": "node --watch src/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postinstall": "patch-package",
+    "postinstall": "patch-package || true",
     "build:desktop": "node scripts/build-desktop.js",
     "build:desktop:skip-ui": "node scripts/build-desktop.js --skip-ui-build"
   },
