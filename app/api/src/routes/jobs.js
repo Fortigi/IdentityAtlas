@@ -9,7 +9,7 @@ import { existsSync, readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
 
-const TRACE_DIR = '/data/uploads/jobs';
+const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
 // Tail endpoint returns at most this many bytes per request. If the file is
 // larger than offset + MAX, the client polls again with the new offset. Keeps
 // any single response small enough that a ~10 MB log on a long crawl streams

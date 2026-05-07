@@ -7,13 +7,30 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postinstall": "patch-package",
+    "build:desktop": "node scripts/build-desktop.js",
+    "build:desktop:skip-ui": "node scripts/build-desktop.js --skip-ui-build"
   },
   "devDependencies": {
+    "@yao-pkg/pkg": "^5.14.0",
+    "patch-package": "^8.0.1",
     "vitest": "^2.0.0"
+  },
+  "pkg": {
+    "assets": [
+      "src/db/migrations/*.sql",
+      "src/openapi.yaml",
+      "dist-frontend/**/*",
+      "bundled-scripts/**/*"
+    ],
+    "scripts": [
+      "src/**/*.js"
+    ]
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "embedded-postgres": "^16.1.1-beta.9",
     "exceljs": "^4.4.0",
     "express": "^4.21.0",
     "express-rate-limit": "^8.2.1",

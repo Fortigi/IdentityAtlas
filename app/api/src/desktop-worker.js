@@ -1,0 +1,114 @@
+// Desktop job worker — replaces the Docker PowerShell scheduler.ps1 for the
+// packaged .exe build.
+//
+// Polls /api/crawlers/jobs/claim every 30 seconds. When a job is available,
+// spawns pwsh.exe with the extracted Invoke-CrawlerJob.ps1 script and marks
+// the job complete or failed when the process exits.
+//
+// Soft dependency: PowerShell 7 (pwsh.exe) must be on PATH for crawlers to run.
+// If pwsh.exe is not found, jobs are claimed and immediately failed with a
+// descriptive error so the UI shows something useful.
+//
+// The API key is read from the file that bootstrap.js writes on first start.
+// We retry for up to 5 minutes to handle the race between first-boot key
+// generation and the worker's first poll.
+
+import { spawn } from 'child_process';
+import { join } from 'path';
+import { homedir } from 'os';
+import { readFileSync } from 'fs';
+
+const API_URL  = `http://localhost:${process.env.PORT || '3001'}/api`;
+const DATA_DIR = join(homedir(), 'AppData', 'Roaming', 'IdentityAtlas');
+const KEY_FILE = process.env.WORKER_KEY_FILE || join(DATA_DIR, '.builtin-worker-key');
+const SCRIPTS_DIR = join(DATA_DIR, 'scripts');
+
+const POLL_INTERVAL_MS  = 30_000;
+const FIRST_POLL_DELAY  = 8_000;   // wait for bootstrap to finish writing key
+
+function getApiKey() {
+  try { return readFileSync(KEY_FILE, 'utf8').trim() || null; }
+  catch { return null; }
+}
+
+async function claimJob(apiKey) {
+  const res = await fetch(`${API_URL}/crawlers/jobs/claim`, {
+    method:  'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body:    '{}',
+  });
+  if (!res.ok) return null;
+  const body = await res.json();
+  return body?.job ?? null;
+}
+
+async function markJob(apiKey, jobId, outcome, errorMessage) {
+  const path = `${API_URL}/crawlers/jobs/${jobId}/${outcome}`;
+  const body = outcome === 'fail' ? JSON.stringify({ errorMessage }) : '{}';
+  await fetch(path, {
+    method:  'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body,
+  }).catch(() => {});
+}
+
+function dispatchJob(apiKey, job) {
+  const appRoot = process.env.IA_APP_ROOT || SCRIPTS_DIR;
+  const dispatchScript = join(appRoot, 'setup', 'docker', 'Invoke-CrawlerJob.ps1');
+  const psEnv = {
+    ...process.env,
+    WEB_API_URL:  API_URL,
+    IA_APP_ROOT:  appRoot,
+    TRACE_DIR:    join(DATA_DIR, 'jobs'),
+  };
+
+  const ps = spawn('pwsh.exe', [
+    '-NonInteractive',
+    '-File',    dispatchScript,
+    '-JobId',   String(job.id),
+    '-JobType', job.jobType,
+    '-Config',  JSON.stringify(job.config ?? {}),
+    '-ApiKey',  apiKey,
+  ], { env: psEnv, stdio: 'inherit' });
+
+  ps.on('error', async (err) => {
+    const msg = err.code === 'ENOENT'
+      ? 'PowerShell (pwsh.exe) not found. Install PowerShell 7 from https://aka.ms/powershell to run crawlers.'
+      : `Failed to start pwsh.exe: ${err.message}`;
+    console.error(`[worker] job ${job.id}: ${msg}`);
+    await markJob(apiKey, job.id, 'fail', msg);
+  });
+
+  ps.on('close', async (code) => {
+    if (code === 0) {
+      console.log(`[worker] job ${job.id} (${job.jobType}): completed`);
+      await markJob(apiKey, job.id, 'complete');
+    } else {
+      console.error(`[worker] job ${job.id} (${job.jobType}): failed (exit ${code})`);
+      await markJob(apiKey, job.id, 'fail', `pwsh.exe exited with code ${code}`);
+    }
+  });
+}
+
+async function pollAndDispatch() {
+  const apiKey = getApiKey();
+  if (!apiKey) return;
+
+  let job;
+  try {
+    job = await claimJob(apiKey);
+  } catch {
+    return;  // API not reachable yet — try next tick
+  }
+
+  if (!job) return;
+
+  console.log(`[worker] job ${job.id} (${job.jobType}): dispatching...`);
+  dispatchJob(apiKey, job);
+}
+
+export function startWorker() {
+  setTimeout(pollAndDispatch, FIRST_POLL_DELAY);
+  setInterval(pollAndDispatch, POLL_INTERVAL_MS);
+  console.log('Desktop worker started (polls every 30s for crawler jobs)');
+}

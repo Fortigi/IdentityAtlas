@@ -280,7 +280,7 @@ app.use('/api/ingest', express.json({ limit: '50mb' }));
 app.use('/api', crawlerAuthMiddleware, ingestRouter);
 
 // In production, serve the frontend build output
-const frontendDist = join(__dirname, '../../frontend/dist');
+const frontendDist = process.env.FRONTEND_DIST || join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendDist));
 app.get('*', (req, res, next) => {
   // Only serve index.html for non-API routes (SPA fallback)

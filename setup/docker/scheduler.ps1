@@ -26,6 +26,10 @@ $ApiBaseUrl = $env:WEB_API_URL
 if (-not $ApiBaseUrl) { $ApiBaseUrl = 'http://web:3001/api' }
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
+# IA_APP_ROOT lets the desktop .exe point to extracted scripts; falls back to
+# the Docker container path (/app) so existing deployments are unaffected.
+$AppRoot = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app' }
+
 $WorkerKeyFile = $env:WORKER_KEY_FILE
 if (-not $WorkerKeyFile) { $WorkerKeyFile = '/data/uploads/.builtin-worker-key' }
 
@@ -37,7 +41,7 @@ Write-Host ""
 
 # Pre-load the module so it's ready for any job
 try {
-    Import-Module /app/setup/IdentityAtlas.psd1 -Force
+    Import-Module "$AppRoot/setup/IdentityAtlas.psd1" -Force
     Write-Host "  Module loaded successfully" -ForegroundColor Green
 } catch {
     Write-Host "  Module load failed: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -70,7 +74,7 @@ if ($env:CRAWLER_API_KEY) {
 }
 
 # ── Crontab parsing ───────────────────────────────────────────────────────────
-$crontabPath = '/app/setup/docker/crontab'
+$crontabPath = "$AppRoot/setup/docker/crontab"
 $cronJobs = @()
 if (Test-Path $crontabPath) {
     $lines = Get-Content $crontabPath | Where-Object { $_ -and $_ -notmatch '^\s*#' -and $_.Trim() -ne '' }
@@ -131,7 +135,7 @@ function Invoke-PendingJob {
 
     # 2. Dispatch to job runner
     try {
-        & /app/setup/docker/Invoke-CrawlerJob.ps1 `
+        & "$AppRoot/setup/docker/Invoke-CrawlerJob.ps1" `
             -JobId  $jobId `
             -JobType $jobType `
             -Config  $config `
