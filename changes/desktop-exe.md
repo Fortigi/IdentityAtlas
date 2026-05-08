@@ -1,4 +1,4 @@
-- Added portable Windows .exe distribution — no Docker or installation required. Identity Atlas can now run on a single Windows laptop by double-clicking IdentityAtlas.exe.
+- Added portable Windows desktop app — no Docker or installation required. Identity Atlas can now run on a single Windows laptop by double-clicking `IdentityAtlas.exe`.
 - PostgreSQL data is stored in `%APPDATA%\IdentityAtlas\` and persists across restarts.
 - PowerShell crawlers (Entra ID, CSV) are supported as a soft dependency: requires `pwsh.exe` on PATH.
-- Build with `npm run build:desktop` in `app/api/`; produces `app/api/dist/IdentityAtlas.exe`.
+- Electron-based: no console window, system tray icon, splash screen on startup. Build with `npm run build:desktop` in `app/api/`; produces `app/api/dist-electron/IdentityAtlas.exe` (~300 MB, portable).

@@ -62,6 +62,8 @@ if (!moduleVersion) {
   const candidates = [
     '/app/setup/IdentityAtlas.psd1',
     join(__dirname, '../../../setup/IdentityAtlas.psd1'),
+    // Desktop exe: IA_APP_ROOT points at the bundled-scripts dir which mirrors the repo root.
+    ...(process.env.IA_APP_ROOT ? [join(process.env.IA_APP_ROOT, 'setup', 'IdentityAtlas.psd1')] : []),
   ];
   for (const p of candidates) {
     try {

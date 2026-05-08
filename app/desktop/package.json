@@ -1,0 +1,48 @@
+{
+  "name": "identity-atlas-desktop",
+  "version": "1.0.0",
+  "description": "Identity Atlas — Desktop (Electron)",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "electron:dev": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "nl.fortigi.identityatlas",
+    "productName": "Identity Atlas",
+    "directories": {
+      "output": "../api/dist-electron"
+    },
+    "win": {
+      "target": [
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.png"
+    },
+    "portable": {
+      "artifactName": "IdentityAtlas.exe",
+      "requestExecutionLevel": "user"
+    },
+    "extraResources": [
+      { "from": "../api/src/app-bundle.mjs",                                "to": "app-bundle.mjs" },
+      { "from": "../api/src/embedded-postgres-bundle.cjs",                  "to": "embedded-postgres-bundle.cjs" },
+      { "from": "../api/src/db/migrations",                                 "to": "migrations" },
+      { "from": "../api/src/openapi.yaml",                                  "to": "openapi.yaml" },
+      { "from": "../api/dist-frontend",                                     "to": "dist-frontend" },
+      { "from": "../api/bundled-scripts",                                   "to": "bundled-scripts" },
+      { "from": "../api/node_modules/@embedded-postgres/windows-x64/native","to": "pg-native" }
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "desktop-worker.cjs",
+      "build/icon.png",
+      "build/icon-dark.png"
+    ]
+  }
+}

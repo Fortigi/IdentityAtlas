@@ -13,20 +13,9 @@
     "build:desktop:skip-ui": "node ../desktop/scripts/build-desktop.js --skip-ui-build"
   },
   "devDependencies": {
-    "@yao-pkg/pkg": "^5.14.0",
     "esbuild": "^0.28.0",
     "patch-package": "^8.0.1",
     "vitest": "^2.0.0"
-  },
-  "pkg": {
-    "assets": [
-      "src/db/migrations/*.sql",
-      "src/openapi.yaml",
-      "dist-frontend/**/*",
-      "bundled-scripts/**/*",
-      "node_modules/@embedded-postgres/windows-x64/native/**/*",
-      "src/app-bundle.mjs"
-    ]
   },
   "dependencies": {
     "cors": "^2.8.5",

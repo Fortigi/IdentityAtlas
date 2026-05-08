@@ -1,35 +1,32 @@
 #!/usr/bin/env node
-// Build script for the IdentityAtlas desktop .exe.
+// Build script for the IdentityAtlas desktop app.
 //
-// Steps:
 //   1. Build the React UI (app/ui → app/ui/dist/)
-//   2. Copy dist/ to app/api/dist-frontend/ (pkg bundles it as an asset from there)
-//   3. Copy PowerShell crawler scripts to app/api/bundled-scripts/ (pkg asset)
+//   2. Copy dist/ to app/api/dist-frontend/ (electron-builder extraResource)
+//   3. Copy PowerShell crawler scripts to app/api/bundled-scripts/ (extraResource)
 //   4. esbuild: bundle src/index.js → src/app-bundle.mjs  (ESM + CJS compat banner)
-//              bundle embedded-postgres → src/embedded-postgres-bundle.cjs
-//   5. Run @yao-pkg/pkg to produce dist/IdentityAtlas.exe
+//              bundle embedded-postgres → src/embedded-postgres-bundle.cjs (pg bundled inline)
+//   5. electron-builder --win → app/api/dist-electron/IdentityAtlas.exe (~300 MB, portable)
 //
-// Usage:
-//   node app/desktop/scripts/build-desktop.js [--skip-ui-build]
-//
-// Output: app/api/dist/IdentityAtlas.exe  (~120 MB, node20-win-x64)
+// Usage (from app/api/):
+//   npm run build:desktop              — full build including React UI
+//   npm run build:desktop:skip-ui      — skip the React UI build step
 
 import { execSync }              from 'child_process';
 import { cpSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath }         from 'url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const API_ROOT  = resolve(__dirname, '../../api');  // app/desktop/scripts/ → app/api/
-const REPO_ROOT = resolve(API_ROOT,  '../..');      // app/api/ → repo root
-const UI_ROOT   = resolve(REPO_ROOT, 'app/ui');     // app/ui/
+const __dirname    = dirname(fileURLToPath(import.meta.url));
+const DESKTOP_ROOT = resolve(__dirname, '..');        // app/desktop/scripts/ → app/desktop/
+const API_ROOT     = resolve(__dirname, '../../api'); // app/desktop/scripts/ → app/api/
+const REPO_ROOT    = resolve(API_ROOT,  '../..');     // app/api/ → repo root
+const UI_ROOT      = resolve(REPO_ROOT, 'app/ui');   // app/ui/
 
 const FRONTEND_DIST_SRC  = join(UI_ROOT,  'dist');
 const FRONTEND_DIST_DEST = join(API_ROOT, 'dist-frontend');
 const SCRIPTS_SRC        = REPO_ROOT;
 const SCRIPTS_DEST       = join(API_ROOT, 'bundled-scripts');
-const OUTPUT_DIR         = join(API_ROOT, 'dist');
-const OUTPUT_EXE         = join(OUTPUT_DIR, 'IdentityAtlas.exe');
 
 const skipUiBuild = process.argv.includes('--skip-ui-build');
 
@@ -51,21 +48,17 @@ if (!existsSync(FRONTEND_DIST_SRC)) {
   throw new Error(`UI build output not found at ${FRONTEND_DIST_SRC}. Run without --skip-ui-build.`);
 }
 
-// ─── Step 2: Copy frontend dist into api/ so pkg can bundle it as an asset ───
+// ─── Step 2: Copy frontend dist ──────────────────────────────────────────────
 console.log('\n[2/5] Copying frontend dist...');
-if (existsSync(FRONTEND_DIST_DEST)) {
-  rmSync(FRONTEND_DIST_DEST, { recursive: true, force: true });
-}
+if (existsSync(FRONTEND_DIST_DEST)) rmSync(FRONTEND_DIST_DEST, { recursive: true, force: true });
 cpSync(FRONTEND_DIST_SRC, FRONTEND_DIST_DEST, { recursive: true });
 console.log(`  → ${FRONTEND_DIST_DEST}`);
 
-// ─── Step 3: Copy PowerShell scripts into api/ for bundling ──────────────────
+// ─── Step 3: Copy PowerShell scripts ─────────────────────────────────────────
 // Bundled layout mirrors the Docker container's /app/ layout so IA_APP_ROOT
 // points to the same relative structure that scheduler.ps1 expects.
 console.log('\n[3/5] Copying PowerShell scripts...');
-if (existsSync(SCRIPTS_DEST)) {
-  rmSync(SCRIPTS_DEST, { recursive: true, force: true });
-}
+if (existsSync(SCRIPTS_DEST)) rmSync(SCRIPTS_DEST, { recursive: true, force: true });
 
 const SCRIPTS_TO_BUNDLE = [
   'setup/docker/Invoke-CrawlerJob.ps1',
@@ -104,22 +97,15 @@ for (const dir of DIRS_TO_BUNDLE) {
 
 console.log(`  → ${SCRIPTS_DEST}`);
 
-// ─── Step 4: Bundle Express app + embedded-postgres with esbuild ─────────────
-// pkg's CJS resolver can't resolve ESM bare specifiers in the snapshot (the ESM
-// package loader uses native C++ fs, not the patched JS fs).  Solution: bundle
-// both the Express app and embedded-postgres to CJS/ESM with esbuild so that
-// desktop.cjs only ever uses require() or relative import() — both of which
-// work inside the snapshot.
-//
-// 4a: Express app → ESM (top-level await in routes requires ESM format)
+// ─── Step 4: Bundle with esbuild ─────────────────────────────────────────────
 console.log('\n[4/5] Bundling Express app + embedded-postgres with esbuild...');
+
+// 4a: Express app → ESM (top-level await in routes requires ESM format).
+// --banner:js injects CJS compat polyfills:
+//   require        — lets esbuild's __require shim fall back to Node's built-in require()
+//   __filename/__dirname — fallback for CJS factories that use them (e.g. swagger-ui-dist)
+// Aliased imports avoid colliding with esbuild's own imports inside the bundle body.
 const APP_BUNDLE = join(API_ROOT, 'src', 'app-bundle.mjs');
-// --banner:js injects CJS compat polyfills into the ESM bundle:
-//   require  — lets esbuild's __require shim fall back to the real Node require()
-//              for built-in modules (path, fs, etc.) that CJS packages call at runtime.
-//   __filename/__dirname — fallback for CJS factories where esbuild didn't inject a
-//              hardcoded path (e.g. swagger-ui-dist/absolute-path.js).  Factories
-//              where esbuild DID inject a path shadow this with a local var.
 run(
   `npx esbuild src/index.js ` +
   `--bundle ` +
@@ -132,10 +118,9 @@ run(
 );
 console.log(`  → ${APP_BUNDLE}`);
 
-// 4b: embedded-postgres → CJS so desktop.cjs can require() it from the snapshot.
-// Mark all non-windows platform packages as external — they're dead code on win32
-// and are not installed, so they can't be bundled.  windows-x64 IS installed and
-// gets inlined (with its EMBEDDED_PG_NATIVE_DIR patch applied).
+// 4b: embedded-postgres → CJS so main.js can require() it from extraResources.
+// pg is bundled inline (not external) because extraResources has no node_modules.
+// All non-windows platform packages are external — dead code on win32.
 const EP_BUNDLE = join(API_ROOT, 'src', 'embedded-postgres-bundle.cjs');
 run(
   `npx esbuild node_modules/embedded-postgres/dist/index.js ` +
@@ -143,7 +128,6 @@ run(
   `--platform=node ` +
   `--format=cjs ` +
   `--outfile=${EP_BUNDLE} ` +
-  `--external:pg ` +
   `--external:@embedded-postgres/darwin-arm64 ` +
   `--external:@embedded-postgres/darwin-x64 ` +
   `--external:@embedded-postgres/linux-arm ` +
@@ -155,19 +139,10 @@ run(
 );
 console.log(`  → ${EP_BUNDLE}`);
 
-// ─── Step 5: Run pkg ─────────────────────────────────────────────────────────
-// Entry path is relative to API_ROOT (where pkg runs and where package.json is).
-console.log('\n[5/5] Running @yao-pkg/pkg...');
-mkdirSync(OUTPUT_DIR, { recursive: true });
-run(
-  `npx @yao-pkg/pkg ../desktop/desktop.cjs ` +
-  `--config package.json ` +
-  `--target node20-win-x64 ` +
-  `--output ${OUTPUT_EXE} ` +
-  `--compress GZip ` +
-  `--no-bytecode ` +
-  `--public ` +
-  `--public-packages "*"`
-);
+// ─── Step 5: electron-builder ────────────────────────────────────────────────
+console.log('\n[5/5] Building Electron app (installs electron on first run)...');
+run('npm install --prefer-offline', DESKTOP_ROOT);
+run('npx electron-builder --win', DESKTOP_ROOT);
 
+const OUTPUT_EXE = join(API_ROOT, 'dist-electron', 'IdentityAtlas.exe');
 console.log(`\n✓ Build complete: ${OUTPUT_EXE}`);
