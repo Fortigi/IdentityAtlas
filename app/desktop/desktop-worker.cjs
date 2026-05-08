@@ -1,5 +1,5 @@
 // Desktop job worker — polls the API for pending crawler jobs and dispatches them
-// via pwsh.exe.  Required by desktop.cjs (CJS, no import.meta.url).
+// via pwsh.exe.  Required by main.js (CJS, no import.meta.url).
 'use strict';
 
 const { spawn }        = require('child_process');
