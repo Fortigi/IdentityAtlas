@@ -1,20 +1,10 @@
-// Desktop job worker — replaces the Docker PowerShell scheduler.ps1 for the
-// packaged .exe build.
-//
-// Polls /api/crawlers/jobs/claim every 30 seconds. When a job is available,
-// spawns pwsh.exe with the extracted Invoke-CrawlerJob.ps1 script and marks
-// the job complete or failed when the process exits.
-//
-// Soft dependency: PowerShell 7 (pwsh.exe) must be on PATH for crawlers to run.
-// If pwsh.exe is not found, jobs are claimed and immediately failed with a
-// descriptive error so the UI shows something useful.
-//
-// CJS (.cjs) so that @yao-pkg/pkg can bundle it without Babel ESM parse errors.
-
+// Desktop job worker — polls the API for pending crawler jobs and dispatches them
+// via pwsh.exe.  Required by desktop.cjs (CJS, no import.meta.url).
 'use strict';
-const { spawn }      = require('child_process');
-const { join }       = require('path');
-const { homedir }    = require('os');
+
+const { spawn }        = require('child_process');
+const { join }         = require('path');
+const { homedir }      = require('os');
 const { readFileSync } = require('fs');
 
 const API_URL  = `http://localhost:${process.env.PORT || '3001'}/api`;
@@ -22,8 +12,8 @@ const DATA_DIR = join(homedir(), 'AppData', 'Roaming', 'IdentityAtlas');
 const KEY_FILE = process.env.WORKER_KEY_FILE || join(DATA_DIR, '.builtin-worker-key');
 const SCRIPTS_DIR = join(DATA_DIR, 'scripts');
 
-const POLL_INTERVAL_MS  = 30_000;
-const FIRST_POLL_DELAY  = 8_000;   // wait for bootstrap to finish writing key
+const POLL_INTERVAL_MS = 30_000;
+const FIRST_POLL_DELAY =  8_000;
 
 function getApiKey() {
   try { return readFileSync(KEY_FILE, 'utf8').trim() || null; }
@@ -56,9 +46,9 @@ function dispatchJob(apiKey, job) {
   const dispatchScript = join(appRoot, 'setup', 'docker', 'Invoke-CrawlerJob.ps1');
   const psEnv = {
     ...process.env,
-    WEB_API_URL:  API_URL,
-    IA_APP_ROOT:  appRoot,
-    TRACE_DIR:    join(DATA_DIR, 'jobs'),
+    WEB_API_URL: API_URL,
+    IA_APP_ROOT: appRoot,
+    TRACE_DIR:   join(DATA_DIR, 'jobs'),
   };
 
   const ps = spawn('pwsh.exe', [
@@ -97,7 +87,7 @@ async function pollAndDispatch() {
   try {
     job = await claimJob(apiKey);
   } catch {
-    return;  // API not reachable yet — try next tick
+    return;
   }
 
   if (!job) return;

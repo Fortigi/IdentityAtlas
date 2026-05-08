@@ -5,11 +5,12 @@
 //   1. Build the React UI (app/ui → app/ui/dist/)
 //   2. Copy dist/ to app/api/dist-frontend/ (pkg bundles it as an asset from there)
 //   3. Copy PowerShell crawler scripts to app/api/bundled-scripts/ (pkg asset)
-//   4. esbuild: bundle src/index.js → src/app-bundle.cjs (CJS, all deps inlined)
+//   4. esbuild: bundle src/index.js → src/app-bundle.mjs  (ESM + CJS compat banner)
+//              bundle embedded-postgres → src/embedded-postgres-bundle.cjs
 //   5. Run @yao-pkg/pkg to produce dist/IdentityAtlas.exe
 //
 // Usage:
-//   node scripts/build-desktop.js [--skip-ui-build]
+//   node app/desktop/scripts/build-desktop.js [--skip-ui-build]
 //
 // Output: app/api/dist/IdentityAtlas.exe  (~120 MB, node20-win-x64)
 
@@ -19,9 +20,9 @@ import { join, dirname, resolve } from 'path';
 import { fileURLToPath }         from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const API_ROOT  = resolve(__dirname, '..');       // app/api/
-const REPO_ROOT = resolve(API_ROOT, '../..');     // repo root
-const UI_ROOT   = resolve(REPO_ROOT, 'app/ui');   // app/ui/
+const API_ROOT  = resolve(__dirname, '../../api');  // app/desktop/scripts/ → app/api/
+const REPO_ROOT = resolve(API_ROOT,  '../..');      // app/api/ → repo root
+const UI_ROOT   = resolve(REPO_ROOT, 'app/ui');     // app/ui/
 
 const FRONTEND_DIST_SRC  = join(UI_ROOT,  'dist');
 const FRONTEND_DIST_DEST = join(API_ROOT, 'dist-frontend');
@@ -77,6 +78,7 @@ const SCRIPTS_TO_BUNDLE = [
 
 const DIRS_TO_BUNDLE = [
   'Functions',
+  'test/demo-dataset',   // gitignored but present locally; warn if missing
 ];
 
 for (const file of SCRIPTS_TO_BUNDLE) {
@@ -102,12 +104,22 @@ for (const dir of DIRS_TO_BUNDLE) {
 
 console.log(`  → ${SCRIPTS_DEST}`);
 
-// ─── Step 4: Bundle Express app with esbuild ─────────────────────────────────
-// pkg cannot follow dynamic import() calls; esbuild produces a self-contained
-// ESM bundle of src/index.js that is added to pkg.assets and loaded at runtime
-// via dynamic import().  ESM format is required because routes use top-level await.
-console.log('\n[4/5] Bundling Express app with esbuild...');
+// ─── Step 4: Bundle Express app + embedded-postgres with esbuild ─────────────
+// pkg's CJS resolver can't resolve ESM bare specifiers in the snapshot (the ESM
+// package loader uses native C++ fs, not the patched JS fs).  Solution: bundle
+// both the Express app and embedded-postgres to CJS/ESM with esbuild so that
+// desktop.cjs only ever uses require() or relative import() — both of which
+// work inside the snapshot.
+//
+// 4a: Express app → ESM (top-level await in routes requires ESM format)
+console.log('\n[4/5] Bundling Express app + embedded-postgres with esbuild...');
 const APP_BUNDLE = join(API_ROOT, 'src', 'app-bundle.mjs');
+// --banner:js injects CJS compat polyfills into the ESM bundle:
+//   require  — lets esbuild's __require shim fall back to the real Node require()
+//              for built-in modules (path, fs, etc.) that CJS packages call at runtime.
+//   __filename/__dirname — fallback for CJS factories where esbuild didn't inject a
+//              hardcoded path (e.g. swagger-ui-dist/absolute-path.js).  Factories
+//              where esbuild DID inject a path shadow this with a local var.
 run(
   `npx esbuild src/index.js ` +
   `--bundle ` +
@@ -115,19 +127,47 @@ run(
   `--format=esm ` +
   `--outfile=${APP_BUNDLE} ` +
   `--external:pg-native ` +
+  `--banner:js="import { createRequire as __cjs_createRequire } from 'module'; import { fileURLToPath as __cjs_fileURLToPath } from 'url'; import { dirname as __cjs_dirname } from 'path'; const require = __cjs_createRequire(import.meta.url); const __filename = __cjs_fileURLToPath(import.meta.url); const __dirname = __cjs_dirname(__filename);" ` +
   `--log-level=warning`
 );
 console.log(`  → ${APP_BUNDLE}`);
 
+// 4b: embedded-postgres → CJS so desktop.cjs can require() it from the snapshot.
+// Mark all non-windows platform packages as external — they're dead code on win32
+// and are not installed, so they can't be bundled.  windows-x64 IS installed and
+// gets inlined (with its EMBEDDED_PG_NATIVE_DIR patch applied).
+const EP_BUNDLE = join(API_ROOT, 'src', 'embedded-postgres-bundle.cjs');
+run(
+  `npx esbuild node_modules/embedded-postgres/dist/index.js ` +
+  `--bundle ` +
+  `--platform=node ` +
+  `--format=cjs ` +
+  `--outfile=${EP_BUNDLE} ` +
+  `--external:pg ` +
+  `--external:@embedded-postgres/darwin-arm64 ` +
+  `--external:@embedded-postgres/darwin-x64 ` +
+  `--external:@embedded-postgres/linux-arm ` +
+  `--external:@embedded-postgres/linux-arm64 ` +
+  `--external:@embedded-postgres/linux-ia32 ` +
+  `--external:@embedded-postgres/linux-ppc64 ` +
+  `--external:@embedded-postgres/linux-x64 ` +
+  `--log-level=warning`
+);
+console.log(`  → ${EP_BUNDLE}`);
+
 // ─── Step 5: Run pkg ─────────────────────────────────────────────────────────
+// Entry path is relative to API_ROOT (where pkg runs and where package.json is).
 console.log('\n[5/5] Running @yao-pkg/pkg...');
 mkdirSync(OUTPUT_DIR, { recursive: true });
 run(
-  `npx @yao-pkg/pkg src/desktop.cjs ` +
+  `npx @yao-pkg/pkg ../desktop/desktop.cjs ` +
   `--config package.json ` +
   `--target node20-win-x64 ` +
   `--output ${OUTPUT_EXE} ` +
-  `--compress GZip`
+  `--compress GZip ` +
+  `--no-bytecode ` +
+  `--public ` +
+  `--public-packages "*"`
 );
 
 console.log(`\n✓ Build complete: ${OUTPUT_EXE}`);

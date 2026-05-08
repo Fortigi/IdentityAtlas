@@ -19,4 +19,6 @@ app/api/dist/
 app/api/dist-frontend/
 app/api/bundled-scripts/
 app/api/src/app-bundle.mjs
+app/api/src/embedded-postgres-bundle.cjs
 app/ui/dist/
+app/frontend/

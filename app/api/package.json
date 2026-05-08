@@ -9,8 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "patch-package || true",
-    "build:desktop": "node scripts/build-desktop.js",
-    "build:desktop:skip-ui": "node scripts/build-desktop.js --skip-ui-build"
+    "build:desktop": "node ../desktop/scripts/build-desktop.js",
+    "build:desktop:skip-ui": "node ../desktop/scripts/build-desktop.js --skip-ui-build"
   },
   "devDependencies": {
     "@yao-pkg/pkg": "^5.14.0",
@@ -25,8 +25,6 @@
       "dist-frontend/**/*",
       "bundled-scripts/**/*",
       "node_modules/@embedded-postgres/windows-x64/native/**/*",
-      "node_modules/embedded-postgres/**/*.js",
-      "node_modules/@embedded-postgres/windows-x64/dist/**/*",
       "src/app-bundle.mjs"
     ]
   },
