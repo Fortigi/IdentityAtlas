@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Identity Atlas — Desktop (Electron)",
   "main": "main.js",
+  "author": "Fortigi",
   "private": true,
   "scripts": {
     "electron:dev": "electron ."
