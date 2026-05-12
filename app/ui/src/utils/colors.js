@@ -1,6 +1,7 @@
+// WCAG 2.0 AA compliant (≥4.5:1 on white) — Tailwind 700–800 tier
 export const TAG_COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
+  '#1d4ed8', '#047857', '#92400e', '#b91c1c', '#6d28d9',
+  '#be185d', '#0f766e', '#9a3412', '#4338ca', '#3f6212',
 ];
 
 // Light-mode AP pastel palette (15 colors)
