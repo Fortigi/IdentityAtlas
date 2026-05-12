@@ -192,7 +192,7 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
                   <input type="checkbox" checked={isSelected} disabled={isCore}
                     onChange={() => toggle(attr)} className="rounded flex-shrink-0" />
                   <span className="truncate">{attr}</span>
-                  {isCore && <span className="text-indigo-500 text-[10px] flex-shrink-0">core</span>}
+                  {isCore && <span className="text-indigo-700 text-[10px] flex-shrink-0">core</span>}
                 </label>
               );
             })}
@@ -581,7 +581,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
                     <div>
                       <span className="text-sm font-medium dark:text-gray-200">{ot.label}</span>
                       <span className="text-xs text-gray-500 ml-2 dark:text-gray-400">{ot.description}</span>
-                      {!canSelect && <span className="text-xs text-red-400 ml-2">(missing permissions)</span>}
+                      {!canSelect && <span className="text-xs text-red-600 ml-2">(missing permissions)</span>}
                     </div>
                   </label>
                 );
@@ -1314,7 +1314,7 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
     : secondsSince < 10 ? 'fresh'
     : secondsSince < 60 ? 'normal'
     : 'stale';
-  const stalenessColor = staleness === 'stale' ? 'text-amber-600' : 'text-blue-500';
+  const stalenessColor = staleness === 'stale' ? 'text-amber-700' : 'text-blue-700';
 
   // Queued jobs get a softer treatment: amber card, no percent, no progress
   // bar — the worker still has to pick this one up, and showing 0% with a
@@ -1482,7 +1482,7 @@ function JobPhasesModal({ job, onClose }) {
               {phases.length > 0 && <> · {okCount} ok, {failedCount} failed</>}
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -1529,7 +1529,7 @@ function JobPhasesModal({ job, onClose }) {
                           {Object.entries(p.records).map(([k, v]) => `${k}=${v}`).join(' · ')}
                         </span>
                       ) : (
-                        <span className="text-gray-400 text-xs">—</span>
+                        <span className="text-gray-500 text-xs">—</span>
                       )}
                     </td>
                   </tr>
