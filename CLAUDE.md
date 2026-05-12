@@ -692,11 +692,13 @@ The UI supports a **light/dark theme toggle** implemented with Tailwind v4's cla
 
 **How it works:**
 - `index.css` declares `@custom-variant dark (&:is(.dark, .dark *))` — the `dark` class on `<html>` activates all `dark:` variants.
-- `app/ui/src/hooks/useTheme.js` — toggles the class and persists the preference in `localStorage`.
-- `app/ui/src/contexts/ThemeContext.jsx` — `ThemeContext` / `useIsDark()` hook for components that need the theme value at runtime (e.g. for inline hex styles that can't be expressed as Tailwind classes).
-- The toggle button lives in `App.jsx`'s top-right nav bar.
+- `app/ui/src/hooks/useTheme.js` — three-state machine (`'light' | 'auto' | 'dark'`); `'auto'` follows the OS via `matchMedia('(prefers-color-scheme: dark)')`; persists to `localStorage.themeMode`.
+- `app/ui/src/contexts/ThemeContext.jsx` — `ThemeContext` / `useIsDark()` / `useThemeMode()` hooks for components that need the theme value at runtime (e.g. for inline hex styles that can't be expressed as Tailwind classes).
+- The three-button segmented control (Light / Auto / Dark) lives in `App.jsx`'s top-right settings dropdown.
 
 **Rule: every new UI component must include dark mode from the start.** Do not add a component without `dark:` variants on every hardcoded color. There is no cleanup pass — new code ships complete.
+
+**Rule: all light-theme colors must meet WCAG 2.0 AA contrast.** Any hardcoded color used as text, icon, or border on a light background must achieve ≥4.5:1 contrast ratio against that background (≥3:1 for large text ≥18pt / bold ≥14pt). Use Tailwind 700–800 tier values for colored text on white — mid-tone 400–500 values consistently fail. Check new color constants with a contrast tool before committing. The `TAG_COLORS` array in `app/ui/src/utils/colors.js` is the reference example of compliant values.
 
 **Common patterns:**
 ```jsx
