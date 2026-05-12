@@ -1,0 +1,2 @@
+- Split CLAUDE.md into per-area subdirectory guides (Functions/, app/api/, app/ui/) so only relevant conventions are loaded per context; root file reduced from 1110 to 251 lines
+- Moved open maintenance items to docs/maintenance-backlog.md; removed all resolved entries
