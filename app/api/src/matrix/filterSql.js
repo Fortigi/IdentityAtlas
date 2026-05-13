@@ -143,7 +143,11 @@ export function buildEntitySubquery({
 
   const where = [];
   if (includeClauses.length) where.push(...includeClauses);
-  if (excludeClauses.length) where.push(...excludeClauses.map(c => `NOT (${c})`));
+  // Exclude must treat NULL fields as "didn't match this condition, so keep
+  // the row". `NOT (x IN (...))` returns NULL when x is NULL, and NULL is
+  // falsy in WHERE — that would silently drop rows with empty attributes.
+  // `(... ) IS NOT TRUE` evaluates to TRUE for both FALSE and NULL.
+  if (excludeClauses.length) where.push(...excludeClauses.map(c => `(${c}) IS NOT TRUE`));
 
   const sql = `(SELECT id FROM "${table}" WHERE ${where.join(' AND ')})`;
   return { sql, bindings, warnings };
