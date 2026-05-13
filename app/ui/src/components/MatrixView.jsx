@@ -599,7 +599,6 @@ export default function MatrixView({
         setManagedFilter={setManagedFilter}
         onExportExcel={handleExportExcel}
         onShare={handleShare}
-        onAdjustFilter={onAdjustFilter}
         onResetRowOrder={rowOrderHook.resetOrder}
         hasCustomRowOrder={rowOrderHook.hasCustomOrder}
         hasExpandableGroups={groupsWithNested.size > 0}

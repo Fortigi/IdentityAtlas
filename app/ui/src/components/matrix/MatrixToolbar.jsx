@@ -13,7 +13,6 @@ export default function MatrixToolbar({
   setManagedFilter,
   onExportExcel,
   onShare,
-  onAdjustFilter,
   onResetRowOrder,
   hasCustomRowOrder,
   hasExpandableGroups,
@@ -110,15 +109,6 @@ export default function MatrixToolbar({
         </>
       )}
 
-      <div className="ml-auto">
-        <button
-          onClick={onAdjustFilter}
-          className="px-3 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-          title="Open the filter wizard"
-        >
-          Adjust filter
-        </button>
-      </div>
     </div>
   );
 }
