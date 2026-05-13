@@ -109,7 +109,8 @@ export function useMatrix(filter) {
         const res = await authFetch('/api/matrix/data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: debouncedKey,  // already a JSON string
+          // Server expects { filter: {...} }, not the bare filter object.
+          body: `{"filter":${debouncedKey}}`,
           signal: controller.signal,
         });
         if (!res.ok) {
