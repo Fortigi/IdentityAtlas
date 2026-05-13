@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 // Lazy-load page components (route-based code splitting)
 const DashboardPage = lazy(() => import('./components/DashboardPage'));
 const MatrixView = lazy(() => import('./components/MatrixView'));
+const RotatedMatrixView = lazy(() => import('./components/RotatedMatrixView'));
 const MatrixFilterWizard = lazy(() => import('./components/matrix/MatrixFilterWizard'));
 const SyncLogPage = lazy(() => import('./components/SyncLogPage'));
 const UsersPage = lazy(() => import('./components/UsersPage'));
@@ -561,20 +562,34 @@ export default function App() {
             </div>
           ) : (
             <>
-              <MatrixView
-                data={data}
-                accessPackageGroups={accessPackageGroups}
-                managedByPackages={managedByPackages}
-                filter={matrixFilter}
-                counts={counts}
-                managedFilter={managedFilter}
-                setManagedFilter={setManagedFilter}
-                groupTagMap={groupTagMap}
-                refreshing={refreshing}
-                shareUrl={shareUrl}
-                onOpenDetail={openDetailTab}
-                onAdjustFilter={() => setWizardOpen(true)}
-              />
+              {matrixFilter?.orientation === 'rows-as-subjects' ? (
+                <RotatedMatrixView
+                  data={data}
+                  filter={matrixFilter}
+                  counts={counts}
+                  managedFilter={managedFilter}
+                  setManagedFilter={setManagedFilter}
+                  refreshing={refreshing}
+                  shareUrl={shareUrl}
+                  onOpenDetail={openDetailTab}
+                  onAdjustFilter={() => setWizardOpen(true)}
+                />
+              ) : (
+                <MatrixView
+                  data={data}
+                  accessPackageGroups={accessPackageGroups}
+                  managedByPackages={managedByPackages}
+                  filter={matrixFilter}
+                  counts={counts}
+                  managedFilter={managedFilter}
+                  setManagedFilter={setManagedFilter}
+                  groupTagMap={groupTagMap}
+                  refreshing={refreshing}
+                  shareUrl={shareUrl}
+                  onOpenDetail={openDetailTab}
+                  onAdjustFilter={() => setWizardOpen(true)}
+                />
+              )}
               <MatrixFilterWizard
                 open={wizardOpen}
                 initialFilter={matrixFilter}

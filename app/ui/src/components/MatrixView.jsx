@@ -15,20 +15,20 @@ function arrayMove(arr, from, to) {
   return result;
 }
 
-// Empty state shown when the user hasn't applied a filter yet.
+// Empty state shown when the user hasn't created a matrix yet.
 function EmptyFilterState({ onAdjustFilter }) {
   return (
     <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
       <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">Pick a slice to inspect</h2>
       <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto mb-4">
-        The Matrix view always operates on a defined sub-selection of users (or identities)
-        and resources. Open the filter wizard to pick who and what you want to compare.
+        The Matrix tab always operates on a defined sub-selection of subjects (users or
+        identities) and resources. Open the wizard to set up which slice to compare.
       </p>
       <button
         onClick={onAdjustFilter}
         className="px-4 py-2 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
       >
-        Open filter wizard
+        Create matrix
       </button>
     </div>
   );

@@ -1,16 +1,17 @@
-// 3-step modal that builds a Matrix filter. The user must complete this before
-// the matrix loads any data.
+// 3-step modal that builds a Matrix. The user must complete this before the
+// matrix loads any data.
 //
-//   Step 1 — Row type           (Principal vs Identity)
+//   Step 1 — Setup              (subject type + orientation)
 //   Step 2 — Subject conditions (which users/identities to include)
 //   Step 3 — Resource conditions (which resources to include)
 //
 // Each step shows live counts so the analyst can see the size of the
 // sub-selection grow/shrink as they tweak conditions. The final "Apply" button
-// commits the filter to the parent (which triggers the matrix data fetch).
+// commits the matrix to the parent (which triggers the data fetch).
 //
-// Saved filters are org-wide (any user can load/rename/delete any saved filter)
-// and live in the `SavedMatrixFilters` table.
+// Saved matrices are org-wide (any user can load/rename/delete any saved
+// matrix) and live in the `SavedMatrixFilters` table (name retained for
+// backward compat; the user-facing term is "matrix").
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../../auth/AuthGate';
@@ -22,6 +23,13 @@ import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 
 export const EMPTY_FILTER = {
   rowType: 'principal',
+  // 'rows-as-resources' — resources on the row axis, subjects on the column
+  //                      axis (current default, good when many resources +
+  //                      few subjects, since vertical scroll is easier).
+  // 'rows-as-subjects'  — subjects on the row axis, resources on the column
+  //                      axis (rotated, good when few resources + many
+  //                      subjects).
+  orientation: 'rows-as-resources',
   subject:  { include: [], exclude: [] },
   resource: { include: [], exclude: [] },
 };
@@ -263,10 +271,12 @@ export default function MatrixFilterWizard({
   const handleLoadSaved = (id) => {
     const row = savedFilters.find(f => f.id === id);
     if (!row) return;
-    // Normalise — older saves might be missing fields.
+    // Normalise — older saves might be missing fields (e.g. orientation
+    // didn't exist before).
     const f = row.filter || EMPTY_FILTER;
     setFilter({
-      rowType:  f.rowType === 'identity' ? 'identity' : 'principal',
+      rowType:     f.rowType === 'identity' ? 'identity' : 'principal',
+      orientation: f.orientation === 'rows-as-subjects' ? 'rows-as-subjects' : 'rows-as-resources',
       subject:  {
         include: Array.isArray(f.subject?.include) ? f.subject.include : [],
         exclude: Array.isArray(f.subject?.exclude) ? f.subject.exclude : [],
@@ -285,8 +295,8 @@ export default function MatrixFilterWizard({
 
   return (
     <Modal
-      title="Matrix filter"
-      subtitle="Pick a row type, then narrow the subjects and resources to compare. The matrix only loads once you apply."
+      title={initialFilter ? 'Adjust matrix' : 'Create matrix'}
+      subtitle="Pick the layout, then narrow the subjects and resources to compare. The matrix only loads once you apply."
       onClose={onClose}
       width={760}
     >
@@ -302,9 +312,11 @@ export default function MatrixFilterWizard({
 
       {/* Step content */}
       {step === 1 && (
-        <Step1RowType
+        <Step1Setup
           rowType={filter.rowType}
-          onChange={setRowType}
+          orientation={filter.orientation}
+          onRowTypeChange={setRowType}
+          onOrientationChange={(o) => setFilter(prev => ({ ...prev, orientation: o }))}
         />
       )}
       {step === 2 && (
@@ -340,7 +352,7 @@ export default function MatrixFilterWizard({
       <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-2">
           <SecondaryButton onClick={() => setSaveOpen(true)} disabled={!filterHasAnyCondition(filter)}>
-            Save filter…
+            Save matrix…
           </SecondaryButton>
         </div>
         <div className="flex items-center gap-2">
@@ -374,7 +386,7 @@ export default function MatrixFilterWizard({
 
 function StepIndicator({ step, onJump }) {
   const steps = [
-    { n: 1, label: 'Row type' },
+    { n: 1, label: 'Setup' },
     { n: 2, label: 'Subjects' },
     { n: 3, label: 'Resources' },
   ];
@@ -422,12 +434,12 @@ function SavedFilterDropdown({ savedFilters, onLoad, onDelete }) {
         onClick={() => setOpen(o => !o)}
         className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
       >
-        Saved filters ({savedFilters.length}) ▾
+        Saved matrices ({savedFilters.length}) ▾
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-10 w-72 max-h-80 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded shadow-lg">
           {savedFilters.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 italic">No saved filters yet</div>
+            <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 italic">No saved matrices yet</div>
           ) : (
             savedFilters.map(f => (
               <div key={f.id} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700/50">
@@ -489,31 +501,53 @@ function LiveSummary({ preview, loading, rowType }) {
   );
 }
 
-// ─── Step 1 — Row type ─────────────────────────────────────────────
+// ─── Step 1 — Setup (subject type + orientation) ────────────────────
 
-function Step1RowType({ rowType, onChange }) {
+function Step1Setup({ rowType, orientation, onRowTypeChange, onOrientationChange }) {
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-gray-600 dark:text-gray-400">
-        What do you want to compare against resources?
-      </p>
-      <RowTypeOption
-        active={rowType === 'principal'}
-        onClick={() => onChange('principal')}
-        title="User × Resource"
-        description="Each row is one user account (Principal). Best when you want to see exactly which accounts have which access — useful for clean-up sweeps and per-account audits."
-      />
-      <RowTypeOption
-        active={rowType === 'identity'}
-        onClick={() => onChange('identity')}
-        title="Identity × Resource"
-        description="Each row is one correlated person (Identity). Multiple accounts owned by the same person collapse into one row — a cell is filled if any underlying account has the assignment. Best for role-mining and birthright analysis."
-      />
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Subject type</h4>
+        <div className="space-y-2">
+          <RadioCard
+            active={rowType === 'principal'}
+            onClick={() => onRowTypeChange('principal')}
+            title="User accounts"
+            description="Each subject is one Principal (a single account). Best when you want to see exactly which accounts have which access — clean-up sweeps and per-account audits."
+          />
+          <RadioCard
+            active={rowType === 'identity'}
+            onClick={() => onRowTypeChange('identity')}
+            title="Identities"
+            description="Each subject is one correlated person, unioning across their accounts. A cell is filled if any underlying account has the assignment. Best for role-mining and birthright analysis."
+          />
+        </div>
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Orientation</h4>
+        <div className="grid grid-cols-2 gap-2">
+          <RadioCard
+            active={orientation === 'rows-as-resources'}
+            onClick={() => onOrientationChange('rows-as-resources')}
+            title="Resources as rows"
+            description="Resources go on the rows, subjects as columns (the default). Good when you have many resources and few subjects — vertical scroll handles the long axis."
+            visual={<OrientationVisual rowsLabel="Res" colsLabel="Subj" />}
+          />
+          <RadioCard
+            active={orientation === 'rows-as-subjects'}
+            onClick={() => onOrientationChange('rows-as-subjects')}
+            title="Subjects as rows"
+            description="Subjects go on the rows, resources as columns. Good when you have few resources and many subjects — vertical scroll handles the people, not the columns."
+            visual={<OrientationVisual rowsLabel="Subj" colsLabel="Res" />}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
-function RowTypeOption({ active, onClick, title, description }) {
+function RadioCard({ active, onClick, title, description, visual }) {
   return (
     <button
       onClick={onClick}
@@ -523,16 +557,36 @@ function RowTypeOption({ active, onClick, title, description }) {
           : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
       }`}
     >
-      <div className="flex items-center gap-2">
-        <span className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${
+      <div className="flex items-start gap-2">
+        <span className={`w-3 h-3 mt-1 rounded-full border-2 flex-shrink-0 ${
           active
             ? 'border-blue-500 dark:border-blue-400 bg-blue-500 dark:bg-blue-400'
             : 'border-gray-300 dark:border-gray-500'
         }`} />
-        <h4 className="text-sm font-medium text-gray-900 dark:text-white">{title}</h4>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white">{title}</h4>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{description}</p>
+        </div>
+        {visual && <div className="ml-2 flex-shrink-0">{visual}</div>}
       </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-5">{description}</p>
     </button>
+  );
+}
+
+function OrientationVisual({ rowsLabel, colsLabel }) {
+  // Tiny 2×3 grid that visually communicates which axis is rows / columns.
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <div className="text-[8px] uppercase tracking-wider text-gray-400 dark:text-gray-500">{colsLabel}</div>
+      <div className="flex items-center gap-1">
+        <div className="text-[8px] uppercase tracking-wider text-gray-400 dark:text-gray-500" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{rowsLabel}</div>
+        <div className="grid grid-cols-3 gap-px bg-gray-300 dark:bg-gray-600 p-px rounded">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="w-2 h-2 bg-white dark:bg-gray-800" />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -805,9 +859,9 @@ function SaveFilterDialog({ name, onNameChange, onSave, onClose, saving, error }
         className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-4 w-[420px] max-w-full"
         onClick={e => e.stopPropagation()}
       >
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Save filter</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Save matrix</h3>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">
-          Saved filters are visible to everyone in the org. Name must be unique.
+          Saved matrices are visible to everyone in the org. Name must be unique.
         </p>
         <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
         <input
