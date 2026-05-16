@@ -24,8 +24,10 @@ export function getApColor(index, isDark) {
 }
 
 export const TYPE_COLORS = {
-  Direct:   { letter: 'D', bg: '#166534', text: '#fff' },
-  Indirect: { letter: 'I', bg: '#1e40af', text: '#fff' },
-  Eligible: { letter: 'E', bg: '#854d0e', text: '#fff' },
-  Owner:    { letter: 'O', bg: '#9d174d', text: '#fff' },
+  Direct:      { letter: 'D', bg: '#166534', text: '#fff' },
+  Indirect:    { letter: 'I', bg: '#1e40af', text: '#fff' },
+  Eligible:    { letter: 'E', bg: '#854d0e', text: '#fff' },
+  Owner:       { letter: 'O', bg: '#9d174d', text: '#fff' },
+  Governed:    { letter: 'G', bg: '#5b21b6', text: '#fff' },
+  OAuth2Grant: { letter: 'A', bg: '#0e7490', text: '#fff' },
 };

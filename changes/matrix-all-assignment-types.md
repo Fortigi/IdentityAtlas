@@ -1,0 +1,2 @@
+- The matrix now shows every type of user/resource assignment by default — OAuth2 grants, governed business-role assignments, and any future assignment type are no longer silently dropped. Previously only Direct/Owner/Eligible/Governed memberships flowed through. As a result you'll see new rows for delegated permissions, application roles, and similar resources for the principals that have them.
+- Added matrix cell badges for Governed (G) and OAuth2 Grant (A) so cells that carry those membership types render with a labelled badge instead of a generic `?`.
