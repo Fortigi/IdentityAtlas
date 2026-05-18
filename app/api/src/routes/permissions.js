@@ -711,7 +711,7 @@ router.get('/groups-with-nested', async (req, res) => {
     const result = await timedRequest(p, 'groups-with-nested', res).query(`
       SELECT DISTINCT "principalId"::text AS "groupId"
         FROM "ResourceAssignments"
-       WHERE "principalType" LIKE '%group%'
+       WHERE "principalType" ILIKE '%group%'
          AND "assignmentType" = 'Direct'
     `);
     return res.json({ groupIds: result.recordset.map(r => r.groupId) });
@@ -744,7 +744,7 @@ router.get('/group/:groupId/nested-groups', async (req, res) => {
         FROM "ResourceAssignments" ra
         LEFT JOIN "Resources" r ON ra."resourceId" = r.id
        WHERE ra."principalId"::text = @childGroupId
-         AND ra."principalType" LIKE '%group%'
+         AND ra."principalType" ILIKE '%group%'
          AND ra."assignmentType" = 'Direct'
     `);
 
@@ -761,7 +761,7 @@ router.get('/group/:groupId/nested-groups', async (req, res) => {
          SELECT ra2."resourceId"
            FROM "ResourceAssignments" ra2
           WHERE ra2."principalId"::text = @childGroupId
-            AND ra2."principalType" LIKE '%group%'
+            AND ra2."principalType" ILIKE '%group%'
             AND ra2."assignmentType" = 'Direct'
        )
        AND (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
