@@ -11,9 +11,13 @@
 // When no data has been loaded yet, the central call-to-action becomes
 // "Configure a crawler" pointing at Admin → Crawlers.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { useIsDark } from '../contexts/ThemeContext';
+
+// Lazy-load Trends — keeps the dashboard's first paint cheap (chart code +
+// data hook are only needed when the user clicks the tab).
+const DashboardTrendsTab = lazy(() => import('./DashboardTrendsTab'));
 
 const GITHUB_BASE = 'https://github.com/Fortigi/IdentityAtlas';
 const DOCS_URL = 'https://fortigi.github.io/IdentityAtlas';
@@ -61,6 +65,7 @@ export default function DashboardPage({ onNavigate }) {
   const [stats, setStats] = useState(null);
   const [version, setVersion] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('overview');  // 'overview' | 'trends'
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +100,39 @@ export default function DashboardPage({ onNavigate }) {
             </p>
           </div>
         </div>
+
+      {/* Tab strip */}
+      <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+        <nav className="-mb-px flex gap-6">
+          {[
+            { key: 'overview', label: 'Overview' },
+            { key: 'trends',   label: 'Trends' },
+          ].map(t => {
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
+                  active
+                    ? 'border-lime-500 text-lime-700 dark:text-lime-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {tab === 'trends' && (
+        <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 py-12 text-center">Loading…</div>}>
+          <DashboardTrendsTab />
+        </Suspense>
+      )}
+
+      {tab === 'overview' && (<>
 
       {/* Compose file outdated warning */}
       {version?.composeFileOutdated && (
@@ -253,6 +291,7 @@ export default function DashboardPage({ onNavigate }) {
           Maatschap Fortigi
         </a>
       </div>
+      </>)}
       </div>
     </div>
   );
