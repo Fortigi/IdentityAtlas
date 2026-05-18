@@ -8,6 +8,7 @@ services:
   #       For networked/production use, override via .env file.
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB:       "${POSTGRES_DB:-identity_atlas}"
       POSTGRES_USER:     "${POSTGRES_USER:-identity_atlas}"
@@ -25,6 +26,7 @@ services:
 
   # ── Web (serves built frontend + API) ───────────────────────────────────────
   web:
+    restart: unless-stopped
     build:
       context: ./app
       dockerfile: api/Dockerfile

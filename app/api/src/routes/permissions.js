@@ -700,19 +700,21 @@ router.get('/sync-log', async (req, res) => {
   }
 });
 
-// GET /api/groups-with-nested - resource/group IDs that are members of other groups
-// (i.e., groups whose members gain indirect access to parent groups)
+// GET /api/groups-with-nested - group IDs that are assigned to other resources
+// (parent groups, app roles, etc.) so their members gain indirect access.
+// The matrix UI uses this to decide which group rows should show an expand
+// affordance.
 router.get('/groups-with-nested', async (req, res) => {
   try {
     if (!useSql) return res.json({ groupIds: [] });
     const p = await db.getPool();
-    // v5: only the universal resource model exists, no GraphGroupMembers fallback.
-    // UUIDs are returned as strings already (no UPPER cast needed).
+    // Any group that appears as a principal in ResourceAssignments — group
+    // membership (Direct → parent group), app role assignment (AppRole →
+    // AppRole resource), or any future group-as-principal type — qualifies.
     const result = await timedRequest(p, 'groups-with-nested', res).query(`
       SELECT DISTINCT "principalId"::text AS "groupId"
         FROM "ResourceAssignments"
-       WHERE "principalType" LIKE '%group%'
-         AND "assignmentType" = 'Direct'
+       WHERE "principalType" ILIKE '%group%'
     `);
     return res.json({ groupIds: result.recordset.map(r => r.groupId) });
   } catch (err) {
@@ -721,20 +723,24 @@ router.get('/groups-with-nested', async (req, res) => {
   }
 });
 
-// GET /api/group/:groupId/nested-groups - parent groups this group is a member of,
-// plus user memberships for those parent groups (showing indirect access gained)
+// GET /api/group/:groupId/nested-groups - the resources this group is a member
+// of (parent groups, app roles, etc.) plus user memberships for those resources.
+// Used by the matrix expand fanout: opening a group row reveals every resource
+// its members inherit access to, with the same per-cell membership badges as
+// the root matrix.
 router.get('/group/:groupId/nested-groups', async (req, res) => {
   try {
     if (!useSql) return res.json({ groups: [], memberships: [] });
     const p = await db.getPool();
 
-    // v5: query the unified resource view directly. No fallback to v4
-    // GraphGroupMembers, no UPPER(uuid) (postgres uuid is already canonical).
     const request = timedRequest(p, 'nested-groups-data', res);
     request.input('childGroupId', req.params.groupId);
 
+    // Any resource where this group is the principal. We deliberately do NOT
+    // filter by assignmentType so future group-as-principal types
+    // (AppRole, directory roles, etc.) flow through automatically.
     const groupsResult = await request.query(`
-      SELECT
+      SELECT DISTINCT
         ra."resourceId" AS "groupId",
         ra."resourceId" AS "resourceId",
         r."displayName",
@@ -744,8 +750,7 @@ router.get('/group/:groupId/nested-groups', async (req, res) => {
         FROM "ResourceAssignments" ra
         LEFT JOIN "Resources" r ON ra."resourceId" = r.id
        WHERE ra."principalId"::text = @childGroupId
-         AND ra."principalType" LIKE '%group%'
-         AND ra."assignmentType" = 'Direct'
+         AND ra."principalType" ILIKE '%group%'
     `);
 
     const membersRequest = timedRequest(p, 'nested-groups-members', res);
@@ -761,8 +766,7 @@ router.get('/group/:groupId/nested-groups', async (req, res) => {
          SELECT ra2."resourceId"
            FROM "ResourceAssignments" ra2
           WHERE ra2."principalId"::text = @childGroupId
-            AND ra2."principalType" LIKE '%group%'
-            AND ra2."assignmentType" = 'Direct'
+            AND ra2."principalType" ILIKE '%group%'
        )
        AND (p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')
     `);

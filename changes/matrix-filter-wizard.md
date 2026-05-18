@@ -1,0 +1,9 @@
+- Replaced the Matrix tab's inline filters with a three-step filter wizard. The matrix stays empty until a filter is applied, removing the "Top 25 most-permissioned users tenant-wide" default that often hid the slice analysts actually wanted to see.
+- Step 1 picks the row type — **User × Resource** (one row per account) or **Identity × Resource** (one row per correlated person, with cells unioned across the identity's accounts).
+- Steps 2 and 3 narrow the subjects and resources with include/exclude conditions on **contexts** (with optional "include descendants") and **attribute values** (any column from Principals / Identities / Resources, plus `ext.*` keys inside `extendedAttributes`).
+- Every step shows live counts: subject count vs. total, resource count vs. total, and the resulting number of assignments — so the size of the sub-selection is always visible while building the filter.
+- Filters can be **saved org-wide** under a name, loaded again from a dropdown at the top of the wizard, and **shared** via the Matrix tab's "Share Link" button (the entire filter is encoded in the URL).
+- Dropped from the Matrix toolbar: the User slider, search box, "User Filters" bar, context-filter chip bar, and the Type/Tags column-header filter dropdowns. All of those are subsumed by the wizard. IST / SOLL / Managed / Gaps toggle, Excel export and Share Link stay.
+- Added an "Adjust filter" button to the toolbar that re-opens the wizard pre-populated with the current filter.
+- New backend endpoints (`POST /api/matrix/data`, `POST /api/matrix/preview`, `GET /api/matrix/columns`, and `GET|POST|PUT|DELETE /api/matrix/saved-filters`). The legacy `GET /api/permissions` endpoint stays for backward compatibility, but new flows always go through `/api/matrix/data`.
+- New `SavedMatrixFilters` table (migration 023) for the org-wide named filters.
