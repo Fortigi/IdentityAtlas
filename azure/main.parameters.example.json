@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "value": "identityatlas"
+    },
+    "location": {
+      "value": "westeurope"
+    },
+    "webSourceImage": {
+      "value": "ghcr.io/fortigi/identity-atlas:edge"
+    },
+    "workerSourceImage": {
+      "value": "ghcr.io/fortigi/identity-atlas-worker:edge"
+    },
+    "postgresSku": {
+      "value": "Standard_B2s"
+    },
+    "postgresTier": {
+      "value": "Burstable"
+    },
+    "webMinReplicas": {
+      "value": 1
+    },
+    "webMaxReplicas": {
+      "value": 3
+    },
+    "webAllowedIpCidrs": {
+      "value": []
+    }
+  }
+}

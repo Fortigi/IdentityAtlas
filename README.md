@@ -35,6 +35,44 @@ The in-browser crawler wizard walks you through credentials, permission validati
 
 ---
 
+## Deploy to Azure
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json)
+
+One-click install into your Azure subscription. The deployment provisions a VNet-isolated, managed-identity-driven production stack:
+
+- VNet with delegated subnets, NSGs, and private DNS
+- Container Apps Environment with **web** + **worker** containers
+- Postgres Flexible Server (private endpoint)
+- Key Vault (private endpoint) — stores the master key + DB password
+- Azure Container Registry (images auto-imported from `ghcr.io`)
+- Storage Account + Azure Files share for `/data/uploads`
+- Log Analytics workspace
+
+Total cost: **~€100–110/month** (West Europe, ex VAT, no HA).
+
+Click the button, fill in:
+
+1. **Resource group** — create new
+2. **Region** — default: West Europe
+3. **Name prefix** — default: `identityatlas`
+
+Then *Review + create*. The deployment takes **~15 minutes**. When it finishes, the deployment outputs include the public URL of your Identity Atlas. First paint takes ~30 seconds while the web container warms up.
+
+**Post-deploy:** open the URL, then Admin → Crawlers to load demo data or connect Microsoft Graph. To enable Entra ID sign-in, Admin → Authentication.
+
+For the full architecture, cost breakdown, decisions taken, and ops notes (image updates, logs, backups, teardown): see [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md).
+
+**CLI alternative** if you'd rather script it:
+
+```powershell
+git clone https://github.com/Fortigi/IdentityAtlas.git
+cd IdentityAtlas/azure
+./deploy.ps1 -ResourceGroup ia-prod
+```
+
+---
+
 ## What Identity Atlas Does
 
 ### Unified Permission Model
