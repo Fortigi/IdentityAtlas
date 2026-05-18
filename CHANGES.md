@@ -1,5 +1,14 @@
 ## Changes in this PR
 
+- Added a **Trends** tab to the Dashboard page. Plots the % of assignments that are governed over time, plus separate charts for users, resources, and assignments growth.
+- The chart starts populated on the day this version ships and grows as new days are captured. The scheduler writes one snapshot per UTC day to the new `DashboardSnapshots` table — no historical backfill, so the early section reflects only the snapshots actually captured (not a reconstructed history).
+- Range selector switches between 30 days / 90 days / 1 year / 2 years. Charts render as hand-rolled SVG; no new frontend dependency.
+- Added Playwright e2e coverage for the new Dashboard tab strip and Trends tab: verifies tab switching, chart container presence, and the range selector behaviour.
+- New `docs/architecture/dashboard-trends.md` documents the snapshot architecture, the no-backfill decision, the API surface, and the chart rendering details.
+- Pointers in `app/ui/CLAUDE.md` so future AI contributors find the new components.
+
+## Changes in this PR
+
 - Added a new crawler phase that imports application role assignments from Entra ID. For each enterprise app the crawler pulls the catalog of `appRoles[]` and the `appRoleAssignedTo` list, then writes one `AppRole` resource per (app, role), an `Application → AppRole` relationship, and one `ResourceAssignment` per user assignment. Group-typed assignments are expanded to per-user `AppRoleViaGroup` rows via `/transitiveMembers` so the matrix surfaces indirect access too.
 - Wired up the existing "Apps & AppRoles" checkbox in the Crawlers wizard so toggling it actually runs the new phase. Requires `Application.Read.All` on the app registration (already required for service principals; the permission validator was already enforcing it).
 - New matrix badges: `R` (App Role — direct) and `R` in a lighter shade (App Role — via group), so analysts can tell direct vs inherited app-role access at a glance.
