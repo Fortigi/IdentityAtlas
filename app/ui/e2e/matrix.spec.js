@@ -21,8 +21,17 @@ test.describe('Matrix View', () => {
 
   test('matrix renders with rows and columns', async ({ page }) => {
     test.slow(); // Triple timeout — permissions API cold start takes 20-30s on CI
+    // Matrix tab now opens to the wizard empty state when no filter is
+    // saved. The "matrix page renders" assertion needs to accept either:
+    //   (a) the rendered grid (a saved filter is available), OR
+    //   (b) the empty-state heading + "Create matrix" button (no filter yet).
+    // Both prove the page rendered without crashing, which is the spirit of
+    // this smoke test. Walking the wizard from inside Playwright is brittle
+    // (race against the modal's transition / data prefetch in CI), so we
+    // leave that to per-wizard tests.
     const table = page.locator('table').first();
-    await expect(table).toBeVisible({ timeout: 60000 });
+    const emptyHeading = page.getByRole('heading', { name: /Pick a slice to inspect/i });
+    await expect(table.or(emptyHeading)).toBeVisible({ timeout: 60000 });
   });
 
   test('user limit slider is present and functional', async ({ page }) => {

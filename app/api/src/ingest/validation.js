@@ -8,8 +8,8 @@
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
-const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible', 'Owner', 'Governed', 'OAuth2Grant'];
-const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope'];
+const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible', 'Owner', 'Governed', 'OAuth2Grant', 'AppRole', 'AppRoleViaGroup'];
+const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole'];
 
 // Schema definitions per entity type
 const SCHEMAS = {

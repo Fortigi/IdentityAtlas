@@ -115,8 +115,13 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
   }
   if (categoryKey === 'oauth2-grants') {
     const rows = await get(`/api/user/${encodeURIComponent(userId)}/oauth2-grants`);
+    // Each grant is a per-scope DelegatedPermission Resource (e.g.
+    // "User.Read.All on Microsoft Graph"). Use the scope's Resource id and
+    // displayName so the satellite nodes are distinct and clicking opens
+    // the scope's detail page — not the shared client app.
     return rows.map(g => toItem({
-      id: g.clientSpId, displayName: g.clientDisplayName || g.scopeDisplayName || 'OAuth2 grant',
+      id: g.scopeResourceId,
+      displayName: g.scopeDisplayName || g.clientDisplayName || 'OAuth2 grant',
     }, 'resource'));
   }
   if (categoryKey === 'identity') {

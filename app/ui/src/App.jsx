@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
-import { usePermissions } from './hooks/usePermissions';
+import { useMatrix } from './hooks/useMatrix';
 import { useAuth } from './auth/AuthGate';
 import { useTheme } from './hooks/useTheme';
 import { ThemeContext } from './contexts/ThemeContext';
@@ -8,6 +8,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 // Lazy-load page components (route-based code splitting)
 const DashboardPage = lazy(() => import('./components/DashboardPage'));
 const MatrixView = lazy(() => import('./components/MatrixView'));
+const RotatedMatrixView = lazy(() => import('./components/RotatedMatrixView'));
+const MatrixFilterWizard = lazy(() => import('./components/matrix/MatrixFilterWizard'));
 const SyncLogPage = lazy(() => import('./components/SyncLogPage'));
 const UsersPage = lazy(() => import('./components/UsersPage'));
 const GroupsPage = lazy(() => import('./components/GroupsPage')); // Now renders ResourcesPage
@@ -38,42 +40,28 @@ function parseHash() {
   return { page, params };
 }
 
+// Matrix URL state: a single `filter` param holds the wizard filter as
+// URL-encoded JSON, plus a `managed` param for the IST/SOLL/Gaps toggle.
+// Old `f.*` / `cf` / `limit` params (pre-wizard) are silently ignored — the
+// matrix shows its empty state until the user re-applies a filter.
 function parseMatrixParams(params) {
-  const limit = params.has('limit') ? (parseInt(params.get('limit')) || 0) : 25;
-  const filters = [];
-  for (const [key, value] of params.entries()) {
-    if (key.startsWith('f.')) {
-      filters.push({ field: key.slice(2), value });
-    }
+  let filter = null;
+  if (params.has('filter')) {
+    try {
+      const parsed = JSON.parse(params.get('filter'));
+      if (parsed && typeof parsed === 'object') filter = parsed;
+    } catch { /* ignore malformed filter */ }
   }
   const managed = params.get('managed') || 'all';
-  const search = params.get('q') || '';
-  let contextFilters = [];
-  if (params.has('cf')) {
-    try {
-      const raw = JSON.parse(params.get('cf'));
-      if (Array.isArray(raw)) {
-        contextFilters = raw
-          .filter(x => x && typeof x.id === 'string')
-          .map(x => ({ id: x.id, includeChildren: !!x.includeChildren }));
-      }
-    } catch { /* ignore malformed cf */ }
-  }
-  return { limit, filters, managed, search, contextFilters };
+  return { filter, managed };
 }
 
 function buildMatrixHash(state) {
   const params = new URLSearchParams();
-  if (state.limit > 0) params.set('limit', String(state.limit));
-  if (state.limit === 0) params.set('limit', '0');
-  for (const f of state.filters || []) {
-    params.set(`f.${f.field}`, f.value);
+  if (state.filter) {
+    params.set('filter', JSON.stringify(state.filter));
   }
   if (state.managed && state.managed !== 'all') params.set('managed', state.managed);
-  if (state.search) params.set('q', state.search);
-  if (state.contextFilters && state.contextFilters.length > 0) {
-    params.set('cf', JSON.stringify(state.contextFilters));
-  }
   const qs = params.toString();
   return `matrix${qs ? '?' + qs : ''}`;
 }
@@ -120,17 +108,15 @@ export default function App() {
   const initial = useMemo(() => {
     const { page, params } = parseHash();
     if (page === 'matrix') return parseMatrixParams(params);
-    return { limit: 25, filters: [], managed: 'all', search: '' };
+    return { filter: null, managed: 'all' };
   }, []);
 
-  // All shareable matrix state lives here
-  const [userLimit, setUserLimit] = useState(initial.limit);
-  const [activeFilters, setActiveFilters] = useState(initial.filters);
+  // Wizard-driven matrix state: a single filter object + managed-state toggle
+  const [matrixFilter, setMatrixFilter] = useState(initial.filter);
   const [managedFilter, setManagedFilter] = useState(initial.managed);
-  const [filterText, setFilterText] = useState(initial.search);
-  const [contextFilters, setContextFilters] = useState(initial.contextFilters || []);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
-  const { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error, forceRefresh } = usePermissions(userLimit, activeFilters, contextFilters);
+  const { data, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -274,42 +260,37 @@ export default function App() {
     }
   }, [page]);
 
-  // When navigating TO the matrix tab with no data yet, re-fetch so demo data
-  // loaded on the Dashboard shows up without requiring a manual slider nudge.
+  // When the user lands on the matrix tab without an applied filter, open the
+  // wizard automatically so they can build one. We only do this on a fresh
+  // visit — if they close the wizard intentionally, we leave them alone.
   const prevPageRef = useRef(null);
   useEffect(() => {
-    if (page === 'matrix' && prevPageRef.current !== 'matrix' && data.length === 0 && !loading) {
-      forceRefresh();
+    if (page === 'matrix' && prevPageRef.current !== 'matrix' && !matrixFilter && !wizardOpen) {
+      setWizardOpen(true);
     }
     prevPageRef.current = page;
-  }, [page, data.length, loading, forceRefresh]);
+  }, [page, matrixFilter, wizardOpen]);
 
   // Sync URL when on matrix page (debounced replaceState — no history entry)
   useEffect(() => {
     if (page !== 'matrix') return;
     const timer = setTimeout(() => {
       const newHash = buildMatrixHash({
-        limit: userLimit,
-        filters: activeFilters,
+        filter: matrixFilter,
         managed: managedFilter,
-        search: filterText,
-        contextFilters,
       });
       if (window.location.hash !== '#' + newHash) {
         history.replaceState(null, '', '#' + newHash);
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [page, userLimit, activeFilters, managedFilter, filterText, contextFilters]);
+  }, [page, matrixFilter, managedFilter]);
 
   // Build shareable URL (stable reference for children)
   const shareUrl = useMemo(() => buildMatrixUrl({
-    limit: userLimit,
-    filters: activeFilters,
+    filter: matrixFilter,
     managed: managedFilter,
-    search: filterText,
-    contextFilters,
-  }), [userLimit, activeFilters, managedFilter, filterText, contextFilters]);
+  }), [matrixFilter, managedFilter]);
 
   // Check if current page is a detail tab
   const isDetailPage = page.startsWith('user:') || page.startsWith('group:') || page.startsWith('resource:') || page.startsWith('access-package:') || page.startsWith('department:') || page.startsWith('context:') || page.startsWith('identity:') || page.startsWith('run:');
@@ -580,27 +561,42 @@ export default function App() {
               <div className="text-gray-500 dark:text-gray-400">Loading permission data...</div>
             </div>
           ) : (
-            <MatrixView
-              data={data}
-              accessPackageGroups={accessPackageGroups}
-              managedByPackages={managedByPackages}
-              totalUsers={totalUsers}
-              userLimit={userLimit}
-              setUserLimit={setUserLimit}
-              activeFilters={activeFilters}
-              setActiveFilters={setActiveFilters}
-              managedFilter={managedFilter}
-              setManagedFilter={setManagedFilter}
-              filterText={filterText}
-              setFilterText={setFilterText}
-              contextFilters={contextFilters}
-              setContextFilters={setContextFilters}
-              userColumns={userColumns}
-              groupTagMap={groupTagMap}
-              refreshing={refreshing}
-              shareUrl={shareUrl}
-              onOpenDetail={openDetailTab}
-            />
+            <>
+              {matrixFilter?.orientation === 'rows-as-subjects' ? (
+                <RotatedMatrixView
+                  data={data}
+                  filter={matrixFilter}
+                  counts={counts}
+                  managedFilter={managedFilter}
+                  setManagedFilter={setManagedFilter}
+                  refreshing={refreshing}
+                  shareUrl={shareUrl}
+                  onOpenDetail={openDetailTab}
+                  onAdjustFilter={() => setWizardOpen(true)}
+                />
+              ) : (
+                <MatrixView
+                  data={data}
+                  accessPackageGroups={accessPackageGroups}
+                  managedByPackages={managedByPackages}
+                  filter={matrixFilter}
+                  counts={counts}
+                  managedFilter={managedFilter}
+                  setManagedFilter={setManagedFilter}
+                  groupTagMap={groupTagMap}
+                  refreshing={refreshing}
+                  shareUrl={shareUrl}
+                  onOpenDetail={openDetailTab}
+                  onAdjustFilter={() => setWizardOpen(true)}
+                />
+              )}
+              <MatrixFilterWizard
+                open={wizardOpen}
+                initialFilter={matrixFilter}
+                onApply={(f) => { setMatrixFilter(f); setWizardOpen(false); }}
+                onClose={() => setWizardOpen(false)}
+              />
+            </>
           )}
         </Suspense>
       </main>
