@@ -163,8 +163,70 @@ async function queueScheduledScoringRun(classifierRow, scheduleIndex) {
   console.log(`Scheduler: queued risk scoring run for classifier ${classifierRow.id} (${classifierRow.displayName})`);
 }
 
+// Write today's row in DashboardSnapshots if it's missing. Cheap idempotent
+// check — runs every scheduler tick (60s), the COUNTs only fire once per
+// UTC day (after the first successful insert ON CONFLICT does nothing).
+// Uses the same `pg_class.reltuples` fast-path as /admin/dashboard-stats
+// for the big tables, exact COUNT(*) for the small / filtered ones.
+async function captureDashboardSnapshotIfMissing() {
+  try {
+    // Existence check via to_regclass — first install may not have the
+    // table yet if migration 027 hasn't applied (unlikely, bootstrap runs
+    // first, but cheap to check).
+    const exists = await db.queryOne(
+      `SELECT to_regclass('"DashboardSnapshots"') AS t`
+    );
+    if (!exists?.t) return;
+
+    const row = await db.queryOne(
+      `SELECT 1 FROM "DashboardSnapshots" WHERE "snapshotDate" = CURRENT_DATE`
+    );
+    if (row) return;  // already captured today
+
+    await db.query(`
+      WITH estimates AS (
+        SELECT relname, reltuples::bigint AS est
+          FROM pg_class
+         WHERE relname IN (
+           'Resources','Principals','Identities','ResourceAssignments',
+           'ResourceRelationships','Contexts','IdentityMembers',
+           'CertificationDecisions'
+         )
+           AND relkind = 'r'
+      )
+      INSERT INTO "DashboardSnapshots" (
+        "snapshotDate",
+        "systems", "resources", "businessRoles", "principals",
+        "identities", "assignments", "governedAssignments",
+        "relationships", "contexts", "identityMembers", "certifications"
+      )
+      SELECT
+        CURRENT_DATE,
+        (SELECT COUNT(*)::int FROM "Systems"),
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Resources'), 0), 0)::int,
+        (SELECT COUNT(*)::int FROM "Resources" WHERE "resourceType" = 'BusinessRole'),
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Principals'), 0), 0)::int,
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Identities'), 0), 0)::int,
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='ResourceAssignments'), 0), 0)::int,
+        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "assignmentType" = 'Governed'),
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='ResourceRelationships'), 0), 0)::int,
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Contexts'), 0), 0)::int,
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='IdentityMembers'), 0), 0)::int,
+        GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='CertificationDecisions'), 0), 0)::int
+      ON CONFLICT ("snapshotDate") DO NOTHING
+    `);
+  } catch (err) {
+    // Never fail the tick over a snapshot — counts can wait for the next day.
+    console.warn(`Scheduler: dashboard snapshot skipped: ${err.message}`);
+  }
+}
+
 async function tick() {
   try {
+    // Daily snapshot for the dashboard trends. Idempotent; cheap check
+    // unless it's the first tick of a new day.
+    await captureDashboardSnapshotIfMissing();
+
     // Load all enabled crawler configs that have at least one schedule
     // Support both 'schedules' (array, new format) and 'schedule' (object, legacy)
     const crawlerRows = await db.query(

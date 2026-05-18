@@ -74,6 +74,8 @@ If the same logic already exists in one file and you're about to write it in a s
 
 **Contexts tab (v6):** Replaces the former Org Chart tab. Manager-hierarchy trees now come from the `manager-hierarchy` context-algorithm plugin.
 
+**Dashboard Trends tab:** Daily snapshots written by the scheduler to `DashboardSnapshots`. Charts are hand-rolled SVG via `components/TimeSeriesChart.jsx` — no chart library dependency. See [`docs/architecture/dashboard-trends.md`](../../docs/architecture/dashboard-trends.md).
+
 ## Component Structure
 
 | Component | Purpose |
@@ -83,5 +85,8 @@ If the same logic already exists in one file and you're about to write it in a s
 | `components/MatrixView.jsx` | Main matrix orchestrator |
 | `components/matrix/SortableMatrixBody.jsx` | Lazy-loaded DnD + virtual scrolling wrapper |
 | `components/matrix/MatrixCell.jsx` | Individual cell (AP-colored bg, multi-type badges) |
+| `components/DashboardPage.jsx` | Landing page — Overview / Trends tabs |
+| `components/DashboardTrendsTab.jsx` | Lazy-loaded; renders the time-series charts |
+| `components/TimeSeriesChart.jsx` | Reusable hand-rolled SVG line chart (no chart lib dep) |
 | `hooks/useMatrixRowOrder.js` | Row order persistence (versioned localStorage) |
 | `hooks/useEntityPage.js` | Shared hook for Users/Resources pages |

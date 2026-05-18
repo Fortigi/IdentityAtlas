@@ -698,6 +698,22 @@ foreach ($scenario in $Scenarios) {
                     # checkbox but no phase emits rows. Remove this note when
                     # the directoryRoles phase ships.
 
+                    # Dashboard timeseries endpoint — backs the Trends tab on
+                    # the dashboard. The scheduler writes a snapshot row once
+                    # per UTC day; on a fresh CI run the snapshot may or may
+                    # not have fired yet, so we only verify the endpoint
+                    # responds with the expected `{days, data}` shape.
+                    try {
+                        $ts = Invoke-LocalApi -Path '/admin/dashboard-timeseries?days=30'
+                        if ($null -ne $ts.days -and $null -ne $ts.data) {
+                            Report-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $true "days=$($ts.days) rows=$(@($ts.data).Count)"
+                        } else {
+                            Report-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $false 'response missing days or data fields'
+                        }
+                    } catch {
+                        Report-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $false $_.Exception.Message
+                    }
+
                     # /identities/by-user smoke — the secondary query in this
                     # endpoint silently 500'd for months in 2026 because of
                     # stale column names (userId / userPrincipalName on
