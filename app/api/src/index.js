@@ -166,15 +166,16 @@ const publicLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
 });
 
-// Authenticated /api/* endpoints get a much more permissive limit so
-// legitimate interactive usage (matrix page can fire ~5-10 calls on
-// load, more if the user is clicking through filters quickly) isn't
-// throttled. The point is just to bound DoS / credential-stuffing
-// against the auth middleware itself — which CodeQL flags as a
-// "authorization without rate limiting" risk otherwise.
+// Authenticated /api/* endpoints get a permissive global limit. The
+// point is just to bound DoS / credential-stuffing against the auth
+// middleware itself — which CodeQL flags as "authorization without
+// rate limiting" otherwise. The cap must NOT bite normal interactive
+// use (matrix page fires 20+ calls on load) or parallel CI tests
+// running through a single source IP, so we leave wide headroom.
+//   6000 req/min  =  100 req/sec sustained per IP
 const authedApiLimiter = rateLimit({
-  windowMs: 60 * 1000,  // 1 minute
-  max: 600,              // 600 requests per minute per IP (10 r/s avg)
+  windowMs: 60 * 1000,
+  max: 6000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please slow down' },
