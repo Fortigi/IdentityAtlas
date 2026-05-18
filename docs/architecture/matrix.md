@@ -1,0 +1,95 @@
+# Matrix view — architecture
+
+> **Status:** current as of May 2026.
+> Companion to [`013_matrix_matviews_and_indexes.sql`](../../app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](../../app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`025_matrix_view_governed_renders_as_direct.sql`](../../app/api/src/db/migrations/025_matrix_view_governed_renders_as_direct.sql).
+
+## The grid
+
+Rows are **resources**. Columns are **principals** (users / service principals / managed identities — *not* groups, see below). Each cell describes whether the column-principal has the row-resource and, if so, *how*.
+
+```
+                   alice    bob    carol    ...
+Sales Team           D                       <- group membership
+Reader on CRM        D       I              <- app role (direct vs. via group)
+HR-Manager BR        D                       <- BusinessRole assignment
+DelegatedPerm: …             A               <- OAuth2 user consent
+```
+
+(That last `A` no longer renders — see "Badge collapse" below — but the underlying row is still in the data.)
+
+## Data source
+
+A single materialized view: `vw_ResourceUserPermissionAssignments`. Refreshed at web boot via `bootstrap.js → refreshMatrixViews()` and at end-of-sync via `POST /api/ingest/refresh-views`.
+
+Shape:
+
+| Column | Purpose |
+|---|---|
+| `resourceId` | Row (joined to `Resources` for displayName etc.) |
+| `principalId` | Column (joined to `Principals` — group-typed rows fall out at the JOIN) |
+| `principalType` | Passed through; legacy filter against `'#microsoft.graph.group'` is dead in v5 but harmless |
+| `membershipType` | What badge to render — see badge collapse below |
+| `managedByAccessPackage` | Drives AP color overlay on the cell |
+
+The view itself is a single `SELECT FROM "ResourceAssignments"` with no `assignmentType` filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of `Direct/Owner/Eligible/Governed` was removed in migration 024 so future assignment types don't need a migration to surface.
+
+## Badge collapse — what each letter actually means
+
+The user reads four letters. The DB stores eight assignment types. The translation lives in migration 025's CASE expression and is intentionally lossy:
+
+| Raw `assignmentType` in ResourceAssignments | Displayed `membershipType` | Badge |
+|---|---|---|
+| `Direct` | `Direct` | **D** |
+| `Indirect` | `Indirect` | **I** |
+| `Owner` | `Owner` | **O** |
+| `Eligible` | `Eligible` | **E** |
+| `Governed` | `Direct` | **D** |
+| `OAuth2Grant` | `Direct` | **D** |
+| `AppRole` | `Direct` | **D** |
+| `AppRoleViaGroup` | `Indirect` | **I** |
+
+The rationale: the *resource type* already says what *kind* of membership it is (`BusinessRole`, `DelegatedPermission`, `AppRole`). The badge is reserved for *how* the user holds the resource — Direct / Indirect / Owner / Eligible — not *why* the assignment exists.
+
+**Cell coloring is independent.** `managedByAccessPackage` still uses the raw `assignmentType='Governed'` so the AP color overlay correctly marks governed cells regardless of the badge.
+
+The four-letter alphabet was chosen for an explicit reason: **`E` (Eligible) is not "current access"**. A user with an Eligible row could activate via PIM but right now has nothing. Folding `Eligible` into `Direct` would misrepresent reality and was rejected in design discussion.
+
+## Expand semantics
+
+A group can appear as a *principal* of other resources — that's how nested group membership and group-assigned app roles work. The matrix grid hides these rows (the column `INNER JOIN`s `Principals`, and groups live in `Resources`). The **expand** affordance surfaces them:
+
+- `GET /api/groups-with-nested` — returns every group ID that is itself a principal on at least one row in `ResourceAssignments` (any `assignmentType`).
+- `GET /api/group/:id/nested-groups` — returns every resource that group is a principal on, plus the user-level memberships of those resources.
+
+Clicking the chevron on a group row fans out:
+1. **Nested parent groups** — groups this one is a member of. Members of the row's group inherit them.
+2. **App roles** — app roles assigned to this group. Members inherit them via the per-user `AppRoleViaGroup` rows (badge `I`).
+
+The endpoints don't filter by `assignmentType` — any future "group-as-principal" type (directory roles assigned to groups, governed BRs assigned to groups, …) automatically surfaces.
+
+## Why groups don't appear as columns
+
+`Principals` is users + service principals + managed identities. Groups live in `Resources` (as `resourceType='EntraGroup'`). When a group is itself a principal of an assignment (e.g. nested membership), the row's `principalId` is a group's UUID — which has no matching `Principals.id`, so the matrix endpoint's `INNER JOIN Principals` drops the row. The expand endpoints query `ResourceAssignments` directly to surface those rows.
+
+This is why we can store *both*:
+- `(resourceId=AppRole_X, principalId=Group_Y, assignmentType='AppRole')` — Group Y has the role
+- `(resourceId=AppRole_X, principalId=User_Z, assignmentType='AppRoleViaGroup', extendedAttributes.viaGroupId='Group_Y')` — User Z has the role because they're in Group Y
+
+…without polluting the user-facing matrix grid. The first row is invisible there; the second row paints User Z's cell with an `I` badge.
+
+## Owner rows are split
+
+A user who is both a member and an owner of a group gets two rows in the data — `assignmentType='Direct'` and `assignmentType='Owner'`. The UI splits these into two distinct rows in the matrix (`<groupId>` and `<groupId>__owner`) so the badges don't collapse to a single ambiguous cell. See `MatrixView.jsx`'s `isOwner` branch.
+
+## Performance notes
+
+- The matview is refreshed `CONCURRENTLY` after the first run (which is non-concurrent because the matview starts empty).
+- The unique covering index `(resourceId, principalId, membershipType)` is required for `REFRESH CONCURRENTLY` and also makes the matrix endpoint's per-principal lookups index-only.
+- The recursive CTE that previously expanded nested groups *inside* the matview was removed in 013 — it was the dominant cost on the load-test dataset and produced the same matrix for tenants without group-in-group nesting. Group-level expansion happens lazily at click time via the `/nested-groups` endpoint instead.
+
+## Related references
+
+- Crawler emits — [`tools/crawlers/entra-id/Start-EntraIDCrawler.ps1`](../../tools/crawlers/entra-id/Start-EntraIDCrawler.ps1) (phases `Assignments`, `PIM`, `Governance`, `OAuth2Grants`, `AppRoles`)
+- Frontend renderer — [`app/ui/src/components/MatrixView.jsx`](../../app/ui/src/components/MatrixView.jsx) and `app/ui/src/components/matrix/*`
+- Badge color map — [`app/ui/src/utils/colors.js`](../../app/ui/src/utils/colors.js) (`TYPE_COLORS`)
+- Permissions endpoint — [`app/api/src/routes/permissions.js`](../../app/api/src/routes/permissions.js) (`GET /api/permissions`, `GET /api/groups-with-nested`, `GET /api/group/:id/nested-groups`)

@@ -117,6 +117,22 @@ The data model supports importing authorization data from any system. Resources,
 - **Identities** — Real persons aggregated from multiple accounts (account correlation)
 - **IdentityMembers** — Links identities to their principals across systems
 
+**Resource types in use:**
+
+| `resourceType` | Source | What it represents |
+|---|---|---|
+| `EntraGroup` | Entra crawler | Security / Microsoft 365 group |
+| `BusinessRole` | Governance sync (Entra access packages, Omada business roles) | Wraps groups via `relationshipType='Contains'`; assigned to users via `assignmentType='Governed'` |
+| `Application` | OAuth2 / AppRoles phases | Enterprise application (service principal). Doesn't grant access by itself — it's the parent of AppRole / DelegatedPermission children |
+| `AppRole` | `SyncAppRoles` phase | One synthetic resource per (Application, appRoleId). Parent app linked via `relationshipType='HasAppRole'`. Assigned to users via `assignmentType='AppRole'` (direct) or `assignmentType='AppRoleViaGroup'` (expanded from a group's role) |
+| `DelegatedPermission` | `SyncOAuth2Grants` phase | One synthetic resource per (clientSP, targetApiSP, scope). Parent app linked via `relationshipType='DelegatesScope'`. Assigned to users via `assignmentType='OAuth2Grant'` |
+
+**Assignment types in use:**
+
+`Direct`, `Indirect`, `Owner`, `Eligible` (the four "how does this user have it" types) plus the *source-attribute* types `Governed`, `OAuth2Grant`, `AppRole`, `AppRoleViaGroup`. The matrix view (`vw_ResourceUserPermissionAssignments`) collapses the source-attribute types in its `membershipType` output — see [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-display rules.
+
+**Relationship types in use:** `Contains` (BusinessRole → group), `HasAppRole` (Application → AppRole), `DelegatesScope` (Application → DelegatedPermission), `GrantsAccessTo` (reserved).
+
 **Core + JSON pattern:** Frequently-queried attributes are real SQL columns; system-specific attributes live in `extendedAttributes` JSON.
 
 **Backward compatibility:** All queries prefer new tables (Resources, Principals) with automatic fallback to legacy tables (GraphGroups, GraphUsers).
@@ -148,6 +164,7 @@ Business roles, certifications, and access policies from any IGA platform. Busin
 | CertificationDecisions | — | AP Access Review | CRA | Certification |
 
 ---
+
 
 ## Repository Setup (One-Time)
 
