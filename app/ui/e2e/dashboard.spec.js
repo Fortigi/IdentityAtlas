@@ -9,8 +9,8 @@ test.describe('Dashboard Page', () => {
 
   test('Overview tab renders the brain graph + stats', async ({ page }) => {
     // Tab strip should be visible
-    await expect(page.getByRole('button', { name: 'Overview', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Trends',   exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Trends', exact: true })).toBeVisible();
 
     // Overview is the default — at least one SVG (the brain graph) must render
     const svgs = page.locator('svg');
@@ -18,7 +18,7 @@ test.describe('Dashboard Page', () => {
   });
 
   test('Trends tab switches and renders chart container', async ({ page }) => {
-    await page.getByRole('button', { name: 'Trends', exact: true }).click();
+    await page.getByRole('tab', { name: 'Trends', exact: true }).click();
 
     // The headline section heading should appear
     await expect(page.getByText(/Governed assignments — % of total/i)).toBeVisible({ timeout: 10000 });
@@ -36,7 +36,7 @@ test.describe('Dashboard Page', () => {
   });
 
   test('Trends range selector changes the days param', async ({ page }) => {
-    await page.getByRole('button', { name: 'Trends', exact: true }).click();
+    await page.getByRole('tab', { name: 'Trends', exact: true }).click();
     await expect(page.locator('select#trends-range')).toBeVisible();
 
     // Pick a different range — the chart should re-render (no crash).
