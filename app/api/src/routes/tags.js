@@ -309,20 +309,21 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
     const request = p.request().input('tagId', tagId);
     let where = '1=1';
     if (search) {
+      // ILIKE for case-insensitive search (matches the SQL-Server-era
+      // default-case-insensitive behaviour the original LIKE relied on).
+      // Column identifiers are camelCase, so they must be double-quoted —
+      // unquoted postgres lowercases them and the lookup fails.
       request.input('search', `%${search}%`);
       if (entityType === 'user') {
-        where += ` AND (${alias}.displayName LIKE @search OR ${alias}.${upnColForSearch} LIKE @search)`;
+        where += ` AND (${alias}."displayName" ILIKE @search OR ${alias}."${upnColForSearch}" ILIKE @search)`;
       } else if (entityType === 'identity') {
-        where += ` AND (${alias}.displayName LIKE @search OR ${alias}.email LIKE @search)`;
+        where += ` AND (${alias}."displayName" ILIKE @search OR ${alias}."email" ILIKE @search)`;
       } else {
-        where += ` AND (${alias}.displayName LIKE @search OR ${alias}.description LIKE @search)`;
+        where += ` AND (${alias}."displayName" ILIKE @search OR ${alias}."description" ILIKE @search)`;
       }
     }
-
-    // For temporal tables (Resources, Principals), add ValidTo filter
-    if (entityType === 'resource' || (entityType === 'user' && userTableForTags === 'Principals')) {
-      where += ` AND ${alias}.ValidTo = '9999-12-31 23:59:59.9999999'`;
-    }
+    // (v5: temporal tables / `ValidTo` were dropped during the postgres
+    // migration — no version-filtering clause needed here anymore.)
 
     // Apply attribute filters
     if (filters && typeof filters === 'object') {
@@ -331,20 +332,19 @@ router.post('/tags/:id/assign-by-filter', async (req, res) => {
       where += buildFilterWhere(request, filters, colNames, alias, 'bf');
     }
 
-    // Safety cap: limit bulk assignment to 50,000 rows to prevent runaway operations.
-    // Tags now live in Contexts — write directly to ContextMembers, skip dupes via
-    // ON CONFLICT.
+    // Tags now live in Contexts — write directly to ContextMembers, skip
+    // dupes via ON CONFLICT. INSERT count comes back as rowsAffected[0]
+    // from the compat layer (postgres has no @@ROWCOUNT).
     request.input('memberType', ctx.targetType);
     const result = await request.query(`
       INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
       SELECT @tagId, @memberType, ${alias}.id::uuid, 'analyst'
-        FROM ${table} ${alias}
+        FROM "${table}" ${alias}
        WHERE (${where})
-      ON CONFLICT ("contextId", "memberId") DO NOTHING;
-      SELECT @@ROWCOUNT AS inserted;
+      ON CONFLICT ("contextId", "memberId") DO NOTHING
     `);
     await recalcMemberCountsForChain(tagId);
-    res.json({ ok: true, inserted: result.recordset[0]?.inserted || 0 });
+    res.json({ ok: true, inserted: result.rowsAffected?.[0] || 0 });
   } catch (err) {
     console.error('POST /tags/:id/assign-by-filter failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });

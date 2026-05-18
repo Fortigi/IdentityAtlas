@@ -324,8 +324,9 @@ The engine preserves the same scoping patterns used by the current PowerShell sy
 | `systemId` | Must exist in Systems table AND be in crawler's allowed systems |
 | `displayName` | Required, max 255 chars |
 | `principalType` | One of: `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox` |
-| `resourceType` | One of: `Group`, `DirectoryRole`, `AppRole`, `BusinessRole`, `Site`, `Team`, etc. |
-| `assignmentType` | One of: `Direct`, `Indirect`, `Eligible`, `Owner`, `Governed` |
+| `resourceType` | Free-form text — no enum check. Values currently emitted by crawlers: `EntraGroup`, `BusinessRole`, `Application`, `AppRole`, `DelegatedPermission`, `DirectoryRole` |
+| `assignmentType` | One of: `Direct`, `Indirect`, `Eligible`, `Owner`, `Governed`, `OAuth2Grant`, `AppRole`, `AppRoleViaGroup` |
+| `relationshipType` | One of: `Contains`, `GrantsAccessTo`, `DelegatesScope`, `HasAppRole` |
 | `extendedAttributes` | Valid JSON object, max 64 KB |
 
 ---

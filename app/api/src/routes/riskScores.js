@@ -240,7 +240,7 @@ router.get('/risk-scores/users', async (req, res) => {
       request.input('tier', tier);
     }
     if (search) {
-      whereClause += ' AND (p.displayName LIKE @search OR p.email LIKE @search OR p.department LIKE @search)';
+      whereClause += ' AND (p."displayName" ILIKE @search OR p.email ILIKE @search OR p.department ILIKE @search)';
       request.input('search', `%${search}%`);
     }
     if (department) {
@@ -307,7 +307,7 @@ router.get('/risk-scores/groups', async (req, res) => {
       request.input('tier', tier);
     }
     if (search) {
-      whereClause += ' AND (r.displayName LIKE @search OR r.description LIKE @search)';
+      whereClause += ' AND (r."displayName" ILIKE @search OR r.description ILIKE @search)';
       request.input('search', `%${search}%`);
     }
     if (resourceType) {
@@ -374,7 +374,7 @@ router.get('/risk-scores/business-roles', async (req, res) => {
       request.input('tier', tier);
     }
     if (search) {
-      whereClause += ' AND (br.displayName LIKE @search OR br.description LIKE @search)';
+      whereClause += ' AND (br."displayName" ILIKE @search OR br.description ILIKE @search)';
       request.input('search', `%${search}%`);
     }
     if (overridesOnly) {
@@ -438,7 +438,7 @@ router.get('/risk-scores/contexts', async (req, res) => {
       request.input('tier', tier);
     }
     if (search) {
-      whereClause += ' AND (ou.displayName LIKE @search OR ou.department LIKE @search)';
+      whereClause += ' AND (ou."displayName" ILIKE @search OR ou.department ILIKE @search)';
       request.input('search', `%${search}%`);
     }
     if (overridesOnly) {
@@ -502,7 +502,7 @@ router.get('/risk-scores/identities', async (req, res) => {
       request.input('tier', tier);
     }
     if (search) {
-      whereClause += ' AND (i.displayName LIKE @search OR i.department LIKE @search OR i.email LIKE @search)';
+      whereClause += ' AND (i."displayName" ILIKE @search OR i.department ILIKE @search OR i.email ILIKE @search)';
       request.input('search', `%${search}%`);
     }
     if (overridesOnly) {

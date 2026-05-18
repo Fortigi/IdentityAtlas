@@ -49,7 +49,8 @@ test.describe('Org Chart Page', () => {
     await expect(nav).toBeVisible();
 
     // Can still navigate away
-    await page.getByRole('button', { name: 'Matrix' }).click();
+    // `exact: true` — see navigation.spec.js for why.
+    await page.getByRole('button', { name: 'Matrix', exact: true }).click();
     await expect(page.locator('nav')).toBeVisible();
   });
 });

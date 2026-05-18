@@ -9,6 +9,7 @@ import { authMiddleware } from './middleware/auth.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import { enable as enablePerf, isEnabled as isPerfEnabled } from './perf/collector.js';
 import permissionsRouter from './routes/permissions.js';
+import matrixRouter from './routes/matrix.js';
 import tagsRouter from './routes/tags.js';
 import categoriesRouter from './routes/categories.js';
 import detailsRouter from './routes/details.js';
@@ -165,6 +166,22 @@ const publicLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
 });
 
+// Authenticated /api/* endpoints get a permissive global limit. The
+// point is just to bound DoS / credential-stuffing against the auth
+// middleware itself — which CodeQL flags as "authorization without
+// rate limiting" otherwise. The cap must NOT bite normal interactive
+// use (matrix page fires 20+ calls on load) or parallel CI tests
+// running through a single source IP, so we leave wide headroom.
+//   6000 req/min  =  100 req/sec sustained per IP
+const authedApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 6000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down' },
+});
+app.use('/api', authedApiLimiter);
+
 // Unauthenticated endpoints (rate-limited)
 app.get('/api/health', publicLimiter, (req, res) => {
   res.json({ status: 'ok' });
@@ -238,6 +255,7 @@ app.use('/api', authMiddleware, perfRouter);
 
 // Auth middleware for all other API routes
 app.use('/api', authMiddleware, permissionsRouter);
+app.use('/api', authMiddleware, matrixRouter);
 app.use('/api', authMiddleware, tagsRouter);
 app.use('/api', authMiddleware, categoriesRouter);
 app.use('/api', authMiddleware, detailsRouter);

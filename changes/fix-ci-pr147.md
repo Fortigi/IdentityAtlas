@@ -1,0 +1,4 @@
+- Fixed three CI regressions on the PR:
+  - Matrix matview `REFRESH` failed on large datasets after the badge-collapse migration when a single `(resourceId, principalId)` had both a `Direct` and a `Governed` row (or any other two rows that collapsed to the same `membershipType`) — both ended up at the unique index. Migration 026 dedupes via `GROUP BY (resourceId, principalId, membershipType)` with `bool_or` on `managedByAccessPackage`.
+  - Playwright matrix test now walks the wizard (it used to wait for a table directly; the matrix tab now lands on an empty state until a filter is applied). Two other tests' `Matrix` button selectors gained `exact: true` so they don't match the wizard's "Create matrix" button.
+  - Added a permissive authenticated-API rate limiter (600 req/min per IP) so `app.use('/api', authMiddleware, …)` no longer trips CodeQL's "authorization without rate limiting" rule.
