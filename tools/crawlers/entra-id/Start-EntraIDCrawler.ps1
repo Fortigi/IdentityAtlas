@@ -2316,6 +2316,24 @@ if ($SyncAppRoles) {
                             sourceAssignmentId = $a.id
                             appName            = $sp.displayName
                         })
+                        # Also store the group→AppRole edge itself (principal=group)
+                        # so the matrix's "expand group" feature can fan out the
+                        # app roles a group grants to its members. The matrix grid
+                        # itself filters out group-typed principals via its
+                        # INNER JOIN to Principals, so this row only surfaces in
+                        # the nested-groups expand — not as a stray column.
+                        $directAssns.Add(@{
+                            resourceId     = $roleResId
+                            principalId    = $a.principalId
+                            principalType  = 'Group'
+                            assignmentType = 'AppRole'
+                            extendedAttributes = @{
+                                appRoleAssignmentId = $a.id
+                                appRoleId           = $roleId
+                                createdDateTime     = $a.createdDateTime
+                                resourceDisplayName = $sp.displayName
+                            }
+                        })
                     }
                     default {
                         # ServicePrincipal or other — skip for v1.
