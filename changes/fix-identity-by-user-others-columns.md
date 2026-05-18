@@ -1,1 +1,0 @@
-- Fixed: user detail page showed "Identity 0" even when the user was linked to an Identity. The backend was 500-ing on `/api/identities/by-user/:userId` because the secondary query referenced columns (`userId`, `userPrincipalName`) that don't exist on `IdentityMembers`. The query now correctly joins to `Principals` to surface the UPN.
