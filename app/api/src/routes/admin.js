@@ -679,6 +679,41 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
   }
 });
 
+// ─── Dashboard timeseries — daily snapshot history for the Trends tab ──────
+//
+// Returns the last N days of dashboard counts, written daily by the
+// scheduler (see scheduler.js → captureDashboardSnapshotIfMissing). Used
+// by the Trends tab to plot growth over time for users, resources,
+// assignments, and the % of assignments that are governed.
+//
+// We deliberately do NOT backfill from history — the chart starts on the
+// day migration 027 applied and grows from there.
+router.get('/admin/dashboard-timeseries', async (req, res) => {
+  if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 90, 1), 730);
+    // Existence check — table won't exist on a fresh DB before migration 027.
+    const exists = await db.queryOne(`SELECT to_regclass('"DashboardSnapshots"') AS t`);
+    if (!exists?.t) return res.json({ days, data: [] });
+
+    const result = await db.query(
+      `SELECT
+         "snapshotDate"::text AS date,
+         "systems", "resources", "businessRoles", "principals",
+         "identities", "assignments", "governedAssignments",
+         "relationships", "contexts", "identityMembers", "certifications"
+       FROM "DashboardSnapshots"
+       WHERE "snapshotDate" >= (CURRENT_DATE - ($1 || ' days')::interval)
+       ORDER BY "snapshotDate" ASC`,
+      [String(days)],
+    );
+    res.json({ days, data: result.rows || [] });
+  } catch (err) {
+    console.error('dashboard-timeseries failed:', err.message);
+    res.status(500).json({ error: 'Failed to fetch dashboard timeseries' });
+  }
+});
+
 // ─── History retention setting ──────────────────────────────────────────────
 // Controls how long rows in the `_history` audit table are kept before being
 // pruned. Default is 180 days. Setting to 0 disables pruning entirely.
