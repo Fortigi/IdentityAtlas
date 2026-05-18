@@ -15,7 +15,6 @@ const UsersPage = lazy(() => import('./components/UsersPage'));
 const GroupsPage = lazy(() => import('./components/GroupsPage')); // Now renders ResourcesPage
 const AccessPackagesPage = lazy(() => import('./components/AccessPackagesPage'));
 const UserDetailPage = lazy(() => import('./components/UserDetailPage'));
-const GroupDetailPage = lazy(() => import('./components/GroupDetailPage'));
 const ResourceDetailPage = lazy(() => import('./components/ResourceDetailPage'));
 const AccessPackageDetailPage = lazy(() => import('./components/AccessPackageDetailPage'));
 const SystemsPage = lazy(() => import('./components/SystemsPage'));

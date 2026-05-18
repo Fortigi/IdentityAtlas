@@ -183,80 +183,6 @@ function EntityTable({ entities, entityType, onOpenDetail }) {
   );
 }
 
-// ─── Cluster Table ──────────────────────────────────────────────────
-
-function ClusterSortHeader({ label, field, className = '', sortKey, sortDir, onSort }) {
-  const active = sortKey === field;
-  return (
-    <th
-      className={`text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase cursor-pointer select-none hover:text-gray-700 dark:text-gray-300 ${className}`}
-      onClick={() => onSort(field)}
-    >
-      {label}
-      {active && <span className="ml-1 text-gray-400 dark:text-gray-500">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>}
-    </th>
-  );
-}
-
-function ClusterTable({ clusters, onSelect, sortKey, sortDir, onSort }) {
-  if (!clusters || clusters.length === 0) {
-    return <div className="py-8 text-center text-gray-400 dark:text-gray-500">No clusters match the current filters</div>;
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-200 dark:border-gray-700">
-            <ClusterSortHeader label="Name" field="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <ClusterSortHeader label="Type" field="type" className="w-20" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <ClusterSortHeader label="Members" field="members" className="w-20" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase w-24">Prod / Non</th>
-            <ClusterSortHeader label="Score" field="score" className="w-20" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <ClusterSortHeader label="Tier" field="tier" className="w-24" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <ClusterSortHeader label="Owner" field="owner" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-          </tr>
-        </thead>
-        <tbody>
-          {clusters.map(c => (
-            <tr
-              key={c.id}
-              className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 cursor-pointer"
-              onClick={() => onSelect(c)}
-            >
-              <td className="py-2 px-3">
-                <div className="font-medium text-gray-900 dark:text-white">{c.displayName}</div>
-                {c.sourceClassifierCategory && (
-                  <span className="text-[10px] text-gray-400 dark:text-gray-500">{c.sourceClassifierCategory}</span>
-                )}
-              </td>
-              <td className="py-2 px-3">
-                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                  c.clusterType === 'classifier' ? 'bg-blue-50 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 dark:text-gray-500'
-                }`}>
-                  {c.clusterType}
-                </span>
-              </td>
-              <td className="py-2 px-3 text-xs font-mono text-gray-600 dark:text-gray-400 dark:text-gray-500">{c.memberCount}</td>
-              <td className="py-2 px-3 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">
-                {c.memberCountProd}
-                {c.memberCountNonProd > 0 && (
-                  <span className="text-gray-400 dark:text-gray-500"> / {c.memberCountNonProd}</span>
-                )}
-              </td>
-              <td className="py-2 px-3"><ScoreBar score={c.aggregateRiskScore} /></td>
-              <td className="py-2 px-3"><TierBadge tier={c.riskTier} /></td>
-              <td className="py-2 px-3 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">
-                {c.ownerDisplayName || <span className="text-gray-300">Unassigned</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 // ─── Cluster Detail Panel ───────────────────────────────────────────
 
 function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh }) {
@@ -543,7 +469,6 @@ export default function RiskScoringPage({ onOpenDetail }) {
   const [entityLoading, setEntityLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [clusterData, setClusterData] = useState({ available: false, data: [], total: 0 });
-  const [clusterLoading, setClusterLoading] = useState(false);
   const [clusterSummary, setClusterSummary] = useState(null);
   const [selectedCluster, setSelectedCluster] = useState(null);
   const [clusterSort, setClusterSort] = useState({ key: 'score', dir: 'desc' });
@@ -592,7 +517,6 @@ export default function RiskScoringPage({ onOpenDetail }) {
   // Fetch clusters (paginated, server-side)
   const fetchClusters = useCallback(async () => {
     try {
-      setClusterLoading(true);
       const params = new URLSearchParams({
         limit: String(PAGE_SIZE),
         offset: String(page * PAGE_SIZE),
@@ -614,7 +538,6 @@ export default function RiskScoringPage({ onOpenDetail }) {
       console.error('Failed to fetch clusters:', err);
       setClusterData({ available: false, data: [], total: 0 });
     } finally {
-      setClusterLoading(false);
     }
   }, [authFetch, page, tierFilter, search, clusterSort]);
 
@@ -630,19 +553,6 @@ export default function RiskScoringPage({ onOpenDetail }) {
     }
   }, [authFetch]);
 
-  // Toggle cluster sort column
-  const handleClusterSort = useCallback((field) => {
-    setClusterSort(prev => {
-      // Default direction: asc for text fields, desc for numeric fields
-      const textFields = ['name', 'type', 'owner'];
-      const defaultDir = textFields.includes(field) ? 'asc' : 'desc';
-      if (prev.key === field) {
-        return { key: field, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
-      }
-      return { key: field, dir: defaultDir };
-    });
-    setPage(0);
-  }, []);
 
   // Refresh clusters list after owner change
   const handleClusterRefresh = useCallback(() => {

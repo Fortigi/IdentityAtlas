@@ -210,14 +210,6 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
           pattern: 'solid',
           fgColor: { argb: bgArgb },
         };
-        // Provisioning gap: check each AP's resource role against the user's actual membership
-        const lookupGid = (group.realGroupId || group.id).toUpperCase();
-        const isGap = apIds.some(apId => {
-          const role = apGroupMap?.get(`${lookupGid}|${apId}`) || 'Member';
-          const expectsEligible = role.toLowerCase().includes('eligible');
-          if (expectsEligible) return !memberTypes || !memberTypes.has('Eligible');
-          return !memberTypes || !memberTypes.has('Direct');
-        });
         }
 
       excelCell.border = thinBorder();

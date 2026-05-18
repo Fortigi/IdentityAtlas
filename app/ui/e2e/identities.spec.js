@@ -226,7 +226,6 @@ test.describe('Identities Page', () => {
     await expect(page.locator('nav')).toBeVisible();
 
     // Look for override-related text
-    const overrideControl = page.getByText(/override|confirmed|rejected|moved/i);
     // These may appear if a detail panel is open with multi-account data
     expect(true).toBe(true);
   });
@@ -239,8 +238,6 @@ test.describe('Identities Page', () => {
     if (notAvailable > 0) { test.skip(); return; }
 
     // Pagination buttons: Previous / Next
-    const prev = page.getByRole('button', { name: /prev/i });
-    const next = page.getByRole('button', { name: /next/i });
     // May not appear for small datasets — just verify no crash
     expect(true).toBe(true);
   });

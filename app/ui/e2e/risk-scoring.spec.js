@@ -50,7 +50,6 @@ test.describe('Risk Scoring Page', () => {
 
   test('page does not show errors', async ({ page }) => {
     // Should not show unhandled error messages
-    const errorText = page.getByText(/error|failed|exception/i);
     // Filter out expected UI text like "Connection Error"
     await page.waitForTimeout(1000);
 

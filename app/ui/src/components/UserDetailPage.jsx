@@ -39,7 +39,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   // Manager (one record) — fetched eagerly because the header uses it and
   // the graph shows the manager node.
   const [manager, setManager] = useState(null);
-  const [managerLoaded, setManagerLoaded] = useState(false);
 
   // Core fetch
   useEffect(() => {
@@ -74,8 +73,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     authFetch(`/api/org-chart/user/${encodeURIComponent(userId)}/manager`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (!cancelled && d?.manager) setManager(d.manager); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setManagerLoaded(true); });
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [userId, authFetch]);
 

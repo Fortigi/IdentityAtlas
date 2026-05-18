@@ -35,9 +35,7 @@ test.describe('Org Chart Page', () => {
   });
 
   test('search input is present', async ({ page }) => {
-    const searchInput = page.locator('input[type="text"], input[type="search"]');
-    // Org chart may have a department search
-    // Just verify page loaded without errors
+    // Org chart may have a department search — just verify page loaded without errors
     const nav = page.locator('nav');
     await expect(nav).toBeVisible();
   });
