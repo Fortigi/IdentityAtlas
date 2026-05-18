@@ -101,9 +101,11 @@ export default function DashboardPage({ onNavigate }) {
           </div>
         </div>
 
-      {/* Tab strip */}
+      {/* Tab strip. role="tablist" not <nav> — tabs are an internal control,
+          not site navigation, and adding a second <nav> trips strict-mode
+          selectors on existing tests that scope by `locator('nav')`. */}
       <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
-        <nav className="-mb-px flex gap-6">
+        <div role="tablist" aria-label="Dashboard sections" className="-mb-px flex gap-6">
           {[
             { key: 'overview', label: 'Overview' },
             { key: 'trends',   label: 'Trends' },
@@ -112,6 +114,8 @@ export default function DashboardPage({ onNavigate }) {
             return (
               <button
                 key={t.key}
+                role="tab"
+                aria-selected={active}
                 onClick={() => setTab(t.key)}
                 className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
                   active
@@ -123,7 +127,7 @@ export default function DashboardPage({ onNavigate }) {
               </button>
             );
           })}
-        </nav>
+        </div>
       </div>
 
       {tab === 'trends' && (
