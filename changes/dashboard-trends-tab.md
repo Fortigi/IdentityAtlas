@@ -1,0 +1,3 @@
+- Added a **Trends** tab to the Dashboard page. Plots the % of assignments that are governed over time, plus separate charts for users, resources, and assignments growth.
+- The chart starts populated on the day this version ships and grows as new days are captured. The scheduler writes one snapshot per UTC day to the new `DashboardSnapshots` table — no historical backfill, so the early section reflects only the snapshots actually captured (not a reconstructed history).
+- Range selector switches between 30 days / 90 days / 1 year / 2 years. Charts render as hand-rolled SVG; no new frontend dependency.
