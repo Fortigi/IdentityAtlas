@@ -1,0 +1,1 @@
+- The dev `docker-compose.yml` now sets `restart: unless-stopped` on the postgres and web containers (the worker already had it; the prod compose file already had it for all three). After a host reboot, a Docker daemon restart, or an unexpected crash, the whole stack now auto-recovers without needing a manual `docker compose up -d`.
