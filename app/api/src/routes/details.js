@@ -335,12 +335,10 @@ router.get('/group/:id', async (req, res) => {
 
     // 1. Current attributes — try Resources first, fall back to GraphGroups
     let groupResult;
-    let usingResources = false;
     try {
       groupResult = await timedRequest(pool, 'group-attributes', res)
         .input('id', groupId)
         .query(`SELECT * FROM "Resources" WHERE id = @id`);
-      usingResources = true;
     } catch {
       groupResult = await timedRequest(pool, 'group-attributes-legacy', res)
         .input('id', groupId)

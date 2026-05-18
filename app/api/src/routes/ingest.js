@@ -308,7 +308,7 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
     // refresh them before returning so the UI sees the new data. This is
     // also cheaper than a separate /refresh-views call because we've
     // already warmed the tables.
-    let viewRefresh = 'skipped';
+    let viewRefresh;
     try {
       await refreshMatrixViews();
       viewRefresh = 'ok';

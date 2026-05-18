@@ -103,13 +103,9 @@ test.describe('Identities Page', () => {
   test('account type badges render with expected labels', async ({ page }) => {
     await page.waitForTimeout(1000);
     const types = ['Regular', 'Admin', 'Test', 'Service', 'Shared', 'External'];
-    let foundAny = false;
 
     for (const type of types) {
-      if (await page.getByText(type, { exact: true }).count() > 0) {
-        foundAny = true;
-        break;
-      }
+      if (await page.getByText(type, { exact: true }).count() > 0) break;
     }
 
     // Finding no badges is acceptable in mock / empty mode
