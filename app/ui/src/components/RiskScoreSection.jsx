@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { TIER_STYLES } from '../utils/tierStyles';
 
 function TierBadge({ tier }) {
@@ -124,7 +124,7 @@ export default function RiskScoreSection({ attributes, entityType, entityId, aut
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
         Risk Assessment
         {attributes.riskScoredAt && (
-          <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
+          <span className="text-xs font-normal text-gray-600 dark:text-gray-500">
             scored {formatScoredAt(attributes.riskScoredAt)}
           </span>
         )}
@@ -149,9 +149,9 @@ export default function RiskScoreSection({ attributes, entityType, entityId, aut
       <div className="grid grid-cols-4 gap-3 mb-3">
         {layers.map(l => (
           <div key={l.key} className="text-center">
-            <div className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">{l.label}</div>
+            <div className="text-[10px] text-gray-600 dark:text-gray-500 uppercase tracking-wide mb-1">{l.label}</div>
             <div className="text-lg font-semibold text-gray-800 dark:text-gray-200">{l.score ?? 0}</div>
-            <div className="text-[10px] text-gray-400 dark:text-gray-500">{l.weight} weight</div>
+            <div className="text-[10px] text-gray-600 dark:text-gray-500">{l.weight} weight</div>
           </div>
         ))}
       </div>
@@ -205,7 +205,7 @@ export default function RiskScoreSection({ attributes, entityType, entityId, aut
                   if (!reasons || (Array.isArray(reasons) && reasons.length === 0)) return null;
                   return (
                     <div key={layerKey}>
-                      <div className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">
+                      <div className="text-[10px] text-gray-600 dark:text-gray-500 uppercase tracking-wide mb-0.5">
                         {layerKey.replace(/([A-Z])/g, ' $1').trim()}
                       </div>
                       {Array.isArray(reasons) ? (
@@ -238,7 +238,7 @@ export default function RiskScoreSection({ attributes, entityType, entityId, aut
           <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-3">
             <div className="flex items-center justify-between">
               <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300">Analyst Override</h5>
-              <button onClick={() => setOverrideOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xs">Cancel</button>
+              <button onClick={() => setOverrideOpen(false)} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xs">Cancel</button>
             </div>
 
             <div>
@@ -250,7 +250,7 @@ export default function RiskScoreSection({ attributes, entityType, entityId, aut
                 onChange={e => setAdjustment(parseInt(e.target.value))}
                 className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"
               />
-              <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+              <div className="flex justify-between text-[10px] text-gray-600 dark:text-gray-500 mt-0.5">
                 <span>-50 (lower risk)</span>
                 <span className={`font-mono font-bold ${adjustment > 0 ? 'text-red-600 dark:text-red-400' : adjustment < 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
                   {adjustment > 0 ? '+' : ''}{adjustment}
@@ -286,7 +286,7 @@ export default function RiskScoreSection({ attributes, entityType, entityId, aut
                 </button>
               )}
               {adjustment !== 0 && (
-                <span className="text-xs text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-gray-600 dark:text-gray-500">
                   Effective: {score} {adjustment > 0 ? '+' : ''}{adjustment} = {Math.max(0, Math.min(100, score + adjustment))}
                 </span>
               )}

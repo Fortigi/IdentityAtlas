@@ -1,4 +1,4 @@
-// JsonViewer — Syntax-highlighted, collapsible JSON display
+﻿// JsonViewer — Syntax-highlighted, collapsible JSON display
 // Used in RiskProfileWizard for profile and classifier JSON
 
 import { useState } from 'react';
@@ -32,11 +32,11 @@ function JsonNode({ data, depth = 0, label = null }) {
         onClick={() => setCollapsed(!collapsed)}
         className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 -mx-1 inline-block select-none"
       >
-        <span className="text-gray-400 dark:text-gray-500 mr-1">{collapsed ? '▶' : '▼'}</span>
+        <span className="text-gray-600 dark:text-gray-500 mr-1">{collapsed ? '▶' : '▼'}</span>
         {label && <span className="text-blue-600 dark:text-blue-400">{JSON.stringify(label)}: </span>}
         <span className="text-gray-500 dark:text-gray-400">{bracket[0]}</span>
         {collapsed && (
-          <span className="text-gray-400 dark:text-gray-500 text-xs ml-1">{preview}</span>
+          <span className="text-gray-600 dark:text-gray-500 text-xs ml-1">{preview}</span>
         )}
         {collapsed && <span className="text-gray-500 dark:text-gray-400 ml-1">{bracket[1]}</span>}
       </div>
@@ -45,7 +45,7 @@ function JsonNode({ data, depth = 0, label = null }) {
           {entries.map(([k, v]) => (
             <div key={k}>
               <JsonNode data={v} depth={depth + 1} label={isArray ? null : k} />
-              {isArray || <span className="text-gray-400 dark:text-gray-500">,</span>}
+              {isArray || <span className="text-gray-600 dark:text-gray-500">,</span>}
             </div>
           ))}
         </div>

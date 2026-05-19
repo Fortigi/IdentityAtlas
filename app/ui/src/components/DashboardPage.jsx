@@ -1,4 +1,4 @@
-// Identity Atlas — Dashboard / landing page.
+﻿// Identity Atlas — Dashboard / landing page.
 //
 // One-shot overview showing:
 //   - A brain-like SVG force-graph that echoes the logo
@@ -171,7 +171,7 @@ export default function DashboardPage({ onNavigate }) {
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xs font-bold text-lime-700 uppercase tracking-widest">Loaded data</h2>
             {hasData && (
-              <span className="text-xs text-gray-400 dark:text-gray-500">
+              <span className="text-xs text-gray-600 dark:text-gray-500">
                 Last sync <span className="text-gray-700 dark:text-gray-300">{formatRelativeTime(stats.lastSyncAt)}</span>
               </span>
             )}
@@ -194,7 +194,7 @@ export default function DashboardPage({ onNavigate }) {
                 <StatCard label="Relationships"    value={stats.relationships}  />
                 <StatCard label="Identity Members" value={stats.identityMembers} onClick={() => onNavigate?.('identities')} />
               </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500 text-right">
+              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-500 text-right">
                 <button
                   onClick={() => onNavigate?.('sync-log')}
                   className="hover:text-lime-700 hover:underline transition-colors"
@@ -289,7 +289,7 @@ export default function DashboardPage({ onNavigate }) {
       </div>
 
       {/* Footer */}
-      <div className="text-center text-xs text-gray-400 dark:text-gray-500 pb-6">
+      <div className="text-center text-xs text-gray-600 dark:text-gray-500 pb-6">
         Created by{' '}
         <a href="https://www.fortigi.nl" target="_blank" rel="noopener noreferrer" className="hover:underline text-gray-500 dark:text-gray-400 hover:text-lime-700 transition-colors">
           Maatschap Fortigi
@@ -316,10 +316,10 @@ function StatCard({ label, value, onClick }) {
             : 'bg-gradient-to-br from-lime-50 to-white dark:from-lime-900/25 dark:to-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50'
       }`}
     >
-      <div className={`text-2xl font-bold tabular-nums ${empty ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+      <div className={`text-2xl font-bold tabular-nums ${empty ? 'text-gray-600 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
         {formatNumber(value)}
       </div>
-      <div className={`text-xs mt-0.5 font-medium ${empty ? 'text-gray-400 dark:text-gray-500' : 'text-lime-700'}`}>
+      <div className={`text-xs mt-0.5 font-medium ${empty ? 'text-gray-600 dark:text-gray-500' : 'text-lime-700'}`}>
         {label}
       </div>
     </div>
@@ -368,7 +368,7 @@ function NoDataState({ onNavigate }) {
       >
         Configure a crawler →
       </button>
-      <div className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+      <div className="mt-3 text-xs text-gray-600 dark:text-gray-500">
         Connect Entra ID, upload CSV exports, or click "Load Demo Data" in Admin → Crawlers.
       </div>
     </div>

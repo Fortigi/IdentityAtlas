@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+﻿import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 
@@ -26,7 +26,7 @@ function MetaBadge({ label, value }) {
   if (!value) return null;
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs">
-      <span className="text-gray-400 dark:text-gray-500">{label}:</span>
+      <span className="text-gray-600 dark:text-gray-500">{label}:</span>
       <span className="font-medium">{value}</span>
     </span>
   );
@@ -66,7 +66,7 @@ function Section({ title, icon, children, defaultOpen = false }) {
           <span className="text-lg">{icon}</span>
           <span className="font-medium text-gray-900 dark:text-white">{title}</span>
         </div>
-        <svg className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`w-4 h-4 text-gray-600 dark:text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -77,7 +77,7 @@ function Section({ title, icon, children, defaultOpen = false }) {
 
 function NotConfigured({ message }) {
   return (
-    <div className="mt-4 flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500">
+    <div className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-500">
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
@@ -108,7 +108,7 @@ function RiskProfileSection() {
   }, [authFetch]);
 
   const content = () => {
-    if (loading) return <p className="mt-4 text-sm text-gray-400 dark:text-gray-500">Loading...</p>;
+    if (loading) return <p className="mt-4 text-sm text-gray-600 dark:text-gray-500">Loading...</p>;
     if (!data?.available) {
       return (
         <div className="mt-4">
@@ -252,7 +252,7 @@ const TIER_STYLES_SMALL = {
 };
 
 function ClassifierTable({ rules, emptyMsg }) {
-  if (!rules?.length) return <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{emptyMsg}</p>;
+  if (!rules?.length) return <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">{emptyMsg}</p>;
   return (
     <div className="mt-2 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
       <table className="w-full text-xs">
@@ -274,7 +274,7 @@ function ClassifierTable({ rules, emptyMsg }) {
                 <td className="px-3 py-2 font-medium text-gray-800 dark:text-gray-200">
                   {rule.label || rule.id || '—'}
                   {rule.description && (
-                    <p className="text-gray-400 dark:text-gray-500 font-normal mt-0.5 leading-relaxed">{rule.description}</p>
+                    <p className="text-gray-600 dark:text-gray-500 font-normal mt-0.5 leading-relaxed">{rule.description}</p>
                   )}
                 </td>
                 <td className="px-3 py-2 text-gray-600 dark:text-gray-400 font-mono">
@@ -351,7 +351,7 @@ function ClassifiersSection() {
   };
 
   const content = () => {
-    if (loading) return <p className="mt-4 text-sm text-gray-400 dark:text-gray-500">Loading...</p>;
+    if (loading) return <p className="mt-4 text-sm text-gray-600 dark:text-gray-500">Loading...</p>;
     if (!data?.available) {
       return (
         <div className="mt-4">
@@ -507,7 +507,7 @@ function CorrelationSection() {
   }, [authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const content = () => {
-    if (loading) return <p className="mt-4 text-sm text-gray-400 dark:text-gray-500">Loading...</p>;
+    if (loading) return <p className="mt-4 text-sm text-gray-600 dark:text-gray-500">Loading...</p>;
     if (!data?.available) {
       return (
         <div className="mt-4">
@@ -557,7 +557,7 @@ function CorrelationSection() {
 
         {activeTab === 'signals' && (
           signals.length === 0
-            ? <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">No correlation signals defined.</p>
+            ? <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">No correlation signals defined.</p>
             : <div className="mt-2 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
                 <table className="w-full text-xs">
                   <thead>
@@ -590,14 +590,14 @@ function CorrelationSection() {
 
         {activeTab === 'accountTypes' && (
           accountTypeRules.length === 0
-            ? <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">No account type rules defined.</p>
+            ? <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">No account type rules defined.</p>
             : <div className="mt-2 space-y-2">
                 {accountTypeRules.map((rule, i) => (
                   <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-sm text-gray-800 dark:text-gray-200">{rule.accountType || rule.type || `Rule ${i + 1}`}</span>
                       {rule.priority !== undefined && (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">priority {rule.priority}</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-500">priority {rule.priority}</span>
                       )}
                     </div>
                     {rule.patterns?.length > 0 && (

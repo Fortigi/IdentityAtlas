@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthGate';
 
 // ─── Member typeahead for manual contexts ─────────────────────────────────────
@@ -119,7 +119,7 @@ export default function ContextMemberPicker({ contextId, targetType, onAdded, ex
                 className={`w-full text-left px-3 py-1.5 text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 ${alreadyIn ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <span className="truncate">{r.displayName || r.id}</span>
-                <span className="text-[11px] text-gray-400 dark:text-gray-500 ml-2">
+                <span className="text-[11px] text-gray-600 dark:text-gray-500 ml-2">
                   {alreadyIn ? 'already a member' : adding === r.id ? 'adding…' : 'add'}
                 </span>
               </button>

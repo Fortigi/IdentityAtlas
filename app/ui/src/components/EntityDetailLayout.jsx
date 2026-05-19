@@ -1,4 +1,4 @@
-import { friendlyLabel } from '../utils/formatters';
+﻿import { friendlyLabel } from '../utils/formatters';
 import { renderAttributeValue } from '../utils/renderAttribute';
 
 // ─── EntityDetailLayout ────────────────────────────────────────────────
@@ -38,7 +38,7 @@ export function AttributesTable({ title = 'Attributes', entries }) {
         <span className="text-xs text-gray-500 dark:text-gray-400">{visible.length}</span>
       </div>
       {visible.length === 0 ? (
-        <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No attributes</p>
+        <p className="text-sm text-gray-600 dark:text-gray-500 italic p-4">No attributes</p>
       ) : (
         <div>
           {/* table-fixed + a hard column width on the label keeps a long
@@ -60,7 +60,7 @@ export function AttributesTable({ title = 'Attributes', entries }) {
                     <span className="inline-flex items-start gap-1.5">
                       <span className="break-all">{friendlyLabel(key)}</span>
                       {meta?.extended && (
-                        <span className="inline-block px-1 py-0 rounded text-[9px] font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 shrink-0" title="From extendedAttributes">ext</span>
+                        <span className="inline-block px-1 py-0 rounded text-[9px] font-mono text-gray-600 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 shrink-0" title="From extendedAttributes">ext</span>
                       )}
                     </span>
                   </td>

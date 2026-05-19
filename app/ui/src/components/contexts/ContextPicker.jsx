@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+﻿import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAuth } from '../../auth/AuthGate';
 import { Modal, SecondaryButton } from './ModalPrimitives';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
@@ -269,7 +269,7 @@ function PickerNode({ node, depth, isLast, expanded, onToggleExpand, matchedSet,
           <button
             aria-expanded={isOpen}
             onClick={() => onToggleExpand(node.id)}
-            className="w-5 h-5 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded shrink-0"
+            className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded shrink-0"
             title={isOpen ? 'Collapse' : 'Expand'}
           >
             {isOpen ? '▾' : '▸'}
@@ -293,7 +293,7 @@ function PickerNode({ node, depth, isLast, expanded, onToggleExpand, matchedSet,
           <span className="font-medium text-gray-900 dark:text-white truncate" title={node.displayName}>{node.displayName}</span>
           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap shrink-0`}>{t.label}</span>
           {node.contextType && (
-            <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap shrink-0">{node.contextType}</span>
+            <span className="text-[10px] text-gray-600 dark:text-gray-500 whitespace-nowrap shrink-0">{node.contextType}</span>
           )}
           <MemberCount direct={node.directMemberCount} total={node.totalMemberCount} />
         </button>
@@ -338,7 +338,7 @@ function PickerListRow({ node, value, onPick }) {
         <span style={{ paddingLeft: `${node._depth * 16}px` }} className="inline-block" />
         <span className={`w-2 h-2 rounded-full ${v.dotClass} shrink-0`} aria-hidden="true" />
         <span className="font-medium text-gray-900 dark:text-white truncate flex-1 min-w-0" title={node.displayName}>{node.displayName}</span>
-        <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">{node.contextType}</span>
+        <span className="text-[10px] text-gray-600 dark:text-gray-500 whitespace-nowrap">{node.contextType}</span>
         <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap`}>{t.label}</span>
         <MemberCount direct={node.directMemberCount} total={node.totalMemberCount} />
       </button>
@@ -352,12 +352,12 @@ function MemberCount({ direct, total }) {
   const t = total  || 0;
   if (t > d) {
     return (
-      <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap shrink-0">
+      <span className="text-[11px] text-gray-600 dark:text-gray-500 whitespace-nowrap shrink-0">
         {d} · <span className="text-gray-600 dark:text-gray-400">{t}</span>
       </span>
     );
   }
-  return <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap shrink-0">{d}</span>;
+  return <span className="text-[11px] text-gray-600 dark:text-gray-500 whitespace-nowrap shrink-0">{d}</span>;
 }
 
 // Counts visible nodes after filters / search.

@@ -14,6 +14,16 @@ The UI supports a light/dark theme toggle via Tailwind v4's class-based dark mod
 
 **Rule: all light-theme colors must meet WCAG 2.0 AA contrast.** Any hardcoded color used as text, icon, or border on a light background must achieve ≥4.5:1 contrast ratio against that background (≥3:1 for large text ≥18pt / bold ≥14pt). Use Tailwind 700–800 tier values for colored text on white — mid-tone 400–500 values consistently fail. Check new color constants with a contrast tool before committing. The `TAG_COLORS` array in `src/utils/colors.js` is the reference example of compliant values.
 
+**Enforced by lint:** The ESLint rule `local/no-low-contrast-text` (defined in `eslint-rules/no-low-contrast-text.js`) flags any bare (light-mode) Tailwind `text-{color}-300` or `text-{color}-400` class in JSX `className` attributes and blocks the build. Fix by raising to `-600` and pairing with a `dark:` override:
+```jsx
+// ✗ FAILS lint (and WCAG)
+className="text-gray-400 dark:text-gray-500"
+
+// ✓ Passes lint
+className="text-gray-600 dark:text-gray-400"
+```
+Exception: shades 100–200 are not flagged because they are routinely used as near-white text on dark/colored button backgrounds (`bg-gray-900 text-gray-100`). Use them only in that context.
+
 **Common patterns:**
 ```jsx
 // Container cards
