@@ -98,8 +98,6 @@ export async function exportAccessPackagesToExcel({ authFetch, search, categoryF
   packages.forEach((pkg, idx) => {
     const roles = resourceRoles[idx];
     const rowCount = Math.max(roles.length, 1);
-    const startRow = rowNum;
-
     const apValues = [
       pkg.displayName || '',
       pkg.catalogName || '',
