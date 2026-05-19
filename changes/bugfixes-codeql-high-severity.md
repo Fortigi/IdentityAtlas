@@ -1,0 +1,7 @@
+- Fixed SSRF vulnerabilities in LLM web scraper and Azure OpenAI provider by blocking requests to private/loopback addresses
+- Upgraded API key hashing from SHA-256 to scrypt (PBKDF) with automatic legacy key detection and migration on startup
+- Fixed path traversal vulnerability in job log endpoint using path containment check
+- Fixed TOCTOU race conditions in master key file handling and CSV folder detection
+- Fixed regex polynomial ReDoS in Azure OpenAI endpoint URL handling
+- Fixed bad HTML tag filter patterns in LLM scraper (script/style/nav block stripping)
+- Fixed double-escaping of HTML entities in LLM scraper text extraction

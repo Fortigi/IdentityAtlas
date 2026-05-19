@@ -5,11 +5,15 @@
  */
 import { Router } from 'express';
 import * as db from '../db/connection.js';
-import { existsSync, readdirSync, promises as fs } from 'fs';
+import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
 
 const TRACE_DIR = '/data/uploads/jobs';
+// Pre-resolve once so path-containment checks can use a stable absolute base.
+const TRACE_DIR_RESOLVED = path.resolve(TRACE_DIR);
+// CSV uploads live under this base; configCsvFolder must stay within it.
+const CSV_BASE_DIR = path.resolve('/data/uploads');
 // Tail endpoint returns at most this many bytes per request. If the file is
 // larger than offset + MAX, the client polls again with the new offset. Keeps
 // any single response small enough that a ~10 MB log on a long crawl streams
@@ -726,11 +730,21 @@ router.post('/admin/crawler-jobs', async (req, res) => {
       if (!configId) {
         return res.status(400).json({ error: 'CSV jobs require a configId — inline configs are not supported' });
       }
-      // Use the config's stored csvFolder if it exists (e.g. pointing to a
-      // pre-transformed folder), otherwise fall back to the standard upload path.
+      // Use the config's stored csvFolder if it exists and is within the
+      // allowed base directory, otherwise fall back to the standard upload path.
       const configCsvFolder = resolvedConfig?.csvFolder;
-      const folder = configCsvFolder && existsSync(configCsvFolder) ? configCsvFolder : getCsvFolderPath(configId);
-      if (!existsSync(folder) || readdirSync(folder).length === 0) {
+      let folder = getCsvFolderPath(configId);
+      if (configCsvFolder) {
+        const resolvedCustom = path.resolve(configCsvFolder);
+        if (resolvedCustom.startsWith(CSV_BASE_DIR + path.sep) || resolvedCustom === CSV_BASE_DIR) {
+          // Confirm the directory is accessible without a TOCTOU race
+          try { readdirSync(resolvedCustom); folder = resolvedCustom; } catch { /* fall back to default */ }
+        }
+      }
+      // Check for CSV files — use try/catch to avoid TOCTOU (existsSync + read)
+      let csvFiles = [];
+      try { csvFiles = readdirSync(folder); } catch { /* folder missing or unreadable */ }
+      if (csvFiles.length === 0) {
         return res.status(400).json({ error: 'No CSV files found. Upload files or configure the CSV folder path.' });
       }
       resolvedConfig = { ...(resolvedConfig || {}), csvFolder: folder };
@@ -831,7 +845,10 @@ router.get('/admin/crawler-jobs/:id/log', async (req, res) => {
   if (isNaN(id) || id < 0) return res.status(400).json({ error: 'Invalid job ID' });
   const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
 
-  const logPath = path.join(TRACE_DIR, `${id}.log`);
+  const logPath = path.resolve(TRACE_DIR_RESOLVED, `${id}.log`);
+  if (!logPath.startsWith(TRACE_DIR_RESOLVED + path.sep)) {
+    return res.status(400).json({ error: 'Invalid job ID' });
+  }
   try {
     const stat = await fs.stat(logPath);
     const totalLength = stat.size;

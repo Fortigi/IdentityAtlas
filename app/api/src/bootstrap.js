@@ -44,7 +44,7 @@ function generateApiKey() {
 }
 
 function hashKey(apiKey, salt) {
-  return crypto.createHash('sha256').update(Buffer.concat([salt, Buffer.from(apiKey, 'utf8')])).digest();
+  return crypto.scryptSync(apiKey, salt, 64, { N: 16384, r: 8, p: 1 });
 }
 
 async function ensureBuiltinCrawler() {
@@ -54,6 +54,35 @@ async function ensureBuiltinCrawler() {
   );
 
   if (existing) {
+    // Check if the stored hash needs upgrading from SHA-256 (32 bytes) to scrypt (64 bytes).
+    const hashRow = await db.queryOne(
+      `SELECT "apiKeyHash" FROM "Crawlers" WHERE id = $1`,
+      [existing.id]
+    );
+    if (hashRow?.apiKeyHash?.length === 32) {
+      console.log('Built-in Worker has legacy SHA-256 hash — rotating to scrypt...');
+      const apiKey = generateApiKey();
+      const salt = crypto.randomBytes(32);
+      const hash = hashKey(apiKey, salt);
+      const prefix = apiKey.slice(0, 8);
+      await db.query(
+        `UPDATE "Crawlers"
+            SET "apiKeyHash" = $1, "apiKeySalt" = $2, "apiKeyPrefix" = $3,
+                "lastRotatedAt" = (now() AT TIME ZONE 'utc')
+          WHERE id = $4`,
+        [hash, salt, prefix, existing.id]
+      );
+      await db.query(
+        `INSERT INTO "WorkerConfig" ("configKey", "configValue")
+         VALUES ('BUILTIN_CRAWLER_API_KEY', $1)
+         ON CONFLICT ("configKey") DO UPDATE SET "configValue" = EXCLUDED."configValue", "updatedAt" = now()`,
+        [apiKey]
+      );
+      writeWorkerKeyFile(apiKey);
+      console.log('Built-in Worker key upgraded to scrypt');
+      return;
+    }
+
     const cfg = await db.queryOne(
       `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = 'BUILTIN_CRAWLER_API_KEY'`
     );
@@ -157,7 +186,7 @@ function startHistoryPruneJob() {
 // deployments, setting IDENTITY_ATLAS_MASTER_KEY explicitly is still preferred
 // (so it can be sourced from a real secret store) and the file fallback never
 // kicks in.
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync } from 'fs';
 const MASTER_KEY_FILE = process.env.MASTER_KEY_FILE || '/data/uploads/.master-key';
 
 function ensureVaultKey() {
@@ -165,20 +194,23 @@ function ensureVaultKey() {
     if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed — check IDENTITY_ATLAS_MASTER_KEY');
     return;
   }
-  if (existsSync(MASTER_KEY_FILE)) {
-    // File exists — it MUST be readable. Falling through to generate a new key
-    // would silently corrupt any secrets encrypted with the old one (LLM API
-    // keys, scraper credentials). A hard error is the only safe option.
-    let key;
-    try {
-      key = readFileSync(MASTER_KEY_FILE, 'utf8').trim();
-    } catch (err) {
+  // Try to read the key file directly — avoids TOCTOU between existsSync and readFileSync.
+  let key;
+  try {
+    key = readFileSync(MASTER_KEY_FILE, 'utf8').trim();
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      // File exists but is unreadable (permissions, ownership mismatch, etc.)
       throw new Error(
         `Master key file exists at ${MASTER_KEY_FILE} but could not be read: ${err.message}. ` +
         `This usually means the file is owned by a different user than the web container. ` +
         `Fix with: docker compose exec -u 0 web chown -R node:node /data`
       );
     }
+    // ENOENT → first boot — fall through to generate a new key
+    key = null;
+  }
+  if (key !== null) {
     if (!key) {
       throw new Error(`Master key file ${MASTER_KEY_FILE} is empty. Delete it and restart the web container to regenerate.`);
     }
@@ -188,7 +220,7 @@ function ensureVaultKey() {
     return;
   }
   // First boot — generate a key and persist it
-  const key = crypto.randomBytes(32).toString('base64');
+  key = crypto.randomBytes(32).toString('base64');
   process.env.IDENTITY_ATLAS_MASTER_KEY = key;
   try {
     mkdirSync(dirname(MASTER_KEY_FILE), { recursive: true });
