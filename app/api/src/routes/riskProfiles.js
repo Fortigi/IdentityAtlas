@@ -73,8 +73,7 @@ router.post('/risk-profiles/scrape', async (req, res) => {
       }
       targets.push({ url: u.url, credentials });
     }
-    // codeql[js/request-forgery] URLs are validated in scrapeOne: http(s) only, private/loopback hosts blocked via PRIVATE_HOST_RE
-    const results = await scrapeAll(targets);
+    const results = await scrapeAll(targets); // codeql[js/request-forgery] — validated in scrapeOne: http(s) only, private/loopback blocked
     // Strip the actual text from the response by default — it can be huge.
     // The caller can re-request with includeText=true if they want a preview.
     const includeText = req.query.includeText === 'true';
@@ -111,8 +110,7 @@ router.post('/risk-profiles/generate', async (req, res) => {
         }
         targets.push({ url: u.url, credentials });
       }
-      // codeql[js/request-forgery] URLs are validated in scrapeOne: http(s) only, private/loopback hosts blocked via PRIVATE_HOST_RE
-      const results = await scrapeAll(targets);
+      const results = await scrapeAll(targets); // codeql[js/request-forgery] — validated in scrapeOne: http(s) only, private/loopback blocked
       scrapedContext = buildLLMContextFromScrapes(results);
       scrapedSummary = results.map(r => ({ url: r.url, ok: r.ok, status: r.status, bytes: r.bytes, error: r.error }));
     }
