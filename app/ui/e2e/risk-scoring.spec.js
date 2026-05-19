@@ -38,14 +38,10 @@ test.describe('Risk Scoring Page', () => {
   test('tier badges render with correct styling', async ({ page }) => {
     // If risk data exists, tier badges should be visible
     const tiers = ['Critical', 'High', 'Medium', 'Low', 'Minimal', 'None'];
-    let foundAnyTier = false;
 
     for (const tier of tiers) {
       const badge = page.getByText(tier, { exact: true });
-      if (await badge.count() > 0) {
-        foundAnyTier = true;
-        break;
-      }
+      if (await badge.count() > 0) break;
     }
 
     // Not finding tiers is OK in mock mode
@@ -54,7 +50,6 @@ test.describe('Risk Scoring Page', () => {
 
   test('page does not show errors', async ({ page }) => {
     // Should not show unhandled error messages
-    const errorText = page.getByText(/error|failed|exception/i);
     // Filter out expected UI text like "Connection Error"
     await page.waitForTimeout(1000);
 
