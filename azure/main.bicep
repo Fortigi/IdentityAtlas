@@ -56,6 +56,10 @@ param webAllowedIpCidrs array = []
 @description('Force re-run of the bootstrap deployment script on each deploy.')
 param bootstrapForceTag string = utcNow()
 
+@description('Optional explicit Postgres admin password. Leave blank to derive one from the resource group identity (the default). The value also gets written to Key Vault.')
+@secure()
+param postgresAdminPassword string = ''
+
 // ─── Size profile → SKUs ─────────────────────────────────────────────────
 
 var sizeMap = {
@@ -101,6 +105,18 @@ var sizeMap = {
   }
 }
 var profile = sizeMap[sizeProfile]
+
+// Postgres admin password. Deterministic by default — same RG + name prefix
+// always produces the same value, so re-deploys don't rotate the password.
+// Meets Postgres complexity rules (upper + lower + digit + special).
+//
+// Security model: anyone with RG read access can derive this, but they also
+// have admin rights to KV and Postgres firewall, so password unpredictability
+// isn't the boundary. Real security = managed identity + KV RBAC + firewall.
+// Override with the postgresAdminPassword parameter for an explicit value.
+var pgPassword = empty(postgresAdminPassword)
+  ? '${uniqueString(resourceGroup().id, namePrefix, 'pg-base')}!Aa1${take(uniqueString(resourceGroup().id, namePrefix, 'pg-x'), 4)}'
+  : postgresAdminPassword
 
 // ─── Foundation ──────────────────────────────────────────────────────────
 
@@ -155,15 +171,9 @@ module bootstrap 'modules/bootstrap.bicep' = {
     location: location
     identityId: identities.outputs.deployScriptIdentityId
     keyVaultName: kv.outputs.kvName
+    pgPasswordToStore: pgPassword
     forceUpdateTag: bootstrapForceTag
   }
-}
-
-// Pull the freshly-written secrets back via `existing` + getSecret(). This
-// is the documented Bicep pattern for passing a KV secret as a @secure()
-// module parameter at deploy time.
-resource kvForSecrets 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
-  name: kvName
 }
 
 // ─── Postgres ───────────────────────────────────────────────────────────
@@ -173,12 +183,11 @@ module postgres 'modules/postgres.bicep' = {
   params: {
     namePrefix: namePrefix
     location: location
-    adminPassword: kvForSecrets.getSecret('postgres-admin-password')
+    adminPassword: pgPassword
     skuName: profile.postgresSku
     skuTier: profile.postgresTier
     storageGb: profile.postgresStorageGb
   }
-  dependsOn: [bootstrap]
 }
 
 // ─── App Service (web) ──────────────────────────────────────────────────

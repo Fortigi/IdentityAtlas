@@ -17,6 +17,10 @@ param identityId string
 @description('Key Vault name to write secrets into.')
 param keyVaultName string
 
+@description('Postgres admin password to store in KV (matches the value passed to the Postgres module).')
+@secure()
+param pgPasswordToStore string
+
 @description('Force re-run of the script on each deployment. Default = utcNow(), so a fresh deploy always re-evaluates the secrets-exist check.')
 param forceUpdateTag string = utcNow()
 
@@ -38,6 +42,9 @@ resource script 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     forceUpdateTag: forceUpdateTag
     environmentVariables: [
       { name: 'KV_NAME', value: keyVaultName }
+      // Secure environment variables travel as deployment secrets — not in
+      // logs, not in deployment history.
+      { name: 'PG_PASS_TO_STORE', secureValue: pgPasswordToStore }
     ]
     scriptContent: '''
 set -euo pipefail
@@ -55,21 +62,13 @@ else
   echo "    identityatlas-master-key already present, skipping"
 fi
 
-echo "==> Generating postgres admin password (if absent)"
-if ! az keyvault secret show --vault-name "$KV_NAME" --name postgres-admin-password >/dev/null 2>&1; then
-  # Postgres password rules: 8-128 chars, must contain chars from 3 of 4
-  # classes (upper, lower, digit, non-alnum). 24 base64 chars
-  # (with /+= stripped) reliably gives us upper+lower+digits.
-  PG_PASS=$(openssl rand -base64 32 | tr -d "/+=" | head -c 24)
-  az keyvault secret set \
-    --vault-name "$KV_NAME" \
-    --name postgres-admin-password \
-    --value "$PG_PASS" \
-    --output none
-  echo "    wrote postgres-admin-password"
-else
-  echo "    postgres-admin-password already present, skipping"
-fi
+echo "==> Storing postgres admin password (always overwrites — same value passed to the Postgres module by main.bicep)"
+az keyvault secret set \
+  --vault-name "$KV_NAME" \
+  --name postgres-admin-password \
+  --value "$PG_PASS_TO_STORE" \
+  --output none
+echo "    wrote postgres-admin-password"
 
 echo "==> Done"
 '''

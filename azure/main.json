@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "6974125878613622582"
+      "templateHash": "15522527981838838703"
     }
   },
   "parameters": {
@@ -87,6 +87,13 @@
       "metadata": {
         "description": "Force re-run of the bootstrap deployment script on each deploy."
       }
+    },
+    "postgresAdminPassword": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional explicit Postgres admin password. Leave blank to derive one from the resource group identity (the default). The value also gets written to Key Vault."
+      }
     }
   },
   "variables": {
@@ -133,6 +140,7 @@
       }
     },
     "profile": "[variables('sizeMap')[parameters('sizeProfile')]]",
+    "pgPassword": "[if(empty(parameters('postgresAdminPassword')), format('{0}!Aa1{1}', uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-base'), take(uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-x'), 4)), parameters('postgresAdminPassword'))]",
     "kvName": "[take(format('{0}-kv-{1}', parameters('namePrefix'), uniqueString(resourceGroup().id)), 24)]"
   },
   "resources": [
@@ -605,6 +613,9 @@
           "keyVaultName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'key-vault'), '2025-04-01').outputs.kvName.value]"
           },
+          "pgPasswordToStore": {
+            "value": "[variables('pgPassword')]"
+          },
           "forceUpdateTag": {
             "value": "[parameters('bootstrapForceTag')]"
           }
@@ -616,7 +627,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "5710277059601404225"
+              "templateHash": "13823202284080879593"
             }
           },
           "parameters": {
@@ -642,6 +653,12 @@
               "type": "string",
               "metadata": {
                 "description": "Key Vault name to write secrets into."
+              }
+            },
+            "pgPasswordToStore": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Postgres admin password to store in KV (matches the value passed to the Postgres module)."
               }
             },
             "forceUpdateTag": {
@@ -675,9 +692,13 @@
                   {
                     "name": "KV_NAME",
                     "value": "[parameters('keyVaultName')]"
+                  },
+                  {
+                    "name": "PG_PASS_TO_STORE",
+                    "secureValue": "[parameters('pgPasswordToStore')]"
                   }
                 ],
-                "scriptContent": "set -euo pipefail\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\necho \"==> Generating postgres admin password (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name postgres-admin-password >/dev/null 2>&1; then\n  # Postgres password rules: 8-128 chars, must contain chars from 3 of 4\n  # classes (upper, lower, digit, non-alnum). 24 base64 chars\n  # (with /+= stripped) reliably gives us upper+lower+digits.\n  PG_PASS=$(openssl rand -base64 32 | tr -d \"/+=\" | head -c 24)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name postgres-admin-password \\\n    --value \"$PG_PASS\" \\\n    --output none\n  echo \"    wrote postgres-admin-password\"\nelse\n  echo \"    postgres-admin-password already present, skipping\"\nfi\n\necho \"==> Done\"\n"
+                "scriptContent": "set -euo pipefail\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\necho \"==> Storing postgres admin password (always overwrites — same value passed to the Postgres module by main.bicep)\"\naz keyvault secret set \\\n  --vault-name \"$KV_NAME\" \\\n  --name postgres-admin-password \\\n  --value \"$PG_PASS_TO_STORE\" \\\n  --output none\necho \"    wrote postgres-admin-password\"\n\necho \"==> Done\"\n"
               }
             }
           ]
@@ -705,12 +726,7 @@
             "value": "[parameters('location')]"
           },
           "adminPassword": {
-            "reference": {
-              "keyVault": {
-                "id": "[resourceId('Microsoft.KeyVault/vaults', variables('kvName'))]"
-              },
-              "secretName": "postgres-admin-password"
-            }
+            "value": "[variables('pgPassword')]"
           },
           "skuName": {
             "value": "[variables('profile').postgresSku]"
@@ -898,10 +914,7 @@
             }
           }
         }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]"
-      ]
+      }
     },
     {
       "type": "Microsoft.Resources/deployments",
