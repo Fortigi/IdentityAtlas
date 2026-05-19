@@ -58,23 +58,19 @@ One-click install into your Azure subscription. The deployment uses PaaS service
 | **l** | 244 | 25-50k principals, GP Postgres compute |
 | **xl** | 469 | 50k+ principals, enterprise concurrent use |
 
-Before clicking the button, **create an Entra App Registration** so users can sign in — full step-by-step in [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md). The deploy form requires the tenant ID and the App Registration's client ID; without them the deployment fails fast with a clear message (the default `enableEntraAuth=true` makes the deploy refuse an insecure config).
+The flow is **two passes** to avoid wasted Entra App Registration work on a name collision:
 
-Then click the button and fill in:
+1. **Pass 1** — click the button, set `enableEntraAuth=false`, deploy. This claims your hostname and gives you the confirmed `https://<prefix>-web.azurewebsites.net`. ~6 minutes.
+2. **Create the Entra App Registration** in your tenant, using the confirmed URL as the SPA redirect URI. ~5 minutes.
+3. **Pass 2** — click the same button again with the **same RG and name prefix**, set `enableEntraAuth=true`, paste the tenant + client IDs. Idempotent re-deploy: only updates env vars + restarts the App Service. ~2 minutes.
 
-1. **Resource group** — create new
-2. **Region** — Sweden Central is the most reliable in EU right now; West/North Europe sometimes have capacity issues
-3. **Name prefix** — 3–15 chars, must be globally unique (used as part of the `*.azurewebsites.net` hostname)
-4. **Size profile** — default: `s`
-5. **Image channel** — `stable` (default) or `edge` for main-branch builds
-6. **Entra tenant ID + client ID** — from the App Registration you made
-7. **(Optional) Existing Log Analytics workspace ID** — leave blank for a fresh one
+Between passes the app is internet-exposed in OPEN mode, but it has no data in it yet so the risk is low.
 
-*Review + create*. The deployment takes **~5–7 minutes**. The output includes the public URL.
+The default `enableEntraAuth=true` is a security gate: leaving it on **with the IDs empty** makes the deploy fail fast (clear error in <30s, no half-built resources). You can't accidentally deploy without auth — you have to explicitly turn it off for Pass 1.
 
-**Post-deploy:** open the URL, sign in with a tenant user, accept the consent prompt on first use. Then Admin → Crawlers to load demo data or connect Microsoft Graph.
+Full step-by-step (with permissions, RP registration, App Reg setup, troubleshooting): [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md).
 
-For the full architecture, decisions taken, scaling, and ops notes (image updates, logs, Postgres access, teardown): see [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md). For the step-by-step walkthrough including Entra setup and troubleshooting: see [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md).
+For the architecture, scaling, and ops notes: [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md).
 
 **CLI alternative** if you'd rather script it:
 
