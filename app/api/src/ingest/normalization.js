@@ -49,11 +49,16 @@ export function normalizeRecords(records, coreColumns, options = {}) {
     const normalized = {};
     const extended = {};
 
+    // Write only property names sourced from the trusted coreSet, not from
+    // the user-provided record keys, to avoid remote-property-injection.
+    for (const key of coreSet) {
+      if (Object.prototype.hasOwnProperty.call(rec, key)) {
+        normalized[key] = coerceValue(rec[key]);
+      }
+    }
+    // Collect non-core, non-reserved fields for extendedAttributes JSON.
     for (const [key, value] of Object.entries(rec)) {
-      if (coreSet.has(key)) {
-        normalized[key] = coerceValue(value);
-      } else if (key !== 'externalId') {
-        // Non-core fields go into extendedAttributes
+      if (!coreSet.has(key) && key !== 'externalId') {
         extended[key] = value;
       }
     }
