@@ -90,14 +90,10 @@ Fill in:
 | Name prefix | Your prefix from Step 0 |
 | Size profile | `s` (~€79/mo) for normal use, `xs` (~€45/mo) for cheapest demo |
 | Image channel | `stable` |
-| Web image override | (leave blank) |
-| Worker image override | (leave blank) |
+| Existing log analytics workspace id | (leave blank) |
 | Enable Entra auth | **❌ Unchecked** — explicitly turn this off for Pass 1 |
 | Entra tenant id | (leave blank) |
 | Entra client id | (leave blank) |
-| Entra required roles | (leave blank) |
-| Existing log analytics workspace id | (leave blank) |
-| Web allowed IP CIDRs | (leave empty) |
 
 Click **Review + create** → **Create**.
 
@@ -168,14 +164,12 @@ Click the button again. Fill in **the exact same values as Pass 1**, with three 
 |---|---|
 | Subscription | Same |
 | Resource group | **Same RG you used in Pass 1** (`<prefix>-rg`) |
-| Region | Same |
 | Name prefix | **Same prefix** (this is critical — the App Reg redirect URI must match the same hostname) |
-| Size profile, image channel, overrides | Same as Pass 1 |
+| Size profile, image channel | Same as Pass 1 |
+| Existing log analytics workspace id | Same as Pass 1 |
 | **Enable Entra auth** | **✓ Checked** |
 | **Entra tenant id** | Paste from Step 3 |
 | **Entra client id** | Paste from Step 3 |
-| Entra required roles | (leave blank — any signed-in user; or comma-separated list of App roles you've defined) |
-| Other fields | Same as Pass 1 |
 
 Click **Review + create** → **Create**.
 
@@ -218,11 +212,13 @@ Cleanup takes ~5–10 minutes. **Caveat**: the Key Vault enters soft-delete with
 
 ## Adding more users
 
-By default, any user in the tenant can sign in. To restrict to specific groups:
+By default, any user in the tenant can sign in. To restrict to specific roles:
 
 1. **App Registration → App roles → Create app role** — define roles like `IdentityAtlas.Read` and `IdentityAtlas.Admin`
 2. **Enterprise applications → your app → Users and groups** — assign users / groups to those roles
-3. Re-run Pass 2 with `entraRequiredRoles=IdentityAtlas.Read,IdentityAtlas.Admin` — only users with at least one of those roles can sign in
+3. In the Azure portal go to the Web App → **Environment variables** → set `AUTH_REQUIRED_ROLES` = `IdentityAtlas.Read,IdentityAtlas.Admin` → **Apply** (the app restarts). Only users with at least one of those roles can now sign in.
+
+Required-role enforcement is an advanced setting and isn't on the deploy form — set it post-deploy from the Web App's Environment variables blade as above.
 
 ---
 

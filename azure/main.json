@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "5232834217189267415"
+      "templateHash": "15557153450355934607"
     }
   },
   "parameters": {
@@ -15,39 +15,7 @@
       "minLength": 3,
       "maxLength": 15,
       "metadata": {
-        "description": "Resource name prefix. Becomes part of every resource name. 3-15 chars, lowercase letters + digits + hyphens."
-      }
-    },
-    "location": {
-      "type": "string",
-      "defaultValue": "[resourceGroup().location]",
-      "metadata": {
-        "description": "Azure region for all resources."
-      }
-    },
-    "imageChannel": {
-      "type": "string",
-      "defaultValue": "stable",
-      "allowedValues": [
-        "stable",
-        "edge"
-      ],
-      "metadata": {
-        "description": "Release channel to deploy. **stable** = the last cut release tag (recommended for production). **edge** = the latest main-branch build — includes newer fixes and features but less testing. To pin to a specific version (e.g. 5.3.0), use webImageOverride / workerImageOverride below instead."
-      }
-    },
-    "webImageOverride": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Advanced: override the web image with an explicit reference (e.g. ghcr.io/fortigi/identity-atlas:5.3.0). Leave blank to use the channel selection above."
-      }
-    },
-    "workerImageOverride": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Advanced: override the worker image with an explicit reference. Leave blank to use the channel selection above."
+        "description": "Resource name prefix. Becomes part of every resource name. 3-15 chars, lowercase letters + digits + hyphens. The public hostname will be https://<namePrefix>-web.azurewebsites.net — must be globally unique."
       }
     },
     "sizeProfile": {
@@ -64,46 +32,22 @@
         "description": "Sizing profile. xs ≈ €45/mo (demo). s ≈ €79/mo (small production, default). m ≈ €113/mo (mid + staging slot). l ≈ €244/mo (large + GP Postgres). xl ≈ €469/mo (enterprise)."
       }
     },
+    "imageChannel": {
+      "type": "string",
+      "defaultValue": "stable",
+      "allowedValues": [
+        "stable",
+        "edge"
+      ],
+      "metadata": {
+        "description": "Release channel. **stable** = the last cut release tag (recommended for production). **edge** = the latest main-branch build — includes newer fixes and features but less testing."
+      }
+    },
     "existingLogAnalyticsWorkspaceId": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Optional: existing Log Analytics workspace resource ID. Leave empty to create a new one (~€3/mo). Deployer needs Log Analytics Reader on the workspace."
-      }
-    },
-    "existingLogAnalyticsCustomerId": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Optional: existing Log Analytics customer ID (GUID). Provide as a fallback when the deployer cannot read the workspace."
-      }
-    },
-    "existingLogAnalyticsSharedKey": {
-      "type": "securestring",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Optional: existing Log Analytics shared key. Required if customer ID is provided."
-      }
-    },
-    "webAllowedIpCidrs": {
-      "type": "array",
-      "defaultValue": [],
-      "metadata": {
-        "description": "Optional IP CIDR allow-list for the web ingress. Empty = open to internet (relies on Entra/app-level auth)."
-      }
-    },
-    "bootstrapForceTag": {
-      "type": "string",
-      "defaultValue": "[utcNow()]",
-      "metadata": {
-        "description": "Force re-run of the bootstrap deployment script on each deploy."
-      }
-    },
-    "postgresAdminPassword": {
-      "type": "securestring",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Optional explicit Postgres admin password. Leave blank to derive one from the resource group identity (the default). The value also gets written to Key Vault."
+        "description": "Optional: existing Log Analytics workspace resource ID to forward logs to. Leave empty to create a new workspace (~€3/mo). The deployer needs Log Analytics Reader on the workspace."
       }
     },
     "enableEntraAuth": {
@@ -125,13 +69,6 @@
       "defaultValue": "",
       "metadata": {
         "description": "Entra ID App Registration (client) GUID. Required when enableEntraAuth=true. Create the App Registration BEFORE deploying — add a Single-Page Application redirect URI of https://<namePrefix>-web.azurewebsites.net so users can sign in."
-      }
-    },
-    "entraRequiredRoles": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Optional comma-separated list of App role names required to sign in (e.g. IdentityAtlas.Read,IdentityAtlas.Admin). Empty = any signed-in user in the tenant."
       }
     }
   },
@@ -179,10 +116,11 @@
       }
     },
     "profile": "[variables('sizeMap')[parameters('sizeProfile')]]",
+    "location": "[resourceGroup().location]",
     "_imageTag": "[if(equals(parameters('imageChannel'), 'stable'), 'latest', 'edge')]",
-    "webImage": "[if(empty(parameters('webImageOverride')), format('ghcr.io/fortigi/identity-atlas:{0}', variables('_imageTag')), parameters('webImageOverride'))]",
-    "workerImage": "[if(empty(parameters('workerImageOverride')), format('ghcr.io/fortigi/identity-atlas-worker:{0}', variables('_imageTag')), parameters('workerImageOverride'))]",
-    "pgPassword": "[if(empty(parameters('postgresAdminPassword')), format('{0}!Aa1{1}', uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-base'), take(uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-x'), 4)), parameters('postgresAdminPassword'))]",
+    "webImage": "[format('ghcr.io/fortigi/identity-atlas:{0}', variables('_imageTag'))]",
+    "workerImage": "[format('ghcr.io/fortigi/identity-atlas-worker:{0}', variables('_imageTag'))]",
+    "pgPassword": "[format('{0}!Aa1{1}', uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-base'), take(uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-x'), 4))]",
     "kvName": "[take(format('{0}-kv-{1}', parameters('namePrefix'), uniqueString(resourceGroup().id)), 24)]"
   },
   "resources": [
@@ -200,16 +138,10 @@
             "value": "[parameters('namePrefix')]"
           },
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "existingWorkspaceId": {
             "value": "[parameters('existingLogAnalyticsWorkspaceId')]"
-          },
-          "existingCustomerId": {
-            "value": "[parameters('existingLogAnalyticsCustomerId')]"
-          },
-          "existingSharedKey": {
-            "value": "[parameters('existingLogAnalyticsSharedKey')]"
           }
         },
         "template": {
@@ -219,7 +151,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "17052669294014370018"
+              "templateHash": "1270207507332607310"
             }
           },
           "parameters": {
@@ -243,26 +175,10 @@
               "metadata": {
                 "description": "Existing Log Analytics workspace resource ID. Leave empty to create one."
               }
-            },
-            "existingCustomerId": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Existing workspace customer ID (GUID). Provide as a fallback if the deployer cannot read the workspace."
-              }
-            },
-            "existingSharedKey": {
-              "type": "securestring",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Existing workspace shared key (primary or secondary)."
-              }
             }
           },
           "variables": {
-            "hasInline": "[and(not(empty(parameters('existingCustomerId'))), not(empty(parameters('existingSharedKey'))))]",
-            "hasLookup": "[and(not(empty(parameters('existingWorkspaceId'))), not(variables('hasInline')))]",
-            "createNew": "[and(not(variables('hasInline')), not(variables('hasLookup')))]"
+            "createNew": "[empty(parameters('existingWorkspaceId'))]"
           },
           "resources": [
             {
@@ -285,15 +201,15 @@
           "outputs": {
             "workspaceId": {
               "type": "string",
-              "value": "[if(variables('createNew'), resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('namePrefix'))), if(variables('hasLookup'), extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingWorkspaceId'), '/')[2], split(parameters('existingWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))), parameters('existingWorkspaceId')))]"
+              "value": "[if(variables('createNew'), resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('namePrefix'))), extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingWorkspaceId'), '/')[2], split(parameters('existingWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))))]"
             },
             "customerId": {
               "type": "string",
-              "value": "[if(variables('createNew'), reference(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('namePrefix'))), '2023-09-01').customerId, if(variables('hasLookup'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingWorkspaceId'), '/')[2], split(parameters('existingWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))), '2023-09-01').customerId, parameters('existingCustomerId')))]"
+              "value": "[if(variables('createNew'), reference(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('namePrefix'))), '2023-09-01').customerId, reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingWorkspaceId'), '/')[2], split(parameters('existingWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))), '2023-09-01').customerId)]"
             },
             "sharedKey": {
               "type": "string",
-              "value": "[if(variables('createNew'), listKeys(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('namePrefix'))), '2023-09-01').primarySharedKey, if(variables('hasLookup'), listKeys(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingWorkspaceId'), '/')[2], split(parameters('existingWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))), '2023-09-01').primarySharedKey, parameters('existingSharedKey')))]"
+              "value": "[if(variables('createNew'), listKeys(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('namePrefix'))), '2023-09-01').primarySharedKey, listKeys(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingWorkspaceId'), '/')[2], split(parameters('existingWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))), '2023-09-01').primarySharedKey)]"
             },
             "createdNew": {
               "type": "bool",
@@ -317,7 +233,7 @@
             "value": "[parameters('namePrefix')]"
           },
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           }
         },
         "template": {
@@ -430,7 +346,7 @@
             "value": "[parameters('namePrefix')]"
           },
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           }
         },
         "template": {
@@ -509,7 +425,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "kvName": {
             "value": "[variables('kvName')]"
@@ -638,7 +554,7 @@
             "value": "[parameters('namePrefix')]"
           },
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "identityId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.deployScriptIdentityId.value]"
@@ -648,9 +564,6 @@
           },
           "pgPasswordToStore": {
             "value": "[variables('pgPassword')]"
-          },
-          "forceUpdateTag": {
-            "value": "[parameters('bootstrapForceTag')]"
           },
           "enableEntraAuth": {
             "value": "[parameters('enableEntraAuth')]"
@@ -795,7 +708,7 @@
             "value": "[parameters('namePrefix')]"
           },
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "adminPassword": {
             "value": "[variables('pgPassword')]"
@@ -1002,7 +915,7 @@
             "value": "[parameters('namePrefix')]"
           },
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "sku": {
             "value": "[variables('profile').appServiceSku]"
@@ -1037,9 +950,6 @@
           "logAnalyticsWorkspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.workspaceId.value]"
           },
-          "allowedIpCidrs": {
-            "value": "[parameters('webAllowedIpCidrs')]"
-          },
           "enableEntraAuth": {
             "value": "[parameters('enableEntraAuth')]"
           },
@@ -1048,9 +958,6 @@
           },
           "entraClientId": {
             "value": "[parameters('entraClientId')]"
-          },
-          "entraRequiredRoles": {
-            "value": "[parameters('entraRequiredRoles')]"
           }
         },
         "template": {
@@ -1060,7 +967,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "2307771956513280795"
+              "templateHash": "1690695076782808500"
             }
           },
           "parameters": {
@@ -1149,7 +1056,7 @@
               "type": "array",
               "defaultValue": [],
               "metadata": {
-                "description": "Allowed IP CIDR list for ingress. Empty array = open to the internet."
+                "description": "Allowed IP CIDR list for ingress. Empty array = open to the internet (default; rely on Entra auth)."
               }
             },
             "enableEntraAuth": {
@@ -1172,8 +1079,9 @@
             },
             "entraRequiredRoles": {
               "type": "string",
+              "defaultValue": "",
               "metadata": {
-                "description": "Optional comma-separated required app roles — used as AUTH_REQUIRED_ROLES env var."
+                "description": "Optional comma-separated required app roles — used as AUTH_REQUIRED_ROLES env var. Empty = any signed-in user in the tenant."
               }
             }
           },
@@ -1401,7 +1309,7 @@
             "value": "[parameters('namePrefix')]"
           },
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "workspaceCustomerId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.customerId.value]"
@@ -1547,7 +1455,7 @@
             "value": "[parameters('namePrefix')]"
           },
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "envId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-env'), '2025-04-01').outputs.envId.value]"

@@ -20,49 +20,28 @@
 
 targetScope = 'resourceGroup'
 
-// ─── Parameters ──────────────────────────────────────────────────────────
+// ─── Parameters (the deploy form) ────────────────────────────────────────
+//
+// Kept intentionally short — every extra field is friction for a first-time
+// deployer. Advanced knobs (custom images, IP allowlist, BYO LA inline keys,
+// explicit Postgres password, required Entra roles) are settable by editing
+// the Bicep directly. See the README for the full list.
 
-@description('Resource name prefix. Becomes part of every resource name. 3-15 chars, lowercase letters + digits + hyphens.')
+@description('Resource name prefix. Becomes part of every resource name. 3-15 chars, lowercase letters + digits + hyphens. The public hostname will be https://<namePrefix>-web.azurewebsites.net — must be globally unique.')
 @minLength(3)
 @maxLength(15)
 param namePrefix string = 'identityatlas'
-
-@description('Azure region for all resources.')
-param location string = resourceGroup().location
-
-@description('Release channel to deploy. **stable** = the last cut release tag (recommended for production). **edge** = the latest main-branch build — includes newer fixes and features but less testing. To pin to a specific version (e.g. 5.3.0), use webImageOverride / workerImageOverride below instead.')
-@allowed(['stable', 'edge'])
-param imageChannel string = 'stable'
-
-@description('Advanced: override the web image with an explicit reference (e.g. ghcr.io/fortigi/identity-atlas:5.3.0). Leave blank to use the channel selection above.')
-param webImageOverride string = ''
-
-@description('Advanced: override the worker image with an explicit reference. Leave blank to use the channel selection above.')
-param workerImageOverride string = ''
 
 @description('Sizing profile. xs ≈ €45/mo (demo). s ≈ €79/mo (small production, default). m ≈ €113/mo (mid + staging slot). l ≈ €244/mo (large + GP Postgres). xl ≈ €469/mo (enterprise).')
 @allowed(['xs', 's', 'm', 'l', 'xl'])
 param sizeProfile string = 's'
 
-@description('Optional: existing Log Analytics workspace resource ID. Leave empty to create a new one (~€3/mo). Deployer needs Log Analytics Reader on the workspace.')
+@description('Release channel. **stable** = the last cut release tag (recommended for production). **edge** = the latest main-branch build — includes newer fixes and features but less testing.')
+@allowed(['stable', 'edge'])
+param imageChannel string = 'stable'
+
+@description('Optional: existing Log Analytics workspace resource ID to forward logs to. Leave empty to create a new workspace (~€3/mo). The deployer needs Log Analytics Reader on the workspace.')
 param existingLogAnalyticsWorkspaceId string = ''
-
-@description('Optional: existing Log Analytics customer ID (GUID). Provide as a fallback when the deployer cannot read the workspace.')
-param existingLogAnalyticsCustomerId string = ''
-
-@description('Optional: existing Log Analytics shared key. Required if customer ID is provided.')
-@secure()
-param existingLogAnalyticsSharedKey string = ''
-
-@description('Optional IP CIDR allow-list for the web ingress. Empty = open to internet (relies on Entra/app-level auth).')
-param webAllowedIpCidrs array = []
-
-@description('Force re-run of the bootstrap deployment script on each deploy.')
-param bootstrapForceTag string = utcNow()
-
-@description('Optional explicit Postgres admin password. Leave blank to derive one from the resource group identity (the default). The value also gets written to Key Vault.')
-@secure()
-param postgresAdminPassword string = ''
 
 // ─── Entra ID authentication ─────────────────────────────────────────────
 // Defaults to ON. The deployment is internet-exposed, so an open default
@@ -77,9 +56,6 @@ param entraTenantId string = ''
 
 @description('Entra ID App Registration (client) GUID. Required when enableEntraAuth=true. Create the App Registration BEFORE deploying — add a Single-Page Application redirect URI of https://<namePrefix>-web.azurewebsites.net so users can sign in.')
 param entraClientId string = ''
-
-@description('Optional comma-separated list of App role names required to sign in (e.g. IdentityAtlas.Read,IdentityAtlas.Admin). Empty = any signed-in user in the tenant.')
-param entraRequiredRoles string = ''
 
 // ─── Size profile → SKUs ─────────────────────────────────────────────────
 
@@ -127,24 +103,24 @@ var sizeMap = {
 }
 var profile = sizeMap[sizeProfile]
 
-// Resolve image references. `imageChannel` picks the ghcr.io tag; the
-// *Override params let advanced users pin to a specific image (e.g. for
-// rollback or hotfix testing).
-var _imageTag = imageChannel == 'stable' ? 'latest' : 'edge'
-var webImage = empty(webImageOverride) ? 'ghcr.io/fortigi/identity-atlas:${_imageTag}' : webImageOverride
-var workerImage = empty(workerImageOverride) ? 'ghcr.io/fortigi/identity-atlas-worker:${_imageTag}' : workerImageOverride
+// Region = the resource group's region. Customer picks region at RG-creation
+// time; resources don't get a per-resource override.
+var location = resourceGroup().location
 
-// Postgres admin password. Deterministic by default — same RG + name prefix
-// always produces the same value, so re-deploys don't rotate the password.
-// Meets Postgres complexity rules (upper + lower + digit + special).
+// Resolve image references from the channel selector.
+var _imageTag = imageChannel == 'stable' ? 'latest' : 'edge'
+var webImage = 'ghcr.io/fortigi/identity-atlas:${_imageTag}'
+var workerImage = 'ghcr.io/fortigi/identity-atlas-worker:${_imageTag}'
+
+// Postgres admin password. Deterministic — same RG + name prefix always
+// produces the same value, so re-deploys don't rotate the password. Meets
+// Postgres complexity rules (upper + lower + digit + special).
 //
 // Security model: anyone with RG read access can derive this, but they also
 // have admin rights to KV and Postgres firewall, so password unpredictability
-// isn't the boundary. Real security = managed identity + KV RBAC + firewall.
-// Override with the postgresAdminPassword parameter for an explicit value.
-var pgPassword = empty(postgresAdminPassword)
-  ? '${uniqueString(resourceGroup().id, namePrefix, 'pg-base')}!Aa1${take(uniqueString(resourceGroup().id, namePrefix, 'pg-x'), 4)}'
-  : postgresAdminPassword
+// isn't the boundary. Real security = managed identity + KV access policies +
+// firewall.
+var pgPassword = '${uniqueString(resourceGroup().id, namePrefix, 'pg-base')}!Aa1${take(uniqueString(resourceGroup().id, namePrefix, 'pg-x'), 4)}'
 
 // ─── Foundation ──────────────────────────────────────────────────────────
 
@@ -154,8 +130,6 @@ module logs 'modules/log-analytics.bicep' = {
     namePrefix: namePrefix
     location: location
     existingWorkspaceId: existingLogAnalyticsWorkspaceId
-    existingCustomerId: existingLogAnalyticsCustomerId
-    existingSharedKey: existingLogAnalyticsSharedKey
   }
 }
 
@@ -200,7 +174,6 @@ module bootstrap 'modules/bootstrap.bicep' = {
     identityId: identities.outputs.deployScriptIdentityId
     keyVaultName: kv.outputs.kvName
     pgPasswordToStore: pgPassword
-    forceUpdateTag: bootstrapForceTag
     enableEntraAuth: enableEntraAuth
     entraTenantId: entraTenantId
     entraClientId: entraClientId
@@ -239,11 +212,9 @@ module web 'modules/app-service.bicep' = {
     storageAccountKey: storage.outputs.storageAccountKey
     uploadsShareName: storage.outputs.uploadsShareName
     logAnalyticsWorkspaceId: logs.outputs.workspaceId
-    allowedIpCidrs: webAllowedIpCidrs
     enableEntraAuth: enableEntraAuth
     entraTenantId: entraTenantId
     entraClientId: entraClientId
-    entraRequiredRoles: entraRequiredRoles
   }
   dependsOn: [bootstrap]
 }

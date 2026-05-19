@@ -52,7 +52,7 @@ param uploadsShareName string
 @description('Optional: existing Log Analytics workspace ID to forward diagnostic logs to. Empty = no diagnostic settings (still see stdout via the App Service Log Stream).')
 param logAnalyticsWorkspaceId string = ''
 
-@description('Allowed IP CIDR list for ingress. Empty array = open to the internet.')
+@description('Allowed IP CIDR list for ingress. Empty array = open to the internet (default; rely on Entra auth).')
 param allowedIpCidrs array = []
 
 @description('Whether Entra ID auth should be on. Surfaces as AUTH_ENABLED env var.')
@@ -64,8 +64,8 @@ param entraTenantId string
 @description('Entra ID App Registration (client) GUID — used as AUTH_CLIENT_ID env var.')
 param entraClientId string
 
-@description('Optional comma-separated required app roles — used as AUTH_REQUIRED_ROLES env var.')
-param entraRequiredRoles string
+@description('Optional comma-separated required app roles — used as AUTH_REQUIRED_ROLES env var. Empty = any signed-in user in the tenant.')
+param entraRequiredRoles string = ''
 
 // Strip the digest/tag part because the DOCKER_CUSTOM_IMAGE_NAME app setting
 // expects the full image path. We pass the full image including tag, so no
