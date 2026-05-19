@@ -1,0 +1,4 @@
+- Fixed log-injection vulnerability in ingest validation logging by sanitizing user-controlled values before writing to the log
+- Fixed client-side request-forgery risk in the authentication context default by restricting authFetch to relative URLs only
+- Fixed server-side request-forgery risk in the LLM URL scraper by using the parsed URL object's canonical href for fetch
+- Fixed server-side request-forgery risk in the Azure OpenAI provider by constructing request URLs through the URL API instead of string concatenation

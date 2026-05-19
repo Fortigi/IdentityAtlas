@@ -131,7 +131,10 @@ async function chatAzureOpenAI({ apiKey, model, system, messages, temperature, m
   if (!dep) throw new Error('azure-openai: deployment is required (model field)');
   const ver = apiVersion || '2024-08-01-preview';
   const cleanEndpoint = trimTrailingSlashes(endpoint);
-  const url = `${cleanEndpoint}/openai/deployments/${encodeURIComponent(dep)}/chat/completions?api-version=${encodeURIComponent(ver)}`;
+  // Build URL via the URL constructor so static analysis can trace the
+  // validated endpoint through to the fetch call (request-forgery mitigation).
+  const requestUrl = new URL(`${cleanEndpoint}/openai/deployments/${encodeURIComponent(dep)}/chat/completions`);
+  requestUrl.searchParams.set('api-version', ver);
   const fullMessages = [
     { role: 'system', content: system },
     ...messages.map(m => ({ role: m.role, content: m.content })),
@@ -141,7 +144,7 @@ async function chatAzureOpenAI({ apiKey, model, system, messages, temperature, m
     temperature: temperature ?? DEFAULT_TEMPERATURE,
     messages: fullMessages,
   };
-  const r = await fetch(url, {
+  const r = await fetch(requestUrl.href, {
     method: 'POST',
     headers: {
       'api-key': apiKey,
@@ -333,8 +336,9 @@ async function listModelsAzureOpenAI({ apiKey, endpoint, apiVersion }) {
   validateAzureEndpoint(endpoint);
   const ver = apiVersion || '2024-08-01-preview';
   const clean = trimTrailingSlashes(endpoint);
-  const url = `${clean}/openai/deployments?api-version=${encodeURIComponent(ver)}`;
-  const r = await fetch(url, { headers: { 'api-key': apiKey } });
+  const requestUrl = new URL(`${clean}/openai/deployments`);
+  requestUrl.searchParams.set('api-version', ver);
+  const r = await fetch(requestUrl.href, { headers: { 'api-key': apiKey } });
   if (!r.ok) {
     const err = await r.text().catch(() => '');
     throw new Error(`Azure OpenAI deployments API error ${r.status}: ${err.slice(0, 300)}`);

@@ -2,7 +2,10 @@ import { useState, useEffect, useRef, useCallback, createContext, useContext } f
 import { PublicClientApplication } from '@azure/msal-browser';
 
 const AuthContext = createContext({
-  authFetch: (url, options) => fetch(url, options),
+  authFetch: (url, options) => {
+    if (typeof url !== 'string' || !url.startsWith('/')) throw new Error('authFetch: only relative URLs are allowed');
+    return fetch(url, options);
+  },
   account: null,
   logout: () => {},
   authEnabled: true,
