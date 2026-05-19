@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Removed unused imports and variables flagged by CodeQL across API route files (admin, contexts, correlationRulesets, details, governance, permissions, resources, tags), ingest engine and sessions, and the secrets vault
+- Removed unused variable declarations in Playwright end-to-end test files (access-packages, detail-pages, identities, matrix, multi-filter)
+- Removed unused state setter in RiskScoringPage
+
+## Changes in this PR
+
 - Fixed log injection in context plugin dry-run and ingest routes by sanitising user-controlled values before logging
 - Fixed remote property injection in ingest normalisation by iterating the trusted column set instead of request-supplied keys
 - Hardened CORS configuration: replaced permissive wildcard origin with an explicit localhost allowlist for development; production defaults to same-origin only
