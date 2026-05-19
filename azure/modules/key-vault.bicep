@@ -57,7 +57,11 @@ resource kv 'Microsoft.KeyVault/vaults@2024-11-01' = {
   }
 }
 
-// RBAC: built-in role IDs.
+// RBAC: built-in role IDs. Built-in role definitions live at tenant scope
+// (`/providers/Microsoft.Authorization/roleDefinitions/<id>`), not subscription
+// scope. Using a tenant-scoped path is the canonical form for built-ins
+// and avoids "RoleDefinitionDoesNotExist" errors seen in some tenants
+// when subscriptionResourceId() is used.
 var kvSecretsUserRoleId    = '4633458b-17de-4321-b757-c00f7be9e9a3'
 var kvSecretsOfficerRoleId = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
 
@@ -65,7 +69,7 @@ resource webSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(kv.id, webIdentityPrincipalId, kvSecretsUserRoleId)
   scope: kv
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', kvSecretsUserRoleId)
+    roleDefinitionId: '/providers/Microsoft.Authorization/roleDefinitions/${kvSecretsUserRoleId}'
     principalId: webIdentityPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -75,7 +79,7 @@ resource deployScriptSecretsOfficer 'Microsoft.Authorization/roleAssignments@202
   name: guid(kv.id, deployScriptPrincipalId, kvSecretsOfficerRoleId)
   scope: kv
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', kvSecretsOfficerRoleId)
+    roleDefinitionId: '/providers/Microsoft.Authorization/roleDefinitions/${kvSecretsOfficerRoleId}'
     principalId: deployScriptPrincipalId
     principalType: 'ServicePrincipal'
   }

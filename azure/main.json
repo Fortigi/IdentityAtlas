@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "9891983247247712696"
+      "templateHash": "514799497493836974"
     }
   },
   "parameters": {
@@ -500,7 +500,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "11811371550981284547"
+              "templateHash": "8444818535469195176"
             }
           },
           "parameters": {
@@ -558,7 +558,7 @@
               "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
               "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), parameters('pullPrincipalIds')[copyIndex()], variables('acrPullRoleId'))]",
               "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPullRoleId'))]",
+                "roleDefinitionId": "[format('/providers/Microsoft.Authorization/roleDefinitions/{0}', variables('acrPullRoleId'))]",
                 "principalId": "[parameters('pullPrincipalIds')[copyIndex()]]",
                 "principalType": "ServicePrincipal"
               },
@@ -576,7 +576,7 @@
               "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
               "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), parameters('pushPrincipalIds')[copyIndex()], variables('acrPushRoleId'))]",
               "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPushRoleId'))]",
+                "roleDefinitionId": "[format('/providers/Microsoft.Authorization/roleDefinitions/{0}', variables('acrPushRoleId'))]",
                 "principalId": "[parameters('pushPrincipalIds')[copyIndex()]]",
                 "principalType": "ServicePrincipal"
               },
@@ -740,7 +740,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "6828090870627276431"
+              "templateHash": "2625126882023407192"
             }
           },
           "parameters": {
@@ -820,7 +820,7 @@
               "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]",
               "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('kvName')), parameters('webIdentityPrincipalId'), variables('kvSecretsUserRoleId'))]",
               "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvSecretsUserRoleId'))]",
+                "roleDefinitionId": "[format('/providers/Microsoft.Authorization/roleDefinitions/{0}', variables('kvSecretsUserRoleId'))]",
                 "principalId": "[parameters('webIdentityPrincipalId')]",
                 "principalType": "ServicePrincipal"
               },
@@ -834,7 +834,7 @@
               "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]",
               "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('kvName')), parameters('deployScriptPrincipalId'), variables('kvSecretsOfficerRoleId'))]",
               "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvSecretsOfficerRoleId'))]",
+                "roleDefinitionId": "[format('/providers/Microsoft.Authorization/roleDefinitions/{0}', variables('kvSecretsOfficerRoleId'))]",
                 "principalId": "[parameters('deployScriptPrincipalId')]",
                 "principalType": "ServicePrincipal"
               },

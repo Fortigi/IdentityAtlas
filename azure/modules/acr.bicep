@@ -35,16 +35,16 @@ resource acr 'Microsoft.ContainerRegistry/registries@2024-11-01-preview' = {
   }
 }
 
-// AcrPull role definition ID (built-in, well-known).
+// AcrPull / AcrPush built-in role IDs. Tenant-scoped path is the canonical
+// form for built-ins — see comment in key-vault.bicep.
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
-// AcrPush role definition ID (built-in, well-known).
 var acrPushRoleId = '8311e382-0749-4cb8-b61a-304f252e45ec'
 
 resource pullAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for principalId in pullPrincipalIds: {
   name: guid(acr.id, principalId, acrPullRoleId)
   scope: acr
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleId)
+    roleDefinitionId: '/providers/Microsoft.Authorization/roleDefinitions/${acrPullRoleId}'
     principalId: principalId
     principalType: 'ServicePrincipal'
   }
@@ -54,7 +54,7 @@ resource pushAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   name: guid(acr.id, principalId, acrPushRoleId)
   scope: acr
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPushRoleId)
+    roleDefinitionId: '/providers/Microsoft.Authorization/roleDefinitions/${acrPushRoleId}'
     principalId: principalId
     principalType: 'ServicePrincipal'
   }

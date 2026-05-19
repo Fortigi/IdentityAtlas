@@ -117,6 +117,10 @@ Postgres has no public endpoint. To run psql:
 
 Postgres Flexible Server's automated backups are on by default (7-day retention, geo-redundant-backup disabled). To restore: Portal → Postgres → Restore. Container Apps state is ephemeral; the file share holds the master key (auto-regenerable on a fresh deploy if you keep the KV).
 
+### The "ME_…" resource group that appears next to yours
+
+After the deployment Azure creates a second resource group with a name like `ME_identityatlas-cae_<yourRg>_<region>`. This is the **Managed Environment infrastructure RG** — Container Apps puts the load balancer and other Microsoft-managed plumbing there. You can't put anything in it and shouldn't touch it. It's deleted automatically when the Container Apps Environment in your main RG is deleted.
+
 ### Tearing down
 
 `az group delete --name <rg> --yes` deletes everything. Key Vault has soft delete with 7-day retention plus **purge protection** enabled — to fully reclaim the KV name within those 7 days you'd need to wait, OR delete the KV with `--purge`-able config (not the current setting). Adjust the `enablePurgeProtection` in `azure/modules/key-vault.bicep` if you want easier teardowns in dev environments.
