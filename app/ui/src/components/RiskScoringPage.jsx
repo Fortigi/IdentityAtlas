@@ -471,7 +471,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
   const [clusterData, setClusterData] = useState({ available: false, data: [], total: 0 });
   const [clusterSummary, setClusterSummary] = useState(null);
   const [selectedCluster, setSelectedCluster] = useState(null);
-  const [clusterSort, setClusterSort] = useState({ key: 'score', dir: 'desc' });
+  const [clusterSort] = useState({ key: 'score', dir: 'desc' });
   const PAGE_SIZE = 25;
 
   // Fetch summary

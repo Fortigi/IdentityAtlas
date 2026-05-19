@@ -26,7 +26,6 @@ import * as db from '../db/connection.js';
 const ALGO = 'aes-256-gcm';
 const IV_LEN = 12;
 const KEY_LEN = 32;
-const TAG_LEN = 16;
 
 let cachedMasterKey = null;
 
