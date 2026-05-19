@@ -76,7 +76,9 @@ Already-registered providers show `Registered` immediately and are a no-op.
 
 ## Step 2 — Pass 1: claim the name (~6 min)
 
-Click the **Deploy to Azure** button in the README. The portal opens the deploy form pre-loaded with our ARM template.
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json)
+
+Click the button. The portal opens the deploy form pre-loaded with our ARM template.
 
 Fill in:
 
@@ -158,7 +160,9 @@ Done with the App Registration. You have:
 
 ## Step 4 — Pass 2: turn auth on (~2 min)
 
-Click the same **Deploy to Azure** button from Step 2. Fill in **the exact same values as Pass 1**, with three changes:
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json)
+
+Click the button again. Fill in **the exact same values as Pass 1**, with three changes:
 
 | Field | Value for Pass 2 |
 |---|---|
