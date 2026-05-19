@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "15522527981838838703"
+      "templateHash": "2475233839884650784"
     }
   },
   "parameters": {
@@ -486,7 +486,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "489643565898124863"
+              "templateHash": "5519073651961053323"
             }
           },
           "parameters": {
@@ -499,25 +499,21 @@
             "kvName": {
               "type": "string",
               "metadata": {
-                "description": "Pre-computed KV name (passed in by main.bicep so `existing` lookups can use the same static value)."
+                "description": "Pre-computed KV name (passed in by main.bicep so any `existing` lookups can use the same static value)."
               }
             },
             "webIdentityPrincipalId": {
               "type": "string",
               "metadata": {
-                "description": "Principal ID of the Web App Service identity (gets Secrets User)"
+                "description": "Principal ID of the Web App Service identity (gets read access to secrets)."
               }
             },
             "deployScriptPrincipalId": {
               "type": "string",
               "metadata": {
-                "description": "Principal ID of the deployment-script identity (gets Secrets Officer to populate)"
+                "description": "Principal ID of the deployment-script identity (gets read+write access to secrets so it can populate them)."
               }
             }
-          },
-          "variables": {
-            "kvSecretsUserRoleId": "4633458b-17de-4321-b757-c00f7be9e9a3",
-            "kvSecretsOfficerRoleId": "b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
           },
           "resources": [
             {
@@ -526,7 +522,7 @@
               "name": "[parameters('kvName')]",
               "location": "[parameters('location')]",
               "properties": {
-                "enableRbacAuthorization": true,
+                "enableRbacAuthorization": false,
                 "enableSoftDelete": true,
                 "softDeleteRetentionInDays": 7,
                 "enablePurgeProtection": true,
@@ -539,36 +535,31 @@
                   "family": "A",
                   "name": "standard"
                 },
-                "tenantId": "[subscription().tenantId]"
+                "tenantId": "[subscription().tenantId]",
+                "accessPolicies": [
+                  {
+                    "tenantId": "[subscription().tenantId]",
+                    "objectId": "[parameters('webIdentityPrincipalId')]",
+                    "permissions": {
+                      "secrets": [
+                        "get",
+                        "list"
+                      ]
+                    }
+                  },
+                  {
+                    "tenantId": "[subscription().tenantId]",
+                    "objectId": "[parameters('deployScriptPrincipalId')]",
+                    "permissions": {
+                      "secrets": [
+                        "get",
+                        "list",
+                        "set"
+                      ]
+                    }
+                  }
+                ]
               }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]",
-              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('kvName')), parameters('webIdentityPrincipalId'), variables('kvSecretsUserRoleId'))]",
-              "properties": {
-                "roleDefinitionId": "[format('/providers/Microsoft.Authorization/roleDefinitions/{0}', variables('kvSecretsUserRoleId'))]",
-                "principalId": "[parameters('webIdentityPrincipalId')]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]",
-              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('kvName')), parameters('deployScriptPrincipalId'), variables('kvSecretsOfficerRoleId'))]",
-              "properties": {
-                "roleDefinitionId": "[format('/providers/Microsoft.Authorization/roleDefinitions/{0}', variables('kvSecretsOfficerRoleId'))]",
-                "principalId": "[parameters('deployScriptPrincipalId')]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]"
-              ]
             }
           ],
           "outputs": {

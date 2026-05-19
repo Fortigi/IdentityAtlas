@@ -9,20 +9,31 @@
 @description('Azure region')
 param location string
 
-@description('Pre-computed KV name (passed in by main.bicep so `existing` lookups can use the same static value).')
+@description('Pre-computed KV name (passed in by main.bicep so any `existing` lookups can use the same static value).')
 param kvName string
 
-@description('Principal ID of the Web App Service identity (gets Secrets User)')
+@description('Principal ID of the Web App Service identity (gets read access to secrets).')
 param webIdentityPrincipalId string
 
-@description('Principal ID of the deployment-script identity (gets Secrets Officer to populate)')
+@description('Principal ID of the deployment-script identity (gets read+write access to secrets so it can populate them).')
 param deployScriptPrincipalId string
 
+// Key Vault — public endpoint, access via access policies (NOT RBAC).
+//
+// We use access policies instead of RBAC because some tenants block
+// role-definition lookups required by Microsoft.Authorization/roleAssignments
+// (observed in IIDemos: "RoleDefinitionDoesNotExist" against the Key Vault
+// Secrets User built-in). Access policies are the older model but they
+// work in every tenant without depending on tenant-scope role catalog reads.
+//
+// Both models produce the same effective security: only identities with
+// the right secrets permission can read/write. Anonymous and unauthorized
+// callers still get 403.
 resource kv 'Microsoft.KeyVault/vaults@2024-11-01' = {
   name: kvName
   location: location
   properties: {
-    enableRbacAuthorization: true
+    enableRbacAuthorization: false
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
     enablePurgeProtection: true
@@ -33,30 +44,22 @@ resource kv 'Microsoft.KeyVault/vaults@2024-11-01' = {
     }
     sku: { family: 'A', name: 'standard' }
     tenantId: subscription().tenantId
-  }
-}
-
-// Built-in role IDs. Tenant-scoped path is the canonical form for built-ins.
-var kvSecretsUserRoleId    = '4633458b-17de-4321-b757-c00f7be9e9a3'
-var kvSecretsOfficerRoleId = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
-
-resource webSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(kv.id, webIdentityPrincipalId, kvSecretsUserRoleId)
-  scope: kv
-  properties: {
-    roleDefinitionId: '/providers/Microsoft.Authorization/roleDefinitions/${kvSecretsUserRoleId}'
-    principalId: webIdentityPrincipalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource deployScriptSecretsOfficer 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(kv.id, deployScriptPrincipalId, kvSecretsOfficerRoleId)
-  scope: kv
-  properties: {
-    roleDefinitionId: '/providers/Microsoft.Authorization/roleDefinitions/${kvSecretsOfficerRoleId}'
-    principalId: deployScriptPrincipalId
-    principalType: 'ServicePrincipal'
+    accessPolicies: [
+      {
+        tenantId: subscription().tenantId
+        objectId: webIdentityPrincipalId
+        permissions: {
+          secrets: ['get', 'list']
+        }
+      }
+      {
+        tenantId: subscription().tenantId
+        objectId: deployScriptPrincipalId
+        permissions: {
+          secrets: ['get', 'list', 'set']
+        }
+      }
+    ]
   }
 }
 
