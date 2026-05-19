@@ -104,7 +104,7 @@ export default function MatrixFilterSummary({ filter, preview, onAdjust }) {
 function SavedBadge({ savedMatch, loading }) {
   if (loading) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 text-gray-400 dark:text-gray-500 text-[11px]">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 text-gray-600 dark:text-gray-400 text-[11px]">
         …
       </span>
     );
@@ -141,7 +141,7 @@ function Section({ label, chips, preview }) {
     <span className="inline-flex items-center gap-1 flex-wrap max-w-[40%]">
       <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</span>
       {chips.length === 0
-        ? <span className="text-gray-400 dark:text-gray-500 italic">all</span>
+        ? <span className="text-gray-600 dark:text-gray-400 italic">all</span>
         : chips.map((c, i) => (
             <span
               key={i}

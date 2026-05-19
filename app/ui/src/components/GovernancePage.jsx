@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { formatDate } from '../utils/formatters';
 
@@ -37,7 +37,7 @@ function StatCard({ label, value, sub, color = 'gray', onClick }) {
       <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</div>
       <div className={`text-2xl font-bold mt-1 ${textMap[color] || textMap.gray}`}>{value}</div>
       {sub && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{sub}</div>}
-      {clickable && <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Click to view details</div>}
+      {clickable && <div className="text-[10px] text-gray-600 dark:text-gray-500 mt-1">Click to view details</div>}
     </div>
   );
 }
@@ -55,7 +55,7 @@ function CollapsibleSection({ title, count, children, open: controlledOpen, onTo
       >
         <span className="text-xs">{isOpen ? '▼' : '▶'}</span>
         {title}
-        {count != null && <span className="text-xs font-normal text-gray-400 dark:text-gray-500">({count})</span>}
+        {count != null && <span className="text-xs font-normal text-gray-600 dark:text-gray-500">({count})</span>}
       </button>
       {isOpen && <div className="px-5 pb-5">{children}</div>}
     </div>
@@ -238,8 +238,8 @@ export default function GovernancePage() {
 // ─── Drill-down table ────────────────────────────────────────
 
 function DrilldownTable({ data: drilldown }) {
-  if (drilldown.loading) return <div className="text-sm text-gray-400 dark:text-gray-500 animate-pulse">Loading...</div>;
-  if (!drilldown.data || drilldown.data.length === 0) return <p className="text-sm text-gray-400 dark:text-gray-500 italic">No business roles found</p>;
+  if (drilldown.loading) return <div className="text-sm text-gray-600 dark:text-gray-500 animate-pulse">Loading...</div>;
+  if (!drilldown.data || drilldown.data.length === 0) return <p className="text-sm text-gray-600 dark:text-gray-500 italic">No business roles found</p>;
 
   const rows = drilldown.data;
 
@@ -267,12 +267,12 @@ function DrilldownTable({ data: drilldown }) {
             }`}>
               <td className="px-3 py-2">
                 <div className="text-gray-900 dark:text-white font-medium">{r.accessPackageName}</div>
-                {r.catalogName && <div className="text-xs text-gray-400 dark:text-gray-500">{r.catalogName}</div>}
+                {r.catalogName && <div className="text-xs text-gray-600 dark:text-gray-500">{r.catalogName}</div>}
               </td>
               <td className="px-3 py-2">
                 {r.categoryName
                   ? <CategoryBadge name={r.categoryName} color={r.categoryColor} />
-                  : <span className="text-gray-400 dark:text-gray-500 text-xs">{'—'}</span>
+                  : <span className="text-gray-600 dark:text-gray-500 text-xs">{'—'}</span>
                 }
               </td>
               <td className="px-3 py-2">
@@ -285,14 +285,14 @@ function DrilldownTable({ data: drilldown }) {
                 {r.daysOverdue > 0 ? (
                   <span className="text-red-600 dark:text-red-400 font-semibold">{r.daysOverdue}d</span>
                 ) : (
-                  <span className="text-gray-400 dark:text-gray-500">{'—'}</span>
+                  <span className="text-gray-600 dark:text-gray-500">{'—'}</span>
                 )}
               </td>
               <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{r.totalDecisions}</td>
               <td className="px-3 py-2 text-right">
                 {r.notReviewed > 0
                   ? <span className="text-red-600 dark:text-red-400 font-medium">{r.notReviewed}</span>
-                  : <span className="text-gray-400 dark:text-gray-500">0</span>
+                  : <span className="text-gray-600 dark:text-gray-500">0</span>
                 }
               </td>
               <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs">{r.lastReviewedBy || '—'}</td>

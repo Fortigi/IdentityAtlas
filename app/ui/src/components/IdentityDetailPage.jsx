@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import ConfidenceBar from './ConfidenceBar';
@@ -165,7 +165,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
               }`}>
               {identity.analystVerified ? 'Remove Verification' : 'Verify Identity'}
             </button>
-            <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1" title="Close">
+            <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1" title="Close">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -187,7 +187,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
                 onNodeClick={graph.handleNodeClick}
               />
               {graph.pathDepth > 0 && (
-                <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-2">
+                <div className="text-xs text-gray-600 dark:text-gray-500 text-center pb-2">
                   <span className="font-medium text-gray-600 dark:text-gray-300">{graph.activeListLabel}</span>
                   {' — '}
                   <button onClick={graph.reset} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">collapse</button>
@@ -204,7 +204,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
               />
             ) : (
               <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
-                <p className="text-sm text-gray-400 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
+                <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
               </div>
             )}
           </div>

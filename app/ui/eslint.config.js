@@ -1,6 +1,7 @@
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
+import noLowContrastText from './eslint-rules/no-low-contrast-text.js';
 
 export default [
   { ignores: ['dist', 'playwright-report', 'test-results'] },
@@ -18,9 +19,11 @@ export default [
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
+      'local': { rules: { 'no-low-contrast-text': noLowContrastText } },
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      'local/no-low-contrast-text': 'error',
       // React Compiler strict rules — downgrade to warnings until data-fetching
       // patterns are refactored to avoid setState-in-effect (requires Suspense or
       // useTransition migration across all detail pages).

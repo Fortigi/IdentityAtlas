@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../auth/AuthGate';
 import ContextPicker from './ContextPicker';
 
@@ -153,7 +153,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
             >
               {parentId
                 ? <span className="text-gray-900 dark:text-white">{parentLabel || parentId.slice(0, 8)}</span>
-                : <span className="text-gray-400 dark:text-gray-500">(no parent — root)</span>}
+                : <span className="text-gray-600 dark:text-gray-500">(no parent — root)</span>}
             </button>
             {parentId && (
               <button
