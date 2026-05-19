@@ -3,3 +3,4 @@
 - Fixed SVG axis label color in TimeSeriesChart (gray-500 → gray-600, from ≈4.6:1 to ≈7.5:1 margin)
 - Fixed remaining pre-existing contrast violations across 44 UI components (gray-400/300 text on light backgrounds, blue-400 and red-400 status text)
 - Added ESLint rule `local/no-low-contrast-text` that blocks Tailwind `text-{color}-300` and `text-{color}-400` classes in JSX `className` attributes, enforcing WCAG 2.0 AA compliance at build time
+- Fixed MatrixView regression introduced by the CodeQL fix branch (PR #148 accidentally reverted MatrixView to the pre-wizard-refactor version, breaking the Matrix tab with "Cannot read properties of undefined" on first load)
