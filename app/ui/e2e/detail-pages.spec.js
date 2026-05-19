@@ -32,13 +32,9 @@ test.describe('Entity Detail Pages', () => {
     });
 
     if (await userLinks.count() > 0) {
-      const linkText = await userLinks.first().textContent();
       await userLinks.first().click();
       await page.waitForTimeout(500);
 
-      // A new tab should appear in the nav
-      // Detail tabs have a close button (×)
-      const closeButtons = page.locator('nav button svg, nav button:has-text("×")');
       // At least verify navigation didn't break
       const navButtons = page.locator('nav button');
       expect(await navButtons.count()).toBeGreaterThan(7); // 8 main tabs + at least 1 detail
@@ -88,15 +84,6 @@ test.describe('Entity Detail Pages', () => {
   });
 
   test.describe('Tab close navigation', () => {
-
-    // Helper: find and click the close span on a tab by its tabKey (e.g. "user:abc")
-    async function closeTab(page, tabKey) {
-      // The close button is a <span> inside the tab <button>; hover the tab first to reveal it
-      const tab = page.locator(`nav button`).filter({ hasText: new RegExp(tabKey.split(':')[0], 'i') }).last();
-      await tab.hover();
-      const closeSpan = tab.locator('span[title="Close"]');
-      await closeSpan.click();
-    }
 
     test('closing the active tab navigates to its originating page', async ({ page }) => {
       // Go to Users page first so openDetailTab records returnPage='users'
