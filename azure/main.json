@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "2475233839884650784"
+      "templateHash": "682973022630441670"
     }
   },
   "parameters": {
@@ -1297,7 +1297,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "7342025434765516685"
+              "templateHash": "1752411857540287886"
             }
           },
           "parameters": {
@@ -1359,14 +1359,7 @@
                     "customerId": "[parameters('workspaceCustomerId')]",
                     "sharedKey": "[parameters('workspaceSharedKey')]"
                   }
-                },
-                "workloadProfiles": [
-                  {
-                    "name": "Consumption",
-                    "workloadProfileType": "Consumption"
-                  }
-                ],
-                "zoneRedundant": false
+                }
               }
             },
             {

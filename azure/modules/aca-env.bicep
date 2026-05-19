@@ -31,6 +31,12 @@ param storageAccountKey string
 @description('File share name')
 param uploadsShareName string
 
+// IMPORTANT: do NOT set `workloadProfiles` here. Setting it (even to just
+// the Consumption profile) flips the env into "Workload Profiles" plan
+// mode, which requires a VNet — without one the env fails to create
+// ("ManagedEnvironmentInCreateFailedState"). Omitting the property gives
+// a pure Consumption-only environment, which is what the Simple shape
+// wants (no VNet).
 resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
   name: '${namePrefix}-cae'
   location: location
@@ -42,13 +48,6 @@ resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
         sharedKey: workspaceSharedKey
       }
     }
-    workloadProfiles: [
-      {
-        name: 'Consumption'
-        workloadProfileType: 'Consumption'
-      }
-    ]
-    zoneRedundant: false
   }
 }
 
