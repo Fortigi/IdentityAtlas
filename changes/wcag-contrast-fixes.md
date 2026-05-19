@@ -1,5 +1,0 @@
-- Fixed WCAG 2.0 AA contrast failures in MatrixFilterWizard: separator characters, percentage labels, orientation labels, hint text, and delete button labels were rendered in gray-300/400 (failing contrast) and upgraded to gray-500/600
-- Fixed low-contrast "all" placeholder and loading indicator in MatrixFilterSummary
-- Fixed SVG axis label color in TimeSeriesChart (gray-500 → gray-600, from ≈4.6:1 to ≈7.5:1 margin)
-- Fixed remaining pre-existing contrast violations across 44 UI components (gray-400/300 text on light backgrounds, blue-400 and red-400 status text)
-- Added ESLint rule `local/no-low-contrast-text` that blocks Tailwind `text-{color}-300` and `text-{color}-400` classes in JSX `className` attributes, enforcing WCAG 2.0 AA compliance at build time
