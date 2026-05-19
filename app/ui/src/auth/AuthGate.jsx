@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, createContext, useContext } f
 import { PublicClientApplication } from '@azure/msal-browser';
 
 const AuthContext = createContext({
-  authFetch: (url, options) => fetch(url, options),
+  authFetch: () => Promise.reject(new Error('AuthContext not initialized')),
   account: null,
   logout: () => {},
   authEnabled: true,
