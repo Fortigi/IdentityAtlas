@@ -1,32 +1,22 @@
-// Identity Atlas — Azure production deployment.
+// Identity Atlas — Azure Simple deployment.
 //
-// Click the "Deploy to Azure" button in README.md to launch this from the
-// Portal. Or run:
-//
+// Click the "Deploy to Azure" button in README.md or run:
 //   az group create --name <rg> --location <region>
 //   az deployment group create --resource-group <rg> --template-file main.bicep
 //
 // What this deploys:
-//   - VNet (10.40.0.0/16) with 2 subnets: apps (delegated) + private endpoints
-//   - Log Analytics workspace
-//   - 3 user-assigned managed identities (web, worker, deployment script)
-//   - Azure Container Registry (Basic)
-//   - 2 Private DNS zones (Postgres + Key Vault) + VNet links
-//   - Key Vault + private endpoint, RBAC-only access
-//   - Postgres Flexible Server + private endpoint (B2s default; HA off)
-//   - Storage Account + Azure Files share for /data/uploads
-//   - Container Apps Environment (VNet-integrated, Log Analytics-connected)
-//   - One-time deployment script: generates master key + DB password into
-//     KV, imports the Identity Atlas image from ghcr.io into ACR
-//   - Web Container App (public ingress, mounts uploads share, reads
-//     secrets from KV via managed identity)
-//   - Worker Container App (no ingress, mounts uploads share)
+//   - App Service Plan (Linux) + App Service for Containers (web)
+//   - Postgres Flexible Server (public endpoint + firewall rule)
+//   - Key Vault (public endpoint, RBAC-only; holds master key + DB password)
+//   - Storage Account + Azure Files share (for /data/uploads)
+//   - 2 user-assigned managed identities (web, deployment-script)
+//   - One-shot deployment script: generates master key + DB password into KV
+//   - Container Apps Environment (Consumption profile, no VNet)
+//   - Container App: worker (always-on, no ingress; runs scheduler.ps1)
+//   - Optional: Log Analytics workspace (or BYO via parameter)
 //
-// Total cost (West Europe, no HA, ex VAT): ~€100-110/month.
-//
-// Post-deploy: open the appUrl output, go to Admin → Authentication to
-// enable Entra ID sign-in (optional), then Admin → Crawlers to load
-// demo data or connect Microsoft Graph.
+// No VNet. No private endpoints. No load balancer or public IP you have to
+// approve with the customer's CCoE. The Architecture doc has more.
 
 targetScope = 'resourceGroup'
 
@@ -40,56 +30,93 @@ param namePrefix string = 'identityatlas'
 @description('Azure region for all resources.')
 param location string = resourceGroup().location
 
-@description('Web image source (Node API + React UI). Default: the public ghcr.io edge tag.')
-param webSourceImage string = 'ghcr.io/fortigi/identity-atlas:edge'
+@description('Web image source. Default: the latest "edge" tag.')
+param webImage string = 'ghcr.io/fortigi/identity-atlas:latest'
 
-@description('Worker image source (PowerShell crawler/scheduler). Separate from the web image.')
-param workerSourceImage string = 'ghcr.io/fortigi/identity-atlas-worker:edge'
+@description('Worker image source. Default: the latest "edge" tag.')
+param workerImage string = 'ghcr.io/fortigi/identity-atlas-worker:latest'
 
-@description('Postgres compute size.')
-@allowed(['Standard_B2s', 'Standard_B4ms', 'Standard_D2ds_v5', 'Standard_D4ds_v5'])
-param postgresSku string = 'Standard_B2s'
+@description('Sizing profile. xs ≈ €45/mo (demo). s ≈ €79/mo (small production, default). m ≈ €113/mo (mid + staging slot). l ≈ €244/mo (large + GP Postgres). xl ≈ €469/mo (enterprise).')
+@allowed(['xs', 's', 'm', 'l', 'xl'])
+param sizeProfile string = 's'
 
-@description('Postgres tier (must match SKU family).')
-@allowed(['Burstable', 'GeneralPurpose'])
-param postgresTier string = 'Burstable'
+@description('Optional: existing Log Analytics workspace resource ID. Leave empty to create a new one (~€3/mo). Deployer needs Log Analytics Reader on the workspace.')
+param existingLogAnalyticsWorkspaceId string = ''
 
-@description('Postgres storage in GB.')
-@allowed([32, 64, 128, 256, 512, 1024])
-param postgresStorageGb int = 32
+@description('Optional: existing Log Analytics customer ID (GUID). Provide as a fallback when the deployer cannot read the workspace.')
+param existingLogAnalyticsCustomerId string = ''
 
-@description('Web container CPU (cores).')
-param webCpu string = '1'
+@description('Optional: existing Log Analytics shared key. Required if customer ID is provided.')
+@secure()
+param existingLogAnalyticsSharedKey string = ''
 
-@description('Web container memory.')
-param webMemory string = '2Gi'
-
-@description('Web container min replicas.')
-@minValue(1)
-param webMinReplicas int = 1
-
-@description('Web container max replicas.')
-@minValue(1)
-param webMaxReplicas int = 3
-
-@description('Optional IP CIDR allow-list on the web ingress. Empty = open to internet.')
+@description('Optional IP CIDR allow-list for the web ingress. Empty = open to internet (relies on Entra/app-level auth).')
 param webAllowedIpCidrs array = []
 
-@description('Force re-run of the bootstrap deployment script. Bump this string to import a new image without changing other params.')
+@description('Force re-run of the bootstrap deployment script on each deploy.')
 param bootstrapForceTag string = utcNow()
 
-// ─── Foundation: network, logs, identities, ACR, DNS ─────────────────────
+// ─── Size profile → SKUs ─────────────────────────────────────────────────
 
-module network 'modules/network.bicep' = {
-  name: 'network'
-  params: {
-    namePrefix: namePrefix
-    location: location
+var sizeMap = {
+  xs: {
+    appServiceSku: 'B1'
+    postgresSku: 'Standard_B1ms'
+    postgresTier: 'Burstable'
+    postgresStorageGb: 32
+    workerCpu: '0.25'
+    workerMemory: '0.5Gi'
+  }
+  s: {
+    appServiceSku: 'B2'
+    postgresSku: 'Standard_B2s'
+    postgresTier: 'Burstable'
+    postgresStorageGb: 32
+    workerCpu: '0.25'
+    workerMemory: '0.5Gi'
+  }
+  m: {
+    appServiceSku: 'S1'
+    postgresSku: 'Standard_B2s'
+    postgresTier: 'Burstable'
+    postgresStorageGb: 64
+    workerCpu: '0.25'
+    workerMemory: '0.5Gi'
+  }
+  l: {
+    appServiceSku: 'P1v3'
+    postgresSku: 'Standard_D2ds_v5'
+    postgresTier: 'GeneralPurpose'
+    postgresStorageGb: 128
+    workerCpu: '0.5'
+    workerMemory: '1Gi'
+  }
+  xl: {
+    appServiceSku: 'P2v3'
+    postgresSku: 'Standard_D4ds_v5'
+    postgresTier: 'GeneralPurpose'
+    postgresStorageGb: 256
+    workerCpu: '0.5'
+    workerMemory: '1Gi'
   }
 }
+var profile = sizeMap[sizeProfile]
+
+// ─── Foundation ──────────────────────────────────────────────────────────
 
 module logs 'modules/log-analytics.bicep' = {
   name: 'log-analytics'
+  params: {
+    namePrefix: namePrefix
+    location: location
+    existingWorkspaceId: existingLogAnalyticsWorkspaceId
+    existingCustomerId: existingLogAnalyticsCustomerId
+    existingSharedKey: existingLogAnalyticsSharedKey
+  }
+}
+
+module storage 'modules/storage.bicep' = {
+  name: 'storage'
   params: {
     namePrefix: namePrefix
     location: location
@@ -104,30 +131,6 @@ module identities 'modules/identities.bicep' = {
   }
 }
 
-module acr 'modules/acr.bicep' = {
-  name: 'acr'
-  params: {
-    namePrefix: namePrefix
-    location: location
-    pullPrincipalIds: [
-      identities.outputs.webIdentityPrincipalId
-      identities.outputs.workerIdentityPrincipalId
-    ]
-    pushPrincipalIds: [
-      identities.outputs.deployScriptIdentityPrincipalId
-    ]
-  }
-}
-
-module dns 'modules/dns.bicep' = {
-  name: 'dns'
-  params: {
-    vnetId: network.outputs.vnetId
-  }
-}
-
-// ─── Secrets store + private endpoint ────────────────────────────────────
-
 // Compute the KV name HERE (not inside the module) so the `existing`
 // reference below can use the same static value. Bicep can't take
 // dependencies on names produced by `module.outputs.*` (BCP433).
@@ -136,128 +139,99 @@ var kvName = take('${namePrefix}-kv-${uniqueString(resourceGroup().id)}', 24)
 module kv 'modules/key-vault.bicep' = {
   name: 'key-vault'
   params: {
-    namePrefix: namePrefix
     location: location
     kvName: kvName
-    peSubnetId: network.outputs.peSubnetId
-    privateDnsZoneId: dns.outputs.kvZoneId
     webIdentityPrincipalId: identities.outputs.webIdentityPrincipalId
     deployScriptPrincipalId: identities.outputs.deployScriptIdentityPrincipalId
   }
 }
 
-// ─── Bootstrap: generate secrets + import the image ──────────────────────
+// ─── Bootstrap: generate master key + DB password into KV ───────────────
 
-module bootstrap 'modules/deployment-script.bicep' = {
+module bootstrap 'modules/bootstrap.bicep' = {
   name: 'bootstrap'
   params: {
     namePrefix: namePrefix
     location: location
     identityId: identities.outputs.deployScriptIdentityId
     keyVaultName: kv.outputs.kvName
-    acrName: acr.outputs.acrName
-    webSourceImage: webSourceImage
-    workerSourceImage: workerSourceImage
     forceUpdateTag: bootstrapForceTag
   }
 }
 
-// ─── Postgres (uses the password the bootstrap script wrote to KV) ──────
-
-// Pull the freshly-written secrets back out of KV. `existing` + getSecret()
-// is the documented Bicep pattern for "pass a KV secret as a @secure()
-// module param at deploy time".
+// Pull the freshly-written secrets back via `existing` + getSecret(). This
+// is the documented Bicep pattern for passing a KV secret as a @secure()
+// module parameter at deploy time.
 resource kvForSecrets 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
   name: kvName
 }
+
+// ─── Postgres ───────────────────────────────────────────────────────────
 
 module postgres 'modules/postgres.bicep' = {
   name: 'postgres'
   params: {
     namePrefix: namePrefix
     location: location
-    peSubnetId: network.outputs.peSubnetId
-    privateDnsZoneId: dns.outputs.pgZoneId
     adminPassword: kvForSecrets.getSecret('postgres-admin-password')
-    skuName: postgresSku
-    skuTier: postgresTier
-    storageGb: postgresStorageGb
+    skuName: profile.postgresSku
+    skuTier: profile.postgresTier
+    storageGb: profile.postgresStorageGb
   }
   dependsOn: [bootstrap]
 }
 
-// ─── Storage for /data/uploads ──────────────────────────────────────────
+// ─── App Service (web) ──────────────────────────────────────────────────
 
-module storage 'modules/storage.bicep' = {
-  name: 'storage'
+module web 'modules/app-service.bicep' = {
+  name: 'app-service'
   params: {
     namePrefix: namePrefix
     location: location
+    sku: profile.appServiceSku
+    image: webImage
+    identityId: identities.outputs.webIdentityId
+    keyVaultUri: kv.outputs.kvUri
+    pgFqdn: postgres.outputs.pgFqdn
+    pgUsername: postgres.outputs.adminUsername
+    pgDatabaseName: postgres.outputs.databaseName
+    storageAccountName: storage.outputs.storageAccountName
+    storageAccountKey: storage.outputs.storageAccountKey
+    uploadsShareName: storage.outputs.uploadsShareName
+    logAnalyticsWorkspaceId: logs.outputs.workspaceId
+    allowedIpCidrs: webAllowedIpCidrs
   }
+  dependsOn: [bootstrap]
 }
 
-// ─── Container Apps Environment ──────────────────────────────────────────
+// ─── Container Apps Environment (for the worker) ─────────────────────────
 
-module cae 'modules/containerapp-env.bicep' = {
-  name: 'cae'
+module cae 'modules/aca-env.bicep' = {
+  name: 'aca-env'
   params: {
     namePrefix: namePrefix
     location: location
-    appsSubnetId: network.outputs.appsSubnetId
-    workspaceCustomerId: logs.outputs.workspaceCustomerId
-    workspaceSharedKey: logs.outputs.workspaceSharedKey
+    workspaceCustomerId: logs.outputs.customerId
+    workspaceSharedKey: logs.outputs.sharedKey
     storageAccountName: storage.outputs.storageAccountName
     storageAccountKey: storage.outputs.storageAccountKey
     uploadsShareName: storage.outputs.uploadsShareName
   }
 }
 
-// ─── Web + Worker Container Apps ────────────────────────────────────────
+// ─── Worker Container App ───────────────────────────────────────────────
 
-var webImageRef    = '${acr.outputs.acrLoginServer}/identity-atlas:latest'
-var workerImageRef = '${acr.outputs.acrLoginServer}/identity-atlas-worker:latest'
-
-// Wire the DATABASE_URL together at this layer. The password flows in via
-// kvForSecrets.getSecret() (which masks it appropriately) — keeping the URL
-// composition inside main.bicep avoids leaking the password through a module
-// output.
-module web 'modules/containerapp-web.bicep' = {
-  name: 'containerapp-web'
+module worker 'modules/aca-app-worker.bicep' = {
+  name: 'aca-app-worker'
   params: {
     namePrefix: namePrefix
     location: location
-    caeId: cae.outputs.envId
+    envId: cae.outputs.envId
     uploadsStorageName: cae.outputs.uploadsStorageName
-    identityId: identities.outputs.webIdentityId
-    identityClientId: identities.outputs.webIdentityClientId
-    image: webImageRef
-    acrLoginServer: acr.outputs.acrLoginServer
-    keyVaultUri: kv.outputs.kvUri
-    pgFqdn: postgres.outputs.pgFqdn
-    pgUsername: postgres.outputs.adminUsername
-    pgDatabaseName: postgres.outputs.databaseName
-    pgPassword: kvForSecrets.getSecret('postgres-admin-password')
-    masterKey: kvForSecrets.getSecret('identityatlas-master-key')
-    cpu: webCpu
-    memory: webMemory
-    minReplicas: webMinReplicas
-    maxReplicas: webMaxReplicas
-    allowedIpCidrs: webAllowedIpCidrs
-  }
-}
-
-module worker 'modules/containerapp-worker.bicep' = {
-  name: 'containerapp-worker'
-  params: {
-    namePrefix: namePrefix
-    location: location
-    caeId: cae.outputs.envId
-    caeDefaultDomain: cae.outputs.defaultDomain
-    uploadsStorageName: cae.outputs.uploadsStorageName
-    identityId: identities.outputs.workerIdentityId
-    image: workerImageRef
-    acrLoginServer: acr.outputs.acrLoginServer
-    webAppName: web.outputs.appName
+    image: workerImage
+    webAppHostname: web.outputs.appHostname
+    cpu: profile.workerCpu
+    memory: profile.workerMemory
   }
 }
 
@@ -266,14 +240,17 @@ module worker 'modules/containerapp-worker.bicep' = {
 @description('Public URL of the Identity Atlas web app.')
 output appUrl string = web.outputs.appUrl
 
-@description('Web app FQDN (e.g. for custom-domain mapping).')
-output appFqdn string = web.outputs.appFqdn
-
-@description('Container Registry login server.')
-output acrLoginServer string = acr.outputs.acrLoginServer
+@description('Web app hostname.')
+output appHostname string = web.outputs.appHostname
 
 @description('Key Vault URI.')
 output keyVaultUri string = kv.outputs.kvUri
 
 @description('Postgres FQDN.')
 output postgresFqdn string = postgres.outputs.pgFqdn
+
+@description('Sizing profile in use.')
+output sizeProfileApplied string = sizeProfile
+
+@description('True if a new Log Analytics workspace was created; false if BYO was used.')
+output logAnalyticsCreated bool = logs.outputs.createdNew

@@ -1,23 +1,20 @@
-// Container Apps Environment, VNet-integrated, connected to the Log
-// Analytics workspace and the Azure Files share that backs /data/uploads.
+// Container Apps Environment in Consumption-only profile (no VNet).
+// Hosts the worker ACA App. Registers the shared Azure Files share so
+// the worker container can mount /data/uploads.
 //
-// "VNet integration" means the environment's data plane lives inside our
-// apps subnet. Both Container Apps (web + worker) will inherit this
-// network posture.
-//
-// The `storages` child resource registers the Azure Files share so
-// individual Container Apps can reference it by storage name.
+// No VNet integration in the Simple shape — Container Apps Consumption
+// runs in Microsoft's shared infrastructure. No subnet, no load balancer,
+// no public IP that we provision.
 
 @description('Resource name prefix')
+@minLength(3)
+@maxLength(15)
 param namePrefix string
 
 @description('Azure region')
 param location string
 
-@description('Apps subnet ID (delegated to Microsoft.App/environments)')
-param appsSubnetId string
-
-@description('Log Analytics workspace customer ID')
+@description('Log Analytics customer ID (GUID)')
 param workspaceCustomerId string
 
 @description('Log Analytics shared key')
@@ -31,11 +28,8 @@ param storageAccountName string
 @secure()
 param storageAccountKey string
 
-@description('File share name for uploads')
+@description('File share name')
 param uploadsShareName string
-
-@description('If true, the environment is internal-only (no public ingress at all).')
-param internalOnly bool = false
 
 resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
   name: '${namePrefix}-cae'
@@ -48,17 +42,13 @@ resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
         sharedKey: workspaceSharedKey
       }
     }
-    vnetConfiguration: {
-      infrastructureSubnetId: appsSubnetId
-      internal: internalOnly
-    }
-    zoneRedundant: false
     workloadProfiles: [
       {
         name: 'Consumption'
         workloadProfileType: 'Consumption'
       }
     ]
+    zoneRedundant: false
   }
 }
 

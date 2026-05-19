@@ -1,34 +1,38 @@
 <#
 .SYNOPSIS
-    Deploy Identity Atlas to an Azure resource group. CLI fallback for users
-    who don't want to click the Deploy to Azure button.
+    Deploy Identity Atlas (Simple shape) to an Azure resource group. CLI
+    equivalent of the README's "Deploy to Azure" button.
 
 .DESCRIPTION
-    Creates the resource group (if missing) and runs the main.bicep template
-    against it. The deployment takes ~15 minutes. On success, prints the
-    public URL.
+    Creates the resource group (if missing) and runs main.bicep against it.
+    The deployment takes ~5-7 minutes. On success, prints the public URL.
 
 .PARAMETER ResourceGroup
     Resource group name. Will be created if it doesn't exist.
 
 .PARAMETER Location
-    Azure region (e.g. westeurope, northeurope, eastus). Default: westeurope.
+    Azure region. Default: westeurope.
 
 .PARAMETER NamePrefix
     Resource name prefix. Default: identityatlas.
 
+.PARAMETER SizeProfile
+    xs / s / m / l / xl. Default: s. See docs/architecture/azure-deployment.md.
+
+.PARAMETER ExistingLogAnalyticsWorkspaceId
+    Optional: ARM ID of an existing Log Analytics workspace.
+
 .PARAMETER SubscriptionId
-    Subscription ID. Optional — uses your current `az account` if omitted.
+    Subscription ID. Optional — uses the current `az account` if omitted.
 
 .PARAMETER ParametersFile
-    Path to a parameters JSON file. Default: main.parameters.example.json
-    next to this script.
+    Path to a parameters JSON file. Default: main.parameters.example.json.
 
 .EXAMPLE
-    ./deploy.ps1 -ResourceGroup ia-prod -Location westeurope
+    ./deploy.ps1 -ResourceGroup ia-prod
 
 .EXAMPLE
-    ./deploy.ps1 -ResourceGroup ia-test -ParametersFile ./my.parameters.json
+    ./deploy.ps1 -ResourceGroup ia-prod -SizeProfile m -ExistingLogAnalyticsWorkspaceId "/subscriptions/.../workspaces/corp-law"
 #>
 
 [CmdletBinding()]
@@ -39,6 +43,11 @@ Param(
     [string]$Location = 'westeurope',
 
     [string]$NamePrefix = 'identityatlas',
+
+    [ValidateSet('xs', 's', 'm', 'l', 'xl')]
+    [string]$SizeProfile = 's',
+
+    [string]$ExistingLogAnalyticsWorkspaceId = '',
 
     [string]$SubscriptionId,
 
@@ -52,14 +61,14 @@ if (-not $ParametersFile) {
     $ParametersFile = Join-Path $here 'main.parameters.example.json'
 }
 
-Write-Host "=== Identity Atlas Azure deploy ===" -ForegroundColor Cyan
+Write-Host "=== Identity Atlas Azure deploy (Simple shape) ===" -ForegroundColor Cyan
 Write-Host "  ResourceGroup : $ResourceGroup"
 Write-Host "  Location      : $Location"
 Write-Host "  NamePrefix    : $NamePrefix"
-Write-Host "  Bicep file    : $bicepFile"
-Write-Host "  Parameters    : $ParametersFile"
+Write-Host "  SizeProfile   : $SizeProfile"
+Write-Host "  Bicep         : $bicepFile"
 
-# ── Ensure az CLI is logged in ──────────────────────────────────────────
+# ── az login ────────────────────────────────────────────────────────────
 $account = az account show 2>$null | ConvertFrom-Json
 if (-not $account) {
     Write-Host "Not logged in to az. Running 'az login'..." -ForegroundColor Yellow
@@ -81,16 +90,23 @@ if (-not $rg) {
 }
 
 # ── Deploy ──────────────────────────────────────────────────────────────
-Write-Host "`nStarting deployment. This takes ~15 minutes." -ForegroundColor Cyan
+Write-Host "`nStarting deployment. This takes ~5-7 minutes." -ForegroundColor Cyan
 $deploymentName = "identityatlas-$(Get-Date -Format 'yyyyMMddHHmmss')"
 
-$result = az deployment group create `
-    --resource-group $ResourceGroup `
-    --name $deploymentName `
-    --template-file $bicepFile `
-    --parameters "@$ParametersFile" `
-    --parameters namePrefix=$NamePrefix location=$Location `
-    --output json | ConvertFrom-Json
+$deployArgs = @(
+    'deployment', 'group', 'create',
+    '--resource-group', $ResourceGroup,
+    '--name', $deploymentName,
+    '--template-file', $bicepFile,
+    '--parameters', "@$ParametersFile",
+    '--parameters', "namePrefix=$NamePrefix", "location=$Location", "sizeProfile=$SizeProfile",
+    '--output', 'json'
+)
+if ($ExistingLogAnalyticsWorkspaceId) {
+    $deployArgs += @('--parameters', "existingLogAnalyticsWorkspaceId=$ExistingLogAnalyticsWorkspaceId")
+}
+
+$result = az @deployArgs | ConvertFrom-Json
 
 if ($LASTEXITCODE -ne 0 -or $result.properties.provisioningState -ne 'Succeeded') {
     Write-Host "`nDeployment failed. See errors above." -ForegroundColor Red
@@ -101,13 +117,14 @@ if ($LASTEXITCODE -ne 0 -or $result.properties.provisioningState -ne 'Succeeded'
 # ── Outputs ─────────────────────────────────────────────────────────────
 Write-Host "`n=== Deployment succeeded ===" -ForegroundColor Green
 $outputs = $result.properties.outputs
-Write-Host "  App URL        : $($outputs.appUrl.value)" -ForegroundColor Cyan
-Write-Host "  App FQDN       : $($outputs.appFqdn.value)"
-Write-Host "  ACR            : $($outputs.acrLoginServer.value)"
-Write-Host "  Key Vault      : $($outputs.keyVaultUri.value)"
-Write-Host "  Postgres FQDN  : $($outputs.postgresFqdn.value)"
+Write-Host "  App URL              : $($outputs.appUrl.value)" -ForegroundColor Cyan
+Write-Host "  App hostname         : $($outputs.appHostname.value)"
+Write-Host "  Key Vault            : $($outputs.keyVaultUri.value)"
+Write-Host "  Postgres FQDN        : $($outputs.postgresFqdn.value)"
+Write-Host "  Size profile applied : $($outputs.sizeProfileApplied.value)"
+Write-Host "  LA workspace created : $($outputs.logAnalyticsCreated.value) (false = BYO)"
 
 Write-Host "`nNext steps:" -ForegroundColor Cyan
-Write-Host "  1. Open $($outputs.appUrl.value) — first paint takes ~30s while the container warms up"
-Write-Host "  2. Go to Admin → Crawlers to load demo data or connect Microsoft Graph"
-Write-Host "  3. (Optional) Go to Admin → Authentication to enable Entra ID sign-in"
+Write-Host "  1. Open $($outputs.appUrl.value) — first paint takes ~20-30s while the container warms up"
+Write-Host "  2. Admin → Crawlers to load demo data or connect Microsoft Graph"
+Write-Host "  3. (Optional) Admin → Authentication to enable Entra ID sign-in"

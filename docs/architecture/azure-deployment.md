@@ -1,149 +1,201 @@
-# Azure deployment
+# Azure deployment — Simple shape
 
-> Companion to the Bicep templates in [`/azure`](../../azure).
+> Companion to the Bicep in [`/azure`](../../azure).
 > One-click install: see the [README's Deploy to Azure button](../../README.md#deploy-to-azure).
+> **Target:** customers whose networking is owned by a central CCoE. No VNet, no private endpoints, no public IP that you provision.
 
 ## What you get
-
-A production-shaped Identity Atlas environment on Azure:
 
 ```
                                     Internet
                                        │
-                                       ▼  HTTPS  (Entra ID auth optional)
+                                       ▼  https://<app>.azurewebsites.net
+                                       │  (Microsoft-managed TLS cert)
                     ┌──────────────────────────────────────┐
-                    │  Container App  •  WEB               │
-                    │  Public ingress, IP-allowlist option │
-                    │  Mounts /data/uploads (Azure Files)  │
-                    │  Reads master key + DB URL from KV   │
+                    │  App Service Plan (Linux)            │
+                    │  ┌──────────────────────────────┐    │
+                    │  │  App Service                 │    │
+                    │  │  Pulls ghcr.io/fortigi/      │    │
+                    │  │   identity-atlas:latest      │    │
+                    │  │  Mounts /data/uploads        │    │
+                    │  │  KV refs for master key +    │    │
+                    │  │   DB password                │    │
+                    │  └──────────────────────────────┘    │
                     └──────────────────────────────────────┘
-                                       │ HTTPS internal
-                                       ▼
-                    ┌──────────────────────────────────────┐
-                    │  Container App  •  WORKER (no ingress)│
-                    │  Same image family, scheduler.ps1    │
-                    │  Mounts the same /data/uploads share  │
-                    └──────────────────────────────────────┘
-                                       │ private endpoint
-                                       ▼
-                    ┌──────────────────────────────────────┐
-                    │  Postgres Flexible Server            │
-                    └──────────────────────────────────────┘
+                                       │
+            ┌──────────────────────────┼─────────────────────────────┐
+            ▼                          ▼                             ▼
+   ┌──────────────────┐     ┌────────────────────┐        ┌──────────────────┐
+   │ Postgres Flex    │     │ Azure Files share  │        │ Key Vault         │
+   │ Public endpoint, │     │ (Storage Account)  │        │ Public endpoint,  │
+   │ "Allow Azure     │     │ /data/uploads      │        │ RBAC-only.        │
+   │  services"       │     │ shared with worker │        │ master key +      │
+   │ firewall rule    │     └────────────────────┘        │ DB password.      │
+   └──────────────────┘                                   └──────────────────┘
 
-  All resources sit inside a VNet (10.40.0.0/16) with two subnets:
-    - apps (10.40.0.0/23) — delegated to Container Apps
-    - pe   (10.40.2.0/24) — Postgres + Key Vault private endpoints
+                ─── Container Apps Environment (Consumption, no VNet) ───
+                                       │
+                                       ▼
+                    ┌──────────────────────────────────────┐
+                    │  Container App: worker (always-on)   │
+                    │  Pulls ghcr.io/fortigi/              │
+                    │   identity-atlas-worker:latest       │
+                    │  Mounts the same /data/uploads share │
+                    │  Polls App Service /api for queued   │
+                    │   crawler jobs every 60s             │
+                    └──────────────────────────────────────┘
 ```
 
-**Out of band:** Azure Container Registry (basic SKU, public network — Container Apps pull via managed identity), Log Analytics workspace, Storage Account + Azure Files share, three user-assigned managed identities, two private DNS zones (postgres + Key Vault).
+**Inventory: 8 resource families** (App Service Plan + App Service, Postgres, Storage, Key Vault, Log Analytics, ACA Environment, ACA App, managed identities). No VNet, no private endpoints, no NSG.
 
-## Cost (West Europe, ex VAT)
+## Sizing — pick at deploy time
 
-| Resource | Default | ~€/mo |
-|---|---|---|
-| Postgres Flexible — `Standard_B2s`, 32 GB, no HA | Burstable | 34 |
-| 2× Container Apps (web 1 vCPU/2 GB, worker 0.5 vCPU/1 GB, mostly idle) | Consumption | 40–50 |
-| Azure Container Registry | Basic | 5 |
-| Key Vault + private endpoint | Standard | 8 |
-| Storage Account + 5 GiB Azure Files | Standard LRS | 2 |
-| VNet + NSGs + 2× private DNS zones + 2× private endpoints | — | 8–10 |
-| Log Analytics | PerGB2018 (~1 GB/mo) | 5 |
-| **Total** | | **~€100–110** |
+The Deploy-to-Azure form shows a `sizeProfile` dropdown. Pick what matches your tenant.
 
-Scale up: switch Postgres to `Standard_D2ds_v5` for steady GP load (+€60). Enable Postgres zone-redundant HA (+100%). Bump web `maxReplicas` for traffic spikes.
+| Profile | App Service | Postgres | Worker | ~€/mo | Use case |
+|---|---|---|---|---|---|
+| **xs** | B1 (1 vCPU / 1.75 GB) | B1ms Burstable (1 vCPU / 2 GB) | 0.25 vCPU / 0.5 GB | **45** | Demo / proof-of-concept / non-production |
+| **s** ✅ default | B2 (2 vCPU / 3.5 GB) | B2s Burstable (2 vCPU / 4 GB) | 0.25 vCPU / 0.5 GB | **79** | Small production — single team of analysts, < 10k principals |
+| **m** | S1 (+ staging slot) | B2s Burstable | 0.25 vCPU / 0.5 GB | **113** | Mid-sized, 10-25k principals, blue/green deploys |
+| **l** | P1v3 (2 vCPU / 8 GB) | D2ds_v5 GeneralPurpose (2 vCPU / 8 GB) | 0.5 vCPU / 1 GB | **244** | Large tenant, 25-50k principals, sustained throughput |
+| **xl** | P2v3 (4 vCPU / 16 GB) | D4ds_v5 GeneralPurpose (4 vCPU / 16 GB) | 0.5 vCPU / 1 GB | **469** | Enterprise — 50k+ principals, multiple concurrent analyst teams |
 
-## How it deploys
+(All West Europe, ex VAT, single replica, no HA, Linux. Costs assume BYO Log Analytics; add ~€3-5/mo if a new workspace is created.)
 
-1. **One-click button** in the README opens `https://portal.azure.com/#create/Microsoft.Template/uri/...` pointing at the compiled `main.json` on the `main` branch.
-2. **Portal form** asks for a resource group, location, and prefix.
-3. **`az deployment group create`** under the hood walks the Bicep dependency tree:
-   - VNet, subnets, NSGs, Log Analytics, 3× managed identities, ACR, private DNS zones — all parallel.
-   - Key Vault + private endpoint (depends on subnet + DNS zone).
-   - **Bootstrap deployment script** (`Microsoft.Resources/deploymentScripts`) runs as the deploy-script managed identity. It:
-     1. Generates a 32-byte master key, writes it to KV as `identityatlas-master-key`.
-     2. Generates a Postgres admin password, writes it to KV as `postgres-admin-password`.
-     3. `az acr import`s both `identity-atlas:edge` and `identity-atlas-worker:edge` from `ghcr.io/fortigi` into the new ACR.
-     4. Idempotent — re-running the deploy doesn't rotate secrets or re-import unless you bump `bootstrapForceTag`.
-   - Postgres Flexible Server with private endpoint (depends on bootstrap → reads the password back via `kvForSecrets.getSecret(...)`).
-   - Storage Account + Azure Files share.
-   - Container Apps Environment (VNet-integrated, Log Analytics-connected, with the file share registered as a named storage).
-   - Web Container App + Worker Container App.
+**Scaling later** = re-click the button (or rerun `deploy.ps1`) with a different `sizeProfile`. Azure resizes the App Service Plan + Postgres in place — no data loss, ~2-3 min of Postgres downtime while the SKU swap happens.
 
-Total deploy time: ~15 minutes.
+**One-way ratchet:** `l` and `xl` use Postgres `GeneralPurpose`. You can't scale a Postgres Flex server from `GeneralPurpose` back to `Burstable` — only within the same tier. Pick `l`/`xl` only when you actually need the GP compute.
 
-## Decisions baked in
+## "Fast and snappy" design choices
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| **Master key** | Generated at deploy time → Key Vault → injected as `IDENTITY_ATLAS_MASTER_KEY` env var via `secretRef`. | The app already reads this env var. Zero code change. |
-| **Postgres auth** | Password-based. Password lives in KV; the web app reads it via managed identity. | Ships fast. Entra-to-Postgres needs a Node `pg` Entra plugin we don't have. |
-| **Easy Auth on web** | Off. The app handles authentication via its existing flow (Admin → Authentication enables Entra). | Avoids forcing an App Registration before first login. The existing UI is designed for this. |
-| **Worker ingress** | None at all. The worker only makes outbound calls to the web app. | Simpler than "internal-only" ingress; Container Apps supports no-ingress mode. |
-| **HA** | Off. Single replica, single AZ. | Keeps cost at ~€110/mo. One Bicep flag away. |
-| **Image source** | `az acr import` from public `ghcr.io/fortigi/identity-atlas[:tag]` → private ACR. | One-shot import, no build infra in Azure. Pinning to a release tag is a parameter change. |
-| **Shared `/data/uploads`** | Azure Files share mounted in both Container Apps. | Built-in worker API key, CSV uploads — both apps need to see the same files. |
-| **Public ACR (basic SKU)** | Acceptable. Container Apps pull via managed identity (AcrPull). | Premium SKU + private endpoint adds €50/mo and only matters if outside-the-VNet pulls are a concern. |
+- **Always On** on the App Service Plan (B1+) — no cold start on first request.
+- **Worker as ACA App, always-on** — `Sync now` picks up jobs within 60s (matches the docker-compose worker behaviour).
+- **App Service health probe** on `/api/health` — drops sick replicas before users hit them.
+- **Postgres autogrow on, HA off** — no failover blip during a sync.
+- **Materialised matrix view refreshed at end of every crawl** — matrix renders from indexed pre-computed rows.
+
+xs has caveats under concurrent load (3+ analysts on the matrix); it's labelled "non-production." Default `s` is where snappy starts being free of caveats.
+
+## BYO Log Analytics
+
+If your CCoE owns a central Log Analytics workspace and you want logs forwarded there instead of creating a new one, fill in **one** of these two parameter pairs:
+
+**Option 1 — workspace ID (preferred, 1 field):**
+```
+existingLogAnalyticsWorkspaceId: /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name>
+```
+The template uses an `existing` resource lookup to derive the workspace customer ID + shared key. **The deployer needs `Log Analytics Reader` on the workspace.**
+
+**Option 2 — customer ID + key (fallback when you can't read the workspace, 2 fields):**
+```
+existingLogAnalyticsCustomerId: <GUID>     (shown in the LA "Overview" blade as "Workspace ID")
+existingLogAnalyticsSharedKey:  <primary or secondary key>
+```
+Use this when the deployer can't be granted Reader. The template plumbs the values through directly; no read access needed.
+
+**Leave all three empty** → template creates a fresh workspace in your resource group (~€3-5/mo).
+
+The deployment's outputs include `logAnalyticsCreated: true|false` so you can tell which path was taken.
+
+## How it deploys (timing)
+
+1. **Storage, Log Analytics (or lookup), Managed Identities, Key Vault** — all parallel, < 1 min.
+2. **Bootstrap deployment script** — runs as the deployScript managed identity. Generates the master key + Postgres admin password, writes both to KV. ~30 s.
+3. **Postgres Flexible Server** — slowest single step, ~3-4 min.
+4. **App Service Plan + App Service** — App Service starts the container image (first pull from ghcr.io, ~1-2 min).
+5. **Container Apps Environment + Worker App** — ~2 min.
+
+**Total: ~5-7 minutes** wall clock. Output: the public URL of your Identity Atlas.
 
 ## First-run post-deploy steps
 
-1. **Open the app URL** from the deployment outputs. First paint may take ~30s while the web container warms up.
-2. **Load demo data** via Admin → Crawlers → "Load demo data", or **add a real crawler** with Microsoft Graph credentials.
-3. **(Optional) enable Entra ID sign-in.** Admin → Authentication → toggle Entra ID, fill in tenant + client ID. This is read from a DB-backed config and takes effect for new browser sessions immediately — no redeploy needed.
+1. **Open the App URL.** First paint takes ~20-30s while the App Service container warms up (subsequent loads are sub-second because Always On is enabled).
+2. **Admin → Crawlers** → "Load demo data" to explore, or "Add Crawler" to connect Microsoft Graph.
+3. **(Optional) Admin → Authentication** to switch on Entra ID sign-in. Until then the app is open (so an IP allow-list at the App Service level is the recommended interim).
 
 ## Operational notes
 
-### Updating to a new image
+### Updating the container images
 
 ```powershell
-./azure/import-image.ps1 -ResourceGroup ia-prod -WebTag 5.30.20260518.1154 -WorkerTag 5.30.20260518.1154
+# Restart the App Service — re-pulls the :latest tag from ghcr.io
+az webapp restart --name <namePrefix>-web --resource-group <rg>
+
+# Restart the worker — same
+az containerapp revision restart --name <namePrefix>-worker --resource-group <rg> --revision <latestRevisionName>
 ```
 
-The script reads the ACR from the resource group, runs `az acr import --force`, and restarts the Container App revisions so they pull the new `:latest`.
-
-To re-import the `:edge` tag (e.g. after a `main` merge), call with no `-WebTag/-WorkerTag` (defaults to `edge`).
+To pin to a specific version instead of `:latest`, redeploy with `webImage=ghcr.io/fortigi/identity-atlas:<tag>` and the matching `workerImage`.
 
 ### Logs
 
-`az containerapp logs show --name <namePrefix>-web --resource-group <rg> --follow` — streams the web container's stdout. Same for `-worker`. Or query Log Analytics: `ContainerAppConsoleLogs_CL | where ContainerAppName_s == 'identityatlas-web'`.
+```bash
+# App Service stdout, live
+az webapp log tail --name <namePrefix>-web --resource-group <rg>
 
-### Database access
+# Worker container logs, live
+az containerapp logs show --name <namePrefix>-worker --resource-group <rg> --follow
+```
 
-Postgres has no public endpoint. To run psql:
-1. Connect a workstation to the VNet via Bastion, point-to-site VPN, or a private peering.
-2. Resolve the FQDN via the private DNS zone (`<server>.privatelink.postgres.database.azure.com`).
-3. Fetch the admin password from Key Vault: `az keyvault secret show --vault-name <kv> --name postgres-admin-password --query value -o tsv`.
+Or query Log Analytics (whether created here or BYO):
+```kql
+AppServiceConsoleLogs | where _ResourceId endswith "<namePrefix>-web"
+ContainerAppConsoleLogs_CL | where ContainerAppName_s == "<namePrefix>-worker"
+```
 
-### Backups
+### Postgres access
 
-Postgres Flexible Server's automated backups are on by default (7-day retention, geo-redundant-backup disabled). To restore: Portal → Postgres → Restore. Container Apps state is ephemeral; the file share holds the master key (auto-regenerable on a fresh deploy if you keep the KV).
-
-### The "ME_…" resource group that appears next to yours
-
-After the deployment Azure creates a second resource group with a name like `ME_identityatlas-cae_<yourRg>_<region>`. This is the **Managed Environment infrastructure RG** — Container Apps puts the load balancer and other Microsoft-managed plumbing there. You can't put anything in it and shouldn't touch it. It's deleted automatically when the Container Apps Environment in your main RG is deleted.
+Postgres has a public endpoint with a firewall rule allowing Azure services. To run psql from a workstation:
+1. Add a temporary firewall rule for your IP: `az postgres flexible-server firewall-rule create --resource-group <rg> --name <pgname> --rule-name temp-yourip --start-ip-address <ip> --end-ip-address <ip>`.
+2. Fetch the admin password from Key Vault: `az keyvault secret show --vault-name <kv> --name postgres-admin-password --query value -o tsv`.
+3. `psql "postgres://identityatlas:<pw>@<pgFqdn>:5432/identity_atlas?sslmode=require"`.
+4. Delete the firewall rule when done.
 
 ### Tearing down
 
-`az group delete --name <rg> --yes` deletes everything. Key Vault has soft delete with 7-day retention plus **purge protection** enabled — to fully reclaim the KV name within those 7 days you'd need to wait, OR delete the KV with `--purge`-able config (not the current setting). Adjust the `enablePurgeProtection` in `azure/modules/key-vault.bicep` if you want easier teardowns in dev environments.
+```bash
+az group delete --name <rg> --yes
+```
 
-## Limitations of this first cut
+Key Vault has soft delete + purge protection (7-day retention). To redeploy with the same KV name within those 7 days, either wait or use a different `namePrefix`.
 
-- **No GitHub Actions deploy workflow.** Re-deploys / drift detection are out of scope for the first PR. Use `deploy.ps1` for manual re-runs.
-- **No App Registration auto-creation.** ARM templates can't create Entra App Registrations cleanly (needs Graph API access). User does this manually if/when enabling Entra auth.
-- **No zone-redundancy.** Single-AZ. Add `zoneRedundant: true` on Postgres + the Container Apps Environment in a future PR if needed.
-- **No Application Insights.** Skipped per the design review. Log Analytics covers Container Apps console + system metrics; AI is the missing piece for distributed tracing.
-- **ACR is Basic / public network.** Pull via managed identity is RBAC-enforced. If your tenant requires private ACR, switch SKU to Premium and add a third private endpoint mirroring `key-vault.bicep`.
+## Decisions taken (and why)
 
-## Lightweight alternative
+| Decision | Choice | Why |
+|---|---|---|
+| **Architecture** | App Service + Postgres Flex + ACA worker | Matches the customer's CCoE pattern — no networking provisioning. |
+| **Postgres endpoint** | Public + "Allow Azure services" firewall | App Service outbound IPs come from a Microsoft-owned pool; this rule covers them without enumeration. |
+| **Key Vault endpoint** | Public, RBAC-only | Access is gated by `Key Vault Secrets User` role, not network. Anonymous access returns 403. |
+| **App Service image source** | Direct pull from public `ghcr.io` | No ACR needed (~€5/mo saved + simpler deploy). Add ACR later if a tenant demands a private registry. |
+| **Worker model** | ACA App (always-on), not ACA Job | "Sync now" should respond in <2 s. Job would have a 60-300 s schedule lag. |
+| **Master key + DB password** | Generated by deployment script, stored in KV, exposed to the app via KV references | Zero secrets in the template, the deployment history, or ARM. App reads them via managed identity at startup. |
+| **Auth** | `AUTH_ENABLED=false` by default | Avoids requiring an App Registration before first login. Configurable post-deploy via Admin → Authentication. |
+| **HA** | Off | Single-replica everywhere. Keeps cost predictable. |
+| **Application Insights** | Skipped | Log Analytics covers stdout + system metrics. AI is for distributed tracing, not needed at this scale. |
+| **VNet integration** | Not in the Simple shape | If a customer demands private Postgres / KV later, a separate "Isolated" template will add it with the customer's CCoE-provided subnet IDs. |
 
-If €110/mo is too much for a small deployment, a single B2s VM running `docker-compose.prod.yml` brings total cost to ~€42/mo. Tradeoffs: manual patching, no managed Postgres backups, no Key Vault, no VNet isolation. **Not** included in this PR — separate roadmap item.
+## Limitations
+
+- **No HA / zone-redundancy.** Single AZ, single replica. Adding zone redundancy is two Bicep params away — future iteration.
+- **No custom domain on App Service.** Free `*.azurewebsites.net` cert covers v1. Custom domain + customer TLS cert is a 2-step manual setup post-deploy.
+- **No GitHub Actions deploy workflow.** Use Deploy-to-Azure button + `deploy.ps1` for now.
+- **No Entra App Registration auto-creation.** Done manually if/when enabling Entra auth.
+- **Public Postgres / KV endpoints.** A future "Isolated" template will add private endpoints when a customer wants them.
 
 ## File index
 
 | File | Purpose |
 |---|---|
-| `azure/main.bicep` | Top-level orchestrator |
-| `azure/main.json` | Compiled ARM (committed for the Deploy to Azure button) |
-| `azure/main.parameters.example.json` | Example parameter file |
-| `azure/deploy.ps1` | CLI deploy + post-deploy summary |
-| `azure/import-image.ps1` | Re-import images into an existing ACR |
-| `azure/modules/*.bicep` | One module per resource family (network, KV, Postgres, etc.) |
+| [`azure/main.bicep`](../../azure/main.bicep) | Top-level orchestrator |
+| [`azure/main.json`](../../azure/main.json) | Compiled ARM (used by the Deploy to Azure button) |
+| [`azure/main.parameters.example.json`](../../azure/main.parameters.example.json) | Example parameter file |
+| [`azure/deploy.ps1`](../../azure/deploy.ps1) | CLI deploy + post-deploy summary |
+| `azure/modules/log-analytics.bicep` | New workspace OR BYO lookup OR pass-through |
+| `azure/modules/storage.bicep` | Storage Account + Azure Files share |
+| `azure/modules/identities.bicep` | 2 user-assigned managed identities |
+| `azure/modules/key-vault.bicep` | Key Vault + RBAC (public endpoint) |
+| `azure/modules/bootstrap.bicep` | One-shot deployment script for secrets |
+| `azure/modules/postgres.bicep` | Postgres Flex + firewall |
+| `azure/modules/app-service.bicep` | App Service Plan + App Service for Containers |
+| `azure/modules/aca-env.bicep` | Container Apps Environment (Consumption) |
+| `azure/modules/aca-app-worker.bicep` | Worker Container App (always-on) |

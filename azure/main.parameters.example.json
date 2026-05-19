@@ -8,23 +8,23 @@
     "location": {
       "value": "westeurope"
     },
-    "webSourceImage": {
-      "value": "ghcr.io/fortigi/identity-atlas:edge"
+    "sizeProfile": {
+      "value": "s"
     },
-    "workerSourceImage": {
-      "value": "ghcr.io/fortigi/identity-atlas-worker:edge"
+    "webImage": {
+      "value": "ghcr.io/fortigi/identity-atlas:latest"
     },
-    "postgresSku": {
-      "value": "Standard_B2s"
+    "workerImage": {
+      "value": "ghcr.io/fortigi/identity-atlas-worker:latest"
     },
-    "postgresTier": {
-      "value": "Burstable"
+    "existingLogAnalyticsWorkspaceId": {
+      "value": ""
     },
-    "webMinReplicas": {
-      "value": 1
+    "existingLogAnalyticsCustomerId": {
+      "value": ""
     },
-    "webMaxReplicas": {
-      "value": 3
+    "existingLogAnalyticsSharedKey": {
+      "value": ""
     },
     "webAllowedIpCidrs": {
       "value": []

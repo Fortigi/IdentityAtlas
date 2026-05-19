@@ -1,41 +1,34 @@
-// Azure Database for PostgreSQL — Flexible Server, behind a Private
-// Endpoint. Burstable B2s by default (~€34/mo). Bump to GP_Standard_D2ds_v5
-// for production-grade compute (~€95/mo).
+// Azure Database for PostgreSQL Flexible Server — public endpoint, firewall
+// restricted to "Allow Azure services". The simplest network posture; works
+// for the customer-CCoE pattern because no VNet integration is needed.
 //
-// HA off by default. Backups: 7-day retention (Azure default, included).
-//
-// Credentials: admin password is generated outside this module (in the
-// deployment script) and passed in. Stored in Key Vault. The app reads it
-// via the DATABASE_URL secret reference.
+// Future "Isolated" template adds delegatedSubnetResourceId for private
+// endpoint mode. For Simple, public endpoint + firewall is fine.
 
 @description('Resource name prefix')
+@minLength(3)
+@maxLength(15)
 param namePrefix string
 
 @description('Azure region')
 param location string
 
-@description('Private endpoint subnet ID')
-param peSubnetId string
-
-@description('Private DNS zone ID for privatelink.postgres.database.azure.com')
-param privateDnsZoneId string
-
 @description('Postgres admin username')
 param adminUsername string = 'identityatlas'
 
-@description('Postgres admin password (passed in from Key Vault)')
+@description('Postgres admin password (passed in from Key Vault).')
 @secure()
 param adminPassword string
 
 @description('Database name to create')
 param databaseName string = 'identity_atlas'
 
-@description('SKU name (Burstable_B2s, GeneralPurpose_D2ds_v5, etc.)')
-param skuName string = 'Standard_B2s'
+@description('SKU name (Standard_B1ms, Standard_B2s, Standard_D2ds_v5, Standard_D4ds_v5).')
+param skuName string
 
 @description('SKU tier')
 @allowed(['Burstable', 'GeneralPurpose', 'MemoryOptimized'])
-param skuTier string = 'Burstable'
+param skuTier string
 
 @description('Storage size in GB')
 @allowed([32, 64, 128, 256, 512, 1024])
@@ -45,8 +38,7 @@ param storageGb int = 32
 @allowed(['14', '15', '16', '17'])
 param postgresVersion string = '16'
 
-// Postgres Flexible Server names: 3-63 chars, alphanumeric + hyphens, must
-// be globally unique within Azure.
+// Postgres Flex names: 3-63 chars, alphanumeric + hyphens, globally unique.
 var pgName = take('${namePrefix}-pg-${uniqueString(resourceGroup().id)}', 63)
 
 resource pg 'Microsoft.DBforPostgreSQL/flexibleServers@2024-11-01-preview' = {
@@ -70,12 +62,24 @@ resource pg 'Microsoft.DBforPostgreSQL/flexibleServers@2024-11-01-preview' = {
     }
     highAvailability: { mode: 'Disabled' }
     network: {
-      publicNetworkAccess: 'Disabled'
+      publicNetworkAccess: 'Enabled'
     }
     authConfig: {
       activeDirectoryAuth: 'Disabled'
       passwordAuth: 'Enabled'
     }
+  }
+}
+
+// Firewall: allow any Azure service. The App Service comes from a Microsoft-
+// owned IP range, so this is the easy + correct rule. Tighten per tenant
+// policy if needed.
+resource fwAllowAzure 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-11-01-preview' = {
+  parent: pg
+  name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '0.0.0.0'  // sentinel value = "all Azure services" per the public docs
   }
 }
 
@@ -88,39 +92,6 @@ resource db 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-11-01-prev
   }
 }
 
-resource pe 'Microsoft.Network/privateEndpoints@2024-05-01' = {
-  name: '${namePrefix}-pe-pg'
-  location: location
-  properties: {
-    subnet: { id: peSubnetId }
-    privateLinkServiceConnections: [
-      {
-        name: 'pg'
-        properties: {
-          privateLinkServiceId: pg.id
-          groupIds: ['postgresqlServer']
-        }
-      }
-    ]
-  }
-}
-
-resource peDns 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
-  parent: pe
-  name: 'default'
-  properties: {
-    privateDnsZoneConfigs: [
-      {
-        name: 'pg'
-        properties: { privateDnsZoneId: privateDnsZoneId }
-      }
-    ]
-  }
-}
-
-// Note: we deliberately don't export a `databaseUrl` output (would expose
-// the password). Main.bicep constructs the URL by combining FQDN + username
-// + the password it fetches via getSecret().
 output pgId string = pg.id
 output pgFqdn string = pg.properties.fullyQualifiedDomainName
 output pgName string = pg.name

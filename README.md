@@ -39,37 +39,48 @@ The in-browser crawler wizard walks you through credentials, permission validati
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json)
 
-One-click install into your Azure subscription. The deployment provisions a VNet-isolated, managed-identity-driven production stack:
+One-click install into your Azure subscription. The deployment uses PaaS services that any Azure-Subscription-owner can deploy without touching central networking:
 
-- VNet with delegated subnets, NSGs, and private DNS
-- Container Apps Environment with **web** + **worker** containers
-- Postgres Flexible Server (private endpoint)
-- Key Vault (private endpoint) — stores the master key + DB password
-- Azure Container Registry (images auto-imported from `ghcr.io`)
-- Storage Account + Azure Files share for `/data/uploads`
-- Log Analytics workspace
+- **App Service for Linux Containers** (web) — pulls `ghcr.io/fortigi/identity-atlas:latest`. Managed public HTTPS with auto-renewed TLS.
+- **Postgres Flexible Server** — public endpoint, firewall rule restricted to Azure services.
+- **Key Vault** — holds the auto-generated master key + DB password. App Service reads via managed identity.
+- **Storage Account + Azure Files share** — `/data/uploads` shared with the worker.
+- **Container Apps Environment + worker app** — always-on, no ingress, runs the crawler scheduler.
+- **Log Analytics** — auto-created OR bring your own (single parameter).
 
-Total cost: **~€100–110/month** (West Europe, ex VAT, no HA).
+**Pick a size at deploy time:**
+
+| Profile | ~€/mo | Use case |
+|---|---|---|
+| **xs** | 45 | Demo / proof-of-concept |
+| **s** ✅ | 79 | Small production — single team of analysts, <10k principals (default) |
+| **m** | 113 | 10-25k principals, blue/green via App Service staging slot |
+| **l** | 244 | 25-50k principals, GP Postgres compute |
+| **xl** | 469 | 50k+ principals, enterprise concurrent use |
 
 Click the button, fill in:
 
 1. **Resource group** — create new
 2. **Region** — default: West Europe
 3. **Name prefix** — default: `identityatlas`
+4. **Size profile** — default: `s`
+5. **(Optional) Existing Log Analytics workspace ID** — leave blank for a fresh one
 
-Then *Review + create*. The deployment takes **~15 minutes**. When it finishes, the deployment outputs include the public URL of your Identity Atlas. First paint takes ~30 seconds while the web container warms up.
+*Review + create*. The deployment takes **~5–7 minutes**. The output includes the public URL.
 
 **Post-deploy:** open the URL, then Admin → Crawlers to load demo data or connect Microsoft Graph. To enable Entra ID sign-in, Admin → Authentication.
 
-For the full architecture, cost breakdown, decisions taken, and ops notes (image updates, logs, backups, teardown): see [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md).
+For the full architecture, decisions taken, scaling, and ops notes (image updates, logs, Postgres access, teardown): see [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md).
 
 **CLI alternative** if you'd rather script it:
 
 ```powershell
 git clone https://github.com/Fortigi/IdentityAtlas.git
 cd IdentityAtlas/azure
-./deploy.ps1 -ResourceGroup ia-prod
+./deploy.ps1 -ResourceGroup ia-prod -SizeProfile s
 ```
+
+**Customer with strict no-public-endpoint policy?** The Simple shape uses public endpoints (with RBAC + firewall) for Postgres and Key Vault. A future Bicep template (`azure/main-isolated.bicep`, separate PR) wraps everything in a customer-CCoE-provided VNet with private endpoints. Tracked for v2.
 
 ---
 
