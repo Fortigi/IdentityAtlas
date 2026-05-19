@@ -45,14 +45,11 @@ function createIngestHandler(entityType) {
 
     const recResult = validateRecords(body.records, entityType, body.idGeneration, body.syncMode);
     if (!recResult.valid) {
-      // Strip newlines from any user-controlled strings before logging (log-injection).
-      const sanitizeLog = s => String(s).replace(/[\r\n]/g, ' ');
-      const preview = recResult.errors.slice(0, 5).map(sanitizeLog).join(' | ');
       const safeSyncMode = body.syncMode === 'full' || body.syncMode === 'delta' ? body.syncMode : 'full';
-      console.warn(
-        `Ingest validation failed [${sanitizeLog(entityType)}] (${safeSyncMode} mode): ` +
-        `${recResult.errors.length} record error(s) — first ${Math.min(5, recResult.errors.length)}: ${preview}`
-      );
+      // Log only the count — not error text or entity type — to avoid log-injection
+      // via user-controlled record fields or URL parameters.
+      console.warn(`Ingest record validation failed (${safeSyncMode} mode): ${recResult.errors.length} error(s)`);
+
       return res.status(400).json({ error: 'Record validation failed', details: recResult.errors });
     }
 

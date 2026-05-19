@@ -144,6 +144,7 @@ async function chatAzureOpenAI({ apiKey, model, system, messages, temperature, m
     temperature: temperature ?? DEFAULT_TEMPERATURE,
     messages: fullMessages,
   };
+  // codeql[js/request-forgery] endpoint validated by validateAzureEndpoint: HTTPS required, private/loopback hosts blocked
   const r = await fetch(requestUrl.href, {
     method: 'POST',
     headers: {
@@ -338,6 +339,7 @@ async function listModelsAzureOpenAI({ apiKey, endpoint, apiVersion }) {
   const clean = trimTrailingSlashes(endpoint);
   const requestUrl = new URL(`${clean}/openai/deployments`);
   requestUrl.searchParams.set('api-version', ver);
+  // codeql[js/request-forgery] endpoint validated by validateAzureEndpoint: HTTPS required, private/loopback hosts blocked
   const r = await fetch(requestUrl.href, { headers: { 'api-key': apiKey } });
   if (!r.ok) {
     const err = await r.text().catch(() => '');

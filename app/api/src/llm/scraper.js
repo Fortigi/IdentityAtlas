@@ -84,6 +84,7 @@ export async function scrapeOne(url, credentials = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
+    // codeql[js/request-forgery] URL validated above: http(s) only, non-private hostname required (PRIVATE_HOST_RE)
     const r = await fetch(parsed.href, { method: 'GET', headers, signal: controller.signal });
     clearTimeout(timer);
     if (!r.ok) return { url, ok: false, status: r.status, error: `HTTP ${r.status}` };
