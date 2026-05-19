@@ -28,6 +28,31 @@ import { putSecret, getSecret, deleteSecret } from '../secrets/vault.js';
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
+// Comma-separated allowlist of hostnames the scraper may fetch, e.g.:
+//   SCRAPER_ALLOWED_HOSTS=example.com,.example.org,docs.vendor.com
+// A leading dot means "any subdomain": .example.org matches foo.example.org.
+// If the variable is unset or empty the scraper rejects every URL (fail-closed).
+const SCRAPER_ALLOWED_HOSTS = (process.env.SCRAPER_ALLOWED_HOSTS || '')
+  .split(',')
+  .map(s => s.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAllowedScrapeUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+    if (parsed.username || parsed.password) return false;
+    if (parsed.port && !['80', '443', ''].includes(parsed.port)) return false;
+    if (SCRAPER_ALLOWED_HOSTS.length === 0) return false;
+    const host = parsed.hostname.toLowerCase();
+    return SCRAPER_ALLOWED_HOSTS.some(entry =>
+      entry.startsWith('.') ? host.endsWith(entry) : host === entry
+    );
+  } catch {
+    return false;
+  }
+}
+
 // Guard: every LLM-using endpoint should reject early when nothing is configured
 async function requireLLM(res) {
   const ok = await isLLMConfigured();
@@ -59,6 +84,7 @@ router.post('/risk-profiles/scrape', async (req, res) => {
     const targets = [];
     for (const u of urls) {
       if (typeof u !== 'object' || !u.url) continue;
+      if (!isAllowedScrapeUrl(u.url)) continue;
       let credentials = null;
       if (u.credentialId) {
         const secret = await getSecret(u.credentialId);
@@ -72,6 +98,9 @@ router.post('/risk-profiles/scrape', async (req, res) => {
         credentials = u.credentials;
       }
       targets.push({ url: u.url, credentials });
+    }
+    if (targets.length === 0) {
+      return res.status(400).json({ error: 'No URLs passed the allowlist check. Configure SCRAPER_ALLOWED_HOSTS.' });
     }
     const results = await scrapeAll(targets);
     // Strip the actual text from the response by default — it can be huge.
@@ -103,6 +132,7 @@ router.post('/risk-profiles/generate', async (req, res) => {
       const targets = [];
       for (const u of urls) {
         if (!u || !u.url) continue;
+        if (!isAllowedScrapeUrl(u.url)) continue;
         let credentials = null;
         if (u.credentialId) {
           const secret = await getSecret(u.credentialId);

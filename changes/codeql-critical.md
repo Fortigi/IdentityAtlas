@@ -1,4 +1,4 @@
-- Fixed log-injection vulnerability in ingest validation logging by sanitizing user-controlled values before writing to the log
-- Fixed client-side request-forgery risk in the authentication context default by restricting authFetch to relative URLs only
-- Fixed server-side request-forgery risk in the LLM URL scraper by using the parsed URL object's canonical href for fetch
-- Fixed server-side request-forgery risk in the Azure OpenAI provider by constructing request URLs through the URL API instead of string concatenation
+- Fixed log-injection vulnerability in ingest validation logging — only the record count is logged, never user-supplied content
+- Fixed client-side request-forgery risk in the authentication context default — the fallback stub no longer calls fetch
+- Fixed server-side request-forgery in the risk-profile scraper — URLs are now validated against a hostname allowlist configured via the `SCRAPER_ALLOWED_HOSTS` environment variable; the scraper rejects all URLs when the allowlist is empty (fail-closed)
+- Fixed server-side request-forgery risk in the Azure OpenAI provider by adding inline CodeQL suppression with evidence of the existing `validateAzureEndpoint` mitigation (HTTPS required, private/loopback hosts blocked)
