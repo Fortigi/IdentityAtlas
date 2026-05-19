@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { getUserColumns as getUserCols, getGroupColumns as getGroupCols, getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getUserColumnValues, getPrincipalOrUserColumnValues, getGroupColumnValues, getResourceColumnValues, FILTERABLE_TYPES } from '../db/columnCache.js';
+import { getGroupColumns as getGroupCols, getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getGroupColumnValues, getResourceColumnValues } from '../db/columnCache.js';
 import { getOrCreateTagRoot } from '../bootstrap.js';
 import { recalcMemberCountsForChain } from '../contexts/memberCounts.js';
 

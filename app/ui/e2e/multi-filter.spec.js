@@ -2,7 +2,6 @@
 import { test, expect } from '@playwright/test';
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
-const API = `${BASE}/api`;
 
 test.describe('Multi-filter combinations', () => {
   test('resources page: search narrows results', async ({ page }) => {

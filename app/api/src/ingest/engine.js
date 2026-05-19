@@ -16,7 +16,6 @@
 //   - All identifiers are camelCase double-quoted to match the v4 column
 //     names exactly. This minimises the route changes needed for v5.
 
-import { from as copyFrom } from 'pg-copy-streams';
 import crypto from 'crypto';
 import * as db from '../db/connection.js';
 
@@ -80,21 +79,6 @@ function encodeCopyValue(val, dataType) {
 
 function escapeCopyText(s) {
   return s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-}
-
-function buildCopyRow(record, activeColumns) {
-  const fields = activeColumns.map(col => {
-    let val = record[col.name];
-    // Auto-generate a UUID for columns with gen_random_uuid() default when
-    // the caller doesn't supply one. Without this, the COPY writes NULL which
-    // overrides the column DEFAULT — postgres only applies defaults for
-    // missing columns, not for explicit NULLs.
-    if ((val === null || val === undefined) && col.hasUuidDefault) {
-      val = crypto.randomUUID();
-    }
-    return encodeCopyValue(val, col.sqlTypeName);
-  });
-  return fields.join('\t') + '\n';
 }
 
 /**
