@@ -1,5 +1,0 @@
-- Fixed log injection in context plugin dry-run and ingest routes by sanitising user-controlled values before logging
-- Fixed remote property injection in ingest normalisation by iterating the trusted column set instead of request-supplied keys
-- Hardened CORS configuration: replaced permissive wildcard origin with an explicit localhost allowlist for development; production defaults to same-origin only
-- Added rate limiting to the SPA HTML fallback route
-- Added tenant ID format validation in MSAL AuthGate to prevent client-side request forgery via a crafted server config response
