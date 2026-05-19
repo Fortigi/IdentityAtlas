@@ -24,9 +24,8 @@ const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0.3;
 
 // Allowlist: Azure OpenAI endpoints must match the official hostname pattern.
-// Covers Azure Public (*.openai.azure.com) only — sovereign clouds (*.openai.azure.us,
-// *.openai.azure.cn) use a different suffix and are not currently supported.
-const AZURE_OPENAI_HOST_RE = /^[a-z0-9-]+\.openai\.azure\.com$/i;
+// Covers Azure Public (.com), US Government (.us), and China (.cn) clouds.
+const AZURE_OPENAI_HOST_RE = /^[a-z0-9-]+\.openai\.azure\.(com|us|cn)$/i;
 
 function validateAzureEndpoint(endpoint) {
   if (!endpoint || typeof endpoint !== 'string') throw new Error('azure-openai: endpoint is required');
@@ -36,7 +35,7 @@ function validateAzureEndpoint(endpoint) {
   if (parsed.username || parsed.password) throw new Error('azure-openai: endpoint must not include credentials');
   if (parsed.port) throw new Error('azure-openai: endpoint must not include an explicit port');
   if (parsed.search || parsed.hash) throw new Error('azure-openai: endpoint must not include query string or fragment');
-  if (!AZURE_OPENAI_HOST_RE.test(parsed.hostname)) throw new Error('azure-openai: endpoint must be an Azure OpenAI host (*.openai.azure.com)');
+  if (!AZURE_OPENAI_HOST_RE.test(parsed.hostname)) throw new Error('azure-openai: endpoint must be an Azure OpenAI host (*.openai.azure.com / .us / .cn)');
   return parsed;
 }
 
