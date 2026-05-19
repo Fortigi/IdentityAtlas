@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 
@@ -51,7 +51,7 @@ function StepIndicator({ steps, step, onStepClick, allowAll }) {
             ) : (
               <div className="flex items-center gap-2">{content}</div>
             )}
-            {i < arr.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
+            {i < arr.length - 1 && <span className="text-gray-500 dark:text-gray-600">→</span>}
           </div>
         );
       })}
@@ -177,7 +177,7 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
       </div>
       <div className="max-h-72 overflow-y-auto border border-gray-200 rounded bg-white dark:border-gray-600 dark:bg-gray-800">
         {visible.length === 0 ? (
-          <div className="text-xs text-gray-400 italic p-2 dark:text-gray-500">No attributes match filter</div>
+          <div className="text-xs text-gray-600 italic p-2 dark:text-gray-500">No attributes match filter</div>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
             {visible.map(attr => {
@@ -199,7 +199,7 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
           </div>
         )}
       </div>
-      <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">
+      <p className="text-xs text-gray-600 mt-1 dark:text-gray-500">
         <span className="text-indigo-500 dark:text-indigo-400">core</span> = always synced.
         Extras go into the extendedAttributes JSON column.
       </p>
@@ -561,8 +561,8 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
             <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
               {Object.entries(validation.permissions || {}).sort(([a], [b]) => a.localeCompare(b)).map(([perm, granted]) => (
                 <div key={perm} className="flex items-center gap-2 text-sm py-1">
-                  <span className={granted ? 'text-green-600 dark:text-green-400' : 'text-red-400 dark:text-red-400'}>{granted ? '✓' : '✗'}</span>
-                  <span className={granted ? 'dark:text-gray-200' : 'text-gray-400 line-through dark:text-gray-500'}>{perm}</span>
+                  <span className={granted ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{granted ? '✓' : '✗'}</span>
+                  <span className={granted ? 'dark:text-gray-200' : 'text-gray-600 line-through dark:text-gray-500'}>{perm}</span>
                 </div>
               ))}
             </div>
@@ -643,7 +643,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
                   return (
                     <div>
                       <label className="block text-xs font-medium mb-1 dark:text-gray-300">
-                        Value{filterType && <span className="ml-1 text-gray-400 dark:text-gray-500">({filterType})</span>}
+                        Value{filterType && <span className="ml-1 text-gray-600 dark:text-gray-500">({filterType})</span>}
                       </label>
                       {isBool && idFilterCondition !== 'inValues' ? (
                         <select value={idFilterValue || 'true'} onChange={e => setIdFilterValue(e.target.value)}
@@ -899,12 +899,12 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
           <div><span className="text-gray-500 dark:text-gray-400">Tenant ID:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.tenantId || '—'}</span></div>
           <div><span className="text-gray-500 dark:text-gray-400">Client ID:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.clientId || '—'}</span></div>
-          <div><span className="text-gray-500 dark:text-gray-400">Secret:</span> <span className="text-gray-400 dark:text-gray-500">{SECRET_MASK}</span></div>
+          <div><span className="text-gray-500 dark:text-gray-400">Secret:</span> <span className="text-gray-600 dark:text-gray-500">{SECRET_MASK}</span></div>
           <div>
             <span className="text-gray-500 dark:text-gray-400">Objects:</span>{' '}
             {objectLabels.length > 0
               ? objectLabels.map(l => <span key={l} className="inline-block mr-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded dark:bg-indigo-900/30 dark:text-indigo-300">{l}</span>)
-              : <span className="text-gray-400 text-xs dark:text-gray-500">none</span>
+              : <span className="text-gray-600 text-xs dark:text-gray-500">none</span>
             }
           </div>
         </div>
@@ -1330,7 +1330,7 @@ function RecentJobs({ jobs, onForceStop }) {
                 ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" title="Full: re-fetches everything from the source, ignores any stored delta tokens.">full</span>
                 : jobSyncMode === 'delta'
                   ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700/40 dark:text-slate-300" title="Delta: fetches only what changed since the last successful run.">delta</span>
-                  : <span className="text-gray-400 text-xs">—</span>;
+                  : <span className="text-gray-600 text-xs">—</span>;
               return (
                 <tr key={j.id}>
                   <td className="p-3 font-medium dark:text-gray-200">{j.jobType}</td>

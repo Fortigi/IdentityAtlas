@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthGate';
 
 function CopyableCommand({ command }) {
@@ -92,15 +92,15 @@ export default function AuthSettingsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm bg-white/60 dark:bg-gray-800/60 rounded p-3 border border-gray-200 dark:border-gray-600">
           <div>
             <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tenant ID</div>
-            <div className="font-mono text-xs mt-0.5 break-all dark:text-gray-200">{tenantId || <span className="text-gray-400 dark:text-gray-500">— not set —</span>}</div>
+            <div className="font-mono text-xs mt-0.5 break-all dark:text-gray-200">{tenantId || <span className="text-gray-600 dark:text-gray-500">— not set —</span>}</div>
           </div>
           <div>
             <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Client ID</div>
-            <div className="font-mono text-xs mt-0.5 break-all dark:text-gray-200">{clientId || <span className="text-gray-400 dark:text-gray-500">— not set —</span>}</div>
+            <div className="font-mono text-xs mt-0.5 break-all dark:text-gray-200">{clientId || <span className="text-gray-600 dark:text-gray-500">— not set —</span>}</div>
           </div>
           <div>
             <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Required roles</div>
-            <div className="text-xs mt-0.5 dark:text-gray-200">{requiredRoles.length ? requiredRoles.join(', ') : <span className="text-gray-400 dark:text-gray-500">— any signed-in user —</span>}</div>
+            <div className="text-xs mt-0.5 dark:text-gray-200">{requiredRoles.length ? requiredRoles.join(', ') : <span className="text-gray-600 dark:text-gray-500">— any signed-in user —</span>}</div>
           </div>
         </div>
 

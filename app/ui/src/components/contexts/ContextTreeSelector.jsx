@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 
 function renderMemberCounts(n) {
@@ -6,9 +6,9 @@ function renderMemberCounts(n) {
   const t = typeof n.totalMemberCount  === 'number' ? n.totalMemberCount  : null;
   if (d == null && t == null) return null;
   if (t != null && d != null && t > d) {
-    return <span className="text-[10px] text-gray-400 dark:text-gray-500">· {d}/{t}</span>;
+    return <span className="text-[10px] text-gray-600 dark:text-gray-500">· {d}/{t}</span>;
   }
-  return <span className="text-[10px] text-gray-400 dark:text-gray-500">· {d ?? t}</span>;
+  return <span className="text-[10px] text-gray-600 dark:text-gray-500">· {d ?? t}</span>;
 }
 
 // Left pane of the Contexts tab. Lists every root context. Grouped by
@@ -98,7 +98,7 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
         {groups.map(([group, items]) => (
           <div key={group} className="mb-2">
             <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50 border-y border-gray-100 dark:border-gray-700">
-              {group} <span className="text-gray-400 dark:text-gray-500">· {items.length}</span>
+              {group} <span className="text-gray-600 dark:text-gray-500">· {items.length}</span>
             </div>
             <ul>
               {items.map(n => {

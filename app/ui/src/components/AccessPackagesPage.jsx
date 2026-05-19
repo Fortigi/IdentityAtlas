@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { TAG_COLORS } from '../utils/colors';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -454,7 +454,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                       {sortCol === col.key ? (
                         <span className="text-blue-600 text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>
                       ) : (
-                        <span className="text-gray-300 dark:text-gray-500 text-[10px]">{'▴'}</span>
+                        <span className="text-gray-500 dark:text-gray-500 text-[10px]">{'▴'}</span>
                       )}
                     </span>
                   </th>
@@ -468,7 +468,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                     {sortCol === 'category' ? (
                       <span className="text-blue-600 text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>
                     ) : (
-                      <span className="text-gray-300 dark:text-gray-500 text-[10px]">{'▴'}</span>
+                      <span className="text-gray-500 dark:text-gray-500 text-[10px]">{'▴'}</span>
                     )}
                   </span>
                 </th>
@@ -526,7 +526,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                         </span>
                         {ap.reviewerInfo && (ap.complianceStatus === 'Missed' || ap.complianceStatus === 'In Progress') && (
                           <div className="mt-0.5 text-gray-500 dark:text-gray-400 text-[11px] leading-tight" title={`Reviewer: ${ap.reviewerInfo}`}>
-                            <span className="text-gray-400 dark:text-gray-500">Reviewer: </span>{ap.reviewerInfo}
+                            <span className="text-gray-600 dark:text-gray-500">Reviewer: </span>{ap.reviewerInfo}
                           </div>
                         )}
                         {ap.missedReviewsCount > 0 && (
@@ -540,7 +540,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                       </div>
                     ) : ap.totalAssignments === 0 ? (
                       <span
-                        className="text-gray-400 dark:text-gray-500 text-xs"
+                        className="text-gray-600 dark:text-gray-500 text-xs"
                         title={ap.hasReviewConfigured
                           ? 'Review is configured but there are no active assignments — nothing to review'
                           : 'No active assignments'}
@@ -557,7 +557,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                         </span>
                         {ap.reviewerInfo && (
                           <div className="mt-0.5 text-gray-500 dark:text-gray-400 text-[11px] leading-tight" title={`Reviewer: ${ap.reviewerInfo}`}>
-                            <span className="text-gray-400 dark:text-gray-500">Reviewer: </span>{ap.reviewerInfo}
+                            <span className="text-gray-600 dark:text-gray-500">Reviewer: </span>{ap.reviewerInfo}
                           </div>
                         )}
                         {ap.missedReviewsCount > 0 && (
@@ -571,7 +571,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                       </div>
                     ) : (
                       <span
-                        className="text-gray-400 dark:text-gray-500 text-xs"
+                        className="text-gray-600 dark:text-gray-500 text-xs"
                         title="No certification is configured on any assignment policy for this business role"
                       >
                         Not required
@@ -579,7 +579,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                     )}
                   </td>
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">
-                    {ap.lastReviewDate ? formatDate(ap.lastReviewDate) : <span className="text-gray-300 dark:text-gray-500">-</span>}
+                    {ap.lastReviewDate ? formatDate(ap.lastReviewDate) : <span className="text-gray-500 dark:text-gray-500">-</span>}
                   </td>
                   <td className="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs">
                     {ap.lastReviewedBy ? (
@@ -595,7 +595,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                         ap.lastReviewedBy
                       )
                     ) : (
-                      <span className="text-gray-300 dark:text-gray-500">-</span>
+                      <span className="text-gray-500 dark:text-gray-500">-</span>
                     )}
                   </td>
                   <td className="px-3 py-2" onClick={e => e.stopPropagation()}>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 
 // Recursive tree renderer. Each node is a rounded pill with a variant-colored
@@ -55,7 +55,7 @@ function TreeNode({ node, depth, isLast, onOpenDetail }) {
           <button
             aria-expanded={expanded}
             onClick={() => setExpanded(prev => !prev)}
-            className="w-5 h-5 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded shrink-0"
+            className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded shrink-0"
             title={expanded ? 'Collapse' : 'Expand'}
           >
             {expanded ? '▾' : '▸'}
@@ -105,10 +105,10 @@ function MemberCount({ direct, total }) {
   const t = total  || 0;
   if (t > d) {
     return (
-      <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap shrink-0">
+      <span className="text-[11px] text-gray-600 dark:text-gray-500 whitespace-nowrap shrink-0">
         {d} · <span className="text-gray-600 dark:text-gray-400 dark:text-gray-500">{t}</span>
       </span>
     );
   }
-  return <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap shrink-0">{d}</span>;
+  return <span className="text-[11px] text-gray-600 dark:text-gray-500 whitespace-nowrap shrink-0">{d}</span>;
 }

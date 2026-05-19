@@ -1,4 +1,4 @@
-// Identity Atlas v5 — Risk Profile wizard.
+﻿// Identity Atlas v5 — Risk Profile wizard.
 //
 // Multi-step UX for creating a risk profile + classifiers + (optionally) running
 // a scoring pass. Lives behind the "New Risk Profile" button on the Risk Scoring
@@ -316,10 +316,10 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
       {/* Step indicator */}
       <div className="flex items-center gap-2 px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-xs">
         {STEPS.map((s, i) => (
-          <div key={s.key} className={`flex items-center gap-2 ${i === stepIdx ? 'font-semibold text-indigo-700 dark:text-indigo-400' : i < stepIdx ? 'text-green-700 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}>
+          <div key={s.key} className={`flex items-center gap-2 ${i === stepIdx ? 'font-semibold text-indigo-700 dark:text-indigo-400' : i < stepIdx ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-500'}`}>
             <span className={`inline-flex w-5 h-5 rounded-full items-center justify-center text-[10px] ${i === stepIdx ? 'bg-indigo-600 text-white' : i < stepIdx ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-gray-600'}`}>{i + 1}</span>
             <span>{s.label}</span>
-            {i < STEPS.length - 1 && <span className="text-gray-300 dark:text-gray-600 mx-1">›</span>}
+            {i < STEPS.length - 1 && <span className="text-gray-500 dark:text-gray-600 mx-1">›</span>}
           </div>
         ))}
       </div>

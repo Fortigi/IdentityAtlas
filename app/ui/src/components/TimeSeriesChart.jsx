@@ -59,7 +59,7 @@ export default function TimeSeriesChart({
   const isDark = useIsDark();
 
   const gridColor = isDark ? '#374151' : '#e5e7eb';
-  const axisColor = isDark ? '#9ca3af' : '#6b7280';
+  const axisColor = isDark ? '#9ca3af' : '#4b5563';
   const lineColor = color;
   const fillColor = color + '20';  // 12% opacity tint
 
