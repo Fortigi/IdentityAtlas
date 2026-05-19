@@ -2,10 +2,8 @@ import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { useMatrixRowOrder } from '../hooks/useMatrixRowOrder';
 import MatrixToolbar from './matrix/MatrixToolbar';
-import MatrixFilterSummary from './matrix/MatrixFilterSummary';
-import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
+import MatrixColumnHeaders, { BLANK_TAG } from './matrix/MatrixColumnHeaders';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
-import { filterHasAnyCondition } from './matrix/MatrixFilterWizard';
 
 // Inline arrayMove so MatrixView doesn't depend on @dnd-kit
 function arrayMove(arr, from, to) {
@@ -15,36 +13,48 @@ function arrayMove(arr, from, to) {
   return result;
 }
 
-// Empty state shown when the user hasn't created a matrix yet.
-function EmptyFilterState({ onAdjustFilter }) {
-  return (
-    <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
-      <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">Pick a slice to inspect</h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto mb-4">
-        The Matrix tab always operates on a defined sub-selection of subjects (users or
-        identities) and resources. Open the wizard to set up which slice to compare.
-      </p>
-      <button
-        onClick={onAdjustFilter}
-        className="px-4 py-2 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-      >
-        Create matrix
-      </button>
-    </div>
-  );
-}
+// Fields to exclude from filter (IDs, display names used as labels, not useful for filtering)
+const EXCLUDE_FIELDS = new Set(['groupId', 'resourceId', 'memberId', 'memberDisplayName', 'memberUPN', 'memberType', 'managedByAccessPackage', 'systemId', 'systemName', 'resourceDisplayName', 'groupDisplayName', 'resourceType', 'groupTypeCalculated', 'resourceDescription', 'groupDescription']);
+// Friendly labels for known fields
+const FIELD_LABELS = {
+  // User columns
+  department: 'Department',
+  jobTitle: 'Job Title',
+  companyName: 'Company',
+  accountEnabled: 'Account Enabled',
+  userType: 'User Type',
+  employeeType: 'Employee Type',
+  officeLocation: 'Office Location',
+  city: 'City',
+  country: 'Country',
+  state: 'State',
+  usageLocation: 'Usage Location',
+  mail: 'Mail',
+  manager: 'Manager',
+  onPremisesSamAccountName: 'SAM Account',
+  onPremisesSyncEnabled: 'On-Prem Sync',
+  __userTag: 'User Tag',
+  // Relationship fields
+  membershipType: 'Membership Type',
+};
 
 export default function MatrixView({
-  data, accessPackageGroups = [], managedByPackages = [],
-  filter,
-  counts,
+  data, accessPackageGroups = [], managedByPackages = [], totalUsers: serverTotalUsers,
+  userLimit, setUserLimit,
+  activeFilters, setActiveFilters,
   managedFilter, setManagedFilter,
+  filterText, setFilterText,
+  contextFilters, setContextFilters,
+  userColumns,
   groupTagMap,
   refreshing,
   shareUrl,
   onOpenDetail,
-  onAdjustFilter,
 }) {
+  const [groupTypeFilter, setGroupTypeFilter] = useState(null); // null = all, Set = selected types
+  const [groupTagFilter, setGroupTagFilter] = useState(null); // null = all, Set = selected tag names
+  const [systemNameFilter] = useState(null); // null = all, Set = selected system names
+
   // ─── Nested group expansion ─────────────────────────────────────
   const { authFetch } = useAuth();
   const [groupsWithNested, setGroupsWithNested] = useState(new Set());
@@ -85,25 +95,144 @@ export default function MatrixView({
     setExpandedGroups(prev => new Set(prev).add(groupId));
   }, [expandedGroups, nestedDataCache, authFetch]);
 
-  // Build a stable storage key from the filter (matches per-filter row order)
+  // Build a stable storage key from all active filters (sorted for consistency)
   const storageKey = useMemo(() => {
-    if (!filter) return '';
-    return JSON.stringify(filter);
-  }, [filter]);
+    if (activeFilters.length === 0) return '';
+    return activeFilters
+      .map(f => `${f.field}:${f.value}`)
+      .sort()
+      .join('|');
+  }, [activeFilters]);
 
   const rowOrderHook = useMatrixRowOrder(storageKey);
 
-  // Apply CLIENT-SIDE managed-state toggle. Subject and resource filters are
-  // already applied by the backend so the matrix data is "the right subset".
+  // Sets of column names (for knowing which filters are server-side)
+  const userColumnNames = useMemo(() => {
+    if (!userColumns) return new Set();
+    return new Set(userColumns.map(c => c.column));
+  }, [userColumns]);
+
+  // Auto-discover filterable fields from data + merge server-provided user columns.
+  // Data-derived fields appear even if not in server columns (e.g., membershipType).
+  // Server-provided columns appear even if all values are null in the current page.
+  const filterFields = useMemo(() => {
+    const fieldMap = new Map(); // key -> { key, label, dataKey }
+
+    // 1. Discover from data (current page)
+    if (data && data.length > 0) {
+      const sample = data[0];
+      for (const key of Object.keys(sample)) {
+        if (EXCLUDE_FIELDS.has(key)) continue;
+        const values = new Set();
+        for (const d of data) {
+          const val = d[key];
+          if (val != null && val !== '') values.add(String(val));
+          if (values.size > 500) break;
+        }
+        if (values.size >= 1 && values.size <= 500) {
+          fieldMap.set(key, {
+            key,
+            label: FIELD_LABELS[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim(),
+            dataKey: key,
+          });
+        }
+      }
+    }
+
+    // 2. Add server-provided user columns that aren't already discovered
+    if (userColumns) {
+      for (const col of userColumns) {
+        if (EXCLUDE_FIELDS.has(col.column)) continue;
+        if (!fieldMap.has(col.column) && col.values && col.values.length > 0) {
+          fieldMap.set(col.column, {
+            key: col.column,
+            label: FIELD_LABELS[col.column] || col.column.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim(),
+            dataKey: col.column,
+          });
+        }
+      }
+    }
+
+    return [...fieldMap.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [data, userColumns]);
+
+  // User filter fields = columns known to the server from GraphUsers table + __userTag.
+  // __userTag is always included when the backend supports it, even if no tags exist yet
+  // (col.values.length > 0 guard in filterFields step 2 would otherwise drop it).
+  const userFilterFields = useMemo(() => {
+    const fields = filterFields.filter(f => userColumnNames.has(f.key));
+    if (userColumnNames.has('__userTag') && !fields.some(f => f.key === '__userTag')) {
+      fields.push({ key: '__userTag', label: 'User Tag', dataKey: '__userTag' });
+    }
+    return fields;
+  }, [filterFields, userColumnNames]);
+
+  // Get available values for a specific field.
+  // Server-provided columns: use server values (full dataset, not just current page).
+  // Other fields: derive from loaded data with cross-filter logic.
+  const getOptionsForField = useCallback((fieldKey) => {
+    // For user columns, return server-provided values (from full dataset)
+    if (userColumns) {
+      const serverCol = userColumns.find(c => c.column === fieldKey);
+      if (serverCol && serverCol.values && serverCol.values.length > 0) {
+        return serverCol.values;
+      }
+    }
+    // For non-server columns (membershipType, etc.), derive from loaded data
+    const field = filterFields.find(f => f.key === fieldKey);
+    if (!field) return [];
+    // Apply all OTHER active filters first to show contextual values
+    let filtered = data;
+    for (const af of activeFilters) {
+      if (af.field === fieldKey) continue;
+      const f = filterFields.find(ff => ff.key === af.field);
+      if (f) {
+        filtered = filtered.filter(d => String(d[f.dataKey] ?? '') === af.value);
+      }
+    }
+    const values = new Set();
+    filtered.forEach(d => {
+      const val = d[field.dataKey];
+      if (val != null && val !== '') values.add(String(val));
+    });
+    return [...values].sort();
+  }, [data, activeFilters, filterFields, userColumns]);
+
+  const addFilter = useCallback((field, value) => {
+    setActiveFilters(prev => [...prev.filter(f => f.field !== field), { field, value }]);
+  }, [setActiveFilters]);
+
+  const removeFilter = useCallback((field) => {
+    setActiveFilters(prev => prev.filter(f => f.field !== field));
+  }, [setActiveFilters]);
+
+  // Apply CLIENT-SIDE filters only (server-side user & group attribute filters already applied by backend).
+  // Client-side: text search, managed toggle, non-server-column structured filters (e.g., membershipType).
   const filteredData = useMemo(() => {
     let result = data;
+    // Only apply non-server filters client-side
+    for (const af of activeFilters) {
+      if (userColumnNames.has(af.field)) continue; // already applied server-side
+      const field = filterFields.find(f => f.key === af.field);
+      if (field) {
+        result = result.filter(d => String(d[field.dataKey] ?? '') === af.value);
+      }
+    }
+    if (filterText) {
+      const lower = filterText.toLowerCase();
+      result = result.filter(d =>
+        (d.memberDisplayName || '').toLowerCase().includes(lower) ||
+        (d.resourceDisplayName || d.groupDisplayName || '').toLowerCase().includes(lower) ||
+        (d.memberUPN || '').toLowerCase().includes(lower)
+      );
+    }
     if (managedFilter === 'managed') {
       result = result.filter(d => !!d.managedByAccessPackage);
     } else if (managedFilter === 'unmanaged') {
       result = result.filter(d => !d.managedByAccessPackage);
     }
     return result;
-  }, [data, managedFilter]);
+  }, [data, activeFilters, filterFields, filterText, managedFilter, userColumnNames]);
 
   // Build matrix data structures
   // Owner memberships are split into separate synthetic rows (id: "groupId__owner",
@@ -308,6 +437,39 @@ export default function MatrixView({
     return map;
   }, [accessPackages]);
 
+  // Unique group types for filter dropdown
+  const uniqueGroupTypes = useMemo(() => {
+    const types = new Set();
+    groups.forEach(g => { if (g.groupType) types.add(g.groupType); });
+    return [...types].sort();
+  }, [groups]);
+
+
+  // Unique group tags for filter dropdown (derived from groups which already have tags attached)
+  const uniqueGroupTags = useMemo(() => {
+    const tagMap = new Map(); // name -> { name, color }
+    groups.forEach(g => {
+      (g.tags || []).forEach(t => {
+        if (!tagMap.has(t.name)) tagMap.set(t.name, { name: t.name, color: t.color });
+      });
+    });
+    return [...tagMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [groups]);
+
+  const hasGroupsWithoutTags = useMemo(() => groups.some(g => !g.tags || g.tags.length === 0), [groups]);
+
+  // Default: exclude Distribution and Dynamic group types (user can change)
+  const groupTypeDefaultsApplied = useRef(false);
+  useEffect(() => {
+    if (groupTypeDefaultsApplied.current || uniqueGroupTypes.length === 0) return;
+    groupTypeDefaultsApplied.current = true;
+    const excluded = /distribution|dynamic/i;
+    const defaults = new Set(uniqueGroupTypes.filter(t => !excluded.test(t)));
+    if (defaults.size > 0 && defaults.size < uniqueGroupTypes.length) {
+      setGroupTypeFilter(defaults);
+    }
+  }, [uniqueGroupTypes]);
+
   // Default sort: AP staircase pattern.
   // All groups in the leftmost AP first, then next AP, etc. Unmanaged at the bottom.
   const apSortedGroups = useMemo(() => {
@@ -349,12 +511,25 @@ export default function MatrixView({
     });
   }, [groups, accessPackages, apGroupMap]);
 
-  // Apply custom drag-row order on top of the default AP staircase sort. All
-  // subject/resource selection happens through the filter wizard, so there
-  // are no per-column filters to apply here any more.
+  // Apply custom row order (drag), then filter by group type, tags, and system
   const orderedGroups = useMemo(() => {
-    return rowOrderHook.getOrderedGroups(apSortedGroups);
-  }, [apSortedGroups, rowOrderHook.getOrderedGroups]);
+    let result = rowOrderHook.getOrderedGroups(apSortedGroups);
+    if (groupTypeFilter && groupTypeFilter.size > 0) {
+      result = result.filter(g => groupTypeFilter.has(g.groupType));
+    }
+    if (groupTagFilter && groupTagFilter.size > 0) {
+      const wantBlank = groupTagFilter.has(BLANK_TAG);
+      result = result.filter(g => {
+        const tags = g.tags || [];
+        if (tags.length === 0) return wantBlank;
+        return tags.some(t => groupTagFilter.has(t.name));
+      });
+    }
+    if (systemNameFilter && systemNameFilter.size > 0) {
+      result = result.filter(g => systemNameFilter.has(g.systemName));
+    }
+    return result;
+  }, [apSortedGroups, rowOrderHook.getOrderedGroups, groupTypeFilter, groupTagFilter, systemNameFilter]);
 
   const groupIds = useMemo(() => orderedGroups.map(g => g.id), [orderedGroups]);
 
@@ -547,13 +722,13 @@ export default function MatrixView({
       memberships,
       managedApMap,
       apIdToIndex,
-      activeFilters: [],
-      filterFields: [],
+      activeFilters,
+      filterFields,
       accessPackages,
       apGroupMap,
       shareUrl,
     });
-  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl]);
+  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, activeFilters, filterFields, accessPackages, apGroupMap, shareUrl]);
 
   // Share: copy URL to clipboard
   const handleShare = useCallback(async () => {
@@ -565,6 +740,13 @@ export default function MatrixView({
     }
   }, [shareUrl]);
 
+  const stats = {
+    users: users.length,
+    totalUsers: serverTotalUsers,
+    groups: orderedGroups.length,
+    memberships: memberships.size,
+  };
+
   // Number of info columns on the left (drag handle + resource name + type)
   const infoColumnCount = 3;
 
@@ -575,6 +757,13 @@ export default function MatrixView({
       infoColumnCount={infoColumnCount}
       onSortByCount={handleSortByCount}
       accessPackages={accessPackages}
+      uniqueGroupTypes={uniqueGroupTypes}
+      groupTypeFilter={groupTypeFilter}
+      onGroupTypeFilterChange={setGroupTypeFilter}
+      uniqueGroupTags={uniqueGroupTags}
+      groupTagFilter={groupTagFilter}
+      onGroupTagFilterChange={setGroupTagFilter}
+      hasGroupsWithoutTags={hasGroupsWithoutTags}
       onOpenDetail={onOpenDetail}
     />
   );
@@ -582,36 +771,39 @@ export default function MatrixView({
   // Ref for the scroll container (needed by virtualizer)
   const scrollRef = useRef(null);
 
-  const filterIsApplied = filterHasAnyCondition(filter);
-
   return (
     <div className="flex flex-col gap-3">
-      {filterIsApplied && (
-        <MatrixFilterSummary
-          filter={filter}
-          preview={counts}
-          onAdjust={onAdjustFilter}
-        />
-      )}
-
       <MatrixToolbar
+        filterFields={filterFields}
+        userFilterFields={userFilterFields}
+        activeFilters={activeFilters}
+        getOptionsForField={getOptionsForField}
+        onAddFilter={addFilter}
+        onRemoveFilter={removeFilter}
+        filterText={filterText}
+        setFilterText={setFilterText}
+        contextFilters={contextFilters}
+        setContextFilters={setContextFilters}
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
+        userLimit={userLimit}
+        setUserLimit={setUserLimit}
         onExportExcel={handleExportExcel}
         onShare={handleShare}
         onResetRowOrder={rowOrderHook.resetOrder}
         hasCustomRowOrder={rowOrderHook.hasCustomOrder}
+        stats={stats}
         hasExpandableGroups={groupsWithNested.size > 0}
         hasExpandedGroups={expandedGroups.size > 0}
         onExpandAll={expandAll}
         onCollapseAll={collapseAll}
       />
 
-      {!filterIsApplied ? (
-        <EmptyFilterState onAdjustFilter={onAdjustFilter} />
-      ) : users.length === 0 || orderedGroups.length === 0 ? (
+      {users.length === 0 || orderedGroups.length === 0 ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">
-          No assignments match the current filter. Adjust the subjects or resources to widen the view.
+          {activeFilters.length > 0
+            ? 'No data found for the current filters. Try removing some filters.'
+            : 'No permission data available. Add a filter to narrow down the view.'}
         </div>
       ) : (
         <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto max-h-[calc(100vh-280px)]">
