@@ -1,0 +1,1 @@
+- Fixed matrix view crash ("Something went wrong / Cannot read properties of undefined") caused by a bad rebase conflict resolution in the CodeQL fixes PR (#148) that accidentally reverted the MatrixView.jsx wizard refactor from PR #147
