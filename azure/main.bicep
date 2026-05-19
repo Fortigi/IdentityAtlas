@@ -44,17 +44,23 @@ param imageChannel string = 'stable'
 param existingLogAnalyticsWorkspaceId string = ''
 
 // ─── Entra ID authentication ─────────────────────────────────────────────
-// Defaults to ON. The deployment is internet-exposed, so an open default
-// would be unsafe. Set enableEntraAuth=false ONLY for short-lived demos or
-// CI tests; never for anything that lives past a day.
+// Auth state is derived from whether both IDs are filled in. There's no
+// separate enable/disable toggle — you can't have auth "on" without these,
+// and filling them in is the explicit signal that you want auth on.
+//
+// First-deploy pattern: leave both fields BLANK to claim the hostname in
+// OPEN mode (no auth — the yellow banner shows). Once the hostname is
+// confirmed, register the app in Entra with that hostname as the SPA
+// redirect URI, then re-run the same deploy with the tenant + client IDs
+// filled in to switch auth on.
+//
+// See docs/architecture/azure-deployment-walkthrough.md for the two-pass
+// procedure.
 
-@description('Turn on Entra ID single sign-on. Default = TRUE. When TRUE, entraTenantId and entraClientId must both be provided — the deployment fails otherwise. Set to FALSE only for short-lived demos.')
-param enableEntraAuth bool = true
-
-@description('Entra ID tenant (directory) GUID. Required when enableEntraAuth=true. Find it under Entra ID → Overview → Tenant ID.')
+@description('Entra ID tenant (directory) GUID. Leave BLANK for the first deploy (claims the hostname in OPEN mode). Fill it in on the second deploy to turn auth ON. Find it under Entra ID → Overview → Tenant ID.')
 param entraTenantId string = ''
 
-@description('Entra ID App Registration (client) GUID. Required when enableEntraAuth=true. Create the App Registration BEFORE deploying — add a Single-Page Application redirect URI of https://<namePrefix>-web.azurewebsites.net so users can sign in.')
+@description('Entra ID App Registration (client) GUID. Leave BLANK for the first deploy. Fill it in on the second deploy together with entraTenantId. Create the App Registration after the first deploy succeeds — its SPA redirect URI must be https://<namePrefix>-web.azurewebsites.net.')
 param entraClientId string = ''
 
 // ─── Size profile → SKUs ─────────────────────────────────────────────────
@@ -111,6 +117,11 @@ var location = resourceGroup().location
 var _imageTag = imageChannel == 'stable' ? 'latest' : 'edge'
 var webImage = 'ghcr.io/fortigi/identity-atlas:${_imageTag}'
 var workerImage = 'ghcr.io/fortigi/identity-atlas-worker:${_imageTag}'
+
+// Auth is ON when both IDs are filled in. Either both empty (Pass 1, OPEN
+// mode) or both populated (Pass 2, auth ON) — the bootstrap script rejects
+// the half-filled case.
+var enableEntraAuth = !empty(entraTenantId) && !empty(entraClientId)
 
 // Postgres admin password. Deterministic — same RG + name prefix always
 // produces the same value, so re-deploys don't rotate the password. Meets
@@ -174,7 +185,6 @@ module bootstrap 'modules/bootstrap.bicep' = {
     identityId: identities.outputs.deployScriptIdentityId
     keyVaultName: kv.outputs.kvName
     pgPasswordToStore: pgPassword
-    enableEntraAuth: enableEntraAuth
     entraTenantId: entraTenantId
     entraClientId: entraClientId
   }

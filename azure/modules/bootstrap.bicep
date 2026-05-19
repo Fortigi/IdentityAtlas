@@ -24,13 +24,10 @@ param pgPasswordToStore string
 @description('Force re-run of the script on each deployment. Default = utcNow(), so a fresh deploy always re-evaluates the secrets-exist check.')
 param forceUpdateTag string = utcNow()
 
-@description('Whether Entra ID auth is being requested. If true, entraTenantId and entraClientId must both be non-empty — this script fails the deploy otherwise.')
-param enableEntraAuth bool
-
-@description('Entra ID tenant GUID — validated by this script when enableEntraAuth=true.')
+@description('Entra ID tenant GUID. Pair with entraClientId; both empty = first-pass OPEN deploy, both filled = auth ON. The validation script in this module rejects the half-filled case.')
 param entraTenantId string
 
-@description('Entra ID App Registration (client) GUID — validated by this script when enableEntraAuth=true.')
+@description('Entra ID App Registration (client) GUID. Pair with entraTenantId.')
 param entraClientId string
 
 resource script 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
@@ -54,8 +51,7 @@ resource script 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       // Secure environment variables travel as deployment secrets — not in
       // logs, not in deployment history.
       { name: 'PG_PASS_TO_STORE', secureValue: pgPasswordToStore }
-      // Auth config — used by the validation block below.
-      { name: 'ENABLE_AUTH', value: enableEntraAuth ? 'true' : 'false' }
+      // Auth config — the validation block below derives state from these.
       { name: 'AUTH_TENANT_ID', value: entraTenantId }
       { name: 'AUTH_CLIENT_ID', value: entraClientId }
     ]
@@ -63,19 +59,18 @@ resource script 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
 set -euo pipefail
 
 echo "==> Validating Entra ID auth configuration"
-if [ "$ENABLE_AUTH" = "true" ]; then
-  if [ -z "$AUTH_TENANT_ID" ] || [ -z "$AUTH_CLIENT_ID" ]; then
-    echo ""
-    echo "ERROR: enableEntraAuth=true but entraTenantId and/or entraClientId are empty."
-    echo "       Either fill both in (recommended — App Reg + redirect URI must exist first),"
-    echo "       or set enableEntraAuth=false to deploy in OPEN mode (anyone with the URL"
-    echo "       can access the app)."
-    echo ""
-    exit 1
-  fi
-  echo "    auth config OK — tenant=$AUTH_TENANT_ID client=$AUTH_CLIENT_ID"
+if [ -n "$AUTH_TENANT_ID" ] && [ -n "$AUTH_CLIENT_ID" ]; then
+  echo "    auth ON — tenant=$AUTH_TENANT_ID client=$AUTH_CLIENT_ID"
+elif [ -z "$AUTH_TENANT_ID" ] && [ -z "$AUTH_CLIENT_ID" ]; then
+  echo "    auth OFF — first-pass deploy in OPEN mode (no Entra IDs provided)."
+  echo "    The app will be reachable by anyone with the URL until you re-deploy"
+  echo "    with entraTenantId and entraClientId filled in."
 else
-  echo "    auth DISABLED — the app will be reachable by anyone with the URL"
+  echo ""
+  echo "ERROR: entraTenantId and entraClientId must be EITHER both empty (first"
+  echo "       pass / OPEN mode) OR both filled in (auth ON). Got one of each."
+  echo ""
+  exit 1
 fi
 
 echo "==> Generating master key (if absent)"

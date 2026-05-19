@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "15557153450355934607"
+      "templateHash": "10861780967906544528"
     }
   },
   "parameters": {
@@ -50,25 +50,18 @@
         "description": "Optional: existing Log Analytics workspace resource ID to forward logs to. Leave empty to create a new workspace (~€3/mo). The deployer needs Log Analytics Reader on the workspace."
       }
     },
-    "enableEntraAuth": {
-      "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Turn on Entra ID single sign-on. Default = TRUE. When TRUE, entraTenantId and entraClientId must both be provided — the deployment fails otherwise. Set to FALSE only for short-lived demos."
-      }
-    },
     "entraTenantId": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Entra ID tenant (directory) GUID. Required when enableEntraAuth=true. Find it under Entra ID → Overview → Tenant ID."
+        "description": "Entra ID tenant (directory) GUID. Leave BLANK for the first deploy (claims the hostname in OPEN mode). Fill it in on the second deploy to turn auth ON. Find it under Entra ID → Overview → Tenant ID."
       }
     },
     "entraClientId": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Entra ID App Registration (client) GUID. Required when enableEntraAuth=true. Create the App Registration BEFORE deploying — add a Single-Page Application redirect URI of https://<namePrefix>-web.azurewebsites.net so users can sign in."
+        "description": "Entra ID App Registration (client) GUID. Leave BLANK for the first deploy. Fill it in on the second deploy together with entraTenantId. Create the App Registration after the first deploy succeeds — its SPA redirect URI must be https://<namePrefix>-web.azurewebsites.net."
       }
     }
   },
@@ -120,6 +113,7 @@
     "_imageTag": "[if(equals(parameters('imageChannel'), 'stable'), 'latest', 'edge')]",
     "webImage": "[format('ghcr.io/fortigi/identity-atlas:{0}', variables('_imageTag'))]",
     "workerImage": "[format('ghcr.io/fortigi/identity-atlas-worker:{0}', variables('_imageTag'))]",
+    "enableEntraAuth": "[and(not(empty(parameters('entraTenantId'))), not(empty(parameters('entraClientId'))))]",
     "pgPassword": "[format('{0}!Aa1{1}', uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-base'), take(uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-x'), 4))]",
     "kvName": "[take(format('{0}-kv-{1}', parameters('namePrefix'), uniqueString(resourceGroup().id)), 24)]"
   },
@@ -565,9 +559,6 @@
           "pgPasswordToStore": {
             "value": "[variables('pgPassword')]"
           },
-          "enableEntraAuth": {
-            "value": "[parameters('enableEntraAuth')]"
-          },
           "entraTenantId": {
             "value": "[parameters('entraTenantId')]"
           },
@@ -582,7 +573,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "757010953083502869"
+              "templateHash": "5501618965255661374"
             }
           },
           "parameters": {
@@ -623,22 +614,16 @@
                 "description": "Force re-run of the script on each deployment. Default = utcNow(), so a fresh deploy always re-evaluates the secrets-exist check."
               }
             },
-            "enableEntraAuth": {
-              "type": "bool",
-              "metadata": {
-                "description": "Whether Entra ID auth is being requested. If true, entraTenantId and entraClientId must both be non-empty — this script fails the deploy otherwise."
-              }
-            },
             "entraTenantId": {
               "type": "string",
               "metadata": {
-                "description": "Entra ID tenant GUID — validated by this script when enableEntraAuth=true."
+                "description": "Entra ID tenant GUID. Pair with entraClientId; both empty = first-pass OPEN deploy, both filled = auth ON. The validation script in this module rejects the half-filled case."
               }
             },
             "entraClientId": {
               "type": "string",
               "metadata": {
-                "description": "Entra ID App Registration (client) GUID — validated by this script when enableEntraAuth=true."
+                "description": "Entra ID App Registration (client) GUID. Pair with entraTenantId."
               }
             }
           },
@@ -671,10 +656,6 @@
                     "secureValue": "[parameters('pgPasswordToStore')]"
                   },
                   {
-                    "name": "ENABLE_AUTH",
-                    "value": "[if(parameters('enableEntraAuth'), 'true', 'false')]"
-                  },
-                  {
                     "name": "AUTH_TENANT_ID",
                     "value": "[parameters('entraTenantId')]"
                   },
@@ -683,7 +664,7 @@
                     "value": "[parameters('entraClientId')]"
                   }
                 ],
-                "scriptContent": "set -euo pipefail\n\necho \"==> Validating Entra ID auth configuration\"\nif [ \"$ENABLE_AUTH\" = \"true\" ]; then\n  if [ -z \"$AUTH_TENANT_ID\" ] || [ -z \"$AUTH_CLIENT_ID\" ]; then\n    echo \"\"\n    echo \"ERROR: enableEntraAuth=true but entraTenantId and/or entraClientId are empty.\"\n    echo \"       Either fill both in (recommended — App Reg + redirect URI must exist first),\"\n    echo \"       or set enableEntraAuth=false to deploy in OPEN mode (anyone with the URL\"\n    echo \"       can access the app).\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    auth config OK — tenant=$AUTH_TENANT_ID client=$AUTH_CLIENT_ID\"\nelse\n  echo \"    auth DISABLED — the app will be reachable by anyone with the URL\"\nfi\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\necho \"==> Storing postgres admin password (always overwrites — same value passed to the Postgres module by main.bicep)\"\naz keyvault secret set \\\n  --vault-name \"$KV_NAME\" \\\n  --name postgres-admin-password \\\n  --value \"$PG_PASS_TO_STORE\" \\\n  --output none\necho \"    wrote postgres-admin-password\"\n\necho \"==> Done\"\n"
+                "scriptContent": "set -euo pipefail\n\necho \"==> Validating Entra ID auth configuration\"\nif [ -n \"$AUTH_TENANT_ID\" ] && [ -n \"$AUTH_CLIENT_ID\" ]; then\n  echo \"    auth ON — tenant=$AUTH_TENANT_ID client=$AUTH_CLIENT_ID\"\nelif [ -z \"$AUTH_TENANT_ID\" ] && [ -z \"$AUTH_CLIENT_ID\" ]; then\n  echo \"    auth OFF — first-pass deploy in OPEN mode (no Entra IDs provided).\"\n  echo \"    The app will be reachable by anyone with the URL until you re-deploy\"\n  echo \"    with entraTenantId and entraClientId filled in.\"\nelse\n  echo \"\"\n  echo \"ERROR: entraTenantId and entraClientId must be EITHER both empty (first\"\n  echo \"       pass / OPEN mode) OR both filled in (auth ON). Got one of each.\"\n  echo \"\"\n  exit 1\nfi\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\necho \"==> Storing postgres admin password (always overwrites — same value passed to the Postgres module by main.bicep)\"\naz keyvault secret set \\\n  --vault-name \"$KV_NAME\" \\\n  --name postgres-admin-password \\\n  --value \"$PG_PASS_TO_STORE\" \\\n  --output none\necho \"    wrote postgres-admin-password\"\n\necho \"==> Done\"\n"
               }
             }
           ]
@@ -951,7 +932,7 @@
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.workspaceId.value]"
           },
           "enableEntraAuth": {
-            "value": "[parameters('enableEntraAuth')]"
+            "value": "[variables('enableEntraAuth')]"
           },
           "entraTenantId": {
             "value": "[parameters('entraTenantId')]"

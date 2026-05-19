@@ -60,13 +60,11 @@ One-click install into your Azure subscription. The deployment uses PaaS service
 
 The flow is **two passes** to avoid wasted Entra App Registration work on a name collision:
 
-1. **Pass 1** — click the button, set `enableEntraAuth=false`, deploy. This claims your hostname and gives you the confirmed `https://<prefix>-web.azurewebsites.net`. ~6 minutes.
+1. **Pass 1** — click the button, **leave the Entra tenant + client IDs blank**, deploy. This claims your hostname in OPEN mode and gives you the confirmed `https://<prefix>-web.azurewebsites.net`. ~6 minutes.
 2. **Create the Entra App Registration** in your tenant, using the confirmed URL as the SPA redirect URI. ~5 minutes.
-3. **Pass 2** — click the same button again with the **same RG and name prefix**, set `enableEntraAuth=true`, paste the tenant + client IDs. Idempotent re-deploy: only updates env vars + restarts the App Service. ~2 minutes.
+3. **Pass 2** — click the same button again with the **same RG and name prefix**, this time with the tenant + client IDs filled in. Idempotent re-deploy: only updates env vars + restarts the App Service. ~2 minutes.
 
-Between passes the app is internet-exposed in OPEN mode, but it has no data in it yet so the risk is low.
-
-The default `enableEntraAuth=true` is a security gate: leaving it on **with the IDs empty** makes the deploy fail fast (clear error in <30s, no half-built resources). You can't accidentally deploy without auth — you have to explicitly turn it off for Pass 1.
+Between passes the app is internet-exposed in OPEN mode, but it has no data in it yet so the risk is low. Filling in only ONE of the two Entra fields is rejected with a clear error, so you can't accidentally end up in a half-configured state.
 
 Full step-by-step (with permissions, RP registration, App Reg setup, troubleshooting): [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md).
 

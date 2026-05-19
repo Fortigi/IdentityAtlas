@@ -20,9 +20,11 @@ Total time: **~15 minutes** end-to-end (two deploy passes + Entra app registrati
 
 The app's hostname (`https://<prefix>-web.azurewebsites.net`) must match exactly what's registered as a redirect URI in Entra. But Azure won't tell you whether your chosen `<prefix>` is globally available until you actually try to create the App Service. To avoid wasting work on a name collision:
 
-1. **Pass 1** deploys everything with auth turned **off** — this claims the name and gives you the confirmed URL. The app is reachable in OPEN mode for a brief window.
+1. **Pass 1** — leave the Entra tenant + client IDs **blank** and deploy. This claims the name and brings the app up in OPEN mode (yellow banner). Takes ~6 minutes.
 2. You register the app in Entra with the now-confirmed URL.
-3. **Pass 2** re-runs the same Deploy-to-Azure URL with the same resource group and same prefix — Azure detects nothing structural has changed, just updates a handful of env vars and restarts the App Service to turn auth on. Takes ~2 minutes.
+3. **Pass 2** — re-run the same Deploy-to-Azure URL with the same resource group and same prefix, this time with the tenant + client IDs filled in. Auth turns on. Takes ~2 minutes.
+
+There's no separate "enable auth" toggle — filling in the two IDs **is** the signal that you want auth on. Both empty = Pass 1 OPEN mode; both filled = Pass 2 auth ON. Only-one-filled is rejected by the deploy with a clear error.
 
 Between Pass 1 and Pass 2 the app is internet-exposed without authentication — but it has no data in it yet (fresh deploy, no crawlers, empty DB), so the risk is low.
 
@@ -90,10 +92,9 @@ Fill in:
 | Name prefix | Your prefix from Step 0 |
 | Size profile | `s` (~€79/mo) for normal use, `xs` (~€45/mo) for cheapest demo |
 | Image channel | `stable` |
-| Existing log analytics workspace id | (leave blank) |
-| Enable Entra auth | **❌ Unchecked** — explicitly turn this off for Pass 1 |
-| Entra tenant id | (leave blank) |
-| Entra client id | (leave blank) |
+| Existing log analytics workspace id | (leave blank — creates a new workspace) |
+| Entra tenant id | **(leave blank)** |
+| Entra client id | **(leave blank)** |
 
 Click **Review + create** → **Create**.
 
@@ -108,6 +109,7 @@ Open the URL in a browser. You should see the Identity Atlas dashboard with a ye
 | Error message | Cause | Fix |
 |---|---|---|
 | `Action SequencerJob exceeded max allowed time` | `Microsoft.ContainerInstance` provider isn't registered | Do Step 1, then redeploy |
+| `entraTenantId and entraClientId must be EITHER both empty OR both filled in` | You filled in exactly one of the two Entra fields | Either fill in the second one (Pass 2) or clear both (Pass 1) |
 | `Site name 'xxx-web' is not available` | Hostname collision with another Azure tenant | Pick a different `namePrefix` and redeploy |
 | `No available instances to satisfy this request` | Regional capacity exhausted on the App Service or Container Apps scale unit | Pick a different region and redeploy to a fresh RG |
 | `VaultAlreadyExists` | Key Vault name collision with a soft-deleted vault from a previous attempt with the same RG name | Pick a different `namePrefix` (KV name is derived from RG name) |
@@ -167,9 +169,8 @@ Click the button again. Fill in **the exact same values as Pass 1**, with three 
 | Name prefix | **Same prefix** (this is critical — the App Reg redirect URI must match the same hostname) |
 | Size profile, image channel | Same as Pass 1 |
 | Existing log analytics workspace id | Same as Pass 1 |
-| **Enable Entra auth** | **✓ Checked** |
-| **Entra tenant id** | Paste from Step 3 |
-| **Entra client id** | Paste from Step 3 |
+| **Entra tenant id** | **Paste from Step 3** |
+| **Entra client id** | **Paste from Step 3** |
 
 Click **Review + create** → **Create**.
 
