@@ -1,4 +1,4 @@
-// ─── ExpandedItemsList ───────────────────────────────────────────────
+﻿// ─── ExpandedItemsList ───────────────────────────────────────────────
 // Generic list shown below the entity graph when a category has been
 // drilled into. Every item the shape helper returns has the same
 // shape — { key, label, kind: 'item', entityKind, entityId } — so one
@@ -36,7 +36,7 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
   }
   if (!items || items.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center text-sm text-gray-400 dark:text-gray-500 italic">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center text-sm text-gray-600 dark:text-gray-500 italic">
         Nothing to show for this relationship.
       </div>
     );

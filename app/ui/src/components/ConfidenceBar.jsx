@@ -1,11 +1,11 @@
-const CONFIDENCE_TOOLTIP = 'Correlation confidence — how certain the system is that the linked accounts belong to the same person.';
+﻿const CONFIDENCE_TOOLTIP = 'Correlation confidence — how certain the system is that the linked accounts belong to the same person.';
 
 export default function ConfidenceBar({ confidence }) {
   if (confidence == null) {
     return (
       <div className="flex items-center gap-2" title={`${CONFIDENCE_TOOLTIP} Not yet calculated.`}>
         <div className="w-20 h-2 bg-gray-200 dark:bg-gray-700 rounded-full" />
-        <span className="text-xs font-mono text-gray-400 dark:text-gray-500 w-8 text-right">—%</span>
+        <span className="text-xs font-mono text-gray-600 dark:text-gray-500 w-8 text-right">—%</span>
       </div>
     );
   }

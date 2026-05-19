@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react';
+﻿import { useMemo, useState, useRef } from 'react';
 
 // ─── EntityGraph ──────────────────────────────────────────────────────
 // Radial graph: the current entity sits in the middle, relationship nodes
@@ -224,7 +224,7 @@ export default function EntityGraph({
           title="Reset graph view to default position and zoom"
         >Reset view</button>
       )}
-      <span className="absolute bottom-2 left-2 z-10 text-[10px] text-gray-400 dark:text-gray-500 select-none pointer-events-none">
+      <span className="absolute bottom-2 left-2 z-10 text-[10px] text-gray-600 dark:text-gray-500 select-none pointer-events-none">
         drag to pan · wheel to zoom{scale !== 1 ? ` · ${Math.round(scale * 100)}%` : ''}
       </span>
       <svg

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+﻿import { useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import useEntityPage from '../hooks/useEntityPage';
 import FilterBar from './FilterBar';
@@ -244,7 +244,7 @@ export default function ResourcesPage({ onOpenDetail }) {
                       {ep.sortCol === col.key ? (
                         <span className="text-blue-600 text-[10px]">{ep.sortDir === 'asc' ? '▲' : '▼'}</span>
                       ) : (
-                        <span className="text-gray-300 dark:text-gray-500 text-[10px]">{'▴'}</span>
+                        <span className="text-gray-500 dark:text-gray-500 text-[10px]">{'▴'}</span>
                       )}
                     </span>
                   </th>

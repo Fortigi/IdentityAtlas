@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
 import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
@@ -148,7 +148,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
                   </span>
                 )}
                 {attributes.systemId && (
-                  <span className="text-xs text-gray-400 dark:text-gray-500">System: {attributes.systemId}</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-500">System: {attributes.systemId}</span>
                 )}
               </div>
             </div>
@@ -168,7 +168,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
           )}
         </div>
         <button onClick={onClose}
-          className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
           title="Close tab">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -189,7 +189,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
                 onNodeClick={graph.handleNodeClick}
               />
               {graph.pathDepth > 0 && (
-                <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-2">
+                <div className="text-xs text-gray-600 dark:text-gray-500 text-center pb-2">
                   <span className="font-medium text-gray-600 dark:text-gray-300">{graph.activeListLabel}</span>
                   {' — '}
                   <button onClick={graph.reset} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">collapse</button>
@@ -206,7 +206,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
               />
             ) : (
               <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
-                <p className="text-sm text-gray-400 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
+                <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
               </div>
             )}
           </div>
@@ -232,7 +232,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
           loading={historyLoading}
         >
           {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No changes recorded</p>
+            <p className="text-sm text-gray-600 dark:text-gray-500 italic p-4">No changes recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -250,9 +250,9 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
                         {diff.changes.map((c, j) => (
                           <div key={j} className="text-xs">
                             <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(c.field)}</span>
-                            <span className="text-gray-400 dark:text-gray-500 mx-1">:</span>
+                            <span className="text-gray-600 dark:text-gray-500 mx-1">:</span>
                             <span className="text-red-500 dark:text-red-400 line-through mr-1">{c.from}</span>
-                            <span className="text-gray-400 dark:text-gray-500 mr-1">&rarr;</span>
+                            <span className="text-gray-600 dark:text-gray-500 mr-1">&rarr;</span>
                             <span className="text-green-600 dark:text-green-400">{c.to}</span>
                           </div>
                         ))}
