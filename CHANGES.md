@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Fixed SSRF vulnerabilities in LLM web scraper and Azure OpenAI provider by blocking requests to private/loopback addresses
+- Upgraded API key hashing from SHA-256 to scrypt (PBKDF) with automatic legacy key detection and migration on startup
+- Fixed path traversal vulnerability in job log endpoint using path containment check
+- Fixed TOCTOU race conditions in master key file handling and CSV folder detection
+- Fixed regex polynomial ReDoS in Azure OpenAI endpoint URL handling
+- Fixed bad HTML tag filter patterns in LLM scraper (script/style/nav block stripping)
+- Fixed double-escaping of HTML entities in LLM scraper text extraction
+
+## Changes in this PR
+
 - Fixed WCAG 2.0 AA contrast failures in MatrixFilterWizard: separator characters, percentage labels, orientation labels, hint text, and delete button labels were rendered in gray-300/400 (failing contrast) and upgraded to gray-500/600
 - Fixed low-contrast "all" placeholder and loading indicator in MatrixFilterSummary
 - Fixed SVG axis label color in TimeSeriesChart (gray-500 → gray-600, from ≈4.6:1 to ≈7.5:1 margin)
