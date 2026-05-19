@@ -31,6 +31,13 @@ export default function AuthGate({ children }) {
           return;
         }
 
+        // Validate tenant ID before embedding in the authority URL — prevents
+        // open-redirect/SSRF if the server were to return an unexpected value.
+        const TENANT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$|^[a-z0-9][a-z0-9-]*\.[a-z]{2,}$/i;
+        if (!config.tenantId || !TENANT_RE.test(config.tenantId)) {
+          throw new Error('Invalid tenant configuration received from server');
+        }
+
         const pca = new PublicClientApplication({
           auth: {
             clientId: config.clientId,

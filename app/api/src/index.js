@@ -120,12 +120,19 @@ app.use(helmet({
 }));
 
 // ─── CORS ────────────────────────────────────────────────────────
+// ALLOWED_ORIGINS must not contain '*' — filter it out to prevent accidental
+// broad access. In development, restrict to known localhost origins instead
+// of `true` (which would allow any origin including cross-site attackers).
+const DEV_ORIGINS = [
+  'http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001',
+  'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001',
+];
 const corsOptions = {
   origin: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(o => o && o !== '*')
     : isProduction
       ? false  // Disallow cross-origin in production if not explicitly configured
-      : true,  // Allow all origins in development
+      : DEV_ORIGINS,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -300,7 +307,7 @@ app.use('/api', crawlerAuthMiddleware, ingestRouter);
 // In production, serve the frontend build output
 const frontendDist = join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendDist));
-app.get('*', (req, res, next) => {
+app.get('*', publicLimiter, (req, res, next) => {
   // Only serve index.html for non-API routes (SPA fallback)
   if (req.path.startsWith('/api')) return next();
   res.sendFile(join(frontendDist, 'index.html'));
