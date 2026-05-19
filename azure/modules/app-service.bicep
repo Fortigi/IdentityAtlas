@@ -55,6 +55,18 @@ param logAnalyticsWorkspaceId string = ''
 @description('Allowed IP CIDR list for ingress. Empty array = open to the internet.')
 param allowedIpCidrs array = []
 
+@description('Whether Entra ID auth should be on. Surfaces as AUTH_ENABLED env var.')
+param enableEntraAuth bool
+
+@description('Entra ID tenant GUID — used as AUTH_TENANT_ID env var. The app reads this via env-var fallback when no WorkerConfig row is present.')
+param entraTenantId string
+
+@description('Entra ID App Registration (client) GUID — used as AUTH_CLIENT_ID env var.')
+param entraClientId string
+
+@description('Optional comma-separated required app roles — used as AUTH_REQUIRED_ROLES env var.')
+param entraRequiredRoles string
+
 // Strip the digest/tag part because the DOCKER_CUSTOM_IMAGE_NAME app setting
 // expects the full image path. We pass the full image including tag, so no
 // stripping needed — variable kept for clarity.
@@ -109,7 +121,14 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'USE_SQL', value: 'true' }
         { name: 'PORT', value: '3001' }
         { name: 'BEHIND_TLS', value: 'true' }
-        { name: 'AUTH_ENABLED', value: 'false' }
+        // Entra ID auth — read by app/api/src/config/authConfig.js as the
+        // env-var fallback when no WorkerConfig row exists. enableEntraAuth
+        // is validated upstream by bootstrap.bicep (the deploy fails fast
+        // if AUTH_ENABLED=true without tenant + client).
+        { name: 'AUTH_ENABLED', value: enableEntraAuth ? 'true' : 'false' }
+        { name: 'AUTH_TENANT_ID', value: entraTenantId }
+        { name: 'AUTH_CLIENT_ID', value: entraClientId }
+        { name: 'AUTH_REQUIRED_ROLES', value: entraRequiredRoles }
         // KV references — resolved at startup via the managed identity.
         // App Service reads the literal secret value from KV and exposes
         // it to the app as the named env var.
@@ -117,20 +136,13 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
           name: 'IDENTITY_ATLAS_MASTER_KEY'
           value: '@Microsoft.KeyVault(SecretUri=${keyVaultUri}secrets/identityatlas-master-key/)'
         }
+        // Name MUST be POSTGRES_PASSWORD — that's the env var
+        // app/api/src/db/connection.js reads. App Service resolves the KV
+        // reference at startup via the managed identity.
         {
-          name: 'POSTGRES_ADMIN_PASSWORD'
+          name: 'POSTGRES_PASSWORD'
           value: '@Microsoft.KeyVault(SecretUri=${keyVaultUri}secrets/postgres-admin-password/)'
         }
-        // DATABASE_URL is composed at startup from the components. We use
-        // an App Service expression that interpolates POSTGRES_ADMIN_PASSWORD
-        // (also a KV reference) so the raw password never appears in the
-        // template, the deployment history, or ARM.
-        // App Service supports referencing OTHER app settings inside an
-        // app setting value using the %SETTING_NAME% syntax... but DOCKER
-        // containers can't use that. So we set DATABASE_URL in JS startup
-        // instead — see the small JS shim, or read POSTGRES_* directly.
-        // For now: pass the parts; the app's connection.js already supports
-        // POSTGRES_* env vars as a fallback to DATABASE_URL.
         { name: 'POSTGRES_HOST', value: pgFqdn }
         { name: 'POSTGRES_PORT', value: '5432' }
         { name: 'POSTGRES_DB', value: pgDatabaseName }

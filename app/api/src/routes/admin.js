@@ -796,12 +796,18 @@ router.post('/admin/history-retention/prune', adminDestructiveLimiter, async (_r
 // not signed in yet, which would require leaving the API write-open).
 router.get('/admin/auth-settings', (req, res) => {
   const s = getAuthState();
+  // WEBSITE_SITE_NAME is set automatically by Azure App Service. Use it to
+  // render Azure-appropriate CLI instructions instead of `docker compose exec`.
+  const platform = process.env.WEBSITE_SITE_NAME ? 'azure-app-service' : 'docker';
   res.json({
     enabled:       s.enabled,
     tenantId:      s.tenantId || '',
     clientId:      s.clientId || '',
     requiredRoles: s.requiredRoles || [],
     loaded:        s.loaded,
+    platform,
+    azureWebAppName: process.env.WEBSITE_SITE_NAME || null,
+    azureResourceGroup: process.env.WEBSITE_RESOURCE_GROUP || null,
   });
 });
 

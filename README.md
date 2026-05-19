@@ -58,19 +58,23 @@ One-click install into your Azure subscription. The deployment uses PaaS service
 | **l** | 244 | 25-50k principals, GP Postgres compute |
 | **xl** | 469 | 50k+ principals, enterprise concurrent use |
 
-Click the button, fill in:
+Before clicking the button, **create an Entra App Registration** so users can sign in — full step-by-step in [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md). The deploy form requires the tenant ID and the App Registration's client ID; without them the deployment fails fast with a clear message (the default `enableEntraAuth=true` makes the deploy refuse an insecure config).
+
+Then click the button and fill in:
 
 1. **Resource group** — create new
-2. **Region** — default: West Europe
-3. **Name prefix** — default: `identityatlas`
+2. **Region** — Sweden Central is the most reliable in EU right now; West/North Europe sometimes have capacity issues
+3. **Name prefix** — 3–15 chars, must be globally unique (used as part of the `*.azurewebsites.net` hostname)
 4. **Size profile** — default: `s`
-5. **(Optional) Existing Log Analytics workspace ID** — leave blank for a fresh one
+5. **Image channel** — `stable` (default) or `edge` for main-branch builds
+6. **Entra tenant ID + client ID** — from the App Registration you made
+7. **(Optional) Existing Log Analytics workspace ID** — leave blank for a fresh one
 
 *Review + create*. The deployment takes **~5–7 minutes**. The output includes the public URL.
 
-**Post-deploy:** open the URL, then Admin → Crawlers to load demo data or connect Microsoft Graph. To enable Entra ID sign-in, Admin → Authentication.
+**Post-deploy:** open the URL, sign in with a tenant user, accept the consent prompt on first use. Then Admin → Crawlers to load demo data or connect Microsoft Graph.
 
-For the full architecture, decisions taken, scaling, and ops notes (image updates, logs, Postgres access, teardown): see [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md).
+For the full architecture, decisions taken, scaling, and ops notes (image updates, logs, Postgres access, teardown): see [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md). For the step-by-step walkthrough including Entra setup and troubleshooting: see [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md).
 
 **CLI alternative** if you'd rather script it:
 

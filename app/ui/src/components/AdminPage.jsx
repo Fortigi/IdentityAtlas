@@ -1814,11 +1814,11 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
   );
 }
 
-function AdminSubTabs({ activeTab, onTabChange }) {
+function AdminSubTabs({ activeTab, onTabChange, tabs }) {
   return (
     <div className="border-b border-gray-200 dark:border-gray-700 mb-4">
       <nav className="flex gap-1 -mb-px">
-        {ADMIN_TABS.map(tab => (
+        {tabs.map(tab => (
           <button
             key={tab.key}
             onClick={() => onTabChange(tab.key)}
@@ -1853,6 +1853,38 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
   };
   const [activeTab, setActiveTab] = useState(getInitialTab);
 
+  // On Azure App Service, auth is enforced via Bicep parameters at deploy
+  // time — there's nothing useful to do from the auth admin page (the CLI
+  // commands shown there assume Docker). Same for the Containers tab,
+  // which depends on the Docker socket. Hide both when we detect Azure.
+  const { authFetch } = useAuth();
+  const [platform, setPlatform] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await authFetch('/api/admin/auth-settings');
+        if (!r.ok || cancelled) return;
+        const data = await r.json();
+        setPlatform(data.platform || 'docker');
+      } catch {
+        // Best-effort — keep all tabs visible on detection failure.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authFetch]);
+  const isAzure = platform === 'azure-app-service';
+  const visibleTabs = isAzure
+    ? ADMIN_TABS.filter(t => t.key !== 'auth' && t.key !== 'containers')
+    : ADMIN_TABS;
+
+  // If the user was on a now-hidden tab, bounce them to the first visible one.
+  useEffect(() => {
+    if (!visibleTabs.some(t => t.key === activeTab)) {
+      setActiveTab(visibleTabs[0]?.key || 'crawlers');
+    }
+  }, [visibleTabs, activeTab]);
+
   useEffect(() => {
     // Update the hash when the user changes sub-tab so reloads land in the same place.
     // Also rewrite legacy #crawlers / #performance to #admin?sub=...
@@ -1874,7 +1906,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []); // Only register once on mount - React bails out if state value unchanged
 
-  const currentTab = ADMIN_TABS.find(t => t.key === activeTab) || ADMIN_TABS[0];
+  const currentTab = visibleTabs.find(t => t.key === activeTab) || visibleTabs[0];
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -1885,7 +1917,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
         </div>
       </div>
 
-      <AdminSubTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <AdminSubTabs activeTab={activeTab} onTabChange={setActiveTab} tabs={visibleTabs} />
 
       <div className="space-y-4 px-2">
         {activeTab === 'crawlers' && (

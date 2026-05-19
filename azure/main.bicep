@@ -30,11 +30,15 @@ param namePrefix string = 'identityatlas'
 @description('Azure region for all resources.')
 param location string = resourceGroup().location
 
-@description('Web image source. Default: the latest "edge" tag.')
-param webImage string = 'ghcr.io/fortigi/identity-atlas:latest'
+@description('Release channel to deploy. **stable** = the last cut release tag (recommended for production). **edge** = the latest main-branch build — includes newer fixes and features but less testing. To pin to a specific version (e.g. 5.3.0), use webImageOverride / workerImageOverride below instead.')
+@allowed(['stable', 'edge'])
+param imageChannel string = 'stable'
 
-@description('Worker image source. Default: the latest "edge" tag.')
-param workerImage string = 'ghcr.io/fortigi/identity-atlas-worker:latest'
+@description('Advanced: override the web image with an explicit reference (e.g. ghcr.io/fortigi/identity-atlas:5.3.0). Leave blank to use the channel selection above.')
+param webImageOverride string = ''
+
+@description('Advanced: override the worker image with an explicit reference. Leave blank to use the channel selection above.')
+param workerImageOverride string = ''
 
 @description('Sizing profile. xs ≈ €45/mo (demo). s ≈ €79/mo (small production, default). m ≈ €113/mo (mid + staging slot). l ≈ €244/mo (large + GP Postgres). xl ≈ €469/mo (enterprise).')
 @allowed(['xs', 's', 'm', 'l', 'xl'])
@@ -59,6 +63,23 @@ param bootstrapForceTag string = utcNow()
 @description('Optional explicit Postgres admin password. Leave blank to derive one from the resource group identity (the default). The value also gets written to Key Vault.')
 @secure()
 param postgresAdminPassword string = ''
+
+// ─── Entra ID authentication ─────────────────────────────────────────────
+// Defaults to ON. The deployment is internet-exposed, so an open default
+// would be unsafe. Set enableEntraAuth=false ONLY for short-lived demos or
+// CI tests; never for anything that lives past a day.
+
+@description('Turn on Entra ID single sign-on. Default = TRUE. When TRUE, entraTenantId and entraClientId must both be provided — the deployment fails otherwise. Set to FALSE only for short-lived demos.')
+param enableEntraAuth bool = true
+
+@description('Entra ID tenant (directory) GUID. Required when enableEntraAuth=true. Find it under Entra ID → Overview → Tenant ID.')
+param entraTenantId string = ''
+
+@description('Entra ID App Registration (client) GUID. Required when enableEntraAuth=true. Create the App Registration BEFORE deploying — add a Single-Page Application redirect URI of https://<namePrefix>-web.azurewebsites.net so users can sign in.')
+param entraClientId string = ''
+
+@description('Optional comma-separated list of App role names required to sign in (e.g. IdentityAtlas.Read,IdentityAtlas.Admin). Empty = any signed-in user in the tenant.')
+param entraRequiredRoles string = ''
 
 // ─── Size profile → SKUs ─────────────────────────────────────────────────
 
@@ -105,6 +126,13 @@ var sizeMap = {
   }
 }
 var profile = sizeMap[sizeProfile]
+
+// Resolve image references. `imageChannel` picks the ghcr.io tag; the
+// *Override params let advanced users pin to a specific image (e.g. for
+// rollback or hotfix testing).
+var _imageTag = imageChannel == 'stable' ? 'latest' : 'edge'
+var webImage = empty(webImageOverride) ? 'ghcr.io/fortigi/identity-atlas:${_imageTag}' : webImageOverride
+var workerImage = empty(workerImageOverride) ? 'ghcr.io/fortigi/identity-atlas-worker:${_imageTag}' : workerImageOverride
 
 // Postgres admin password. Deterministic by default — same RG + name prefix
 // always produces the same value, so re-deploys don't rotate the password.
@@ -173,6 +201,9 @@ module bootstrap 'modules/bootstrap.bicep' = {
     keyVaultName: kv.outputs.kvName
     pgPasswordToStore: pgPassword
     forceUpdateTag: bootstrapForceTag
+    enableEntraAuth: enableEntraAuth
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
   }
 }
 
@@ -209,6 +240,10 @@ module web 'modules/app-service.bicep' = {
     uploadsShareName: storage.outputs.uploadsShareName
     logAnalyticsWorkspaceId: logs.outputs.workspaceId
     allowedIpCidrs: webAllowedIpCidrs
+    enableEntraAuth: enableEntraAuth
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
+    entraRequiredRoles: entraRequiredRoles
   }
   dependsOn: [bootstrap]
 }

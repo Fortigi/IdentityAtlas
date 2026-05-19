@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "682973022630441670"
+      "templateHash": "5232834217189267415"
     }
   },
   "parameters": {
@@ -25,18 +25,29 @@
         "description": "Azure region for all resources."
       }
     },
-    "webImage": {
+    "imageChannel": {
       "type": "string",
-      "defaultValue": "ghcr.io/fortigi/identity-atlas:latest",
+      "defaultValue": "stable",
+      "allowedValues": [
+        "stable",
+        "edge"
+      ],
       "metadata": {
-        "description": "Web image source. Default: the latest \"edge\" tag."
+        "description": "Release channel to deploy. **stable** = the last cut release tag (recommended for production). **edge** = the latest main-branch build — includes newer fixes and features but less testing. To pin to a specific version (e.g. 5.3.0), use webImageOverride / workerImageOverride below instead."
       }
     },
-    "workerImage": {
+    "webImageOverride": {
       "type": "string",
-      "defaultValue": "ghcr.io/fortigi/identity-atlas-worker:latest",
+      "defaultValue": "",
       "metadata": {
-        "description": "Worker image source. Default: the latest \"edge\" tag."
+        "description": "Advanced: override the web image with an explicit reference (e.g. ghcr.io/fortigi/identity-atlas:5.3.0). Leave blank to use the channel selection above."
+      }
+    },
+    "workerImageOverride": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Advanced: override the worker image with an explicit reference. Leave blank to use the channel selection above."
       }
     },
     "sizeProfile": {
@@ -94,6 +105,34 @@
       "metadata": {
         "description": "Optional explicit Postgres admin password. Leave blank to derive one from the resource group identity (the default). The value also gets written to Key Vault."
       }
+    },
+    "enableEntraAuth": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Turn on Entra ID single sign-on. Default = TRUE. When TRUE, entraTenantId and entraClientId must both be provided — the deployment fails otherwise. Set to FALSE only for short-lived demos."
+      }
+    },
+    "entraTenantId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Entra ID tenant (directory) GUID. Required when enableEntraAuth=true. Find it under Entra ID → Overview → Tenant ID."
+      }
+    },
+    "entraClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Entra ID App Registration (client) GUID. Required when enableEntraAuth=true. Create the App Registration BEFORE deploying — add a Single-Page Application redirect URI of https://<namePrefix>-web.azurewebsites.net so users can sign in."
+      }
+    },
+    "entraRequiredRoles": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional comma-separated list of App role names required to sign in (e.g. IdentityAtlas.Read,IdentityAtlas.Admin). Empty = any signed-in user in the tenant."
+      }
     }
   },
   "variables": {
@@ -140,6 +179,9 @@
       }
     },
     "profile": "[variables('sizeMap')[parameters('sizeProfile')]]",
+    "_imageTag": "[if(equals(parameters('imageChannel'), 'stable'), 'latest', 'edge')]",
+    "webImage": "[if(empty(parameters('webImageOverride')), format('ghcr.io/fortigi/identity-atlas:{0}', variables('_imageTag')), parameters('webImageOverride'))]",
+    "workerImage": "[if(empty(parameters('workerImageOverride')), format('ghcr.io/fortigi/identity-atlas-worker:{0}', variables('_imageTag')), parameters('workerImageOverride'))]",
     "pgPassword": "[if(empty(parameters('postgresAdminPassword')), format('{0}!Aa1{1}', uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-base'), take(uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-x'), 4)), parameters('postgresAdminPassword'))]",
     "kvName": "[take(format('{0}-kv-{1}', parameters('namePrefix'), uniqueString(resourceGroup().id)), 24)]"
   },
@@ -609,6 +651,15 @@
           },
           "forceUpdateTag": {
             "value": "[parameters('bootstrapForceTag')]"
+          },
+          "enableEntraAuth": {
+            "value": "[parameters('enableEntraAuth')]"
+          },
+          "entraTenantId": {
+            "value": "[parameters('entraTenantId')]"
+          },
+          "entraClientId": {
+            "value": "[parameters('entraClientId')]"
           }
         },
         "template": {
@@ -618,7 +669,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "13823202284080879593"
+              "templateHash": "757010953083502869"
             }
           },
           "parameters": {
@@ -658,6 +709,24 @@
               "metadata": {
                 "description": "Force re-run of the script on each deployment. Default = utcNow(), so a fresh deploy always re-evaluates the secrets-exist check."
               }
+            },
+            "enableEntraAuth": {
+              "type": "bool",
+              "metadata": {
+                "description": "Whether Entra ID auth is being requested. If true, entraTenantId and entraClientId must both be non-empty — this script fails the deploy otherwise."
+              }
+            },
+            "entraTenantId": {
+              "type": "string",
+              "metadata": {
+                "description": "Entra ID tenant GUID — validated by this script when enableEntraAuth=true."
+              }
+            },
+            "entraClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Entra ID App Registration (client) GUID — validated by this script when enableEntraAuth=true."
+              }
             }
           },
           "resources": [
@@ -687,9 +756,21 @@
                   {
                     "name": "PG_PASS_TO_STORE",
                     "secureValue": "[parameters('pgPasswordToStore')]"
+                  },
+                  {
+                    "name": "ENABLE_AUTH",
+                    "value": "[if(parameters('enableEntraAuth'), 'true', 'false')]"
+                  },
+                  {
+                    "name": "AUTH_TENANT_ID",
+                    "value": "[parameters('entraTenantId')]"
+                  },
+                  {
+                    "name": "AUTH_CLIENT_ID",
+                    "value": "[parameters('entraClientId')]"
                   }
                 ],
-                "scriptContent": "set -euo pipefail\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\necho \"==> Storing postgres admin password (always overwrites — same value passed to the Postgres module by main.bicep)\"\naz keyvault secret set \\\n  --vault-name \"$KV_NAME\" \\\n  --name postgres-admin-password \\\n  --value \"$PG_PASS_TO_STORE\" \\\n  --output none\necho \"    wrote postgres-admin-password\"\n\necho \"==> Done\"\n"
+                "scriptContent": "set -euo pipefail\n\necho \"==> Validating Entra ID auth configuration\"\nif [ \"$ENABLE_AUTH\" = \"true\" ]; then\n  if [ -z \"$AUTH_TENANT_ID\" ] || [ -z \"$AUTH_CLIENT_ID\" ]; then\n    echo \"\"\n    echo \"ERROR: enableEntraAuth=true but entraTenantId and/or entraClientId are empty.\"\n    echo \"       Either fill both in (recommended — App Reg + redirect URI must exist first),\"\n    echo \"       or set enableEntraAuth=false to deploy in OPEN mode (anyone with the URL\"\n    echo \"       can access the app).\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    auth config OK — tenant=$AUTH_TENANT_ID client=$AUTH_CLIENT_ID\"\nelse\n  echo \"    auth DISABLED — the app will be reachable by anyone with the URL\"\nfi\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\necho \"==> Storing postgres admin password (always overwrites — same value passed to the Postgres module by main.bicep)\"\naz keyvault secret set \\\n  --vault-name \"$KV_NAME\" \\\n  --name postgres-admin-password \\\n  --value \"$PG_PASS_TO_STORE\" \\\n  --output none\necho \"    wrote postgres-admin-password\"\n\necho \"==> Done\"\n"
               }
             }
           ]
@@ -927,7 +1008,7 @@
             "value": "[variables('profile').appServiceSku]"
           },
           "image": {
-            "value": "[parameters('webImage')]"
+            "value": "[variables('webImage')]"
           },
           "identityId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.webIdentityId.value]"
@@ -958,6 +1039,18 @@
           },
           "allowedIpCidrs": {
             "value": "[parameters('webAllowedIpCidrs')]"
+          },
+          "enableEntraAuth": {
+            "value": "[parameters('enableEntraAuth')]"
+          },
+          "entraTenantId": {
+            "value": "[parameters('entraTenantId')]"
+          },
+          "entraClientId": {
+            "value": "[parameters('entraClientId')]"
+          },
+          "entraRequiredRoles": {
+            "value": "[parameters('entraRequiredRoles')]"
           }
         },
         "template": {
@@ -967,7 +1060,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "4526875606639531939"
+              "templateHash": "2307771956513280795"
             }
           },
           "parameters": {
@@ -1058,6 +1151,30 @@
               "metadata": {
                 "description": "Allowed IP CIDR list for ingress. Empty array = open to the internet."
               }
+            },
+            "enableEntraAuth": {
+              "type": "bool",
+              "metadata": {
+                "description": "Whether Entra ID auth should be on. Surfaces as AUTH_ENABLED env var."
+              }
+            },
+            "entraTenantId": {
+              "type": "string",
+              "metadata": {
+                "description": "Entra ID tenant GUID — used as AUTH_TENANT_ID env var. The app reads this via env-var fallback when no WorkerConfig row is present."
+              }
+            },
+            "entraClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Entra ID App Registration (client) GUID — used as AUTH_CLIENT_ID env var."
+              }
+            },
+            "entraRequiredRoles": {
+              "type": "string",
+              "metadata": {
+                "description": "Optional comma-separated required app roles — used as AUTH_REQUIRED_ROLES env var."
+              }
             }
           },
           "variables": {
@@ -1145,14 +1262,26 @@
                     },
                     {
                       "name": "AUTH_ENABLED",
-                      "value": "false"
+                      "value": "[if(parameters('enableEntraAuth'), 'true', 'false')]"
+                    },
+                    {
+                      "name": "AUTH_TENANT_ID",
+                      "value": "[parameters('entraTenantId')]"
+                    },
+                    {
+                      "name": "AUTH_CLIENT_ID",
+                      "value": "[parameters('entraClientId')]"
+                    },
+                    {
+                      "name": "AUTH_REQUIRED_ROLES",
+                      "value": "[parameters('entraRequiredRoles')]"
                     },
                     {
                       "name": "IDENTITY_ATLAS_MASTER_KEY",
                       "value": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/identityatlas-master-key/)', parameters('keyVaultUri'))]"
                     },
                     {
-                      "name": "POSTGRES_ADMIN_PASSWORD",
+                      "name": "POSTGRES_PASSWORD",
                       "value": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/postgres-admin-password/)', parameters('keyVaultUri'))]"
                     },
                     {
@@ -1427,7 +1556,7 @@
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-env'), '2025-04-01').outputs.uploadsStorageName.value]"
           },
           "image": {
-            "value": "[parameters('workerImage')]"
+            "value": "[variables('workerImage')]"
           },
           "webAppHostname": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'app-service'), '2025-04-01').outputs.appHostname.value]"
