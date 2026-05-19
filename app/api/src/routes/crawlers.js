@@ -14,8 +14,11 @@ function generateApiKey() {
   return `${KEY_PREFIX}${random}`;
 }
 
+// scrypt with OWASP-recommended params. dkLen=64 distinguishes the output from
+// old 32-byte SHA-256 hashes so crawlerAuth.js can detect legacy keys and ask
+// the admin to rotate them.
 function hashKey(apiKey, salt) {
-  return crypto.createHash('sha256').update(Buffer.concat([salt, Buffer.from(apiKey, 'utf8')])).digest();
+  return crypto.scryptSync(apiKey, salt, 64, { N: 16384, r: 8, p: 1 });
 }
 
 // In v5 the schema is created by the migrations runner at startup. This

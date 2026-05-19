@@ -23,6 +23,27 @@
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0.3;
 
+// Block SSRF: Azure OpenAI endpoints must be HTTPS and must not point to
+// private/loopback addresses. Admin-configured values are trusted but still
+// validated to prevent misconfiguration and supply-chain-style attacks.
+const PRIVATE_HOST_RE = /^(localhost|127\.\d+\.\d+\.\d+|::1|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+)$/i;
+
+function validateAzureEndpoint(endpoint) {
+  if (!endpoint || typeof endpoint !== 'string') throw new Error('azure-openai: endpoint is required');
+  if (endpoint.length > 2048) throw new Error('azure-openai: endpoint URL too long');
+  let parsed;
+  try { parsed = new URL(endpoint); } catch { throw new Error('azure-openai: invalid endpoint URL'); }
+  if (parsed.protocol !== 'https:') throw new Error('azure-openai: endpoint must use HTTPS');
+  if (PRIVATE_HOST_RE.test(parsed.hostname)) throw new Error('azure-openai: endpoint must not point to private or loopback addresses');
+}
+
+// Trim trailing slashes without a backtracking-vulnerable regex.
+function trimTrailingSlashes(s) {
+  let i = s.length;
+  while (i > 0 && s[i - 1] === '/') i--;
+  return s.slice(0, i);
+}
+
 const DEFAULT_MODELS = {
   anthropic: 'claude-sonnet-4-20250514',
   openai: 'gpt-4o',
@@ -105,11 +126,11 @@ async function chatOpenAI({ apiKey, model, system, messages, temperature, maxTok
 
 // ─── Azure OpenAI ───────────────────────────────────────────────────
 async function chatAzureOpenAI({ apiKey, model, system, messages, temperature, maxTokens, endpoint, deployment, apiVersion }) {
-  if (!endpoint) throw new Error('azure-openai: endpoint is required');
+  validateAzureEndpoint(endpoint);
   const dep = deployment || model;
   if (!dep) throw new Error('azure-openai: deployment is required (model field)');
   const ver = apiVersion || '2024-08-01-preview';
-  const cleanEndpoint = endpoint.replace(/\/+$/, '');
+  const cleanEndpoint = trimTrailingSlashes(endpoint);
   const url = `${cleanEndpoint}/openai/deployments/${encodeURIComponent(dep)}/chat/completions?api-version=${encodeURIComponent(ver)}`;
   const fullMessages = [
     { role: 'system', content: system },
@@ -309,9 +330,9 @@ async function listModelsOpenAI({ apiKey }) {
 }
 
 async function listModelsAzureOpenAI({ apiKey, endpoint, apiVersion }) {
-  if (!endpoint) throw new Error('azure-openai: endpoint is required');
+  validateAzureEndpoint(endpoint);
   const ver = apiVersion || '2024-08-01-preview';
-  const clean = endpoint.replace(/\/+$/, '');
+  const clean = trimTrailingSlashes(endpoint);
   const url = `${clean}/openai/deployments?api-version=${encodeURIComponent(ver)}`;
   const r = await fetch(url, { headers: { 'api-key': apiKey } });
   if (!r.ok) {
