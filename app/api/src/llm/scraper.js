@@ -84,7 +84,7 @@ export async function scrapeOne(url, credentials = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const r = await fetch(url, { method: 'GET', headers, signal: controller.signal });
+    const r = await fetch(parsed.href, { method: 'GET', headers, signal: controller.signal });
     clearTimeout(timer);
     if (!r.ok) return { url, ok: false, status: r.status, error: `HTTP ${r.status}` };
 

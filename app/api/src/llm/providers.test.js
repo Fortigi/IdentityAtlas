@@ -112,7 +112,7 @@ describe('chat: azure-openai', () => {
       chat({ provider: 'azure-openai', apiKey: 'k' }, { system: '', messages: [{ role: 'user', content: 'hi' }] })
     ).rejects.toThrow(/endpoint is required/);
     await expect(
-      chat({ provider: 'azure-openai', apiKey: 'k', endpoint: 'https://x' }, { system: '', messages: [{ role: 'user', content: 'hi' }] })
+      chat({ provider: 'azure-openai', apiKey: 'k', endpoint: 'https://myresource.openai.azure.com' }, { system: '', messages: [{ role: 'user', content: 'hi' }] })
     ).rejects.toThrow(/deployment is required/);
   });
 });
