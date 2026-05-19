@@ -57,8 +57,10 @@ export function normalizeRecords(records, coreColumns, options = {}) {
       }
     }
     // Collect non-core, non-reserved fields for extendedAttributes JSON.
+    // Skip prototype-poisoning keys to prevent remote-property-injection.
     for (const [key, value] of Object.entries(rec)) {
-      if (!coreSet.has(key) && key !== 'externalId') {
+      if (!coreSet.has(key) && key !== 'externalId' &&
+          key !== '__proto__' && key !== 'constructor' && key !== 'prototype') {
         extended[key] = value;
       }
     }

@@ -1,0 +1,3 @@
+- Fixed file-system race in trace-log reader: open the file handle first, then stat via the handle, eliminating the TOCTOU window between size-check and read
+- Fixed file-system race in export E2E test: read file once and derive size from the buffer instead of calling statSync then readFileSync separately
+- Fixed remote-property-injection in record normalizer: skip prototype-poisoning keys (__proto__, constructor, prototype) when collecting extended attributes
