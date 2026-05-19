@@ -1,1 +1,0 @@
-- Fixed six CodeQL code-scanning alerts: unused loop variable, misleading string concatenation, useless initial assignment, unused dead-code variable, and two unused variables in e2e tests
