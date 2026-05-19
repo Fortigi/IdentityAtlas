@@ -49,14 +49,6 @@ async function fetchHistory(tableName, rowId) {
   });
 }
 
-async function rowExistsInHistory(tableName, rowId) {
-  const r = await db.query(
-    `SELECT 1 FROM "_history" WHERE "tableName" = $1 AND "rowId" = $2 LIMIT 1`,
-    [tableName, rowId]
-  );
-  return r.rows.length > 0;
-}
-
 async function countHistory(tableName, rowId) {
   const r = await db.query(
     `SELECT COUNT(*)::int AS cnt FROM "_history" WHERE "tableName" = $1 AND "rowId" = $2`,

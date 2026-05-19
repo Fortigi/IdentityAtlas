@@ -151,7 +151,7 @@ router.post('/correlation-rulesets/refine', async (req, res) => {
 router.post('/correlation-rulesets', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
-  const { ruleset, version, makeActive } = req.body || {};
+  const { ruleset, version } = req.body || {};
   if (!ruleset) return res.status(400).json({ error: 'ruleset is required' });
 
   try {
