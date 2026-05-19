@@ -680,7 +680,11 @@ router.post('/admin/discover-graph-attributes', async (req, res) => {
 router.post('/admin/crawler-jobs', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
-  const { jobType, config, configId, syncMode: explicitSyncMode } = req.body;
+  const { jobType, config, configId: rawConfigId, syncMode: explicitSyncMode } = req.body;
+  const configId = rawConfigId != null ? parseInt(rawConfigId, 10) : null;
+  if (rawConfigId != null && (isNaN(configId) || configId <= 0)) {
+    return res.status(400).json({ error: 'configId must be a positive integer' });
+  }
   if (!jobType || !VALID_JOB_TYPES.includes(jobType)) {
     return res.status(400).json({ error: `jobType must be one of: ${VALID_JOB_TYPES.join(', ')}` });
   }
@@ -735,10 +739,12 @@ router.post('/admin/crawler-jobs', async (req, res) => {
       const configCsvFolder = resolvedConfig?.csvFolder;
       let folder = getCsvFolderPath(configId);
       if (configCsvFolder) {
-        const resolvedCustom = path.resolve(configCsvFolder);
-        if (resolvedCustom.startsWith(CSV_BASE_DIR + path.sep) || resolvedCustom === CSV_BASE_DIR) {
-          // Confirm the directory is accessible without a TOCTOU race
-          try { readdirSync(resolvedCustom); folder = resolvedCustom; } catch { /* fall back to default */ }
+        // Derive a relative path and rebuild from the trusted base so the
+        // resulting path is constructed from a constant, not raw user data.
+        const relPart = path.relative(CSV_BASE_DIR, path.resolve(configCsvFolder));
+        if (relPart && !relPart.startsWith('..') && !path.isAbsolute(relPart)) {
+          const safeCustom = path.join(CSV_BASE_DIR, relPart);
+          try { readdirSync(safeCustom); folder = safeCustom; } catch { /* fall back to default */ }
         }
       }
       // Check for CSV files — use try/catch to avoid TOCTOU (existsSync + read)

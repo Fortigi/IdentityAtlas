@@ -43,12 +43,12 @@ function buildAuthHeader(creds) {
 // real HTML parser — the inputs are best-effort and the LLM is robust to noise.
 function htmlToText(html) {
   return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
-    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript\s*>/gi, ' ')
-    .replace(/<nav\b[^>]*>[\s\S]*?<\/nav\s*>/gi, ' ')
-    .replace(/<header\b[^>]*>[\s\S]*?<\/header\s*>/gi, ' ')
-    .replace(/<footer\b[^>]*>[\s\S]*?<\/footer\s*>/gi, ' ')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script[^>]*>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style[^>]*>/gi, ' ')
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript[^>]*>/gi, ' ')
+    .replace(/<nav\b[^>]*>[\s\S]*?<\/nav[^>]*>/gi, ' ')
+    .replace(/<header\b[^>]*>[\s\S]*?<\/header[^>]*>/gi, ' ')
+    .replace(/<footer\b[^>]*>[\s\S]*?<\/footer[^>]*>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&lt;/g, '<')
