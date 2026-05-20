@@ -54,7 +54,7 @@ router.get('/identities', async (req, res) => {
       return res.json({ available: false, data: [], total: 0, summary: null });
     }
 
-    const { search, minAccounts, accountType, confidence, verified, hrAnchored, orphanStatus, sort, limit, offset } = req.query;
+    const { search, minAccounts, confidence, verified, hrAnchored, orphanStatus, sort, limit, offset } = req.query;
     const pageLimit = Math.min(parseInt(limit) || 50, 500);
     const pageOffset = parseInt(offset) || 0;
 
