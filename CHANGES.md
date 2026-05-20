@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed inconsistent docker startup commands: all documented `docker compose up` invocations now consistently use `--pull always` to ensure the latest image is pulled on every start.
+
+## Changes in this PR
+
 - Fixed security vulnerability: crawler API keys (`fgc_`) were incorrectly passed through JWT auth middleware, allowing any string with the `fgc_` prefix to reach admin endpoints without valid credentials.
 
 ## Changes in this PR
