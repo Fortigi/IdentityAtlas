@@ -47,7 +47,7 @@ export function normalizeRecords(records, coreColumns, options = {}) {
 
   return records.map(rec => {
     const normalized = {};
-    const extended = {};
+    const extended = Object.create(null);
 
     // Write only property names sourced from the trusted coreSet, not from
     // the user-provided record keys, to avoid remote-property-injection.
