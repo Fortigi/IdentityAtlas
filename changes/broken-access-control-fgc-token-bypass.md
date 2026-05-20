@@ -1,0 +1,1 @@
+- Fixed security vulnerability: crawler API keys (`fgc_`) were incorrectly passed through JWT auth middleware, allowing any string with the `fgc_` prefix to reach admin endpoints without valid credentials.
