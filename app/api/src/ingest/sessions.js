@@ -31,9 +31,6 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000);
 
-function escapeCopyText(s) {
-  return s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-}
 
 async function copyRows(client, tempTable, activeColumns, records) {
   // Batched INSERT instead of COPY FROM STDIN. The COPY approach had a crash

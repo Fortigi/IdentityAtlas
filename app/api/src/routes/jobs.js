@@ -856,14 +856,14 @@ router.get('/admin/crawler-jobs/:id/log', async (req, res) => {
     return res.status(400).json({ error: 'Invalid job ID' });
   }
   try {
-    const stat = await fs.stat(logPath);
-    const totalLength = stat.size;
-    if (offset >= totalLength) {
-      return res.json({ text: '', offset, totalLength, truncated: false, exists: true });
-    }
-    const length = Math.min(MAX_TRACE_CHUNK, totalLength - offset);
     const fh = await fs.open(logPath, 'r');
     try {
+      const stat = await fh.stat();
+      const totalLength = stat.size;
+      if (offset >= totalLength) {
+        return res.json({ text: '', offset, totalLength, truncated: false, exists: true });
+      }
+      const length = Math.min(MAX_TRACE_CHUNK, totalLength - offset);
       const buf = Buffer.alloc(length);
       await fh.read(buf, 0, length, offset);
       const text = buf.toString('utf8');
