@@ -218,11 +218,7 @@ Identity Atlas follows semantic versioning with automated version bumping on eve
 To check for updates:
 
 ```bash
-# Pull latest images
-docker compose -f docker-compose.prod.yml pull
-
-# Restart with new images
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d --pull always
 ```
 
 For security advisories and CVE notifications, monitor the [GitHub Security Advisories](https://github.com/Fortigi/IdentityAtlas/security/advisories) page.
