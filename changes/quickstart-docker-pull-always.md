@@ -1,0 +1,1 @@
+- Fixed inconsistent docker startup commands: all documented `docker compose up` invocations now consistently use `--pull always` to ensure the latest image is pulled on every start.
