@@ -263,6 +263,6 @@ Then: **Actions → Cut Hotfix** with branch name and new version (e.g. `5.2.1`)
 
 ```bash
 curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d --pull always
 # Open http://localhost:3001 → Admin → Crawlers → Add Crawler
 ```
