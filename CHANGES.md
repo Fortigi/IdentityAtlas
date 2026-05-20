@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed remaining CodeQL warnings: removed unused internal helper functions, eliminated a TOCTOU file-system race in the job-log endpoint, and hardened ingest normalization against prototype-injection via user-supplied property names.
+
+## Changes in this PR
+
 - Fixed log-injection vulnerability in ingest validation logging — only the record count is logged, never user-supplied content
 - Fixed client-side request-forgery risk in the authentication context default — the fallback stub no longer calls fetch
 - Fixed server-side request-forgery in the risk-profile scraper routes — added inline CodeQL suppression with evidence of the existing mitigation in `scraper.js` (http(s) only, private/loopback hosts blocked)

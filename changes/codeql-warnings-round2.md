@@ -1,1 +1,0 @@
-- Fixed remaining CodeQL warnings: removed unused internal helper functions, eliminated a TOCTOU file-system race in the job-log endpoint, and hardened ingest normalization against prototype-injection via user-supplied property names.
