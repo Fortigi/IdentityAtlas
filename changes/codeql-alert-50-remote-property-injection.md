@@ -1,1 +1,0 @@
-- Fixed CodeQL alert 50: replaced plain null-prototype object with `Map` in ingest normalization to eliminate remote property injection risk from user-supplied field names.
