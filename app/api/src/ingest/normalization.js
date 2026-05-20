@@ -47,7 +47,7 @@ export function normalizeRecords(records, coreColumns, options = {}) {
 
   return records.map(rec => {
     const normalized = {};
-    const extended = Object.create(null);
+    const extended = new Map();
 
     // Write only property names sourced from the trusted coreSet, not from
     // the user-provided record keys, to avoid remote-property-injection.
@@ -59,7 +59,7 @@ export function normalizeRecords(records, coreColumns, options = {}) {
     // Collect non-core, non-reserved fields for extendedAttributes JSON.
     for (const [key, value] of Object.entries(rec)) {
       if (!coreSet.has(key) && key !== 'externalId') {
-        extended[key] = value;
+        extended.set(key, value);
       }
     }
 
@@ -116,13 +116,13 @@ export function normalizeRecords(records, coreColumns, options = {}) {
     }
 
     // Pack extendedAttributes
-    if (Object.keys(extended).length > 0) {
+    if (extended.size > 0) {
       const existing = normalized.extendedAttributes
         ? (typeof normalized.extendedAttributes === 'string'
           ? tryParseJson(normalized.extendedAttributes)
           : normalized.extendedAttributes)
         : {};
-      normalized.extendedAttributes = JSON.stringify({ ...existing, ...extended });
+      normalized.extendedAttributes = JSON.stringify({ ...existing, ...Object.fromEntries(extended) });
     } else if (normalized.extendedAttributes && typeof normalized.extendedAttributes === 'object') {
       normalized.extendedAttributes = JSON.stringify(normalized.extendedAttributes);
     }
