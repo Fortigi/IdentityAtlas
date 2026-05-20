@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "10861780967906544528"
+      "templateHash": "15290983045957068763"
     }
   },
   "parameters": {
@@ -47,7 +47,7 @@
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Optional: existing Log Analytics workspace resource ID to forward logs to. Leave empty to create a new workspace (~€3/mo). The deployer needs Log Analytics Reader on the workspace."
+        "description": "Optional: FULL ARM resource ID of an existing Log Analytics workspace to forward logs to. Leave empty to create a new workspace (~€3/mo). Must look like /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name> — copy it from the workspace's Overview → JSON View, NOT the parent resource group. The deployer needs Log Analytics Reader on the workspace."
       }
     },
     "entraTenantId": {
@@ -211,7 +211,10 @@
             }
           }
         }
-      }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]"
+      ]
     },
     {
       "type": "Microsoft.Resources/deployments",
@@ -564,6 +567,9 @@
           },
           "entraClientId": {
             "value": "[parameters('entraClientId')]"
+          },
+          "existingLogAnalyticsWorkspaceId": {
+            "value": "[parameters('existingLogAnalyticsWorkspaceId')]"
           }
         },
         "template": {
@@ -573,7 +579,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "5501618965255661374"
+              "templateHash": "2165927788867419144"
             }
           },
           "parameters": {
@@ -625,6 +631,12 @@
               "metadata": {
                 "description": "Entra ID App Registration (client) GUID. Pair with entraTenantId."
               }
+            },
+            "existingLogAnalyticsWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "BYO Log Analytics workspace resource ID — validated by this script (format check + existence check) before any module tries to use it."
+              }
             }
           },
           "resources": [
@@ -662,9 +674,13 @@
                   {
                     "name": "AUTH_CLIENT_ID",
                     "value": "[parameters('entraClientId')]"
+                  },
+                  {
+                    "name": "EXISTING_LAW_ID",
+                    "value": "[parameters('existingLogAnalyticsWorkspaceId')]"
                   }
                 ],
-                "scriptContent": "set -euo pipefail\n\necho \"==> Validating Entra ID auth configuration\"\nif [ -n \"$AUTH_TENANT_ID\" ] && [ -n \"$AUTH_CLIENT_ID\" ]; then\n  echo \"    auth ON — tenant=$AUTH_TENANT_ID client=$AUTH_CLIENT_ID\"\nelif [ -z \"$AUTH_TENANT_ID\" ] && [ -z \"$AUTH_CLIENT_ID\" ]; then\n  echo \"    auth OFF — first-pass deploy in OPEN mode (no Entra IDs provided).\"\n  echo \"    The app will be reachable by anyone with the URL until you re-deploy\"\n  echo \"    with entraTenantId and entraClientId filled in.\"\nelse\n  echo \"\"\n  echo \"ERROR: entraTenantId and entraClientId must be EITHER both empty (first\"\n  echo \"       pass / OPEN mode) OR both filled in (auth ON). Got one of each.\"\n  echo \"\"\n  exit 1\nfi\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\necho \"==> Storing postgres admin password (always overwrites — same value passed to the Postgres module by main.bicep)\"\naz keyvault secret set \\\n  --vault-name \"$KV_NAME\" \\\n  --name postgres-admin-password \\\n  --value \"$PG_PASS_TO_STORE\" \\\n  --output none\necho \"    wrote postgres-admin-password\"\n\necho \"==> Done\"\n"
+                "scriptContent": "set -euo pipefail\n\nGUID_RE='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'\n\necho \"==> Validating Entra ID auth configuration\"\nif [ -n \"$AUTH_TENANT_ID\" ] && [ -n \"$AUTH_CLIENT_ID\" ]; then\n  if ! [[ \"$AUTH_TENANT_ID\" =~ $GUID_RE ]]; then\n    echo \"\"\n    echo \"ERROR: entraTenantId is not a valid GUID.\"\n    echo \"       Got: $AUTH_TENANT_ID\"\n    echo \"       Expected: 8-4-4-4-12 hex chars, e.g. 10b6a2c8-41f9-400d-8020-4ca96606899f\"\n    echo \"       Find your tenant ID at Entra ID → Overview → Tenant ID.\"\n    echo \"\"\n    exit 1\n  fi\n  if ! [[ \"$AUTH_CLIENT_ID\" =~ $GUID_RE ]]; then\n    echo \"\"\n    echo \"ERROR: entraClientId is not a valid GUID.\"\n    echo \"       Got: $AUTH_CLIENT_ID\"\n    echo \"       Expected: 8-4-4-4-12 hex chars, e.g. b7b7a63c-e920-47f5-b5da-5c49649a9030\"\n    echo \"       This is the App Registration's Application (client) ID — find it on the app's Overview.\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    auth ON — tenant=$AUTH_TENANT_ID client=$AUTH_CLIENT_ID\"\nelif [ -z \"$AUTH_TENANT_ID\" ] && [ -z \"$AUTH_CLIENT_ID\" ]; then\n  echo \"    auth OFF — first-pass deploy in OPEN mode (no Entra IDs provided).\"\n  echo \"    The app will be reachable by anyone with the URL until you re-deploy\"\n  echo \"    with entraTenantId and entraClientId filled in.\"\nelse\n  echo \"\"\n  echo \"ERROR: entraTenantId and entraClientId must be EITHER both empty (first\"\n  echo \"       pass / OPEN mode) OR both filled in (auth ON). Got one of each.\"\n  echo \"\"\n  exit 1\nfi\n\necho \"==> Validating existingLogAnalyticsWorkspaceId\"\nif [ -n \"$EXISTING_LAW_ID\" ]; then\n  # Format check — must be the FULL workspace resource ID, not a resource group.\n  EXPECTED='^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\\.OperationalInsights/workspaces/[^/]+$'\n  if ! [[ \"$EXISTING_LAW_ID\" =~ $EXPECTED ]]; then\n    echo \"\"\n    echo \"ERROR: existingLogAnalyticsWorkspaceId is not a valid Log Analytics workspace resource ID.\"\n    echo \"       You provided: $EXISTING_LAW_ID\"\n    echo \"       Expected format:\"\n    echo \"         /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>\"\n    echo \"\"\n    echo \"       Common mistake: copying the parent resource GROUP's ID instead of the workspace ID.\"\n    echo \"       To get the correct one: open the workspace in the portal → Overview → JSON View → copy 'id'.\"\n    echo \"       Or leave the field BLANK to create a fresh workspace inside this deployment's RG.\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    LAW format OK — $EXISTING_LAW_ID\"\n  echo \"    (note: existence is verified by log-analytics module; if you see a ResourceNotFound\"\n  echo \"     error there, the workspace doesn't exist at that path or you lack Log Analytics Reader)\"\nelse\n  echo \"    no LAW provided — a new workspace will be created in this RG\"\nfi\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\necho \"==> Storing postgres admin password (always overwrites — same value passed to the Postgres module by main.bicep)\"\naz keyvault secret set \\\n  --vault-name \"$KV_NAME\" \\\n  --name postgres-admin-password \\\n  --value \"$PG_PASS_TO_STORE\" \\\n  --output none\necho \"    wrote postgres-admin-password\"\n\necho \"==> Done\"\n"
               }
             }
           ]

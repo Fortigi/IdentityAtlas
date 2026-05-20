@@ -40,7 +40,7 @@ param sizeProfile string = 's'
 @allowed(['stable', 'edge'])
 param imageChannel string = 'stable'
 
-@description('Optional: existing Log Analytics workspace resource ID to forward logs to. Leave empty to create a new workspace (~€3/mo). The deployer needs Log Analytics Reader on the workspace.')
+@description('Optional: FULL ARM resource ID of an existing Log Analytics workspace to forward logs to. Leave empty to create a new workspace (~€3/mo). Must look like /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name> — copy it from the workspace\'s Overview → JSON View, NOT the parent resource group. The deployer needs Log Analytics Reader on the workspace.')
 param existingLogAnalyticsWorkspaceId string = ''
 
 // ─── Entra ID authentication ─────────────────────────────────────────────
@@ -142,6 +142,11 @@ module logs 'modules/log-analytics.bicep' = {
     location: location
     existingWorkspaceId: existingLogAnalyticsWorkspaceId
   }
+  // Wait for bootstrap so it can validate the LAW ID first. Means
+  // log-analytics doesn't run until the validation script has checked
+  // format + existence — a bad ID fails fast and visibly, instead of
+  // surfacing as a half-built deploy with a cryptic ResourceNotFound.
+  dependsOn: [bootstrap]
 }
 
 module storage 'modules/storage.bicep' = {
@@ -187,6 +192,7 @@ module bootstrap 'modules/bootstrap.bicep' = {
     pgPasswordToStore: pgPassword
     entraTenantId: entraTenantId
     entraClientId: entraClientId
+    existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
   }
 }
 
