@@ -39,12 +39,6 @@ function validateAzureEndpoint(endpoint) {
   return parsed;
 }
 
-// Trim trailing slashes without a backtracking-vulnerable regex.
-function trimTrailingSlashes(s) {
-  let i = s.length;
-  while (i > 0 && s[i - 1] === '/') i--;
-  return s.slice(0, i);
-}
 
 const DEFAULT_MODELS = {
   anthropic: 'claude-sonnet-4-20250514',
