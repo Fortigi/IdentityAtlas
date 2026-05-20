@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed security vulnerability: crawler API keys (`fgc_`) were incorrectly passed through JWT auth middleware, allowing any string with the `fgc_` prefix to reach admin endpoints without valid credentials.
+
+## Changes in this PR
+
 - Fixed CodeQL alert 50: replaced plain null-prototype object with `Map` in ingest normalization to eliminate remote property injection risk from user-supplied field names.
 
 ## Changes in this PR
