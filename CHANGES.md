@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed CodeQL alert 50: replaced plain null-prototype object with `Map` in ingest normalization to eliminate remote property injection risk from user-supplied field names.
+
+## Changes in this PR
+
 - Fixed remaining CodeQL warnings: removed unused internal helper functions, eliminated a TOCTOU file-system race in the job-log endpoint, and hardened ingest normalization against prototype-injection via user-supplied property names.
 
 ## Changes in this PR
