@@ -40,10 +40,12 @@ export function authMiddleware(req, res, next) {
 
   const token = authHeader.split(' ')[1];
 
-  // Crawler API keys start with 'fgc_'. Skip JWT validation and let the
-  // request fall through to the crawler auth middleware which handles these.
+  // Crawler API keys (fgc_) are only valid on routes protected by
+  // crawlerAuthMiddleware, which has its own middleware stack and never also
+  // uses authMiddleware. Passing them through here would allow any fgc_-prefixed
+  // string to reach admin routes without any credential check.
   if (token.startsWith('fgc_')) {
-    return next();
+    return res.status(401).json({ error: 'Crawler API keys are not valid for this endpoint' });
   }
 
   // Read-only API keys (`fgr_…`) are accepted on GET requests to non-admin
