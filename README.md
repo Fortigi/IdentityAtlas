@@ -58,15 +58,15 @@ One-click install into your Azure subscription. The deployment uses PaaS service
 | **l** | 244 | 25-50k principals, GP Postgres compute |
 | **xl** | 469 | 50k+ principals, enterprise concurrent use |
 
-The flow is **two passes** to avoid wasted Entra App Registration work on a name collision:
+Deployment is two Bicep templates back-to-back:
 
-1. **Pass 1** — click the button, **leave the Entra tenant + client IDs blank**, deploy. This claims your hostname in OPEN mode and gives you the confirmed `https://<prefix>-web.azurewebsites.net`. ~6 minutes.
-2. **Create the Entra App Registration** in your tenant, using the confirmed URL as the SPA redirect URI. ~5 minutes.
-3. **Pass 2** — click the same button again with the **same RG and name prefix**, this time with the tenant + client IDs filled in. Idempotent re-deploy: only updates env vars + restarts the App Service. ~2 minutes.
+1. **Step 1 — Deploy the app stack** ([`azure/main.json`](azure/main.json)). Click the **Deploy to Azure** button above. The form takes `namePrefix`, `sizeProfile`, `imageChannel`, and optionally a BYO Log Analytics workspace. ~6 min. The app comes up in OPEN mode at the confirmed `https://<prefix>-web.azurewebsites.net`.
+2. **Register an Entra App Registration** in your tenant using the URL from Step 1 as the SPA redirect URI. ~5 min in the portal.
+3. **Step 2 — Turn auth on** ([`azure/main-auth.json`](azure/main-auth.json)). Different button, different template — 3 fields only: `namePrefix` (same as Step 1) + tenant ID + client ID. Touches only the App Service's app settings, restarts it. ~1 min.
 
-Between passes the app is internet-exposed in OPEN mode, but it has no data in it yet so the risk is low. Filling in only ONE of the two Entra fields is rejected with a clear error, so you can't accidentally end up in a half-configured state.
+The two templates have **non-overlapping concerns**: Step 1 = the app stack, Step 2 = auth. Want to change the size profile, image channel, or LA workspace later? Re-run Step 1 — that resets auth to OFF, then re-run Step 2 to restore. Want to change the Entra IDs? Re-run Step 2; Step 1 is untouched.
 
-Full step-by-step (with permissions, RP registration, App Reg setup, troubleshooting): [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md).
+Full step-by-step (permissions, RP registration, App Reg setup, troubleshooting, "how to change X later"): [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md).
 
 For the architecture, scaling, and ops notes: [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md).
 

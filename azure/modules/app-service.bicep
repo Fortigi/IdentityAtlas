@@ -55,17 +55,10 @@ param logAnalyticsWorkspaceId string = ''
 @description('Allowed IP CIDR list for ingress. Empty array = open to the internet (default; rely on Entra auth).')
 param allowedIpCidrs array = []
 
-@description('Whether Entra ID auth should be on. Surfaces as AUTH_ENABLED env var.')
-param enableEntraAuth bool
-
-@description('Entra ID tenant GUID — used as AUTH_TENANT_ID env var. The app reads this via env-var fallback when no WorkerConfig row is present.')
-param entraTenantId string
-
-@description('Entra ID App Registration (client) GUID — used as AUTH_CLIENT_ID env var.')
-param entraClientId string
-
-@description('Optional comma-separated required app roles — used as AUTH_REQUIRED_ROLES env var. Empty = any signed-in user in the tenant.')
-param entraRequiredRoles string = ''
+// Entra ID auth is intentionally NOT a parameter of this module. Step 1
+// (main.bicep) always deploys in OPEN mode with AUTH_ENABLED=false. To turn
+// auth on, run Step 2 (main-auth.bicep) — it patches the AUTH_* appsettings
+// on this App Service without touching anything else.
 
 // Strip the digest/tag part because the DOCKER_CUSTOM_IMAGE_NAME app setting
 // expects the full image path. We pass the full image including tag, so no
@@ -121,14 +114,10 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'USE_SQL', value: 'true' }
         { name: 'PORT', value: '3001' }
         { name: 'BEHIND_TLS', value: 'true' }
-        // Entra ID auth — read by app/api/src/config/authConfig.js as the
-        // env-var fallback when no WorkerConfig row exists. enableEntraAuth
-        // is validated upstream by bootstrap.bicep (the deploy fails fast
-        // if AUTH_ENABLED=true without tenant + client).
-        { name: 'AUTH_ENABLED', value: enableEntraAuth ? 'true' : 'false' }
-        { name: 'AUTH_TENANT_ID', value: entraTenantId }
-        { name: 'AUTH_CLIENT_ID', value: entraClientId }
-        { name: 'AUTH_REQUIRED_ROLES', value: entraRequiredRoles }
+        // AUTH_ENABLED is hardcoded false in Step 1. Step 2 (main-auth.bicep)
+        // patches AUTH_ENABLED + AUTH_TENANT_ID + AUTH_CLIENT_ID via a
+        // separate appsettings deployment.
+        { name: 'AUTH_ENABLED', value: 'false' }
         // KV references — resolved at startup via the managed identity.
         // App Service reads the literal secret value from KV and exposes
         // it to the app as the named env var.

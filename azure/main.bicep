@@ -1,22 +1,23 @@
-// Identity Atlas — Azure Simple deployment.
+// Identity Atlas — Azure deployment, STEP 1 of 2.
 //
-// Click the "Deploy to Azure" button in README.md or run:
-//   az group create --name <rg> --location <region>
-//   az deployment group create --resource-group <rg> --template-file main.bicep
+// This template deploys the application in OPEN mode (no Entra ID auth).
+// The output URL is the hostname you'll register in the Entra App Reg.
+//
+// To turn auth ON, run STEP 2 (`main-auth.bicep`) against the SAME RG
+// after registering an Entra App with this hostname as the SPA redirect URI.
 //
 // What this deploys:
 //   - App Service Plan (Linux) + App Service for Containers (web)
 //   - Postgres Flexible Server (public endpoint + firewall rule)
-//   - Key Vault (public endpoint, RBAC-only; holds master key + DB password)
+//   - Key Vault (public endpoint, access policies; holds master key + DB password)
 //   - Storage Account + Azure Files share (for /data/uploads)
 //   - 2 user-assigned managed identities (web, deployment-script)
 //   - One-shot deployment script: generates master key + DB password into KV
 //   - Container Apps Environment (Consumption profile, no VNet)
-//   - Container App: worker (always-on, no ingress; runs scheduler.ps1)
+//   - Container App: worker (always-on, no ingress)
 //   - Optional: Log Analytics workspace (or BYO via parameter)
 //
-// No VNet. No private endpoints. No load balancer or public IP you have to
-// approve with the customer's CCoE. The Architecture doc has more.
+// No VNet. No private endpoints. No public IP we provision.
 
 targetScope = 'resourceGroup'
 
@@ -43,25 +44,10 @@ param imageChannel string = 'stable'
 @description('Optional: FULL ARM resource ID of an existing Log Analytics workspace to forward logs to. Leave empty to create a new workspace (~€3/mo). Must look like /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name> — copy it from the workspace\'s Overview → JSON View, NOT the parent resource group. The deployer needs Log Analytics Reader on the workspace.')
 param existingLogAnalyticsWorkspaceId string = ''
 
-// ─── Entra ID authentication ─────────────────────────────────────────────
-// Auth state is derived from whether both IDs are filled in. There's no
-// separate enable/disable toggle — you can't have auth "on" without these,
-// and filling them in is the explicit signal that you want auth on.
-//
-// First-deploy pattern: leave both fields BLANK to claim the hostname in
-// OPEN mode (no auth — the yellow banner shows). Once the hostname is
-// confirmed, register the app in Entra with that hostname as the SPA
-// redirect URI, then re-run the same deploy with the tenant + client IDs
-// filled in to switch auth on.
-//
-// See docs/architecture/azure-deployment-walkthrough.md for the two-pass
-// procedure.
-
-@description('Entra ID tenant (directory) GUID. Leave BLANK for the first deploy (claims the hostname in OPEN mode). Fill it in on the second deploy to turn auth ON. Find it under Entra ID → Overview → Tenant ID.')
-param entraTenantId string = ''
-
-@description('Entra ID App Registration (client) GUID. Leave BLANK for the first deploy. Fill it in on the second deploy together with entraTenantId. Create the App Registration after the first deploy succeeds — its SPA redirect URI must be https://<namePrefix>-web.azurewebsites.net.')
-param entraClientId string = ''
+// Entra ID auth is NOT configured by this template. It deploys the app in
+// OPEN mode (anyone with the URL can reach it). To turn auth on, run
+// `main-auth.bicep` (Step 2) against the resulting RG once you've registered
+// an App Reg in Entra with the deployed hostname as a SPA redirect URI.
 
 // ─── Size profile → SKUs ─────────────────────────────────────────────────
 
@@ -117,11 +103,6 @@ var location = resourceGroup().location
 var _imageTag = imageChannel == 'stable' ? 'latest' : 'edge'
 var webImage = 'ghcr.io/fortigi/identity-atlas:${_imageTag}'
 var workerImage = 'ghcr.io/fortigi/identity-atlas-worker:${_imageTag}'
-
-// Auth is ON when both IDs are filled in. Either both empty (Pass 1, OPEN
-// mode) or both populated (Pass 2, auth ON) — the bootstrap script rejects
-// the half-filled case.
-var enableEntraAuth = !empty(entraTenantId) && !empty(entraClientId)
 
 // Postgres admin password. Deterministic — same RG + name prefix always
 // produces the same value, so re-deploys don't rotate the password. Meets
@@ -190,8 +171,6 @@ module bootstrap 'modules/bootstrap.bicep' = {
     identityId: identities.outputs.deployScriptIdentityId
     keyVaultName: kv.outputs.kvName
     pgPasswordToStore: pgPassword
-    entraTenantId: entraTenantId
-    entraClientId: entraClientId
     existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
   }
 }
@@ -228,9 +207,6 @@ module web 'modules/app-service.bicep' = {
     storageAccountKey: storage.outputs.storageAccountKey
     uploadsShareName: storage.outputs.uploadsShareName
     logAnalyticsWorkspaceId: logs.outputs.workspaceId
-    enableEntraAuth: enableEntraAuth
-    entraTenantId: entraTenantId
-    entraClientId: entraClientId
   }
   dependsOn: [bootstrap]
 }
