@@ -78,9 +78,9 @@ Already-registered providers show `Registered` immediately and are a no-op.
 
 ## Step 2 — Pass 1: claim the name (~6 min)
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json)
+<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json" target="_blank" rel="noopener noreferrer"><img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure"></a>
 
-Click the button. The portal opens the deploy form pre-loaded with our ARM template.
+Click the button (opens in a new tab). The portal opens the deploy form pre-loaded with our ARM template.
 
 Fill in:
 
@@ -158,9 +158,9 @@ Done with the App Registration. You have:
 
 ## Step 4 — Pass 2: turn auth on (~2 min)
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json)
+<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json" target="_blank" rel="noopener noreferrer"><img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure"></a>
 
-Click the button again. Fill in **the exact same values as Pass 1**, with three changes:
+Click the button again (opens in a new tab). Fill in **the exact same values as Pass 1**, with three changes:
 
 | Field | Value for Pass 2 |
 |---|---|
