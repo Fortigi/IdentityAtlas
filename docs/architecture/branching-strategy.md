@@ -40,11 +40,10 @@ git checkout -b bugfixes/<name> v5.2.0
 
 ## Version Number Format
 
-Two formats, both 4-part (PowerShell-compatible):
-
 | Context | Format | Example |
 |---------|--------|---------|
 | `main` dev builds (`:edge`) | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` |
+| Pre-release tags (`:beta`) | `Major.Minor.Patch-beta.N` | `5.3.0-beta.1` |
 | Release tags (`:latest`) | `Major.Minor.Patch.0` | `5.2.1.0` |
 
 **Who updates what:**
@@ -52,6 +51,7 @@ Two formats, both 4-part (PowerShell-compatible):
 | Action | Who | When |
 |--------|-----|------|
 | `Minor` bump + timestamp | `bump-version.yml` GitHub Action | Automatically on every PR merge to `main` |
+| Pre-release version | `cut-beta.yml` GitHub Action | When you run Actions → Cut Beta |
 | Release version | `cut-release.yml` GitHub Action | When you run Actions → Cut Release |
 | Hotfix version | `cut-hotfix.yml` GitHub Action | When you run Actions → Cut Hotfix |
 | `Major` bump | Developer, via PR to `main` | Only for breaking changes |
@@ -84,6 +84,17 @@ Write in user-facing language. One bullet per functional change. Add the file al
 4. After merge, `bump-version.yml` automatically increments `Minor`, updates the timestamp, and merges all `changes/*.md` fragments into `CHANGES.md`. The `docker-publish.yml` action then builds and pushes Docker images tagged `:edge`.
 
 ---
+
+## Cutting a Pre-Release (Beta / RC)
+
+To publish a build for testers without touching `:latest`:
+
+1. Go to **Actions → Cut Beta → Run workflow**
+2. Enter the version: `Major.Minor.Patch-beta.N` (e.g. `5.3.0-beta.1`, `5.3.0-rc.1`, `5.3.0-alpha.1`)
+3. The workflow creates the tag on the current `main` HEAD
+4. `docker-publish.yml` builds `:beta` + `:5.3.0-beta.1`
+
+Users on `docker-compose.prod.yml` tracking `:latest` are **not** affected.
 
 ## Cutting a Release
 
@@ -148,7 +159,9 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 | Tag | Published when | Who uses it |
 |-----|---------------|-------------|
 | `:latest` | A release tag (`v5.2.0`) is created via Actions → Cut Release or Cut Hotfix | Customers (default) |
+| `:beta` | A pre-release tag is created via Actions → Cut Beta | Beta testers |
 | `:edge` | Every PR merges to `main` | Developers and testers |
 | `:5.2.0.0` | Same time as `:latest` — exact pinned version | Production deployments needing controlled upgrades |
+| `:5.3.0-beta.1` | Same time as `:beta` — exact pre-release version | Testers who want a reproducible pre-release build |
 
 See [Docker Setup](docker-setup.md) for how to select a channel via `IMAGE_TAG`.
