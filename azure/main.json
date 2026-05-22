@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "7364131947686207352"
+      "templateHash": "9529672888590703395"
     }
   },
   "parameters": {
@@ -918,7 +918,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "3357935624896578465"
+              "templateHash": "5240171855654956544"
             }
           },
           "parameters": {
@@ -1096,7 +1096,15 @@
                     },
                     {
                       "name": "AUTH_ENABLED",
-                      "value": "false"
+                      "value": "true"
+                    },
+                    {
+                      "name": "AUTH_TENANT_ID",
+                      "value": ""
+                    },
+                    {
+                      "name": "AUTH_CLIENT_ID",
+                      "value": ""
                     },
                     {
                       "name": "IDENTITY_ATLAS_MASTER_KEY",
