@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a **Cut Beta** GitHub Actions workflow (`Actions → Cut Beta`) to publish pre-release Docker images tagged `:beta` and the exact version (e.g. `5.3.0-beta.1`) without touching `:latest`. Users on `docker-compose.prod.yml` are unaffected.
+
+## Changes in this PR
+
 - Fixed: on a fresh Azure deployment, migration `013_matrix_matviews_and_indexes.sql` failed at `CREATE EXTENSION pg_trgm` because Azure Postgres Flexible Server requires the extension to be allow-listed via the `azure.extensions` server parameter before any user can install it. The migration runner aborts the pending batch on failure, so 16 later migrations (including the one that adds `nextRunMode` to `CrawlerConfigs`) also got skipped. Symptom was "Failed to create job" when clicking Run on a crawler in the UI. The Postgres Bicep module now sets `azure.extensions=PG_TRGM` via a `Microsoft.DBforPostgreSQL/flexibleServers/configurations` resource, so future deploys never hit this.
 - Fixed: the Docker worker's crawler API key (`fgc_…`) was being rejected by `authMiddleware` before reaching `crawlerAuthMiddleware`, so `POST /api/crawlers/jobs/claim` returned 401 every 30 seconds and the worker never picked up queued jobs. This was an over-correction from the admin-bypass hardening in #160 — `authMiddleware` is mounted on `/api/*` ahead of `crawlerAuthMiddleware` in `index.js`, so worker requests hit the unconditional `fgc_` rejection first. `authMiddleware` now passes `fgc_` tokens through to the next middleware on `/api/crawlers/*` and `/api/ingest/*` (the two prefixes downstream-mounted with `crawlerAuthMiddleware`), while still rejecting them on every other admin/UI path. The original admin-bypass concern stays addressed.
 
