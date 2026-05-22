@@ -161,3 +161,69 @@ describe('authMiddleware — header hygiene', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe('authMiddleware — fgc_ crawler token pass-through', () => {
+  // fgc_ tokens are NOT validated here — crawlerAuthMiddleware downstream
+  // does the real check. But because authMiddleware is mounted on /api before
+  // crawlerAuthMiddleware, it has to recognise the worker-facing path prefixes
+  // and call next() so the request reaches the right middleware.
+
+  it('calls next() for fgc_ tokens on /api/crawlers/* paths', async () => {
+    const paths = [
+      '/api/crawlers/whoami',
+      '/api/crawlers/rotate',
+      '/api/crawlers/jobs/claim',
+      '/api/crawlers/jobs/42/complete',
+      '/api/crawlers/jobs/42/phases',
+      '/api/crawlers/delta-tokens/users',
+    ];
+    for (const path of paths) {
+      const { res, nextCalled } = await run(makeReq({ path, method: 'POST', token: 'fgc_abcdefgh' }));
+      expect(nextCalled, `expected next() for ${path}`).toBe(true);
+      expect(res.statusCode).toBeNull();
+    }
+  });
+
+  it('calls next() for fgc_ tokens on /api/ingest/* paths', async () => {
+    const paths = [
+      '/api/ingest/principals',
+      '/api/ingest/resources',
+      '/api/ingest/governance/catalogs',
+    ];
+    for (const path of paths) {
+      const { res, nextCalled } = await run(makeReq({ path, method: 'POST', token: 'fgc_abcdefgh' }));
+      expect(nextCalled, `expected next() for ${path}`).toBe(true);
+      expect(res.statusCode).toBeNull();
+    }
+  });
+
+  it('rejects fgc_ tokens with 401 on admin and other non-crawler /api/* paths', async () => {
+    const paths = [
+      '/api/admin/crawlers',
+      '/api/admin/crawler-jobs',
+      '/api/users',
+      '/api/contexts',
+      '/api/matrix',
+    ];
+    for (const path of paths) {
+      const { res, nextCalled } = await run(makeReq({ path, method: 'GET', token: 'fgc_abcdefgh' }));
+      expect(nextCalled, `expected reject for ${path}`).toBe(false);
+      expect(res.statusCode).toBe(401);
+      expect(res.body.error).toMatch(/crawler api keys are not valid/i);
+    }
+  });
+
+  it('uses originalUrl, not path, so the mount prefix is always visible', async () => {
+    // Even if a future Express version strips the /api prefix from req.path
+    // when middleware is mounted at /api, originalUrl preserves the full URL.
+    const req = {
+      path: '/crawlers/jobs/claim',           // mount-stripped — could happen
+      originalUrl: '/api/crawlers/jobs/claim',// full URL — what we actually rely on
+      method: 'POST',
+      headers: { authorization: 'Bearer fgc_abcdefgh' },
+    };
+    const { res, nextCalled } = await run(req);
+    expect(nextCalled).toBe(true);
+    expect(res.statusCode).toBeNull();
+  });
+});
