@@ -92,6 +92,19 @@ resource db 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-11-01-prev
   }
 }
 
+// Allow-list extensions our migrations use. Azure Postgres Flex blocks
+// CREATE EXTENSION for everything not in this list — migration 013 fails
+// with "extension pg_trgm is not allow-listed" without this.
+// Add more (comma-separated, uppercase) if future migrations install more.
+resource pgExtensions 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-11-01-preview' = {
+  parent: pg
+  name: 'azure.extensions'
+  properties: {
+    value: 'PG_TRGM'
+    source: 'user-override'
+  }
+}
+
 output pgId string = pg.id
 output pgFqdn string = pg.properties.fullyQualifiedDomainName
 output pgName string = pg.name
