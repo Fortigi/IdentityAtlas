@@ -10,7 +10,8 @@
 #
 # Tags pushed depend on the trigger:
 #   main (via bump-version):  :edge  + Major.Minor.yyyyMMdd.HHmm
-#   v* tag push:              :latest + Major.Minor.Patch.0
+#   v5.2.0 tag push:          :latest + Major.Minor.Patch.0
+#   v5.2.0-beta.1 tag push:   :beta   + Major.Minor.Patch-beta.N  (never touches :latest)
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Publish Docker Images
@@ -63,10 +64,16 @@ jobs:
           fi
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
 
-          if [[ "$REF" == v* ]]; then
-            # Release tag: v5.2.0 → version 5.2.0.0
+          if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Stable release tag: v5.2.0 → version 5.2.0.0
             VERSION="${REF#v}.0"
             echo "channel=release" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "use_tag_version=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(beta|rc|alpha) ]]; then
+            # Pre-release tag: v5.2.0-beta.1 → version 5.2.0-beta.1 (no .0 suffix)
+            VERSION="${REF#v}"
+            echo "channel=beta" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
             echo "use_tag_version=true" >> "$GITHUB_OUTPUT"
           else
@@ -205,6 +212,33 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:latest
+            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+
+      - name: Push web image (pre-release tag → beta)
+        if: steps.config.outputs.channel == 'beta'
+        uses: docker/build-push-action@v7
+        with:
+          context: ./app
+          file: ./app/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/fortigi/identity-atlas:beta
+            ${{ env.REGISTRY }}/fortigi/identity-atlas:${{ steps.version.outputs.version }}
+          build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Push worker image (pre-release tag → beta)
+        if: steps.config.outputs.channel == 'beta'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./setup/docker/Dockerfile.powershell
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:beta
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=worker
           cache-to: type=gha,mode=max,scope=worker

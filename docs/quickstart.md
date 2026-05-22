@@ -76,20 +76,24 @@ Open the UI at [http://localhost:3001](http://localhost:3001) and the Admin → 
 
 ## Image channels
 
-Identity Atlas publishes two channels:
+Identity Atlas publishes three channels:
 
 | Channel | Tag | Updated when | Use it for |
 |---------|-----|-------------|-----------|
 | **Stable** | `:latest` | A new release is cut (e.g. `v5.2.0`) | Customers and production — default |
+| **Beta** | `:beta` | A pre-release is cut via Actions → Cut Beta | Beta testers |
 | **Edge** | `:edge` | Every PR merges to `main` | Developers and testers who want unreleased features |
 
-Both channels also publish an exact version tag (`:5.2.0.0`, `:5.2.1.0`) at the same time as `:latest`, so you can pin to a specific build.
+Stable and beta channels also publish an exact version tag (`:5.2.0.0`, `:5.3.0-beta.1`) at the same time, so you can pin to a specific build.
 
 === "Linux / macOS"
 
     ```bash
     # Default: pull the latest stable release
     docker compose -f docker-compose.prod.yml up -d --pull always
+
+    # Beta: latest pre-release build
+    IMAGE_TAG=beta docker compose -f docker-compose.prod.yml up -d --pull always
 
     # Edge: latest commit on main (may include unreleased features)
     IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
@@ -99,6 +103,10 @@ Both channels also publish an exact version tag (`:5.2.0.0`, `:5.2.1.0`) at the 
 
     ```powershell
     # Default: pull the latest stable release
+    docker compose -f docker-compose.prod.yml up -d --pull always
+
+    # Beta: latest pre-release build
+    $env:IMAGE_TAG = "beta"
     docker compose -f docker-compose.prod.yml up -d --pull always
 
     # Edge: latest commit on main (may include unreleased features)

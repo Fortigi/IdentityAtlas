@@ -68,14 +68,19 @@ The compose file uses the `IMAGE_TAG` variable to select which build to pull:
 | `IMAGE_TAG` | What you get | Who should use it |
 |---|---|---|
 | *(unset or blank)* | `:latest` — last stable release, published when a release tag is cut | Customers and production deployments |
+| `beta` | `:beta` — latest pre-release build, published via Actions → Cut Beta | Beta testers |
 | `edge` | `:edge` — latest commit on `main`, updated on every PR merge, may include unreleased features | Developers and testers |
-| `5.2.1.0` | Exact pinned version, never auto-updates | Production deployments needing controlled upgrade timing |
+| `5.2.1.0` | Exact pinned stable version, never auto-updates | Production deployments needing controlled upgrade timing |
+| `5.3.0-beta.1` | Exact pinned pre-release version | Testers who want a reproducible pre-release build |
 
 The running version is always visible in the footer of the UI. Edge builds show an amber **edge** badge so it is immediately obvious which channel is running.
 
 ```bash
 # Run the stable release (default)
 docker compose -f docker-compose.prod.yml up -d --pull always
+
+# Run the latest pre-release beta
+IMAGE_TAG=beta docker compose -f docker-compose.prod.yml up -d --pull always
 
 # Run the edge build (latest merged to main, may be unstable)
 IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
@@ -368,7 +373,7 @@ Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read fro
 
 | Variable | Default | Description |
 |---|---|---|
-| `IMAGE_TAG` | *(blank → `latest`)* | Docker image tag to pull. Leave blank for the stable release, set `edge` for the latest dev build, or pin to a specific version like `5.2.1.0`. |
+| `IMAGE_TAG` | *(blank → `latest`)* | Docker image tag to pull. Leave blank for the stable release, `beta` for the latest pre-release build, `edge` for the latest dev build, or pin to a specific version like `5.2.1.0`. |
 
 #### Database
 
