@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "1084410798829191187"
+      "templateHash": "7364131947686207352"
     }
   },
   "parameters": {
@@ -678,7 +678,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "10679899749634718762"
+              "templateHash": "12932658018546021402"
             }
           },
           "parameters": {
@@ -818,6 +818,18 @@
               "properties": {
                 "charset": "UTF8",
                 "collation": "en_US.utf8"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
+              "apiVersion": "2024-11-01-preview",
+              "name": "[format('{0}/{1}', variables('pgName'), 'azure.extensions')]",
+              "properties": {
+                "value": "PG_TRGM",
+                "source": "user-override"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('pgName'))]"
