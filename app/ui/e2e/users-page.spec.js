@@ -89,7 +89,6 @@ test.describe('Users Page', () => {
     });
 
     if (await userLinks.count() > 0) {
-      const userName = await userLinks.first().textContent();
       await userLinks.first().click();
 
       // A detail tab should open in the nav

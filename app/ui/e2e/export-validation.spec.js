@@ -18,11 +18,9 @@ test.describe('Export validation', () => {
       ]);
       const path = await download.path();
       expect(path).toBeTruthy();
-      // Verify the file has content (not empty)
-      const stats = fs.statSync(path);
-      expect(stats.size).toBeGreaterThan(0);
-      // XLSX files start with PK (ZIP magic bytes)
+      // Verify the file has content and starts with PK (ZIP/XLSX magic bytes)
       const buf = fs.readFileSync(path);
+      expect(buf.length).toBeGreaterThan(0);
       expect(buf[0]).toBe(0x50); // P
       expect(buf[1]).toBe(0x4B); // K
     } else {

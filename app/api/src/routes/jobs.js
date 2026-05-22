@@ -5,11 +5,15 @@
  */
 import { Router } from 'express';
 import * as db from '../db/connection.js';
-import { existsSync, readdirSync, promises as fs } from 'fs';
+import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
 
 const TRACE_DIR = '/data/uploads/jobs';
+// Pre-resolve once so path-containment checks can use a stable absolute base.
+const TRACE_DIR_RESOLVED = path.resolve(TRACE_DIR);
+// CSV uploads live under this base; configCsvFolder must stay within it.
+const CSV_BASE_DIR = path.resolve('/data/uploads');
 // Tail endpoint returns at most this many bytes per request. If the file is
 // larger than offset + MAX, the client polls again with the new offset. Keeps
 // any single response small enough that a ~10 MB log on a long crawl streams
@@ -676,7 +680,11 @@ router.post('/admin/discover-graph-attributes', async (req, res) => {
 router.post('/admin/crawler-jobs', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
-  const { jobType, config, configId, syncMode: explicitSyncMode } = req.body;
+  const { jobType, config, configId: rawConfigId, syncMode: explicitSyncMode } = req.body;
+  const configId = rawConfigId != null ? parseInt(rawConfigId, 10) : null;
+  if (rawConfigId != null && (isNaN(configId) || configId <= 0)) {
+    return res.status(400).json({ error: 'configId must be a positive integer' });
+  }
   if (!jobType || !VALID_JOB_TYPES.includes(jobType)) {
     return res.status(400).json({ error: `jobType must be one of: ${VALID_JOB_TYPES.join(', ')}` });
   }
@@ -726,11 +734,23 @@ router.post('/admin/crawler-jobs', async (req, res) => {
       if (!configId) {
         return res.status(400).json({ error: 'CSV jobs require a configId — inline configs are not supported' });
       }
-      // Use the config's stored csvFolder if it exists (e.g. pointing to a
-      // pre-transformed folder), otherwise fall back to the standard upload path.
+      // Use the config's stored csvFolder if it exists and is within the
+      // allowed base directory, otherwise fall back to the standard upload path.
       const configCsvFolder = resolvedConfig?.csvFolder;
-      const folder = configCsvFolder && existsSync(configCsvFolder) ? configCsvFolder : getCsvFolderPath(configId);
-      if (!existsSync(folder) || readdirSync(folder).length === 0) {
+      let folder = getCsvFolderPath(configId);
+      if (configCsvFolder) {
+        // Derive a relative path and rebuild from the trusted base so the
+        // resulting path is constructed from a constant, not raw user data.
+        const relPart = path.relative(CSV_BASE_DIR, path.resolve(configCsvFolder));
+        if (relPart && !relPart.startsWith('..') && !path.isAbsolute(relPart)) {
+          const safeCustom = path.join(CSV_BASE_DIR, relPart);
+          try { readdirSync(safeCustom); folder = safeCustom; } catch { /* fall back to default */ }
+        }
+      }
+      // Check for CSV files — use try/catch to avoid TOCTOU (existsSync + read)
+      let csvFiles = [];
+      try { csvFiles = readdirSync(folder); } catch { /* folder missing or unreadable */ }
+      if (csvFiles.length === 0) {
         return res.status(400).json({ error: 'No CSV files found. Upload files or configure the CSV folder path.' });
       }
       resolvedConfig = { ...(resolvedConfig || {}), csvFolder: folder };
@@ -831,16 +851,19 @@ router.get('/admin/crawler-jobs/:id/log', async (req, res) => {
   if (isNaN(id) || id < 0) return res.status(400).json({ error: 'Invalid job ID' });
   const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
 
-  const logPath = path.join(TRACE_DIR, `${id}.log`);
+  const logPath = path.resolve(TRACE_DIR_RESOLVED, `${id}.log`);
+  if (!logPath.startsWith(TRACE_DIR_RESOLVED + path.sep)) {
+    return res.status(400).json({ error: 'Invalid job ID' });
+  }
   try {
-    const stat = await fs.stat(logPath);
-    const totalLength = stat.size;
-    if (offset >= totalLength) {
-      return res.json({ text: '', offset, totalLength, truncated: false, exists: true });
-    }
-    const length = Math.min(MAX_TRACE_CHUNK, totalLength - offset);
     const fh = await fs.open(logPath, 'r');
     try {
+      const stat = await fh.stat();
+      const totalLength = stat.size;
+      if (offset >= totalLength) {
+        return res.json({ text: '', offset, totalLength, truncated: false, exists: true });
+      }
+      const length = Math.min(MAX_TRACE_CHUNK, totalLength - offset);
       const buf = Buffer.alloc(length);
       await fh.read(buf, 0, length, offset);
       const text = buf.toString('utf8');

@@ -103,13 +103,9 @@ test.describe('Identities Page', () => {
   test('account type badges render with expected labels', async ({ page }) => {
     await page.waitForTimeout(1000);
     const types = ['Regular', 'Admin', 'Test', 'Service', 'Shared', 'External'];
-    let foundAny = false;
 
     for (const type of types) {
-      if (await page.getByText(type, { exact: true }).count() > 0) {
-        foundAny = true;
-        break;
-      }
+      if (await page.getByText(type, { exact: true }).count() > 0) break;
     }
 
     // Finding no badges is acceptable in mock / empty mode
@@ -127,8 +123,6 @@ test.describe('Identities Page', () => {
     if (!hasTable) { test.skip(); return; }
 
     // Confidence bar: a narrow horizontal bar element with inline width style
-    const bar = page.locator('[style*="width:"], [style*="width: "]').first();
-    const exists = await bar.count() > 0;
     // Accept either bar found or table has no rows with confidence
     expect(true).toBe(true);
   });
@@ -154,10 +148,6 @@ test.describe('Identities Page', () => {
     await page.waitForTimeout(1000);
     const notAvailable = await page.getByText(/not.*available|Invoke-FGAccountCorrelation/i).count();
     if (notAvailable > 0) { test.skip(); return; }
-
-    const searchInput = page.getByRole('textbox', { name: /search/i })
-      .or(page.locator('input[placeholder*="search" i]'))
-      .or(page.locator('input[placeholder*="identit" i]'));
 
     // Not all mock states will show a search bar — just verify no crash
     expect(true).toBe(true);
@@ -198,7 +188,6 @@ test.describe('Identities Page', () => {
   test('Verified badge is visible for verified identities', async ({ page }) => {
     await page.waitForTimeout(1000);
     // Just check the component doesn't crash — badge presence depends on data
-    const badge = page.getByText('Verified', { exact: true });
     // May or may not be present depending on mock data
     expect(true).toBe(true);
   });
@@ -216,9 +205,7 @@ test.describe('Identities Page', () => {
     await rows.first().click();
     await page.waitForTimeout(500);
 
-    // Look for a Verify button in the detail panel
-    const verifyBtn = page.getByRole('button', { name: /verify/i });
-    // Presence depends on whether a panel opened and data loaded
+    // Presence of a Verify button depends on whether a panel opened and data loaded
     expect(true).toBe(true);
   });
 
@@ -230,7 +217,6 @@ test.describe('Identities Page', () => {
     await expect(page.locator('nav')).toBeVisible();
 
     // Look for override-related text
-    const overrideControl = page.getByText(/override|confirmed|rejected|moved/i);
     // These may appear if a detail panel is open with multi-account data
     expect(true).toBe(true);
   });
@@ -243,8 +229,6 @@ test.describe('Identities Page', () => {
     if (notAvailable > 0) { test.skip(); return; }
 
     // Pagination buttons: Previous / Next
-    const prev = page.getByRole('button', { name: /prev/i });
-    const next = page.getByRole('button', { name: /next/i });
     // May not appear for small datasets — just verify no crash
     expect(true).toBe(true);
   });

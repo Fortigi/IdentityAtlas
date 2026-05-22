@@ -12,7 +12,6 @@
 
 import crypto from 'crypto';
 import { discoverColumns, writeSyncLog, scopedDelete } from './engine.js';
-import { from as copyFrom } from 'pg-copy-streams';
 import * as db from '../db/connection.js';
 
 const sessions = new Map();
@@ -32,27 +31,6 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000);
 
-function escapeCopyText(s) {
-  return s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-}
-function buildCopyRow(record, activeColumns) {
-  const fields = activeColumns.map(col => {
-    const v = record[col.name];
-    if (v === null || v === undefined) return '\\N';
-    if (col.sqlTypeName === 'jsonb' || col.sqlTypeName === 'json') {
-      return escapeCopyText(typeof v === 'string' ? v : JSON.stringify(v));
-    }
-    if (col.sqlTypeName === 'boolean') {
-      return v === true || v === 1 || v === '1' || v === 'true' || v === 't' ? 't' : 'f';
-    }
-    if (col.sqlTypeName.startsWith('timestamp')) {
-      return v instanceof Date ? v.toISOString() : escapeCopyText(String(v));
-    }
-    if (typeof v === 'number') return String(v);
-    return escapeCopyText(String(v));
-  });
-  return fields.join('\t') + '\n';
-}
 
 async function copyRows(client, tempTable, activeColumns, records) {
   // Batched INSERT instead of COPY FROM STDIN. The COPY approach had a crash

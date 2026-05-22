@@ -1,4 +1,4 @@
-// 3-step modal that builds a Matrix. The user must complete this before the
+﻿// 3-step modal that builds a Matrix. The user must complete this before the
 // matrix loads any data.
 //
 //   Step 1 — Setup              (subject type + orientation)
@@ -409,7 +409,7 @@ function StepIndicator({ step, onJump }) {
             }`}>{s.n}</span>
             {s.label}
           </button>
-          {idx < steps.length - 1 && <span className="text-gray-300 dark:text-gray-600">›</span>}
+          {idx < steps.length - 1 && <span className="text-gray-500 dark:text-gray-400">›</span>}
         </span>
       ))}
     </div>
@@ -452,7 +452,7 @@ function SavedFilterDropdown({ savedFilters, onLoad, onDelete }) {
                 </button>
                 <button
                   onClick={() => onDelete(f.id)}
-                  className="text-[10px] text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400"
+                  className="text-[10px] text-gray-600 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                   title="Delete (org-wide)"
                 >
                   Delete
@@ -481,21 +481,21 @@ function LiveSummary({ preview, loading, rowType }) {
       <div>
         <span className="font-semibold text-gray-800 dark:text-gray-200">{preview.subjectCount.toLocaleString()}</span>
         {' '}of {preview.subjectTotal.toLocaleString()} {subjectLabel}
-        <span className="text-gray-400 dark:text-gray-500"> · {subjectPct}%</span>
+        <span className="text-gray-600 dark:text-gray-400"> · {subjectPct}%</span>
       </div>
-      <div className="text-gray-300 dark:text-gray-600">×</div>
+      <div className="text-gray-500 dark:text-gray-400">×</div>
       <div>
         <span className="font-semibold text-gray-800 dark:text-gray-200">{preview.resourceCount.toLocaleString()}</span>
         {' '}of {preview.resourceTotal.toLocaleString()} resources
-        <span className="text-gray-400 dark:text-gray-500"> · {resourcePct}%</span>
+        <span className="text-gray-600 dark:text-gray-400"> · {resourcePct}%</span>
       </div>
-      <div className="text-gray-300 dark:text-gray-600">·</div>
+      <div className="text-gray-500 dark:text-gray-400">·</div>
       <div>
         <span className="font-semibold text-gray-800 dark:text-gray-200">{preview.assignmentCount.toLocaleString()}</span>
         {' '}assignments
       </div>
       {loading && (
-        <div className="ml-auto text-[10px] text-gray-400 dark:text-gray-500">updating…</div>
+        <div className="ml-auto text-[10px] text-gray-600 dark:text-gray-400">updating…</div>
       )}
     </div>
   );
@@ -577,9 +577,9 @@ function OrientationVisual({ rowsLabel, colsLabel }) {
   // Tiny 2×3 grid that visually communicates which axis is rows / columns.
   return (
     <div className="flex flex-col items-end gap-0.5">
-      <div className="text-[8px] uppercase tracking-wider text-gray-400 dark:text-gray-500">{colsLabel}</div>
+      <div className="text-[8px] uppercase tracking-wider text-gray-600 dark:text-gray-400">{colsLabel}</div>
       <div className="flex items-center gap-1">
-        <div className="text-[8px] uppercase tracking-wider text-gray-400 dark:text-gray-500" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{rowsLabel}</div>
+        <div className="text-[8px] uppercase tracking-wider text-gray-600 dark:text-gray-400" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{rowsLabel}</div>
         <div className="grid grid-cols-3 gap-px bg-gray-300 dark:bg-gray-600 p-px rounded">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="w-2 h-2 bg-white dark:bg-gray-800" />
@@ -685,7 +685,7 @@ function ConditionList({ title, conditions, contextMeta, columns, onContextResol
       </div>
       <div className="p-2 space-y-1.5">
         {conditions.length === 0 ? (
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 italic">{emptyHint}</p>
+          <p className="text-[11px] text-gray-600 dark:text-gray-400 italic">{emptyHint}</p>
         ) : (
           conditions.map((cond, idx) => (
             <ConditionRow
@@ -748,7 +748,7 @@ function ConditionRow({ cond, contextMeta, onRemove, onUpdate }) {
             <span>incl. descendants</span>
           </label>
         </span>
-        <button onClick={onRemove} className="text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400" aria-label="Remove">×</button>
+        <button onClick={onRemove} className="text-gray-600 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400" aria-label="Remove">×</button>
       </div>
     );
   }
@@ -757,12 +757,12 @@ function ConditionRow({ cond, contextMeta, onRemove, onUpdate }) {
       <div className="flex items-center gap-2 text-xs">
         <span className="inline-flex items-center gap-1 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded px-2 py-1 flex-1 min-w-0">
           <span className="text-gray-500 dark:text-gray-400 font-medium uppercase text-[10px]">{cond.field}</span>
-          <span className="text-gray-400 dark:text-gray-500">in</span>
+          <span className="text-gray-600 dark:text-gray-500">in</span>
           <span className="truncate text-gray-800 dark:text-gray-200 flex-1">
             {(cond.values || []).join(', ')}
           </span>
         </span>
-        <button onClick={onRemove} className="text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400" aria-label="Remove">×</button>
+        <button onClick={onRemove} className="text-gray-600 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400" aria-label="Remove">×</button>
       </div>
     );
   }
@@ -816,11 +816,11 @@ function AttributePicker({ columns, onPick, onClose }) {
         {field && (
           <>
             <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Values <span className="text-gray-400 dark:text-gray-500">(any of these match — OR)</span>
+              Values <span className="text-gray-600 dark:text-gray-500">(any of these match — OR)</span>
             </label>
             <div className="border border-gray-200 dark:border-gray-700 rounded max-h-48 overflow-y-auto">
               {valueOptions.length === 0 ? (
-                <p className="text-[11px] text-gray-400 dark:text-gray-500 italic px-2 py-1">No values available</p>
+                <p className="text-[11px] text-gray-600 dark:text-gray-500 italic px-2 py-1">No values available</p>
               ) : (
                 valueOptions.map(v => (
                   <label key={v} className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700/30 text-xs cursor-pointer">
@@ -835,7 +835,7 @@ function AttributePicker({ columns, onPick, onClose }) {
                 ))
               )}
             </div>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{selectedValues.length} selected</p>
+            <p className="text-[10px] text-gray-600 dark:text-gray-500 mt-1">{selectedValues.length} selected</p>
           </>
         )}
 

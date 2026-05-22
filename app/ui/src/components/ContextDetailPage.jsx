@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import ManualContextEditor from './contexts/ManualContextEditor';
@@ -129,7 +129,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
 
   if (!detail || !detail.attributes) {
     return (
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center text-gray-400 dark:text-gray-500 text-sm">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center text-gray-600 dark:text-gray-500 text-sm">
         Context not found.
         <button onClick={onClose} className="ml-2 text-blue-500 dark:text-blue-400 underline hover:text-blue-700 dark:text-blue-300">Close</button>
       </div>
@@ -209,7 +209,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                   <span className="text-sm text-gray-900 dark:text-white group-hover:text-sky-700 dark:text-sky-300">{sc.displayName}</span>
                 </div>
                 {sc.memberCount != null && (
-                  <span className="text-xs text-gray-400 dark:text-gray-500">{sc.memberCount} members</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-500">{sc.memberCount} members</span>
                 )}
               </button>
             ))}
@@ -282,9 +282,9 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
         )}
 
         {membersLoading ? (
-          <div className="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">Loading members...</div>
+          <div className="text-center text-gray-600 dark:text-gray-500 py-8 text-sm">Loading members...</div>
         ) : members.length === 0 ? (
-          <div className="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">No members found.</div>
+          <div className="text-center text-gray-600 dark:text-gray-500 py-8 text-sm">No members found.</div>
         ) : (
           <>
             <table className="w-full text-sm">
@@ -323,7 +323,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                     {canEditMembers && (
                       <td className="py-1.5 text-right">
                         {includeDescendants ? (
-                          <span className="text-[11px] text-gray-400 dark:text-gray-500" title="Turn off sub-context view to remove members">—</span>
+                          <span className="text-[11px] text-gray-600 dark:text-gray-500" title="Turn off sub-context view to remove members">—</span>
                         ) : (
                           <RemoveMemberButton
                             memberRow={m}
@@ -348,7 +348,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                 >
                   Previous
                 </button>
-                <span className="text-xs text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-gray-600 dark:text-gray-500">
                   Page {memberPage + 1} of {totalPages}
                 </span>
                 <button
@@ -405,7 +405,7 @@ function ContextHeader({ attrs, onClose }) {
             <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Parent: {attrs.parentDisplayName}</p>
           )}
         </div>
-        <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:text-gray-500 p-1" title="Close">
+        <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:text-gray-500 p-1" title="Close">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>

@@ -22,6 +22,12 @@ const MAX_BYTES_PER_URL = 50_000;
 const TIMEOUT_MS = 15_000;
 const USER_AGENT = 'Identity-Atlas-Scraper/1.0';
 
+// Block requests to private/loopback addresses to prevent SSRF.
+// DNS-rebinding attacks are not fully mitigated here — this guards against
+// the common accidental/deliberate cases where the configured URL points
+// directly at an internal hostname or IP.
+const PRIVATE_HOST_RE = /^(localhost|127\.\d+\.\d+\.\d+|::1|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+)$/i;
+
 function buildAuthHeader(creds) {
   if (!creds) return null;
   if (creds.bearer) return `Bearer ${creds.bearer}`;
@@ -37,19 +43,19 @@ function buildAuthHeader(creds) {
 // real HTML parser — the inputs are best-effort and the LLM is robust to noise.
 function htmlToText(html) {
   return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, ' ')
-    .replace(/<nav\b[^>]*>[\s\S]*?<\/nav>/gi, ' ')
-    .replace(/<header\b[^>]*>[\s\S]*?<\/header>/gi, ' ')
-    .replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, ' ')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script[^>]*>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style[^>]*>/gi, ' ')
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript[^>]*>/gi, ' ')
+    .replace(/<nav\b[^>]*>[\s\S]*?<\/nav[^>]*>/gi, ' ')
+    .replace(/<header\b[^>]*>[\s\S]*?<\/header[^>]*>/gi, ' ')
+    .replace(/<footer\b[^>]*>[\s\S]*?<\/footer[^>]*>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')  // last — so &amp;lt; → &lt; not <
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -64,6 +70,9 @@ export async function scrapeOne(url, credentials = null) {
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     return { url, ok: false, error: 'Only http(s) URLs are allowed' };
   }
+  if (PRIVATE_HOST_RE.test(parsed.hostname)) {
+    return { url, ok: false, error: 'URLs pointing to private or loopback addresses are not allowed' };
+  }
 
   const headers = {
     'User-Agent': USER_AGENT,
@@ -75,7 +84,7 @@ export async function scrapeOne(url, credentials = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const r = await fetch(url, { method: 'GET', headers, signal: controller.signal });
+    const r = await fetch(parsed.href, { method: 'GET', headers, signal: controller.signal });
     clearTimeout(timer);
     if (!r.ok) return { url, ok: false, status: r.status, error: `HTTP ${r.status}` };
 

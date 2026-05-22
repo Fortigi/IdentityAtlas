@@ -16,9 +16,7 @@ export default {
   name: 'manager-hierarchy',
   displayName: 'Manager Hierarchy',
   description:
-    'Builds a tree of Principals from their managerId chain. One node per ' +
-    'manager; members are their direct reports. Requires that Principals.' +
-    'managerId is populated by the crawler.',
+    'Builds a tree of Principals from their managerId chain. One node per manager; members are their direct reports. Requires that Principals.managerId is populated by the crawler.',
   targetType: 'Principal',
   parametersSchema: {
     type: 'object',

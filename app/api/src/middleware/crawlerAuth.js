@@ -7,6 +7,25 @@ const useSql = process.env.USE_SQL === 'true';
 const rateLimits = new Map();
 const RATE_WINDOW_MS = 60 * 1000;
 
+// Auth result cache: avoids running the expensive scrypt on every request.
+// Key: `${crawlerId}:${apiKey}`. TTL: 60 seconds.
+// On key rotation the new apiKey string is different → cache miss → re-verify.
+const authCache = new Map();
+const AUTH_CACHE_TTL_MS = 60_000;
+
+function getCachedAuth(crawlerId, apiKey) {
+  const entry = authCache.get(`${crawlerId}:${apiKey}`);
+  return (entry && Date.now() < entry.expires) ? entry.valid : null;
+}
+
+function setCachedAuth(crawlerId, apiKey, valid) {
+  authCache.set(`${crawlerId}:${apiKey}`, { valid, expires: Date.now() + AUTH_CACHE_TTL_MS });
+  if (authCache.size > 2000) {
+    const now = Date.now();
+    for (const [k, v] of authCache) { if (now >= v.expires) authCache.delete(k); }
+  }
+}
+
 function checkRateLimit(crawlerId, limit) {
   const now = Date.now();
   const entry = rateLimits.get(crawlerId);
@@ -19,7 +38,7 @@ function checkRateLimit(crawlerId, limit) {
 }
 
 function hashKey(apiKey, salt) {
-  return crypto.createHash('sha256').update(Buffer.concat([salt, Buffer.from(apiKey, 'utf8')])).digest();
+  return crypto.scryptSync(apiKey, salt, 64, { N: 16384, r: 8, p: 1 });
 }
 
 async function logAudit(crawlerId, action, endpoint, statusCode, ipAddress) {
@@ -70,10 +89,25 @@ export async function crawlerAuthMiddleware(req, res, next) {
   }
 
   // Verify hash. apiKeyHash and apiKeySalt come back as Node Buffers from pg.
-  const computedHash = hashKey(apiKey, crawler.apiKeySalt);
-  if (!crypto.timingSafeEqual(computedHash, crawler.apiKeyHash)) {
+  // Detect legacy SHA-256 hashes (32 bytes) — require rotation before auth succeeds.
+  if (crawler.apiKeyHash && crawler.apiKeyHash.length === 32) {
+    await logAudit(crawler.id, 'auth_legacy_hash', req.originalUrl, 401, req.ip);
+    return res.status(401).json({ error: 'API key must be rotated (security upgrade required — use Admin → Crawlers → Reset Key)' });
+  }
+  // Check cache before running expensive scrypt
+  const cached = getCachedAuth(crawler.id, apiKey);
+  if (cached === false) {
     await logAudit(crawler.id, 'auth_failed', req.originalUrl, 401, req.ip);
     return res.status(401).json({ error: 'Invalid API key' });
+  }
+  if (cached !== true) {
+    const computedHash = hashKey(apiKey, crawler.apiKeySalt);
+    const valid = crypto.timingSafeEqual(computedHash, crawler.apiKeyHash);
+    setCachedAuth(crawler.id, apiKey, valid);
+    if (!valid) {
+      await logAudit(crawler.id, 'auth_failed', req.originalUrl, 401, req.ip);
+      return res.status(401).json({ error: 'Invalid API key' });
+    }
   }
 
   if (!crawler.enabled) {

@@ -108,7 +108,6 @@ router.get('/governance/summary', async (req, res) => {
 router.get('/governance/review-compliance', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
-    const pool = await db.getPool();
     const filter = req.query.filter;
     const categoryId = req.query.category;
 

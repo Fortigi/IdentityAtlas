@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthGate';
 import { Modal, Field, ErrorBox, PrimaryButton, SecondaryButton } from './ModalPrimitives';
 import { targetTypeMeta } from '../../utils/contextStyles';
@@ -365,7 +365,7 @@ function DryRunSamples({ samples }) {
           <summary className="text-[11px] text-gray-700 dark:text-gray-300 cursor-pointer">Preview contexts ({ctxs.length})</summary>
           <ul className="text-[11px] text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1 pl-4 list-disc">
             {ctxs.map((c, i) => (
-              <li key={i}>{c.displayName} <span className="text-gray-400 dark:text-gray-500">({c.externalId})</span></li>
+              <li key={i}>{c.displayName} <span className="text-gray-600 dark:text-gray-500">({c.externalId})</span></li>
             ))}
           </ul>
         </details>

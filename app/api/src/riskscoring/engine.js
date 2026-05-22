@@ -598,7 +598,7 @@ export async function runScoring(runId, classifierId = null) {
     // directReports graph iteratively (BFS) to avoid PowerShell v4's recursion.
     const subtreeCount = new Map();
     if (hierarchyAvailable) {
-      for (const [pid, state] of principalState) {
+      for (const [pid] of principalState) {
         if (!directReports.has(pid)) { subtreeCount.set(pid, 0); continue; }
         const seen = new Set();
         const queue = [...directReports.get(pid)];

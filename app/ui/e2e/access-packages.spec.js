@@ -67,17 +67,11 @@ test.describe('Access Packages Page', () => {
 
   test('assignment type badges render', async ({ page }) => {
     // Mock data should have assignment types: Auto-assigned, Request-based, etc.
-    const badges = page.getByText(/Auto-assigned|Request-based/i);
-    // May or may not have these depending on mock data
-    // Just verify no crash
+    // May or may not have badge types depending on mock data — just verify no crash
     await expect(page.locator('table')).toBeVisible({ timeout: 5000 });
   });
 
   test('pagination controls exist', async ({ page }) => {
-    const pagination = page.getByRole('button', { name: /Next/i })
-      .or(page.getByRole('button', { name: /Previous/i }))
-      .or(page.getByText(/Page/i));
-
     // With mock data (probably < 100 APs), pagination may not show
     // Just check the page is stable
     await expect(page.locator('table')).toBeVisible({ timeout: 5000 });

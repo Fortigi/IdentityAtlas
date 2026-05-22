@@ -1,5 +1,77 @@
 ## Changes in this PR
 
+- Fixed inconsistent docker startup commands: all documented `docker compose up` invocations now consistently use `--pull always` to ensure the latest image is pulled on every start.
+
+## Changes in this PR
+
+- Fixed security vulnerability: crawler API keys (`fgc_`) were incorrectly passed through JWT auth middleware, allowing any string with the `fgc_` prefix to reach admin endpoints without valid credentials.
+
+## Changes in this PR
+
+- Fixed CodeQL alert 50: replaced plain null-prototype object with `Map` in ingest normalization to eliminate remote property injection risk from user-supplied field names.
+
+## Changes in this PR
+
+- Fixed remaining CodeQL warnings: removed unused internal helper functions, eliminated a TOCTOU file-system race in the job-log endpoint, and hardened ingest normalization against prototype-injection via user-supplied property names.
+
+## Changes in this PR
+
+- Fixed log-injection vulnerability in ingest validation logging — only the record count is logged, never user-supplied content
+- Fixed client-side request-forgery risk in the authentication context default — the fallback stub no longer calls fetch
+- Fixed server-side request-forgery in the risk-profile scraper routes — added inline CodeQL suppression with evidence of the existing mitigation in `scraper.js` (http(s) only, private/loopback hosts blocked)
+- Fixed server-side request-forgery risk in the Azure OpenAI provider by adding inline CodeQL suppression with evidence of the existing `validateAzureEndpoint` mitigation (HTTPS required, private/loopback hosts blocked)
+
+## Changes in this PR
+
+- Removed unused imports and variables flagged by CodeQL across API route files (admin, contexts, correlationRulesets, details, governance, permissions, resources, tags), ingest engine and sessions, and the secrets vault
+- Removed unused variable declarations in Playwright end-to-end test files (access-packages, detail-pages, identities, matrix, multi-filter)
+- Removed unused state setter in RiskScoringPage
+
+## Changes in this PR
+
+- Fixed log injection in context plugin dry-run and ingest routes by sanitising user-controlled values before logging
+- Fixed remote property injection in ingest normalisation by iterating the trusted column set instead of request-supplied keys
+- Hardened CORS configuration: replaced permissive wildcard origin with an explicit localhost allowlist for development; production defaults to same-origin only
+- Added rate limiting to the SPA HTML fallback route
+- Added tenant ID format validation in MSAL AuthGate to prevent client-side request forgery via a crafted server config response
+
+## Changes in this PR
+
+- Fixed SSRF vulnerabilities in LLM web scraper and Azure OpenAI provider by blocking requests to private/loopback addresses
+- Upgraded API key hashing from SHA-256 to scrypt (PBKDF) with automatic legacy key detection and migration on startup
+- Fixed path traversal vulnerability in job log endpoint using path containment check
+- Fixed TOCTOU race conditions in master key file handling and CSV folder detection
+- Fixed regex polynomial ReDoS in Azure OpenAI endpoint URL handling
+- Fixed bad HTML tag filter patterns in LLM scraper (script/style/nav block stripping)
+- Fixed double-escaping of HTML entities in LLM scraper text extraction
+
+## Changes in this PR
+
+- Fixed WCAG 2.0 AA contrast failures in MatrixFilterWizard: separator characters, percentage labels, orientation labels, hint text, and delete button labels were rendered in gray-300/400 (failing contrast) and upgraded to gray-500/600
+- Fixed low-contrast "all" placeholder and loading indicator in MatrixFilterSummary
+- Fixed SVG axis label color in TimeSeriesChart (gray-500 → gray-600, from ≈4.6:1 to ≈7.5:1 margin)
+- Fixed remaining pre-existing contrast violations across 44 UI components (gray-400/300 text on light backgrounds, blue-400 and red-400 status text)
+- Added ESLint rule `local/no-low-contrast-text` that blocks Tailwind `text-{color}-300` and `text-{color}-400` classes in JSX `className` attributes, enforcing WCAG 2.0 AA compliance at build time
+
+## Changes in this PR
+
+- Fixed matrix view crash ("Something went wrong / Cannot read properties of undefined") caused by a bad rebase conflict resolution in the CodeQL fixes PR (#148) that accidentally reverted the MatrixView.jsx wizard refactor from PR #147
+
+## Changes in this PR
+
+- Fixed six CodeQL code-scanning alerts: unused loop variable, misleading string concatenation, useless initial assignment, unused dead-code variable, and two unused variables in e2e tests
+
+## Changes in this PR
+
+- Added a **Trends** tab to the Dashboard page. Plots the % of assignments that are governed over time, plus separate charts for users, resources, and assignments growth.
+- The chart starts populated on the day this version ships and grows as new days are captured. The scheduler writes one snapshot per UTC day to the new `DashboardSnapshots` table — no historical backfill, so the early section reflects only the snapshots actually captured (not a reconstructed history).
+- Range selector switches between 30 days / 90 days / 1 year / 2 years. Charts render as hand-rolled SVG; no new frontend dependency.
+- Added Playwright e2e coverage for the new Dashboard tab strip and Trends tab: verifies tab switching, chart container presence, and the range selector behaviour.
+- New `docs/architecture/dashboard-trends.md` documents the snapshot architecture, the no-backfill decision, the API surface, and the chart rendering details.
+- Pointers in `app/ui/CLAUDE.md` so future AI contributors find the new components.
+
+## Changes in this PR
+
 - Added a new crawler phase that imports application role assignments from Entra ID. For each enterprise app the crawler pulls the catalog of `appRoles[]` and the `appRoleAssignedTo` list, then writes one `AppRole` resource per (app, role), an `Application → AppRole` relationship, and one `ResourceAssignment` per user assignment. Group-typed assignments are expanded to per-user `AppRoleViaGroup` rows via `/transitiveMembers` so the matrix surfaces indirect access too.
 - Wired up the existing "Apps & AppRoles" checkbox in the Crawlers wizard so toggling it actually runs the new phase. Requires `Application.Read.All` on the app registration (already required for service principals; the permission validator was already enforcing it).
 - New matrix badges: `R` (App Role — direct) and `R` in a lighter shade (App Role — via group), so analysts can tell direct vs inherited app-role access at a glance.

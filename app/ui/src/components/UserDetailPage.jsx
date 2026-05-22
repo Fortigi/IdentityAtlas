@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
 import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
@@ -39,7 +39,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   // Manager (one record) — fetched eagerly because the header uses it and
   // the graph shows the manager node.
   const [manager, setManager] = useState(null);
-  const [managerLoaded, setManagerLoaded] = useState(false);
 
   // Core fetch
   useEffect(() => {
@@ -74,8 +73,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     authFetch(`/api/org-chart/user/${encodeURIComponent(userId)}/manager`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (!cancelled && d?.manager) setManager(d.manager); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setManagerLoaded(true); });
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [userId, authFetch]);
 
@@ -160,19 +158,19 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">{attributes.userPrincipalName || attributes.email}</p>
               {(attributes.systemDisplayName || attributes.systemId) && (
-                <p className="text-xs text-gray-400 dark:text-gray-500">System: {attributes.systemDisplayName || attributes.systemId}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-500">System: {attributes.systemDisplayName || attributes.systemId}</p>
               )}
             </div>
           </div>
           <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
             {attributes.jobTitle && <span>{attributes.jobTitle}</span>}
-            {attributes.department && <span className="text-gray-400 dark:text-gray-500">|</span>}
+            {attributes.department && <span className="text-gray-600 dark:text-gray-500">|</span>}
             {attributes.department && <span>{attributes.department}</span>}
-            {attributes.companyName && <span className="text-gray-400 dark:text-gray-500">|</span>}
+            {attributes.companyName && <span className="text-gray-600 dark:text-gray-500">|</span>}
             {attributes.companyName && <span>{attributes.companyName}</span>}
           </div>
           {lastActivity?.lastActivityDateTime && (
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400 dark:text-gray-500">
+            <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-600 dark:text-gray-500">
               <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -191,7 +189,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
           )}
         </div>
         <button onClick={onClose}
-          className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
           title="Close tab">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -212,7 +210,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                 onNodeClick={graph.handleNodeClick}
               />
               {graph.pathDepth > 0 && (
-                <div className="text-xs text-gray-400 dark:text-gray-500 text-center pb-2">
+                <div className="text-xs text-gray-600 dark:text-gray-500 text-center pb-2">
                   <span className="font-medium text-gray-600 dark:text-gray-300">{graph.activeListLabel}</span>
                   {' — '}
                   <button onClick={graph.reset} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">collapse</button>
@@ -229,7 +227,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               />
             ) : (
               <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
-                <p className="text-sm text-gray-400 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
+                <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
               </div>
             )}
           </div>
@@ -262,7 +260,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
           loading={historyLoading}
         >
           {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500 italic p-4">No changes recorded</p>
+            <p className="text-sm text-gray-600 dark:text-gray-500 italic p-4">No changes recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -282,9 +280,9 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                         {diff.changes.map((c, j) => (
                           <div key={j} className="text-xs">
                             <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(c.field)}</span>
-                            <span className="text-gray-400 dark:text-gray-500 mx-1">:</span>
+                            <span className="text-gray-600 dark:text-gray-500 mx-1">:</span>
                             <span className="text-red-500 dark:text-red-400 line-through mr-1">{c.from}</span>
-                            <span className="text-gray-400 dark:text-gray-500 mr-1">&rarr;</span>
+                            <span className="text-gray-600 dark:text-gray-500 mr-1">&rarr;</span>
                             <span className="text-green-600 dark:text-green-400">{c.to}</span>
                           </div>
                         ))}
@@ -355,7 +353,7 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
             {identity.correlationConfidence != null && ` · ${identity.correlationConfidence}% confidence`}
           </div>
           {memberInfo.correlationSignals && (
-            <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+            <div className="text-xs text-gray-600 dark:text-gray-500 mt-0.5">
               Signals: {memberInfo.correlationSignals}
             </div>
           )}
@@ -378,8 +376,8 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
                     {m.isPrimary && <span className="text-blue-600 font-medium">Primary</span>}
                     {m.isHrAuthoritative && <span className="text-emerald-700 font-medium">HR</span>}
                     <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-48">{m.displayName}</span>
-                    <span className="text-gray-400 dark:text-gray-500 truncate max-w-64">{m.userPrincipalName}</span>
-                    <span className={`ml-auto ${m.accountEnabled === 'True' || m.accountEnabled === true ? 'text-green-500' : 'text-gray-300'}`}>
+                    <span className="text-gray-600 dark:text-gray-500 truncate max-w-64">{m.userPrincipalName}</span>
+                    <span className={`ml-auto ${m.accountEnabled === 'True' || m.accountEnabled === true ? 'text-green-500' : 'text-gray-500'}`}>
                       {m.accountEnabled === 'True' || m.accountEnabled === true ? '●' : '○'}
                     </span>
                   </div>

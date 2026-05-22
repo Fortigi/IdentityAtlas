@@ -45,11 +45,10 @@ function createIngestHandler(entityType) {
 
     const recResult = validateRecords(body.records, entityType, body.idGeneration, body.syncMode);
     if (!recResult.valid) {
-      const preview = recResult.errors.slice(0, 5).join(' | ');
-      console.warn(
-        `Ingest validation failed [${entityType}] (${body.syncMode || 'full'} mode): ` +
-        `${recResult.errors.length} record error(s) — first ${Math.min(5, recResult.errors.length)}: ${preview}`
-      );
+      // Both branches are hardcoded literals so syncMode is never tainted (log-injection fix).
+      const syncMode = body.syncMode === 'delta' ? 'delta' : 'full';
+      console.warn(`Ingest record validation failed (${syncMode} mode): ${recResult.errors.length} error(s)`);
+
       return res.status(400).json({ error: 'Record validation failed', details: recResult.errors });
     }
 
@@ -308,7 +307,7 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
     // refresh them before returning so the UI sees the new data. This is
     // also cheaper than a separate /refresh-views call because we've
     // already warmed the tables.
-    let viewRefresh = 'skipped';
+    let viewRefresh;
     try {
       await refreshMatrixViews();
       viewRefresh = 'ok';

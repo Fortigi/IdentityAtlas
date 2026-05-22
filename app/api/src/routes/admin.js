@@ -592,13 +592,6 @@ router.post('/admin/features/toggle', async (req, res) => {
   }
 });
 
-// Helper: detect whether the request came from an interactive admin user.
-// In v5, the only mutation surface for admin endpoints is either an authenticated
-// UI session or a crawler with the 'admin' permission. We check both.
-function isAdminRequest(req) {
-  return !!req.user; // any signed-in UI user
-}
-
 // ─── Dashboard stats — one-shot overview of loaded data ────────────────────
 //
 // Used by the Dashboard / landing page to show a summary of what's in the

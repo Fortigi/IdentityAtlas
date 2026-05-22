@@ -16,7 +16,6 @@
 //   - All identifiers are camelCase double-quoted to match the v4 column
 //     names exactly. This minimises the route changes needed for v5.
 
-import { from as copyFrom } from 'pg-copy-streams';
 import crypto from 'crypto';
 import * as db from '../db/connection.js';
 
@@ -52,50 +51,6 @@ export async function discoverColumns(_pool, tableName) {
   return cols;
 }
 
-// Encode a JS value into a postgres TEXT-format COPY field.
-// Special chars per the COPY spec: \\ → \\\\, \n → \\n, \r → \\r, \t → \\t,
-// NULL → \N. JSON columns get JSON.stringify-ed and then escaped.
-function encodeCopyValue(val, dataType) {
-  if (val === null || val === undefined) return '\\N';
-  if (dataType === 'jsonb' || dataType === 'json') {
-    if (typeof val === 'string') return escapeCopyText(val);
-    return escapeCopyText(JSON.stringify(val));
-  }
-  if (dataType === 'boolean') {
-    if (val === true || val === 1 || val === '1' || val === 'true' || val === 't') return 't';
-    if (val === false || val === 0 || val === '0' || val === 'false' || val === 'f') return 'f';
-    return '\\N';
-  }
-  if (typeof dataType === 'string' && dataType.startsWith('timestamp')) {
-    if (val instanceof Date) return val.toISOString();
-    return escapeCopyText(String(val));
-  }
-  if (dataType === 'integer' || dataType === 'bigint' || dataType === 'numeric' || dataType === 'real' || dataType === 'double precision') {
-    if (typeof val === 'number') return String(val);
-    if (typeof val === 'boolean') return val ? '1' : '0';
-    return escapeCopyText(String(val));
-  }
-  return escapeCopyText(String(val));
-}
-
-function escapeCopyText(s) {
-  return s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-}
-
-function buildCopyRow(record, activeColumns) {
-  const fields = activeColumns.map(col => {
-    let val = record[col.name];
-    // Auto-generate a UUID for columns with gen_random_uuid() default when
-    // the caller doesn't supply one. Without this, the COPY writes NULL which
-    // overrides the column DEFAULT — postgres only applies defaults for
-    // missing columns, not for explicit NULLs.
-    if ((val === null || val === undefined) && col.hasUuidDefault) {
-      val = crypto.randomUUID();
-    }
-    return encodeCopyValue(val, col.sqlTypeName);
-  });
-  return fields.join('\t') + '\n';
-}
 
 /**
  * Core ingest operation. Bulk-COPY records into a temp table, then upsert

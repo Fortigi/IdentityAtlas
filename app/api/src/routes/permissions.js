@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { permissionAssignments } from '../mock/data.js';
 import { ensureTagTables } from './tags.js';
 import { ensureCategoryTables } from './categories.js';
-import { getUserColumns, getGroupColumns, getResourceColumns, getPrincipalOrUserColumns, getUserColumnValues, getPrincipalOrUserColumnValues, FILTERABLE_TYPES } from '../db/columnCache.js';
+import { getGroupColumns, getResourceColumns, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues } from '../db/columnCache.js';
 import { timedRequest } from '../perf/sqlTimer.js';
 import { buildContextFilterSql, parseAndResolveContextFilters } from '../contexts/contextFilters.js';
 
@@ -118,23 +118,9 @@ router.get('/permissions', async (req, res) => {
         return res.json({ data: [], totalUsers: 0, managedByPackages: [] });
       }
 
-      // v5: always use the unified view; no materialized tables exist.
-      const matCheck = await timedRequest(p, 'perm-mat-check', res).query(`
-        SELECT
-          to_regclass('"vw_ResourceUserPermissionAssignments"') AS "resourceViewExists",
-          to_regclass('"Principals"') AS "principalsExists",
-          to_regclass('"vw_UserPermissionAssignmentViaBusinessRole"') AS "matApExists"
-      `);
       // v5: always use the unified resource view + Principals table.
       // The legacy mat_/GraphUsers paths are gone.
       const permSource = '"vw_ResourceUserPermissionAssignments"';
-      const COL_RES = 'resourceId';
-      const COL_PRINC = 'principalId';
-      const COL_PTYPE = 'principalType';
-      const apSource = '"vw_UserPermissionAssignmentViaBusinessRole"';
-      const hasPrecomputedCounts = false;
-      const userTable = '"Principals"';
-      const upnCol = 'u."email"';
 
       // Discover user and group columns dynamically
       const allCols = await getPrincipalOrUserColumns(p);

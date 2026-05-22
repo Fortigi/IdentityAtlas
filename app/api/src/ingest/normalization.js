@@ -47,14 +47,19 @@ export function normalizeRecords(records, coreColumns, options = {}) {
 
   return records.map(rec => {
     const normalized = {};
-    const extended = {};
+    const extended = new Map();
 
+    // Write only property names sourced from the trusted coreSet, not from
+    // the user-provided record keys, to avoid remote-property-injection.
+    for (const key of coreSet) {
+      if (Object.prototype.hasOwnProperty.call(rec, key)) {
+        normalized[key] = coerceValue(rec[key]);
+      }
+    }
+    // Collect non-core, non-reserved fields for extendedAttributes JSON.
     for (const [key, value] of Object.entries(rec)) {
-      if (coreSet.has(key)) {
-        normalized[key] = coerceValue(value);
-      } else if (key !== 'externalId') {
-        // Non-core fields go into extendedAttributes
-        extended[key] = value;
+      if (!coreSet.has(key) && key !== 'externalId') {
+        extended.set(key, value);
       }
     }
 
@@ -111,13 +116,13 @@ export function normalizeRecords(records, coreColumns, options = {}) {
     }
 
     // Pack extendedAttributes
-    if (Object.keys(extended).length > 0) {
+    if (extended.size > 0) {
       const existing = normalized.extendedAttributes
         ? (typeof normalized.extendedAttributes === 'string'
           ? tryParseJson(normalized.extendedAttributes)
           : normalized.extendedAttributes)
         : {};
-      normalized.extendedAttributes = JSON.stringify({ ...existing, ...extended });
+      normalized.extendedAttributes = JSON.stringify({ ...existing, ...Object.fromEntries(extended) });
     } else if (normalized.extendedAttributes && typeof normalized.extendedAttributes === 'object') {
       normalized.extendedAttributes = JSON.stringify(normalized.extendedAttributes);
     }

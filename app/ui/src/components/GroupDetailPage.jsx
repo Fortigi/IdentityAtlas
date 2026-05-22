@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
-import { formatDate, formatValue, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
+import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
 import { renderAttributeValue } from '../utils/renderAttribute';
 import { Section, CollapsibleSection } from './DetailSection';
 

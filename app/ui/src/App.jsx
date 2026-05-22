@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useMatrix } from './hooks/useMatrix';
 import { useAuth } from './auth/AuthGate';
 import { useTheme } from './hooks/useTheme';
@@ -15,7 +15,6 @@ const UsersPage = lazy(() => import('./components/UsersPage'));
 const GroupsPage = lazy(() => import('./components/GroupsPage')); // Now renders ResourcesPage
 const AccessPackagesPage = lazy(() => import('./components/AccessPackagesPage'));
 const UserDetailPage = lazy(() => import('./components/UserDetailPage'));
-const GroupDetailPage = lazy(() => import('./components/GroupDetailPage'));
 const ResourceDetailPage = lazy(() => import('./components/ResourceDetailPage'));
 const AccessPackageDetailPage = lazy(() => import('./components/AccessPackageDetailPage'));
 const SystemsPage = lazy(() => import('./components/SystemsPage'));
@@ -382,7 +381,7 @@ export default function App() {
                 {(account?.name || account?.username || '?')[0].toUpperCase()}
               </div>
               <span className="hidden sm:inline">{account?.name || account?.username || 'User'}</span>
-              <svg className={`w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-3.5 h-3.5 text-gray-600 dark:text-gray-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
@@ -516,7 +515,7 @@ export default function App() {
                 <span className="truncate max-w-[140px]">{tab.displayName}</span>
                 <span
                   onClick={(e) => { e.stopPropagation(); closeDetailTab(tab.type, tab.id); }}
-                  className="ml-0.5 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="ml-0.5 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Close"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -602,7 +601,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-2 text-xs text-gray-400 dark:text-gray-500 text-center flex items-center justify-center gap-2">
+      <footer className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-2 text-xs text-gray-600 dark:text-gray-500 text-center flex items-center justify-center gap-2">
         <button
           onClick={() => navigate('admin?sub=about')}
           className="hover:text-gray-600 dark:hover:text-gray-300 hover:underline focus:outline-none"
