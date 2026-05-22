@@ -28,10 +28,12 @@ targetScope = 'resourceGroup'
 // explicit Postgres password, required Entra roles) are settable by editing
 // the Bicep directly. See the README for the full list.
 
-@description('Advanced: customize the resource name prefix. Default = auto-generated, deterministic per resource group ("idatlas-" + 7-char hash of the RG ID) — globally unique. Override only if you need a specific hostname.')
-@minLength(3)
-@maxLength(15)
-param namePrefix string = 'idatlas-${take(uniqueString(resourceGroup().id), 7)}'
+// Resource name prefix — auto-derived from the RG ID so it's deterministic
+// per RG and globally unique. Not a parameter: customizing it adds more
+// confusion than value (Azure App Service hostnames are *.azurewebsites.net
+// regardless; for a vanity domain use a CNAME). Same expression in
+// main-auth.bicep so Step 2b finds Step 1's App Service automatically.
+var namePrefix = 'idatlas-${take(uniqueString(resourceGroup().id), 7)}'
 
 @description('Sizing profile. xs ≈ €45/mo (demo). s ≈ €79/mo (small production, default). m ≈ €113/mo (mid + staging slot). l ≈ €244/mo (large + GP Postgres). xl ≈ €469/mo (enterprise).')
 @allowed(['xs', 's', 'm', 'l', 'xl'])

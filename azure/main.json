@@ -5,19 +5,10 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "10868609755563123192"
+      "templateHash": "1084410798829191187"
     }
   },
   "parameters": {
-    "namePrefix": {
-      "type": "string",
-      "defaultValue": "[format('idatlas-{0}', take(uniqueString(resourceGroup().id), 7))]",
-      "minLength": 3,
-      "maxLength": 15,
-      "metadata": {
-        "description": "Advanced: customize the resource name prefix. Default = auto-generated, deterministic per resource group (\"idatlas-\" + 7-char hash of the RG ID) — globally unique. Override only if you need a specific hostname."
-      }
-    },
     "sizeProfile": {
       "type": "string",
       "defaultValue": "s",
@@ -52,6 +43,7 @@
     }
   },
   "variables": {
+    "namePrefix": "[format('idatlas-{0}', take(uniqueString(resourceGroup().id), 7))]",
     "sizeMap": {
       "xs": {
         "appServiceSku": "B1",
@@ -99,8 +91,8 @@
     "_imageTag": "[if(equals(parameters('imageChannel'), 'stable'), 'latest', 'edge')]",
     "webImage": "[format('ghcr.io/fortigi/identity-atlas:{0}', variables('_imageTag'))]",
     "workerImage": "[format('ghcr.io/fortigi/identity-atlas-worker:{0}', variables('_imageTag'))]",
-    "pgPassword": "[format('{0}!Aa1{1}', uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-base'), take(uniqueString(resourceGroup().id, parameters('namePrefix'), 'pg-x'), 4))]",
-    "kvName": "[take(format('{0}-kv-{1}', parameters('namePrefix'), uniqueString(resourceGroup().id)), 24)]"
+    "pgPassword": "[format('{0}!Aa1{1}', uniqueString(resourceGroup().id, variables('namePrefix'), 'pg-base'), take(uniqueString(resourceGroup().id, variables('namePrefix'), 'pg-x'), 4))]",
+    "kvName": "[take(format('{0}-kv-{1}', variables('namePrefix'), uniqueString(resourceGroup().id)), 24)]"
   },
   "resources": [
     {
@@ -114,7 +106,7 @@
         "mode": "Incremental",
         "parameters": {
           "namePrefix": {
-            "value": "[parameters('namePrefix')]"
+            "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
@@ -212,7 +204,7 @@
         "mode": "Incremental",
         "parameters": {
           "namePrefix": {
-            "value": "[parameters('namePrefix')]"
+            "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
@@ -325,7 +317,7 @@
         "mode": "Incremental",
         "parameters": {
           "namePrefix": {
-            "value": "[parameters('namePrefix')]"
+            "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
@@ -533,7 +525,7 @@
         "mode": "Incremental",
         "parameters": {
           "namePrefix": {
-            "value": "[parameters('namePrefix')]"
+            "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
@@ -661,7 +653,7 @@
         "mode": "Incremental",
         "parameters": {
           "namePrefix": {
-            "value": "[parameters('namePrefix')]"
+            "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
@@ -868,7 +860,7 @@
         "mode": "Incremental",
         "parameters": {
           "namePrefix": {
-            "value": "[parameters('namePrefix')]"
+            "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
@@ -1216,7 +1208,7 @@
         "mode": "Incremental",
         "parameters": {
           "namePrefix": {
-            "value": "[parameters('namePrefix')]"
+            "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
@@ -1362,7 +1354,7 @@
         "mode": "Incremental",
         "parameters": {
           "namePrefix": {
-            "value": "[parameters('namePrefix')]"
+            "value": "[variables('namePrefix')]"
           },
           "location": {
             "value": "[variables('location')]"
@@ -1537,7 +1529,7 @@
       "metadata": {
         "description": "Resolved name prefix. Only useful if you need to manually wire something to a specific resource name in this RG. Step 2 derives the same prefix automatically when deployed to this RG."
       },
-      "value": "[parameters('namePrefix')]"
+      "value": "[variables('namePrefix')]"
     },
     "keyVaultUri": {
       "type": "string",

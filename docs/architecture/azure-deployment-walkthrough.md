@@ -70,7 +70,6 @@ Click the button (opens in a new tab). Fill in:
 | Size profile | `s` (~€79/mo) for normal use, `xs` (~€45/mo) for cheapest demo |
 | Image channel | `stable` |
 | Existing log analytics workspace id | Leave blank to create a fresh workspace, or paste the FULL ARM resource ID of an existing one |
-| Name prefix | **Leave the default** — it auto-generates a globally unique name from the resource group |
 
 Click **Review + create** → **Create**.
 
@@ -141,10 +140,10 @@ Fill in:
 | Field | Value |
 |---|---|
 | Subscription | Same as Step 1 |
-| Resource group | **The SAME RG you used in Step 1** |
+| Resource group | **The SAME RG you used in Step 1** — that's how this template finds the App Service to update |
+| Region | Auto-fills from the RG you picked above; ignore it |
 | Entra tenant id | Paste from Step 2a |
 | Entra client id | Paste from Step 2a |
-| Name prefix | **Leave the default** — it resolves to the same value Step 1 used because you're deploying to the same RG |
 
 Click **Review + create** → **Create**. Done in ~60 seconds.
 
