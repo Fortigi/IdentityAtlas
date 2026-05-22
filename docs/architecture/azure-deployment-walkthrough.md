@@ -20,11 +20,11 @@ Total time: **~15 minutes**.
 
 | | What | Where | Time |
 |---|---|---|---|
-| **Step 1** | Deploy the app stack in OPEN mode | Bicep template `main.json` | ~6 min |
-| **Step 2a** | Register an Entra App | Manual portal work, no Bicep | ~5 min |
-| **Step 2b** | Turn auth on | Bicep template `main-auth.json` | ~1 min |
+| **Step 1** | Deploy the app stack | Bicep template `main.json` | ~6 min |
+| **Step 2** | Register the Entra App (the deployed app's own UI walks you through it) | Azure portal — Entra ID | ~5 min |
+| **Step 3** | Fill in tenant + client IDs as env vars on the Web App | Azure portal — Environment variables | ~1 min |
 
-The two templates have **non-overlapping concerns**. Step 1 = the app stack. Step 2b = auth. Want to change the size profile or Log Analytics workspace later? Re-run Step 1 — that resets auth to OFF, then re-run Step 2b to restore. Want to change the Entra IDs? Re-run Step 2b; Step 1 is untouched.
+**Auth is on from the first deploy.** The Bicep ships `AUTH_ENABLED=true` with empty `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`. After Step 1, opening the app's URL shows a **"Set up Entra ID"** page with the exact steps (Steps 2 and 3 of this walkthrough) — there's no usable open-mode state where someone could accidentally use the deployment without auth.
 
 ---
 
@@ -76,9 +76,9 @@ Click **Review + create** → **Create**.
 **What happens:** the bootstrap deployment-script first validates the LAW workspace ID format (and fails fast in <30s if it's wrong — pasting a resource group ID instead of a workspace ID is a known trap, the error tells you so directly). Then everything provisions in parallel: storage, identities, KV, Postgres, App Service, Container Apps, worker.
 
 When the deployment finishes, click the deployment → **Outputs**. Copy:
-- `appUrl` — e.g. `https://idatlas-abc1234-web.azurewebsites.net` — this is the URL you'll use as the redirect URI in Step 2a.
+- `appUrl` — e.g. `https://idatlas-abc1234-web.azurewebsites.net` — this is the URL you'll use as the redirect URI in Step 2.
 
-Open the URL — the app loads with a yellow "Authentication is disabled — anyone with the URL can access this application" banner. That's expected. No data has been ingested yet, so the OPEN window is low-risk.
+Open the URL — you'll see the **"Entra ID setup required"** page. That's the expected state after Step 1: the app is deployed with auth turned on, but no Entra App is wired up yet. The page contains exactly the instructions you need for Steps 2 and 3 below — you can follow them on screen or use the more detailed version here.
 
 ### If Step 1 fails
 
@@ -93,7 +93,7 @@ Open the URL — the app loads with a yellow "Authentication is disabled — any
 
 ---
 
-## Step 2a — Register the Entra App (~5 min, manual)
+## Step 2 — Register the Entra App (~5 min, portal)
 
 You need an App Registration in your tenant so users can sign in. One-time setup per deployment.
 
@@ -106,8 +106,8 @@ You need an App Registration in your tenant so users can sign in. One-time setup
 4. Click **Register**
 
 On the app's **Overview** page, copy:
-- **Application (client) ID** — you'll paste this in Step 2b
-- **Directory (tenant) ID** — you'll paste this in Step 2b
+- **Application (client) ID**
+- **Directory (tenant) ID**
 
 > **Note:** an SPA application uses the PKCE flow — there is no client secret. Tenant ID and client ID are all you need.
 
@@ -129,25 +129,17 @@ The MSAL client requests a scope `api://<client-id>/access`. Tell Entra about it
 
 ---
 
-## Step 2b — Turn auth on (~1 min)
+## Step 3 — Fill in the tenant + client IDs (~1 min, portal)
 
-<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain-auth.json" target="_blank" rel="noopener noreferrer"><img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure"></a>
+The Bicep deploy in Step 1 already created `AUTH_TENANT_ID` and `AUTH_CLIENT_ID` env vars on the Web App — they're just empty. You fill them in now.
 
-Click the button (opens in a new tab). This is a DIFFERENT template — much smaller. It only touches the App Service's app settings.
+1. Azure portal → **Resource groups** → your RG → click the **App Service** (named `idatlas-<hash>-web`)
+2. Left nav → **Settings** → **Environment variables**
+3. Find the existing `AUTH_TENANT_ID` row → click it → paste the **Directory (tenant) ID** from Step 2 → **Apply**
+4. Same for `AUTH_CLIENT_ID` → paste the **Application (client) ID** from Step 2 → **Apply**
+5. Click **Apply** at the bottom of the page to commit both changes → confirm **Apply changes**
 
-Fill in:
-
-| Field | Value |
-|---|---|
-| Subscription | Same as Step 1 |
-| Resource group | **The SAME RG you used in Step 1** — that's how this template finds the App Service to update |
-| Region | Auto-fills from the RG you picked above; ignore it |
-| Entra tenant id | Paste from Step 2a |
-| Entra client id | Paste from Step 2a |
-
-Click **Review + create** → **Create**. Done in ~60 seconds.
-
-The App Service restarts automatically when the settings change. Once it's back up, the yellow banner is gone and the app redirects you to Entra to sign in.
+The Web App restarts automatically (~30 seconds). Refresh the app URL — you'll be redirected to Entra to sign in.
 
 ---
 
@@ -160,7 +152,7 @@ The App Service restarts automatically when the settings change. Once it's back 
 
 ### Quick smoke test
 
-- The yellow "Authentication is disabled" banner is **gone**
+- No yellow "Authentication is disabled" banner (it only shows if you explicitly set `AUTH_ENABLED=false`)
 - **Admin** sub-tabs visible: Crawlers · Data · Account Correlation · Risk Scoring · LLM Settings · Performance · About
 - **Hidden on Azure**: Authentication · Containers
 
@@ -168,8 +160,8 @@ The App Service restarts automatically when the settings change. Once it's back 
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Redirect loop between app and login.microsoftonline.com | SPA redirect URI on the App Reg doesn't exactly match the hostname | Step 2a.3 — must be `https://<auto-generated-name>-web.azurewebsites.net` (no trailing slash, https not http) |
-| `AADSTS500011: The resource principal named api://<guid> was not found in the tenant` | The `access` scope or Application ID URI is missing | Step 2a.5-2a.7 — Expose an API → set the Application ID URI, then add the `access` scope |
+| Redirect loop between app and login.microsoftonline.com | SPA redirect URI on the App Reg doesn't exactly match the hostname | Step 2.3 — must be `https://<auto-generated-name>-web.azurewebsites.net` (no trailing slash, https not http) |
+| `AADSTS500011: The resource principal named api://<guid> was not found in the tenant` | The `access` scope or Application ID URI is missing | Step 2.5-2.7 — Expose an API → set the Application ID URI, then add the `access` scope |
 | `AADSTS65001: The user or administrator has not consented` | Tenant requires admin consent for the scope and you signed in as a non-admin | Have a tenant admin sign in first to grant consent, or use **Grant admin consent** on the **API permissions** page of the App Reg |
 
 ---
@@ -178,13 +170,11 @@ The App Service restarts automatically when the settings change. Once it's back 
 
 | Want to change | Do this |
 |---|---|
-| Size profile (xs ↔ s ↔ m ↔ l ↔ xl) | Re-run Step 1 with the new profile. Auth goes back to OFF; re-run Step 2b to restore. |
-| Image channel (stable ↔ edge) | Re-run Step 1 with the new channel. Auth goes back to OFF; re-run Step 2b to restore. |
-| Log Analytics workspace (BYO vs new) | Re-run Step 1 with the changed value. Auth goes back to OFF; re-run Step 2b to restore. |
-| Entra tenant or client ID | Re-run Step 2b with the new values. Step 1 stack is untouched. |
-| Turn auth OFF (debug or demo) | Re-run Step 1 — that resets `AUTH_ENABLED` to false. |
-
-The rule: **Step 1 = the app stack. Step 2b = auth.** They don't overlap. Re-running Step 1 always returns the deployment to a clean OPEN-mode state.
+| Size profile (xs ↔ s ↔ m ↔ l ↔ xl) | Re-run Step 1 with the new profile. ⚠ This resets `AUTH_TENANT_ID` and `AUTH_CLIENT_ID` to empty (Bicep's `appSettings` is a full replace) — you'll see the setup-required page again and have to redo Step 3. The IDs themselves don't change, so it's a 30-second paste. |
+| Image channel (stable ↔ edge) | Re-run Step 1 with the new channel. Same Step-3-rerun caveat. |
+| Log Analytics workspace (BYO vs new) | Re-run Step 1 with the changed value. Same Step-3-rerun caveat. |
+| Entra tenant or client ID | Web App → Environment variables → edit `AUTH_TENANT_ID` / `AUTH_CLIENT_ID` → Apply. No redeploy needed. |
+| Turn auth OFF (debug or demo) | Web App → Environment variables → set `AUTH_ENABLED=false` → Apply. The app comes back up in OPEN mode with the "Authentication is disabled" banner. Set it back to `true` (and ensure the IDs are still there) to re-enable. |
 
 ---
 

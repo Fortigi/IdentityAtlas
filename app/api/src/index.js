@@ -247,13 +247,27 @@ app.get('/api/features', publicLimiter, async (req, res) => {
 app.get('/api/auth-config', publicLimiter, (req, res) => {
   // Reads the live config from authConfig.js so a UI-driven save takes effect
   // immediately for any new browser session.
-  if (!isAuthEnabled()) {
-    return res.json({ enabled: false });
-  }
+  //
+  // `configured` distinguishes two enabled-but-different states for the SPA:
+  //   enabled=true, configured=true   → run MSAL sign-in
+  //   enabled=true, configured=false  → show the "set up Entra" page instead
+  //                                     of trying to sign in (happens on Azure
+  //                                     between Step 1 and Step 2 of the
+  //                                     walkthrough, when the env vars are
+  //                                     still empty)
+  //
+  // `platform` lets the setup page render Azure-specific or Docker-specific
+  // instructions. Same WEBSITE_SITE_NAME check that admin.js uses.
+  const enabled = isAuthEnabled();
+  const tenantId = enabled ? (getTenantId() || '') : '';
+  const clientId = enabled ? (getClientId() || '') : '';
+  const platform = process.env.WEBSITE_SITE_NAME ? 'azure-app-service' : 'docker';
   res.json({
-    enabled: true,
-    clientId: getClientId(),
-    tenantId: getTenantId(),
+    enabled,
+    configured: enabled && !!tenantId && !!clientId,
+    tenantId,
+    clientId,
+    platform,
   });
 });
 
