@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "value": "identityatlas"
+    },
+    "location": {
+      "value": "westeurope"
+    },
+    "sizeProfile": {
+      "value": "s"
+    },
+    "webImage": {
+      "value": "ghcr.io/fortigi/identity-atlas:latest"
+    },
+    "workerImage": {
+      "value": "ghcr.io/fortigi/identity-atlas-worker:latest"
+    },
+    "existingLogAnalyticsWorkspaceId": {
+      "value": ""
+    },
+    "existingLogAnalyticsCustomerId": {
+      "value": ""
+    },
+    "existingLogAnalyticsSharedKey": {
+      "value": ""
+    },
+    "webAllowedIpCidrs": {
+      "value": []
+    }
+  }
+}

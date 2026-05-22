@@ -35,6 +35,53 @@ The in-browser crawler wizard walks you through credentials, permission validati
 
 ---
 
+## Deploy to Azure
+
+<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json" target="_blank" rel="noopener noreferrer"><img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure"></a>
+
+One-click install into your Azure subscription. The deployment uses PaaS services that any Azure-Subscription-owner can deploy without touching central networking:
+
+- **App Service for Linux Containers** (web) — pulls `ghcr.io/fortigi/identity-atlas:latest`. Managed public HTTPS with auto-renewed TLS.
+- **Postgres Flexible Server** — public endpoint, firewall rule restricted to Azure services.
+- **Key Vault** — holds the auto-generated master key + DB password. App Service reads via managed identity.
+- **Storage Account + Azure Files share** — `/data/uploads` shared with the worker.
+- **Container Apps Environment + worker app** — always-on, no ingress, runs the crawler scheduler.
+- **Log Analytics** — auto-created OR bring your own (single parameter).
+
+**Pick a size at deploy time:**
+
+| Profile | ~€/mo | Use case |
+|---|---|---|
+| **xs** | 45 | Demo / proof-of-concept |
+| **s** ✅ | 79 | Small production — single team of analysts, <10k principals (default) |
+| **m** | 113 | 10-25k principals, blue/green via App Service staging slot |
+| **l** | 244 | 25-50k principals, GP Postgres compute |
+| **xl** | 469 | 50k+ principals, enterprise concurrent use |
+
+Deployment is two Bicep templates back-to-back:
+
+1. **Step 1 — Deploy the app stack** ([`azure/main.json`](azure/main.json)). Click the **Deploy to Azure** button above. The form takes `namePrefix`, `sizeProfile`, `imageChannel`, and optionally a BYO Log Analytics workspace. ~6 min. The app comes up in OPEN mode at the confirmed `https://<prefix>-web.azurewebsites.net`.
+2. **Register an Entra App Registration** in your tenant using the URL from Step 1 as the SPA redirect URI. ~5 min in the portal.
+3. **Step 2 — Turn auth on** ([`azure/main-auth.json`](azure/main-auth.json)). Different button, different template — 3 fields only: `namePrefix` (same as Step 1) + tenant ID + client ID. Touches only the App Service's app settings, restarts it. ~1 min.
+
+The two templates have **non-overlapping concerns**: Step 1 = the app stack, Step 2 = auth. Want to change the size profile, image channel, or LA workspace later? Re-run Step 1 — that resets auth to OFF, then re-run Step 2 to restore. Want to change the Entra IDs? Re-run Step 2; Step 1 is untouched.
+
+Full step-by-step (permissions, RP registration, App Reg setup, troubleshooting, "how to change X later"): [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md).
+
+For the architecture, scaling, and ops notes: [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md).
+
+**CLI alternative** if you'd rather script it:
+
+```powershell
+git clone https://github.com/Fortigi/IdentityAtlas.git
+cd IdentityAtlas/azure
+./deploy.ps1 -ResourceGroup ia-prod -SizeProfile s
+```
+
+**Customer with strict no-public-endpoint policy?** The Simple shape uses public endpoints (with RBAC + firewall) for Postgres and Key Vault. A future Bicep template (`azure/main-isolated.bicep`, separate PR) wraps everything in a customer-CCoE-provided VNet with private endpoints. Tracked for v2.
+
+---
+
 ## What Identity Atlas Does
 
 ### Unified Permission Model
