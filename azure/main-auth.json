@@ -5,16 +5,17 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "7569456897241229250"
+      "templateHash": "1761458091166070308"
     }
   },
   "parameters": {
     "namePrefix": {
       "type": "string",
+      "defaultValue": "[format('idatlas-{0}', take(uniqueString(resourceGroup().id), 7))]",
       "minLength": 3,
       "maxLength": 15,
       "metadata": {
-        "description": "The same namePrefix you used for Step 1. Used to find the App Service that Step 1 created in this resource group (its name is \"<namePrefix>-web\")."
+        "description": "Advanced: only override if you used a custom namePrefix in Step 1. The default derives the same auto-generated prefix Step 1 used, based on the resource group ID — so when deploying to the same RG, this resolves to the same value automatically."
       }
     },
     "entraTenantId": {

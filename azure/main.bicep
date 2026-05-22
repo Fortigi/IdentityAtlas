@@ -28,10 +28,10 @@ targetScope = 'resourceGroup'
 // explicit Postgres password, required Entra roles) are settable by editing
 // the Bicep directly. See the README for the full list.
 
-@description('Resource name prefix. Becomes part of every resource name. 3-15 chars, lowercase letters + digits + hyphens. The public hostname will be https://<namePrefix>-web.azurewebsites.net — must be globally unique.')
+@description('Advanced: customize the resource name prefix. Default = auto-generated, deterministic per resource group ("idatlas-" + 7-char hash of the RG ID) — globally unique. Override only if you need a specific hostname.')
 @minLength(3)
 @maxLength(15)
-param namePrefix string = 'identityatlas'
+param namePrefix string = 'idatlas-${take(uniqueString(resourceGroup().id), 7)}'
 
 @description('Sizing profile. xs ≈ €45/mo (demo). s ≈ €79/mo (small production, default). m ≈ €113/mo (mid + staging slot). l ≈ €244/mo (large + GP Postgres). xl ≈ €469/mo (enterprise).')
 @allowed(['xs', 's', 'm', 'l', 'xl'])
@@ -244,11 +244,14 @@ module worker 'modules/aca-app-worker.bicep' = {
 
 // ─── Outputs ────────────────────────────────────────────────────────────
 
-@description('Public URL of the Identity Atlas web app.')
+@description('Public URL of the Identity Atlas web app. Use this as the SPA redirect URI when you register the Entra App in Step 2a.')
 output appUrl string = web.outputs.appUrl
 
-@description('Web app hostname.')
+@description('Web app hostname (no scheme).')
 output appHostname string = web.outputs.appHostname
+
+@description('Resolved name prefix. Only useful if you need to manually wire something to a specific resource name in this RG. Step 2 derives the same prefix automatically when deployed to this RG.')
+output namePrefixUsed string = namePrefix
 
 @description('Key Vault URI.')
 output keyVaultUri string = kv.outputs.kvUri

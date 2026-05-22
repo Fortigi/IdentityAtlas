@@ -5,17 +5,17 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "18312561598253627101"
+      "templateHash": "10868609755563123192"
     }
   },
   "parameters": {
     "namePrefix": {
       "type": "string",
-      "defaultValue": "identityatlas",
+      "defaultValue": "[format('idatlas-{0}', take(uniqueString(resourceGroup().id), 7))]",
       "minLength": 3,
       "maxLength": 15,
       "metadata": {
-        "description": "Resource name prefix. Becomes part of every resource name. 3-15 chars, lowercase letters + digits + hyphens. The public hostname will be https://<namePrefix>-web.azurewebsites.net — must be globally unique."
+        "description": "Advanced: customize the resource name prefix. Default = auto-generated, deterministic per resource group (\"idatlas-\" + 7-char hash of the RG ID) — globally unique. Override only if you need a specific hostname."
       }
     },
     "sizeProfile": {
@@ -1521,16 +1521,23 @@
     "appUrl": {
       "type": "string",
       "metadata": {
-        "description": "Public URL of the Identity Atlas web app."
+        "description": "Public URL of the Identity Atlas web app. Use this as the SPA redirect URI when you register the Entra App in Step 2a."
       },
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'app-service'), '2025-04-01').outputs.appUrl.value]"
     },
     "appHostname": {
       "type": "string",
       "metadata": {
-        "description": "Web app hostname."
+        "description": "Web app hostname (no scheme)."
       },
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'app-service'), '2025-04-01').outputs.appHostname.value]"
+    },
+    "namePrefixUsed": {
+      "type": "string",
+      "metadata": {
+        "description": "Resolved name prefix. Only useful if you need to manually wire something to a specific resource name in this RG. Step 2 derives the same prefix automatically when deployed to this RG."
+      },
+      "value": "[parameters('namePrefix')]"
     },
     "keyVaultUri": {
       "type": "string",

@@ -19,10 +19,10 @@
 
 targetScope = 'resourceGroup'
 
-@description('The same namePrefix you used for Step 1. Used to find the App Service that Step 1 created in this resource group (its name is "<namePrefix>-web").')
+@description('Advanced: only override if you used a custom namePrefix in Step 1. The default derives the same auto-generated prefix Step 1 used, based on the resource group ID — so when deploying to the same RG, this resolves to the same value automatically.')
 @minLength(3)
 @maxLength(15)
-param namePrefix string
+param namePrefix string = 'idatlas-${take(uniqueString(resourceGroup().id), 7)}'
 
 @description('Entra ID tenant (directory) GUID. Find it under Entra ID → Overview → Tenant ID.')
 param entraTenantId string

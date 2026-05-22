@@ -6,9 +6,9 @@ For the architecture rationale, sizing, and ops notes see [azure-deployment.md](
 
 ---
 
-## What you'll get when this is done
+## What you'll get
 
-- An App Service for Linux Containers running the Identity Atlas web image, reachable at `https://<prefix>-web.azurewebsites.net`
+- An App Service for Linux Containers running the Identity Atlas web image
 - A Postgres Flexible Server (private credentials, public endpoint, firewall-restricted to Azure services)
 - A Container App worker that polls Microsoft Graph on a schedule
 - Key Vault, Storage Account (for `/data/uploads`), Log Analytics
@@ -16,17 +16,21 @@ For the architecture rationale, sizing, and ops notes see [azure-deployment.md](
 
 Total time: **~15 minutes**.
 
-## The 3 steps
+## The three steps
 
-1. **Step 1** — Deploy the app stack (Bicep template **main.bicep**). The app comes up in OPEN mode (no auth). Output URL is your confirmed hostname.
-2. **Step 2a** — Register an Entra App in your tenant using the confirmed hostname. Manual portal work, no Bicep.
-3. **Step 2b** — Layer auth onto the deployment (Bicep template **main-auth.bicep**). Tiny template — 3 fields, touches only the App Service's app settings, restarts in ~1 minute.
+| | What | Where | Time |
+|---|---|---|---|
+| **Step 1** | Deploy the app stack in OPEN mode | Bicep template `main.json` | ~6 min |
+| **Step 2a** | Register an Entra App | Manual portal work, no Bicep | ~5 min |
+| **Step 2b** | Turn auth on | Bicep template `main-auth.json` | ~1 min |
 
-Each step is targeted: a different button, a different form, a different blast radius. **Want to change anything about the app stack? Re-run Step 1.** That resets auth back to OFF, then re-run Step 2b to restore.
+The two templates have **non-overlapping concerns**. Step 1 = the app stack. Step 2b = auth. Want to change the size profile or Log Analytics workspace later? Re-run Step 1 — that resets auth to OFF, then re-run Step 2b to restore. Want to change the Entra IDs? Re-run Step 2b; Step 1 is untouched.
 
 ---
 
 ## Prerequisites
+
+**Permissions you need in the target tenant + subscription:**
 
 | Scope | Role |
 |-------|------|
@@ -35,37 +39,24 @@ Each step is targeted: a different button, a different form, a different blast r
 
 Both roles are granted by your tenant admin under **Entra ID → Roles and administrators**.
 
----
-
-## Step 0 — Pick a name prefix
-
-- 3–15 chars, lowercase letters/digits/hyphens
-- Must be globally unique — the resulting `<prefix>-web.azurewebsites.net` hostname can't already exist anywhere in Azure
-
-Examples: `idatlas-acme`, `idatlas-fabrikam`. The public hostname will be `https://<prefix>-web.azurewebsites.net`.
-
----
-
-## Step 1 — Register required resource providers (~3 min, one-time per subscription)
-
-If the subscription has never used Azure Container Instances, the bootstrap deployment-script in Step 1 hangs for 20 minutes trying to register the provider itself and then fails. Register them up-front:
+**Resource providers** (one-time per subscription): if the subscription has never used Azure Container Instances, the bootstrap deployment-script in Step 1 hangs for 20 minutes trying to register the provider itself and then fails. Register them up-front:
 
 1. Top search → **Subscriptions** → click your target subscription
 2. Left nav → **Resource providers**
 3. For each of these, type into the filter, click the row, click **Register** at the top:
    - **`Microsoft.ContainerInstance`** — most important
-   - `Microsoft.App` — Container Apps Environment + worker
+   - `Microsoft.App`
    - `Microsoft.DBforPostgreSQL`
    - `Microsoft.Web`
    - `Microsoft.KeyVault`
    - `Microsoft.OperationalInsights`
    - `Microsoft.ManagedIdentity`
 
-Each one takes ~30 seconds. You can register all of them in parallel.
+Each one takes ~30 seconds. You can register them all in parallel.
 
 ---
 
-## Step 2 — Deploy the app stack (~6 min)
+## Step 1 — Deploy the app stack (~6 min)
 
 <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json" target="_blank" rel="noopener noreferrer"><img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure"></a>
 
@@ -74,51 +65,50 @@ Click the button (opens in a new tab). Fill in:
 | Field | Value |
 |---|---|
 | Subscription | Target subscription |
-| Resource group | Create new — e.g. `<prefix>-rg` |
+| Resource group | Create new — name it whatever you want (e.g. `idatlas-rg`) |
 | Region | **Sweden Central** has been the most reliable in EU; West/North Europe sometimes have capacity issues |
-| Name prefix | Your prefix from Step 0 |
 | Size profile | `s` (~€79/mo) for normal use, `xs` (~€45/mo) for cheapest demo |
 | Image channel | `stable` |
 | Existing log analytics workspace id | Leave blank to create a fresh workspace, or paste the FULL ARM resource ID of an existing one |
+| Name prefix | **Leave the default** — it auto-generates a globally unique name from the resource group |
 
 Click **Review + create** → **Create**.
 
 **What happens:** the bootstrap deployment-script first validates the LAW workspace ID format (and fails fast in <30s if it's wrong — pasting a resource group ID instead of a workspace ID is a known trap, the error tells you so directly). Then everything provisions in parallel: storage, identities, KV, Postgres, App Service, Container Apps, worker.
 
 When the deployment finishes, click the deployment → **Outputs**. Copy:
-- `appUrl` — e.g. `https://idatlas-acme-web.azurewebsites.net`
-- This is the URL you'll use as the redirect URI in Step 3.
+- `appUrl` — e.g. `https://idatlas-abc1234-web.azurewebsites.net` — this is the URL you'll use as the redirect URI in Step 2a.
 
 Open the URL — the app loads with a yellow "Authentication is disabled — anyone with the URL can access this application" banner. That's expected. No data has been ingested yet, so the OPEN window is low-risk.
 
-### If Step 2 fails
+### If Step 1 fails
 
 | Error message | Cause | Fix |
 |---|---|---|
-| `Action SequencerJob exceeded max allowed time` | `Microsoft.ContainerInstance` provider isn't registered | Do Step 1, then redeploy |
+| `Action SequencerJob exceeded max allowed time` | `Microsoft.ContainerInstance` provider isn't registered | Do the RP registration in Prerequisites, then redeploy |
 | `existingLogAnalyticsWorkspaceId is not a valid Log Analytics workspace resource ID` | You pasted the resource group's ARM ID, not the workspace's | Get the workspace's ID from its Overview → JSON View; or leave the field blank to create a fresh workspace |
-| `Site name 'xxx-web' is not available` | Hostname collision with another Azure tenant | Pick a different `namePrefix` and redeploy |
+| `Site name 'xxx-web' is not available` | Hostname collision (extremely rare with the auto-generated prefix) | Pick a different resource group name — the prefix is derived from the RG ID, so changing the RG changes the prefix |
 | `No available instances to satisfy this request` | Regional capacity exhausted | Pick a different region and redeploy to a fresh RG |
-| `VaultAlreadyExists` | Key Vault name collision with a soft-deleted vault from a previous attempt in the same RG | Pick a different `namePrefix` (KV name is derived from RG name) |
+| `VaultAlreadyExists` | Key Vault name collision with a soft-deleted vault from a previous attempt in a same-named RG | Use a different resource group name (Key Vault soft-delete reserves names for 7 days) |
 | `Requested data Disk size … cannot be less than current size` | Postgres storage was previously larger; you can't shrink Postgres storage | Use a larger `sizeProfile`, OR delete the RG and redeploy from scratch |
 
 ---
 
-## Step 3 — Register the Entra App (~5 min, manual)
+## Step 2a — Register the Entra App (~5 min, manual)
 
-You need an App Registration in your tenant so users can sign in. This is a one-time setup per deployment.
+You need an App Registration in your tenant so users can sign in. One-time setup per deployment.
 
 1. Search **Entra ID** in the Azure portal → open the **Microsoft Entra ID** blade
 2. Left nav → **App registrations** → **+ New registration**
 3. Fill in:
    - **Name**: `Identity Atlas` (or whatever you prefer)
    - **Supported account types**: **Accounts in this organizational directory only (Single tenant)**
-   - **Redirect URI** dropdown: **Single-page application (SPA)** → paste the `appUrl` from Step 2 (e.g. `https://idatlas-acme-web.azurewebsites.net`)
+   - **Redirect URI** dropdown: **Single-page application (SPA)** → paste the `appUrl` from Step 1 (e.g. `https://idatlas-abc1234-web.azurewebsites.net`)
 4. Click **Register**
 
 On the app's **Overview** page, copy:
-- **Application (client) ID** — you'll paste this in Step 4
-- **Directory (tenant) ID** — you'll paste this in Step 4
+- **Application (client) ID** — you'll paste this in Step 2b
+- **Directory (tenant) ID** — you'll paste this in Step 2b
 
 > **Note:** an SPA application uses the PKCE flow — there is no client secret. Tenant ID and client ID are all you need.
 
@@ -140,7 +130,7 @@ The MSAL client requests a scope `api://<client-id>/access`. Tell Entra about it
 
 ---
 
-## Step 4 — Turn auth on (~1 min)
+## Step 2b — Turn auth on (~1 min)
 
 <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain-auth.json" target="_blank" rel="noopener noreferrer"><img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure"></a>
 
@@ -150,11 +140,11 @@ Fill in:
 
 | Field | Value |
 |---|---|
-| Subscription | Same as Step 2 |
-| Resource group | **The SAME RG you used in Step 2** (`<prefix>-rg`) |
-| Name prefix | **Same prefix as Step 2** (used to find the App Service inside the RG) |
-| Entra tenant id | Paste from Step 3 |
-| Entra client id | Paste from Step 3 |
+| Subscription | Same as Step 1 |
+| Resource group | **The SAME RG you used in Step 1** |
+| Entra tenant id | Paste from Step 2a |
+| Entra client id | Paste from Step 2a |
+| Name prefix | **Leave the default** — it resolves to the same value Step 1 used because you're deploying to the same RG |
 
 Click **Review + create** → **Create**. Done in ~60 seconds.
 
@@ -162,9 +152,9 @@ The App Service restarts automatically when the settings change. Once it's back 
 
 ---
 
-## Step 5 — Sign in and validate
+## Validation
 
-1. Open `https://<prefix>-web.azurewebsites.net` (refresh if you already had it open)
+1. Open `https://<your-app-url>` (refresh if you already had it open from Step 1)
 2. You'll be redirected to Entra → sign in with a tenant user
 3. **Consent prompt on first sign-in** → click **Accept**
 4. You land on the Identity Atlas dashboard
@@ -179,31 +169,31 @@ The App Service restarts automatically when the settings change. Once it's back 
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Redirect loop between app and login.microsoftonline.com | SPA redirect URI on the App Reg doesn't exactly match the hostname | Step 3.3 — must be `https://<prefix>-web.azurewebsites.net` (no trailing slash, https not http) |
-| `AADSTS500011: The resource principal named api://<guid> was not found in the tenant` | The `access` scope or Application ID URI is missing | Step 3.5-3.7 — Expose an API → set the Application ID URI, then add the `access` scope |
+| Redirect loop between app and login.microsoftonline.com | SPA redirect URI on the App Reg doesn't exactly match the hostname | Step 2a.3 — must be `https://<auto-generated-name>-web.azurewebsites.net` (no trailing slash, https not http) |
+| `AADSTS500011: The resource principal named api://<guid> was not found in the tenant` | The `access` scope or Application ID URI is missing | Step 2a.5-2a.7 — Expose an API → set the Application ID URI, then add the `access` scope |
 | `AADSTS65001: The user or administrator has not consented` | Tenant requires admin consent for the scope and you signed in as a non-admin | Have a tenant admin sign in first to grant consent, or use **Grant admin consent** on the **API permissions** page of the App Reg |
 
 ---
 
-## Changing anything later
+## Changing something later
 
 | Want to change | Do this |
 |---|---|
-| Size profile (xs ↔ s ↔ m ↔ l ↔ xl) | Re-run Step 2 with the new profile. Auth goes back to OFF; re-run Step 4 to restore. |
-| Image channel (stable ↔ edge) | Re-run Step 2 with the new channel. Auth goes back to OFF; re-run Step 4 to restore. |
-| Log Analytics workspace (BYO vs new) | Re-run Step 2 with the changed value. Auth goes back to OFF; re-run Step 4 to restore. |
-| Entra tenant or client ID | Re-run Step 4 with the new values. Step 2 stack is untouched. |
-| Turn auth OFF (debug or demo) | Re-run Step 2 — that resets `AUTH_ENABLED` to false. |
+| Size profile (xs ↔ s ↔ m ↔ l ↔ xl) | Re-run Step 1 with the new profile. Auth goes back to OFF; re-run Step 2b to restore. |
+| Image channel (stable ↔ edge) | Re-run Step 1 with the new channel. Auth goes back to OFF; re-run Step 2b to restore. |
+| Log Analytics workspace (BYO vs new) | Re-run Step 1 with the changed value. Auth goes back to OFF; re-run Step 2b to restore. |
+| Entra tenant or client ID | Re-run Step 2b with the new values. Step 1 stack is untouched. |
+| Turn auth OFF (debug or demo) | Re-run Step 1 — that resets `AUTH_ENABLED` to false. |
 
-The rule of thumb: **Step 2 = the app stack. Step 4 = auth.** They don't overlap. Re-running Step 2 always returns the deployment to a clean OPEN-mode state.
+The rule: **Step 1 = the app stack. Step 2b = auth.** They don't overlap. Re-running Step 1 always returns the deployment to a clean OPEN-mode state.
 
 ---
 
-## Step 6 — Tear down (when you're done testing)
+## Tearing down
 
 Resource Group → top menu **Delete resource group** → type the name to confirm.
 
-**Caveat**: the Key Vault enters soft-delete with **purge protection** enabled — its name is reserved for 7 days. If you want to redeploy to the same resource-group name within that window, the deploy fails at the key-vault step. Wait 7 days or use a different `namePrefix` for the next test.
+**Caveat**: the Key Vault enters soft-delete with **purge protection** enabled — its name is reserved for 7 days. If you want to redeploy to a same-named RG within that window, the deploy fails at the key-vault step. Wait 7 days or use a different RG name.
 
 ---
 
