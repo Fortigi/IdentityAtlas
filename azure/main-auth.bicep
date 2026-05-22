@@ -2,27 +2,30 @@
 //
 // Layers Entra ID single sign-on onto an existing Step-1 deployment.
 // Does NOT touch Postgres, Key Vault, storage, Container Apps, or any other
-// resource — just updates three app settings on the App Service and lets
-// the platform restart it. Takes about a minute to apply.
+// resource — just adds three app settings to the App Service and lets the
+// platform restart it. Takes about a minute to apply.
+//
+// Why a deployment-script instead of a `Microsoft.Web/sites/config` Bicep
+// resource: the natural Bicep pattern — `existing` site + list() current
+// appsettings + write the config resource — fails template validation with
+// a circular-dependency error. ARM's analyzer sees the list() and the
+// config write as targeting the same resource ID and flags it as a cycle,
+// even though the operations are read-then-write. `az webapp config
+// appsettings set` does a real merge (adds/updates only the named keys),
+// so the script doesn't need to read the existing settings at all.
 //
 // Required before running this:
-//   1. Run Step 1 (main.bicep) to deploy the app stack. You'll get a
-//      hostname like https://<namePrefix>-web.azurewebsites.net.
-//   2. In Entra ID, register an App Registration whose SPA redirect URI
-//      matches that hostname. Expose an API scope named `access` with the
-//      default Application ID URI `api://<client-id>`.
-//   3. Run this template against the SAME resource group, passing the
-//      `namePrefix` you used in Step 1 plus the new tenant + client IDs.
+//   1. Step 1 (main.bicep) deployed to the SAME RG you're running this
+//      against. Step 1's bootstrap identity is reused here.
+//   2. An Entra App Registration whose SPA redirect URI matches the Step-1
+//      hostname, with an `access` scope exposed at Application ID URI
+//      `api://<client-id>`.
 //
-// To turn auth OFF: re-run Step 1 against the same RG with the same
-// namePrefix — that resets AUTH_ENABLED back to false.
+// To turn auth OFF: re-run Step 1 against the same RG. Step 1 declares
+// AUTH_ENABLED=false in its appsettings (a full replace), which wipes
+// AUTH_TENANT_ID and AUTH_CLIENT_ID too.
 
 targetScope = 'resourceGroup'
-
-// Same derivation as Step 1 — deploying both templates to the same RG
-// gives the same prefix, so this template finds Step 1's App Service
-// automatically. Not a parameter, so the deploy form doesn't ask.
-var namePrefix = 'idatlas-${take(uniqueString(resourceGroup().id), 7)}'
 
 @description('Entra ID tenant (directory) GUID. Find it under Entra ID → Overview → Tenant ID.')
 param entraTenantId string
@@ -30,42 +33,60 @@ param entraTenantId string
 @description('Entra ID App Registration (client) GUID. Find it on the registered app\'s Overview page. For an SPA app this is the only Entra ID you need — there is no client secret.')
 param entraClientId string
 
-// ─── Reference the existing App Service ──────────────────────────────────
+var location = resourceGroup().location
 
+// Same derivation as Step 1 — deploying both templates to the same RG
+// gives the same prefix, so this template finds Step 1's App Service
+// automatically. Not a parameter, so the deploy form doesn't ask.
+var namePrefix = 'idatlas-${take(uniqueString(resourceGroup().id), 7)}'
+var webAppName = '${namePrefix}-web'
+
+// Reference Step-1's deployScript identity (the bootstrap one). Reusing it
+// instead of creating a new identity keeps the role-assignment surface
+// scoped to one principal.
+resource scriptIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${namePrefix}-mi-deployscript'
+}
+
+// Reference Step-1's App Service.
 resource existingApp 'Microsoft.Web/sites@2024-04-01' existing = {
-  name: '${namePrefix}-web'
+  name: webAppName
 }
 
-// Read the current appsettings so we can preserve everything (POSTGRES_*,
-// IDENTITY_ATLAS_MASTER_KEY, etc.) while ADDING the auth settings. The PUT
-// on `Microsoft.Web/sites/config/appsettings` is a full replace, so we have
-// to include all existing keys explicitly.
+// Grant the script identity the Website Contributor built-in role on the
+// App Service. That role includes Microsoft.Web/sites/config/Write, which
+// is what `az webapp config appsettings set` needs. Scoped to this one
+// app, nothing broader.
 //
-// list() returns the secret values (KV references show up as their literal
-// `@Microsoft.KeyVault(...)` strings, which is what we want to write back).
-var existingSettings = list('${existingApp.id}/config/appsettings', '2024-04-01').properties
-
-// Auth settings to add / overwrite.
-var authSettings = {
-  AUTH_ENABLED: 'true'
-  AUTH_TENANT_ID: entraTenantId
-  AUTH_CLIENT_ID: entraClientId
-}
-
-// Merge + write via a nested module. The split is deliberate: if we both
-// list() and create the appsettings resource in THIS template, ARM detects
-// a circular dependency on Microsoft.Web/sites/<name>/config/appsettings.
-// The inner module just receives the already-merged object as a parameter
-// — it doesn't list() anything, so no cycle.
-//
-// union() prefers the second arg for shared keys, so authSettings overrides
-// any existing AUTH_* values.
-module patch './modules/auth-settings.bicep' = {
-  name: 'patch-auth-settings'
-  params: {
-    siteName: existingApp.name
-    settings: union(existingSettings, authSettings)
+// 'de139f84-1756-47ae-9be6-808fbbe84772' is the Website Contributor role
+// definition ID — a global Azure built-in role, available in every tenant.
+resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: existingApp
+  name: guid(existingApp.id, scriptIdentity.id, 'WebsiteContributor')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'de139f84-1756-47ae-9be6-808fbbe84772')
+    principalId: scriptIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
   }
+}
+
+// Dispatch the patching to a module so its `forceUpdateTag = utcNow()`
+// default lives at the module's param level — that keeps it OUT of this
+// template's deploy form (otherwise it would render as a "Force Update Tag"
+// field with a visible formula).
+module patch './modules/patch-auth-script.bicep' = {
+  name: 'patch-auth-script'
+  params: {
+    identityId: scriptIdentity.id
+    webAppName: webAppName
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
+    location: location
+    scriptName: '${namePrefix}-patch-auth'
+  }
+  dependsOn: [
+    roleAssignment
+  ]
 }
 
 @description('Public URL of the Identity Atlas web app — same as Step 1.')
