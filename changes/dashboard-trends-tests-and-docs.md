@@ -1,3 +1,0 @@
-- Added Playwright e2e coverage for the new Dashboard tab strip and Trends tab: verifies tab switching, chart container presence, and the range selector behaviour.
-- New `docs/architecture/dashboard-trends.md` documents the snapshot architecture, the no-backfill decision, the API surface, and the chart rendering details.
-- Pointers in `app/ui/CLAUDE.md` so future AI contributors find the new components.
