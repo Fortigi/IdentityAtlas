@@ -50,6 +50,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 | Context | Version format | Example | Docker tag pushed |
 |---------|---------------|---------|-------------------|
 | `main` dev builds | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` | `:edge` |
+| Pre-release tags (`v*-beta.*` etc.) | `Major.Minor.Patch-beta.N` | `5.3.0-beta.1` | `:beta` |
 | Release tags (`v*`) | `Major.Minor.Patch.0` | `5.2.1.0` | `:latest` |
 | `feature/*` / `bugfixes/*` | — | — | Nobody |
 
@@ -58,6 +59,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 | Context | Who updates it | When |
 |---------|---------------|------|
 | `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp |
+| Pre-release tags | `cut-beta.yml` (automated) | When you run Actions → Cut Beta |
 | Release tags | `cut-release.yml` / `cut-hotfix.yml` (automated) | When you run Actions → Cut Release or Cut Hotfix |
 | `feature/*` / `bugfixes/*` | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch |
 
