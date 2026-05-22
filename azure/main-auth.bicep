@@ -52,12 +52,20 @@ var authSettings = {
   AUTH_CLIENT_ID: entraClientId
 }
 
-// Merge: existing wins on shared keys EXCEPT the AUTH_* ones, which we
-// force to the new values. union() prefers the second arg for shared keys.
-resource patchedSettings 'Microsoft.Web/sites/config@2024-04-01' = {
-  parent: existingApp
-  name: 'appsettings'
-  properties: union(existingSettings, authSettings)
+// Merge + write via a nested module. The split is deliberate: if we both
+// list() and create the appsettings resource in THIS template, ARM detects
+// a circular dependency on Microsoft.Web/sites/<name>/config/appsettings.
+// The inner module just receives the already-merged object as a parameter
+// — it doesn't list() anything, so no cycle.
+//
+// union() prefers the second arg for shared keys, so authSettings overrides
+// any existing AUTH_* values.
+module patch './modules/auth-settings.bicep' = {
+  name: 'patch-auth-settings'
+  params: {
+    siteName: existingApp.name
+    settings: union(existingSettings, authSettings)
+  }
 }
 
 @description('Public URL of the Identity Atlas web app — same as Step 1.')
