@@ -1274,49 +1274,30 @@ if ($SyncSignInLogs) {
         # a single bad slice costs one day, not the whole phase. The downside
         # is N round trips' worth of fixed overhead; in practice each slice
         # pages through 20–30k events, so the overhead is negligible.
+        #
+        # Memory: previously we accumulated ALL events from all slices in a
+        # List, then aggregated. On a 4-5k-user tenant that's ~150-300k
+        # events held simultaneously and OOM-kills a 2GB worker. The
+        # aggregation logic was always going to produce a hashtable of
+        # (userId, spId) pairs — a much smaller number than total events —
+        # so we now feed events into the aggregate AS THEY ARRIVE, using
+        # Invoke-FGGetRequestStream's pipeline output. Peak memory is
+        # bounded by one Graph page (~1k events) + the aggregate hashtable.
         $agg = @{}
         $skipped = 0
+        $totalEvents = 0
         $sliceFailures = @()
-        $events = [System.Collections.Generic.List[object]]::new()
 
-        $nowUtc = (Get-Date).ToUniversalTime()
-        for ($d = 0; $d -lt $SignInLogsDays; $d++) {
-            $sliceEnd   = $nowUtc.AddDays(-$d).ToString('yyyy-MM-ddTHH:mm:ssZ')
-            $sliceStart = $nowUtc.AddDays(-($d + 1)).ToString('yyyy-MM-ddTHH:mm:ssZ')
-            $sliceFilter = [uri]::EscapeDataString("createdDateTime ge $sliceStart and createdDateTime lt $sliceEnd")
-            $sliceUri = "https://graph.microsoft.com/beta/auditLogs/signIns?`$filter=$sliceFilter&`$top=999"
-            Update-CrawlerProgress -Detail "Fetching day slice $($d + 1)/${SignInLogsDays}: $sliceStart..$sliceEnd"
-            try {
-                $sliceEvents = Invoke-FGGetRequest -URI $sliceUri
-                if ($sliceEvents) {
-                    foreach ($ev in $sliceEvents) { $events.Add($ev) }
-                }
-                Write-Host "  Slice $($d + 1)/$SignInLogsDays ($sliceStart..$sliceEnd): $(@($sliceEvents).Count) events" -ForegroundColor Gray
-            } catch {
-                # One bad slice (typically an expired skiptoken 400 deep in
-                # pagination) doesn't abort the whole phase — we record it
-                # and keep going. If *every* slice fails, the outer handler
-                # still flags the phase as failed.
-                $msg = $_.Exception.Message
-                Write-Host "  Slice $($d + 1)/$SignInLogsDays failed: $msg" -ForegroundColor Yellow
-                $sliceFailures += "day $($d + 1): $msg"
-            }
-        }
-        Write-Host "  Pulled $($events.Count) events across $SignInLogsDays slices ($(@($sliceFailures).Count) slice failure(s))" -ForegroundColor Gray
-        if ($sliceFailures.Count -gt 0 -and $sliceFailures.Count -eq $SignInLogsDays) {
-            throw "All $SignInLogsDays sign-in log slices failed: $($sliceFailures -join '; ')"
-        }
-        if ($sliceFailures.Count -gt 0) {
-            $script:phaseErrors.Add("SignInLogs: $($sliceFailures.Count) of $SignInLogsDays day slice(s) failed: $($sliceFailures -join '; ')")
-        }
-
-        # Aggregate. Events older than an existing aggregate are skipped;
-        # newer ones win via max(date). Success/failure split comes from
-        # status.errorCode — 0 is a successful sign-in.
-        foreach ($ev in $events) {
-            if (-not $ev.userId -or -not $ev.appId) { $skipped++; continue }
+        # Local function: fold one event into $agg. Pulled out of the loop
+        # to keep the pipeline lambda tight and avoid duplicated logic
+        # between the two phases that need it (currently just this one,
+        # but it would be the easy place to add more granular activity
+        # types later).
+        $foldEvent = {
+            param($ev)
+            if (-not $ev.userId -or -not $ev.appId) { $script:_signin_skipped++; return }
             $spId = $appIdToSpId[$ev.appId]
-            if (-not $spId) { $skipped++; continue }
+            if (-not $spId) { $script:_signin_skipped++; return }
             $key = "$($ev.userId)|$spId"
             $entry = $agg[$key]
             if (-not $entry) {
@@ -1346,7 +1327,49 @@ if ($SyncSignInLogs) {
                 }
             }
         }
+        # $script:_signin_skipped is incremented inside the script block above;
+        # the alternative ($script:skipped) would clash with similarly-named
+        # vars in adjacent phases.
+        $script:_signin_skipped = 0
 
+        $nowUtc = (Get-Date).ToUniversalTime()
+        for ($d = 0; $d -lt $SignInLogsDays; $d++) {
+            $sliceEnd   = $nowUtc.AddDays(-$d).ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $sliceStart = $nowUtc.AddDays(-($d + 1)).ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $sliceFilter = [uri]::EscapeDataString("createdDateTime ge $sliceStart and createdDateTime lt $sliceEnd")
+            $sliceUri = "https://graph.microsoft.com/beta/auditLogs/signIns?`$filter=$sliceFilter&`$top=999"
+            Update-CrawlerProgress -Detail "Fetching day slice $($d + 1)/${SignInLogsDays}: $sliceStart..$sliceEnd"
+            $sliceCount = 0
+            try {
+                # IMPORTANT: pipe directly into ForEach-Object so each Graph
+                # page can be GC'd as soon as it's aggregated. Assigning the
+                # result to a variable first would buffer the whole slice
+                # and defeat the streaming.
+                Invoke-FGGetRequestStream -URI $sliceUri | ForEach-Object {
+                    & $foldEvent $_
+                    $sliceCount++
+                }
+                $totalEvents += $sliceCount
+                Write-Host "  Slice $($d + 1)/$SignInLogsDays ($sliceStart..$sliceEnd): $sliceCount events" -ForegroundColor Gray
+            } catch {
+                # One bad slice (typically an expired skiptoken 400 deep in
+                # pagination) doesn't abort the whole phase — we record it
+                # and keep going. If *every* slice fails, the outer handler
+                # still flags the phase as failed.
+                $msg = $_.Exception.Message
+                Write-Host "  Slice $($d + 1)/$SignInLogsDays failed: $msg" -ForegroundColor Yellow
+                $sliceFailures += "day $($d + 1): $msg"
+            }
+        }
+        Write-Host "  Pulled $totalEvents events across $SignInLogsDays slices ($(@($sliceFailures).Count) slice failure(s))" -ForegroundColor Gray
+        if ($sliceFailures.Count -gt 0 -and $sliceFailures.Count -eq $SignInLogsDays) {
+            throw "All $SignInLogsDays sign-in log slices failed: $($sliceFailures -join '; ')"
+        }
+        if ($sliceFailures.Count -gt 0) {
+            $script:phaseErrors.Add("SignInLogs: $($sliceFailures.Count) of $SignInLogsDays day slice(s) failed: $($sliceFailures -join '; ')")
+        }
+
+        $skipped = $script:_signin_skipped
         if ($skipped -gt 0) {
             Write-Host "  Skipped $skipped events (missing userId/appId, or app not synced yet)" -ForegroundColor Gray
         }
@@ -1685,26 +1708,31 @@ if ($SyncGovernance) {
             # and 999 per page consistently produces 504 Gateway Timeout
             # after the first few pages. 500 halves the per-page work and
             # has empirically survived where 999 didn't.
-            $assignments = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=500"
-
-            # Deduplicate by (resourceId, principalId) — keep the most recent active assignment.
-            # Graph can return multiple assignments per user/AP (delivered, expired, removed, etc.)
+            #
+            # Memory: stream pages and dedup on the fly. The previous
+            # Invoke-FGGetRequest version buffered the full paginated
+            # result (with expanded target+accessPackage objects per row),
+            # which OOM-killed the worker on tenants with thousands of
+            # access-package assignments. The dedup hashtable contains
+            # ONE entry per (apId, principalId) pair, far smaller than the
+            # raw assignment list.
+            $assignRecords = [System.Collections.Generic.List[hashtable]]::new()
             $seenKeys = @{}
-            $assignRecords = @()
-            foreach ($a in $assignments) {
+            Invoke-FGGetRequestStream -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=500" | ForEach-Object {
+                $a = $_
                 $apId = if ($a.accessPackage) { $a.accessPackage.id } else { $null }
                 $targetId = if ($a.target) { $a.target.objectId } else { $null }
-                if (-not $apId -or -not $targetId) { continue }
+                if (-not $apId -or -not $targetId) { return }
 
                 $state = $a.assignmentState
                 # Skip non-active states (Expired, Removed, Denied)
-                if ($state -and $state -notin @('Delivered','PendingApproval','Active')) { continue }
+                if ($state -and $state -notin @('Delivered','PendingApproval','Active')) { return }
 
                 $key = "$apId|$targetId"
-                if ($seenKeys.ContainsKey($key)) { continue }
+                if ($seenKeys.ContainsKey($key)) { return }
                 $seenKeys[$key] = $true
 
-                $assignRecords += @{
+                $assignRecords.Add(@{
                     resourceId         = $apId
                     principalId        = $targetId
                     principalType      = 'User'
@@ -1712,8 +1740,11 @@ if ($SyncGovernance) {
                     state              = $state
                     assignmentStatus   = $a.assignmentStatus
                     expirationDateTime = $a.expiredDateTime
-                }
+                })
             }
+            # Convert to array for Send-IngestBatch (downstream code uses
+            # .Count and indexed access).
+            $assignRecords = @($assignRecords)
 
             if ($assignRecords.Count -gt 0) {
                 Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
