@@ -1,5 +1,19 @@
 ## Changes in this PR
 
+- Increased the Azure worker container's CPU and memory allowance across all size profiles. PowerShell Graph crawlers spawn one runspace per parallel task via `ForEach-Object -Parallel`, and each runspace duplicates the session state — memory pressure scales fast on real tenants. The previous tiers maxed out at 0.5 CPU / 1 GB memory even on `xl`, which OOM-killed real customer syncs (4.5K users + 9.9K groups + 3.6K service principals — a mid-size tenant). New sizing keeps the same Postgres / App Service tiering but bumps the worker substantially:
+
+  | Profile | Web SKU | Worker (was → now) |
+  |---|---|---|
+  | xs | B1 | 0.25 CPU / 0.5Gi → **0.5 CPU / 1Gi** |
+  | s (default) | B2 | 0.25 CPU / 0.5Gi → **1 CPU / 2Gi** |
+  | m | S1 | 0.25 CPU / 0.5Gi → **1 CPU / 2Gi** |
+  | l | P1v3 | 0.5 CPU / 1Gi → **2 CPU / 4Gi** |
+  | xl | P2v3 | 0.5 CPU / 1Gi → **2 CPU / 4Gi** |
+
+  Marginal cost is small (~€5-15/month per tier) compared with the cost of debugging an OOM crash halfway through a customer's first sync. Existing deployments aren't affected automatically; redeploy or run `az containerapp update --name <worker> --resource-group <rg> --cpu 2.0 --memory 4.0Gi` to bump an existing worker.
+
+## Changes in this PR
+
 - Azure deployments now ship with Entra ID auth turned **on from the first deploy**. The Bicep template sets `AUTH_ENABLED=true` and creates `AUTH_TENANT_ID`/`AUTH_CLIENT_ID` env vars as empty strings. After Step 1 of the walkthrough, opening the deployed Web App's URL shows an **Entra ID setup required** page with the exact remaining steps (register the App in Entra, expose an `access` scope, paste tenant + client IDs into the Web App's Environment variables blade). The previous "open mode after Step 1, then add auth in Step 2" flow is gone — there's no usable unauthenticated state at any point in the install, so a customer can't accidentally end up running an internet-exposed deployment with no sign-in.
 - The setup-required page is rendered by the SPA's `AuthGate` when `/api/auth-config` returns `{ enabled: true, configured: false }` — a new `configured` field is true only when both tenant and client IDs are populated. The page shows the current origin (so the redirect-URI step is copy-paste), inlines the same Entra-app-registration walkthrough that's in [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md), and adapts the "where to put the IDs" instructions to whether you're running on Azure App Service or a Docker host.
 - Local Docker installs are unaffected: `AUTH_ENABLED` still defaults to `false` for `docker compose` deployments. The auth-required-by-default behavior is an Azure-deployment thing.
