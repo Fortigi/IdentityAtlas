@@ -53,46 +53,57 @@ param existingLogAnalyticsWorkspaceId string = ''
 
 // ─── Size profile → SKUs ─────────────────────────────────────────────────
 
+// Worker memory note: PowerShell crawlers use ForEach-Object -Parallel,
+// which spawns one runspace per parallel task. Each runspace duplicates the
+// session state, so memory pressure scales fast on real tenants. ACA's
+// Consumption profile pins the CPU:memory ratio at 0.25 CPU per 0.5 Gi —
+// 1 CPU = 2 Gi, 2 CPU = 4 Gi. We size the worker generously per tier; the
+// marginal cost is small compared with the cost of debugging an OOM crash
+// halfway through a customer's first sync.
+//
+// Real-world data points (Novastream Financial, May 2026):
+//   4,500 users + 9,900 groups + 3,600 SPs OOM'd at 0.5 CPU / 1 Gi.
+//   Same tenant ran clean at 2 CPU / 4 Gi.
 var sizeMap = {
   xs: {
     appServiceSku: 'B1'
     postgresSku: 'Standard_B1ms'
     postgresTier: 'Burstable'
     postgresStorageGb: 32
-    workerCpu: '0.25'
-    workerMemory: '0.5Gi'
+    workerCpu: '0.5'
+    workerMemory: '1Gi'
   }
   s: {
     appServiceSku: 'B2'
     postgresSku: 'Standard_B2s'
     postgresTier: 'Burstable'
     postgresStorageGb: 32
-    workerCpu: '0.25'
-    workerMemory: '0.5Gi'
+    workerCpu: '1'
+    workerMemory: '2Gi'
   }
   m: {
     appServiceSku: 'S1'
     postgresSku: 'Standard_B2s'
     postgresTier: 'Burstable'
     postgresStorageGb: 64
-    workerCpu: '0.25'
-    workerMemory: '0.5Gi'
+    workerCpu: '1'
+    workerMemory: '2Gi'
   }
   l: {
     appServiceSku: 'P1v3'
     postgresSku: 'Standard_D2ds_v5'
     postgresTier: 'GeneralPurpose'
     postgresStorageGb: 128
-    workerCpu: '0.5'
-    workerMemory: '1Gi'
+    workerCpu: '2'
+    workerMemory: '4Gi'
   }
   xl: {
     appServiceSku: 'P2v3'
     postgresSku: 'Standard_D4ds_v5'
     postgresTier: 'GeneralPurpose'
     postgresStorageGb: 256
-    workerCpu: '0.5'
-    workerMemory: '1Gi'
+    workerCpu: '2'
+    workerMemory: '4Gi'
   }
 }
 var profile = sizeMap[sizeProfile]
