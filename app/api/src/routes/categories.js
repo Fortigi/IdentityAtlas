@@ -152,7 +152,7 @@ router.post('/categories/:id/assign', async (req, res) => {
 });
 
 // ─── POST /api/categories/unassign ───────────────────────────────
-// Removes the category assignment from an access package.
+// Removes the category assignment from a business role.
 router.post('/categories/unassign', async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
@@ -163,9 +163,10 @@ router.post('/categories/unassign', async (req, res) => {
     const p = await db.getPool();
     await ensureCategoryTables(p);
 
-    await p.request()
-      .input('resourceId', String(resId).toLowerCase())
-      .query('DELETE FROM "GovernanceCategoryAssignments" WHERE "resourceId" = @resourceId');
+    await db.query(
+      `DELETE FROM "GovernanceCategoryAssignments" WHERE "resourceId" = $1`,
+      [String(resId).toLowerCase()]
+    );
     res.json({ ok: true });
   } catch (err) {
     console.error('POST /categories/unassign failed:', err.message);

@@ -170,7 +170,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         await authFetch(`/api/categories/${actionCategory}/assign`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessPackageId: apId }),
+          body: JSON.stringify({ resourceId: apId }),
         });
       }
       setActionCategory('');
@@ -186,7 +186,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         await authFetch('/api/categories/unassign', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessPackageId: apId }),
+          body: JSON.stringify({ resourceId: apId }),
         });
       }
       await Promise.all([fetchPackages(), fetchCategories()]);
@@ -211,13 +211,13 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         await authFetch(`/api/categories/${catId}/assign`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessPackageId: apId }),
+          body: JSON.stringify({ resourceId: apId }),
         });
       } else {
         await authFetch('/api/categories/unassign', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessPackageId: apId }),
+          body: JSON.stringify({ resourceId: apId }),
         });
       }
       await Promise.all([fetchPackages(), fetchCategories()]);
