@@ -50,40 +50,40 @@
         "postgresSku": "Standard_B1ms",
         "postgresTier": "Burstable",
         "postgresStorageGb": 32,
-        "workerCpu": "0.25",
-        "workerMemory": "0.5Gi"
+        "workerCpu": "0.5",
+        "workerMemory": "1Gi"
       },
       "s": {
         "appServiceSku": "B2",
         "postgresSku": "Standard_B2s",
         "postgresTier": "Burstable",
         "postgresStorageGb": 32,
-        "workerCpu": "0.25",
-        "workerMemory": "0.5Gi"
+        "workerCpu": "1",
+        "workerMemory": "2Gi"
       },
       "m": {
         "appServiceSku": "S1",
         "postgresSku": "Standard_B2s",
         "postgresTier": "Burstable",
         "postgresStorageGb": 64,
-        "workerCpu": "0.25",
-        "workerMemory": "0.5Gi"
+        "workerCpu": "1",
+        "workerMemory": "2Gi"
       },
       "l": {
         "appServiceSku": "P1v3",
         "postgresSku": "Standard_D2ds_v5",
         "postgresTier": "GeneralPurpose",
         "postgresStorageGb": 128,
-        "workerCpu": "0.5",
-        "workerMemory": "1Gi"
+        "workerCpu": "2",
+        "workerMemory": "4Gi"
       },
       "xl": {
         "appServiceSku": "P2v3",
         "postgresSku": "Standard_D4ds_v5",
         "postgresTier": "GeneralPurpose",
         "postgresStorageGb": 256,
-        "workerCpu": "0.5",
-        "workerMemory": "1Gi"
+        "workerCpu": "2",
+        "workerMemory": "4Gi"
       }
     },
     "profile": "[variables('sizeMap')[parameters('sizeProfile')]]",
