@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Azure deployments now ship with Entra ID auth turned **on from the first deploy**. The Bicep template sets `AUTH_ENABLED=true` and creates `AUTH_TENANT_ID`/`AUTH_CLIENT_ID` env vars as empty strings. After Step 1 of the walkthrough, opening the deployed Web App's URL shows an **Entra ID setup required** page with the exact remaining steps (register the App in Entra, expose an `access` scope, paste tenant + client IDs into the Web App's Environment variables blade). The previous "open mode after Step 1, then add auth in Step 2" flow is gone — there's no usable unauthenticated state at any point in the install, so a customer can't accidentally end up running an internet-exposed deployment with no sign-in.
+- The setup-required page is rendered by the SPA's `AuthGate` when `/api/auth-config` returns `{ enabled: true, configured: false }` — a new `configured` field is true only when both tenant and client IDs are populated. The page shows the current origin (so the redirect-URI step is copy-paste), inlines the same Entra-app-registration walkthrough that's in [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md), and adapts the "where to put the IDs" instructions to whether you're running on Azure App Service or a Docker host.
+- Local Docker installs are unaffected: `AUTH_ENABLED` still defaults to `false` for `docker compose` deployments. The auth-required-by-default behavior is an Azure-deployment thing.
+
+## Changes in this PR
+
 - Added a **Cut Beta** GitHub Actions workflow (`Actions → Cut Beta`) to publish pre-release Docker images tagged `:beta` and the exact version (e.g. `5.3.0-beta.1`) without touching `:latest`. Users on `docker-compose.prod.yml` are unaffected.
 
 ## Changes in this PR

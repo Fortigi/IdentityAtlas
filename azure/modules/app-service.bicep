@@ -114,10 +114,16 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'USE_SQL', value: 'true' }
         { name: 'PORT', value: '3001' }
         { name: 'BEHIND_TLS', value: 'true' }
-        // AUTH_ENABLED is hardcoded false in Step 1. Step 2 (main-auth.bicep)
-        // patches AUTH_ENABLED + AUTH_TENANT_ID + AUTH_CLIENT_ID via a
-        // separate appsettings deployment.
-        { name: 'AUTH_ENABLED', value: 'false' }
+        // AUTH_ENABLED is TRUE from the first deploy — the deployment is
+        // internet-exposed, so an open-by-default state would be unsafe.
+        // AUTH_TENANT_ID and AUTH_CLIENT_ID start empty; the SPA detects
+        // this state (enabled but unconfigured) and shows a "set up Entra"
+        // page instead of the app, so customers can't accidentally use an
+        // unauthenticated instance. Step 2 in the walkthrough = filling in
+        // these two env vars after registering the Entra app.
+        { name: 'AUTH_ENABLED', value: 'true' }
+        { name: 'AUTH_TENANT_ID', value: '' }
+        { name: 'AUTH_CLIENT_ID', value: '' }
         // KV references — resolved at startup via the managed identity.
         // App Service reads the literal secret value from KV and exposes
         // it to the app as the named env var.

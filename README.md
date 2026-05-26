@@ -58,13 +58,11 @@ One-click install into your Azure subscription. The deployment uses PaaS service
 | **l** | 244 | 25-50k principals, GP Postgres compute |
 | **xl** | 469 | 50k+ principals, enterprise concurrent use |
 
-Deployment is two Bicep templates back-to-back:
+Deployment is three steps. **Auth is ON from the first deploy** — visiting the Web App's URL after Step 1 shows a "Set up Entra ID" page with the exact remaining steps. There is no usable open-mode state, so a customer can't accidentally use an unauthenticated instance.
 
-1. **Step 1 — Deploy the app stack** ([`azure/main.json`](azure/main.json)). Click the **Deploy to Azure** button above. The form takes `namePrefix`, `sizeProfile`, `imageChannel`, and optionally a BYO Log Analytics workspace. ~6 min. The app comes up in OPEN mode at the confirmed `https://<prefix>-web.azurewebsites.net`.
-2. **Register an Entra App Registration** in your tenant using the URL from Step 1 as the SPA redirect URI. ~5 min in the portal.
-3. **Step 2 — Turn auth on** ([`azure/main-auth.json`](azure/main-auth.json)). Different button, different template — 3 fields only: `namePrefix` (same as Step 1) + tenant ID + client ID. Touches only the App Service's app settings, restarts it. ~1 min.
-
-The two templates have **non-overlapping concerns**: Step 1 = the app stack, Step 2 = auth. Want to change the size profile, image channel, or LA workspace later? Re-run Step 1 — that resets auth to OFF, then re-run Step 2 to restore. Want to change the Entra IDs? Re-run Step 2; Step 1 is untouched.
+1. **Step 1 — Deploy the app stack** ([`azure/main.json`](azure/main.json)). Click the **Deploy to Azure** button above. The form takes `sizeProfile`, `imageChannel`, and optionally a BYO Log Analytics workspace. ~6 min. After it finishes, opening the URL shows the **Entra ID setup required** page.
+2. **Register an Entra App Registration** in your tenant using the URL from Step 1 as the SPA redirect URI, then expose an `access` API scope. ~5 min in the portal — the setup page on the deployed Web App walks you through it.
+3. **Set the IDs as env vars** on the Web App (`AUTH_TENANT_ID`, `AUTH_CLIENT_ID`). Web App → Environment variables → Apply. ~1 min. The Web App restarts; refresh and you'll sign in with Entra.
 
 Full step-by-step (permissions, RP registration, App Reg setup, troubleshooting, "how to change X later"): [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md).
 
