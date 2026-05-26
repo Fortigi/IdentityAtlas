@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed: assigning or removing a category on a business role from the Access Packages page silently failed — the relationship never got saved. The UI was sending the body field as `accessPackageId`, but the API expects either `resourceId` or `businessRoleId` (leftover from the v3 Access-Package → Business-Role rename). The mismatch produced a 400 that the UI's `for` loop swallowed without surfacing. UI now sends `resourceId`.
+- Fixed: `POST /api/categories/unassign` still used the old MSSQL-shim syntax (`p.request().input(...).query('@param')`) from before the Postgres migration. Calls to it would throw at runtime. Converted to the Postgres `db.query(text, [params])` pattern the `assign` endpoint right next to it already uses.
+
+## Changes in this PR
+
 - Crawler memory footprint dropped dramatically on tenants with large sign-in volumes or many access-package assignments. The `SignInLogs` and `Governance/APAssignments` phases used to load every paginated Graph response into one in-memory array before processing — fine on a Docker host with 12 GB, OOM-killed the worker on Azure (capped at 2 GB / 4 GB on the Consumption tier of Container Apps). Both phases now pipe Graph pages through a new `Invoke-FGGetRequestStream` helper that emits items one at a time, so we aggregate as events arrive and never hold more than ~one Graph page (~1000 events) plus the aggregated state. Real-world impact: a customer's 4.5K-user / 9.9K-group tenant had 7 phase OOMs at 1 GB / 2 GB; the same shape will now run cleanly without bumping resources.
 - Added `tools/powershell-sdk/graph/Invoke-FGGetRequestStream.ps1` — a streaming counterpart to `Invoke-FGGetRequest`. Same auth/retry/throttling/Retry-After semantics, but emits each `.value` item to the pipeline as pages are fetched instead of accumulating the whole result. Use it whenever the next thing you do is process items in a loop and the response can be paginated — assigning the result to a variable (`$x = Invoke-FGGetRequestStream …`) re-buffers and undoes the benefit.
 
