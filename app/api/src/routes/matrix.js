@@ -119,12 +119,6 @@ function normaliseBlock(b) {
   };
 }
 
-function hasAnyCondition(filter) {
-  for (const b of [filter.subject, filter.resource]) {
-    if (b.include.length > 0 || b.exclude.length > 0) return true;
-  }
-  return false;
-}
 
 async function resolveContextTypes(filter) {
   const ids = collectContextIds(filter);
@@ -274,9 +268,6 @@ router.post('/matrix/data', async (req, res) => {
   }
   const filter = parseFilter(req.body);
   if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
-  if (!hasAnyCondition(filter)) {
-    return res.status(400).json({ error: 'At least one subject or resource condition is required' });
-  }
 
   try {
     const built = await buildSubqueries(filter);
@@ -474,6 +465,7 @@ async function ensureSavedFiltersTable() {
       "name"        TEXT NOT NULL,
       "description" TEXT,
       "filter"      JSONB NOT NULL,
+      "isDefault"   BOOLEAN NOT NULL DEFAULT false,
       "createdBy"   TEXT,
       "createdAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
       "updatedBy"   TEXT,
@@ -483,6 +475,11 @@ async function ensureSavedFiltersTable() {
   await db.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS "ix_SavedMatrixFilters_name"
       ON "SavedMatrixFilters" (LOWER("name"))
+  `);
+  await db.query(`ALTER TABLE "SavedMatrixFilters" ADD COLUMN IF NOT EXISTS "isDefault" BOOLEAN NOT NULL DEFAULT false`);
+  await db.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "ix_SavedMatrixFilters_isDefault"
+      ON "SavedMatrixFilters" ("isDefault") WHERE "isDefault" = true
   `);
 }
 
@@ -495,7 +492,7 @@ router.get('/matrix/saved-filters', async (req, res) => {
   try {
     await ensureSavedFiltersTable();
     const r = await db.query(`
-      SELECT id, "name", "description", "filter", "createdBy", "createdAt", "updatedBy", "updatedAt"
+      SELECT id, "name", "description", "filter", "isDefault", "createdBy", "createdAt", "updatedBy", "updatedAt"
         FROM "SavedMatrixFilters"
        ORDER BY LOWER("name")
     `);
@@ -547,6 +544,7 @@ router.put('/matrix/saved-filters/:id', async (req, res) => {
     push('description', body.description ? body.description.slice(0, 1000) : null);
   }
   if (body.filter && typeof body.filter === 'object') push('filter', body.filter);
+  if (typeof body.isDefault === 'boolean') push('isDefault', body.isDefault);
   if (sets.length === 0) return res.status(400).json({ error: 'No updatable fields' });
 
   push('updatedBy', getActor(req));
@@ -580,6 +578,23 @@ router.delete('/matrix/saved-filters/:id', async (req, res) => {
   } catch (err) {
     console.error('DELETE matrix/saved-filters/:id failed:', err.message);
     res.status(500).json({ error: 'Failed to delete filter' });
+  }
+});
+
+// ─── Default filter (auto-apply on first Matrix visit) ──────────────
+
+router.get('/matrix/default-filter', async (req, res) => {
+  if (!useSql) return res.json(null);
+  try {
+    await ensureSavedFiltersTable();
+    const row = await db.queryOne(
+      `SELECT id, "name", "description", "filter", "isDefault", "createdBy", "createdAt", "updatedBy", "updatedAt"
+         FROM "SavedMatrixFilters" WHERE "isDefault" = true LIMIT 1`
+    );
+    res.json(row || null);
+  } catch (err) {
+    console.error('GET matrix/default-filter failed:', err.message);
+    res.status(500).json({ error: 'Failed to fetch default filter' });
   }
 });
 
