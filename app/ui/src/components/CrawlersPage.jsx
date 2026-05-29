@@ -2175,7 +2175,22 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Omada has no native delta API — each scheduled run performs a full sync.
           </p>
-          <ScheduleEditor schedules={schedules} onChange={setSchedules} />
+          {schedules.length === 0 && (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-400">
+              No schedules configured. The crawler will only run when you click "Run Now".
+            </div>
+          )}
+          {schedules.map((s, i) => (
+            <ScheduleEditor key={i}
+              schedule={{ enabled: true, ...s }}
+              onChange={(updated) => setSchedules(schedules.map((x, idx) => idx === i ? { ...updated, enabled: true } : x))}
+              onRemove={() => setSchedules(schedules.filter((_, idx) => idx !== i))}
+            />
+          ))}
+          <button onClick={() => setSchedules([...schedules, { enabled: true, frequency: 'daily', hour: 2, minute: 0 }])}
+            className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
+            + Add Schedule
+          </button>
           <div className="flex justify-between">
             <button onClick={() => setStep(3)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
             <button onClick={handleSave} disabled={saving}
