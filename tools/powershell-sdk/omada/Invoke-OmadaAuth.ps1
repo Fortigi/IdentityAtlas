@@ -189,13 +189,15 @@ function Get-OmadaRefValue {
     .SYNOPSIS
         Extract the display value from an Omada reference object or return a string as-is.
     .DESCRIPTION
-        Omada REST API returns reference fields as objects: { _UID, Value, english, _DISPLAYNAME }.
-        CSV exports flatten these to column_VALUE or column_ENGLISH. This helper handles both.
+        OData 4.0 (on-prem/cloud): OIS.SetValue has .Value (string label);
+        OIS.ReferenceValue has .DisplayName (string label).
+        CSV export fallback: column_VALUE, column_ENGLISH, _DISPLAYNAME.
     #>
     param($Ref, [string]$Fallback = '')
     if ($null -eq $Ref)           { return $Fallback }
     if ($Ref -is [string])        { return $Ref }
-    if ($Ref.Value)               { return [string]$Ref.Value }
+    if ($Ref.Value)               { return [string]$Ref.Value }       # OIS.SetValue
+    if ($Ref.DisplayName)         { return [string]$Ref.DisplayName } # OIS.ReferenceValue (OData)
     if ($Ref.english)             { return [string]$Ref.english }
     if ($Ref._DISPLAYNAME)        { return [string]$Ref._DISPLAYNAME }
     if ($Ref.displayName)         { return [string]$Ref.displayName }
@@ -205,13 +207,48 @@ function Get-OmadaRefValue {
 function Get-OmadaRefUid {
     <#
     .SYNOPSIS
-        Extract the _UID from an Omada reference object or return the string as-is.
+        Extract the UId (Guid) from an Omada reference object or return the string as-is.
+    .DESCRIPTION
+        OData 4.0: OIS.ReferenceValue has .UId (Guid). Legacy: ._UID.
     #>
     param($Ref, [string]$Fallback = '')
     if ($null -eq $Ref)    { return $Fallback }
     if ($Ref -is [string]) { return $Ref }
+    if ($Ref.UId)          { return [string]$Ref.UId }  # OIS.ReferenceValue (OData)
     if ($Ref._UID)         { return [string]$Ref._UID }
     if ($Ref.uid)          { return [string]$Ref.uid }
     if ($Ref.id)           { return [string]$Ref.id }
     return $Fallback
+}
+
+function Get-OmadaEntitySets {
+    <#
+    .SYNOPSIS
+        Fetch the OData $metadata document and return the list of entity set names.
+        Returns an empty array if the fetch fails (non-blocking — caller decides how to handle).
+    #>
+    if ($null -eq $script:OmadaSession) { return @() }
+    # Build URI via string concat — NOT interpolation — to keep the literal '$metadata' intact
+    $metaUri = $script:OmadaSession.BaseUrl.TrimEnd('/') + '/$metadata'
+    $reqParams = @{ Uri = $metaUri; Method = 'Get'; ErrorAction = 'Stop' }
+    switch ($script:OmadaSession.AuthMethod) {
+        { $_ -in 'OAuth2CC','OAuth2ROPC','ApiToken' } {
+            $reqParams['Headers'] = @{ Authorization = "Bearer $($script:OmadaSession.AccessToken)" }
+        }
+        { $_ -in 'FormCookie','CookieString' } {
+            $reqParams['WebSession'] = $script:OmadaSession.WebSession
+        }
+        'BasicAuth' {
+            $reqParams['Headers'] = @{ Authorization = $script:OmadaSession.BasicAuthHeader }
+        }
+    }
+    try {
+        $content = (Invoke-WebRequest @reqParams).Content
+        return @([regex]::Matches($content, 'EntitySet\s+Name="([^"]+)"') |
+                 ForEach-Object { $_.Groups[1].Value } |
+                 Where-Object { $_ })
+    } catch {
+        Write-Host "  Warning: OData metadata fetch failed — $($_.Exception.Message)" -ForegroundColor Yellow
+        return @()
+    }
 }

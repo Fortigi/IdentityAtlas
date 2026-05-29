@@ -21,12 +21,13 @@ function Invoke-OmadaGetRequest {
         [Parameter(Mandatory)] [string]$Path,
         [hashtable]$QueryParams = @{},
         [int]$PageSize  = 100,
-        [int]$MaxRetries = 5
+        [int]$MaxRetries = 5,
+        [string]$OverrideBaseUrl = ''  # use session BaseUrl when empty; pass Builtin URL for CalculatedAssignments
     )
 
     if ($null -eq $script:OmadaSession) { throw "Omada: not connected. Call Connect-OmadaAPI first." }
 
-    $base = $script:OmadaSession.BaseUrl
+    $base = if ($OverrideBaseUrl) { $OverrideBaseUrl.TrimEnd('/') } else { $script:OmadaSession.BaseUrl }
     if (-not $base) { throw "Omada: session BaseUrl is empty — was Connect-OmadaAPI called successfully?" }
 
     # Build initial URI

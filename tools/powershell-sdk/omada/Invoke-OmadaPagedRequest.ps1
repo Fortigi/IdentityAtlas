@@ -13,7 +13,8 @@ function Invoke-OmadaPagedRequest {
         [Parameter(Mandatory)] [string]$Path,
         [hashtable]$QueryParams = @{},
         [int]$PageSize  = 100,
-        [int]$MaxRetries = 5
+        [int]$MaxRetries = 5,
+        [string]$OverrideBaseUrl = ''  # pass through to Invoke-OmadaGetRequest (e.g. Builtin URL)
     )
 
     if ($null -eq $script:OmadaSession) { throw "Omada: not connected. Call Connect-OmadaAPI first." }
@@ -24,5 +25,5 @@ function Invoke-OmadaPagedRequest {
     $params = @{ '$top' = $PageSize }
     foreach ($kv in $QueryParams.GetEnumerator()) { $params[$kv.Key] = $kv.Value }
 
-    return Invoke-OmadaGetRequest -Path $Path -QueryParams $params -MaxRetries $MaxRetries
+    return Invoke-OmadaGetRequest -Path $Path -QueryParams $params -MaxRetries $MaxRetries -OverrideBaseUrl $OverrideBaseUrl
 }

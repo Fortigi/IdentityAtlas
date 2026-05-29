@@ -1,8 +1,13 @@
 - Added native Omada IGA crawler that syncs directly from the Omada OData 4.0 REST API — no manual CSV export or transform step required
 - Supports six authentication methods: Form/Cookie (on-premise), HTTP Basic Auth (on-premise), OAuth2 Client Credentials (Cloud), OAuth2 ROPC (on-premise with token endpoint), API Token, and Cookie String (paste a session cookie from OmadaWeb.PS or browser DevTools)
 - Configure the base URL as the OData service root (e.g. http://server/odata/dataobjects); entity sets are addressed directly under it using standard OData $top pagination and @odata.nextLink following
-- Syncs contexts (org units, departments, and other structural types), identities, accounts/principals, resources (business roles and other permission types), role entitlements (resource relationships), role assignments (governed), and certification review activities (CRAs)
-- Respects Omada's generic data model: type and category reference fields (IdentityType, ResourceType, ContextType, etc.) are used to route records into the correct Identity Atlas schema tables and set the correct type values
+- Syncs contexts (Orgunit), identities, accounts/principals, resources (business roles and other role types), role entitlements (extracted from Resource.CHILDROLES — no separate endpoint needed), role assignments (governed and direct via /OData/Builtin/CalculatedAssignments for comprehensive access coverage), and certification review activities (CRAs, skipped gracefully if the module is not enabled)
+- Fetches OData $metadata at startup to discover which entity sets are available on the instance — phases that require missing entity sets are skipped with a clear warning rather than failing the crawl
+- Role assignments use the Builtin CalculatedAssignments endpoint which provides all effective access: IsManaged=true → Governed, IsManaged=false → Direct
+- Resource nesting (parent→child role relationships) is extracted from Resource.CHILDROLES rather than a separate PermissionNesting endpoint
+- Respects Omada's generic data model: type and category reference fields (IDENTITYTYPE, ROLETYPEREF, OUTYPE, etc.) are used to route records into the correct Identity Atlas schema tables and set the correct type values
+- Correctly handles OData complex types: OIS.SetValue (.Value) and OIS.ReferenceValue (.DisplayName, .UId) for all reference and enum fields
+- Applies $filter=Deleted eq false to all DataObjects requests to exclude soft-deleted records
 - Type mappings are operator-configurable — environment-specific Omada label variations can be overridden in the crawler config without code changes
 - Omada IGA added as a selectable crawler type in the Admin → Crawlers wizard with a four-step setup flow
 - Added cookie retrieval instructions to the UI for the CookieString auth method (browser DevTools, OmadaWeb.PS, PowerShell direct)
