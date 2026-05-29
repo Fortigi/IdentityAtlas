@@ -1,0 +1,7 @@
+- Added native Omada IGA crawler that syncs directly from the Omada REST API — no manual CSV export or transform step required
+- Supports five authentication methods: Form/Cookie (on-premise), OAuth2 Client Credentials (Cloud), OAuth2 ROPC (on-premise with token endpoint), API Token, and Cookie String (paste a session cookie from OmadaWeb.PS or browser DevTools)
+- Syncs contexts (org units, departments, and other structural types), identities, accounts/principals, resources (business roles and other permission types), role entitlements (resource relationships), role assignments (governed), and certification review activities (CRAs)
+- Respects Omada's generic data model: type and category reference fields (IdentityType, ResourceType, ContextType, etc.) are used to route records into the correct Identity Atlas schema tables and set the correct type values
+- Type mappings are operator-configurable — environment-specific Omada label variations can be overridden in the crawler config without code changes
+- Omada IGA added as a selectable crawler type in the Admin → Crawlers wizard with a four-step setup flow
+- Added cookie retrieval instructions to the UI for the CookieString auth method (browser DevTools, OmadaWeb.PS, PowerShell direct)

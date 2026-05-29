@@ -23,7 +23,7 @@ const MAX_TRACE_CHUNK = 256 * 1024;  // 256 KB
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
-const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv'];
+const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv', 'omada'];
 const MAX_RECENT_JOBS = 50;
 const SECRET_MASK = '••••••••';
 
@@ -725,6 +725,31 @@ router.post('/admin/crawler-jobs', async (req, res) => {
     if (jobType === 'entra-id') {
       if (!resolvedConfig?.tenantId || !resolvedConfig?.clientId || !resolvedConfig?.clientSecret) {
         return res.status(400).json({ error: 'Entra ID jobs require tenantId, clientId, and clientSecret' });
+      }
+    }
+
+    // Validate Omada has required connection fields
+    if (jobType === 'omada') {
+      if (!resolvedConfig?.baseUrl) {
+        return res.status(400).json({ error: 'Omada jobs require baseUrl' });
+      }
+      const method = resolvedConfig?.authMethod;
+      if (method === 'FormCookie' || method === 'OAuth2ROPC') {
+        if (!resolvedConfig?.username || !resolvedConfig?.password) {
+          return res.status(400).json({ error: `Omada ${method} auth requires username and password` });
+        }
+      } else if (method === 'OAuth2CC') {
+        if (!resolvedConfig?.clientId || !resolvedConfig?.clientSecret) {
+          return res.status(400).json({ error: 'Omada OAuth2CC auth requires clientId and clientSecret' });
+        }
+      } else if (method === 'ApiToken') {
+        if (!resolvedConfig?.apiToken) {
+          return res.status(400).json({ error: 'Omada ApiToken auth requires apiToken' });
+        }
+      } else if (method === 'CookieString') {
+        if (!resolvedConfig?.cookieString) {
+          return res.status(400).json({ error: 'Omada CookieString auth requires cookieString' });
+        }
       }
     }
 
