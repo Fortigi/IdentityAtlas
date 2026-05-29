@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed broken links in architecture docs — source-code cross-references now point to GitHub URLs so the MkDocs strict build succeeds and docs deploy correctly to GitHub Pages.
+
+## Changes in this PR
+
 - Fixed noisy PostgreSQL ERROR log entries on first boot caused by `REFRESH MATERIALIZED VIEW CONCURRENTLY` being attempted before the materialized views were populated; the refresh now checks `pg_matviews.ispopulated` and skips `CONCURRENTLY` on the initial run.
 
 ## Changes in this PR
