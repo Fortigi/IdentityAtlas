@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Security: bumped postcss (8.5.6 → 8.5.15, moderate) and tmp (0.2.5 → 0.2.7, high) to address npm audit findings. Two remaining moderate vulnerabilities (uuid/exceljs) cannot be fixed without a breaking exceljs downgrade.
+
+## Changes in this PR
+
 - Fixed: assigning or removing a category on a business role from the Access Packages page silently failed — the relationship never got saved. The UI was sending the body field as `accessPackageId`, but the API expects either `resourceId` or `businessRoleId` (leftover from the v3 Access-Package → Business-Role rename). The mismatch produced a 400 that the UI's `for` loop swallowed without surfacing. UI now sends `resourceId`.
 - Fixed: `POST /api/categories/unassign` still used the old MSSQL-shim syntax (`p.request().input(...).query('@param')`) from before the Postgres migration. Calls to it would throw at runtime. Converted to the Postgres `db.query(text, [params])` pattern the `assign` endpoint right next to it already uses.
 
