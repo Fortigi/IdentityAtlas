@@ -1,0 +1,4 @@
+- Fixed: Matrix "Apply" button was disabled when no conditions were added to the wizard, making it impossible to create a matrix without first setting filters. The matrix now loads all subjects and resources when applied with no conditions.
+- Fixed: Matrix tab showed a "Create matrix" call-to-action even when the database contained no data. It now shows a "No data available yet — run a crawler" message instead, and the wizard no longer auto-opens when there is nothing to display.
+- Improved: Demo dataset (`Ingest-DemoDataset.ps1`) now seeds a default matrix filter so the Matrix tab opens straight to data on first visit, without requiring the wizard.
+- Improved: Matrix wizard now warns when the selected slice exceeds 5,000 assignments and blocks Apply above 25,000, preventing accidentally loading very large datasets.

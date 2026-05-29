@@ -133,4 +133,24 @@ catch {
     Write-Host "  View refresh skipped (non-critical)" -ForegroundColor Yellow
 }
 
+# Seed default matrix filter so the Matrix tab shows data immediately on first visit
+Write-Host "`nSeeding default matrix filter..." -ForegroundColor Cyan
+$defaultFilter = @{
+    name        = 'Fortigi Demo Corp — All'
+    description = 'Demo default: all users and resources'
+    filter      = @{
+        rowType     = 'principal'
+        orientation = 'rows-as-resources'
+        subject     = @{ include = @(); exclude = @() }
+        resource    = @{ include = @(); exclude = @() }
+    }
+} | ConvertTo-Json -Depth 10 -Compress
+try {
+    $result = Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/matrix-default-filter" -Method Post -Headers $headers -Body $defaultFilter -ContentType 'application/json' -TimeoutSec 30
+    Write-Host "  Default matrix filter set: '$($result.name)'" -ForegroundColor Green
+}
+catch {
+    Write-Host "  Default matrix filter skipped (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
 Write-Host "`n=== Ingest Complete ===" -ForegroundColor Green
