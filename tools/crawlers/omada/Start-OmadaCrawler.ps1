@@ -11,8 +11,13 @@
     ResourceType, ContextType, etc.). The typeMappings config section controls
     how these Omada-specific values map to Identity Atlas schema values.
 
-    Supported auth methods: FormCookie, OAuth2CC, OAuth2ROPC, ApiToken, CookieString.
-    WindowsAuth is not supported — use FormCookie or OAuth2ROPC for on-premise.
+    Omada exposes an OData 4.0 REST API at /odata/dataobjects (on-premise) or the
+    equivalent Cloud endpoint. Configure baseUrl as the OData service root; entity
+    sets (Identities, OrgUnits, etc.) are addressed directly under it.
+    Check /odata/dataobjects/$metadata on your server to confirm entity set names.
+
+    Supported auth methods: FormCookie, BasicAuth, OAuth2CC, OAuth2ROPC, ApiToken, CookieString.
+    WindowsAuth is not supported — use FormCookie, BasicAuth, or OAuth2ROPC for on-premise.
 
     NOTE: Omada has no native delta/change-feed API. SyncMode is accepted for
     dispatcher compatibility but the crawler always performs a full sync.
@@ -256,15 +261,14 @@ function Send-IngestBatch {
 }
 
 # ─── Omada API path helper ────────────────────────────────────────
-# Omada on-premise v14/v15 uses /api/data/ prefix.
-# Omada Cloud may use /api/v2/ or similar. The apiVersion key drives this.
+# Omada exposes an OData 4.0 REST API. The configured baseUrl IS the
+# OData service root (e.g. http://server/odata/dataobjects). Entity
+# sets are served directly under it — no extra path prefix needed.
+# The apiVersion field no longer affects the path; it is retained in
+# the config for informational purposes only.
 function Get-OmadaPath {
     param([string]$EntityPath)
-    switch ($apiVersion) {
-        'cloud' { return "/api/v2/$EntityPath" }
-        'v15'   { return "/api/data/$EntityPath" }
-        default { return "/api/data/$EntityPath" }  # v14 default
-    }
+    return "/$EntityPath"
 }
 
 # ─── Main ─────────────────────────────────────────────────────────
