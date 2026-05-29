@@ -365,18 +365,16 @@ async function refreshMatrixViews() {
     '"vw_ResourceUserPermissionAssignments"',
     '"vw_UserPermissionAssignmentViaBusinessRole"',
   ];
+  // Fetch which matviews are already populated so we can choose CONCURRENTLY
+  // vs plain REFRESH without letting PostgreSQL log an ERROR on first boot.
+  const { rows: populated } = await db.query(
+    `SELECT matviewname FROM pg_matviews WHERE ispopulated = true AND matviewname = ANY($1)`,
+    [views.map(v => v.replace(/"/g, ''))],
+  );
+  const populatedSet = new Set(populated.map(r => r.matviewname));
   for (const v of views) {
-    try {
-      await db.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${v}`);
-    } catch (err) {
-      // First-time refresh on an empty matview fails with "cannot refresh
-      // materialized view ... concurrently" — retry without CONCURRENTLY.
-      if (/concurrently/i.test(err.message)) {
-        await db.query(`REFRESH MATERIALIZED VIEW ${v}`);
-      } else {
-        throw err;
-      }
-    }
+    const concurrently = populatedSet.has(v.replace(/"/g, '')) ? 'CONCURRENTLY' : '';
+    await db.query(`REFRESH MATERIALIZED VIEW ${concurrently} ${v}`);
   }
   // Refresh planner statistics on the matviews and the big base tables.
   // Cheap (milliseconds) and gives dashboard-stats fast reltuples-based
