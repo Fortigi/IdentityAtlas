@@ -401,6 +401,58 @@ async function refreshMatrixViews() {
   }
 }
 
+// ─── Seed default matrix filter ─────────────────────────────────────────────
+// Creates or replaces the org-wide default matrix filter (isDefault = true).
+// Called by Ingest-DemoDataset.ps1 to pre-configure the Matrix tab so new
+// installs with demo data don't require the wizard on first visit.
+
+router.post('/ingest/matrix-default-filter', async (req, res) => {
+  if (!crawlerHasPermission(req, 'admin') && !crawlerHasPermission(req, 'ingest')) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const body = req.body || {};
+  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 200) : 'Default';
+  const description = typeof body.description === 'string' ? body.description.slice(0, 1000) : null;
+  if (!body.filter || typeof body.filter !== 'object') {
+    return res.status(400).json({ error: 'filter is required' });
+  }
+  try {
+    const p = await db.getPool();
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS "SavedMatrixFilters" (
+        "id"          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name"        TEXT NOT NULL,
+        "description" TEXT,
+        "filter"      JSONB NOT NULL,
+        "isDefault"   BOOLEAN NOT NULL DEFAULT false,
+        "createdBy"   TEXT,
+        "createdAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
+        "updatedBy"   TEXT,
+        "updatedAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc')
+      )
+    `);
+    await p.query(`ALTER TABLE "SavedMatrixFilters" ADD COLUMN IF NOT EXISTS "isDefault" BOOLEAN NOT NULL DEFAULT false`);
+    await p.query(`UPDATE "SavedMatrixFilters" SET "isDefault" = false WHERE "isDefault" = true`);
+    await p.query(
+      `INSERT INTO "SavedMatrixFilters" (id, "name", "description", "filter", "isDefault", "createdBy", "updatedBy")
+       VALUES (gen_random_uuid(), $1, $2, $3, true, 'seed', 'seed')
+       ON CONFLICT (LOWER("name")) DO UPDATE
+         SET "filter"      = EXCLUDED."filter",
+             "description" = EXCLUDED."description",
+             "isDefault"   = true,
+             "updatedBy"   = 'seed',
+             "updatedAt"   = (now() AT TIME ZONE 'utc')`,
+      [name, description, body.filter],
+    );
+    const row = await db.queryOne(`SELECT * FROM "SavedMatrixFilters" WHERE "isDefault" = true LIMIT 1`);
+    res.status(201).json(row);
+  } catch (err) {
+    console.error('POST ingest/matrix-default-filter failed:', err.message);
+    res.status(500).json({ error: 'Failed to seed default filter' });
+  }
+});
+
 export { refreshMatrixViews };
 
 export default router;

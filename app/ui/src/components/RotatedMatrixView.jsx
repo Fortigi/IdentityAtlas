@@ -17,13 +17,23 @@ import { useMemo, useCallback, useState } from 'react';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixCell from './matrix/MatrixCell';
-import { filterHasAnyCondition } from './matrix/MatrixFilterWizard';
 
-function EmptyState({ onAdjustFilter }) {
+function EmptyState({ onAdjustFilter, hasData }) {
+  if (hasData === false) {
+    return (
+      <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">No data available yet</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
+          Run a crawler first to import users and resources. Once data is loaded you can build a matrix here.
+        </p>
+      </div>
+    );
+  }
+  if (hasData === null) return null;
   return (
     <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center bg-white dark:bg-gray-800">
       <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">Pick a slice to inspect</h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto mb-4">
+      <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto mb-4">
         The Matrix tab always operates on a defined sub-selection of subjects (users or
         identities) and resources. Open the wizard to set up which slice to compare.
       </p>
@@ -46,8 +56,9 @@ export default function RotatedMatrixView({
   shareUrl,
   onOpenDetail,
   onAdjustFilter,
+  hasData,
 }) {
-  const filterIsApplied = filterHasAnyCondition(filter);
+  const filterIsApplied = filter !== null && filter !== undefined;
 
   // Same client-side managed-state toggle as MatrixView.
   const filteredData = useMemo(() => {
@@ -159,7 +170,7 @@ export default function RotatedMatrixView({
       )}
 
       {!filterIsApplied ? (
-        <EmptyState onAdjustFilter={onAdjustFilter} />
+        <EmptyState onAdjustFilter={onAdjustFilter} hasData={hasData} />
       ) : users.length === 0 || resources.length === 0 ? (
         <div className="text-center text-gray-500 dark:text-gray-400 py-12">
           No assignments match the current matrix. Adjust the subjects or resources to widen the view.
