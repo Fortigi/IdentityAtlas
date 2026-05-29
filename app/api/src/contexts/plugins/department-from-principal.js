@@ -46,8 +46,9 @@ export default {
     // One context per unique department name.
     const seen = new Map(); // department value → externalId
     for (const r of rows) {
+      if (!r.department) continue;
       const dept = r.department.trim();
-      if (!seen.has(dept)) {
+      if (dept && !seen.has(dept)) {
         seen.set(dept, `dept:${dept}`);
       }
     }
@@ -58,10 +59,12 @@ export default {
       contextType: 'Department',
     }));
 
-    const members = rows.map(r => ({
-      contextExternalId: seen.get(r.department.trim()),
-      memberId:          r.id,
-    }));
+    const members = rows
+      .filter(r => r.department?.trim())
+      .map(r => ({
+        contextExternalId: seen.get(r.department.trim()),
+        memberId:          r.id,
+      }));
 
     ctx.log?.(`Derived ${contexts.length} department(s), ${members.length} member links.`);
     return { contexts, members };
