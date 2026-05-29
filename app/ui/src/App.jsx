@@ -115,7 +115,7 @@ export default function App() {
   const [managedFilter, setManagedFilter] = useState(initial.managed);
   const [wizardOpen, setWizardOpen] = useState(false);
 
-  const { data, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh } = useMatrix(matrixFilter);
+  const { data, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -259,16 +259,30 @@ export default function App() {
     }
   }, [page]);
 
-  // When the user lands on the matrix tab without an applied filter, open the
-  // wizard automatically so they can build one. We only do this on a fresh
-  // visit — if they close the wizard intentionally, we leave them alone.
+  // When the user lands on the matrix tab without an applied filter:
+  //  - If a default filter is seeded (e.g. demo data): auto-apply it, no wizard.
+  //  - If there IS data but no default filter: open the wizard.
+  //  - If the DB is empty: do nothing (EmptyFilterState shows "no data" message).
+  // We wait until both hasData and defaultFilter have resolved (neither null/undefined
+  // as "still loading") before acting. autoOpenFiredRef prevents re-firing after the
+  // user closes the wizard or navigates away and back.
   const prevPageRef = useRef(null);
+  const autoOpenFiredRef = useRef(false);
   useEffect(() => {
-    if (page === 'matrix' && prevPageRef.current !== 'matrix' && !matrixFilter && !wizardOpen) {
-      setWizardOpen(true);
-    }
+    const freshNav = page === 'matrix' && prevPageRef.current !== 'matrix';
+    if (freshNav) autoOpenFiredRef.current = false;
     prevPageRef.current = page;
-  }, [page, matrixFilter, wizardOpen]);
+    if (page !== 'matrix' || autoOpenFiredRef.current || matrixFilter || wizardOpen) return;
+    // Still waiting for hasData or defaultFilter to resolve
+    if (hasData === null || defaultFilter === undefined) return;
+    autoOpenFiredRef.current = true;
+    if (hasData === false) return; // empty DB — EmptyFilterState handles the message
+    if (defaultFilter !== null) {
+      setMatrixFilter(defaultFilter.filter); // skip wizard, apply saved default
+    } else {
+      setWizardOpen(true); // no default — let user configure
+    }
+  }, [page, matrixFilter, wizardOpen, hasData, defaultFilter]);
 
   // Sync URL when on matrix page (debounced replaceState — no history entry)
   useEffect(() => {
@@ -572,6 +586,7 @@ export default function App() {
                   shareUrl={shareUrl}
                   onOpenDetail={openDetailTab}
                   onAdjustFilter={() => setWizardOpen(true)}
+                  hasData={hasData}
                 />
               ) : (
                 <MatrixView
@@ -587,6 +602,7 @@ export default function App() {
                   shareUrl={shareUrl}
                   onOpenDetail={openDetailTab}
                   onAdjustFilter={() => setWizardOpen(true)}
+                  hasData={hasData}
                 />
               )}
               <MatrixFilterWizard
