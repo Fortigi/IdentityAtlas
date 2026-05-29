@@ -1,0 +1,1 @@
+- Security: bumped API dependencies to address npm audit high-severity finding (tmp path traversal).
