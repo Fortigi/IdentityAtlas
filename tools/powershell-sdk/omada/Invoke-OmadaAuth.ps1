@@ -31,7 +31,7 @@ function Connect-OmadaAPI {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)] [string]$BaseUrl,
-        [Parameter(Mandatory)] [ValidateSet('FormCookie','OAuth2CC','OAuth2ROPC','ApiToken','CookieString')]
+        [Parameter(Mandatory)] [ValidateSet('FormCookie','OAuth2CC','OAuth2ROPC','ApiToken','CookieString','BasicAuth')]
         [string]$AuthMethod,
         [string]$Username          = '',
         [string]$Password          = '',
@@ -52,6 +52,7 @@ function Connect-OmadaAPI {
         ApiVersion            = $ApiVersion
         WebSession            = $null
         AccessToken           = $null
+        BasicAuthHeader       = $null  # pre-computed for BasicAuth
         TokenExpiresAt        = $null
         LastAuthAt            = $null
         SessionTimeoutMinutes = $SessionTimeoutMinutes
@@ -70,6 +71,11 @@ function Connect-OmadaAPI {
         'OAuth2ROPC'   { Invoke-OmadaOAuth2 -GrantType 'password' }
         'ApiToken'     { $script:OmadaSession.AccessToken = $ApiToken }
         'CookieString' { Invoke-OmadaCookieStringAuth -CookieString $CookieString }
+        'BasicAuth'    {
+            if (-not $Username -or -not $Password) { throw "Omada BasicAuth: username and password are required" }
+            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${Username}:${Password}"))
+            $script:OmadaSession.BasicAuthHeader = "Basic $encoded"
+        }
     }
 
     Write-Host "  Omada: authenticated via $AuthMethod to $base" -ForegroundColor Green

@@ -1850,6 +1850,7 @@ const OMADA_AUTH_METHODS = [
   { id: 'OAuth2ROPC',   label: 'OAuth2 ROPC',                description: 'username+password via token endpoint (on-premise with OAuth2)' },
   { id: 'ApiToken',     label: 'API Token',                  description: 'static bearer token' },
   { id: 'CookieString', label: 'Cookie String',              description: 'paste a pre-built session cookie (testing / restricted envs)' },
+  { id: 'BasicAuth',    label: 'HTTP Basic Auth',            description: 'Authorization: Basic header — username + password (on-premise)' },
 ];
 
 const OMADA_VERSIONS = [
@@ -1910,6 +1911,7 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
     }
     if (authMethod === 'ApiToken') return apiToken.trim() || isEdit;
     if (authMethod === 'CookieString') return cookieString.trim() || isEdit;
+    if (authMethod === 'BasicAuth') return username.trim() && (password.trim() || isEdit);
     return true;
   })();
 
@@ -1940,6 +1942,10 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
       }
       if (authMethod === 'CookieString') {
         if (cookieString.trim()) configPayload.cookieString = cookieString.trim();
+      }
+      if (authMethod === 'BasicAuth') {
+        configPayload.username = username.trim();
+        if (password.trim()) configPayload.password = password.trim();
       }
 
       let r;
@@ -2084,6 +2090,22 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
                 className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
                 placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
             </div>
+          )}
+          {authMethod === 'BasicAuth' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
+                <input value={username} onChange={e => setUsername(e.target.value)}
+                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  placeholder="svc-crawler" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
+              </div>
+            </>
           )}
           {authMethod === 'CookieString' && (
             <div>

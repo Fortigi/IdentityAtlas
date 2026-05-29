@@ -57,6 +57,9 @@ function Invoke-OmadaGetRequest {
             { $_ -in 'FormCookie','CookieString' } {
                 $reqParams['WebSession'] = $script:OmadaSession.WebSession
             }
+            'BasicAuth' {
+                $reqParams['Headers'] = @{ Authorization = $script:OmadaSession.BasicAuthHeader }
+            }
         }
 
         # Retry loop

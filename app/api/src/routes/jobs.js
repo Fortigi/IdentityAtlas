@@ -750,6 +750,10 @@ router.post('/admin/crawler-jobs', async (req, res) => {
         if (!resolvedConfig?.cookieString) {
           return res.status(400).json({ error: 'Omada CookieString auth requires cookieString' });
         }
+      } else if (method === 'BasicAuth') {
+        if (!resolvedConfig?.username || !resolvedConfig?.password) {
+          return res.status(400).json({ error: 'Omada BasicAuth requires username and password' });
+        }
       }
     }
 
