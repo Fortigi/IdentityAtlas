@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed noisy PostgreSQL ERROR log entries on first boot caused by `REFRESH MATERIALIZED VIEW CONCURRENTLY` being attempted before the materialized views were populated; the refresh now checks `pg_matviews.ispopulated` and skips `CONCURRENTLY` on the initial run.
+
+## Changes in this PR
+
 - Fixed: Matrix "Apply" button was disabled when no conditions were added to the wizard, making it impossible to create a matrix without first setting filters. The matrix now loads all subjects and resources when applied with no conditions.
 - Fixed: Matrix tab showed a "Create matrix" call-to-action even when the database contained no data. It now shows a "No data available yet — run a crawler" message instead, and the wizard no longer auto-opens when there is nothing to display.
 - Improved: Demo dataset (`Ingest-DemoDataset.ps1`) now seeds a default matrix filter so the Matrix tab opens straight to data on first visit, without requiring the wizard.
