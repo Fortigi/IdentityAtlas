@@ -268,3 +268,30 @@ curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-comp
 docker compose -f docker-compose.prod.yml up -d --pull always
 # Open http://localhost:3001 → Admin → Crawlers → Add Crawler
 ```
+
+---
+
+## Branch: `claude/omada-crawler-sync-a1W3A` — Omada Crawler Sync
+
+**Sync status (2026-05-29):** Branch is clean and fully in sync with `main` at commit `0611111` (v5.49.20260526.1333). No divergence.
+
+### Current Omada support (already on `main`)
+
+| Component | Location | What it does |
+|-----------|----------|-------------|
+| CSV transform | `tools/csv-templates/transforms/omada-to-identityatlas.ps1` | Converts Omada CSV exports (semicolon-delimited, Omada column names) to Identity Atlas canonical schema CSVs |
+| CSV crawler | `tools/crawlers/csv/Start-CSVCrawler.ps1` | Reads canonical-schema CSVs and POSTs them to the Ingest API — handles the actual sync step after transform |
+| Data model | CLAUDE.md, `docs/concepts/governance-model.md` | BusinessRole, Governed assignments, CertificationDecisions all fully mapped to Omada concepts |
+| Docs | `docs/sync/csv-import.md`, `docs/concepts/governance-model.md` | Usage guide and IGA mapping table covering Omada |
+
+The current workflow is **export → transform → import**: the user exports CSVs from Omada, runs `omada-to-identityatlas.ps1` to reformat them, then runs the CSV crawler to sync. The data model fully supports Omada business roles, role assignments, role entitlements (via `Contains` relationships), and certification review decisions (CRAs).
+
+### Goal of this branch
+
+Implement a **native Omada API crawler** (`tools/crawlers/omada/`) that pulls data directly from the Omada REST API — eliminating the manual CSV export/transform step. The crawler should:
+
+- Authenticate to the Omada API (likely OAuth2 client credentials or API key)
+- Sync Business Roles, Role Entitlements (ResourceRelationships), Role Assignments (ResourceAssignments `Governed`), Org Units (as `OrgUnit` Contexts), Identities, and CRAs (CertificationDecisions)
+- Follow the same phase/aggregator pattern as the Entra ID crawler (see `tools/crawlers/entra-id/`)
+- Register as a new crawler type in the Admin UI (`SystemType = 'Omada'`)
+- Produce a changelog fragment in `changes/omada-crawler-sync-a1W3A.md`
