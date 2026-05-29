@@ -1,0 +1,1 @@
+- Security: bumped postcss (8.5.6 → 8.5.15, moderate) and tmp (0.2.5 → 0.2.7, high) to address npm audit findings. Two remaining moderate vulnerabilities (uuid/exceljs) cannot be fixed without a breaking exceljs downgrade.
