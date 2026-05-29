@@ -10,7 +10,7 @@ kinds consistent.
 
 ## Layout
 
-All four detail pages use the same three-region layout ([EntityDetailLayout.jsx](../../app/ui/src/components/EntityDetailLayout.jsx)):
+All four detail pages use the same three-region layout ([EntityDetailLayout.jsx](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/EntityDetailLayout.jsx)):
 
 ```
 ┌───────────────────────────────────────────────┐
@@ -31,7 +31,7 @@ All four detail pages use the same three-region layout ([EntityDetailLayout.jsx]
 └───────────────────────────────────────────────┘
 ```
 
-The left column's [AttributesTable](../../app/ui/src/components/EntityDetailLayout.jsx) merges the entity's real columns and its `extendedAttributes` JSONB into one `label | value` table. JSON-derived rows carry a faded `ext` tag so readers can still tell them apart.
+The left column's [AttributesTable](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/EntityDetailLayout.jsx) merges the entity's real columns and its `extendedAttributes` JSONB into one `label | value` table. JSON-derived rows carry a faded `ext` tag so readers can still tell them apart.
 
 ---
 
@@ -75,9 +75,9 @@ Large fanouts cap at 10 satellites; overflow becomes a `+N more` bubble.
 
 Three files own the model:
 
-- [entityGraphShape.js](../../app/ui/src/components/entityGraphShape.js) — the single source of truth. Exports `getRootNodes(kind, core, extras)` and `fetchCategoryItems(kind, id, categoryKey, authFetch, extras)`. Adding a new entity kind is a single switch-case addition plus its fetch helpers.
-- [useExpandableGraph.js](../../app/ui/src/hooks/useExpandableGraph.js) — React hook. Owns the expansion path (a stack of alternating category/item steps), fetches on click, handles collapse/replace.
-- [EntityGraph.jsx](../../app/ui/src/components/EntityGraph.jsx) — dumb SVG renderer. Takes a node tree and the expansion path, recursively lays out each fanout on an arc pointing outward from its parent. The viewBox grows with drill depth to stop deep chains running off canvas.
+- [entityGraphShape.js](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/entityGraphShape.js) — the single source of truth. Exports `getRootNodes(kind, core, extras)` and `fetchCategoryItems(kind, id, categoryKey, authFetch, extras)`. Adding a new entity kind is a single switch-case addition plus its fetch helpers.
+- [useExpandableGraph.js](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/hooks/useExpandableGraph.js) — React hook. Owns the expansion path (a stack of alternating category/item steps), fetches on click, handles collapse/replace.
+- [EntityGraph.jsx](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/EntityGraph.jsx) — dumb SVG renderer. Takes a node tree and the expansion path, recursively lays out each fanout on an arc pointing outward from its parent. The viewBox grows with drill depth to stop deep chains running off canvas.
 
 ### Styling signals
 
@@ -152,18 +152,18 @@ To give a new entity kind its own detail page with the graph + recent-changes tr
 1. **Backend**
    - Expose a core detail endpoint that returns attributes, tags, and the counts you want shown as graph nodes.
    - Expose a list endpoint for each relationship category (or extend an existing one).
-   - Add a `/:id/recent-changes` handler — follow the pattern in [recentChanges.js](../../app/api/src/routes/recentChanges.js). Decide which `_history` tables are relevant and how to summarise each operation type into human-readable text.
+   - Add a `/:id/recent-changes` handler — follow the pattern in [recentChanges.js](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/routes/recentChanges.js). Decide which `_history` tables are relevant and how to summarise each operation type into human-readable text.
 
 2. **Frontend**
-   - In [entityGraphShape.js](../../app/ui/src/components/entityGraphShape.js):
+   - In [entityGraphShape.js](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/entityGraphShape.js):
      - Add `<kind>RootNodes(core)` returning the first-ring node spec.
      - Add `fetch<Kind>Items(id, categoryKey, authFetch, extras)` returning item arrays for each category.
      - Wire both into the top-level `getRootNodes` / `fetchCategoryItems` switch statements.
      - Add an entry to `fetchEntityCore` so drill-in from another page can pick up the kind.
-   - In [useRecentChanges.js](../../app/ui/src/hooks/useRecentChanges.js): add the endpoint URL for the new kind.
+   - In [useRecentChanges.js](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/hooks/useRecentChanges.js): add the endpoint URL for the new kind.
    - Create a `<Kind>DetailPage.jsx` following the pattern of the existing four. It mostly just fetches the core payload, calls `useExpandableGraph` + `useRecentChanges`, and renders `EntityDetailLayout`.
 
-3. **Routing** — add the hash-route handler in [App.jsx](../../app/ui/src/App.jsx) so `onOpenDetail('<kind>', id, label)` opens your new page.
+3. **Routing** — add the hash-route handler in [App.jsx](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/App.jsx) so `onOpenDetail('<kind>', id, label)` opens your new page.
 
 The shared `EntityGraph`, `ExpandedItemsList`, `RecentChangesSection`, `EntityDetailLayout`, and `AttributesTable` components require no changes.
 
@@ -172,4 +172,4 @@ The shared `EntityGraph`, `ExpandedItemsList`, `RecentChangesSection`, `EntityDe
 ## Related docs
 
 - [audit-history.md](audit-history.md) — how `_history` is populated and queried.
-- [postgres-migration.md](postgres-migration.md) — context on the v4→v5 switch that replaced temporal tables with `_history`.
+- [audit-history.md](audit-history.md) — how `_history` is populated and queried (includes context on the v4→v5 switch that replaced temporal tables).
