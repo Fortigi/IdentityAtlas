@@ -4,7 +4,6 @@ import { describe, it, expect } from 'vitest';
 import { buildEntitySubquery, collectContextIds } from './filterSql.js';
 
 const PRINCIPAL_COLS = new Set(['displayName', 'department', 'jobTitle', 'email']);
-const RESOURCE_COLS  = new Set(['displayName', 'resourceType', 'systemId']);
 const CTX_PRINCIPAL  = 'a0000001-0000-0000-0000-000000000001';
 const CTX_RESOURCE   = 'a0000002-0000-0000-0000-000000000002';
 const CONTEXT_TYPES  = new Map([
