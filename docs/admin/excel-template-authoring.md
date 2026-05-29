@@ -103,7 +103,7 @@ they ever change, tests catch it.
 ## M code per sheet
 
 Each block goes verbatim into the Advanced Editor. The names match the
-constants in [`app/api/src/export/queryTemplates.js`](../../app/api/src/export/queryTemplates.js)
+constants in [`app/api/src/export/queryTemplates.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/export/queryTemplates.js)
 — if the templates change there, regenerate the workbook by downloading
 the M-as-text MVP version (Admin → Data → Generate token & download
 workbook), open it, and copy the updated M from each sheet's cell A6.

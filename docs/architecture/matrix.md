@@ -1,7 +1,7 @@
 # Matrix view — architecture
 
 > **Status:** current as of May 2026.
-> Companion to [`013_matrix_matviews_and_indexes.sql`](../../app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](../../app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`025_matrix_view_governed_renders_as_direct.sql`](../../app/api/src/db/migrations/025_matrix_view_governed_renders_as_direct.sql).
+> Companion to [`013_matrix_matviews_and_indexes.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`025_matrix_view_governed_renders_as_direct.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/025_matrix_view_governed_renders_as_direct.sql).
 
 ## The grid
 
@@ -89,7 +89,7 @@ A user who is both a member and an owner of a group gets two rows in the data �
 
 ## Related references
 
-- Crawler emits — [`tools/crawlers/entra-id/Start-EntraIDCrawler.ps1`](../../tools/crawlers/entra-id/Start-EntraIDCrawler.ps1) (phases `Assignments`, `PIM`, `Governance`, `OAuth2Grants`, `AppRoles`)
-- Frontend renderer — [`app/ui/src/components/MatrixView.jsx`](../../app/ui/src/components/MatrixView.jsx) and `app/ui/src/components/matrix/*`
-- Badge color map — [`app/ui/src/utils/colors.js`](../../app/ui/src/utils/colors.js) (`TYPE_COLORS`)
-- Permissions endpoint — [`app/api/src/routes/permissions.js`](../../app/api/src/routes/permissions.js) (`GET /api/permissions`, `GET /api/groups-with-nested`, `GET /api/group/:id/nested-groups`)
+- Crawler emits — [`tools/crawlers/entra-id/Start-EntraIDCrawler.ps1`](https://github.com/Fortigi/IdentityAtlas/blob/main/tools/crawlers/entra-id/Start-EntraIDCrawler.ps1) (phases `Assignments`, `PIM`, `Governance`, `OAuth2Grants`, `AppRoles`)
+- Frontend renderer — [`app/ui/src/components/MatrixView.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/MatrixView.jsx) and `app/ui/src/components/matrix/*`
+- Badge color map — [`app/ui/src/utils/colors.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/utils/colors.js) (`TYPE_COLORS`)
+- Permissions endpoint — [`app/api/src/routes/permissions.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/routes/permissions.js) (`GET /api/permissions`, `GET /api/groups-with-nested`, `GET /api/group/:id/nested-groups`)

@@ -1,7 +1,7 @@
 # Azure deployment — Simple shape
 
-> Companion to the Bicep in [`/azure`](../../azure).
-> One-click install: see the [README's Deploy to Azure button](../../README.md#deploy-to-azure).
+> Companion to the Bicep in [`/azure`](https://github.com/Fortigi/IdentityAtlas/tree/main/azure).
+> One-click install: see the [README's Deploy to Azure button](https://github.com/Fortigi/IdentityAtlas/blob/main/README.md#deploy-to-azure).
 > **Target:** customers whose networking is owned by a central CCoE. No VNet, no private endpoints, no public IP that you provision.
 
 ## What you get
@@ -186,10 +186,10 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 
 | File | Purpose |
 |---|---|
-| [`azure/main.bicep`](../../azure/main.bicep) | Top-level orchestrator |
-| [`azure/main.json`](../../azure/main.json) | Compiled ARM (used by the Deploy to Azure button) |
-| [`azure/main.parameters.example.json`](../../azure/main.parameters.example.json) | Example parameter file |
-| [`azure/deploy.ps1`](../../azure/deploy.ps1) | CLI deploy + post-deploy summary |
+| [`azure/main.bicep`](https://github.com/Fortigi/IdentityAtlas/blob/main/azure/main.bicep) | Top-level orchestrator |
+| [`azure/main.json`](https://github.com/Fortigi/IdentityAtlas/blob/main/azure/main.json) | Compiled ARM (used by the Deploy to Azure button) |
+| [`azure/main.parameters.example.json`](https://github.com/Fortigi/IdentityAtlas/blob/main/azure/main.parameters.example.json) | Example parameter file |
+| [`azure/deploy.ps1`](https://github.com/Fortigi/IdentityAtlas/blob/main/azure/deploy.ps1) | CLI deploy + post-deploy summary |
 | `azure/modules/log-analytics.bicep` | New workspace OR BYO lookup OR pass-through |
 | `azure/modules/storage.bicep` | Storage Account + Azure Files share |
 | `azure/modules/identities.bicep` | 2 user-assigned managed identities |

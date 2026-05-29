@@ -1,6 +1,6 @@
 # Dashboard — Trends tab
 
-> Companion to [`027_dashboard_snapshots.sql`](../../app/api/src/db/migrations/027_dashboard_snapshots.sql), [`scheduler.js`](../../app/api/src/scheduler.js), [`DashboardTrendsTab.jsx`](../../app/ui/src/components/DashboardTrendsTab.jsx), [`TimeSeriesChart.jsx`](../../app/ui/src/components/TimeSeriesChart.jsx).
+> Companion to [`027_dashboard_snapshots.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/027_dashboard_snapshots.sql), [`scheduler.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/scheduler.js), [`DashboardTrendsTab.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/DashboardTrendsTab.jsx), [`TimeSeriesChart.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/TimeSeriesChart.jsx).
 
 ## What it does
 
@@ -114,7 +114,7 @@ Response:
 
 ## Related references
 
-- Live dashboard cards endpoint: [`/admin/dashboard-stats`](../../app/api/src/routes/admin.js) — used by the Overview tab. Same fast-path technique (reltuples + targeted COUNTs).
-- Migration: [`027_dashboard_snapshots.sql`](../../app/api/src/db/migrations/027_dashboard_snapshots.sql).
-- Scheduler: [`scheduler.js`](../../app/api/src/scheduler.js) — `captureDashboardSnapshotIfMissing` is the first call in each tick.
-- Frontend entry: [`DashboardPage.jsx`](../../app/ui/src/components/DashboardPage.jsx) — tab strip between Overview and Trends.
+- Live dashboard cards endpoint: [`/admin/dashboard-stats`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/routes/admin.js) — used by the Overview tab. Same fast-path technique (reltuples + targeted COUNTs).
+- Migration: [`027_dashboard_snapshots.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/027_dashboard_snapshots.sql).
+- Scheduler: [`scheduler.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/scheduler.js) — `captureDashboardSnapshotIfMissing` is the first call in each tick.
+- Frontend entry: [`DashboardPage.jsx`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/DashboardPage.jsx) — tab strip between Overview and Trends.
