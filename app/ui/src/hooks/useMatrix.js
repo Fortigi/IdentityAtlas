@@ -47,6 +47,11 @@ export function useMatrix(filter) {
   const [refreshCounter, setRefreshCounter] = useState(0);
   const forceRefresh = useCallback(() => setRefreshCounter(c => c + 1), []);
 
+  // null = still checking, true = DB has data, false = DB is empty
+  const [hasData, setHasData] = useState(null);
+  // undefined = still loading, null = no default, object = default filter row
+  const [defaultFilter, setDefaultFilter] = useState(undefined);
+
   // Load access-package groups + tags + Principal column metadata once.
   useEffect(() => {
     let cancelled = false;
@@ -73,12 +78,27 @@ export function useMatrix(filter) {
       .then(r => r.ok ? r.json() : [])
       .then(cols => { if (!cancelled) setUserColumns(cols); })
       .catch(() => {});
+    // Lightweight check: does the DB have any users or resources at all?
+    // Falls back to true (optimistic) on error or non-SQL mode so the wizard
+    // still opens on deployments where this endpoint isn't available.
+    authFetch('/api/admin/dashboard-stats')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled) setHasData(d ? (d.hasData !== false) : true); })
+      .catch(() => { if (!cancelled) setHasData(true); });
+
+    // Default filter — auto-applied on first Matrix visit to skip the wizard.
+    // Falls back to null (no default) on any error.
+    authFetch('/api/matrix/default-filter')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled) setDefaultFilter(d || null); })
+      .catch(() => { if (!cancelled) setDefaultFilter(null); });
+
     return () => { cancelled = true; };
   }, [authFetch]);
 
   // Stable cache key for the filter — only re-fetch when conditions change.
   const filterKey = useMemo(() => filter ? JSON.stringify(filter) : null, [filter]);
-  const hasConditions = useMemo(() => filterHasConditions(filter), [filter]);
+  const hasConditions = filter !== null && filter !== undefined;
 
   // Debounce filter changes.
   const [debouncedKey, setDebouncedKey] = useState(filterKey);
@@ -168,13 +188,8 @@ export function useMatrix(filter) {
     refreshing,
     error,
     forceRefresh,
+    hasData,
+    defaultFilter,
   };
 }
 
-function filterHasConditions(filter) {
-  if (!filter) return false;
-  for (const block of [filter.subject, filter.resource]) {
-    if (block && ((block.include?.length || 0) > 0 || (block.exclude?.length || 0) > 0)) return true;
-  }
-  return false;
-}

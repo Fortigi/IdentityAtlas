@@ -6,15 +6,17 @@
 // ContextAlgorithms table at container startup so the UI picker is aware
 // of new plugins without manual DB writes.
 
-import managerHierarchy    from './manager-hierarchy.js';
-import adOuFromDn          from './ad-ou-from-dn.js';
+import managerHierarchy      from './manager-hierarchy.js';
+import adOuFromDn            from './ad-ou-from-dn.js';
 import { plugin as resourceCluster } from './resource-cluster/index.js';
+import departmentFromPrincipal from './department-from-principal.js';
 
 /** @type {import('./types.js').ContextPlugin[]} */
 export const REGISTERED_PLUGINS = [
   managerHierarchy,
   adOuFromDn,
   resourceCluster,
+  departmentFromPrincipal,
 ];
 
 export function getPlugin(name) {
