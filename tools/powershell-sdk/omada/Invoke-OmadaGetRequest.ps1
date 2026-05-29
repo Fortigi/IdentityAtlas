@@ -1,17 +1,17 @@
 <#
 .SYNOPSIS
-    Authenticated GET against the Omada REST API with retry and auto-pagination.
+    Authenticated GET against the Omada REST API with retry and OData pagination.
 #>
 
 function Invoke-OmadaGetRequest {
     <#
     .SYNOPSIS
-        GET a path relative to the Omada baseUrl, following pagination automatically.
+        GET a path relative to the Omada baseUrl.
     .DESCRIPTION
-        Handles three pagination styles transparently:
-          OData  (Cloud)  — follows @odata.nextLink
-          Numeric (on-prem) — walks ?page=N&pageSize=<PageSize> until count < PageSize
-          Single response — returns as-is when neither pattern is present
+        Handles two cases transparently:
+          OData  (Cloud)  — follows @odata.nextLink until exhausted
+          Single response — returns as-is when nextLink is absent
+        Numeric page-by-page walking is handled by Invoke-OmadaPagedRequest.
         Refreshes the session/token before each attempt.
     .OUTPUTS
         Array of records (from .value or the full response).
@@ -20,36 +20,30 @@ function Invoke-OmadaGetRequest {
     param(
         [Parameter(Mandatory)] [string]$Path,
         [hashtable]$QueryParams = @{},
-        [int]$PageSize = 100,
+        [int]$PageSize  = 100,
         [int]$MaxRetries = 5
     )
 
     if ($null -eq $script:OmadaSession) { throw "Omada: not connected. Call Connect-OmadaAPI first." }
 
-    $base    = $script:OmadaSession.BaseUrl
-    $fullUri = "$base$Path"
+    $base = $script:OmadaSession.BaseUrl
+    if (-not $base) { throw "Omada: session BaseUrl is empty — was Connect-OmadaAPI called successfully?" }
+
+    # Build initial URI
+    $startUri = "$base$Path"
     if ($QueryParams.Count -gt 0) {
-        $qs = ($QueryParams.GetEnumerator() | ForEach-Object { "$($_.Key)=$([uri]::EscapeDataString([string]$_.Value))" }) -join '&'
-        $fullUri = "$fullUri?$qs"
+        $qs = ($QueryParams.GetEnumerator() |
+               ForEach-Object { "$($_.Key)=$([uri]::EscapeDataString([string]$_.Value))" }) -join '&'
+        $startUri = "$startUri?$qs"
     }
 
     $collected = [System.Collections.Generic.List[object]]::new()
-    $uri       = $fullUri
+    $nextUri   = $startUri
 
-    # Detect pagination style on first page, then follow through
-    $paginationDetected = $false
-    $useNumericPaging   = $false
-    $page               = 1
-
-    while ($uri) {
+    while ($nextUri) {
         Update-OmadaSessionIfExpired
 
-        # Build common params
-        $reqParams = @{
-            Uri         = $uri
-            Method      = 'Get'
-            ErrorAction = 'Stop'
-        }
+        $reqParams = @{ Uri = $nextUri; Method = 'Get'; ErrorAction = 'Stop' }
         switch ($script:OmadaSession.AuthMethod) {
             { $_ -in 'OAuth2CC','OAuth2ROPC','ApiToken' } {
                 $reqParams['Headers'] = @{ Authorization = "Bearer $($script:OmadaSession.AccessToken)" }
@@ -74,7 +68,6 @@ function Invoke-OmadaGetRequest {
                 $status = $null
                 try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
 
-                # 401/403 on CookieString — no recovery possible
                 if ($status -in @(401, 403) -and $script:OmadaSession.AuthMethod -eq 'CookieString') {
                     throw "Omada cookie has expired. Retrieve a new cookie and update the crawler config."
                 }
@@ -87,7 +80,7 @@ function Invoke-OmadaGetRequest {
 
                 $isTransient = ($null -eq $status) -or ($status -eq 429) -or ($status -ge 500 -and $status -le 504)
                 if (-not $isTransient -or $attempt -ge $MaxRetries) {
-                    throw "Omada GET $uri failed (HTTP $status): $($_.Exception.Message)"
+                    throw "Omada GET $nextUri failed (HTTP $status): $($_.Exception.Message)"
                 }
 
                 $wait = if ($retryAfter -gt 0) { $retryAfter } else { $delays[$attempt] }
@@ -99,17 +92,6 @@ function Invoke-OmadaGetRequest {
         }
         if ($null -eq $resp) { break }
 
-        # Detect pagination style on first response
-        if (-not $paginationDetected) {
-            $paginationDetected = $true
-            if ($resp.PSObject.Properties.Name -contains '@odata.nextLink') {
-                $useNumericPaging = $false
-            } elseif ($null -ne $resp.totalCount -or $null -ne $resp.total) {
-                $useNumericPaging = $true
-            }
-            # else: single response, no pagination
-        }
-
         # Collect records
         if ($resp.PSObject.Properties.Name -contains 'value') {
             foreach ($r in $resp.value) { $collected.Add($r) }
@@ -119,25 +101,8 @@ function Invoke-OmadaGetRequest {
             $collected.Add($resp)
         }
 
-        # Advance to next page
-        if (-not $useNumericPaging) {
-            # OData: follow nextLink or stop
-            $uri = $resp.'@odata.nextLink'
-        } else {
-            # Numeric: check if we got a full page; if so fetch next
-            $count = if ($resp.PSObject.Properties.Name -contains 'value') { @($resp.value).Count }
-                     elseif ($resp -is [array]) { $resp.Count }
-                     else { 1 }
-            if ($count -lt $PageSize) {
-                $uri = $null  # last page
-            } else {
-                $page++
-                # Rebuild URI with incremented page (preserve other query params)
-                $baseQuery = $fullUri -replace '[?&]page=\d+', ''
-                $sep = if ($baseQuery -contains '?') { '&' } else { '?' }
-                $uri = "${baseQuery}${sep}page=${page}&pageSize=${PageSize}"
-            }
-        }
+        # Follow OData nextLink; stop otherwise (numeric paging is Invoke-OmadaPagedRequest's job)
+        $nextUri = $resp.'@odata.nextLink'
     }
 
     return $collected
