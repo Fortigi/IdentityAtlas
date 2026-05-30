@@ -273,25 +273,40 @@ docker compose -f docker-compose.prod.yml up -d --pull always
 
 ## Branch: `claude/omada-crawler-sync-a1W3A` — Omada Crawler Sync
 
-**Sync status (2026-05-29):** Branch is clean and fully in sync with `main` at commit `0611111` (v5.49.20260526.1333). No divergence.
+**Status (2026-05-30):** Implementation complete. Branch is ahead of `main` at commit `0611111` (v5.49.20260526.1333) by 6 commits. Ready for PR.
 
-### Current Omada support (already on `main`)
+### What this branch adds
+
+Native Omada API crawler that pulls data directly from the Omada OData 4.0 REST API, eliminating the manual CSV export/transform step.
 
 | Component | Location | What it does |
 |-----------|----------|-------------|
-| CSV transform | `tools/csv-templates/transforms/omada-to-identityatlas.ps1` | Converts Omada CSV exports (semicolon-delimited, Omada column names) to Identity Atlas canonical schema CSVs |
-| CSV crawler | `tools/crawlers/csv/Start-CSVCrawler.ps1` | Reads canonical-schema CSVs and POSTs them to the Ingest API — handles the actual sync step after transform |
-| Data model | CLAUDE.md, `docs/concepts/governance-model.md` | BusinessRole, Governed assignments, CertificationDecisions all fully mapped to Omada concepts |
-| Docs | `docs/sync/csv-import.md`, `docs/concepts/governance-model.md` | Usage guide and IGA mapping table covering Omada |
+| Omada SDK — auth | `tools/powershell-sdk/omada/Invoke-OmadaAuth.ps1` | `Connect-OmadaAPI` — 6 auth methods: FormCookie, BasicAuth, OAuth2CC, OAuth2ROPC, ApiToken, CookieString |
+| Omada SDK — GET | `tools/powershell-sdk/omada/Invoke-OmadaGetRequest.ps1` | Authenticated GET with retry, OData `@odata.nextLink` pagination, optional `-OverrideBaseUrl` for the Builtin service |
+| Omada SDK — paged | `tools/powershell-sdk/omada/Invoke-OmadaPagedRequest.ps1` | Thin wrapper that adds `$top=N` page size |
+| Crawler | `tools/crawlers/omada/Start-OmadaCrawler.ps1` | 8 sync phases: Contexts (Orgunit), Identities, Accounts (User), IdentityMembers, Resources, Entitlements (CHILDROLES), Assignments (CalculatedAssignments), CRAs (graceful skip if unavailable) |
+| Job dispatch | `setup/docker/Invoke-CrawlerJob.ps1` | `'omada'` case — validates baseUrl + authMethod before writing temp config, runs crawler, post-sync context + correlation |
+| API validation | `app/api/src/routes/jobs.js` | `validateOmadaConfig` (exported), `maskConfig` masks all 4 secret types, PATCH preserves all secrets, `'omada'` in `VALID_JOB_TYPES` |
+| Scheduler | `app/api/src/scheduler.js` | `'omada'` in crawlerType allowlist |
+| Admin UI | `app/ui/src/components/CrawlersPage.jsx` | `OmadaWizard` (4-step: Connection → Auth → Sync Objects → Schedule), `CrawlerConfigCard` display, routing |
+| Module | `setup/IdentityAtlas.psm1` | Omada SDK glob dot-sourced alongside graph/helpers |
+| Tests — JS | `app/api/src/routes/jobs.omada.test.js` | 22 Vitest tests for `maskConfig` and `validateOmadaConfig` |
+| Tests — PS | `test/unit/Omada.Tests.ps1` | Pester 5 tests for `Get-OmadaRefValue`, `Get-OmadaRefUid`, function availability, file structure |
+| CI | `.github/workflows/pr.yml` | PSScriptAnalyzer + Pester coverage extended to omada SDK |
+| Changelog | `changes/omada-crawler-sync-a1W3A.md` | Fragment ready for PR merge |
 
-The current workflow is **export → transform → import**: the user exports CSVs from Omada, runs `omada-to-identityatlas.ps1` to reformat them, then runs the CSV crawler to sync. The data model fully supports Omada business roles, role assignments, role entitlements (via `Contains` relationships), and certification review decisions (CRAs).
+### OData API structure (confirmed from `$metadata`)
 
-### Goal of this branch
+- **DataObjects service** (`/odata/dataobjects`): `Orgunit`, `Identity`, `User`, `Resource`, `Resourceassignment`, `Contextassignment`
+- **Builtin service** (`/odata/builtin`): `CalculatedAssignments` — authoritative source for all effective access
+- All property names are ALL CAPS (`FIRSTNAME`, `EMAIL`, `IDENTITYTYPE`)
+- Reference types: `OIS.SetValue` (`.Value`) and `OIS.ReferenceValue` (`.DisplayName`, `.UId`)
+- All entities have `Deleted` bool — always filter `$filter=Deleted eq false`
+- Resource nesting lives in `Resource.CHILDROLES` (`Collection(OIS.ReferenceValue)`) — no separate endpoint
 
-Implement a **native Omada API crawler** (`tools/crawlers/omada/`) that pulls data directly from the Omada REST API — eliminating the manual CSV export/transform step. The crawler should:
+### Key design decisions
 
-- Authenticate to the Omada API (likely OAuth2 client credentials or API key)
-- Sync Business Roles, Role Entitlements (ResourceRelationships), Role Assignments (ResourceAssignments `Governed`), Org Units (as `OrgUnit` Contexts), Identities, and CRAs (CertificationDecisions)
-- Follow the same phase/aggregator pattern as the Entra ID crawler (see `tools/crawlers/entra-id/`)
-- Register as a new crawler type in the Admin UI (`SystemType = 'Omada'`)
-- Produce a changelog fragment in `changes/omada-crawler-sync-a1W3A.md`
+- **Assignments from CalculatedAssignments**: The Builtin service's `CalculatedAssignments` is used for all effective access (both governed `IsManaged=true` and direct `IsManaged=false`). `Identity.UId` is used as `principalExternalId` for governed assignments, consistent with the CSV transform.
+- **Entitlements from CHILDROLES**: No separate `PermissionNesting` endpoint exists; child role nesting is read directly from `Resource.CHILDROLES` during the Resources phase.
+- **CertificationReviews**: Optional Omada module — skipped gracefully if the entity set is absent or returns 404/400.
+- **Builtin URL derivation**: `$builtinBaseUrl = $baseUrl -replace '/dataobjects/?$', '/builtin'`
