@@ -35,6 +35,11 @@ function normalizePGliteResult(r) {
 }
 
 async function pgliteQuery(text, params = []) {
+  if (!params || params.length === 0) {
+    const results = await pglite.exec(text);
+    const last = results[results.length - 1] ?? { rows: [], affectedRows: 0 };
+    return normalizePGliteResult(last);
+  }
   return normalizePGliteResult(await pglite.query(text, params));
 }
 
@@ -302,8 +307,17 @@ export async function tx(fn) {
   if (IS_DESKTOP) {
     return pglite.transaction(async (txClient) => {
       const client = {
-        query: (text, params = []) =>
-          txClient.query(text, params).then(normalizePGliteResult),
+        // Use exec() for multi-statement SQL (e.g. migration files) — PGlite's
+        // query() only handles a single prepared statement. exec() returns an
+        // array of Results; we return the last one to match pg client shape.
+        query: async (text, params = []) => {
+          if (!params || params.length === 0) {
+            const results = await txClient.exec(text);
+            const last = results[results.length - 1] ?? { rows: [], affectedRows: 0 };
+            return normalizePGliteResult(last);
+          }
+          return txClient.query(text, params).then(normalizePGliteResult);
+        },
       };
       return fn(client);
     });
