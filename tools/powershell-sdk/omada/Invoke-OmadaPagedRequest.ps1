@@ -8,6 +8,7 @@
 #>
 
 function Invoke-OmadaPagedRequest {
+    [CmdletBinding()]
     [OutputType([System.Collections.Generic.List[object]])]
     param(
         [Parameter(Mandatory)] [string]$Path,

@@ -122,12 +122,39 @@ const ENTRA_OBJECT_TYPES = [
   { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
 ];
 
-function maskConfig(config) {
+const SECRET_FIELDS = ['clientSecret', 'password', 'apiToken', 'cookieString'];
+
+export function maskConfig(config) {
   if (!config) return null;
   const parsed = typeof config === 'string' ? JSON.parse(config) : config;
   const masked = { ...parsed };
-  if (masked.clientSecret) masked.clientSecret = SECRET_MASK;
+  for (const field of SECRET_FIELDS) {
+    if (masked[field]) masked[field] = SECRET_MASK;
+  }
   return masked;
+}
+
+export function validateOmadaConfig(config) {
+  if (!config?.baseUrl) return 'Omada jobs require baseUrl';
+  const method = config?.authMethod;
+  if (method === 'FormCookie' || method === 'OAuth2ROPC') {
+    if (!config.username || !config.password) {
+      return `Omada ${method} auth requires username and password`;
+    }
+  } else if (method === 'OAuth2CC') {
+    if (!config.clientId || !config.clientSecret) {
+      return 'Omada OAuth2CC auth requires clientId and clientSecret';
+    }
+  } else if (method === 'ApiToken') {
+    if (!config.apiToken) return 'Omada ApiToken auth requires apiToken';
+  } else if (method === 'CookieString') {
+    if (!config.cookieString) return 'Omada CookieString auth requires cookieString';
+  } else if (method === 'BasicAuth') {
+    if (!config.username || !config.password) {
+      return 'Omada BasicAuth requires username and password';
+    }
+  }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -221,9 +248,11 @@ router.patch('/admin/crawler-configs/:id', async (req, res) => {
     let mergedConfig = (typeof existing.recordset[0].config === "string" ? JSON.parse(existing.recordset[0].config) : existing.recordset[0].config);
     if (config) {
       const incoming = { ...config };
-      // If secret is the mask or empty, keep existing
-      if (!incoming.clientSecret || incoming.clientSecret === SECRET_MASK) {
-        incoming.clientSecret = mergedConfig.clientSecret;
+      for (const field of SECRET_FIELDS) {
+        if (!incoming[field] || incoming[field] === SECRET_MASK) {
+          if (mergedConfig[field]) incoming[field] = mergedConfig[field];
+          else delete incoming[field];
+        }
       }
       mergedConfig = { ...mergedConfig, ...incoming };
     }
@@ -728,33 +757,9 @@ router.post('/admin/crawler-jobs', async (req, res) => {
       }
     }
 
-    // Validate Omada has required connection fields
     if (jobType === 'omada') {
-      if (!resolvedConfig?.baseUrl) {
-        return res.status(400).json({ error: 'Omada jobs require baseUrl' });
-      }
-      const method = resolvedConfig?.authMethod;
-      if (method === 'FormCookie' || method === 'OAuth2ROPC') {
-        if (!resolvedConfig?.username || !resolvedConfig?.password) {
-          return res.status(400).json({ error: `Omada ${method} auth requires username and password` });
-        }
-      } else if (method === 'OAuth2CC') {
-        if (!resolvedConfig?.clientId || !resolvedConfig?.clientSecret) {
-          return res.status(400).json({ error: 'Omada OAuth2CC auth requires clientId and clientSecret' });
-        }
-      } else if (method === 'ApiToken') {
-        if (!resolvedConfig?.apiToken) {
-          return res.status(400).json({ error: 'Omada ApiToken auth requires apiToken' });
-        }
-      } else if (method === 'CookieString') {
-        if (!resolvedConfig?.cookieString) {
-          return res.status(400).json({ error: 'Omada CookieString auth requires cookieString' });
-        }
-      } else if (method === 'BasicAuth') {
-        if (!resolvedConfig?.username || !resolvedConfig?.password) {
-          return res.status(400).json({ error: 'Omada BasicAuth requires username and password' });
-        }
-      }
+      const omadaErr = validateOmadaConfig(resolvedConfig);
+      if (omadaErr) return res.status(400).json({ error: omadaErr });
     }
 
     // For CSV jobs, inject the per-config upload folder so the worker knows where

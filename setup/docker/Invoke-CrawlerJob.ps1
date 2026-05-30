@@ -299,6 +299,15 @@ switch ($JobType) {
     'omada' {
         Update-JobProgress -Step 'Preparing Omada sync' -Pct 5
 
+        # Fail fast if required connection fields are absent — prevents a
+        # misleading "null authMethod" validation error deep in the crawler.
+        if (-not $Config['baseUrl']) {
+            throw "Omada config is missing 'baseUrl' — check the crawler configuration."
+        }
+        if (-not $Config['authMethod']) {
+            throw "Omada config is missing 'authMethod' — check the crawler configuration."
+        }
+
         $tempConfig = "/tmp/omada-config-$JobId.json"
         $omadaConfig = @{
             baseUrl               = $Config['baseUrl']

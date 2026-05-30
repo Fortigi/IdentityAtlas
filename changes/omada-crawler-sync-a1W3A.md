@@ -11,3 +11,9 @@
 - Type mappings are operator-configurable — environment-specific Omada label variations can be overridden in the crawler config without code changes
 - Omada IGA added as a selectable crawler type in the Admin → Crawlers wizard with a four-step setup flow
 - Added cookie retrieval instructions to the UI for the CookieString auth method (browser DevTools, OmadaWeb.PS, PowerShell direct)
+- Fixed: Omada job dispatcher now validates `baseUrl` and `authMethod` before writing the temporary config file, giving a clear error instead of a cryptic null-parameter failure deep in the crawler
+- Fixed: Crawler config API now masks `password`, `apiToken`, and `cookieString` in responses (previously only `clientSecret` was masked)
+- Fixed: Editing an Omada crawler config now preserves all stored credentials when fields are left blank in the wizard
+- Added: Pester unit tests for Omada SDK helper functions (`Get-OmadaRefValue`, `Get-OmadaRefUid`, `Connect-OmadaAPI`)
+- Added: Vitest tests for Omada config masking and validation logic
+- Fixed: Added `[CmdletBinding()]` to `Invoke-OmadaGetRequest` and `Invoke-OmadaPagedRequest` to match module coding standards

@@ -45,8 +45,10 @@ jobs:
           $paths = @(
             'tools/powershell-sdk/graph',
             'tools/powershell-sdk/helpers',
+            'tools/powershell-sdk/omada',
             'tools/riskscoring',
-            'app/db'
+            'tools/crawlers/omada',
+            'setup/docker'
           )
           $results = @()
           foreach ($p in $paths) {
@@ -98,7 +100,7 @@ jobs:
         shell: pwsh
         run: |
           $cfg = New-PesterConfiguration
-          $cfg.Run.Path = 'test/unit/IdentityAtlas.Tests.ps1'
+          $cfg.Run.Path = 'test/unit'
           $cfg.Output.Verbosity = 'Detailed'
           $cfg.TestResult.Enabled = $true
           $cfg.TestResult.OutputPath = 'pester-results.xml'
@@ -107,8 +109,8 @@ jobs:
           $cfg.CodeCoverage.Path = @(
             'tools/powershell-sdk/graph',
             'tools/powershell-sdk/helpers',
-            'tools/riskscoring',
-            'app/db'
+            'tools/powershell-sdk/omada',
+            'tools/riskscoring'
           )
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'

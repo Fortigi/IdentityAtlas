@@ -16,6 +16,7 @@ function Invoke-OmadaGetRequest {
     .OUTPUTS
         Array of records (from .value or the full response).
     #>
+    [CmdletBinding()]
     [OutputType([System.Collections.Generic.List[object]])]
     param(
         [Parameter(Mandatory)] [string]$Path,
