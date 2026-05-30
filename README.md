@@ -80,6 +80,18 @@ cd IdentityAtlas/azure
 
 ---
 
+## Portable Windows App
+
+For environments where Docker and WSL are blocked by security policy — no installation, no administrator rights required.
+
+Download `IdentityAtlas.exe` from the [Releases page](https://github.com/Fortigi/IdentityAtlas/releases), double-click, and the full stack starts in seconds. Uses [PGlite](https://pglite.dev) (WebAssembly PostgreSQL) running in-process — no subprocess is spawned, no executable is extracted to disk at runtime.
+
+Crawlers require PowerShell 7 (`pwsh.exe`): `winget install Microsoft.PowerShell`
+
+For the build guide and full architecture notes: [docs/architecture/desktop-portable.md](docs/architecture/desktop-portable.md)
+
+---
+
 ## What Identity Atlas Does
 
 ### Unified Permission Model

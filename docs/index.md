@@ -57,28 +57,44 @@ A 4-layer scoring engine that classifies principals by risk without sending sens
 
 ## Quick Install
 
-**Prerequisite:** Docker.
+Three deployment options — pick the one that fits your environment:
 
-```bash
-# Download the compose file and environment template
-curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
+=== "Docker"
 
-# Create your .env file (defaults are fine for local evaluation)
-cp .env.example .env
+    **Prerequisite:** Docker.
 
-# Start the stack (--pull always fetches the newest :latest from the registry)
-docker compose -f docker-compose.prod.yml up -d --pull always
-```
+    ```bash
+    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
+    cp .env.example .env
+    docker compose -f docker-compose.prod.yml up -d --pull always
+    ```
 
-Open [http://localhost:3001](http://localhost:3001) → click **"Load Demo Data"** for instant gratification, or **"Connect Entra ID"** to wire up your own tenant via the in-browser wizard.
+    Open [http://localhost:3001](http://localhost:3001) → click **"Load Demo Data"** or **"Connect Entra ID"**.
+
+=== "Azure"
+
+    **Prerequisite:** Azure subscription (Owner role).
+
+    <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json" target="_blank" rel="noopener noreferrer"><img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure"></a>
+
+    One-click Bicep deployment: App Service + Postgres Flexible Server + Container Apps + Key Vault. See [Azure Deployment Walkthrough](architecture/azure-deployment-walkthrough.md).
+
+=== "Portable .exe"
+
+    **Prerequisite:** Windows 10/11 x64. No Docker, no WSL, no admin rights.
+
+    Download `IdentityAtlas.exe` from the [GitHub Releases page](https://github.com/Fortigi/IdentityAtlas/releases) and double-click it.
+
+    Uses PGlite (WebAssembly PostgreSQL) running in-process — no subprocess spawned, passes endpoint security tools. See [Portable Desktop App](architecture/desktop-portable.md).
 
 ---
 
 ## Next Steps
 
-- [Quick Start Guide](quickstart.md) — Docker quick start and verification
+- [Quick Start Guide](quickstart.md) — Docker, Azure, and portable exe options
 - [Docker Setup](architecture/docker-setup.md) — services, volumes, scaling
+- [Portable Desktop App](architecture/desktop-portable.md) — build guide and architecture for the standalone Windows exe
 - [Data Model](concepts/data-model.md) — understand the unified schema and how systems map to it
 - [Software Bill of Materials](reference/sbom.md) — complete inventory of components and dependencies
 - [About](about.md) — creators, contact, and licensing

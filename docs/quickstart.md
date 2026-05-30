@@ -1,6 +1,18 @@
 # Quick Start
 
-Identity Atlas runs as a Docker stack — no Azure subscription, no git clone required. Just Docker.
+Identity Atlas has three deployment options:
+
+| Option | Requirements | Best for |
+|--------|-------------|---------|
+| **Docker** | Docker Desktop or Docker Engine | Local evaluation, self-hosted production |
+| **Azure** | Azure subscription (Owner role) | Cloud-hosted production |
+| **Portable .exe** | Windows 10/11 x64, no admin rights | Locked-down laptops, no Docker/WSL |
+
+---
+
+## Option 1 — Docker
+
+The simplest path. No Azure subscription, no git clone required. Just Docker.
 
 === "Linux / macOS"
 
@@ -164,6 +176,34 @@ Both images are always published with the same version tag, so they'll stay in s
 
 ---
 
+## Option 2 — Azure (one-click)
+
+Deploy to your Azure subscription with a single click. No Docker, no server to manage.
+
+<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json" target="_blank" rel="noopener noreferrer"><img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure"></a>
+
+The deployment uses App Service + Postgres Flexible Server + Container Apps. Any Azure Subscription Owner can deploy without involving central networking teams.
+
+Full walkthrough: [Azure Deployment Walkthrough](architecture/azure-deployment-walkthrough.md).
+
+---
+
+## Option 3 — Portable Windows .exe
+
+For environments where Docker and WSL are blocked by security policy. Runs entirely from a single exe — no installation, no administrator rights required.
+
+1. Download `IdentityAtlas.exe` from the [GitHub Releases page](https://github.com/Fortigi/IdentityAtlas/releases)
+2. Double-click it — a splash screen appears while the database initializes (~5–10 seconds on first run)
+3. The app opens at `http://localhost:3001`
+
+The exe uses [PGlite](https://pglite.dev) (WebAssembly PostgreSQL) running in-process. No subprocess is spawned, no executable is extracted to disk — it passes endpoint security tools that block embedded database approaches.
+
+**Crawlers** require PowerShell 7 (`pwsh.exe`) on PATH. Install with `winget install Microsoft.PowerShell`.
+
+For the full build guide and architecture notes: [Portable Desktop App](architecture/desktop-portable.md).
+
+---
+
 ## What's Next
 
 | Topic | Where to go |
@@ -173,3 +213,4 @@ Both images are always published with the same version tag, so they'll stay in s
 | Risk scoring deep dive | [Risk Scoring Overview](risk-scoring/overview.md) |
 | Troubleshooting | [Troubleshooting](reference/troubleshooting.md) |
 | Importing from non-Entra systems | [CSV Sync](sync/csv-import.md) |
+| Building the portable exe | [Portable Desktop App](architecture/desktop-portable.md) |
