@@ -1,7 +1,6 @@
 'use strict';
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog } = require('electron');
-const { exec }          = require('child_process');
 const { join }          = require('path');
 const { pathToFileURL } = require('url');
 const { homedir }       = require('os');
@@ -15,7 +14,6 @@ const API_URL  = `http://localhost:${PORT}`;
 let tray   = null;
 let splash = null;
 let win    = null;
-let pg     = null;
 
 // In packaged mode, extraResources land in process.resourcesPath (real filesystem).
 // In dev mode, resolve relative to source tree.
@@ -140,59 +138,29 @@ async function startBackend() {
   process.env.USE_SQL         = 'true';
   process.env.PORT            = PORT;
   process.env.NODE_ENV        = process.env.NODE_ENV || 'production';
-  process.env.DATABASE_URL    = 'postgres://postgres@127.0.0.1:5433/identity_atlas';
+  process.env.DESKTOP_MODE    = 'true';
   process.env.WORKER_KEY_FILE = join(DATA_DIR, '.builtin-worker-key');
   process.env.MASTER_KEY_FILE = join(DATA_DIR, '.master-key');
   process.env.UPLOAD_ROOT     = join(DATA_DIR, 'uploads');
   process.env.TRACE_DIR       = join(DATA_DIR, 'jobs');
 
   if (IS_PACKAGED) {
-    process.env.EMBEDDED_PG_NATIVE_DIR = join(process.resourcesPath, 'pg-native');
-    process.env.FRONTEND_DIST          = join(process.resourcesPath, 'dist-frontend');
-    process.env.IA_APP_ROOT            = join(process.resourcesPath, 'bundled-scripts');
+    process.env.FRONTEND_DIST = join(process.resourcesPath, 'dist-frontend');
+    process.env.IA_APP_ROOT   = join(process.resourcesPath, 'bundled-scripts');
   } else {
     process.env.IA_APP_ROOT = join(__dirname, '../..');
   }
 
-  // Load embedded-postgres from extraResources (packaged) or source (dev).
-  const epPath = IS_PACKAGED
-    ? join(process.resourcesPath, 'embedded-postgres-bundle.cjs')
-    : join(__dirname, '../api/src/embedded-postgres-bundle.cjs');
-  const epModule = require(epPath);
-  const EmbeddedPostgres = epModule.default ?? epModule.EmbeddedPostgres;
+  // Initialize PGlite (WebAssembly PostgreSQL, runs in-process — no subprocess, no binary extraction).
+  const pgDataDir = join(DATA_DIR, 'pgdata');
+  mkdirSync(pgDataDir, { recursive: true });
+  const { PGlite } = await import('@electric-sql/pglite');
+  const pgInstance = new PGlite(pgDataDir);
+  await pgInstance.waitReady;
+  globalThis.__pgliteInstance = pgInstance;
 
-  pg = new EmbeddedPostgres({
-    port:        5433,
-    persistent:  true,
-    databaseDir: join(DATA_DIR, 'pgdata'),
-    authMethod:  'trust',
-    initdbFlags: ['--encoding=UTF8', '--locale=C'],
-  });
-
-  if (!existsSync(join(DATA_DIR, 'pgdata', 'PG_VERSION'))) {
-    await pg.initialise();
-  }
-
-  // Kill any leftover postgres.exe from a previous crash before starting.
-  await pg.stop().catch(() => {});
-  if (process.platform === 'win32') {
-    await new Promise(r => exec('taskkill /F /IM postgres.exe /T 2>nul', r));
-    const deadline = Date.now() + 8000;
-    while (Date.now() < deadline) {
-      const still = await new Promise(r =>
-        exec('tasklist /FI "IMAGENAME eq postgres.exe" /NH 2>nul', (_, out) =>
-          r(out && out.includes('postgres.exe'))
-        )
-      );
-      if (!still) break;
-      await new Promise(r => setTimeout(r, 300));
-    }
-  }
-  await pg.start();
-
-  try { await pg.createDatabase('identity_atlas'); } catch { /* already exists */ }
-
-  // Import the Express app bundle.
+  // Import the Express app bundle. connection.js reads globalThis.__pgliteInstance
+  // at module-init time, so the instance must be set before this import.
   if (IS_PACKAGED) {
     await import(pathToFileURL(join(process.resourcesPath, 'app-bundle.mjs')).href);
   } else {
@@ -207,16 +175,7 @@ Menu.setApplicationMenu(null);
 
 app.on('window-all-closed', () => app.quit());
 
-// Stop PG before quitting.
-let pgStopping = false;
-app.on('before-quit', async e => {
-  if (pgStopping || !pg) return;
-  e.preventDefault();
-  pgStopping = true;
-  try { await pg.stop(); } catch { /* ignore */ }
-  pg = null;
-  app.quit();
-});
+// PGlite shuts down cleanly when the Node process exits — no explicit stop needed.
 
 ipcMain.on('quit', () => app.quit());
 

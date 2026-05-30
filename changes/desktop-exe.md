@@ -2,3 +2,4 @@
 - PostgreSQL data is stored in `%APPDATA%\IdentityAtlas\` and persists across restarts.
 - PowerShell crawlers (Entra ID, CSV) are supported as a soft dependency: requires `pwsh.exe` on PATH.
 - Electron-based: no console window, system tray icon, splash screen on startup. Build with `npm run build:desktop` in `app/api/`; produces `app/api/dist-electron/IdentityAtlas.exe` (~300 MB, portable).
+- Replaced embedded PostgreSQL subprocess with PGlite (WebAssembly PostgreSQL). The previous approach extracted and launched `postgres.exe` from `%APPDATA%`, which was blocked by endpoint security tools on locked-down laptops. PGlite runs entirely within the Electron process — no child process spawned, no executable written to disk at runtime.

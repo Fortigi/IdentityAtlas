@@ -5,7 +5,6 @@
 //   2. Copy dist/ to app/api/dist-frontend/ (electron-builder extraResource)
 //   3. Copy PowerShell crawler scripts to app/api/bundled-scripts/ (extraResource)
 //   4. esbuild: bundle src/index.js → src/app-bundle.mjs  (ESM + CJS compat banner)
-//              bundle embedded-postgres → src/embedded-postgres-bundle.cjs (pg bundled inline)
 //   5. electron-builder --win → app/api/dist-electron/IdentityAtlas.exe (~300 MB, portable)
 //
 // Usage (from app/api/):
@@ -97,14 +96,15 @@ for (const dir of DIRS_TO_BUNDLE) {
 
 console.log(`  → ${SCRIPTS_DEST}`);
 
-// ─── Step 4: Bundle with esbuild ─────────────────────────────────────────────
-console.log('\n[4/5] Bundling Express app + embedded-postgres with esbuild...');
+// ─── Step 4: Bundle Express app with esbuild ─────────────────────────────────
+console.log('\n[4/5] Bundling Express app with esbuild...');
 
-// 4a: Express app → ESM (top-level await in routes requires ESM format).
+// Express app → ESM (top-level await in routes requires ESM format).
 // --banner:js injects CJS compat polyfills:
 //   require        — lets esbuild's __require shim fall back to Node's built-in require()
 //   __filename/__dirname — fallback for CJS factories that use them (e.g. swagger-ui-dist)
 // Aliased imports avoid colliding with esbuild's own imports inside the bundle body.
+// PGlite is loaded by main.js (not the Express bundle) — connection.js reads it from globalThis.
 const APP_BUNDLE = join(API_ROOT, 'src', 'app-bundle.mjs');
 run(
   `npx esbuild src/index.js ` +
@@ -117,27 +117,6 @@ run(
   `--log-level=warning`
 );
 console.log(`  → ${APP_BUNDLE}`);
-
-// 4b: embedded-postgres → CJS so main.js can require() it from extraResources.
-// pg is bundled inline (not external) because extraResources has no node_modules.
-// All non-windows platform packages are external — dead code on win32.
-const EP_BUNDLE = join(API_ROOT, 'src', 'embedded-postgres-bundle.cjs');
-run(
-  `npx esbuild node_modules/embedded-postgres/dist/index.js ` +
-  `--bundle ` +
-  `--platform=node ` +
-  `--format=cjs ` +
-  `--outfile=${EP_BUNDLE} ` +
-  `--external:@embedded-postgres/darwin-arm64 ` +
-  `--external:@embedded-postgres/darwin-x64 ` +
-  `--external:@embedded-postgres/linux-arm ` +
-  `--external:@embedded-postgres/linux-arm64 ` +
-  `--external:@embedded-postgres/linux-ia32 ` +
-  `--external:@embedded-postgres/linux-ppc64 ` +
-  `--external:@embedded-postgres/linux-x64 ` +
-  `--log-level=warning`
-);
-console.log(`  → ${EP_BUNDLE}`);
 
 // ─── Step 5: electron-builder ────────────────────────────────────────────────
 console.log('\n[5/5] Building Electron app (installs electron on first run)...');
