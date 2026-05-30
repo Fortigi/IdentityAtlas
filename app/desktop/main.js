@@ -152,10 +152,12 @@ async function startBackend() {
   }
 
   // Initialize PGlite (WebAssembly PostgreSQL, runs in-process — no subprocess, no binary extraction).
+  // pg_trgm must be registered here so that migration 013's CREATE EXTENSION succeeds.
   const pgDataDir = join(DATA_DIR, 'pgdata');
   mkdirSync(pgDataDir, { recursive: true });
-  const { PGlite } = await import('@electric-sql/pglite');
-  const pgInstance = new PGlite(pgDataDir);
+  const { PGlite }  = await import('@electric-sql/pglite');
+  const { pg_trgm } = await import('@electric-sql/pglite/contrib/pg_trgm');
+  const pgInstance  = new PGlite(pgDataDir, { extensions: { pg_trgm } });
   await pgInstance.waitReady;
   globalThis.__pgliteInstance = pgInstance;
 
