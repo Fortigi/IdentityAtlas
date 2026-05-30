@@ -1,0 +1,197 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.43.8.12551",
+      "templateHash": "15582828190647025007"
+    }
+  },
+  "parameters": {
+    "entraTenantId": {
+      "type": "string",
+      "metadata": {
+        "description": "Entra ID tenant (directory) GUID. Find it under Entra ID → Overview → Tenant ID."
+      }
+    },
+    "entraClientId": {
+      "type": "string",
+      "metadata": {
+        "description": "Entra ID App Registration (client) GUID. Find it on the registered app's Overview page. For an SPA app this is the only Entra ID you need — there is no client secret."
+      }
+    }
+  },
+  "variables": {
+    "location": "[resourceGroup().location]",
+    "namePrefix": "[format('idatlas-{0}', take(uniqueString(resourceGroup().id), 7))]",
+    "webAppName": "[format('{0}-web', variables('namePrefix'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Web/sites', variables('webAppName'))]",
+      "name": "[guid(resourceId('Microsoft.Web/sites', variables('webAppName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-deployscript', variables('namePrefix'))), 'WebsiteContributor')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'de139f84-1756-47ae-9be6-808fbbe84772')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-deployscript', variables('namePrefix'))), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "patch-auth-script",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "identityId": {
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-deployscript', variables('namePrefix')))]"
+          },
+          "webAppName": {
+            "value": "[variables('webAppName')]"
+          },
+          "entraTenantId": {
+            "value": "[parameters('entraTenantId')]"
+          },
+          "entraClientId": {
+            "value": "[parameters('entraClientId')]"
+          },
+          "location": {
+            "value": "[variables('location')]"
+          },
+          "scriptName": {
+            "value": "[format('{0}-patch-auth', variables('namePrefix'))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "11454412669751355952"
+            }
+          },
+          "parameters": {
+            "identityId": {
+              "type": "string",
+              "metadata": {
+                "description": "User-assigned managed identity resource ID. Must already have Website Contributor (or equivalent) on the target Web App."
+              }
+            },
+            "webAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "App Service name to patch (Step 1 created it as <namePrefix>-web)."
+              }
+            },
+            "entraTenantId": {
+              "type": "string",
+              "metadata": {
+                "description": "Entra tenant GUID — becomes AUTH_TENANT_ID on the Web App."
+              }
+            },
+            "entraClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Entra App Registration client GUID — becomes AUTH_CLIENT_ID on the Web App."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Region for the deployment-script (ACI behind the scenes lives here)."
+              }
+            },
+            "forceUpdateTag": {
+              "type": "string",
+              "defaultValue": "[utcNow()]",
+              "metadata": {
+                "description": "Force re-execution of the script. Default = utcNow()."
+              }
+            },
+            "scriptName": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource name for the deployment-script resource itself."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Resources/deploymentScripts",
+              "apiVersion": "2023-08-01",
+              "name": "[parameters('scriptName')]",
+              "location": "[parameters('location')]",
+              "kind": "AzureCLI",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('identityId'))]": {}
+                }
+              },
+              "properties": {
+                "azCliVersion": "2.65.0",
+                "timeout": "PT5M",
+                "retentionInterval": "PT1H",
+                "cleanupPreference": "OnSuccess",
+                "forceUpdateTag": "[parameters('forceUpdateTag')]",
+                "environmentVariables": [
+                  {
+                    "name": "WEB_APP_NAME",
+                    "value": "[parameters('webAppName')]"
+                  },
+                  {
+                    "name": "RG",
+                    "value": "[resourceGroup().name]"
+                  },
+                  {
+                    "name": "TENANT_ID",
+                    "value": "[parameters('entraTenantId')]"
+                  },
+                  {
+                    "name": "CLIENT_ID",
+                    "value": "[parameters('entraClientId')]"
+                  }
+                ],
+                "scriptContent": "set -euo pipefail\n\nGUID_RE='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'\nif ! [[ \"$TENANT_ID\" =~ $GUID_RE ]]; then\n  echo \"ERROR: entraTenantId is not a valid GUID: $TENANT_ID\"\n  exit 1\nfi\nif ! [[ \"$CLIENT_ID\" =~ $GUID_RE ]]; then\n  echo \"ERROR: entraClientId is not a valid GUID: $CLIENT_ID\"\n  exit 1\nfi\n\necho \"==> Patching auth settings on $WEB_APP_NAME\"\naz webapp config appsettings set \\\n  --resource-group \"$RG\" \\\n  --name \"$WEB_APP_NAME\" \\\n  --settings \"AUTH_ENABLED=true\" \"AUTH_TENANT_ID=$TENANT_ID\" \"AUTH_CLIENT_ID=$CLIENT_ID\" \\\n  --output none\necho \"    done\"\n"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(resourceId('Microsoft.Web/sites', variables('webAppName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Web/sites', variables('webAppName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-deployscript', variables('namePrefix'))), 'WebsiteContributor'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "appUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Public URL of the Identity Atlas web app — same as Step 1."
+      },
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('webAppName')), '2024-04-01').defaultHostName)]"
+    },
+    "appHostname": {
+      "type": "string",
+      "metadata": {
+        "description": "Hostname (without https://) — useful if you need to confirm the SPA redirect URI registered in Entra matches."
+      },
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('webAppName')), '2024-04-01').defaultHostName]"
+    },
+    "authEnabled": {
+      "type": "bool",
+      "metadata": {
+        "description": "True. Always — this template only runs when you want auth on."
+      },
+      "value": true
+    }
+  }
+}

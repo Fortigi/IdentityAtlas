@@ -1,5 +1,210 @@
 ## Changes in this PR
 
+- Fixed broken links in architecture docs — source-code cross-references now point to GitHub URLs so the MkDocs strict build succeeds and docs deploy correctly to GitHub Pages.
+
+## Changes in this PR
+
+- Fixed noisy PostgreSQL ERROR log entries on first boot caused by `REFRESH MATERIALIZED VIEW CONCURRENTLY` being attempted before the materialized views were populated; the refresh now checks `pg_matviews.ispopulated` and skips `CONCURRENTLY` on the initial run.
+
+## Changes in this PR
+
+- Fixed: Matrix "Apply" button was disabled when no conditions were added to the wizard, making it impossible to create a matrix without first setting filters. The matrix now loads all subjects and resources when applied with no conditions.
+- Fixed: Matrix tab showed a "Create matrix" call-to-action even when the database contained no data. It now shows a "No data available yet — run a crawler" message instead, and the wizard no longer auto-opens when there is nothing to display.
+- Improved: Demo dataset (`Ingest-DemoDataset.ps1`) now seeds a default matrix filter so the Matrix tab opens straight to data on first visit, without requiring the wizard.
+- Improved: Matrix wizard now warns when the selected slice exceeds 5,000 assignments and blocks Apply above 25,000, preventing accidentally loading very large datasets.
+
+## Changes in this PR
+
+- Security: bumped API dependencies to address npm audit high-severity finding (tmp path traversal).
+
+## Changes in this PR
+
+- Security: bumped postcss (8.5.6 → 8.5.15, moderate) and tmp (0.2.5 → 0.2.7, high) to address npm audit findings. Two remaining moderate vulnerabilities (uuid/exceljs) cannot be fixed without a breaking exceljs downgrade.
+
+## Changes in this PR
+
+- Fixed: assigning or removing a category on a business role from the Access Packages page silently failed — the relationship never got saved. The UI was sending the body field as `accessPackageId`, but the API expects either `resourceId` or `businessRoleId` (leftover from the v3 Access-Package → Business-Role rename). The mismatch produced a 400 that the UI's `for` loop swallowed without surfacing. UI now sends `resourceId`.
+- Fixed: `POST /api/categories/unassign` still used the old MSSQL-shim syntax (`p.request().input(...).query('@param')`) from before the Postgres migration. Calls to it would throw at runtime. Converted to the Postgres `db.query(text, [params])` pattern the `assign` endpoint right next to it already uses.
+
+## Changes in this PR
+
+- Crawler memory footprint dropped dramatically on tenants with large sign-in volumes or many access-package assignments. The `SignInLogs` and `Governance/APAssignments` phases used to load every paginated Graph response into one in-memory array before processing — fine on a Docker host with 12 GB, OOM-killed the worker on Azure (capped at 2 GB / 4 GB on the Consumption tier of Container Apps). Both phases now pipe Graph pages through a new `Invoke-FGGetRequestStream` helper that emits items one at a time, so we aggregate as events arrive and never hold more than ~one Graph page (~1000 events) plus the aggregated state. Real-world impact: a customer's 4.5K-user / 9.9K-group tenant had 7 phase OOMs at 1 GB / 2 GB; the same shape will now run cleanly without bumping resources.
+- Added `tools/powershell-sdk/graph/Invoke-FGGetRequestStream.ps1` — a streaming counterpart to `Invoke-FGGetRequest`. Same auth/retry/throttling/Retry-After semantics, but emits each `.value` item to the pipeline as pages are fetched instead of accumulating the whole result. Use it whenever the next thing you do is process items in a loop and the response can be paginated — assigning the result to a variable (`$x = Invoke-FGGetRequestStream …`) re-buffers and undoes the benefit.
+
+## Changes in this PR
+
+- Increased the Azure worker container's CPU and memory allowance across all size profiles. PowerShell Graph crawlers spawn one runspace per parallel task via `ForEach-Object -Parallel`, and each runspace duplicates the session state — memory pressure scales fast on real tenants. The previous tiers maxed out at 0.5 CPU / 1 GB memory even on `xl`, which OOM-killed real customer syncs (4.5K users + 9.9K groups + 3.6K service principals — a mid-size tenant). New sizing keeps the same Postgres / App Service tiering but bumps the worker substantially:
+
+  | Profile | Web SKU | Worker (was → now) |
+  |---|---|---|
+  | xs | B1 | 0.25 CPU / 0.5Gi → **0.5 CPU / 1Gi** |
+  | s (default) | B2 | 0.25 CPU / 0.5Gi → **1 CPU / 2Gi** |
+  | m | S1 | 0.25 CPU / 0.5Gi → **1 CPU / 2Gi** |
+  | l | P1v3 | 0.5 CPU / 1Gi → **2 CPU / 4Gi** |
+  | xl | P2v3 | 0.5 CPU / 1Gi → **2 CPU / 4Gi** |
+
+  Marginal cost is small (~€5-15/month per tier) compared with the cost of debugging an OOM crash halfway through a customer's first sync. Existing deployments aren't affected automatically; redeploy or run `az containerapp update --name <worker> --resource-group <rg> --cpu 2.0 --memory 4.0Gi` to bump an existing worker.
+
+## Changes in this PR
+
+- Azure deployments now ship with Entra ID auth turned **on from the first deploy**. The Bicep template sets `AUTH_ENABLED=true` and creates `AUTH_TENANT_ID`/`AUTH_CLIENT_ID` env vars as empty strings. After Step 1 of the walkthrough, opening the deployed Web App's URL shows an **Entra ID setup required** page with the exact remaining steps (register the App in Entra, expose an `access` scope, paste tenant + client IDs into the Web App's Environment variables blade). The previous "open mode after Step 1, then add auth in Step 2" flow is gone — there's no usable unauthenticated state at any point in the install, so a customer can't accidentally end up running an internet-exposed deployment with no sign-in.
+- The setup-required page is rendered by the SPA's `AuthGate` when `/api/auth-config` returns `{ enabled: true, configured: false }` — a new `configured` field is true only when both tenant and client IDs are populated. The page shows the current origin (so the redirect-URI step is copy-paste), inlines the same Entra-app-registration walkthrough that's in [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md), and adapts the "where to put the IDs" instructions to whether you're running on Azure App Service or a Docker host.
+- Local Docker installs are unaffected: `AUTH_ENABLED` still defaults to `false` for `docker compose` deployments. The auth-required-by-default behavior is an Azure-deployment thing.
+
+## Changes in this PR
+
+- Added a **Cut Beta** GitHub Actions workflow (`Actions → Cut Beta`) to publish pre-release Docker images tagged `:beta` and the exact version (e.g. `5.3.0-beta.1`) without touching `:latest`. Users on `docker-compose.prod.yml` are unaffected.
+
+## Changes in this PR
+
+- Fixed: on a fresh Azure deployment, migration `013_matrix_matviews_and_indexes.sql` failed at `CREATE EXTENSION pg_trgm` because Azure Postgres Flexible Server requires the extension to be allow-listed via the `azure.extensions` server parameter before any user can install it. The migration runner aborts the pending batch on failure, so 16 later migrations (including the one that adds `nextRunMode` to `CrawlerConfigs`) also got skipped. Symptom was "Failed to create job" when clicking Run on a crawler in the UI. The Postgres Bicep module now sets `azure.extensions=PG_TRGM` via a `Microsoft.DBforPostgreSQL/flexibleServers/configurations` resource, so future deploys never hit this.
+- Fixed: the Docker worker's crawler API key (`fgc_…`) was being rejected by `authMiddleware` before reaching `crawlerAuthMiddleware`, so `POST /api/crawlers/jobs/claim` returned 401 every 30 seconds and the worker never picked up queued jobs. This was an over-correction from the admin-bypass hardening in #160 — `authMiddleware` is mounted on `/api/*` ahead of `crawlerAuthMiddleware` in `index.js`, so worker requests hit the unconditional `fgc_` rejection first. `authMiddleware` now passes `fgc_` tokens through to the next middleware on `/api/crawlers/*` and `/api/ingest/*` (the two prefixes downstream-mounted with `crawlerAuthMiddleware`), while still rejecting them on every other admin/UI path. The original admin-bypass concern stays addressed.
+
+## Changes in this PR
+
+- Added a one-click **Deploy to Azure** button to the README. Provisions a complete production-grade Identity Atlas stack on Azure in ~15 minutes via Bicep: VNet-isolated Container Apps Environment (web + worker), Postgres Flexible Server with a private endpoint, Key Vault holding the master key and DB password, ACR with both images auto-imported from `ghcr.io`, Azure Files share for `/data/uploads`, Log Analytics, and three managed identities scoped via RBAC.
+- New `azure/` directory holds `main.bicep` (orchestrator), eleven focused module Bicep files (network, identities, ACR, DNS, Key Vault, Postgres, storage, Container Apps Environment, web app, worker app, bootstrap deployment-script), the compiled ARM JSON used by the Deploy-to-Azure button, an example parameters file, a `deploy.ps1` CLI fallback, and `import-image.ps1` for refreshing images later.
+- Estimated cost: ~€100–110/month (West Europe, ex VAT, single-replica, no HA). Full architecture, decisions taken, and ops notes in [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md).
+- Reworked the Azure deployment to a much simpler "Simple" shape: App Service for Linux Containers (web) + Postgres Flexible Server (public endpoint, firewall-restricted) + Container Apps Environment (worker, always-on) + Storage Account / Azure Files / Key Vault / Log Analytics. No VNet, no private endpoints, no public IPs or load balancers we provision — anyone with Azure-subscription-owner rights can deploy without involving central networking teams. Replaces the previous VNet-isolated shape (saved as a future "Isolated" template for tenants who want it).
+- One-click **Deploy to Azure** button still works. The deploy form now asks for a **size profile** (xs / s / m / l / xl) ranging from ~€45/mo (demo) to ~€469/mo (enterprise). Default `s` (~€79/mo) is sized for small production tenants and feels snappy under normal concurrent use.
+- **Bring-your-own Log Analytics**: provide an existing workspace resource ID (or workspace customer ID + shared key as a fallback) and the deployment forwards all logs there instead of creating a new workspace. Saves the ~€3-5/mo line and matches enterprise CCoE patterns.
+- Deployment time dropped from ~15 minutes to ~5-7 minutes. Architecture, decisions, scaling, and ops notes documented in [docs/architecture/azure-deployment.md](docs/architecture/azure-deployment.md).
+- Fixed: the App Service was being deployed with the Postgres password under the wrong env var name (`POSTGRES_ADMIN_PASSWORD`), so the API could not connect to the database after a fresh deploy. The env var is now `POSTGRES_PASSWORD`, matching what `app/api/src/db/connection.js` reads.
+- **Entra ID authentication is now ON by default for Azure deployments.** The deploy form has three new fields: `enableEntraAuth` (default TRUE), `entraTenantId`, and `entraClientId`. If `enableEntraAuth=true` but tenant/client are blank, the deploy now fails fast in the bootstrap step with a clear message — so you can't accidentally publish an open-to-the-internet instance. Set `enableEntraAuth=false` explicitly to deploy in OPEN mode for short-lived demos.
+- On Azure App Service, the Admin → Authentication and Admin → Containers tabs are now hidden. They both assume a Docker host you can reach; on Azure neither is reachable in the same way, and on Azure auth is enforced via Bicep parameters at deploy time anyway.
+- The deploy form now has an `imageChannel` dropdown: **stable** (default, tracks the last `:latest` release tag) or **edge** (tracks every main-branch build via `:edge`). Replaces the previous free-form image fields. Advanced users can still pin to a specific image via `webImageOverride` / `workerImageOverride`.
+- Added a portal-only deployment walkthrough at [docs/architecture/azure-deployment-walkthrough.md](docs/architecture/azure-deployment-walkthrough.md). It uses a two-pass deploy pattern — first deploy claims the name in OPEN mode so you can confirm the hostname before creating the Entra App Registration; second deploy turns auth on with the IDs filled in. Avoids wasting App Reg setup work on a name collision.
+- Simplified the deploy form to just the happy-path fields: `namePrefix`, `sizeProfile`, `imageChannel`, `existingLogAnalyticsWorkspaceId`, `entraTenantId`, `entraClientId`. Removed ten advanced fields (`location`, `webImageOverride`, `workerImageOverride`, `existingLogAnalyticsCustomerId`, `existingLogAnalyticsSharedKey`, `webAllowedIpCidrs`, `bootstrapForceTag`, `postgresAdminPassword`, `entraRequiredRoles`, `enableEntraAuth`) — region is taken from the resource group, the rest are settable by editing the Bicep or post-deploy from the Web App's Environment variables blade.
+- The `enableEntraAuth` toggle is gone; auth state is derived from whether the Entra IDs are filled in. Both blank = first-pass OPEN deploy that claims the hostname; both filled = auth ON. Filling in only one is rejected with a clear error. Less form clutter and one fewer decision for a first-time deployer.
+- Input validation now runs in the bootstrap step **before** any module tries to use the values, so a typo fails the deploy in under a minute with a clear error instead of producing a half-built resource group. Validates: the existing Log Analytics workspace ID (when provided) is a full workspace resource ID — not the parent resource group's ID, which was a real-world mistake we hit.
+- **Deployment is now two separate templates with non-overlapping concerns.** `main.bicep` deploys the app stack in OPEN mode (no auth); a new `main-auth.bicep` layers Entra ID auth onto an existing deployment by patching only the App Service's app settings. Both have their own Deploy-to-Azure button. The auth template never touches Postgres, Key Vault, or any other resource — so the previous failure modes around re-deploying the same template (Postgres storage-shrink errors, half-applied changes) are gone. Each template's form has only the fields it actually needs.
+- `namePrefix` is now auto-generated and deterministic per resource group (`idatlas-` + 7-char hash of the RG ID) — and no longer a parameter, so it doesn't show up in either deploy form. Both templates derive the same prefix when deployed to the same RG, so Step 2 finds the App Service Step 1 created without any input. Customizing the hostname requires editing the Bicep — uncommon enough that the friction reduction is worth it.
+- Step 2's auth patch now uses a deployment-script (`az webapp config appsettings set`) instead of a `Microsoft.Web/sites/config` Bicep resource. The Bicep-native approach hit an ARM circular-dependency error — read existing settings + write to the same resource triggers ARM's cycle detector, even though the operations are sequential. `az webapp config appsettings set` is a true merge (adds/updates only the named keys without touching the rest), so it sidesteps the need to read at all. The script reuses Step 1's existing deployment-script managed identity and grants it Website Contributor scoped to just the one App Service.
+- Added a **Trends** tab to the Dashboard page. Plots the % of assignments that are governed over time, plus separate charts for users, resources, and assignments growth.
+- The chart starts populated on the day this version ships and grows as new days are captured. The scheduler writes one snapshot per UTC day to the new `DashboardSnapshots` table — no historical backfill, so the early section reflects only the snapshots actually captured (not a reconstructed history).
+- Range selector switches between 30 days / 90 days / 1 year / 2 years. Charts render as hand-rolled SVG; no new frontend dependency.
+- Added Playwright e2e coverage for the new Dashboard tab strip and Trends tab: verifies tab switching, chart container presence, and the range selector behaviour.
+- New `docs/architecture/dashboard-trends.md` documents the snapshot architecture, the no-backfill decision, the API surface, and the chart rendering details.
+- Pointers in `app/ui/CLAUDE.md` so future AI contributors find the new components.
+
+## Changes in this PR
+
+- Fixed inconsistent docker startup commands: all documented `docker compose up` invocations now consistently use `--pull always` to ensure the latest image is pulled on every start.
+
+## Changes in this PR
+
+- Fixed security vulnerability: crawler API keys (`fgc_`) were incorrectly passed through JWT auth middleware, allowing any string with the `fgc_` prefix to reach admin endpoints without valid credentials.
+
+## Changes in this PR
+
+- Fixed CodeQL alert 50: replaced plain null-prototype object with `Map` in ingest normalization to eliminate remote property injection risk from user-supplied field names.
+
+## Changes in this PR
+
+- Fixed remaining CodeQL warnings: removed unused internal helper functions, eliminated a TOCTOU file-system race in the job-log endpoint, and hardened ingest normalization against prototype-injection via user-supplied property names.
+
+## Changes in this PR
+
+- Fixed log-injection vulnerability in ingest validation logging — only the record count is logged, never user-supplied content
+- Fixed client-side request-forgery risk in the authentication context default — the fallback stub no longer calls fetch
+- Fixed server-side request-forgery in the risk-profile scraper routes — added inline CodeQL suppression with evidence of the existing mitigation in `scraper.js` (http(s) only, private/loopback hosts blocked)
+- Fixed server-side request-forgery risk in the Azure OpenAI provider by adding inline CodeQL suppression with evidence of the existing `validateAzureEndpoint` mitigation (HTTPS required, private/loopback hosts blocked)
+
+## Changes in this PR
+
+- Removed unused imports and variables flagged by CodeQL across API route files (admin, contexts, correlationRulesets, details, governance, permissions, resources, tags), ingest engine and sessions, and the secrets vault
+- Removed unused variable declarations in Playwright end-to-end test files (access-packages, detail-pages, identities, matrix, multi-filter)
+- Removed unused state setter in RiskScoringPage
+
+## Changes in this PR
+
+- Fixed log injection in context plugin dry-run and ingest routes by sanitising user-controlled values before logging
+- Fixed remote property injection in ingest normalisation by iterating the trusted column set instead of request-supplied keys
+- Hardened CORS configuration: replaced permissive wildcard origin with an explicit localhost allowlist for development; production defaults to same-origin only
+- Added rate limiting to the SPA HTML fallback route
+- Added tenant ID format validation in MSAL AuthGate to prevent client-side request forgery via a crafted server config response
+
+## Changes in this PR
+
+- Fixed SSRF vulnerabilities in LLM web scraper and Azure OpenAI provider by blocking requests to private/loopback addresses
+- Upgraded API key hashing from SHA-256 to scrypt (PBKDF) with automatic legacy key detection and migration on startup
+- Fixed path traversal vulnerability in job log endpoint using path containment check
+- Fixed TOCTOU race conditions in master key file handling and CSV folder detection
+- Fixed regex polynomial ReDoS in Azure OpenAI endpoint URL handling
+- Fixed bad HTML tag filter patterns in LLM scraper (script/style/nav block stripping)
+- Fixed double-escaping of HTML entities in LLM scraper text extraction
+
+## Changes in this PR
+
+- Fixed WCAG 2.0 AA contrast failures in MatrixFilterWizard: separator characters, percentage labels, orientation labels, hint text, and delete button labels were rendered in gray-300/400 (failing contrast) and upgraded to gray-500/600
+- Fixed low-contrast "all" placeholder and loading indicator in MatrixFilterSummary
+- Fixed SVG axis label color in TimeSeriesChart (gray-500 → gray-600, from ≈4.6:1 to ≈7.5:1 margin)
+- Fixed remaining pre-existing contrast violations across 44 UI components (gray-400/300 text on light backgrounds, blue-400 and red-400 status text)
+- Added ESLint rule `local/no-low-contrast-text` that blocks Tailwind `text-{color}-300` and `text-{color}-400` classes in JSX `className` attributes, enforcing WCAG 2.0 AA compliance at build time
+
+## Changes in this PR
+
+- Fixed matrix view crash ("Something went wrong / Cannot read properties of undefined") caused by a bad rebase conflict resolution in the CodeQL fixes PR (#148) that accidentally reverted the MatrixView.jsx wizard refactor from PR #147
+
+## Changes in this PR
+
+- Fixed six CodeQL code-scanning alerts: unused loop variable, misleading string concatenation, useless initial assignment, unused dead-code variable, and two unused variables in e2e tests
+
+## Changes in this PR
+
+- Added a **Trends** tab to the Dashboard page. Plots the % of assignments that are governed over time, plus separate charts for users, resources, and assignments growth.
+- The chart starts populated on the day this version ships and grows as new days are captured. The scheduler writes one snapshot per UTC day to the new `DashboardSnapshots` table — no historical backfill, so the early section reflects only the snapshots actually captured (not a reconstructed history).
+- Range selector switches between 30 days / 90 days / 1 year / 2 years. Charts render as hand-rolled SVG; no new frontend dependency.
+- Added Playwright e2e coverage for the new Dashboard tab strip and Trends tab: verifies tab switching, chart container presence, and the range selector behaviour.
+- New `docs/architecture/dashboard-trends.md` documents the snapshot architecture, the no-backfill decision, the API surface, and the chart rendering details.
+- Pointers in `app/ui/CLAUDE.md` so future AI contributors find the new components.
+
+## Changes in this PR
+
+- Added a new crawler phase that imports application role assignments from Entra ID. For each enterprise app the crawler pulls the catalog of `appRoles[]` and the `appRoleAssignedTo` list, then writes one `AppRole` resource per (app, role), an `Application → AppRole` relationship, and one `ResourceAssignment` per user assignment. Group-typed assignments are expanded to per-user `AppRoleViaGroup` rows via `/transitiveMembers` so the matrix surfaces indirect access too.
+- Wired up the existing "Apps & AppRoles" checkbox in the Crawlers wizard so toggling it actually runs the new phase. Requires `Application.Read.All` on the app registration (already required for service principals; the permission validator was already enforcing it).
+- New matrix badges: `R` (App Role — direct) and `R` in a lighter shade (App Role — via group), so analysts can tell direct vs inherited app-role access at a glance.
+- The dev `docker-compose.yml` now sets `restart: unless-stopped` on the postgres and web containers (the worker already had it; the prod compose file already had it for all three). After a host reboot, a Docker daemon restart, or an unexpected crash, the whole stack now auto-recovers without needing a manual `docker compose up -d`.
+- Expanding a group in the matrix now fans out **any** resource that group is assigned to, not just nested parent groups. App roles a group grants its members appear as expanded sub-rows, with cells showing each user's `Indirect` (via this group) and/or `Direct` membership of that role. Previously only group-in-group nesting was visible.
+- The crawler now writes the group→AppRole assignment itself (alongside the per-user expansion), so the relationship is queryable directly rather than reconstructed from the user-level rows. An idempotent backfill from existing `AppRoleViaGroup` data is applied automatically on the next bootstrap.
+- Fixed three CI regressions on the PR:
+  - Matrix matview `REFRESH` failed on large datasets after the badge-collapse migration when a single `(resourceId, principalId)` had both a `Direct` and a `Governed` row (or any other two rows that collapsed to the same `membershipType`) — both ended up at the unique index. Migration 026 dedupes via `GROUP BY (resourceId, principalId, membershipType)` with `bool_or` on `managedByAccessPackage`.
+  - Playwright matrix test now walks the wizard (it used to wait for a table directly; the matrix tab now lands on an empty state until a filter is applied). Two other tests' `Matrix` button selectors gained `exact: true` so they don't match the wizard's "Create matrix" button.
+  - Added a permissive authenticated-API rate limiter (600 req/min per IP) so `app.use('/api', authMiddleware, …)` no longer trips CodeQL's "authorization without rate limiting" rule.
+- Fixed: user detail page showed "Identity 0" even when the user was linked to an Identity. The backend was 500-ing on `/api/identities/by-user/:userId` because the secondary query referenced columns (`userId`, `userPrincipalName`) that don't exist on `IdentityMembers`. The query now correctly joins to `Principals` to surface the UPN.
+- Restored the matrix row-expand button on groups that have nested groups. The `/api/groups-with-nested` and `/api/group/:id/nested-groups` endpoints filtered `principalType LIKE '%group%'` — PostgreSQL `LIKE` is case-sensitive, and the data stores `principalType='Group'` (capital G), so the filter never matched and the UI thought no groups had nested members. Switched to `ILIKE` so case is irrelevant (same fix pattern as the recent Tag-all-matching repair).
+- Fixed: on the user detail graph, the OAuth2 Grants fanout collapsed every consent into a single "Microsoft Graph PowerShell" node (the client app), and clicking it opened the client app instead of the scope. The fanout now shows one node per granted scope (e.g. "User.Read.All on Microsoft Graph"), and clicking opens the scope's Resource detail page so the actual permission and its consent metadata are visible.
+- Fixed the search box on every Risk Scoring subpage (users / resources / business roles / org units / identities). The queries used `LIKE` (case-sensitive in postgres) on unquoted camelCase columns (`p.displayName` rather than `p."displayName"`) — so typing into the search field returned zero rows whether the data matched or not. Five queries flipped to `ILIKE` with proper identifier quoting. Caught by the new postgres-LIKE audit test.
+- Fixed: "Tag all N matching" on the Users/Resources/Identities pages did nothing. The bulk-by-filter endpoint had been silently broken since the v5 postgres migration — it still referenced the dropped temporal `ValidTo` column, used the SQL-Server-specific `@@ROWCOUNT` system variable, and left camelCase column/table names unquoted (which postgres lowercases). The endpoint now reports the real inserted count and works against the postgres schema. Search is also now case-insensitive (`ILIKE`).
+- The matrix now shows every type of user/resource assignment by default — OAuth2 grants, governed business-role assignments, and any future assignment type are no longer silently dropped. Previously only Direct/Owner/Eligible/Governed memberships flowed through. As a result you'll see new rows for delegated permissions, application roles, and similar resources for the principals that have them.
+- Added matrix cell badges for Governed (G) and OAuth2 Grant (A) so cells that carry those membership types render with a labelled badge instead of a generic `?`.
+- Replaced the Matrix tab's inline filters with a three-step filter wizard. The matrix stays empty until a filter is applied, removing the "Top 25 most-permissioned users tenant-wide" default that often hid the slice analysts actually wanted to see.
+- Step 1 picks the row type — **User × Resource** (one row per account) or **Identity × Resource** (one row per correlated person, with cells unioned across the identity's accounts).
+- Steps 2 and 3 narrow the subjects and resources with include/exclude conditions on **contexts** (with optional "include descendants") and **attribute values** (any column from Principals / Identities / Resources, plus `ext.*` keys inside `extendedAttributes`).
+- Every step shows live counts: subject count vs. total, resource count vs. total, and the resulting number of assignments — so the size of the sub-selection is always visible while building the filter.
+- Filters can be **saved org-wide** under a name, loaded again from a dropdown at the top of the wizard, and **shared** via the Matrix tab's "Share Link" button (the entire filter is encoded in the URL).
+- Dropped from the Matrix toolbar: the User slider, search box, "User Filters" bar, context-filter chip bar, and the Type/Tags column-header filter dropdowns. All of those are subsumed by the wizard. IST / SOLL / Managed / Gaps toggle, Excel export and Share Link stay.
+- Added an "Adjust filter" button to the toolbar that re-opens the wizard pre-populated with the current filter.
+- New backend endpoints (`POST /api/matrix/data`, `POST /api/matrix/preview`, `GET /api/matrix/columns`, and `GET|POST|PUT|DELETE /api/matrix/saved-filters`). The legacy `GET /api/permissions` endpoint stays for backward compatibility, but new flows always go through `/api/matrix/data`.
+- New `SavedMatrixFilters` table (migration 023) for the org-wide named filters.
+- The matrix badge column now reports only *how* a user holds a resource (D / I / O / E), not the source of the assignment. Business Role assignments, OAuth2 consents, and direct app-role assignments all render as **D** (Direct) — the user holds these directly; the fact that they came through a governance process or a user consent is already conveyed by the resource type and (for governed rows) by the cell's Access-Package coloring. App-role assignments inherited via group membership render as **I** (Indirect).
+- Test coverage caught up with the recent additions: ingest validation tests cover the new `assignmentType` values (`OAuth2Grant`, `AppRole`, `AppRoleViaGroup`) and the new `relationshipType` (`HasAppRole`); the nightly Entra crawler test asserts that app-role resources are reachable, the `/identities/by-user` endpoint responds 200, and the matrix view's `membershipType` column never leaks a source-attribute type.
+- Added a static-analysis test that fails the build if any route handler reintroduces a plain `LIKE` (instead of `ILIKE`) on a column where case-insensitivity was historically load-bearing — the same SQL-Server-vs-postgres footgun bit three different endpoints during the v5 migration.
+- Docs caught up too: `CLAUDE.md` no longer points at the deleted `Sync-FGEntraAppRoleAssignment.ps1`, the resource-type and relationship-type tables now list `AppRole`, `Application`, `DelegatedPermission`, `HasAppRole`, `DelegatesScope`. New `docs/architecture/matrix.md` consolidates the matrix grid model — badge collapse rules, why groups don't appear as columns, expand semantics — that was previously spread across migration comments. The ingest-API doc lists the current enum values.
+
+## Changes in this PR
+
+- Split CLAUDE.md into per-area subdirectory guides (Functions/, app/api/, app/ui/) so only relevant conventions are loaded per context; root file reduced from 1110 to 251 lines
+- Moved open maintenance items to docs/maintenance-backlog.md; removed all resolved entries
+
+## Changes in this PR
+
+- Added a three-way Theme toggle (Light / Auto / Dark) to the settings dropdown, replacing the previous on/off switch. The "Auto" setting follows the OS color scheme and updates live when the system preference changes. Existing dark-mode preferences are automatically migrated on first load.
+- Fixed WCAG 2.0 AA contrast violations in tag and category badge colors: all ten colors were replaced with darker equivalents, achieving a minimum 4.5:1 contrast ratio.
+- Fixed additional WCAG 2.0 AA contrast violations across the UI: "missing permissions" text (red-400 → red-600), "core" attribute label (indigo-500 → indigo-700), staleness indicator colors (amber-600/blue-500 → amber-700/blue-700), empty-state dashes and separators (gray-400 → gray-500), "No changes recorded" text, close button icons, "Identity not found" text, and the risk tier "None" badge label (gray-400 → gray-500).
+
+## Changes in this PR
+
 - Added `.gitattributes` to enforce LF line endings on all text files, preventing CRLF from being introduced on Windows checkouts
 
 ## Changes in this PR

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 
 /**
  * Reusable pill-based filter bar.
@@ -77,7 +77,7 @@ export default function FilterBar({
             </select>
             <button
               onClick={() => onRemoveFilter(af.field)}
-              className="text-blue-400 dark:text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 font-bold ml-0.5"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold ml-0.5"
               title="Remove filter"
             >
               &times;
@@ -102,7 +102,7 @@ export default function FilterBar({
           </select>
           {selectedField && (
             <>
-              <span className="text-gray-400 dark:text-gray-500">=</span>
+              <span className="text-gray-600 dark:text-gray-500">=</span>
               <select
                 value=""
                 onChange={e => handleAddValue(e.target.value)}
@@ -117,13 +117,13 @@ export default function FilterBar({
           )}
           <button
             onClick={() => { setAdding(false); setSelectedField(''); }}
-            className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-bold"
+            className="text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-bold"
           >
             &times;
           </button>
         </span>
       ) : loading && filterFields.length === 0 ? (
-        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-gray-400 dark:text-gray-500">
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-gray-600 dark:text-gray-500">
           <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />

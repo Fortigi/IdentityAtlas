@@ -41,6 +41,14 @@
     (AllPrincipals) grants are skipped because they don't represent a
     user-specific authorization decision. Default: false.
 
+.PARAMETER SyncAppRoles
+    Sync application role assignments — for each enterprise application,
+    fetch the catalog of appRoles[] and the assignments to users/groups.
+    Group-typed assignments are expanded to per-user 'AppRoleViaGroup'
+    rows so the matrix surfaces indirect access. ServicePrincipal-typed
+    assignments are skipped (those would need SP-as-principal which the
+    data model doesn't yet support). Default: false.
+
 .PARAMETER RefreshViews
     Refresh materialized SQL views after sync (default: true)
 
@@ -67,6 +75,7 @@ Param(
     [switch]$SyncPim = $false,
     [switch]$SyncSignInLogs = $false,
     [switch]$SyncOAuth2Grants = $false,
+    [switch]$SyncAppRoles = $false,
     [switch]$RefreshViews = $true,
 
     # Window for the sign-in logs fetch. Graph retains events for ~30 days so
@@ -1265,49 +1274,30 @@ if ($SyncSignInLogs) {
         # a single bad slice costs one day, not the whole phase. The downside
         # is N round trips' worth of fixed overhead; in practice each slice
         # pages through 20–30k events, so the overhead is negligible.
+        #
+        # Memory: previously we accumulated ALL events from all slices in a
+        # List, then aggregated. On a 4-5k-user tenant that's ~150-300k
+        # events held simultaneously and OOM-kills a 2GB worker. The
+        # aggregation logic was always going to produce a hashtable of
+        # (userId, spId) pairs — a much smaller number than total events —
+        # so we now feed events into the aggregate AS THEY ARRIVE, using
+        # Invoke-FGGetRequestStream's pipeline output. Peak memory is
+        # bounded by one Graph page (~1k events) + the aggregate hashtable.
         $agg = @{}
         $skipped = 0
+        $totalEvents = 0
         $sliceFailures = @()
-        $events = [System.Collections.Generic.List[object]]::new()
 
-        $nowUtc = (Get-Date).ToUniversalTime()
-        for ($d = 0; $d -lt $SignInLogsDays; $d++) {
-            $sliceEnd   = $nowUtc.AddDays(-$d).ToString('yyyy-MM-ddTHH:mm:ssZ')
-            $sliceStart = $nowUtc.AddDays(-($d + 1)).ToString('yyyy-MM-ddTHH:mm:ssZ')
-            $sliceFilter = [uri]::EscapeDataString("createdDateTime ge $sliceStart and createdDateTime lt $sliceEnd")
-            $sliceUri = "https://graph.microsoft.com/beta/auditLogs/signIns?`$filter=$sliceFilter&`$top=999"
-            Update-CrawlerProgress -Detail "Fetching day slice $($d + 1)/${SignInLogsDays}: $sliceStart..$sliceEnd"
-            try {
-                $sliceEvents = Invoke-FGGetRequest -URI $sliceUri
-                if ($sliceEvents) {
-                    foreach ($ev in $sliceEvents) { $events.Add($ev) }
-                }
-                Write-Host "  Slice $($d + 1)/$SignInLogsDays ($sliceStart..$sliceEnd): $(@($sliceEvents).Count) events" -ForegroundColor Gray
-            } catch {
-                # One bad slice (typically an expired skiptoken 400 deep in
-                # pagination) doesn't abort the whole phase — we record it
-                # and keep going. If *every* slice fails, the outer handler
-                # still flags the phase as failed.
-                $msg = $_.Exception.Message
-                Write-Host "  Slice $($d + 1)/$SignInLogsDays failed: $msg" -ForegroundColor Yellow
-                $sliceFailures += "day $($d + 1): $msg"
-            }
-        }
-        Write-Host "  Pulled $($events.Count) events across $SignInLogsDays slices ($(@($sliceFailures).Count) slice failure(s))" -ForegroundColor Gray
-        if ($sliceFailures.Count -gt 0 -and $sliceFailures.Count -eq $SignInLogsDays) {
-            throw "All $SignInLogsDays sign-in log slices failed: $($sliceFailures -join '; ')"
-        }
-        if ($sliceFailures.Count -gt 0) {
-            $script:phaseErrors.Add("SignInLogs: $($sliceFailures.Count) of $SignInLogsDays day slice(s) failed: $($sliceFailures -join '; ')")
-        }
-
-        # Aggregate. Events older than an existing aggregate are skipped;
-        # newer ones win via max(date). Success/failure split comes from
-        # status.errorCode — 0 is a successful sign-in.
-        foreach ($ev in $events) {
-            if (-not $ev.userId -or -not $ev.appId) { $skipped++; continue }
+        # Local function: fold one event into $agg. Pulled out of the loop
+        # to keep the pipeline lambda tight and avoid duplicated logic
+        # between the two phases that need it (currently just this one,
+        # but it would be the easy place to add more granular activity
+        # types later).
+        $foldEvent = {
+            param($ev)
+            if (-not $ev.userId -or -not $ev.appId) { $script:_signin_skipped++; return }
             $spId = $appIdToSpId[$ev.appId]
-            if (-not $spId) { $skipped++; continue }
+            if (-not $spId) { $script:_signin_skipped++; return }
             $key = "$($ev.userId)|$spId"
             $entry = $agg[$key]
             if (-not $entry) {
@@ -1337,7 +1327,49 @@ if ($SyncSignInLogs) {
                 }
             }
         }
+        # $script:_signin_skipped is incremented inside the script block above;
+        # the alternative ($script:skipped) would clash with similarly-named
+        # vars in adjacent phases.
+        $script:_signin_skipped = 0
 
+        $nowUtc = (Get-Date).ToUniversalTime()
+        for ($d = 0; $d -lt $SignInLogsDays; $d++) {
+            $sliceEnd   = $nowUtc.AddDays(-$d).ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $sliceStart = $nowUtc.AddDays(-($d + 1)).ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $sliceFilter = [uri]::EscapeDataString("createdDateTime ge $sliceStart and createdDateTime lt $sliceEnd")
+            $sliceUri = "https://graph.microsoft.com/beta/auditLogs/signIns?`$filter=$sliceFilter&`$top=999"
+            Update-CrawlerProgress -Detail "Fetching day slice $($d + 1)/${SignInLogsDays}: $sliceStart..$sliceEnd"
+            $sliceCount = 0
+            try {
+                # IMPORTANT: pipe directly into ForEach-Object so each Graph
+                # page can be GC'd as soon as it's aggregated. Assigning the
+                # result to a variable first would buffer the whole slice
+                # and defeat the streaming.
+                Invoke-FGGetRequestStream -URI $sliceUri | ForEach-Object {
+                    & $foldEvent $_
+                    $sliceCount++
+                }
+                $totalEvents += $sliceCount
+                Write-Host "  Slice $($d + 1)/$SignInLogsDays ($sliceStart..$sliceEnd): $sliceCount events" -ForegroundColor Gray
+            } catch {
+                # One bad slice (typically an expired skiptoken 400 deep in
+                # pagination) doesn't abort the whole phase — we record it
+                # and keep going. If *every* slice fails, the outer handler
+                # still flags the phase as failed.
+                $msg = $_.Exception.Message
+                Write-Host "  Slice $($d + 1)/$SignInLogsDays failed: $msg" -ForegroundColor Yellow
+                $sliceFailures += "day $($d + 1): $msg"
+            }
+        }
+        Write-Host "  Pulled $totalEvents events across $SignInLogsDays slices ($(@($sliceFailures).Count) slice failure(s))" -ForegroundColor Gray
+        if ($sliceFailures.Count -gt 0 -and $sliceFailures.Count -eq $SignInLogsDays) {
+            throw "All $SignInLogsDays sign-in log slices failed: $($sliceFailures -join '; ')"
+        }
+        if ($sliceFailures.Count -gt 0) {
+            $script:phaseErrors.Add("SignInLogs: $($sliceFailures.Count) of $SignInLogsDays day slice(s) failed: $($sliceFailures -join '; ')")
+        }
+
+        $skipped = $script:_signin_skipped
         if ($skipped -gt 0) {
             Write-Host "  Skipped $skipped events (missing userId/appId, or app not synced yet)" -ForegroundColor Gray
         }
@@ -1676,26 +1708,31 @@ if ($SyncGovernance) {
             # and 999 per page consistently produces 504 Gateway Timeout
             # after the first few pages. 500 halves the per-page work and
             # has empirically survived where 999 didn't.
-            $assignments = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=500"
-
-            # Deduplicate by (resourceId, principalId) — keep the most recent active assignment.
-            # Graph can return multiple assignments per user/AP (delivered, expired, removed, etc.)
+            #
+            # Memory: stream pages and dedup on the fly. The previous
+            # Invoke-FGGetRequest version buffered the full paginated
+            # result (with expanded target+accessPackage objects per row),
+            # which OOM-killed the worker on tenants with thousands of
+            # access-package assignments. The dedup hashtable contains
+            # ONE entry per (apId, principalId) pair, far smaller than the
+            # raw assignment list.
+            $assignRecords = [System.Collections.Generic.List[hashtable]]::new()
             $seenKeys = @{}
-            $assignRecords = @()
-            foreach ($a in $assignments) {
+            Invoke-FGGetRequestStream -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=500" | ForEach-Object {
+                $a = $_
                 $apId = if ($a.accessPackage) { $a.accessPackage.id } else { $null }
                 $targetId = if ($a.target) { $a.target.objectId } else { $null }
-                if (-not $apId -or -not $targetId) { continue }
+                if (-not $apId -or -not $targetId) { return }
 
                 $state = $a.assignmentState
                 # Skip non-active states (Expired, Removed, Denied)
-                if ($state -and $state -notin @('Delivered','PendingApproval','Active')) { continue }
+                if ($state -and $state -notin @('Delivered','PendingApproval','Active')) { return }
 
                 $key = "$apId|$targetId"
-                if ($seenKeys.ContainsKey($key)) { continue }
+                if ($seenKeys.ContainsKey($key)) { return }
                 $seenKeys[$key] = $true
 
-                $assignRecords += @{
+                $assignRecords.Add(@{
                     resourceId         = $apId
                     principalId        = $targetId
                     principalType      = 'User'
@@ -1703,8 +1740,11 @@ if ($SyncGovernance) {
                     state              = $state
                     assignmentStatus   = $a.assignmentStatus
                     expirationDateTime = $a.expiredDateTime
-                }
+                })
             }
+            # Convert to array for Send-IngestBatch (downstream code uses
+            # .Count and indexed access).
+            $assignRecords = @($assignRecords)
 
             if ($assignRecords.Count -gt 0) {
                 Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
@@ -2123,6 +2163,310 @@ if ($SyncOAuth2Grants) {
     $__oauthErr = $script:phaseErrors | Where-Object { $_.StartsWith('OAuth2Grants:') } | Select-Object -Last 1
     $__oauthErrMsg = if ($__oauthErr) { $__oauthErr.Substring('OAuth2Grants:'.Length).Trim() } else { $null }
     Write-Phase -Name 'OAuth2Grants' -Duration $__phaseSW.Elapsed -ErrorMsg $__oauthErrMsg
+}
+
+# ─── Sync App Role Assignments ───────────────────────────────────
+# For each enterprise application (servicePrincipal), pull the appRoles[]
+# catalog and the assignments to users/groups. Modelled as:
+#
+#     Resources(Application)          <-- the enterprise app (SP)
+#       └─ ResourceRelationships(HasAppRole)
+#            └─ Resources(AppRole)    <-- synthetic per (SP, appRoleId)
+#                 └─ ResourceAssignments(AppRole | AppRoleViaGroup)
+#
+# Group-typed assignments are expanded server-side from /transitiveMembers,
+# emitted as `AppRoleViaGroup` rows per member so the matrix can show
+# indirect access without a recursive matview. ServicePrincipal-typed
+# assignments are skipped — the data model doesn't support SP-as-principal
+# yet, and they're rare.
+#
+# Resource IDs are deterministic over (spId, appRoleId) so re-runs
+# idempotently overwrite the same rows. A distinct relationshipType
+# ('HasAppRole' not 'Contains') prevents the scoped full-sync delete
+# from wiping out Access Package 'Contains' relationships.
+if ($SyncAppRoles) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing app role assignments..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing app role assignments' -Pct 74 -Detail 'Fetching enterprise apps from Microsoft Graph...'
+
+    # Deterministic UUID v3-style over MD5 — same approach as the OAuth2
+    # scope IDs. Mirrors normalizeRecords in app/api/src/ingest/normalization.js.
+    function New-AppRoleResourceId {
+        param([string]$SpId, [string]$AppRoleId)
+        $seed = "entraid-approle:${SpId}:${AppRoleId}"
+        $md5 = [System.Security.Cryptography.MD5]::Create()
+        try {
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
+            $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
+        } finally {
+            $md5.Dispose()
+        }
+        return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+    }
+
+    $DEFAULT_ROLE_ID = '00000000-0000-0000-0000-000000000000'
+
+    try {
+        # Enumerate all SPs and keep the ones that look like enterprise apps:
+        # they either define appRoles[] or require role assignment to use.
+        # Graph's /servicePrincipals can return tens of thousands of rows on a
+        # large tenant; the $select keeps payload size small.
+        $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,appRoles,appRoleAssignmentRequired,servicePrincipalType,tags&`$top=999"
+        $allSps = @($sps)
+        Write-Host "  Fetched $($allSps.Count) service principals" -ForegroundColor Gray
+
+        $candidateSps = @($allSps | Where-Object {
+            ($_.appRoles -and @($_.appRoles).Count -gt 0) -or $_.appRoleAssignmentRequired
+        })
+        Write-Host "  $($candidateSps.Count) enterprise apps with role catalogs / required assignment" -ForegroundColor Gray
+
+        # Buckets accumulated across all SPs, then uploaded in one batch each.
+        $appResourceMap   = @{}   # spId        -> Application Resource record
+        $appRoleMap       = @{}   # roleResId   -> AppRole Resource record
+        $relMap           = @{}   # "spId|roleResId" -> relationship record
+        $directAssns      = [System.Collections.Generic.List[object]]::new()
+        $groupAssns       = @{}   # groupId -> list of { roleResId, roleId, sourceAssignmentId }
+
+        $spProcessed = 0
+        foreach ($sp in $candidateSps) {
+            $spProcessed++
+            if (($spProcessed % 25) -eq 0) {
+                Update-CrawlerProgress -Detail "Inspecting app $spProcessed of $($candidateSps.Count)..."
+            }
+
+            # Build a role catalog. Always include the "default access" role —
+            # for SPs configured with appRoleAssignmentRequired=true but no
+            # custom roles, assignments fall back to the zero-GUID role id.
+            $rolesByGuid = @{}
+            foreach ($role in @($sp.appRoles)) {
+                if ($role -and $role.id) { $rolesByGuid[$role.id] = $role }
+            }
+            if (-not $rolesByGuid.ContainsKey($DEFAULT_ROLE_ID)) {
+                $rolesByGuid[$DEFAULT_ROLE_ID] = [PSCustomObject]@{
+                    id          = $DEFAULT_ROLE_ID
+                    displayName = 'Default Access'
+                    value       = $null
+                    description = 'No specific role defined; basic access to the application.'
+                }
+            }
+
+            # Fetch assignments. SPs without any assignments still emit
+            # Application + AppRole Resources so the catalog is browseable.
+            $assignments = @()
+            try {
+                $assignments = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/$($sp.id)/appRoleAssignedTo?`$top=999")
+            } catch {
+                Write-Host "    /appRoleAssignedTo failed for $($sp.displayName): $($_.Exception.Message)" -ForegroundColor DarkYellow
+                continue
+            }
+
+            if ($assignments.Count -eq 0) { continue }
+
+            # Emit Application Resource (idempotent — OAuth2 phase may already
+            # have written this same record, but the ingest endpoint upserts).
+            if (-not $appResourceMap.ContainsKey($sp.id)) {
+                $rec = @{
+                    id           = $sp.id
+                    displayName  = $sp.displayName
+                    resourceType = 'Application'
+                    enabled      = $true
+                }
+                $ext = @{}
+                if ($sp.appId)                      { $ext['appId']                      = $sp.appId }
+                if ($sp.appRoleAssignmentRequired)  { $ext['appRoleAssignmentRequired']  = $true }
+                if ($sp.servicePrincipalType)       { $ext['servicePrincipalType']       = $sp.servicePrincipalType }
+                if ($ext.Count -gt 0)               { $rec['extendedAttributes']         = $ext }
+                $appResourceMap[$sp.id] = $rec
+            }
+
+            foreach ($a in $assignments) {
+                $roleId = $a.appRoleId
+                if (-not $roleId) { $roleId = $DEFAULT_ROLE_ID }
+                if (-not $rolesByGuid.ContainsKey($roleId)) {
+                    # Role not in the SP's catalog (rare — usually means a
+                    # custom role was added/removed between calls). Synth a
+                    # placeholder so the assignment still has a target.
+                    $rolesByGuid[$roleId] = [PSCustomObject]@{
+                        id          = $roleId
+                        displayName = "Role $roleId"
+                        value       = $null
+                    }
+                }
+                $role = $rolesByGuid[$roleId]
+                $roleResId = New-AppRoleResourceId -SpId $sp.id -AppRoleId $roleId
+
+                if (-not $appRoleMap.ContainsKey($roleResId)) {
+                    $roleName = if ($role.displayName) { $role.displayName } else { 'Default Access' }
+                    $appRoleMap[$roleResId] = @{
+                        id           = $roleResId
+                        displayName  = "$roleName on $($sp.displayName)"
+                        resourceType = 'AppRole'
+                        enabled      = $true
+                        extendedAttributes = @{
+                            applicationSpId        = $sp.id
+                            applicationDisplayName = $sp.displayName
+                            appRoleId              = $roleId
+                            appRoleDisplayName     = $roleName
+                            appRoleValue           = $role.value
+                        }
+                    }
+                    $relKey = "$($sp.id)|$roleResId"
+                    if (-not $relMap.ContainsKey($relKey)) {
+                        $relMap[$relKey] = @{
+                            parentResourceId = $sp.id
+                            childResourceId  = $roleResId
+                            relationshipType = 'HasAppRole'
+                            roleName         = $roleName
+                            roleOriginSystem = 'EntraID'
+                        }
+                    }
+                }
+
+                switch ($a.principalType) {
+                    'User' {
+                        $directAssns.Add(@{
+                            resourceId     = $roleResId
+                            principalId    = $a.principalId
+                            principalType  = 'User'
+                            assignmentType = 'AppRole'
+                            extendedAttributes = @{
+                                appRoleAssignmentId = $a.id
+                                appRoleId           = $roleId
+                                createdDateTime     = $a.createdDateTime
+                                resourceDisplayName = $sp.displayName
+                            }
+                        })
+                    }
+                    'Group' {
+                        if (-not $groupAssns.ContainsKey($a.principalId)) {
+                            $groupAssns[$a.principalId] = [System.Collections.Generic.List[object]]::new()
+                        }
+                        $groupAssns[$a.principalId].Add(@{
+                            roleResId          = $roleResId
+                            roleId             = $roleId
+                            sourceAssignmentId = $a.id
+                            appName            = $sp.displayName
+                        })
+                        # Also store the group→AppRole edge itself (principal=group)
+                        # so the matrix's "expand group" feature can fan out the
+                        # app roles a group grants to its members. The matrix grid
+                        # itself filters out group-typed principals via its
+                        # INNER JOIN to Principals, so this row only surfaces in
+                        # the nested-groups expand — not as a stray column.
+                        $directAssns.Add(@{
+                            resourceId     = $roleResId
+                            principalId    = $a.principalId
+                            principalType  = 'Group'
+                            assignmentType = 'AppRole'
+                            extendedAttributes = @{
+                                appRoleAssignmentId = $a.id
+                                appRoleId           = $roleId
+                                createdDateTime     = $a.createdDateTime
+                                resourceDisplayName = $sp.displayName
+                            }
+                        })
+                    }
+                    default {
+                        # ServicePrincipal or other — skip for v1.
+                    }
+                }
+            }
+        }
+
+        # Expand group-typed assignments to per-user AppRoleViaGroup rows.
+        # One /transitiveMembers call per unique group resolves nested groups
+        # for free. Members of type Group are themselves expanded by Graph.
+        $indirectAssns = [System.Collections.Generic.List[object]]::new()
+        $groupCount = $groupAssns.Keys.Count
+        if ($groupCount -gt 0) {
+            Update-CrawlerProgress -Detail "Expanding $groupCount group(s) to per-user rows..."
+            Write-Host "  Expanding $groupCount group-typed assignment(s) via /transitiveMembers" -ForegroundColor Gray
+        }
+        foreach ($groupId in $groupAssns.Keys) {
+            try {
+                $members = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/groups/$groupId/transitiveMembers?`$select=id&`$top=999")
+            } catch {
+                Write-Host "    /transitiveMembers failed for group $groupId : $($_.Exception.Message)" -ForegroundColor DarkYellow
+                continue
+            }
+            $userIds = @($members |
+                Where-Object { $_.'@odata.type' -eq '#microsoft.graph.user' } |
+                ForEach-Object { $_.id })
+            foreach ($roleAssn in $groupAssns[$groupId]) {
+                foreach ($uid in $userIds) {
+                    $indirectAssns.Add(@{
+                        resourceId     = $roleAssn.roleResId
+                        principalId    = $uid
+                        principalType  = 'User'
+                        assignmentType = 'AppRoleViaGroup'
+                        extendedAttributes = @{
+                            viaGroupId          = $groupId
+                            appRoleId           = $roleAssn.roleId
+                            sourceAssignmentId  = $roleAssn.sourceAssignmentId
+                            resourceDisplayName = $roleAssn.appName
+                        }
+                    })
+                }
+            }
+        }
+
+        # Dedupe on PK (resourceId, principalId, assignmentType). Within a
+        # single sync the same (user, role) can arrive twice if the user
+        # belongs to two groups both assigned the same role.
+        $seenDirect = @{}
+        $directRecords = @($directAssns | Where-Object {
+            $k = "$($_.resourceId)|$($_.principalId)"
+            if ($seenDirect.ContainsKey($k)) { $false } else { $seenDirect[$k] = $true; $true }
+        })
+        $seenIndirect = @{}
+        $indirectRecords = @($indirectAssns | Where-Object {
+            $k = "$($_.resourceId)|$($_.principalId)"
+            if ($seenIndirect.ContainsKey($k)) { $false } else { $seenIndirect[$k] = $true; $true }
+        })
+
+        # Upload. The Application records get the existing 'Application' scope
+        # so they merge cleanly with anything the OAuth2 phase wrote.
+        $appRecords  = @($appResourceMap.Values)
+        $roleRecords = @($appRoleMap.Values)
+        $relRecords  = @($relMap.Values)
+
+        Write-Host "  Apps: $($appRecords.Count) · App roles: $($roleRecords.Count) · Direct: $($directRecords.Count) · ViaGroup: $($indirectRecords.Count)" -ForegroundColor Gray
+
+        if ($appRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($appRecords.Count) enterprise apps..."
+            Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ resourceType = 'Application' } -Records $appRecords
+        }
+        if ($roleRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($roleRecords.Count) app roles..."
+            Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ resourceType = 'AppRole' } -Records $roleRecords
+        }
+        if ($relRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($relRecords.Count) app→role relationships..."
+            Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ relationshipType = 'HasAppRole' } -Records $relRecords
+        }
+        if ($directRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($directRecords.Count) direct app-role assignments..."
+            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ assignmentType = 'AppRole' } -Records $directRecords
+        }
+        if ($indirectRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($indirectRecords.Count) indirect (via-group) app-role assignments..."
+            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ assignmentType = 'AppRoleViaGroup' } -Records $indirectRecords
+        }
+    }
+    catch {
+        Write-Host "  App role sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("AppRoles: $($_.Exception.Message)")
+        Write-Host "  (Requires Application.Read.All on the app registration.)" -ForegroundColor Yellow
+    }
+    $__phaseSW.Stop(); $phaseTimings['AppRoles'] = $__phaseSW.Elapsed
+    $__appRoleErr = $script:phaseErrors | Where-Object { $_.StartsWith('AppRoles:') } | Select-Object -Last 1
+    $__appRoleErrMsg = if ($__appRoleErr) { $__appRoleErr.Substring('AppRoles:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'AppRoles' -Duration $__phaseSW.Elapsed -ErrorMsg $__appRoleErrMsg
 }
 
 # ─── Refresh Views ───────────────────────────────────────────────

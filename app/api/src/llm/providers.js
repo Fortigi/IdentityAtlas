@@ -23,6 +23,23 @@
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0.3;
 
+// Allowlist: Azure OpenAI endpoints must match the official hostname pattern.
+// Covers Azure Public (.com), US Government (.us), and China (.cn) clouds.
+const AZURE_OPENAI_HOST_RE = /^[a-z0-9-]+\.openai\.azure\.(com|us|cn)$/i;
+
+function validateAzureEndpoint(endpoint) {
+  if (!endpoint || typeof endpoint !== 'string') throw new Error('azure-openai: endpoint is required');
+  let parsed;
+  try { parsed = new URL(endpoint); } catch { throw new Error('azure-openai: invalid endpoint URL'); }
+  if (parsed.protocol !== 'https:') throw new Error('azure-openai: endpoint must use HTTPS');
+  if (parsed.username || parsed.password) throw new Error('azure-openai: endpoint must not include credentials');
+  if (parsed.port) throw new Error('azure-openai: endpoint must not include an explicit port');
+  if (parsed.search || parsed.hash) throw new Error('azure-openai: endpoint must not include query string or fragment');
+  if (!AZURE_OPENAI_HOST_RE.test(parsed.hostname)) throw new Error('azure-openai: endpoint must be an Azure OpenAI host (*.openai.azure.com / .us / .cn)');
+  return parsed;
+}
+
+
 const DEFAULT_MODELS = {
   anthropic: 'claude-sonnet-4-20250514',
   openai: 'gpt-4o',
@@ -105,12 +122,14 @@ async function chatOpenAI({ apiKey, model, system, messages, temperature, maxTok
 
 // ─── Azure OpenAI ───────────────────────────────────────────────────
 async function chatAzureOpenAI({ apiKey, model, system, messages, temperature, maxTokens, endpoint, deployment, apiVersion }) {
-  if (!endpoint) throw new Error('azure-openai: endpoint is required');
+  const baseUrl = validateAzureEndpoint(endpoint);
   const dep = deployment || model;
   if (!dep) throw new Error('azure-openai: deployment is required (model field)');
   const ver = apiVersion || '2024-08-01-preview';
-  const cleanEndpoint = endpoint.replace(/\/+$/, '');
-  const url = `${cleanEndpoint}/openai/deployments/${encodeURIComponent(dep)}/chat/completions?api-version=${encodeURIComponent(ver)}`;
+  // Construct from the validated parsed URL's origin so static analysis can
+  // see the host comes from the allowlist-checked value, not raw user input.
+  const requestUrl = new URL(`/openai/deployments/${encodeURIComponent(dep)}/chat/completions`, baseUrl.origin);
+  requestUrl.searchParams.set('api-version', ver);
   const fullMessages = [
     { role: 'system', content: system },
     ...messages.map(m => ({ role: m.role, content: m.content })),
@@ -120,7 +139,7 @@ async function chatAzureOpenAI({ apiKey, model, system, messages, temperature, m
     temperature: temperature ?? DEFAULT_TEMPERATURE,
     messages: fullMessages,
   };
-  const r = await fetch(url, {
+  const r = await fetch(requestUrl.href, {
     method: 'POST',
     headers: {
       'api-key': apiKey,
@@ -309,11 +328,11 @@ async function listModelsOpenAI({ apiKey }) {
 }
 
 async function listModelsAzureOpenAI({ apiKey, endpoint, apiVersion }) {
-  if (!endpoint) throw new Error('azure-openai: endpoint is required');
+  const baseUrl = validateAzureEndpoint(endpoint);
   const ver = apiVersion || '2024-08-01-preview';
-  const clean = endpoint.replace(/\/+$/, '');
-  const url = `${clean}/openai/deployments?api-version=${encodeURIComponent(ver)}`;
-  const r = await fetch(url, { headers: { 'api-key': apiKey } });
+  const requestUrl = new URL('/openai/deployments', baseUrl.origin);
+  requestUrl.searchParams.set('api-version', ver);
+  const r = await fetch(requestUrl.href, { headers: { 'api-key': apiKey } });
   if (!r.ok) {
     const err = await r.text().catch(() => '');
     throw new Error(`Azure OpenAI deployments API error ${r.status}: ${err.slice(0, 300)}`);

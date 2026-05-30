@@ -251,7 +251,13 @@ describe('validateRecords — resource-assignments', () => {
   });
 
   it('accepts all valid assignmentType values', () => {
-    for (const t of ['Direct', 'Indirect', 'Eligible', 'Owner', 'Governed']) {
+    // Keep this in sync with ASSIGNMENT_TYPES in validation.js.
+    // Order matters only for human readability; the underlying check is set-membership.
+    const allTypes = [
+      'Direct', 'Indirect', 'Eligible', 'Owner', 'Governed',
+      'OAuth2Grant', 'AppRole', 'AppRoleViaGroup',
+    ];
+    for (const t of allTypes) {
       const result = validateRecords([{ ...validAssignment, assignmentType: t }], 'resource-assignments');
       expect(result.valid, `Expected valid for assignmentType=${t}`).toBe(true);
     }
@@ -281,7 +287,9 @@ describe('validateRecords — resource-relationships', () => {
   });
 
   it('accepts all valid relationshipType values', () => {
-    for (const t of ['Contains', 'GrantsAccessTo']) {
+    // Keep this in sync with RELATIONSHIP_TYPES in validation.js.
+    const allTypes = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole'];
+    for (const t of allTypes) {
       const result = validateRecords([{ ...validRel, relationshipType: t }], 'resource-relationships');
       expect(result.valid, `Expected valid for relationshipType=${t}`).toBe(true);
     }

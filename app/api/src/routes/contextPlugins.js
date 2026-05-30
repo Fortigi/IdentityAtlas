@@ -52,11 +52,14 @@ router.post('/context-plugins/:name/dry-run', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const plugin = getPlugin(req.params.name);
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' });
+  // Use the validated name from the registry, not the raw URL param, to avoid
+  // log injection / tainted-format-string issues.
+  const pluginName = plugin.name;
   try {
-    const out = await dryRun(plugin.name, req.body || {});
+    const out = await dryRun(pluginName, req.body || {});
     res.json(out);
   } catch (err) {
-    console.error(`POST /context-plugins/${req.params.name}/dry-run failed:`, err.message);
+    console.error(`POST /context-plugins/${pluginName}/dry-run failed:`, err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -66,12 +69,13 @@ router.post('/context-plugins/:name/run', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const plugin = getPlugin(req.params.name);
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' });
+  const pluginName = plugin.name;
   const triggeredBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'unknown';
   try {
-    const runId = await enqueueRun(plugin.name, req.body || {}, triggeredBy);
+    const runId = await enqueueRun(pluginName, req.body || {}, triggeredBy);
     res.status(202).json({ runId, status: 'queued' });
   } catch (err) {
-    console.error(`POST /context-plugins/${req.params.name}/run failed:`, err.message);
+    console.error(`POST /context-plugins/${pluginName}/run failed:`, err.message);
     res.status(400).json({ error: err.message });
   }
 });

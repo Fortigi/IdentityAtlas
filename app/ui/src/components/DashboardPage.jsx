@@ -1,4 +1,4 @@
-// Identity Atlas — Dashboard / landing page.
+﻿// Identity Atlas — Dashboard / landing page.
 //
 // One-shot overview showing:
 //   - A brain-like SVG force-graph that echoes the logo
@@ -11,9 +11,13 @@
 // When no data has been loaded yet, the central call-to-action becomes
 // "Configure a crawler" pointing at Admin → Crawlers.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { useIsDark } from '../contexts/ThemeContext';
+
+// Lazy-load Trends — keeps the dashboard's first paint cheap (chart code +
+// data hook are only needed when the user clicks the tab).
+const DashboardTrendsTab = lazy(() => import('./DashboardTrendsTab'));
 
 const GITHUB_BASE = 'https://github.com/Fortigi/IdentityAtlas';
 const DOCS_URL = 'https://fortigi.github.io/IdentityAtlas';
@@ -61,6 +65,7 @@ export default function DashboardPage({ onNavigate }) {
   const [stats, setStats] = useState(null);
   const [version, setVersion] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('overview');  // 'overview' | 'trends'
 
   useEffect(() => {
     let cancelled = false;
@@ -84,9 +89,9 @@ export default function DashboardPage({ onNavigate }) {
         {/* Header with big logo */}
         <div className="mb-10 flex flex-col sm:flex-row items-center sm:items-end gap-6">
           <img
-            src="/logo.png"
+            src={isDark ? '/logo-dark.png' : '/logo.png'}
             alt="Identity Atlas"
-            className="w-40 h-40 sm:w-48 sm:h-48 flex-shrink-0 drop-shadow-[0_0_35px_rgba(132,204,22,0.3)] dark:brightness-90 dark:drop-shadow-[0_0_20px_rgba(132,204,22,0.15)]"
+            className="w-40 h-40 sm:w-48 sm:h-48 flex-shrink-0 drop-shadow-[0_0_35px_rgba(132,204,22,0.3)]"
           />
           <div className="flex-1 pb-4 text-center sm:text-left">
             <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed max-w-xl">
@@ -95,6 +100,43 @@ export default function DashboardPage({ onNavigate }) {
             </p>
           </div>
         </div>
+
+      {/* Tab strip. role="tablist" not <nav> — tabs are an internal control,
+          not site navigation, and adding a second <nav> trips strict-mode
+          selectors on existing tests that scope by `locator('nav')`. */}
+      <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+        <div role="tablist" aria-label="Dashboard sections" className="-mb-px flex gap-6">
+          {[
+            { key: 'overview', label: 'Overview' },
+            { key: 'trends',   label: 'Trends' },
+          ].map(t => {
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(t.key)}
+                className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
+                  active
+                    ? 'border-lime-500 text-lime-700 dark:text-lime-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {tab === 'trends' && (
+        <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 py-12 text-center">Loading…</div>}>
+          <DashboardTrendsTab />
+        </Suspense>
+      )}
+
+      {tab === 'overview' && (<>
 
       {/* Compose file outdated warning */}
       {version?.composeFileOutdated && (
@@ -129,7 +171,7 @@ export default function DashboardPage({ onNavigate }) {
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xs font-bold text-lime-700 uppercase tracking-widest">Loaded data</h2>
             {hasData && (
-              <span className="text-xs text-gray-400 dark:text-gray-500">
+              <span className="text-xs text-gray-600 dark:text-gray-500">
                 Last sync <span className="text-gray-700 dark:text-gray-300">{formatRelativeTime(stats.lastSyncAt)}</span>
               </span>
             )}
@@ -152,7 +194,7 @@ export default function DashboardPage({ onNavigate }) {
                 <StatCard label="Relationships"    value={stats.relationships}  />
                 <StatCard label="Identity Members" value={stats.identityMembers} onClick={() => onNavigate?.('identities')} />
               </div>
-              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500 text-right">
+              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-500 text-right">
                 <button
                   onClick={() => onNavigate?.('sync-log')}
                   className="hover:text-lime-700 hover:underline transition-colors"
@@ -247,12 +289,13 @@ export default function DashboardPage({ onNavigate }) {
       </div>
 
       {/* Footer */}
-      <div className="text-center text-xs text-gray-400 dark:text-gray-500 pb-6">
+      <div className="text-center text-xs text-gray-600 dark:text-gray-500 pb-6">
         Created by{' '}
         <a href="https://www.fortigi.nl" target="_blank" rel="noopener noreferrer" className="hover:underline text-gray-500 dark:text-gray-400 hover:text-lime-700 transition-colors">
           Maatschap Fortigi
         </a>
       </div>
+      </>)}
       </div>
     </div>
   );
@@ -273,10 +316,10 @@ function StatCard({ label, value, onClick }) {
             : 'bg-gradient-to-br from-lime-50 to-white dark:from-lime-900/25 dark:to-gray-800 ring-1 ring-lime-200 dark:ring-lime-700/50'
       }`}
     >
-      <div className={`text-2xl font-bold tabular-nums ${empty ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+      <div className={`text-2xl font-bold tabular-nums ${empty ? 'text-gray-600 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
         {formatNumber(value)}
       </div>
-      <div className={`text-xs mt-0.5 font-medium ${empty ? 'text-gray-400 dark:text-gray-500' : 'text-lime-700'}`}>
+      <div className={`text-xs mt-0.5 font-medium ${empty ? 'text-gray-600 dark:text-gray-500' : 'text-lime-700'}`}>
         {label}
       </div>
     </div>
@@ -325,7 +368,7 @@ function NoDataState({ onNavigate }) {
       >
         Configure a crawler →
       </button>
-      <div className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+      <div className="mt-3 text-xs text-gray-600 dark:text-gray-500">
         Connect Entra ID, upload CSV exports, or click "Load Demo Data" in Admin → Crawlers.
       </div>
     </div>

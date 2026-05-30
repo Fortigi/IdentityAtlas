@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 
 function formatRelativeTime(dateStr) {
@@ -122,7 +122,7 @@ export default function SystemsPage() {
                     <span>
                       <span className="font-medium text-gray-900 dark:text-white">{(sys.assignmentCount || 0).toLocaleString()}</span> Assignments
                     </span>
-                    <span className="ml-auto text-gray-400 dark:text-gray-500">
+                    <span className="ml-auto text-gray-600 dark:text-gray-500">
                       Last sync: {formatRelativeTime(sys.lastSyncTime)}
                     </span>
                   </div>
@@ -193,7 +193,7 @@ export default function SystemsPage() {
                     )}
 
                     {sys.createdAt && (
-                      <div className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+                      <div className="mt-3 text-xs text-gray-600 dark:text-gray-500">
                         Created: {new Date(sys.createdAt).toLocaleString()}
                         {sys.updatedAt && ` | Updated: ${new Date(sys.updatedAt).toLocaleString()}`}
                       </div>

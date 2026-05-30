@@ -26,7 +26,6 @@ const useSql = process.env.USE_SQL === 'true';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VARIANTS = new Set(['synced', 'generated', 'manual']);
 const TARGET_TYPES = new Set(['Identity', 'Resource', 'Principal', 'System']);
-const ADDED_BY = new Set(['sync', 'algorithm', 'analyst']);
 
 // Map targetType → the table name where memberIds live. Used to filter the
 // member list to live rows only (stale member rows are left to a background

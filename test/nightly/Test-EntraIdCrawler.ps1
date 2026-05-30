@@ -685,13 +685,77 @@ foreach ($scenario in $Scenarios) {
                         Report-Result 'EntraID/Full-Sync/PimEndpoint' $false $_.Exception.Message
                     }
 
-                    # NOTE: `directoryRoles` and `appsAppRoles` are listed in
-                    # ENTRA_OBJECT_TYPES and we enable them above so the
-                    # crawler's wiring is exercised, but Start-EntraIDCrawler
-                    # does not currently emit rows for them (April 2026 —
-                    # crawler docstring claims it does, but the code path
-                    # isn't there yet). Add count assertions here once the
-                    # crawler writes those resource types.
+                    # App roles — the crawler now imports enterprise apps +
+                    # their appRoles[] catalog + assignments. Demo tenants may
+                    # legitimately have zero enterprise apps, so MinExpected=0
+                    # just confirms the endpoint responds and the schema is
+                    # right. If any AppRole rows do exist, the matrix view
+                    # invariant below ensures their badge collapses cleanly.
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/AppRoles'         -Path '/resources?resourceType=AppRole&limit=1'              -MinExpected 0
+
+                    # NOTE: `directoryRoles` is still a stub in
+                    # Start-EntraIDCrawler.ps1 — the wizard surfaces the
+                    # checkbox but no phase emits rows. Remove this note when
+                    # the directoryRoles phase ships.
+
+                    # Dashboard timeseries endpoint — backs the Trends tab on
+                    # the dashboard. The scheduler writes a snapshot row once
+                    # per UTC day; on a fresh CI run the snapshot may or may
+                    # not have fired yet, so we only verify the endpoint
+                    # responds with the expected `{days, data}` shape.
+                    try {
+                        $ts = Invoke-LocalApi -Path '/admin/dashboard-timeseries?days=30'
+                        if ($null -ne $ts.days -and $null -ne $ts.data) {
+                            Report-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $true "days=$($ts.days) rows=$(@($ts.data).Count)"
+                        } else {
+                            Report-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $false 'response missing days or data fields'
+                        }
+                    } catch {
+                        Report-Result 'EntraID/Full-Sync/DashboardTimeseriesEndpoint' $false $_.Exception.Message
+                    }
+
+                    # /identities/by-user smoke — the secondary query in this
+                    # endpoint silently 500'd for months in 2026 because of
+                    # stale column names (userId / userPrincipalName on
+                    # IdentityMembers — those columns don't exist). The UI
+                    # showed "Identity 0" on user detail pages. A 500 here
+                    # would catch the regression even when the data shape is
+                    # otherwise plausible.
+                    try {
+                        $page = Invoke-LocalApi -Path '/identities?pageSize=1'
+                        if ($page.data -and @($page.data).Count -gt 0) {
+                            $principalId = $page.data[0].primaryAccountId
+                            if ($principalId) {
+                                Invoke-LocalApi -Path "/identities/by-user/$principalId" | Out-Null
+                                Report-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $true 'by-user returned 200'
+                            } else {
+                                Report-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $true 'no primaryAccountId on first identity — skipped'
+                            }
+                        } else {
+                            Report-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $true 'no identities in this run — skipped'
+                        }
+                    } catch {
+                        Report-Result 'EntraID/Full-Sync/IdentityByUserEndpoint' $false $_.Exception.Message
+                    }
+
+                    # Matrix badge invariant — after migration 025, the matrix
+                    # matview's membershipType column can only return
+                    # D / I / O / E. Any leakage (Governed, OAuth2Grant,
+                    # AppRole, AppRoleViaGroup) means the CASE expression is
+                    # broken — every cell in the UI would render wrong.
+                    try {
+                        $perm = Invoke-LocalApi -Path '/permissions?userLimit=10'
+                        $allowed = @('Direct', 'Indirect', 'Owner', 'Eligible')
+                        $seen = @($perm.data | ForEach-Object { $_.membershipType } | Where-Object { $_ } | Select-Object -Unique)
+                        $bad = @($seen | Where-Object { $allowed -notcontains $_ })
+                        if ($bad.Count -eq 0) {
+                            Report-Result 'EntraID/Full-Sync/MatrixBadgeInvariant' $true "membershipTypes=$($seen -join ',')"
+                        } else {
+                            Report-Result 'EntraID/Full-Sync/MatrixBadgeInvariant' $false "matview leaked source-attribute types: $($bad -join ',')"
+                        }
+                    } catch {
+                        Report-Result 'EntraID/Full-Sync/MatrixBadgeInvariant' $false $_.Exception.Message
+                    }
 
                     # Deep regression checks. These exist because the naive
                     # "did anything come back" assertion silently passed during

@@ -45,11 +45,10 @@ function createIngestHandler(entityType) {
 
     const recResult = validateRecords(body.records, entityType, body.idGeneration, body.syncMode);
     if (!recResult.valid) {
-      const preview = recResult.errors.slice(0, 5).join(' | ');
-      console.warn(
-        `Ingest validation failed [${entityType}] (${body.syncMode || 'full'} mode): ` +
-        `${recResult.errors.length} record error(s) — first ${Math.min(5, recResult.errors.length)}: ${preview}`
-      );
+      // Both branches are hardcoded literals so syncMode is never tainted (log-injection fix).
+      const syncMode = body.syncMode === 'delta' ? 'delta' : 'full';
+      console.warn(`Ingest record validation failed (${syncMode} mode): ${recResult.errors.length} error(s)`);
+
       return res.status(400).json({ error: 'Record validation failed', details: recResult.errors });
     }
 
@@ -308,7 +307,7 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
     // refresh them before returning so the UI sees the new data. This is
     // also cheaper than a separate /refresh-views call because we've
     // already warmed the tables.
-    let viewRefresh = 'skipped';
+    let viewRefresh;
     try {
       await refreshMatrixViews();
       viewRefresh = 'ok';
@@ -366,18 +365,16 @@ async function refreshMatrixViews() {
     '"vw_ResourceUserPermissionAssignments"',
     '"vw_UserPermissionAssignmentViaBusinessRole"',
   ];
+  // Fetch which matviews are already populated so we can choose CONCURRENTLY
+  // vs plain REFRESH without letting PostgreSQL log an ERROR on first boot.
+  const { rows: populated } = await db.query(
+    `SELECT matviewname FROM pg_matviews WHERE ispopulated = true AND matviewname = ANY($1)`,
+    [views.map(v => v.replace(/"/g, ''))],
+  );
+  const populatedSet = new Set(populated.map(r => r.matviewname));
   for (const v of views) {
-    try {
-      await db.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${v}`);
-    } catch (err) {
-      // First-time refresh on an empty matview fails with "cannot refresh
-      // materialized view ... concurrently" — retry without CONCURRENTLY.
-      if (/concurrently/i.test(err.message)) {
-        await db.query(`REFRESH MATERIALIZED VIEW ${v}`);
-      } else {
-        throw err;
-      }
-    }
+    const concurrently = populatedSet.has(v.replace(/"/g, '')) ? 'CONCURRENTLY' : '';
+    await db.query(`REFRESH MATERIALIZED VIEW ${concurrently} ${v}`);
   }
   // Refresh planner statistics on the matviews and the big base tables.
   // Cheap (milliseconds) and gives dashboard-stats fast reltuples-based
@@ -401,6 +398,58 @@ async function refreshMatrixViews() {
     try { await db.query(`ANALYZE ${t}`); } catch { /* best effort */ }
   }
 }
+
+// ─── Seed default matrix filter ─────────────────────────────────────────────
+// Creates or replaces the org-wide default matrix filter (isDefault = true).
+// Called by Ingest-DemoDataset.ps1 to pre-configure the Matrix tab so new
+// installs with demo data don't require the wizard on first visit.
+
+router.post('/ingest/matrix-default-filter', async (req, res) => {
+  if (!crawlerHasPermission(req, 'admin') && !crawlerHasPermission(req, 'ingest')) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const body = req.body || {};
+  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 200) : 'Default';
+  const description = typeof body.description === 'string' ? body.description.slice(0, 1000) : null;
+  if (!body.filter || typeof body.filter !== 'object') {
+    return res.status(400).json({ error: 'filter is required' });
+  }
+  try {
+    const p = await db.getPool();
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS "SavedMatrixFilters" (
+        "id"          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name"        TEXT NOT NULL,
+        "description" TEXT,
+        "filter"      JSONB NOT NULL,
+        "isDefault"   BOOLEAN NOT NULL DEFAULT false,
+        "createdBy"   TEXT,
+        "createdAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
+        "updatedBy"   TEXT,
+        "updatedAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc')
+      )
+    `);
+    await p.query(`ALTER TABLE "SavedMatrixFilters" ADD COLUMN IF NOT EXISTS "isDefault" BOOLEAN NOT NULL DEFAULT false`);
+    await p.query(`UPDATE "SavedMatrixFilters" SET "isDefault" = false WHERE "isDefault" = true`);
+    await p.query(
+      `INSERT INTO "SavedMatrixFilters" (id, "name", "description", "filter", "isDefault", "createdBy", "updatedBy")
+       VALUES (gen_random_uuid(), $1, $2, $3, true, 'seed', 'seed')
+       ON CONFLICT (LOWER("name")) DO UPDATE
+         SET "filter"      = EXCLUDED."filter",
+             "description" = EXCLUDED."description",
+             "isDefault"   = true,
+             "updatedBy"   = 'seed',
+             "updatedAt"   = (now() AT TIME ZONE 'utc')`,
+      [name, description, body.filter],
+    );
+    const row = await db.queryOne(`SELECT * FROM "SavedMatrixFilters" WHERE "isDefault" = true LIMIT 1`);
+    res.status(201).json(row);
+  } catch (err) {
+    console.error('POST ingest/matrix-default-filter failed:', err.message);
+    res.status(500).json({ error: 'Failed to seed default filter' });
+  }
+});
 
 export { refreshMatrixViews };
 

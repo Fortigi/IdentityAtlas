@@ -1,4 +1,4 @@
-import MatrixCell from './MatrixCell';
+﻿import MatrixCell from './MatrixCell';
 import { getAccessPackageColor } from './MatrixColumnHeaders';
 import { useIsDark } from '../../contexts/ThemeContext';
 
@@ -60,7 +60,7 @@ export default function MatrixGroupRow({
         {...(group.isNestedRow ? {} : (sortableListeners || {}))}
       >
         {!group.isNestedRow && (
-          <span className="text-gray-300 dark:text-gray-600 text-xs select-none">&#x2630;</span>
+          <span className="text-gray-500 dark:text-gray-600 text-xs select-none">&#x2630;</span>
         )}
       </td>
 
@@ -74,7 +74,7 @@ export default function MatrixGroupRow({
           {canExpand && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleExpand?.(realGidForExpand); }}
-              className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+              className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
               title={isExpanded ? 'Collapse nested groups' : 'Expand nested groups'}
             >
               {isLoadingNested ? (
@@ -88,7 +88,7 @@ export default function MatrixGroupRow({
             </button>
           )}
           {group.isNestedRow && (
-            <span className="text-gray-300 dark:text-gray-600 text-[10px] mr-0.5 flex-shrink-0">{'\u2514'}</span>
+            <span className="text-gray-500 dark:text-gray-600 text-[10px] mr-0.5 flex-shrink-0">{'\u2514'}</span>
           )}
           <div className="truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
             onClick={() => onOpenDetail?.('resource', group.realGroupId || group.id, group.displayName)}>
@@ -223,7 +223,7 @@ export default function MatrixGroupRow({
           style={{ minWidth: '40px' }}>
         {memberCount}
       </td>
-      <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-400 dark:text-gray-500 max-w-[500px]"
+      <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-500 max-w-[500px]"
           title={group.description}>
         <div className="truncate">{group.description}</div>
       </td>

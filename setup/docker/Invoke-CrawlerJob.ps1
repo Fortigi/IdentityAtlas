@@ -183,6 +183,7 @@ switch ($JobType) {
                 if ($objects.ContainsKey('pim'))                { $crawlerParams['SyncPim']                 = [bool]$objects['pim'] }
                 if ($objects.ContainsKey('signInLogs'))         { $crawlerParams['SyncSignInLogs']          = [bool]$objects['signInLogs'] }
                 if ($objects.ContainsKey('oauth2Grants'))       { $crawlerParams['SyncOAuth2Grants']        = [bool]$objects['oauth2Grants'] }
+                if ($objects.ContainsKey('appsAppRoles'))       { $crawlerParams['SyncAppRoles']            = [bool]$objects['appsAppRoles'] }
             }
             # Direct sync toggles (backward compat)
             if ($Config.ContainsKey('syncPrincipals'))         { $crawlerParams['SyncPrincipals']         = [bool]$Config['syncPrincipals'] }
@@ -193,6 +194,7 @@ switch ($JobType) {
             if ($Config.ContainsKey('syncSignInLogs'))          { $crawlerParams['SyncSignInLogs']          = [bool]$Config['syncSignInLogs'] }
             if ($Config.ContainsKey('signInLogsDays'))          { $crawlerParams['SignInLogsDays']          = [int]$Config['signInLogsDays'] }
             if ($Config.ContainsKey('syncOAuth2Grants'))        { $crawlerParams['SyncOAuth2Grants']        = [bool]$Config['syncOAuth2Grants'] }
+            if ($Config.ContainsKey('syncAppRoles'))            { $crawlerParams['SyncAppRoles']            = [bool]$Config['syncAppRoles'] }
 
             # Custom attributes — merge identityAttributes into CustomUserAttributes
             # so they're fetched in the same Graph call AND included in identity records

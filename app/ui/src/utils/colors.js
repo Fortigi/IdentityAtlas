@@ -1,6 +1,7 @@
+// WCAG 2.0 AA compliant (≥4.5:1 on white) — Tailwind 700–800 tier
 export const TAG_COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
+  '#1d4ed8', '#047857', '#92400e', '#b91c1c', '#6d28d9',
+  '#be185d', '#0f766e', '#9a3412', '#4338ca', '#3f6212',
 ];
 
 // Light-mode AP pastel palette (15 colors)
@@ -23,8 +24,13 @@ export function getApColor(index, isDark) {
 }
 
 export const TYPE_COLORS = {
-  Direct:   { letter: 'D', bg: '#166534', text: '#fff' },
-  Indirect: { letter: 'I', bg: '#1e40af', text: '#fff' },
-  Eligible: { letter: 'E', bg: '#854d0e', text: '#fff' },
-  Owner:    { letter: 'O', bg: '#9d174d', text: '#fff' },
+  Direct:          { letter: 'D', bg: '#166534', text: '#fff' },
+  Indirect:        { letter: 'I', bg: '#1e40af', text: '#fff' },
+  Eligible:        { letter: 'E', bg: '#854d0e', text: '#fff' },
+  Owner:           { letter: 'O', bg: '#9d174d', text: '#fff' },
+  Governed:        { letter: 'G', bg: '#5b21b6', text: '#fff' },
+  OAuth2Grant:     { letter: 'A', bg: '#0e7490', text: '#fff' },
+  // App role assignments: direct (R) and via group membership (R*).
+  AppRole:         { letter: 'R', bg: '#a16207', text: '#fff' },
+  AppRoleViaGroup: { letter: 'R', bg: '#ca8a04', text: '#fff' },
 };

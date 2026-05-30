@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
-import { usePermissions } from './hooks/usePermissions';
+﻿import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import { useMatrix } from './hooks/useMatrix';
 import { useAuth } from './auth/AuthGate';
 import { useTheme } from './hooks/useTheme';
 import { ThemeContext } from './contexts/ThemeContext';
@@ -8,12 +8,13 @@ import ErrorBoundary from './components/ErrorBoundary';
 // Lazy-load page components (route-based code splitting)
 const DashboardPage = lazy(() => import('./components/DashboardPage'));
 const MatrixView = lazy(() => import('./components/MatrixView'));
+const RotatedMatrixView = lazy(() => import('./components/RotatedMatrixView'));
+const MatrixFilterWizard = lazy(() => import('./components/matrix/MatrixFilterWizard'));
 const SyncLogPage = lazy(() => import('./components/SyncLogPage'));
 const UsersPage = lazy(() => import('./components/UsersPage'));
 const GroupsPage = lazy(() => import('./components/GroupsPage')); // Now renders ResourcesPage
 const AccessPackagesPage = lazy(() => import('./components/AccessPackagesPage'));
 const UserDetailPage = lazy(() => import('./components/UserDetailPage'));
-const GroupDetailPage = lazy(() => import('./components/GroupDetailPage'));
 const ResourceDetailPage = lazy(() => import('./components/ResourceDetailPage'));
 const AccessPackageDetailPage = lazy(() => import('./components/AccessPackageDetailPage'));
 const SystemsPage = lazy(() => import('./components/SystemsPage'));
@@ -38,42 +39,28 @@ function parseHash() {
   return { page, params };
 }
 
+// Matrix URL state: a single `filter` param holds the wizard filter as
+// URL-encoded JSON, plus a `managed` param for the IST/SOLL/Gaps toggle.
+// Old `f.*` / `cf` / `limit` params (pre-wizard) are silently ignored — the
+// matrix shows its empty state until the user re-applies a filter.
 function parseMatrixParams(params) {
-  const limit = params.has('limit') ? (parseInt(params.get('limit')) || 0) : 25;
-  const filters = [];
-  for (const [key, value] of params.entries()) {
-    if (key.startsWith('f.')) {
-      filters.push({ field: key.slice(2), value });
-    }
+  let filter = null;
+  if (params.has('filter')) {
+    try {
+      const parsed = JSON.parse(params.get('filter'));
+      if (parsed && typeof parsed === 'object') filter = parsed;
+    } catch { /* ignore malformed filter */ }
   }
   const managed = params.get('managed') || 'all';
-  const search = params.get('q') || '';
-  let contextFilters = [];
-  if (params.has('cf')) {
-    try {
-      const raw = JSON.parse(params.get('cf'));
-      if (Array.isArray(raw)) {
-        contextFilters = raw
-          .filter(x => x && typeof x.id === 'string')
-          .map(x => ({ id: x.id, includeChildren: !!x.includeChildren }));
-      }
-    } catch { /* ignore malformed cf */ }
-  }
-  return { limit, filters, managed, search, contextFilters };
+  return { filter, managed };
 }
 
 function buildMatrixHash(state) {
   const params = new URLSearchParams();
-  if (state.limit > 0) params.set('limit', String(state.limit));
-  if (state.limit === 0) params.set('limit', '0');
-  for (const f of state.filters || []) {
-    params.set(`f.${f.field}`, f.value);
+  if (state.filter) {
+    params.set('filter', JSON.stringify(state.filter));
   }
   if (state.managed && state.managed !== 'all') params.set('managed', state.managed);
-  if (state.search) params.set('q', state.search);
-  if (state.contextFilters && state.contextFilters.length > 0) {
-    params.set('cf', JSON.stringify(state.contextFilters));
-  }
   const qs = params.toString();
   return `matrix${qs ? '?' + qs : ''}`;
 }
@@ -120,17 +107,15 @@ export default function App() {
   const initial = useMemo(() => {
     const { page, params } = parseHash();
     if (page === 'matrix') return parseMatrixParams(params);
-    return { limit: 25, filters: [], managed: 'all', search: '' };
+    return { filter: null, managed: 'all' };
   }, []);
 
-  // All shareable matrix state lives here
-  const [userLimit, setUserLimit] = useState(initial.limit);
-  const [activeFilters, setActiveFilters] = useState(initial.filters);
+  // Wizard-driven matrix state: a single filter object + managed-state toggle
+  const [matrixFilter, setMatrixFilter] = useState(initial.filter);
   const [managedFilter, setManagedFilter] = useState(initial.managed);
-  const [filterText, setFilterText] = useState(initial.search);
-  const [contextFilters, setContextFilters] = useState(initial.contextFilters || []);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
-  const { data, totalUsers, accessPackageGroups, managedByPackages, userColumns, groupTagMap, loading, refreshing, error, forceRefresh } = usePermissions(userLimit, activeFilters, contextFilters);
+  const { data, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -139,7 +124,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
   const [riskScoresRefreshKey, setRiskScoresRefreshKey] = useState(0);
-  const { isDark, toggleDark } = useTheme();
+  const { isDark, mode, setTheme } = useTheme();
 
   const navTabs = useMemo(() =>
     ALL_NAV_TABS.filter(tab => {
@@ -274,42 +259,51 @@ export default function App() {
     }
   }, [page]);
 
-  // When navigating TO the matrix tab with no data yet, re-fetch so demo data
-  // loaded on the Dashboard shows up without requiring a manual slider nudge.
+  // When the user lands on the matrix tab without an applied filter:
+  //  - If a default filter is seeded (e.g. demo data): auto-apply it, no wizard.
+  //  - If there IS data but no default filter: open the wizard.
+  //  - If the DB is empty: do nothing (EmptyFilterState shows "no data" message).
+  // We wait until both hasData and defaultFilter have resolved (neither null/undefined
+  // as "still loading") before acting. autoOpenFiredRef prevents re-firing after the
+  // user closes the wizard or navigates away and back.
   const prevPageRef = useRef(null);
+  const autoOpenFiredRef = useRef(false);
   useEffect(() => {
-    if (page === 'matrix' && prevPageRef.current !== 'matrix' && data.length === 0 && !loading) {
-      forceRefresh();
-    }
+    const freshNav = page === 'matrix' && prevPageRef.current !== 'matrix';
+    if (freshNav) autoOpenFiredRef.current = false;
     prevPageRef.current = page;
-  }, [page, data.length, loading, forceRefresh]);
+    if (page !== 'matrix' || autoOpenFiredRef.current || matrixFilter || wizardOpen) return;
+    // Still waiting for hasData or defaultFilter to resolve
+    if (hasData === null || defaultFilter === undefined) return;
+    autoOpenFiredRef.current = true;
+    if (hasData === false) return; // empty DB — EmptyFilterState handles the message
+    if (defaultFilter !== null) {
+      setMatrixFilter(defaultFilter.filter); // skip wizard, apply saved default
+    } else {
+      setWizardOpen(true); // no default — let user configure
+    }
+  }, [page, matrixFilter, wizardOpen, hasData, defaultFilter]);
 
   // Sync URL when on matrix page (debounced replaceState — no history entry)
   useEffect(() => {
     if (page !== 'matrix') return;
     const timer = setTimeout(() => {
       const newHash = buildMatrixHash({
-        limit: userLimit,
-        filters: activeFilters,
+        filter: matrixFilter,
         managed: managedFilter,
-        search: filterText,
-        contextFilters,
       });
       if (window.location.hash !== '#' + newHash) {
         history.replaceState(null, '', '#' + newHash);
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [page, userLimit, activeFilters, managedFilter, filterText, contextFilters]);
+  }, [page, matrixFilter, managedFilter]);
 
   // Build shareable URL (stable reference for children)
   const shareUrl = useMemo(() => buildMatrixUrl({
-    limit: userLimit,
-    filters: activeFilters,
+    filter: matrixFilter,
     managed: managedFilter,
-    search: filterText,
-    contextFilters,
-  }), [userLimit, activeFilters, managedFilter, filterText, contextFilters]);
+  }), [matrixFilter, managedFilter]);
 
   // Check if current page is a detail tab
   const isDetailPage = page.startsWith('user:') || page.startsWith('group:') || page.startsWith('resource:') || page.startsWith('access-package:') || page.startsWith('department:') || page.startsWith('context:') || page.startsWith('identity:') || page.startsWith('run:');
@@ -376,14 +370,14 @@ export default function App() {
   };
 
   return (
-    <ThemeContext.Provider value={isDark}>
+    <ThemeContext.Provider value={{ isDark, mode }}>
     <ErrorBoundary>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Identity Atlas" className="h-10 w-10 rounded-lg dark:bg-white/10 dark:p-0.5" />
+            <img src={isDark ? '/logo-dark.png' : '/logo.png'} alt="Identity Atlas" className="h-10 w-10 rounded-lg" />
             <div>
               <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Identity <span style={{ color: '#65b425' }}>Atlas</span></h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -401,7 +395,7 @@ export default function App() {
                 {(account?.name || account?.username || '?')[0].toUpperCase()}
               </div>
               <span className="hidden sm:inline">{account?.name || account?.username || 'User'}</span>
-              <svg className={`w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-3.5 h-3.5 text-gray-600 dark:text-gray-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
@@ -414,19 +408,51 @@ export default function App() {
                   {account?.username && <p className="text-xs text-gray-500 dark:text-gray-400">{account.username}</p>}
                 </div>
 
-                {/* Dark mode toggle */}
+                {/* Theme selector */}
                 <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Dark Mode</span>
-                    <button
-                      onClick={toggleDark}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isDark ? 'bg-blue-500' : 'bg-gray-300'}`}
-                    >
-                      <span
-                        className="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
-                        style={{ transform: isDark ? 'translateX(18px)' : 'translateX(2px)' }}
-                      />
-                    </button>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-gray-700 dark:text-gray-300 shrink-0">Theme</span>
+                    <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs">
+                      {[
+                        {
+                          value: 'light', label: 'Light',
+                          icon: <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="5" strokeWidth={2}/>
+                            <path strokeWidth={2} strokeLinecap="round"
+                              d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                          </svg>,
+                        },
+                        {
+                          value: 'auto', label: 'Auto',
+                          icon: <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <rect x="2" y="3" width="20" height="14" rx="2" strokeWidth={2}/>
+                            <path strokeWidth={2} strokeLinecap="round" d="M8 21h8M12 17v4"/>
+                          </svg>,
+                        },
+                        {
+                          value: 'dark', label: 'Dark',
+                          icon: <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeWidth={2} strokeLinecap="round"
+                              d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                          </svg>,
+                        },
+                      ].map(({ value, label, icon }) => (
+                        <button
+                          key={value}
+                          onClick={() => setTheme(value)}
+                          aria-label={label}
+                          aria-pressed={mode === value}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 transition-colors ${
+                            mode === value
+                              ? 'bg-blue-500 text-white'
+                              : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          {icon}
+                          <span>{label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -503,7 +529,7 @@ export default function App() {
                 <span className="truncate max-w-[140px]">{tab.displayName}</span>
                 <span
                   onClick={(e) => { e.stopPropagation(); closeDetailTab(tab.type, tab.id); }}
-                  className="ml-0.5 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="ml-0.5 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Close"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -548,33 +574,50 @@ export default function App() {
               <div className="text-gray-500 dark:text-gray-400">Loading permission data...</div>
             </div>
           ) : (
-            <MatrixView
-              data={data}
-              accessPackageGroups={accessPackageGroups}
-              managedByPackages={managedByPackages}
-              totalUsers={totalUsers}
-              userLimit={userLimit}
-              setUserLimit={setUserLimit}
-              activeFilters={activeFilters}
-              setActiveFilters={setActiveFilters}
-              managedFilter={managedFilter}
-              setManagedFilter={setManagedFilter}
-              filterText={filterText}
-              setFilterText={setFilterText}
-              contextFilters={contextFilters}
-              setContextFilters={setContextFilters}
-              userColumns={userColumns}
-              groupTagMap={groupTagMap}
-              refreshing={refreshing}
-              shareUrl={shareUrl}
-              onOpenDetail={openDetailTab}
-            />
+            <>
+              {matrixFilter?.orientation === 'rows-as-subjects' ? (
+                <RotatedMatrixView
+                  data={data}
+                  filter={matrixFilter}
+                  counts={counts}
+                  managedFilter={managedFilter}
+                  setManagedFilter={setManagedFilter}
+                  refreshing={refreshing}
+                  shareUrl={shareUrl}
+                  onOpenDetail={openDetailTab}
+                  onAdjustFilter={() => setWizardOpen(true)}
+                  hasData={hasData}
+                />
+              ) : (
+                <MatrixView
+                  data={data}
+                  accessPackageGroups={accessPackageGroups}
+                  managedByPackages={managedByPackages}
+                  filter={matrixFilter}
+                  counts={counts}
+                  managedFilter={managedFilter}
+                  setManagedFilter={setManagedFilter}
+                  groupTagMap={groupTagMap}
+                  refreshing={refreshing}
+                  shareUrl={shareUrl}
+                  onOpenDetail={openDetailTab}
+                  onAdjustFilter={() => setWizardOpen(true)}
+                  hasData={hasData}
+                />
+              )}
+              <MatrixFilterWizard
+                open={wizardOpen}
+                initialFilter={matrixFilter}
+                onApply={(f) => { setMatrixFilter(f); setWizardOpen(false); }}
+                onClose={() => setWizardOpen(false)}
+              />
+            </>
           )}
         </Suspense>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-2 text-xs text-gray-400 dark:text-gray-500 text-center flex items-center justify-center gap-2">
+      <footer className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-2 text-xs text-gray-600 dark:text-gray-500 text-center flex items-center justify-center gap-2">
         <button
           onClick={() => navigate('admin?sub=about')}
           className="hover:text-gray-600 dark:hover:text-gray-300 hover:underline focus:outline-none"

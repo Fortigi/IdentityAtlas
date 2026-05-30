@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { timedRequest } from '../perf/sqlTimer.js';
-import { getResourceColumns, getResourceColumnValues, FILTERABLE_TYPES } from '../db/columnCache.js';
+import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
 import { ensureTagTables, buildFilterWhere } from './tags.js';
 
 const router = Router();

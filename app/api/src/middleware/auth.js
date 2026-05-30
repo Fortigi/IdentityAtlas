@@ -40,10 +40,21 @@ export function authMiddleware(req, res, next) {
 
   const token = authHeader.split(' ')[1];
 
-  // Crawler API keys start with 'fgc_'. Skip JWT validation and let the
-  // request fall through to the crawler auth middleware which handles these.
+  // Crawler API keys (fgc_) are valid only on routes protected by
+  // crawlerAuthMiddleware further down the Express chain — those mounts use
+  // the prefixes /api/crawlers and /api/ingest (see index.js). For requests
+  // on those prefixes, call next() so the request reaches crawlerAuthMiddleware
+  // which performs the real key validation. For any other /api/* path
+  // (admin, UI, etc.) reject — a bare fgc_-prefixed string must not pass
+  // here unchecked, or it'd bypass admin auth entirely.
   if (token.startsWith('fgc_')) {
-    return next();
+    // Use originalUrl because req.path inside an app.use('/api', ...) layer
+    // reflects the mount-stripped path on some Express versions.
+    const fullPath = req.originalUrl.split('?')[0];
+    if (fullPath.startsWith('/api/crawlers/') || fullPath.startsWith('/api/ingest/')) {
+      return next();
+    }
+    return res.status(401).json({ error: 'Crawler API keys are not valid for this endpoint' });
   }
 
   // Read-only API keys (`fgr_…`) are accepted on GET requests to non-admin

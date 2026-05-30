@@ -592,13 +592,6 @@ router.post('/admin/features/toggle', async (req, res) => {
   }
 });
 
-// Helper: detect whether the request came from an interactive admin user.
-// In v5, the only mutation surface for admin endpoints is either an authenticated
-// UI session or a crawler with the 'admin' permission. We check both.
-function isAdminRequest(req) {
-  return !!req.user; // any signed-in UI user
-}
-
 // ─── Dashboard stats — one-shot overview of loaded data ────────────────────
 //
 // Used by the Dashboard / landing page to show a summary of what's in the
@@ -676,6 +669,41 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
   } catch (err) {
     console.error('dashboard-stats failed:', err.message);
     res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+  }
+});
+
+// ─── Dashboard timeseries — daily snapshot history for the Trends tab ──────
+//
+// Returns the last N days of dashboard counts, written daily by the
+// scheduler (see scheduler.js → captureDashboardSnapshotIfMissing). Used
+// by the Trends tab to plot growth over time for users, resources,
+// assignments, and the % of assignments that are governed.
+//
+// We deliberately do NOT backfill from history — the chart starts on the
+// day migration 027 applied and grows from there.
+router.get('/admin/dashboard-timeseries', async (req, res) => {
+  if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 90, 1), 730);
+    // Existence check — table won't exist on a fresh DB before migration 027.
+    const exists = await db.queryOne(`SELECT to_regclass('"DashboardSnapshots"') AS t`);
+    if (!exists?.t) return res.json({ days, data: [] });
+
+    const result = await db.query(
+      `SELECT
+         "snapshotDate"::text AS date,
+         "systems", "resources", "businessRoles", "principals",
+         "identities", "assignments", "governedAssignments",
+         "relationships", "contexts", "identityMembers", "certifications"
+       FROM "DashboardSnapshots"
+       WHERE "snapshotDate" >= (CURRENT_DATE - ($1 || ' days')::interval)
+       ORDER BY "snapshotDate" ASC`,
+      [String(days)],
+    );
+    res.json({ days, data: result.rows || [] });
+  } catch (err) {
+    console.error('dashboard-timeseries failed:', err.message);
+    res.status(500).json({ error: 'Failed to fetch dashboard timeseries' });
   }
 });
 
@@ -761,12 +789,18 @@ router.post('/admin/history-retention/prune', adminDestructiveLimiter, async (_r
 // not signed in yet, which would require leaving the API write-open).
 router.get('/admin/auth-settings', (req, res) => {
   const s = getAuthState();
+  // WEBSITE_SITE_NAME is set automatically by Azure App Service. Use it to
+  // render Azure-appropriate CLI instructions instead of `docker compose exec`.
+  const platform = process.env.WEBSITE_SITE_NAME ? 'azure-app-service' : 'docker';
   res.json({
     enabled:       s.enabled,
     tenantId:      s.tenantId || '',
     clientId:      s.clientId || '',
     requiredRoles: s.requiredRoles || [],
     loaded:        s.loaded,
+    platform,
+    azureWebAppName: process.env.WEBSITE_SITE_NAME || null,
+    azureResourceGroup: process.env.WEBSITE_RESOURCE_GROUP || null,
   });
 });
 

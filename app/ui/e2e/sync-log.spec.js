@@ -40,9 +40,6 @@ test.describe('Sync Log Page', () => {
 
   test('status badges use correct colors', async ({ page }) => {
     // If there are sync entries, status badges should have color classes
-    const successBadge = page.locator('.bg-green-100, [class*="green"]');
-    const failedBadge = page.locator('.bg-red-100, [class*="red"]');
-
     // Just verify no errors — mock may not have sync log data
     await expect(page.locator('h2')).toContainText('Sync Log');
   });

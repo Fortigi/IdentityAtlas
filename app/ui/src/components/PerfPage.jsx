@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 
 function formatMs(ms) {
@@ -200,7 +200,7 @@ function EndpointSummary({ endpoints }) {
   };
 
   if (!endpoints?.length) {
-    return <p className="text-sm text-gray-400 dark:text-gray-500 italic">No requests recorded yet. Use the application to generate metrics.</p>;
+    return <p className="text-sm text-gray-600 dark:text-gray-500 italic">No requests recorded yet. Use the application to generate metrics.</p>;
   }
 
   return (
@@ -230,11 +230,11 @@ function EndpointSummary({ endpoints }) {
                 className={`border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${durationBg(ep.p95)}`}
                 onClick={() => hasSql && toggle(key)}
               >
-                <td className="px-3 py-2 w-6 text-gray-400 dark:text-gray-500 text-xs">
+                <td className="px-3 py-2 w-6 text-gray-600 dark:text-gray-500 text-xs">
                   {hasSql ? (isOpen ? '▼' : '▶') : ''}
                 </td>
                 <td className="px-3 py-2 font-mono text-xs">
-                  <span className="text-gray-400 dark:text-gray-500 mr-1">{ep.method}</span>
+                  <span className="text-gray-600 dark:text-gray-500 mr-1">{ep.method}</span>
                   <span className="text-gray-800 dark:text-gray-100">{ep.route}</span>
                 </td>
                 <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{ep.count}</td>
@@ -281,7 +281,7 @@ function RequestList({ entries }) {
   };
 
   if (!entries?.length) {
-    return <p className="text-sm text-gray-400 dark:text-gray-500 italic">No requests recorded yet.</p>;
+    return <p className="text-sm text-gray-600 dark:text-gray-500 italic">No requests recorded yet.</p>;
   }
 
   return (
@@ -308,14 +308,14 @@ function RequestList({ entries }) {
                 className={`border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${durationBg(entry.totalMs)}`}
                 onClick={() => hasSql && toggle(idx)}
               >
-                <td className="px-3 py-2 w-6 text-gray-400 dark:text-gray-500 text-xs">
+                <td className="px-3 py-2 w-6 text-gray-600 dark:text-gray-500 text-xs">
                   {hasSql ? (isOpen ? '▼' : '▶') : ''}
                 </td>
                 <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                   {new Date(entry.timestamp).toLocaleTimeString()}
                 </td>
                 <td className="px-3 py-2 font-mono text-xs">
-                  <span className="text-gray-400 dark:text-gray-500 mr-1">{entry.method}</span>
+                  <span className="text-gray-600 dark:text-gray-500 mr-1">{entry.method}</span>
                   <span className="text-gray-800 dark:text-gray-100 break-all">{entry.url || entry.route}</span>
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -339,7 +339,7 @@ function RequestList({ entries }) {
                   <td className="px-3 py-1"></td>
                   <td className="px-3 py-1 font-mono text-xs text-blue-700 dark:text-blue-300 pl-8">
                     {sq.label}
-                    {sq.rows != null && <span className="text-gray-400 dark:text-gray-500 ml-2">({sq.rows} rows)</span>}
+                    {sq.rows != null && <span className="text-gray-600 dark:text-gray-500 ml-2">({sq.rows} rows)</span>}
                     {sq.error && <span className="text-red-500 ml-2">{sq.error}</span>}
                   </td>
                   <td className="px-3 py-1"></td>

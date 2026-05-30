@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+﻿import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 
 function fmtBytes(n) {
@@ -21,7 +21,7 @@ function Bar({ percent, color }) {
 function LineChart({ data, maxValue, color, height = 60, label }) {
   if (!data || data.length === 0) {
     return (
-      <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+      <div className="text-xs text-gray-600 dark:text-gray-500 text-center py-4">
         Collecting data...
       </div>
     );
@@ -264,10 +264,10 @@ export default function ContainerStatsPage() {
                   <div>
                     <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Network</div>
                     <div className="font-mono text-xs text-gray-900 dark:text-white">
-                      ↓ {rate.rxRate != null ? `${fmtBytes(rate.rxRate)}/s` : '—'} <span className="text-gray-400 dark:text-gray-500">({fmtBytes(c.netRxBytes)} total)</span>
+                      ↓ {rate.rxRate != null ? `${fmtBytes(rate.rxRate)}/s` : '—'} <span className="text-gray-600 dark:text-gray-500">({fmtBytes(c.netRxBytes)} total)</span>
                     </div>
                     <div className="font-mono text-xs text-gray-900 dark:text-white">
-                      ↑ {rate.txRate != null ? `${fmtBytes(rate.txRate)}/s` : '—'} <span className="text-gray-400 dark:text-gray-500">({fmtBytes(c.netTxBytes)} total)</span>
+                      ↑ {rate.txRate != null ? `${fmtBytes(rate.txRate)}/s` : '—'} <span className="text-gray-600 dark:text-gray-500">({fmtBytes(c.netTxBytes)} total)</span>
                     </div>
                   </div>
                 </div>

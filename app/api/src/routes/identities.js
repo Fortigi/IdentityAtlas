@@ -54,7 +54,7 @@ router.get('/identities', async (req, res) => {
       return res.json({ available: false, data: [], total: 0, summary: null });
     }
 
-    const { search, minAccounts, accountType, confidence, verified, hrAnchored, orphanStatus, sort, limit, offset } = req.query;
+    const { search, minAccounts, confidence, verified, hrAnchored, orphanStatus, sort, limit, offset } = req.query;
     const pageLimit = Math.min(parseInt(limit) || 50, 500);
     const pageOffset = parseInt(offset) || 0;
 
@@ -600,16 +600,25 @@ router.get('/identities/by-user/:userId', async (req, res) => {
       analystOverride: row.analystOverride,
     };
 
-    // Fetch other accounts in the same identity for context
+    // Fetch other accounts in the same identity for context. IdentityMembers
+    // stores `principalId` (UUID) — the UPN lives on Principals.email — so we
+    // join through and expose the fields the frontend expects (userId / UPN).
     const othersResult = await timedRequest(p, 'identity-by-user-others', res)
       .input('identityId', row.identityId)
       .input('userId', userId)
       .query(`
-        SELECT "userId", "displayName", userPrincipalName, "accountType", "isPrimary",
-          "isHrAuthoritative", "accountEnabled"
-        FROM "IdentityMembers"
-        WHERE "identityId" = @identityId AND "userId" <> @userId
-        ORDER BY "isPrimary" DESC, "accountType" ASC
+        SELECT m."principalId"        AS "userId",
+               COALESCE(m."displayName", pr."displayName") AS "displayName",
+               pr."email"             AS "userPrincipalName",
+               m."accountType",
+               m."isPrimary",
+               m."isHrAuthoritative",
+               m."accountEnabled"
+          FROM "IdentityMembers" m
+          LEFT JOIN "Principals" pr ON pr.id = m."principalId"
+         WHERE m."identityId" = @identityId
+           AND m."principalId" <> @userId
+         ORDER BY m."isPrimary" DESC NULLS LAST, m."accountType" ASC
       `);
 
     res.json({ identity, memberInfo, otherMembers: othersResult.recordset });

@@ -92,7 +92,7 @@ Four built-in categories, combined into a single `Set`:
 | **NL connectives** | Clutter from descriptive Dutch display names. | `van`, `voor`, `naar`, `bij`, `aan`, `uit`, `over`, `met`, `als`, `door`, … (short ones like `de`, `en`, `op`, `te` fall out via `minTokenLength`) |
 
 The full set lives in
-[`tokenize.js`](../../app/api/src/contexts/plugins/resource-cluster/tokenize.js)
+[`tokenize.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/tokenize.js)
 as `DEFAULT_STOPWORDS`. Tenant-specific additions go through the
 `additionalStopwords` parameter.
 
@@ -221,8 +221,8 @@ resources that don't share a token.
 
 | File | Purpose |
 |---|---|
-| [`app/api/src/contexts/plugins/resource-cluster/index.js`](../../app/api/src/contexts/plugins/resource-cluster/index.js) | Plugin entry (`parametersSchema`, `run`) |
-| [`app/api/src/contexts/plugins/resource-cluster/tokenize.js`](../../app/api/src/contexts/plugins/resource-cluster/tokenize.js) | Tokenizer + stopword set + `prettifyToken` |
-| [`app/api/src/contexts/plugins/resource-cluster/tokenize.test.js`](../../app/api/src/contexts/plugins/resource-cluster/tokenize.test.js) | Unit tests for the tokenizer |
-| [`app/api/src/contexts/plugins/resource-cluster/index.test.js`](../../app/api/src/contexts/plugins/resource-cluster/index.test.js) | Integration test for `run()` with a mocked db |
-| [`app/api/src/contexts/plugins/runner.js`](../../app/api/src/contexts/plugins/runner.js) | Generic plugin runner (reconciler, member-count rollup) — not specific to this plugin |
+| [`app/api/src/contexts/plugins/resource-cluster/index.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/index.js) | Plugin entry (`parametersSchema`, `run`) |
+| [`app/api/src/contexts/plugins/resource-cluster/tokenize.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/tokenize.js) | Tokenizer + stopword set + `prettifyToken` |
+| [`app/api/src/contexts/plugins/resource-cluster/tokenize.test.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/tokenize.test.js) | Unit tests for the tokenizer |
+| [`app/api/src/contexts/plugins/resource-cluster/index.test.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/index.test.js) | Integration test for `run()` with a mocked db |
+| [`app/api/src/contexts/plugins/runner.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/runner.js) | Generic plugin runner (reconciler, member-count rollup) — not specific to this plugin |

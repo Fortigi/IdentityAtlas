@@ -9,6 +9,7 @@ import { authMiddleware } from './middleware/auth.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import { enable as enablePerf, isEnabled as isPerfEnabled } from './perf/collector.js';
 import permissionsRouter from './routes/permissions.js';
+import matrixRouter from './routes/matrix.js';
 import tagsRouter from './routes/tags.js';
 import categoriesRouter from './routes/categories.js';
 import detailsRouter from './routes/details.js';
@@ -121,12 +122,19 @@ app.use(helmet({
 }));
 
 // ─── CORS ────────────────────────────────────────────────────────
+// ALLOWED_ORIGINS must not contain '*' — filter it out to prevent accidental
+// broad access. In development, restrict to known localhost origins instead
+// of `true` (which would allow any origin including cross-site attackers).
+const DEV_ORIGINS = [
+  'http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001',
+  'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001',
+];
 const corsOptions = {
   origin: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(o => o && o !== '*')
     : isProduction
       ? false  // Disallow cross-origin in production if not explicitly configured
-      : true,  // Allow all origins in development
+      : DEV_ORIGINS,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -166,6 +174,22 @@ const publicLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
 });
+
+// Authenticated /api/* endpoints get a permissive global limit. The
+// point is just to bound DoS / credential-stuffing against the auth
+// middleware itself — which CodeQL flags as "authorization without
+// rate limiting" otherwise. The cap must NOT bite normal interactive
+// use (matrix page fires 20+ calls on load) or parallel CI tests
+// running through a single source IP, so we leave wide headroom.
+//   6000 req/min  =  100 req/sec sustained per IP
+const authedApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 6000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down' },
+});
+app.use('/api', authedApiLimiter);
 
 // Unauthenticated endpoints (rate-limited)
 app.get('/api/health', publicLimiter, (req, res) => {
@@ -225,13 +249,27 @@ app.get('/api/features', publicLimiter, async (req, res) => {
 app.get('/api/auth-config', publicLimiter, (req, res) => {
   // Reads the live config from authConfig.js so a UI-driven save takes effect
   // immediately for any new browser session.
-  if (!isAuthEnabled()) {
-    return res.json({ enabled: false });
-  }
+  //
+  // `configured` distinguishes two enabled-but-different states for the SPA:
+  //   enabled=true, configured=true   → run MSAL sign-in
+  //   enabled=true, configured=false  → show the "set up Entra" page instead
+  //                                     of trying to sign in (happens on Azure
+  //                                     between Step 1 and Step 2 of the
+  //                                     walkthrough, when the env vars are
+  //                                     still empty)
+  //
+  // `platform` lets the setup page render Azure-specific or Docker-specific
+  // instructions. Same WEBSITE_SITE_NAME check that admin.js uses.
+  const enabled = isAuthEnabled();
+  const tenantId = enabled ? (getTenantId() || '') : '';
+  const clientId = enabled ? (getClientId() || '') : '';
+  const platform = process.env.WEBSITE_SITE_NAME ? 'azure-app-service' : 'docker';
   res.json({
-    enabled: true,
-    clientId: getClientId(),
-    tenantId: getTenantId(),
+    enabled,
+    configured: enabled && !!tenantId && !!clientId,
+    tenantId,
+    clientId,
+    platform,
   });
 });
 
@@ -240,6 +278,7 @@ app.use('/api', authMiddleware, perfRouter);
 
 // Auth middleware for all other API routes
 app.use('/api', authMiddleware, permissionsRouter);
+app.use('/api', authMiddleware, matrixRouter);
 app.use('/api', authMiddleware, tagsRouter);
 app.use('/api', authMiddleware, categoriesRouter);
 app.use('/api', authMiddleware, detailsRouter);
@@ -284,7 +323,7 @@ app.use('/api', crawlerAuthMiddleware, ingestRouter);
 // In production, serve the frontend build output
 const frontendDist = process.env.FRONTEND_DIST || join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendDist));
-app.get('*', (req, res, next) => {
+app.get('*', publicLimiter, (req, res, next) => {
   // Only serve index.html for non-API routes (SPA fallback)
   if (req.path.startsWith('/api')) return next();
   res.sendFile(join(frontendDist, 'index.html'));
