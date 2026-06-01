@@ -104,14 +104,14 @@ try {
     # Non-fatal: a failed retention sweep never blocks the job itself.
 }
 
-$appRoot = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT } else { '/app' }
+$appRoot = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app' }
 
 try {
 switch ($JobType) {
 
     'demo' {
         Update-JobProgress -Step 'Loading demo dataset' -Pct 10
-        $datasetPath  = "$appRoot/test/demo-dataset/demo-company.json"
+        $datasetPath = "$appRoot/test/demo-dataset/demo-company.json"
         $ingestScript = "$appRoot/test/demo-dataset/Ingest-DemoDataset.ps1"
 
         if (-not (Test-Path $datasetPath)) {
