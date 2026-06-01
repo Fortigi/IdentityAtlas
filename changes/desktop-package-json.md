@@ -1,0 +1,3 @@
+- Fixed cut-beta and cut-release workflows failing because `app/desktop/package.json` was missing
+- Fixed portable ZIP build failing on Linux CI due to esbuild binary being invoked incorrectly
+- Fixed cut-beta and cut-release CI running on Node 20 instead of Node 24 to match the bundled node.exe
