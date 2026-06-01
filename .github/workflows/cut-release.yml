@@ -61,6 +61,15 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "✅ Tagged ${TAG} on $(git rev-parse --short HEAD)"
 
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            --latest
+
       - name: Post run summary
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
