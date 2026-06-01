@@ -95,6 +95,22 @@ copyFileSync(join(LAUNCHER_SRC, 'bootstrap.mjs'),             join(STAGE_DIR, 'b
 copyFileSync(join(LAUNCHER_SRC, 'Start-IdentityAtlas.ps1'),   join(STAGE_DIR, 'Start-IdentityAtlas.ps1'));
 copyFileSync(join(DESKTOP_DIR,  'desktop-worker.cjs'),        join(STAGE_DIR, 'desktop-worker.cjs'));
 
+// Copy bundled PowerShell scripts (crawlers, demo dataset, scheduler)
+const BUNDLED_SCRIPTS_DEST = join(STAGE_DIR, 'bundled-scripts');
+mkdirSync(BUNDLED_SCRIPTS_DEST, { recursive: true });
+for (const src of [
+  join(REPO_ROOT, 'Functions'),
+  join(REPO_ROOT, 'setup'),
+  join(REPO_ROOT, 'test', 'demo-dataset'),
+  join(REPO_ROOT, 'tools', 'crawlers'),
+]) {
+  const name = src.split(/[\\/]/).pop();
+  const dest = src.includes('demo-dataset') ? join(BUNDLED_SCRIPTS_DEST, 'test', 'demo-dataset')
+             : src.includes('crawlers')     ? join(BUNDLED_SCRIPTS_DEST, 'tools', 'crawlers')
+             : join(BUNDLED_SCRIPTS_DEST, name);
+  if (existsSync(src)) cpSync(src, dest, { recursive: true });
+}
+
 // Copy built React UI
 const UI_DIST = join(REPO_ROOT, 'app', 'ui', 'dist');
 if (existsSync(UI_DIST)) {

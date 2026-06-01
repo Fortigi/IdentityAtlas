@@ -1,51 +1,56 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-    Starts the Identity Atlas portable server and opens it in the default browser.
-
+    Starts Identity Atlas using the bundled Node.js runtime.
 .DESCRIPTION
-    Launches node.exe with bootstrap.mjs, waits for the API health endpoint to
-    respond (up to 90 seconds), then opens http://localhost:3001 in the browser.
-
-    Run with:
-        pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1
+    Launches node.exe bootstrap.mjs, waits for the API to become healthy,
+    then opens the browser. Ctrl+C stops the app.
 #>
-
 $ErrorActionPreference = 'Stop'
-$ScriptDir = $PSScriptRoot
-$NodeExe   = Join-Path $ScriptDir 'node.exe'
-$Bootstrap = Join-Path $ScriptDir 'bootstrap.mjs'
-$Port      = 3001
-$HealthUrl = "http://localhost:$Port/api/health"
-$TimeoutSec = 90
 
-Write-Host "Starting Identity Atlas..."
+$scriptDir = $PSScriptRoot
+$nodeExe   = Join-Path $scriptDir 'node.exe'
+$bootstrap = Join-Path $scriptDir 'bootstrap.mjs'
 
-$proc = Start-Process -FilePath $NodeExe `
-    -ArgumentList $Bootstrap `
-    -WorkingDirectory $ScriptDir `
-    -PassThru `
-    -WindowStyle Hidden
-
-Write-Host "Server process started (PID $($proc.Id)), waiting for health check..."
-
-$deadline = [DateTime]::Now.AddSeconds($TimeoutSec)
-$ready    = $false
-while ([DateTime]::Now -lt $deadline) {
-    Start-Sleep -Milliseconds 500
-    try {
-        $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
-        if ($response.StatusCode -eq 200) {
-            $ready = $true
-            break
-        }
-    } catch { <# not ready yet #> }
-}
-
-if (-not $ready) {
-    Write-Error "Identity Atlas did not start within $TimeoutSec seconds. Check console output for errors."
+if (-not (Test-Path $nodeExe)) {
+    Write-Error "node.exe not found in $scriptDir. The portable package may be incomplete."
     exit 1
 }
 
-Write-Host "Identity Atlas is ready. Opening browser..."
-Start-Process "http://localhost:$Port"
+Write-Host 'Starting Identity Atlas...' -ForegroundColor Cyan
+
+$proc = Start-Process -FilePath $nodeExe `
+    -ArgumentList $bootstrap `
+    -WorkingDirectory $scriptDir `
+    -NoNewWindow -PassThru
+
+# Poll health endpoint — first run takes ~10s (PGlite init + migrations)
+$timeout = [DateTime]::Now.AddSeconds(90)
+$ready   = $false
+while ([DateTime]::Now -lt $timeout) {
+    try {
+        $null = Invoke-WebRequest -Uri 'http://localhost:3001/api/health' `
+            -UseBasicParsing -ErrorAction Stop
+        $ready = $true
+        break
+    } catch {}
+    Start-Sleep -Milliseconds 500
+}
+
+if (-not $ready) {
+    $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+    Write-Error 'Identity Atlas did not become healthy within 90 seconds.'
+    exit 1
+}
+
+Write-Host 'Identity Atlas is running at http://localhost:3001' -ForegroundColor Green
+Start-Process 'http://localhost:3001'
+Write-Host 'Press Ctrl+C to stop.' -ForegroundColor Gray
+
+try {
+    $proc.WaitForExit()
+} finally {
+    if (-not $proc.HasExited) {
+        $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+}
