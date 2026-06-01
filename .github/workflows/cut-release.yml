@@ -1,12 +1,14 @@
 # ─── Cut a Release ────────────────────────────────────────────────────────────
-# Manually triggered. Tags the current main HEAD with vX.Y.Z and lets
-# docker-publish (triggered by the tag push) build and push :latest + :X.Y.Z.0.
+# Manually triggered. Tags the current main HEAD with vX.Y.Z, builds the
+# portable Windows ZIP, creates a GitHub release with the ZIP attached, and
+# lets docker-publish (triggered by the tag push) push :latest + :X.Y.Z.0.
 #
 # Usage:
 #   1. Go to Actions → Cut Release → Run workflow
 #   2. Enter the version (e.g. "5.2.0" — major.minor.patch)
 #   3. The workflow creates tag v5.2.0 on the current main HEAD
-#   4. docker-publish builds and pushes :latest + :5.2.0.0
+#   4. A GitHub release is created with IdentityAtlas-portable.zip attached
+#   5. docker-publish builds and pushes :latest + :5.2.0.0
 #
 # Hotfixes (shipping a bugfix without including features already on main):
 #   1. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the tag, not main
@@ -61,11 +63,25 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "✅ Tagged ${TAG} on $(git rev-parse --short HEAD)"
 
-      - name: Create GitHub release
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install desktop dependencies (PGlite)
+        run: npm install --prefer-offline
+        working-directory: app/desktop
+
+      - name: Build portable Windows ZIP
+        run: npm run build:node-launcher
+        working-directory: app/api
+
+      - name: Create GitHub release with portable ZIP
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           gh release create "$TAG" \
+            app/api/dist-node-launcher/IdentityAtlas-portable.zip \
             --title "$TAG" \
             --generate-notes \
             --latest
