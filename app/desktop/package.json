@@ -1,0 +1,9 @@
+{
+  "name": "identityatlas-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Desktop dependencies for the Identity Atlas portable launcher (PGlite)",
+  "dependencies": {
+    "@electric-sql/pglite": "0.2.17"
+  }
+}
