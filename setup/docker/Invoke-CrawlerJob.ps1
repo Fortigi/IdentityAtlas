@@ -14,7 +14,8 @@
     One of: demo, entra-id, csv
 
 .PARAMETER Config
-    Hashtable parsed from the job's config JSON column.
+    Hashtable parsed from the job's config JSON column, or a JSON string
+    (accepted for compatibility with the desktop worker which passes JSON directly).
 
 .PARAMETER ApiKey
     The built-in crawler API key.
@@ -29,13 +30,21 @@ Param(
     [string]$JobType,
 
     [Parameter(Mandatory = $false)]
-    [hashtable]$Config = @{},
+    $Config = @{},
 
     [Parameter(Mandatory)]
     [string]$ApiKey
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Accept Config as either a hashtable (scheduler) or a JSON string (desktop worker).
+if ($Config -is [string]) {
+    $Config = if ($Config -and $Config -ne '{}') {
+        $Config | ConvertFrom-Json -AsHashtable
+    } else { @{} }
+}
+
 $apiBaseUrl = $env:WEB_API_URL
 if (-not $apiBaseUrl) { $apiBaseUrl = 'http://web:3001/api' }
 $apiBaseUrl = $apiBaseUrl.TrimEnd('/')
