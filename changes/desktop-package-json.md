@@ -1,1 +1,2 @@
 - Fixed cut-beta and cut-release workflows failing because `app/desktop/package.json` was missing
+- Fixed portable ZIP build failing on Linux CI due to esbuild binary being invoked incorrectly
