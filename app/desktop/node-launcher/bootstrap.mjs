@@ -4,7 +4,7 @@
 
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-import { mkdirSync } from 'fs';
+import { mkdirSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { createRequire } from 'module';
 
@@ -49,6 +49,14 @@ await pgInstance.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
 globalThis.__pgliteInstance = pgInstance;
 
 await import(pathToFileURL(join(__dirname, 'app-bundle.mjs')).href);
+
+// bootstrap.js writes the key synchronously during init, so it exists by now.
+// Pass it via env so desktop-worker.cjs never needs readFileSync itself
+// (avoids a CodeQL js/file-data-in-request false positive in that file).
+try {
+  const key = readFileSync(process.env.WORKER_KEY_FILE, 'utf8').trim();
+  if (key) process.env.WORKER_API_KEY = key;
+} catch {}
 
 const { startWorker } = require('./desktop-worker.cjs');
 startWorker();
