@@ -137,7 +137,7 @@ function coerceValue(value) {
   // timestamptz, integer, boolean). Treating them as null is always safe and
   // matches the intent of "this field was not supplied".
   if (value === '') return null;
-  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'boolean') return value;
   if (typeof value === 'object' && !(value instanceof Date)) return JSON.stringify(value);
   return value;
 }
