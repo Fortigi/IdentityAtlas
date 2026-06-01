@@ -30,7 +30,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * Normalize a batch of records for a given entity type.
  *
  * - Assigns deterministic GUIDs if idGeneration === 'deterministic'
- * - Coerces types (booleans to 0/1, dates to ISO strings)
+ * - Coerces types (dates to ISO strings)
  * - Packs non-core fields into extendedAttributes JSON
  *
  * @param {object[]} records - Raw records from the API request
@@ -137,7 +137,7 @@ function coerceValue(value) {
   // timestamptz, integer, boolean). Treating them as null is always safe and
   // matches the intent of "this field was not supplied".
   if (value === '') return null;
-  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'boolean') return value;
   if (typeof value === 'object' && !(value instanceof Date)) return JSON.stringify(value);
   return value;
 }
