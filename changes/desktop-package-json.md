@@ -1,0 +1,1 @@
+- Fixed cut-beta and cut-release workflows failing because `app/desktop/package.json` was missing
