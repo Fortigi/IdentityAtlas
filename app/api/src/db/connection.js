@@ -9,12 +9,41 @@
 //      Converts `@name` placeholders to `$N`, runs the query via pg, and
 //      returns results shaped as `{ recordset, recordsets, rowsAffected }`.
 //      camelCase identifiers in SQL must be double-quoted.
+//
+// Desktop mode: when DESKTOP_MODE=true, all queries go through a PGlite
+// instance (WebAssembly PostgreSQL) stored on globalThis.__pgliteInstance.
+// The pg pool is never created. Docker/Azure are completely unaffected.
 
 import pg from 'pg';
 
 const { Pool } = pg;
 
-let pool = null;
+const IS_DESKTOP = process.env.DESKTOP_MODE === 'true';
+
+let pool   = null;
+let pglite = null;
+
+if (IS_DESKTOP) {
+  pglite = globalThis.__pgliteInstance;
+  if (!pglite) throw new Error('DESKTOP_MODE is set but globalThis.__pgliteInstance is not initialized');
+}
+
+// ─── PGlite helpers ──────────────────────────────────────────────
+
+function normalizePGliteResult(r) {
+  return { rows: r.rows, rowCount: r.affectedRows ?? r.rows.length, fields: r.fields || [] };
+}
+
+async function pgliteQuery(text, params = []) {
+  if (!params || params.length === 0) {
+    const results = await pglite.exec(text);
+    const last = results[results.length - 1] ?? { rows: [], affectedRows: 0 };
+    return normalizePGliteResult(last);
+  }
+  return normalizePGliteResult(await pglite.query(text, params));
+}
+
+// ─── pg pool helpers ─────────────────────────────────────────────
 
 function buildConfig() {
   if (process.env.DATABASE_URL) {
@@ -50,7 +79,7 @@ function getPoolSync() {
 
 // ─── Request-style helper ────────────────────────────────────────
 // Returns an object supporting .input(name, value).query(sqlText).
-// Converts `@name` placeholders to `$N` and runs through pg, returning
+// Converts `@name` placeholders to `$N` and runs through pg/PGlite, returning
 // { recordset, recordsets, rowsAffected }.
 function makeCompatRequest() {
   const inputs = new Map();
@@ -84,11 +113,49 @@ function makeCompatRequest() {
 
       // Detect multi-statement queries (some routes return two recordsets —
       // typically a SELECT for data and a SELECT for the COUNT).
-      // pg's prepared-statement protocol can't handle multiple statements in one
-      // query, so we split on `;` and run each statement separately, returning
-      // both results in a recordsets array.
       const statements = splitSqlStatements(pgSql);
 
+      if (IS_DESKTOP) {
+        if (statements.length <= 1) {
+          const result = await pgliteQuery(pgSql, params);
+          return {
+            recordset:    result.rows,
+            recordsets:   [result.rows],
+            rowsAffected: [result.rowCount],
+            output:       {},
+          };
+        }
+        // Multi-statement: run sequentially on PGlite (serialized, no connection needed).
+        const origStatements = splitSqlStatements(sqlText);
+        const results = [];
+        for (const origStmt of origStatements) {
+          const stmtOrder = [];
+          const stmtSql = replaceAtParams(origStmt, (name) => {
+            let idx = stmtOrder.indexOf(name);
+            if (idx === -1) { stmtOrder.push(name); idx = stmtOrder.length - 1; }
+            return '$' + (idx + 1);
+          });
+          const stmtParams = stmtOrder.map(p => inputs.get(p));
+          results.push(await pgliteQuery(stmtSql, stmtParams));
+        }
+        return {
+          recordset:    results[results.length - 1]?.rows || [],
+          recordsets:   results.map(r => r.rows),
+          rowsAffected: results.map(r => r.rowCount),
+          output:       {},
+        };
+      }
+
+      // pg path — multi-statement: run them sequentially on a checked-out client
+      // so they share state. Each statement may reference a different SUBSET of
+      // the global @name parameters (e.g. data query uses @limit, @offset, @search;
+      // count query only uses @search). We re-renumber placeholders per-statement
+      // and pass only the values that statement actually uses, otherwise pg's
+      // prepared-statement protocol complains about extra parameters.
+      //
+      // The safe approach: re-process each statement from the ORIGINAL @name
+      // SQL (not the post-renumbered one) so we can rebuild a per-statement
+      // params list. We re-split the original sqlText into statements.
       const p = getPoolSync();
       if (statements.length <= 1) {
         const result = await p.query(pgSql, params);
@@ -100,16 +167,6 @@ function makeCompatRequest() {
         };
       }
 
-      // Multiple statements: run them sequentially on a checked-out client
-      // so they share state. Each statement may reference a different SUBSET of
-      // the global @name parameters (e.g. data query uses @limit, @offset, @search;
-      // count query only uses @search). We re-renumber placeholders per-statement
-      // and pass only the values that statement actually uses, otherwise pg's
-      // prepared-statement protocol complains about extra parameters.
-      //
-      // The safe approach: re-process each statement from the ORIGINAL @name
-      // SQL (not the post-renumbered one) so we can rebuild a per-statement
-      // params list. We re-split the original sqlText into statements.
       const origStatements = splitSqlStatements(sqlText);
       const client = await p.connect();
       const results = [];
@@ -205,6 +262,20 @@ function replaceAtParams(sql, cb) {
 // Returns an object with `.request()` for the request-style helper and
 // pg-native pool methods (`query`, `connect`) passed through.
 export async function getPool() {
+  if (IS_DESKTOP) {
+    return {
+      request: makeCompatRequest,
+      query:   (text, params) => pgliteQuery(text, params),
+      connect: () => {
+        const client = {
+          query:   (text, params = []) => pgliteQuery(text, params),
+          release: () => {},
+        };
+        return Promise.resolve(client);
+      },
+      on: () => {},
+    };
+  }
   return {
     request: makeCompatRequest,
     query:   (text, params) => getPoolSync().query(text, params),
@@ -223,8 +294,8 @@ export async function closePool() {
 
 // Native pg helpers for new code.
 export async function query(text, params = []) {
-  const p = getPoolSync();
-  return p.query(text, params);
+  if (IS_DESKTOP) return pgliteQuery(text, params);
+  return getPoolSync().query(text, params);
 }
 
 export async function queryOne(text, params = []) {
@@ -233,6 +304,24 @@ export async function queryOne(text, params = []) {
 }
 
 export async function tx(fn) {
+  if (IS_DESKTOP) {
+    return pglite.transaction(async (txClient) => {
+      const client = {
+        // Use exec() for multi-statement SQL (e.g. migration files) — PGlite's
+        // query() only handles a single prepared statement. exec() returns an
+        // array of Results; we return the last one to match pg client shape.
+        query: async (text, params = []) => {
+          if (!params || params.length === 0) {
+            const results = await txClient.exec(text);
+            const last = results[results.length - 1] ?? { rows: [], affectedRows: 0 };
+            return normalizePGliteResult(last);
+          }
+          return txClient.query(text, params).then(normalizePGliteResult);
+        },
+      };
+      return fn(client);
+    });
+  }
   const p = getPoolSync();
   const client = await p.connect();
   try {

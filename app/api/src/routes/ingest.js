@@ -360,20 +360,32 @@ router.post('/ingest/refresh-views', async (req, res) => {
 // matviews and the big base tables so the planner has accurate row counts
 // (dashboard-stats uses pg_class.reltuples for its fast-path counts and
 // that field is only updated by ANALYZE).
+// Pure helper — determines whether CONCURRENTLY can be used for a given view.
+// Exported for unit testing.
+export function refreshKeyword(viewName, populatedSet, isDesktop) {
+  return !isDesktop && populatedSet.has(viewName) ? 'CONCURRENTLY' : '';
+}
+
 async function refreshMatrixViews() {
   const views = [
     '"vw_ResourceUserPermissionAssignments"',
     '"vw_UserPermissionAssignmentViaBusinessRole"',
   ];
-  // Fetch which matviews are already populated so we can choose CONCURRENTLY
-  // vs plain REFRESH without letting PostgreSQL log an ERROR on first boot.
-  const { rows: populated } = await db.query(
-    `SELECT matviewname FROM pg_matviews WHERE ispopulated = true AND matviewname = ANY($1)`,
-    [views.map(v => v.replace(/"/g, ''))],
-  );
-  const populatedSet = new Set(populated.map(r => r.matviewname));
+  // PGlite (DESKTOP_MODE) runs in a single WASM process with no background
+  // worker, so CONCURRENTLY is not supported. Always use plain REFRESH there.
+  const isDesktop = process.env.DESKTOP_MODE === 'true';
+  let populatedSet = new Set();
+  if (!isDesktop) {
+    // Fetch which matviews are already populated so we can choose CONCURRENTLY
+    // vs plain REFRESH without letting PostgreSQL log an ERROR on first boot.
+    const { rows: populated } = await db.query(
+      `SELECT matviewname FROM pg_matviews WHERE ispopulated = true AND matviewname = ANY($1)`,
+      [views.map(v => v.replace(/"/g, ''))],
+    );
+    populatedSet = new Set(populated.map(r => r.matviewname));
+  }
   for (const v of views) {
-    const concurrently = populatedSet.has(v.replace(/"/g, '')) ? 'CONCURRENTLY' : '';
+    const concurrently = refreshKeyword(v.replace(/"/g, ''), populatedSet, isDesktop);
     await db.query(`REFRESH MATERIALIZED VIEW ${concurrently} ${v}`);
   }
   // Refresh planner statistics on the matviews and the big base tables.
