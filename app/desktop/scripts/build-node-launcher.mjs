@@ -15,7 +15,7 @@
 //
 // Requires: node 18+, PowerShell 7+ on PATH (for Invoke-WebRequest + Compress-Archive)
 
-import { execSync }                    from 'child_process';
+import { execSync, execFileSync }       from 'child_process';
 import { cpSync, mkdirSync, existsSync, rmSync, copyFileSync } from 'fs';
 import { join, resolve, dirname }      from 'path';
 import { fileURLToPath }               from 'url';
@@ -39,7 +39,7 @@ function run(cmd, opts = {}) {
 }
 
 function pwsh(script) {
-  run(`pwsh -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`);
+  execFileSync('pwsh', ['-NonInteractive', '-Command', script], { stdio: 'inherit' });
 }
 
 // ── Step 0/8 — install API node_modules ──────────────────────────────────────
