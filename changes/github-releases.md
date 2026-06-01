@@ -1,0 +1,1 @@
+- Cut Release and Cut Beta workflows now automatically create a GitHub Release (with auto-generated notes from merged PRs) in addition to pushing the git tag and Docker image.
