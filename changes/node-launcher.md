@@ -4,3 +4,4 @@
 - PowerShell crawlers (Entra ID, CSV) are supported as a soft dependency: requires `pwsh.exe` on PATH.
 - Fixed: matrix view data was not shown after first data load in portable mode (`pg_class.reltuples` is always 0 in PGlite; dashboard now falls back to an exact `COUNT(*)` when running in desktop mode).
 - Fixed: migrations that partially applied (PGlite DDL transaction quirk) no longer cause the server to abort on restart — objects that already exist are recorded as applied and the server continues.
+- Fixed: portable launcher now starts cleanly on fresh machines — resolved a WASM crash triggered by `CREATE EXTENSION pg_trgm` conflicting with the extension loaded at PGlite init, and a missing CJS compatibility shim in the esbuild bundle that prevented Express from loading.
