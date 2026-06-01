@@ -37,6 +37,15 @@ const { PGlite }  = await import('@electric-sql/pglite');
 const { pg_trgm } = await import('@electric-sql/pglite/contrib/pg_trgm');
 const pgInstance  = new PGlite(pgDataDir, { extensions: { pg_trgm } });
 await pgInstance.waitReady;
+
+// Register pg_trgm in the SQL catalog so migrations can create gin_trgm_ops indexes.
+// PGlite loads the extension WASM code at constructor time but does not run
+// CREATE EXTENSION automatically — we do it here once, before migrations run.
+// The migration file also has CREATE EXTENSION IF NOT EXISTS pg_trgm, but we
+// strip that statement in DESKTOP_MODE (migrate.js) to avoid a double-registration
+// WASM abort.
+await pgInstance.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+
 globalThis.__pgliteInstance = pgInstance;
 
 await import(pathToFileURL(join(__dirname, 'app-bundle.mjs')).href);

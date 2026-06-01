@@ -64,12 +64,21 @@ mkdirSync(STAGE_DIR, { recursive: true });
 // ── Step 3/8 — esbuild API bundle ────────────────────────────────────────────
 console.log('\n[4/8] Bundling API with esbuild...');
 const BUNDLE_OUT = join(STAGE_DIR, 'app-bundle.mjs');
+const CJS_BANNER = [
+  `import { createRequire as __cjs_createRequire } from 'module';`,
+  `import { fileURLToPath as __cjs_fileURLToPath } from 'url';`,
+  `import { dirname as __cjs_dirname } from 'path';`,
+  `const require = __cjs_createRequire(import.meta.url);`,
+  `const __filename = __cjs_fileURLToPath(import.meta.url);`,
+  `const __dirname = __cjs_dirname(__filename);`,
+].join(' ');
 run(
   `node node_modules/esbuild/bin/esbuild src/index.js` +
   ` --bundle --platform=node --format=esm` +
   ` --outfile="${BUNDLE_OUT}"` +
   ` --external:@electric-sql/pglite` +
-  ` --external:pg-native`,
+  ` --external:pg-native` +
+  ` "--banner:js=${CJS_BANNER}"`,
   { cwd: API_ROOT }
 );
 
