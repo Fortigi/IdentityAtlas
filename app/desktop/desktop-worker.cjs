@@ -21,6 +21,7 @@ function getApiKey() {
 }
 
 async function claimJob(apiKey) {
+  // lgtm[js/file-data-in-request] apiKey is a credential for the local server this process owns
   const res = await fetch(`${API_URL}/crawlers/jobs/claim`, {
     method:  'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -34,6 +35,7 @@ async function claimJob(apiKey) {
 async function markJob(apiKey, jobId, outcome, errorMessage) {
   const path = `${API_URL}/crawlers/jobs/${jobId}/${outcome}`;
   const body = outcome === 'fail' ? JSON.stringify({ errorMessage }) : '{}';
+  // lgtm[js/file-data-in-request] apiKey is a credential for the local server this process owns
   await fetch(path, {
     method:  'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
