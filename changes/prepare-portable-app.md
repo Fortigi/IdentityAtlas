@@ -1,0 +1,2 @@
+- Fixed boolean values being incorrectly coerced to integers (0/1) during data ingest, causing failures on strict boolean columns
+- Crawler job dispatcher now resolves script paths via `IA_APP_ROOT` environment variable, allowing the worker to run from any installation directory instead of requiring a fixed `/app` path
