@@ -84,8 +84,8 @@ cpSync(
 // ── Step 5/8 — copy PGlite ───────────────────────────────────────────────────
 console.log('\n[6/8] Copying @electric-sql/pglite...');
 const PGLITE_SRC  = join(DESKTOP_DIR, 'node_modules', '@electric-sql', 'pglite');
-const PGLITE_DEST = join(STAGE_DIR, '@electric-sql', 'pglite');
-mkdirSync(join(STAGE_DIR, '@electric-sql'), { recursive: true });
+const PGLITE_DEST = join(STAGE_DIR, 'node_modules', '@electric-sql', 'pglite');
+mkdirSync(join(STAGE_DIR, 'node_modules', '@electric-sql'), { recursive: true });
 cpSync(PGLITE_SRC, PGLITE_DEST, { recursive: true });
 
 // ── Step 6/8 — copy launcher files ───────────────────────────────────────────
