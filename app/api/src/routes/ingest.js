@@ -365,15 +365,21 @@ async function refreshMatrixViews() {
     '"vw_ResourceUserPermissionAssignments"',
     '"vw_UserPermissionAssignmentViaBusinessRole"',
   ];
-  // Fetch which matviews are already populated so we can choose CONCURRENTLY
-  // vs plain REFRESH without letting PostgreSQL log an ERROR on first boot.
-  const { rows: populated } = await db.query(
-    `SELECT matviewname FROM pg_matviews WHERE ispopulated = true AND matviewname = ANY($1)`,
-    [views.map(v => v.replace(/"/g, ''))],
-  );
-  const populatedSet = new Set(populated.map(r => r.matviewname));
+  // PGlite (DESKTOP_MODE) runs in a single WASM process with no background
+  // worker, so CONCURRENTLY is not supported. Always use plain REFRESH there.
+  const isDesktop = process.env.DESKTOP_MODE === 'true';
+  let populatedSet = new Set();
+  if (!isDesktop) {
+    // Fetch which matviews are already populated so we can choose CONCURRENTLY
+    // vs plain REFRESH without letting PostgreSQL log an ERROR on first boot.
+    const { rows: populated } = await db.query(
+      `SELECT matviewname FROM pg_matviews WHERE ispopulated = true AND matviewname = ANY($1)`,
+      [views.map(v => v.replace(/"/g, ''))],
+    );
+    populatedSet = new Set(populated.map(r => r.matviewname));
+  }
   for (const v of views) {
-    const concurrently = populatedSet.has(v.replace(/"/g, '')) ? 'CONCURRENTLY' : '';
+    const concurrently = !isDesktop && populatedSet.has(v.replace(/"/g, '')) ? 'CONCURRENTLY' : '';
     await db.query(`REFRESH MATERIALIZED VIEW ${concurrently} ${v}`);
   }
   // Refresh planner statistics on the matviews and the big base tables.
