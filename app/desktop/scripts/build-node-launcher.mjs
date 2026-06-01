@@ -65,7 +65,7 @@ mkdirSync(STAGE_DIR, { recursive: true });
 console.log('\n[4/8] Bundling API with esbuild...');
 const BUNDLE_OUT = join(STAGE_DIR, 'app-bundle.mjs');
 run(
-  `node node_modules/.bin/esbuild src/index.js` +
+  `node node_modules/esbuild/bin/esbuild src/index.js` +
   ` --bundle --platform=node --format=esm` +
   ` --outfile="${BUNDLE_OUT}"` +
   ` --external:@electric-sql/pglite` +
