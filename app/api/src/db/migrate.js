@@ -52,7 +52,7 @@ function listMigrationFiles() {
 // exception to catch. Strip those statements before execution.
 const PGLITE_NATIVE_EXTENSIONS = new Set(['pg_trgm']);
 
-function stripNativeExtensions(sql) {
+export function stripNativeExtensions(sql) {
   return sql.replace(
     /CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS\s+(\w+)\s*;/gi,
     (match, name) => PGLITE_NATIVE_EXTENSIONS.has(name.toLowerCase())

@@ -131,7 +131,7 @@ export function normalizeRecords(records, coreColumns, options = {}) {
   });
 }
 
-function coerceValue(value) {
+export function coerceValue(value) {
   if (value === null || value === undefined) return null;
   // Empty strings → null. Postgres rejects '' for typed columns (uuid,
   // timestamptz, integer, boolean). Treating them as null is always safe and
