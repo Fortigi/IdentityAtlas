@@ -17,3 +17,9 @@
 - Added: Pester unit tests for Omada SDK helper functions (`Get-OmadaRefValue`, `Get-OmadaRefUid`, `Connect-OmadaAPI`)
 - Added: Vitest tests for Omada config masking and validation logic
 - Fixed: Added `[CmdletBinding()]` to `Invoke-OmadaGetRequest` and `Invoke-OmadaPagedRequest` to match module coding standards
+- Fixed: PowerShell 7 string interpolation bug — `"$url?$qs"` was silently parsed as `${url?}` (null variable) followed by `$qs`, losing the base URL; fixed by using string concatenation (`$url + '?' + $qs`) throughout URI construction
+- Fixed: Omada OData pagination — on-premise servers that do not return `@odata.nextLink` are now supported via explicit `$skip`-based offset paging; previously only the first page was fetched
+- Fixed: All entity records now include the `id` UUID field (Omada UIds are valid UUIDs) so the ingest upsert key works correctly; all cross-entity FK references use direct UUID values
+- Fixed: Context records are topologically sorted before ingest so parent OrgUnits are inserted before their children, satisfying the `parentContextId` foreign key constraint
+- Fixed: `IdentityMembers` phase now filters out accounts linked to non-person identities not stored in the Identities table, preventing FK violations
+- Added: `Machine` identity type mapped to `ServicePrincipal` in the default type mappings

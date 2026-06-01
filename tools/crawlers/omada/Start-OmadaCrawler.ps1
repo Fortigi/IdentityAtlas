@@ -101,7 +101,7 @@ $sessionTimeoutMinutes = if ($cfg.sessionTimeoutMinutes) { [int]$cfg.sessionTime
 
 # Default type mappings (operator can override in config)
 $defaultTypeMappings = @{
-    identityTypeToIdentityAtlas    = @{ Employee = 'User'; Primary = 'User'; Person = 'User'; Contractor = 'ExternalUser'; 'External Worker' = 'ExternalUser'; 'Service Account' = 'ServicePrincipal'; 'Non-Person' = 'ServicePrincipal' }
+    identityTypeToIdentityAtlas    = @{ Employee = 'User'; Primary = 'User'; Person = 'User'; Contractor = 'ExternalUser'; 'External Worker' = 'ExternalUser'; 'Service Account' = 'ServicePrincipal'; 'Non-Person' = 'ServicePrincipal'; Machine = 'ServicePrincipal' }
     resourceTypeToIdentityAtlas    = @{ 'Business Role' = 'BusinessRole' }
     contextTypeToIdentityAtlas     = @{ 'OrgUnit' = 'OrgUnit'; 'Organisational Unit' = 'OrgUnit'; Department = 'Department'; Location = 'Location'; 'Cost Center' = 'CostCenter'; CostCenter = 'CostCenter' }
     identityTypesForIdentityTable  = @('Employee', 'Primary', 'Person')
@@ -341,20 +341,48 @@ if ($SyncContexts) {
             -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
         Write-Host "  $($items.Count) context records from Omada" -ForegroundColor Gray
 
-        $records = @($items | ForEach-Object {
-            $ctxType = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $_.OUTYPE -Fallback 'OrgUnit')
+        $rawRecords = @($items | ForEach-Object {
+            $ctxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $_.OUTYPE -Fallback 'OrgUnit')
+            $parentUid = Get-OmadaRefUid -Ref $_.PARENTOU
             [PSCustomObject]@{
+                id               = [string]$_.UId  # Omada UIds are valid UUIDs — use directly as PK
                 externalId       = [string]$_.UId
                 displayName      = if ($_.NAME) { $_.NAME } else { $_.DisplayName }
                 contextType      = $ctxType
                 variant          = 'synced'
                 targetType       = 'Identity'
-                parentExternalId = Get-OmadaRefUid -Ref $_.PARENTOU
+                parentContextId  = if ($parentUid) { $parentUid } else { $null }
             }
         } | Where-Object { $_.externalId -and $_.displayName })
 
+        # Topological sort: parents must be inserted before children so the
+        # parentContextId FK is satisfied. Walk the tree level by level.
+        $recordById  = @{}
+        foreach ($r in $rawRecords) { $recordById[$r.id] = $r }
+        $records     = [System.Collections.Generic.List[object]]::new()
+        $remaining   = [System.Collections.Generic.List[object]]::new($rawRecords)
+        $inserted    = [System.Collections.Generic.HashSet[string]]::new()
+        $maxPasses   = $rawRecords.Count + 1
+        $pass        = 0
+        while ($remaining.Count -gt 0 -and $pass -lt $maxPasses) {
+            $pass++
+            $nextRem = [System.Collections.Generic.List[object]]::new()
+            foreach ($rec in $remaining) {
+                $parentId = $rec.parentContextId
+                if (-not $parentId -or $inserted.Contains($parentId)) {
+                    $records.Add($rec)
+                    $inserted.Add($rec.id) | Out-Null
+                } else {
+                    $nextRem.Add($rec)
+                }
+            }
+            $remaining = $nextRem
+        }
+        # Any remaining have dangling parents — append them last (FK will accept or warn)
+        foreach ($rec in $remaining) { $records.Add($rec) }
+
         $r = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $systemId -SyncMode 'full' `
-            -Scope @{ variant = 'synced' } -Records $records
+            -Scope @{ variant = 'synced' } -Records @($records)
         Write-Host "  Contexts: +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
         Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $t) -Records @{ contexts = $records.Count }
     } catch {
@@ -404,6 +432,7 @@ if ($SyncIdentities) {
             $name   = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
             if (-not $name) { $name = $_.DisplayName }
             [PSCustomObject]@{
+                id                 = [string]$_.UId  # Omada UId is a valid UUID
                 externalId         = [string]$_.UId
                 displayName        = $name
                 email              = $_.EMAIL
@@ -453,6 +482,7 @@ if ($SyncAccounts) {
             }
 
             [PSCustomObject]@{
+                id                 = $extId  # Omada UId is a valid UUID
                 externalId         = $extId
                 displayName        = $name
                 email              = $_.EMAIL
@@ -501,10 +531,14 @@ if ($SyncIdentities -and $allIdentities -and $SyncAccounts -and $allAccounts) {
             if ($acc.Inactive) { continue }
             $identId = if ($acc.IDENTITYREF) { [string]$acc.IDENTITYREF.IDENTITYID } else { $null }
             if (-not $identId -or -not $identityLookup.ContainsKey($identId)) { continue }
+            # Only link accounts whose identity type is stored in the Identities table.
+            # Non-person identities (Machine, etc.) are not in Identities → skip to avoid FK errors.
+            $identEntry = $identityLookup[$identId]
+            if ($identityTypesForIdentityTable -notcontains $identEntry.identityType) { continue }
             $memberRecords.Add([PSCustomObject]@{
-                identityExternalId  = $identityLookup[$identId].uid
-                principalExternalId = [string]$acc.UId
-                accountType         = 'Primary'
+                identityId  = $identEntry.uid                 # direct UUID FK to Identities.id
+                principalId = [string]$acc.UId                # direct UUID FK to Principals.id
+                accountType = 'Primary'
             })
         }
 
@@ -550,6 +584,7 @@ if ($SyncResources) {
             if (-not $extId -or -not $dispName) { continue }
 
             $rec = [PSCustomObject]@{
+                id                 = $extId  # Omada UId is a valid UUID
                 externalId         = $extId
                 displayName        = $dispName
                 resourceType       = $atlasType
@@ -597,8 +632,8 @@ if ($SyncEntitlements) {
                     $childUid = Get-OmadaRefUid -Ref $child
                     if ($childUid) {
                         $relRecords.Add([PSCustomObject]@{
-                            parentExternalId = $parentUid
-                            childExternalId  = $childUid
+                            parentResourceId = $parentUid   # direct UUID FK to Resources.id
+                            childResourceId  = $childUid    # direct UUID FK to Resources.id
                             relationshipType = 'Contains'
                         })
                     }
@@ -642,10 +677,10 @@ if ($SyncAssignments) {
             if (-not $principalUid -or -not $resourceUid) { continue }
 
             $rec = [PSCustomObject]@{
-                resourceExternalId  = $resourceUid
-                principalExternalId = $principalUid
-                assignmentType      = if ($item.IsManaged) { 'Governed' } else { 'Direct' }
-                extendedAttributes  = @{ validFrom = $item.ValidFrom; validTo = $item.ValidTo }
+                resourceId         = $resourceUid    # direct UUID FK to Resources.id
+                principalId        = $principalUid   # direct UUID FK to Principals.id (Identity.UId)
+                assignmentType     = if ($item.IsManaged) { 'Governed' } else { 'Direct' }
+                extendedAttributes = @{ validFrom = $item.ValidFrom; validTo = $item.ValidTo }
             }
             if ($item.IsManaged) { $governed.Add($rec) } else { $direct.Add($rec) }
         }
@@ -692,17 +727,18 @@ if ($SyncCRAs) {
 
             $records = @($items | ForEach-Object {
                 $extId      = [string]$_.UId
-                $resourceId = Get-OmadaRefUid -Ref $_.ResourceRef
+                $resUid     = Get-OmadaRefUid -Ref $_.ResourceRef
                 $decision   = Get-OmadaRefValue -Ref $_.Decision -Fallback (Get-OmadaRefValue -Ref $_.ComplianceState -Fallback '')
                 [PSCustomObject]@{
+                    id                    = $extId        # Omada UId is a valid UUID
                     externalId            = $extId
-                    resourceExternalId    = $resourceId
+                    resourceId            = $resUid        # direct UUID FK to Resources.id
                     principalDisplayName  = Get-OmadaRefValue -Ref $_.IdentityRef -Fallback $_.DisplayName
                     decision              = $decision
                     reviewedByDisplayName = Get-OmadaRefValue -Ref $_.ReviewerRef -Fallback ''
                     reviewedDateTime      = $_.ReviewedDate
                 }
-            } | Where-Object { $_.externalId -and $_.resourceExternalId })
+            } | Where-Object { $_.externalId -and $_.resourceId })
 
             $r = Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $systemId -SyncMode 'full' -Records $records
             Write-Host "  CRAs: +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green

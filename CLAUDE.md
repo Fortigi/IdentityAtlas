@@ -273,7 +273,15 @@ docker compose -f docker-compose.prod.yml up -d --pull always
 
 ## Branch: `claude/omada-crawler-sync-a1W3A` — Omada Crawler Sync
 
-**Status (2026-05-30):** Implementation complete. Branch is ahead of `main` at commit `0611111` (v5.49.20260526.1333) by 6 commits. Ready for PR.
+**Status (2026-06-01):** Tested end-to-end against `http://enterpriseserver.corporate.com` (BasicAuth, `corporate\demoadm`). All 8 phases passed: 322 contexts, 332 identities, 333 accounts, 315 identity-member links, 13 220 resources, 72 entitlements, 98 assignments (governed + direct), CRAs skipped (module not enabled on this instance). Ready for PR.
+
+Key bugs fixed during live testing:
+- PowerShell 7 silently parses `"$url?$qs"` as `${url?}` (null) + `$qs` — fixed by using `+` concatenation in URI construction
+- On-premise Omada servers do not return `@odata.nextLink` — `Invoke-OmadaPagedRequest` now uses explicit `$skip` offset paging
+- Entity records must carry an `id` UUID field (ingest key); Omada UIds are valid UUIDs and used directly
+- Context ingest requires topological ordering (parents before children) to satisfy FK constraint
+- `IdentityMembers` must skip non-person identities not stored in Identities table
+- `$PID` is a read-only automatic variable in PowerShell — renamed loop variable to `$parentId`
 
 ### What this branch adds
 

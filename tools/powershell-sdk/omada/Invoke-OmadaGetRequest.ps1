@@ -31,12 +31,14 @@ function Invoke-OmadaGetRequest {
     $base = if ($OverrideBaseUrl) { $OverrideBaseUrl.TrimEnd('/') } else { $script:OmadaSession.BaseUrl }
     if (-not $base) { throw "Omada: session BaseUrl is empty — was Connect-OmadaAPI called successfully?" }
 
-    # Build initial URI
-    $startUri = "$base$Path"
+    # Build initial URI — use concatenation (not double-quoted interpolation) because
+    # PowerShell 7 parses "$var?$other" as ${var?} (null variable named "var?"), dropping
+    # the URL. Using + avoids the ambiguity.
+    $startUri = $base + $Path
     if ($QueryParams.Count -gt 0) {
         $qs = ($QueryParams.GetEnumerator() |
                ForEach-Object { "$($_.Key)=$([uri]::EscapeDataString([string]$_.Value))" }) -join '&'
-        $startUri = "$startUri?$qs"
+        $startUri = $startUri + '?' + $qs
     }
 
     $collected = [System.Collections.Generic.List[object]]::new()

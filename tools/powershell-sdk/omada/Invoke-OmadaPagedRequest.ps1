@@ -2,8 +2,16 @@
 .SYNOPSIS
     Thin wrapper that fetches all records from an Omada OData endpoint.
 .DESCRIPTION
-    Omada uses OData 4.0. Passes $top to set the page size; Invoke-OmadaGetRequest
-    then follows @odata.nextLink automatically until all pages are collected.
+    Omada uses OData 4.0. Combines two pagination strategies:
+      1. @odata.nextLink  — standard OData cursor (Cloud / some on-prem configs)
+      2. $skip pagination — manual offset paging for servers that do not return
+                             @odata.nextLink but still honour $top and $skip.
+
+    The two strategies are complementary: each page is fetched with an explicit
+    $skip offset. Invoke-OmadaGetRequest will follow any @odata.nextLink returned
+    within a page. The loop stops when a page returns fewer records than $PageSize,
+    indicating the last page has been reached.
+
     The caller gets a flat list of all records with no pagination ceremony.
 #>
 
@@ -20,11 +28,26 @@ function Invoke-OmadaPagedRequest {
 
     if ($null -eq $script:OmadaSession) { throw "Omada: not connected. Call Connect-OmadaAPI first." }
 
-    # OData pagination: $top sets the page size. The server includes
-    # @odata.nextLink in the response when more pages exist; Invoke-OmadaGetRequest
-    # follows those links until exhausted.
-    $params = @{ '$top' = $PageSize }
-    foreach ($kv in $QueryParams.GetEnumerator()) { $params[$kv.Key] = $kv.Value }
+    $all  = [System.Collections.Generic.List[object]]::new()
+    $skip = 0
 
-    return Invoke-OmadaGetRequest -Path $Path -QueryParams $params -MaxRetries $MaxRetries -OverrideBaseUrl $OverrideBaseUrl
+    do {
+        # Build per-page params: merge caller params with $top and $skip.
+        # Use single-quoted keys so the literal '$top'/'$skip' strings are preserved
+        # (double-quoted would interpolate them as empty PowerShell variables).
+        $qp = @{ '$top' = $PageSize; '$skip' = $skip }
+        foreach ($kv in $QueryParams.GetEnumerator()) { $qp[$kv.Key] = $kv.Value }
+
+        $page = Invoke-OmadaGetRequest -Path $Path -QueryParams $qp `
+            -MaxRetries $MaxRetries -OverrideBaseUrl $OverrideBaseUrl
+
+        foreach ($r in $page) { $all.Add($r) }
+
+        # Advance skip by PageSize for the next iteration.
+        # Stop when the page is shorter than PageSize (last page) or empty.
+        $skip += $PageSize
+
+    } while ($page.Count -ge $PageSize)
+
+    return $all
 }
