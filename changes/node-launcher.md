@@ -1,0 +1,6 @@
+- Added portable Windows launcher (`IdentityAtlas-portable.zip`) — runs Identity Atlas on any Windows PC without Docker. Unzip and run `Start-IdentityAtlas.ps1` with PowerShell 7.
+- Bundled launcher uses the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), making it compatible with corporate WDAC / application-control policies that block unsigned executables.
+- PostgreSQL data is stored in `%APPDATA%\IdentityAtlas\` using PGlite (WebAssembly PostgreSQL) — no subprocess spawned, no executable written to disk at runtime.
+- PowerShell crawlers (Entra ID, CSV) are supported as a soft dependency: requires `pwsh.exe` on PATH.
+- Fixed: matrix view data was not shown after first data load in portable mode (`pg_class.reltuples` is always 0 in PGlite; dashboard now falls back to an exact `COUNT(*)` when running in desktop mode).
+- Fixed: migrations that partially applied (PGlite DDL transaction quirk) no longer cause the server to abort on restart — objects that already exist are recorded as applied and the server continues.

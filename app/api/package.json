@@ -9,8 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "patch-package || true",
-    "build:desktop": "node ../desktop/scripts/build-desktop.mjs",
-    "build:desktop:skip-ui": "node ../desktop/scripts/build-desktop.mjs --skip-ui-build"
+    "build:node-launcher": "node ../desktop/scripts/build-node-launcher.mjs",
+    "build:node-launcher:skip-ui": "node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build"
   },
   "devDependencies": {
     "esbuild": "^0.28.0",
