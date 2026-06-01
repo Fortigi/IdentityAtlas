@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed cut-beta and cut-release workflows failing because `app/desktop/package.json` was missing
+
+## Changes in this PR
+
 - Added portable Windows launcher (`IdentityAtlas-portable.zip`) — runs Identity Atlas on any Windows PC without Docker. Unzip and run `Start-IdentityAtlas.ps1` with PowerShell 7.
 - Bundled launcher uses the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), making it compatible with corporate WDAC / application-control policies that block unsigned executables.
 - PostgreSQL data is stored in `%APPDATA%\IdentityAtlas\` using PGlite (WebAssembly PostgreSQL) — no subprocess spawned, no executable written to disk at runtime.
