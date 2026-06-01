@@ -66,7 +66,14 @@ No Docker. No WSL. No administrator rights.
    ```
 4. The script starts the server and opens `http://localhost:3001` in your browser once it's ready (~5–10 seconds on first run)
 
-On first run, click **Admin → Crawlers → Load Demo Data** to explore with synthetic data, or add a crawler to connect your own data sources.
+On first run, load the bundled demo dataset to explore with synthetic data:
+
+```powershell
+.\bundled-scripts\test\demo-dataset\Ingest-DemoDataset.ps1 `
+    -ApiKey (Get-Content "$env:APPDATA\IdentityAtlas\.builtin-worker-key")
+```
+
+Or go to **Admin → Crawlers** to connect your own data sources.
 
 ### Data Location
 
@@ -95,6 +102,7 @@ If `pwsh.exe` is not on `PATH`, the UI will still load and display existing data
 | PostgreSQL version | 16 (full) | PGlite (WASM, based on PG 16) |
 | Concurrent users | Multi-user | Single machine, localhost only |
 | `pg_class.reltuples` stats | Updated by ANALYZE | Always 0 — exact COUNT used instead |
+| `REFRESH MATERIALIZED VIEW CONCURRENTLY` | Supported | Not supported (no background worker) — plain REFRESH used |
 | Background worker container | Separate process | Integrated, same Node.js process |
 | Auth (Entra ID JWT) | Configurable | Disabled by default |
 | Azure deployment | Via Bicep | N/A |
@@ -107,7 +115,7 @@ If `pwsh.exe` is not on `PATH`, the UI will still load and display existing data
 
 | Requirement | Version | Notes |
 |---|---|---|
-| **Node.js** | 20 LTS or later | [nodejs.org](https://nodejs.org) |
+| **Node.js** | 18 or later | [nodejs.org](https://nodejs.org) — the bundled `node.exe` is always Node.js 24 |
 | **npm** | Comes with Node.js | |
 | **PowerShell 7** | 7.x | Required to run the build script (downloads node.exe and creates the zip) |
 | **Git** | Any | |
@@ -169,7 +177,7 @@ PGlite runs PostgreSQL compiled to WebAssembly inside the Node.js process. Nothi
 
 **Network exposure**
 
-The app binds to `127.0.0.1:3001` (loopback only). It is not accessible from other machines on the network. Authentication is disabled by default in desktop mode.
+The app binds to `0.0.0.0:3001` (all interfaces). It is reachable from other machines on the same network. In a home or corporate LAN this is typically acceptable for a single-user local install, but be aware that authentication is disabled by default in desktop mode — do not use on untrusted networks without enabling `AUTH_ENABLED=true`.
 
 **Secret storage**
 

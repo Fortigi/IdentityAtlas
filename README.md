@@ -90,6 +90,13 @@ Download `IdentityAtlas-portable.zip` from the [Releases page](https://github.co
 pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1
 ```
 
+Then open `http://localhost:3001`. To load the bundled demo dataset:
+
+```powershell
+.\bundled-scripts\test\demo-dataset\Ingest-DemoDataset.ps1 `
+    -ApiKey (Get-Content "$env:APPDATA\IdentityAtlas\.builtin-worker-key")
+```
+
 The launcher bundles the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), so it works on locked-down corporate laptops with WDAC / application-control policies. Uses [PGlite](https://pglite.dev) (WebAssembly PostgreSQL) running in-process — no subprocess is spawned, no executable is extracted to disk at runtime.
 
 Requires PowerShell 7 (`pwsh.exe`): `winget install Microsoft.PowerShell`
