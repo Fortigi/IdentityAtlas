@@ -70,7 +70,7 @@ function Set-JobResult {
 # exactly what the crawler was doing at each step — without requiring
 # SSH into the worker container. The job_data volume is shared between
 # worker and web, so the web container can read the file back out.
-$traceDir  = '/data/uploads/jobs'
+$traceDir  = if ($env:TRACE_DIR) { $env:TRACE_DIR } else { '/data/uploads/jobs' }
 $traceFile = Join-Path $traceDir "$JobId.log"
 $transcriptStarted = $false
 try {
