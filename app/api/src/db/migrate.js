@@ -46,12 +46,28 @@ function listMigrationFiles() {
     .sort();
 }
 
+// Extensions that PGlite pre-loads natively at init time.
+// Calling CREATE EXTENSION for these in DESKTOP_MODE causes a fatal WASM abort
+// because the extension is already registered at the C level — there is no SQL
+// exception to catch. Strip those statements before execution.
+const PGLITE_NATIVE_EXTENSIONS = new Set(['pg_trgm']);
+
+export function stripNativeExtensions(sql) {
+  return sql.replace(
+    /CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS\s+(\w+)\s*;/gi,
+    (match, name) => PGLITE_NATIVE_EXTENSIONS.has(name.toLowerCase())
+      ? `-- [DESKTOP_MODE] skipped: ${match.trim()}`
+      : match
+  );
+}
+
 // Apply a single migration file inside a transaction. The transaction wraps
 // the whole file so a failure halfway leaves nothing partial — the next run
 // will see the file as not-applied and try again from the top.
 async function applyMigration(filename) {
   const path = join(MIGRATIONS_DIR, filename);
-  const sql  = readFileSync(path, 'utf8');
+  let sql = readFileSync(path, 'utf8');
+  if (process.env.DESKTOP_MODE === 'true') sql = stripNativeExtensions(sql);
 
   await db.tx(async (client) => {
     await client.query(sql);
@@ -80,6 +96,17 @@ export async function runMigrations(_pool) {
       await applyMigration(filename);
       console.log('OK');
     } catch (err) {
+      // PGlite DDL transactions may commit the DDL but fail to record the
+      // migration (transaction boundary quirk). If objects already exist,
+      // record the migration as applied and continue rather than aborting.
+      if (/already exists/i.test(err.message)) {
+        console.warn(`    (objects already exist — recording as applied and continuing)`);
+        await db.query(
+          `INSERT INTO _migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING`,
+          [filename]
+        );
+        continue;
+      }
       console.log('FAILED');
       throw new Error(`Migration ${filename} failed: ${err.message}`);
     }

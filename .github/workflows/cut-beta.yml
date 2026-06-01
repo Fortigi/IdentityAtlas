@@ -1,6 +1,7 @@
 # ─── Cut a Pre-Release (Beta / RC / Alpha) ────────────────────────────────────
 # Manually triggered. Tags the current main HEAD with vX.Y.Z-beta.N (or -rc.N /
-# -alpha.N) and lets docker-publish build and push :beta + :X.Y.Z-beta.N.
+# -alpha.N), builds the portable Windows ZIP, creates a GitHub pre-release with
+# the ZIP attached, and lets docker-publish push :beta + :X.Y.Z-beta.N.
 #
 # :latest is never touched — users on docker-compose.prod.yml are unaffected.
 #
@@ -58,11 +59,25 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "✅ Tagged ${TAG} on $(git rev-parse --short HEAD)"
 
-      - name: Create GitHub pre-release
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install desktop dependencies (PGlite)
+        run: npm install --prefer-offline
+        working-directory: app/desktop
+
+      - name: Build portable Windows ZIP
+        run: npm run build:node-launcher
+        working-directory: app/api
+
+      - name: Create GitHub pre-release with portable ZIP
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           gh release create "$TAG" \
+            app/api/dist-node-launcher/IdentityAtlas-portable.zip \
             --title "$TAG" \
             --generate-notes \
             --prerelease
