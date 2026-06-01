@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Fixed boolean values being incorrectly coerced to integers (0/1) during data ingest, causing failures on strict boolean columns
+- Crawler job dispatcher now resolves script paths via `IA_APP_ROOT` environment variable, allowing the worker to run from any installation directory instead of requiring a fixed `/app` path
+- Crawler job trace logs and CSV upload paths now respect `TRACE_DIR` and `UPLOAD_ROOT` environment variables, removing the hardcoded Docker paths `/data/uploads/jobs` and `/data/uploads`
+
+## Changes in this PR
+
 - Fixed broken links in architecture docs — source-code cross-references now point to GitHub URLs so the MkDocs strict build succeeds and docs deploy correctly to GitHub Pages.
 
 ## Changes in this PR
