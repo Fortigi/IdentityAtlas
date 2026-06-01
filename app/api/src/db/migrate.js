@@ -80,6 +80,17 @@ export async function runMigrations(_pool) {
       await applyMigration(filename);
       console.log('OK');
     } catch (err) {
+      // PGlite DDL transactions may commit the DDL but fail to record the
+      // migration (transaction boundary quirk). If objects already exist,
+      // record the migration as applied and continue rather than aborting.
+      if (/already exists/i.test(err.message)) {
+        console.warn(`    (objects already exist — recording as applied and continuing)`);
+        await db.query(
+          `INSERT INTO _migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING`,
+          [filename]
+        );
+        continue;
+      }
       console.log('FAILED');
       throw new Error(`Migration ${filename} failed: ${err.message}`);
     }

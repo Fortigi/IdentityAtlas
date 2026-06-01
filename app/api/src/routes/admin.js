@@ -661,11 +661,16 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
       llmConfigured = !!(cfg && key);
     } catch { /* Secrets table may not exist on very old deployments */ }
 
-    res.json({
-      ...stats,
-      llmConfigured,
-      hasData: (stats.users || 0) + (stats.resources || 0) > 0,
-    });
+    // pg_class.reltuples is always 0 in PGlite (no stats collector process),
+    // so fall back to an exact COUNT when DESKTOP_MODE is set and reltuples says empty.
+    let hasData = (stats.users || 0) + (stats.resources || 0) > 0;
+    if (!hasData && process.env.DESKTOP_MODE === 'true') {
+      const check = await db.queryOne(
+        `SELECT (SELECT COUNT(*)::int FROM "Principals") + (SELECT COUNT(*)::int FROM "Resources") AS total`
+      );
+      hasData = (check?.total || 0) > 0;
+    }
+    res.json({ ...stats, llmConfigured, hasData });
   } catch (err) {
     console.error('dashboard-stats failed:', err.message);
     res.status(500).json({ error: 'Failed to fetch dashboard stats' });
