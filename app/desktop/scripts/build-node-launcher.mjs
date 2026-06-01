@@ -31,7 +31,10 @@ const ZIP_PATH    = join(DIST_DIR, 'IdentityAtlas-portable.zip');
 const NODE_VERSION = '24.16.0';
 const NODE_URL     = `https://nodejs.org/dist/v${NODE_VERSION}/win-x64/node.exe`;
 
-const SKIP_UI = process.argv.includes('--skip-ui-build');
+const SKIP_UI   = process.argv.includes('--skip-ui-build');
+const ESBUILD   = process.platform === 'win32'
+  ? 'node_modules\\.bin\\esbuild.cmd'
+  : 'node_modules/.bin/esbuild';
 
 function run(cmd, opts = {}) {
   console.log(`  > ${cmd.slice(0, 100)}`);
@@ -73,7 +76,7 @@ const CJS_BANNER = [
   `const __dirname = __cjs_dirname(__filename);`,
 ].join(' ');
 run(
-  `node node_modules/esbuild/bin/esbuild src/index.js` +
+  `${ESBUILD} src/index.js` +
   ` --bundle --platform=node --format=esm` +
   ` --outfile="${BUNDLE_OUT}"` +
   ` --external:@electric-sql/pglite` +
