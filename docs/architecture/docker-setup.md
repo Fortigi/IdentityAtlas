@@ -75,20 +75,42 @@ The compose file uses the `IMAGE_TAG` variable to select which build to pull:
 
 The running version is always visible in the footer of the UI. Edge builds show an amber **edge** badge so it is immediately obvious which channel is running.
 
-```bash
-# Run the stable release (default)
-docker compose -f docker-compose.prod.yml up -d --pull always
+=== "Linux / macOS"
 
-# Run the latest pre-release beta
-IMAGE_TAG=beta docker compose -f docker-compose.prod.yml up -d --pull always
+    ```bash
+    # Run the stable release (default)
+    docker compose -f docker-compose.prod.yml up -d --pull always
 
-# Run the edge build (latest merged to main, may be unstable)
-IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
-# or set IMAGE_TAG=edge in your .env
+    # Run the latest pre-release beta
+    IMAGE_TAG=beta docker compose -f docker-compose.prod.yml up -d --pull always
 
-# Run a specific pinned version
-IMAGE_TAG=5.2.0.0 docker compose -f docker-compose.prod.yml up -d --pull always
-```
+    # Run the edge build (latest merged to main, may be unstable)
+    IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
+    # or set IMAGE_TAG=edge in your .env
+
+    # Run a specific pinned version
+    IMAGE_TAG=5.2.0.0 docker compose -f docker-compose.prod.yml up -d --pull always
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    # Run the stable release (default)
+    docker compose -f docker-compose.prod.yml up -d --pull always
+
+    # Run the latest pre-release beta
+    $env:IMAGE_TAG = "beta"
+    docker compose -f docker-compose.prod.yml up -d --pull always
+
+    # Run the edge build (latest merged to main, may be unstable)
+    $env:IMAGE_TAG = "edge"
+    docker compose -f docker-compose.prod.yml up -d --pull always
+    # or set IMAGE_TAG=edge in your .env
+
+    # Run a specific pinned version
+    $env:IMAGE_TAG = "5.2.0.0"
+    docker compose -f docker-compose.prod.yml up -d --pull always
+    ```
 
 ---
 
@@ -363,9 +385,17 @@ docker compose -f docker-compose.yml restart worker
 
 Copy the template once, then edit the values you need:
 
-```bash
-cp setup/config/.env.example .env
-```
+=== "Linux / macOS"
+
+    ```bash
+    cp setup/config/.env.example .env
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    Copy-Item setup/config/.env.example .env
+    ```
 
 Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read from `.env` in the project root.
 
