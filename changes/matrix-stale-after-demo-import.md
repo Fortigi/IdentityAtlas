@@ -1,0 +1,1 @@
+- Fixed: the matrix no longer stays blank after importing the demo dataset in Docker — navigating to the Matrix tab now picks up the newly loaded data and auto-applies the default filter without requiring a page refresh.
