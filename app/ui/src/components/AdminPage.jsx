@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 import ScheduleEditor from './ScheduleEditor';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle

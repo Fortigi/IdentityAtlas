@@ -1,9 +1,10 @@
 ﻿import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 import RiskScoreSection from './RiskScoreSection';
 import ConfidenceBar from './ConfidenceBar';
 import EntityGraph from './EntityGraph';
-import EntityDetailLayout, { AttributesTable, buildAttributeEntries } from './EntityDetailLayout';
+import EntityDetailLayout, { AttributesTable } from './EntityDetailLayout';
+import { buildAttributeEntries } from '../utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
 import RecentChangesSection from './RecentChangesSection';
 import useExpandableGraph from '../hooks/useExpandableGraph';

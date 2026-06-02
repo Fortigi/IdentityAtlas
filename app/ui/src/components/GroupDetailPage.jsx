@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
 import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
 import { renderAttributeValue } from '../utils/renderAttribute';

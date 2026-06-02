@@ -5,7 +5,7 @@
 // table was introduced and grow over time. No historical backfill.
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 import TimeSeriesChart from './TimeSeriesChart';
 
 const RANGE_OPTIONS = [

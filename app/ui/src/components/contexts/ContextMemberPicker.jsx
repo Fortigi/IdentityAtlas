@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useAuth } from '../../auth/AuthGate';
+import { useAuth } from '../../auth/useAuth';
 
 // ─── Member typeahead for manual contexts ─────────────────────────────────────
 // Renders an input + debounced search; clicking a result POSTs to

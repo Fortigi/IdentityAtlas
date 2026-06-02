@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 import { useMatrixRowOrder } from '../hooks/useMatrixRowOrder';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';

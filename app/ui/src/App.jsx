@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useMatrix } from './hooks/useMatrix';
-import { useAuth } from './auth/AuthGate';
+import { useAuth } from './auth/useAuth';
 import { useTheme } from './hooks/useTheme';
 import { ThemeContext } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -65,7 +65,7 @@ function buildMatrixHash(state) {
   return `matrix${qs ? '?' + qs : ''}`;
 }
 
-export function buildMatrixUrl(state) {
+function buildMatrixUrl(state) {
   const hash = buildMatrixHash(state);
   return `${window.location.origin}${window.location.pathname}#${hash}`;
 }

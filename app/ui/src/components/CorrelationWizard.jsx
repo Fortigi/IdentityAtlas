@@ -6,7 +6,7 @@
 //   3. Save      — name + persist to GraphCorrelationRulesets
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 
 const STEPS = [
   { key: 'sources',   label: 'Sources' },

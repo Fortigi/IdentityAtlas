@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 import ScheduleEditor from './ScheduleEditor';
 
 const SECRET_MASK = '••••••••';

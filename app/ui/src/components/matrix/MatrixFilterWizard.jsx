@@ -14,17 +14,17 @@
 // backward compat; the user-facing term is "matrix").
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { useAuth } from '../../auth/AuthGate';
+import { useAuth } from '../../auth/useAuth';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '../contexts/ModalPrimitives';
 import ContextPicker from '../contexts/ContextPicker';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
-export const WARN_ASSIGNMENTS  =  5_000;
-export const BLOCK_ASSIGNMENTS = 25_000;
+const WARN_ASSIGNMENTS  =  5_000;
+const BLOCK_ASSIGNMENTS = 25_000;
 
-export const EMPTY_FILTER = {
+const EMPTY_FILTER = {
   rowType: 'principal',
   // 'rows-as-resources' — resources on the row axis, subjects on the column
   //                      axis (current default, good when many resources +
@@ -37,7 +37,7 @@ export const EMPTY_FILTER = {
   resource: { include: [], exclude: [] },
 };
 
-export function filterHasAnyCondition(f) {
+function filterHasAnyCondition(f) {
   if (!f) return false;
   const blocks = [f.subject, f.resource];
   for (const b of blocks) {

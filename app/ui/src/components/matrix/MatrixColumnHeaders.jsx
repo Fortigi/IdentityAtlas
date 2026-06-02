@@ -1,14 +1,9 @@
-import { AP_COLORS, AP_COLORS_DARK } from '../../utils/colors';
+import { getApColor } from '../../utils/colors';
 import { useIsDark } from '../../contexts/ThemeContext';
-
-export function getAccessPackageColor(index, isDark = false) {
-  const palette = isDark ? AP_COLORS_DARK : AP_COLORS;
-  return palette[index % palette.length];
-}
 
 // Retained for backward-compat with code that imports it (drop-target sentinel
 // for the old tag filter). The filter UI itself is gone.
-export const BLANK_TAG = '__blank__';
+const BLANK_TAG = '__blank__';
 
 export default function MatrixColumnHeaders({
   users,
@@ -85,7 +80,7 @@ export default function MatrixColumnHeaders({
               rowSpan={2}
               className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
               style={{
-                backgroundColor: getAccessPackageColor(idx, isDark),
+                backgroundColor: getApColor(idx, isDark),
                 width: '24px',
                 minWidth: '24px',
                 verticalAlign: 'bottom',

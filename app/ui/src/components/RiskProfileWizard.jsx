@@ -17,7 +17,7 @@
 // trade-off; persisting drafts can come later.
 
 import { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 import JsonViewer from './JsonViewer';
 
 const STEPS = [

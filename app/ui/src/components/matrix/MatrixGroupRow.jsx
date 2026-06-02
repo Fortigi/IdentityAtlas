@@ -1,5 +1,5 @@
 ﻿import MatrixCell from './MatrixCell';
-import { getAccessPackageColor } from './MatrixColumnHeaders';
+import { getApColor } from '../../utils/colors';
 import { useIsDark } from '../../contexts/ThemeContext';
 
 // Map AP resource role names to the same badge style used in user/group cells.
@@ -134,7 +134,7 @@ export default function MatrixGroupRow({
         if (managed) {
           apCount = relevantApIds.length;
           const firstIdx = apIdToIndex?.get(relevantApIds[0]);
-          if (firstIdx != null) apColor = getAccessPackageColor(firstIdx, isDark);
+          if (firstIdx != null) apColor = getApColor(firstIdx, isDark);
           apNames = relevantApIds.map(id => {
             const ap = accessPackages.find(a => a.id.toLowerCase() === id);
             return ap ? ap.displayName : id;
@@ -196,7 +196,7 @@ export default function MatrixGroupRow({
             key={ap.id}
             className={`px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700 ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
             style={{
-              backgroundColor: hasMapping ? getAccessPackageColor(idx, isDark) : undefined,
+              backgroundColor: hasMapping ? getApColor(idx, isDark) : undefined,
               minWidth: '24px',
               width: '24px',
               height: '24px',

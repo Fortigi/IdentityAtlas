@@ -79,20 +79,3 @@ export function AttributesTable({ title = 'Attributes', entries }) {
   );
 }
 
-// ─── Helper: merge real attributes + extendedAttributes into a flat list ─
-// Real columns first, then a visual separator, then extended-attribute keys.
-// Hidden set is the caller's HIDDEN_FIELDS (header/risk fields etc.).
-
-export function buildAttributeEntries(attributes, extendedAttributes, hiddenKeys) {
-  const hide = hiddenKeys instanceof Set ? hiddenKeys : new Set(hiddenKeys || []);
-  const core = Object.entries(attributes || {})
-    .filter(([k, v]) => !hide.has(k) && v != null && v !== '');
-  // Put id first if present
-  core.sort((a, b) => (a[0] === 'id' ? -1 : b[0] === 'id' ? 1 : 0));
-
-  const extended = Object.entries(extendedAttributes || {})
-    .filter(([, v]) => v != null && v !== '')
-    .map(([k, v]) => [k, v, { extended: true }]);
-
-  return [...core, ...extended];
-}

@@ -12,7 +12,7 @@
 // "Configure a crawler" pointing at Admin → Crawlers.
 
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 import { useIsDark } from '../contexts/ThemeContext';
 
 // Lazy-load Trends — keeps the dashboard's first paint cheap (chart code +

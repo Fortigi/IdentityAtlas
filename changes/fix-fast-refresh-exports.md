@@ -1,0 +1,1 @@
+- Improved Vite hot-module reload: non-component exports (hooks, constants, helper functions) moved out of component files so fast refresh works without full page reloads during development

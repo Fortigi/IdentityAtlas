@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useCallback, useRef } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 
 // ─── Plugin Run Detail Page ───────────────────────────────────────────────────
 // Opens in a detail tab via hash #run:<uuid>. Polls

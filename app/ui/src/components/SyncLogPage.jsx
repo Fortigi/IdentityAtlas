@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '../auth/useAuth';
 
 function formatTimeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
