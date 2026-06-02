@@ -59,7 +59,8 @@ export function formatDurationMs(ms) {
   const s = Math.round(ms / 1000);
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
-  return `${m}m ${s % 60}s`;
+  const rem = s % 60;
+  return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
 }
 
 export function formatRelativeTime(isoStr) {
