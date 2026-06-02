@@ -23,3 +23,6 @@
 - Fixed: Context records are topologically sorted before ingest so parent OrgUnits are inserted before their children, satisfying the `parentContextId` foreign key constraint
 - Fixed: `IdentityMembers` phase now filters out accounts linked to non-person identities not stored in the Identities table, preventing FK violations
 - Added: `Machine` identity type mapped to `ServicePrincipal` in the default type mappings
+- Added: Context membership sync — Omada `Contextassignment` records are now synced to `ContextMembers`, so identity detail pages show the OrgUnit(s) an identity belongs to
+- Fixed: Role assignments now resolve to the correct account (User) UUID via `CalculatedAssignment.AccountName`, so resource assignments are visible on identity detail pages
+- Fixed: CertificationReviews phase no longer skips based on metadata discovery — it now always attempts the endpoint and handles HTTP 404 gracefully, so CRAs are included when the module is enabled
