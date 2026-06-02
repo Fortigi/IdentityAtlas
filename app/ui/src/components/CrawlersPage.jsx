@@ -1,19 +1,9 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/useAuth';
 import ScheduleEditor from './ScheduleEditor';
+import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
 
 const SECRET_MASK = '••••••••';
-
-// Format a duration in seconds as e.g. "1h 37m 17s" / "2m 8s" / "12s".
-function formatDurationHMS(seconds) {
-  if (seconds == null || isNaN(seconds)) return '—';
-  if (seconds < 60) return `${seconds}s`;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return s > 0 ? `${h}h ${m}m ${s}s` : `${h}h ${m}m`;
-  return s > 0 ? `${m}m ${s}s` : `${m}m`;
-}
 
 function StepIndicator({ steps, step, onStepClick, allowAll }) {
   // onStepClick: (n) => void. allowAll=true lets the user jump to ANY step

@@ -2,21 +2,10 @@
 import { useAuth } from '../auth/useAuth';
 import { TAG_COLORS } from '../utils/colors';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { formatDateOnly as formatDate } from '../utils/formatters';
+import { ASSIGNMENT_TYPE_STYLES } from '../utils/accessPackageStyles';
 
 const PAGE_SIZE = 100;
-
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-const ASSIGNMENT_TYPE_STYLES = {
-  'Auto-assigned': 'bg-green-100 text-green-800 border-green-200',
-  'Request-based': 'bg-blue-100 text-blue-800 border-blue-200',
-  'Request-based with auto-removal': 'bg-orange-100 text-orange-800 border-orange-200',
-  'Both': 'bg-purple-100 text-purple-800 border-purple-200',
-};
 
 const COMPLIANCE_STYLES = {
   'Compliant': 'bg-green-100 text-green-800 border-green-200',

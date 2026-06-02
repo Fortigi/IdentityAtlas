@@ -14,6 +14,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useAuth } from '../auth/useAuth';
 import { useIsDark } from '../contexts/ThemeContext';
+import { formatCompactNumber as formatNumber, formatRelativeTime } from '../utils/formatters';
 
 // Lazy-load Trends — keeps the dashboard's first paint cheap (chart code +
 // data hook are only needed when the user clicks the tab).
@@ -34,30 +35,6 @@ function changesUrl(v) {
   return `${GITHUB_BASE}/blob/main/CHANGES.md`;
 }
 
-function formatNumber(n) {
-  if (n == null) return '—';
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 10_000)    return (n / 1_000).toFixed(0) + 'k';
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + 'k';
-  return String(n);
-}
-
-function formatRelativeTime(isoStr) {
-  if (!isoStr) return 'never';
-  const then = new Date(isoStr).getTime();
-  const diff = Date.now() - then;
-  if (diff < 0) return 'in the future';
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1)  return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24)   return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30)    return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12)  return `${months}mo ago`;
-  return `${Math.floor(months / 12)}y ago`;
-}
 
 export default function DashboardPage({ onNavigate }) {
   const { authFetch } = useAuth();

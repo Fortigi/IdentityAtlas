@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/useAuth';
+import { formatDurationMs } from '../utils/formatters';
 
 // ─── Plugin Run Detail Page ───────────────────────────────────────────────────
 // Opens in a detail tab via hash #run:<uuid>. Polls
@@ -79,7 +80,7 @@ export default function RunDetailPage({ runId, onClose, onOpenDetail }) {
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-2">
               Triggered by {run.triggeredBy || 'unknown'} · started {fmt(run.startedAt)}
-              {isDone && durationMs != null && <> · took {formatDuration(durationMs)}</>}
+              {isDone && durationMs != null && <> · took {formatDurationMs(durationMs)}</>}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:text-gray-500" aria-label="Close">
@@ -181,11 +182,3 @@ function fmt(ts) {
   try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
 }
 
-function formatDuration(ms) {
-  if (ms < 1000) return `${ms}ms`;
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const rem = s % 60;
-  return `${m}m ${rem}s`;
-}

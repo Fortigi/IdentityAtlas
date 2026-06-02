@@ -1,4 +1,4 @@
-import { getApColor } from '../../utils/colors';
+import { getAccessPackageColor } from '../../utils/colors';
 import { useIsDark } from '../../contexts/ThemeContext';
 
 // Retained for backward-compat with code that imports it (drop-target sentinel
@@ -80,7 +80,7 @@ export default function MatrixColumnHeaders({
               rowSpan={2}
               className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
               style={{
-                backgroundColor: getApColor(idx, isDark),
+                backgroundColor: getAccessPackageColor(idx, isDark),
                 width: '24px',
                 minWidth: '24px',
                 verticalAlign: 'bottom',
