@@ -1,16 +1,6 @@
-import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
-
-const AuthContext = createContext({
-  authFetch: () => Promise.reject(new Error('AuthContext not initialized')),
-  account: null,
-  logout: () => {},
-  authEnabled: true,
-});
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
+import { AuthContext } from './AuthGate';
 
 export default function AuthGate({ children }) {
   const [state, setState] = useState({ phase: 'loading', error: null });

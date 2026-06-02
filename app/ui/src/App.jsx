@@ -65,7 +65,7 @@ function buildMatrixHash(state) {
   return `matrix${qs ? '?' + qs : ''}`;
 }
 
-export function buildMatrixUrl(state) {
+function buildMatrixUrl(state) {
   const hash = buildMatrixHash(state);
   return `${window.location.origin}${window.location.pathname}#${hash}`;
 }
