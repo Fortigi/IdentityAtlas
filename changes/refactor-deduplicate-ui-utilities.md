@@ -1,4 +1,0 @@
-- Improved Vite hot-module reload: non-component exports (hooks, constants, helper functions) moved out of component files so fast refresh works without full page reloads during development
-- Consolidated duplicate formatting utilities (duration, relative time, compact numbers, date-only) into shared formatters; removed multiple inline copies scattered across component files
-- Extracted shared `ASSIGNMENT_TYPE_STYLES` constant; access packages list now correctly applies dark mode badge colors (was missing dark variants)
-- Renamed `getApColor` → `getAccessPackageColor` for clarity
