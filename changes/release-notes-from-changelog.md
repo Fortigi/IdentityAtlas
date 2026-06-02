@@ -1,0 +1,1 @@
+- Release notes for new versions are now generated automatically from the changelog instead of using GitHub's default auto-generated PR list
