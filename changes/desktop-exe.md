@@ -1,5 +1,4 @@
-- Added portable Windows desktop app — no Docker or installation required. Identity Atlas can now run on a single Windows laptop by double-clicking `IdentityAtlas.exe`.
-- PostgreSQL data is stored in `%APPDATA%\IdentityAtlas\` and persists across restarts.
+- Added portable Windows launcher — runs Identity Atlas on any Windows PC without Docker. Download `IdentityAtlas-portable.zip` from the Releases page, extract, and run `Start-IdentityAtlas.ps1` with PowerShell 7.
+- Bundled launcher uses the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), making it compatible with corporate WDAC / application-control policies that block unsigned executables.
+- PostgreSQL data is stored in `%APPDATA%\IdentityAtlas\` using PGlite (WebAssembly PostgreSQL) — no subprocess spawned, no executable written to disk at runtime.
 - PowerShell crawlers (Entra ID, CSV) are supported as a soft dependency: requires `pwsh.exe` on PATH.
-- Electron-based: no console window, system tray icon, splash screen on startup. Build with `npm run build:desktop` in `app/api/`; produces `app/api/dist-electron/IdentityAtlas.exe` (~300 MB, portable).
-- Replaced embedded PostgreSQL subprocess with PGlite (WebAssembly PostgreSQL). The previous approach extracted and launched `postgres.exe` from `%APPDATA%`, which was blocked by endpoint security tools on locked-down laptops. PGlite runs entirely within the Electron process — no child process spawned, no executable written to disk at runtime.
