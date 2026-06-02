@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../../auth/useAuth';
+import { useAuth } from '../../auth/AuthGate';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 import ContextPicker from '../contexts/ContextPicker';
 

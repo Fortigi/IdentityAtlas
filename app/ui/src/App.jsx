@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useMatrix } from './hooks/useMatrix';
-import { useAuth } from './auth/useAuth';
+import { useAuth } from './auth/AuthGate';
 import { useTheme } from './hooks/useTheme';
 import { ThemeContext } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';

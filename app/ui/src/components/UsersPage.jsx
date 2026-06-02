@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState, useEffect } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import useEntityPage from '../hooks/useEntityPage';
 import FilterBar from './FilterBar';
 import { TAG_COLORS } from '../utils/colors';

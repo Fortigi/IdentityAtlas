@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useAuth } from '../../auth/useAuth';
+import { useAuth } from '../../auth/AuthGate';
 import { Modal, SecondaryButton } from './ModalPrimitives';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 

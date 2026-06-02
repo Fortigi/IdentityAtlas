@@ -12,7 +12,7 @@
 // the new preview counts and rowType marker.
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 
 const GROUP_COL_ALIASES = {
   displayName:      'resourceDisplayName',

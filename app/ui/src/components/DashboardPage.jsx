@@ -12,7 +12,7 @@
 // "Configure a crawler" pointing at Admin → Crawlers.
 
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import { useIsDark } from '../contexts/ThemeContext';
 import { formatCompactNumber as formatNumber, formatRelativeTime } from '../utils/formatters';
 

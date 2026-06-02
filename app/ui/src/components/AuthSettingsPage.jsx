@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 
 function CopyableCommand({ command }) {
   const [copied, setCopied] = useState(false);

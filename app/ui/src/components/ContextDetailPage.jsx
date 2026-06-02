@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import ManualContextEditor from './contexts/ManualContextEditor';
 import ContextMemberPicker from './contexts/ContextMemberPicker';

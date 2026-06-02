@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useRef } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 
 function fmtBytes(n) {
   if (!n) return '0 B';

@@ -2,7 +2,7 @@
 // See docs/architecture/context-redesign-ui.md for the design.
 
 import { useMemo, useState } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import { useContextRoots, useContextSubtree } from '../hooks/useContextTrees';
 import ContextTreeSelector from './contexts/ContextTreeSelector';
 import ContextTreeView from './contexts/ContextTreeView';

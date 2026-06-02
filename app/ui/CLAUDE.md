@@ -65,7 +65,7 @@ Before writing any utility function, helper, constant, or component — **search
 - `utils/attributeEntries.js` — `buildAttributeEntries` (merges core + extendedAttributes)
 - `utils/tierStyles.js` — `TIER_STYLES` (risk tier colors) and `tierClass(tier)` helper
 - `utils/exportToExcel.js` / `utils/exportAccessPackagesToExcel.js` — Excel export logic
-- `auth/useAuth.js` — `useAuth()` hook and `AuthContext`
+- `auth/AuthGate.js` — `useAuth()` hook and `AuthContext` (component provider is `auth/AuthGateProvider.jsx`)
 - `hooks/useEntityPage.js` — search, filter, tags, and pagination for list pages
 - `hooks/useDebouncedValue.js` — `useDebouncedValue(value, delay)` hook
 - `components/ConfidenceBar.jsx` — correlation confidence bar

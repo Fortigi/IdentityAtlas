@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 
 function formatMs(ms) {
   if (ms == null) return '—';

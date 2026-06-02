@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import { TIER_STYLES } from '../utils/tierStyles';
 
 function TierBadge({ tier }) {

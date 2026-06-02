@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../auth/useAuth';
+import { useAuth } from '../../auth/AuthGate';
 import { Modal, Field, ErrorBox, PrimaryButton, SecondaryButton } from './ModalPrimitives';
 
 // Minimal wizard for creating a manual root context. Target type + context

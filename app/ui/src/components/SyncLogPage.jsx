@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import { formatRelativeTime as formatTimeAgo, formatDurationSeconds as formatDuration } from '../utils/formatters';
 
 function formatDateTime(dateStr) {

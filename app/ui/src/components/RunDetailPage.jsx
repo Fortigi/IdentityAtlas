@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useCallback, useRef } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import { formatDurationMs } from '../utils/formatters';
 
 // ─── Plugin Run Detail Page ───────────────────────────────────────────────────

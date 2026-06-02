@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
 import { CollapsibleSection } from './DetailSection';

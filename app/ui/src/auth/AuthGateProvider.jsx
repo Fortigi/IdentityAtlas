@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
-import { AuthContext } from './useAuth';
+import { AuthContext } from './AuthGate';
 
 export default function AuthGate({ children }) {
   const [state, setState] = useState({ phase: 'loading', error: null });

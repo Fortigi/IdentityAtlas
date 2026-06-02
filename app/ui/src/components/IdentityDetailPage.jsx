@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import ConfidenceBar from './ConfidenceBar';
 import EntityGraph from './EntityGraph';

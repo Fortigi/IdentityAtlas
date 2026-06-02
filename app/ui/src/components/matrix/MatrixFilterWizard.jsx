@@ -14,7 +14,7 @@
 // backward compat; the user-facing term is "matrix").
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { useAuth } from '../../auth/useAuth';
+import { useAuth } from '../../auth/AuthGate';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '../contexts/ModalPrimitives';
 import ContextPicker from '../contexts/ContextPicker';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';

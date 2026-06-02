@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
 

@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../auth/AuthGate';
 import { TAG_COLORS } from '../utils/colors';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { formatDateOnly as formatDate } from '../utils/formatters';
