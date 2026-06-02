@@ -4,12 +4,17 @@ In the Docker deployment, **most settings are managed through the UI** (Admin â†
 
 The template lives at `setup/config/tenantname.json.template` and is also returned by the script-download feature in the UI.
 
-```bash
-# Copy the template
-cp setup/config/tenantname.json.template ./config.production.json
+=== "Linux / macOS"
 
-# Edit it with your tenant + Graph credentials
-```
+    ```bash
+    cp setup/config/tenantname.json.template ./config.production.json
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    Copy-Item setup/config/tenantname.json.template ./config.production.json
+    ```
 
 !!! warning "Keep config files out of source control"
     Config files contain credentials. The repo `.gitignore` excludes `config*.json`. Never commit these files.
