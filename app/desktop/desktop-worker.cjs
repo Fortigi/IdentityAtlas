@@ -2,22 +2,19 @@
 // via pwsh.exe.  Required by main.js (CJS, no import.meta.url).
 'use strict';
 
-const { spawn }        = require('child_process');
-const { join }         = require('path');
-const { homedir }      = require('os');
-const { readFileSync } = require('fs');
+const { spawn }   = require('child_process');
+const { join }    = require('path');
+const { homedir } = require('os');
 
 const API_URL  = `http://localhost:${process.env.PORT || '3001'}/api`;
 const DATA_DIR = join(homedir(), 'AppData', 'Roaming', 'IdentityAtlas');
-const KEY_FILE = process.env.WORKER_KEY_FILE || join(DATA_DIR, '.builtin-worker-key');
 const SCRIPTS_DIR = join(DATA_DIR, 'scripts');
 
 const POLL_INTERVAL_MS = 30_000;
 const FIRST_POLL_DELAY =  8_000;
 
 function getApiKey() {
-  try { return readFileSync(KEY_FILE, 'utf8').trim() || null; }
-  catch { return null; }
+  return process.env.WORKER_API_KEY || null;
 }
 
 async function claimJob(apiKey) {

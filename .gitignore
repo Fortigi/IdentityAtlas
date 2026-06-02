@@ -14,12 +14,12 @@ tools/csv-templates/demodataTransformed/
 .claude/settings.local.json
 Config/
 
-# Desktop build artifacts
+# Desktop / portable launcher build artifacts
+app/ui/dist/
+app/ui/playwright-report/
+app/ui/test-results/
 app/api/dist-frontend/
 app/api/bundled-scripts/
 app/api/src/app-bundle.mjs
-app/api/src/embedded-postgres-bundle.cjs
-app/ui/dist/
-app/frontend/
-app/api/dist-electron/
+app/api/dist-node-launcher/
 app/desktop/node_modules/

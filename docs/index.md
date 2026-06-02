@@ -59,14 +59,21 @@ A 4-layer scoring engine that classifies principals by risk without sending sens
 
 Three deployment options — pick the one that fits your environment:
 
-=== "Docker"
-
-    **Prerequisite:** Docker.
+=== "Linux / macOS"
 
     ```bash
     curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
     curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
     cp .env.example .env
+    docker compose -f docker-compose.prod.yml up -d --pull always
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml -OutFile docker-compose.prod.yml
+    Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example -OutFile .env.example
+    Copy-Item .env.example .env
     docker compose -f docker-compose.prod.yml up -d --pull always
     ```
 
@@ -80,21 +87,21 @@ Three deployment options — pick the one that fits your environment:
 
     One-click Bicep deployment: App Service + Postgres Flexible Server + Container Apps + Key Vault. See [Azure Deployment Walkthrough](architecture/azure-deployment-walkthrough.md).
 
-=== "Portable .exe"
+=== "Portable ZIP"
 
-    **Prerequisite:** Windows 10/11 x64. No Docker, no WSL, no admin rights.
+    **Prerequisite:** Windows 10/11 x64 + PowerShell 7. No Docker, no WSL, no admin rights.
 
-    Download `IdentityAtlas.exe` from the [GitHub Releases page](https://github.com/Fortigi/IdentityAtlas/releases) and double-click it.
+    Download `IdentityAtlas-portable.zip` from the [GitHub Releases page](https://github.com/Fortigi/IdentityAtlas/releases), extract, and run `Start-IdentityAtlas.ps1`.
 
-    Uses PGlite (WebAssembly PostgreSQL) running in-process — no subprocess spawned, passes endpoint security tools. See [Portable Desktop App](architecture/desktop-portable.md).
+    Uses PGlite (WebAssembly PostgreSQL) running in-process — no subprocess spawned, passes endpoint security tools. See [Portable Windows Launcher](architecture/desktop-portable.md).
 
 ---
 
 ## Next Steps
 
-- [Quick Start Guide](quickstart.md) — Docker, Azure, and portable exe options
+- [Quick Start Guide](quickstart.md) — Docker, Azure, and portable ZIP options
 - [Docker Setup](architecture/docker-setup.md) — services, volumes, scaling
-- [Portable Desktop App](architecture/desktop-portable.md) — build guide and architecture for the standalone Windows exe
+- [Portable Windows Launcher](architecture/desktop-portable.md) — build guide and architecture for the standalone Windows launcher
 - [Data Model](concepts/data-model.md) — understand the unified schema and how systems map to it
 - [Software Bill of Materials](reference/sbom.md) — complete inventory of components and dependencies
 - [About](about.md) — creators, contact, and licensing

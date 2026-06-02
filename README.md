@@ -80,15 +80,28 @@ cd IdentityAtlas/azure
 
 ---
 
-## Portable Windows App
+## Portable Windows Launcher
 
 For environments where Docker and WSL are blocked by security policy — no installation, no administrator rights required.
 
-Download `IdentityAtlas.exe` from the [Releases page](https://github.com/Fortigi/IdentityAtlas/releases), double-click, and the full stack starts in seconds. Uses [PGlite](https://pglite.dev) (WebAssembly PostgreSQL) running in-process — no subprocess is spawned, no executable is extracted to disk at runtime.
+Download `IdentityAtlas-portable.zip` from the [Releases page](https://github.com/Fortigi/IdentityAtlas/releases), extract, and run:
 
-Crawlers require PowerShell 7 (`pwsh.exe`): `winget install Microsoft.PowerShell`
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1
+```
 
-For the build guide and full architecture notes: [docs/architecture/desktop-portable.md](docs/architecture/desktop-portable.md)
+Then open `http://localhost:3001`. To load the bundled demo dataset:
+
+```powershell
+.\bundled-scripts\test\demo-dataset\Ingest-DemoDataset.ps1 `
+    -ApiKey (Get-Content "$env:APPDATA\IdentityAtlas\.builtin-worker-key")
+```
+
+The launcher bundles the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), so it works on locked-down corporate laptops with WDAC / application-control policies. Uses [PGlite](https://pglite.dev) (WebAssembly PostgreSQL) running in-process — no subprocess is spawned, no executable is extracted to disk at runtime.
+
+Requires PowerShell 7 (`pwsh.exe`): `winget install Microsoft.PowerShell`
+
+For the full guide and architecture notes: [docs/architecture/desktop-portable.md](docs/architecture/desktop-portable.md)
 
 ---
 

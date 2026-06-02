@@ -1,5 +1,57 @@
 ## Changes in this PR
 
+- Improved Vite hot-module reload: non-component exports (hooks, constants, helper functions) moved out of component files so fast refresh works without full page reloads during development
+- Consolidated duplicate formatting utilities (duration, relative time, compact numbers, date-only) into shared formatters; removed multiple inline copies scattered across component files
+- Extracted shared `ASSIGNMENT_TYPE_STYLES` constant; access packages list now correctly applies dark mode badge colors (was missing dark variants)
+- Renamed `getApColor` → `getAccessPackageColor` for clarity
+
+## Changes in this PR
+
+- Fixed: the matrix no longer stays blank after importing the demo dataset in Docker — navigating to the Matrix tab now picks up the newly loaded data and auto-applies the default filter without requiring a page refresh.
+
+## Changes in this PR
+
+- The Image Channels, Environment Variables (Docker Setup), Quick Install (index), and Config File Reference sections in the docs now show separate Linux/macOS and Windows (PowerShell) commands, consistent with the rest of the documentation
+- Release notes for new versions are now generated automatically from the changelog instead of using GitHub's default auto-generated PR list
+
+## Changes in this PR
+
+- Release notes for new versions are now generated automatically from the changelog instead of using GitHub's default auto-generated PR list
+
+## Changes in this PR
+
+- Fixed cut-beta and cut-release workflows failing because `app/desktop/package.json` was missing
+- Fixed portable ZIP build failing on Linux CI due to esbuild binary being invoked incorrectly
+- Fixed cut-beta and cut-release CI running on Node 20 instead of Node 24 to match the bundled node.exe
+
+## Changes in this PR
+
+- Fixed cut-beta and cut-release workflows failing because `app/desktop/package.json` was missing
+
+## Changes in this PR
+
+- Added portable Windows launcher (`IdentityAtlas-portable.zip`) — runs Identity Atlas on any Windows PC without Docker. Unzip and run `Start-IdentityAtlas.ps1` with PowerShell 7.
+- Bundled launcher uses the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), making it compatible with corporate WDAC / application-control policies that block unsigned executables.
+- PostgreSQL data is stored in `%APPDATA%\IdentityAtlas\` using PGlite (WebAssembly PostgreSQL) — no subprocess spawned, no executable written to disk at runtime.
+- PowerShell crawlers (Entra ID, CSV) are supported as a soft dependency: requires `pwsh.exe` on PATH.
+- Fixed: matrix view data was not shown after first data load in portable mode (`pg_class.reltuples` is always 0 in PGlite; dashboard now falls back to an exact `COUNT(*)` when running in desktop mode).
+- Fixed: migrations that partially applied (PGlite DDL transaction quirk) no longer cause the server to abort on restart — objects that already exist are recorded as applied and the server continues.
+- Fixed: crawler jobs failed to start in portable mode — `Invoke-CrawlerJob.ps1` now accepts the crawler config as either a hashtable (Docker scheduler) or a JSON string (desktop worker), so both callers work correctly.
+- Fixed: demo, Entra ID, and CSV crawler jobs failed in portable mode because `Invoke-CrawlerJob.ps1` used hardcoded `/app/` paths; it now resolves scripts relative to `$env:IA_APP_ROOT` (set by the launcher) with `/app` as the Docker fallback.
+- Fixed: UI was not served when the zip was extracted to a non-standard path — the Express app now uses the `FRONTEND_DIST` env var set by the launcher instead of a hardcoded relative path that resolved incorrectly inside the esbuild bundle.
+- Fixed: portable launcher now starts cleanly on fresh machines — resolved a WASM crash triggered by `CREATE EXTENSION pg_trgm` conflicting with the extension loaded at PGlite init, and a missing CJS compatibility shim in the esbuild bundle that prevented Express from loading.
+- Fixed: matrix was empty after loading demo data in portable mode — two causes: (1) `REFRESH MATERIALIZED VIEW CONCURRENTLY` is not supported by PGlite's single-process WASM runtime, desktop mode now always uses plain `REFRESH`; (2) a legacy boolean→integer coercion in the ingest normalizer produced values PGlite rejects for `boolean` columns — booleans are now passed through as-is.
+- Fixed: crawler job trace logs were silently lost in portable mode — the dispatcher and API now resolve the log directory from `$env:TRACE_DIR` / `TRACE_DIR` env var (set by the launcher) rather than the hardcoded Docker path `/data/uploads/jobs`.
+- Fixed: build script now passes PowerShell commands as an argument array via `execFileSync` instead of shell-interpolating them, preventing backslash characters in paths from being silently dropped.
+
+## Changes in this PR
+
+- Fixed boolean values being incorrectly coerced to integers (0/1) during data ingest, causing failures on strict boolean columns
+- Crawler job dispatcher now resolves script paths via `IA_APP_ROOT` environment variable, allowing the worker to run from any installation directory instead of requiring a fixed `/app` path
+- Crawler job trace logs and CSV upload paths now respect `TRACE_DIR` and `UPLOAD_ROOT` environment variables, removing the hardcoded Docker paths `/data/uploads/jobs` and `/data/uploads`
+
+## Changes in this PR
+
 - Fixed broken links in architecture docs — source-code cross-references now point to GitHub URLs so the MkDocs strict build succeeds and docs deploy correctly to GitHub Pages.
 
 ## Changes in this PR

@@ -18,7 +18,7 @@ export const AP_COLORS_DARK = [
   '#78350f', '#0c4a6e', '#3b0764', '#881337', '#365314',
 ];
 
-export function getApColor(index, isDark) {
+export function getAccessPackageColor(index, isDark) {
   const palette = isDark ? AP_COLORS_DARK : AP_COLORS;
   return palette[index % palette.length];
 }

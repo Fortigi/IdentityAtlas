@@ -1,14 +1,6 @@
-import { AP_COLORS, AP_COLORS_DARK } from '../../utils/colors';
+import { getAccessPackageColor } from '../../utils/colors';
 import { useIsDark } from '../../contexts/ThemeContext';
 
-export function getAccessPackageColor(index, isDark = false) {
-  const palette = isDark ? AP_COLORS_DARK : AP_COLORS;
-  return palette[index % palette.length];
-}
-
-// Retained for backward-compat with code that imports it (drop-target sentinel
-// for the old tag filter). The filter UI itself is gone.
-export const BLANK_TAG = '__blank__';
 
 export default function MatrixColumnHeaders({
   users,
