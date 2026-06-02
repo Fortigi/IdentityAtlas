@@ -354,13 +354,14 @@ switch ($JobType) {
             # Apply selectedObjects toggles
             $objects = $Config['selectedObjects']
             if ($objects) {
-                if ($objects.ContainsKey('contexts'))     { $crawlerParams['SyncContexts']     = [bool]$objects['contexts'] }
-                if ($objects.ContainsKey('identities'))   { $crawlerParams['SyncIdentities']   = [bool]$objects['identities'] }
-                if ($objects.ContainsKey('accounts'))     { $crawlerParams['SyncAccounts']      = [bool]$objects['accounts'] }
-                if ($objects.ContainsKey('resources'))    { $crawlerParams['SyncResources']     = [bool]$objects['resources'] }
-                if ($objects.ContainsKey('entitlements')) { $crawlerParams['SyncEntitlements']  = [bool]$objects['entitlements'] }
-                if ($objects.ContainsKey('assignments'))  { $crawlerParams['SyncAssignments']   = [bool]$objects['assignments'] }
-                if ($objects.ContainsKey('cras'))         { $crawlerParams['SyncCRAs']          = [bool]$objects['cras'] }
+                if ($objects.ContainsKey('contexts'))        { $crawlerParams['SyncContexts']       = [bool]$objects['contexts'] }
+                if ($objects.ContainsKey('identities'))      { $crawlerParams['SyncIdentities']     = [bool]$objects['identities'] }
+                if ($objects.ContainsKey('accounts'))        { $crawlerParams['SyncAccounts']        = [bool]$objects['accounts'] }
+                if ($objects.ContainsKey('contextMembers'))  { $crawlerParams['SyncContextMembers']  = [bool]$objects['contextMembers'] }
+                if ($objects.ContainsKey('resources'))       { $crawlerParams['SyncResources']       = [bool]$objects['resources'] }
+                if ($objects.ContainsKey('entitlements'))    { $crawlerParams['SyncEntitlements']    = [bool]$objects['entitlements'] }
+                if ($objects.ContainsKey('assignments'))     { $crawlerParams['SyncAssignments']     = [bool]$objects['assignments'] }
+                if ($objects.ContainsKey('cras'))            { $crawlerParams['SyncCRAs']            = [bool]$objects['cras'] }
             }
 
             & /app/tools/crawlers/omada/Start-OmadaCrawler.ps1 @crawlerParams
