@@ -12,7 +12,22 @@ const API = 'http://localhost:3001/api';
 //
 // Requires the full Docker stack (USE_SQL=true + worker). Skipped in mock mode.
 test.describe('Matrix loads after demo import', () => {
-  test.setTimeout(180000); // demo import can take up to 2 min in CI
+  // Reload demo data after this describe block so the rest of the suite
+  // still sees a populated DB (this block wipes the DB as part of the test).
+  test.afterAll(async ({ request }) => {
+    const cleanRes = await request.post(`${API}/admin/clean-database`);
+    if (!cleanRes.ok()) return; // mock mode — nothing to restore
+    const jobRes = await request.post(`${API}/admin/crawler-jobs`, { data: { jobType: 'demo' } });
+    if (!jobRes.ok()) return;
+    const { id } = await jobRes.json();
+    const deadline = Date.now() + 120000;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 3000));
+      const poll = await request.get(`${API}/admin/crawler-jobs/${id}`);
+      const { status } = await poll.json();
+      if (status === 'completed' || status === 'failed') break;
+    }
+  });
 
   test('matrix renders without error after importing demo data from empty DB', async ({ page, request }) => {
     test.setTimeout(180000); // demo import + polling can take up to 2 min
