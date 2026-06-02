@@ -5,6 +5,10 @@
 > 2. Do **NOT** edit `CHANGES.md` directly — the `bump-version.yml` Action merges all fragments into it on PR merge.
 > 3. Do **NOT** edit `ModuleVersion` in `setup/IdentityAtlas.psd1` — version bumps are also automated by the same Action.
 
+## Coding Principles
+
+> **Reuse before creating.** Before writing any function, constant, helper, hook, or component — search the codebase first. If equivalent logic already exists, use or extend it. Only create something new when nothing suitable exists. This applies across all languages in this repo (PowerShell, JavaScript, SQL).
+
 ## Project Overview
 
 Identity Atlas is a Docker-deployed application that pulls authorization data from Microsoft Graph (and other systems via CSV) into a **PostgreSQL** database, then surfaces it through a React role-mining UI. The worker container ships PowerShell crawler scripts; all persistence flows through the Node.js API.

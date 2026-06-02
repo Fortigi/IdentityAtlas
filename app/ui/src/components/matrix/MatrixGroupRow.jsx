@@ -1,5 +1,5 @@
 ﻿import MatrixCell from './MatrixCell';
-import { getAccessPackageColor } from './MatrixColumnHeaders';
+import { getAccessPackageColor } from '../../utils/colors';
 import { useIsDark } from '../../contexts/ThemeContext';
 
 // Map AP resource role names to the same badge style used in user/group cells.
