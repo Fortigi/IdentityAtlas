@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The Image Channels, Environment Variables (Docker Setup), Quick Install (index), and Config File Reference sections in the docs now show separate Linux/macOS and Windows (PowerShell) commands, consistent with the rest of the documentation
+- Release notes for new versions are now generated automatically from the changelog instead of using GitHub's default auto-generated PR list
+
+## Changes in this PR
+
 - Release notes for new versions are now generated automatically from the changelog instead of using GitHub's default auto-generated PR list
 
 ## Changes in this PR
