@@ -7,7 +7,7 @@
 
 ## Coding Principles
 
-> **Reuse before creating.** Before writing any function, constant, helper, hook, or component — search the codebase first. If equivalent logic already exists, use or extend it. Only create something new when nothing suitable exists. This applies across all languages in this repo (PowerShell, JavaScript, SQL).
+> **Reuse before creating.** Search before writing any function, constant, helper, hook, or component. Only create something new when nothing suitable exists. Applies across all languages (PowerShell, JavaScript, SQL). See each subdirectory CLAUDE.md for known utilities specific to that layer.
 
 ## Project Overview
 
