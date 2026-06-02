@@ -385,9 +385,17 @@ docker compose -f docker-compose.yml restart worker
 
 Copy the template once, then edit the values you need:
 
-```bash
-cp setup/config/.env.example .env
-```
+=== "Linux / macOS"
+
+    ```bash
+    cp setup/config/.env.example .env
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    Copy-Item setup/config/.env.example .env
+    ```
 
 Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read from `.env` in the project root.
 
