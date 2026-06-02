@@ -1,1 +1,1 @@
-- The Image Channels and Environment Variables sections in the Docker Setup docs now show separate Linux/macOS and Windows (PowerShell) commands, consistent with the rest of the page
+- The Image Channels, Environment Variables (Docker Setup), Quick Install (index), and Config File Reference sections in the docs now show separate Linux/macOS and Windows (PowerShell) commands, consistent with the rest of the documentation
