@@ -59,17 +59,23 @@ A 4-layer scoring engine that classifies principals by risk without sending sens
 
 **Prerequisite:** Docker.
 
-```bash
-# Download the compose file and environment template
-curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
+=== "Linux / macOS"
 
-# Create your .env file (defaults are fine for local evaluation)
-cp .env.example .env
+    ```bash
+    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
+    cp .env.example .env
+    docker compose -f docker-compose.prod.yml up -d --pull always
+    ```
 
-# Start the stack (--pull always fetches the newest :latest from the registry)
-docker compose -f docker-compose.prod.yml up -d --pull always
-```
+=== "Windows (PowerShell)"
+
+    ```powershell
+    Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml -OutFile docker-compose.prod.yml
+    Invoke-WebRequest -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example -OutFile .env.example
+    Copy-Item .env.example .env
+    docker compose -f docker-compose.prod.yml up -d --pull always
+    ```
 
 Open [http://localhost:3001](http://localhost:3001) → click **"Load Demo Data"** for instant gratification, or **"Connect Entra ID"** to wire up your own tenant via the in-browser wizard.
 
