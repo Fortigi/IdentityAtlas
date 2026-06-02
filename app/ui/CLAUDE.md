@@ -56,13 +56,16 @@ style={{ color: isDark ? AP_COLORS_DARK[i] : AP_COLORS[i] }}
 
 ## No Duplicate Code
 
-Before writing any utility function, helper, constant, or component — **search first**.
+Before writing any utility function, helper, constant, or component — **search first**. If equivalent logic already exists, use or extend it. Only create something new when nothing suitable exists.
 
 **Known shared utilities in `src/utils/` and `src/hooks/`:**
-- `utils/formatters.js` — `formatDate`, `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
+- `utils/formatters.js` — `formatDate`, `formatDateOnly`, `formatDurationSeconds`, `formatDurationMs`, `formatRelativeTime`, `formatCompactNumber`, `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
+- `utils/colors.js` — `TAG_COLORS`, AP color palettes, `getAccessPackageColor`, `TYPE_COLORS`
+- `utils/accessPackageStyles.js` — `ASSIGNMENT_TYPE_STYLES` badge classes
+- `utils/attributeEntries.js` — `buildAttributeEntries` (merges core + extendedAttributes)
 - `utils/tierStyles.js` — `TIER_STYLES` (risk tier colors) and `tierClass(tier)` helper
-- `utils/colors.js` — `TAG_COLORS` and AP color palette
 - `utils/exportToExcel.js` / `utils/exportAccessPackagesToExcel.js` — Excel export logic
+- `auth/useAuth.js` — `useAuth()` hook and `AuthContext`
 - `hooks/useEntityPage.js` — search, filter, tags, and pagination for list pages
 - `hooks/useDebouncedValue.js` — `useDebouncedValue(value, delay)` hook
 - `components/ConfidenceBar.jsx` — correlation confidence bar
