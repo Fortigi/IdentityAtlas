@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed: the matrix no longer stays blank after importing the demo dataset in Docker — navigating to the Matrix tab now picks up the newly loaded data and auto-applies the default filter without requiring a page refresh.
+
+## Changes in this PR
+
 - The Image Channels, Environment Variables (Docker Setup), Quick Install (index), and Config File Reference sections in the docs now show separate Linux/macOS and Windows (PowerShell) commands, consistent with the rest of the documentation
 - Release notes for new versions are now generated automatically from the changelog instead of using GitHub's default auto-generated PR list
 
