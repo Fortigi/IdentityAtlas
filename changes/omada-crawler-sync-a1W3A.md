@@ -27,3 +27,5 @@
 - Fixed: Role assignments now resolve to the correct account (User) UUID via `CalculatedAssignment.AccountName`, so resource assignments are visible on identity detail pages
 - Fixed: CertificationReviews phase no longer skips based on metadata discovery — it now always attempts the endpoint and handles HTTP 404 gracefully, so CRAs are included when the module is enabled
 - Fixed: Worker job dispatcher now passes the `contextMembers` selectedObjects toggle to `SyncContextMembers` so the context membership phase is honoured when configured via the Admin wizard
+- Fixed: Identity detail page graph now correctly shows the Contexts count — `contextCount` was fetched from the API but silently discarded and never passed to the graph shape function, causing the Contexts node to always show 0
+- Fixed: `docker-compose.yml` worker service adds `extra_hosts` for `enterpriseserver.corporate.com` (resolved via Active Directory DNS at `172.16.0.28`) so the Omada crawler can reach the server after container restarts
