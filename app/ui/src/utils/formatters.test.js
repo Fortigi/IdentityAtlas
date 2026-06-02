@@ -60,17 +60,8 @@ describe('formatDateOnly', () => {
 });
 
 // ─── formatDurationSeconds ─────────────────────────────────────────────────────
-// Two original sources — both migrated to this function:
-//
-// A) CrawlersPage.formatDurationHMS(seconds):
-//    if (seconds == null || isNaN(seconds)) return '—';
-//    if (h > 0) return s > 0 ? `${h}h ${m}m ${s}s` : `${h}h ${m}m`;
-//    → canonical behavior (new function matches exactly)
-//
-// B) SyncLogPage.formatDuration(seconds):
-//    no null guard (would crash)
-//    for h>0: `${h}h ${m % 60}m`  ← drops seconds, different format
-//    → INTENTIONAL DIFFERENCE: new function shows full h/m/s
+// Consolidated from CrawlersPage.formatDurationHMS and SyncLogPage.formatDuration.
+// Both showed "1h 37m" at hour level (no seconds). Null guard added (old functions crashed).
 
 describe('formatDurationSeconds — from CrawlersPage.formatDurationHMS (canonical)', () => {
   it('returns "—" for null', () => {
@@ -101,27 +92,13 @@ describe('formatDurationSeconds — from CrawlersPage.formatDurationHMS (canonic
     expect(formatDurationSeconds(128)).toBe('2m 8s');
   });
 
-  it('formats hours without remainder seconds', () => {
+  it('formats hours, dropping sub-minute seconds', () => {
     expect(formatDurationSeconds(3600 + 37 * 60)).toBe('1h 37m');
+    expect(formatDurationSeconds(3600 + 37 * 60 + 17)).toBe('1h 37m');
+    expect(formatDurationSeconds(3661)).toBe('1h 1m');
   });
 
-  it('formats hours with remainder seconds', () => {
-    expect(formatDurationSeconds(3600 + 37 * 60 + 17)).toBe('1h 37m 17s');
-  });
-});
-
-describe('formatDurationSeconds — INTENTIONAL DIFFERENCES from SyncLogPage.formatDuration', () => {
-  // SyncLogPage version dropped seconds for hour-level durations and had no null guard.
-  // New function is more precise and safer.
-
-  it('shows seconds even when hours are present (new behavior)', () => {
-    // Old SyncLogPage: `${h}h ${m % 60}m`  → "1h 1m"
-    // New:                                  → "1h 1m 1s"
-    expect(formatDurationSeconds(3661)).toBe('1h 1m 1s');
-  });
-
-  it('handles null without crashing (new behavior)', () => {
-    // Old SyncLogPage: no null guard → would throw TypeError
+  it('handles null without crashing', () => {
     expect(() => formatDurationSeconds(null)).not.toThrow();
     expect(formatDurationSeconds(null)).toBe('—');
   });
@@ -166,20 +143,9 @@ describe('formatDurationMs — from RunDetailPage.formatDuration', () => {
 });
 
 // ─── formatRelativeTime ───────────────────────────────────────────────────────
-// Two original sources:
-//
-// A) DashboardPage.formatRelativeTime:
-//    minutes < 60 → `${minutes} min ago`  ← "5 min ago"
-//    hours < 24   → `${hours}h ago`
-//    days < 30    → `${days}d ago`
-//    months/years supported
-//    → INTENTIONAL DIFFERENCE: new uses "m" not "min"
-//
-// B) SyncLogPage.formatTimeAgo:
-//    minutes < 60 → `${minutes}m ago`     ← matches new
-//    hours < 24   → `${hours}h ${minutes % 60}m ago`  ← "2h 35m ago"
-//    no months/years
-//    → INTENTIONAL DIFFERENCE: new drops sub-hour minutes from hour display
+// Consolidated from DashboardPage.formatRelativeTime and SyncLogPage.formatTimeAgo.
+// Uses "m" suffix (not "min"), shows sub-hour minutes at hour level ("2h 35m ago"),
+// and adds months/years support that SyncLogPage lacked.
 
 // Pin the clock so relative-time tests are deterministic
 const NOW = new Date('2024-06-15T12:00:00Z').getTime();
@@ -225,14 +191,6 @@ describe('formatRelativeTime — from DashboardPage.formatRelativeTime (canonica
   });
 });
 
-describe('formatRelativeTime — INTENTIONAL DIFFERENCES from DashboardPage.formatRelativeTime', () => {
-  it('uses "m" suffix for minutes, not "min" (consolidated format)', () => {
-    // Old DashboardPage: "5 min ago"
-    // New:               "5m ago"
-    expect(formatRelativeTime('2024-06-15T11:55:00Z')).toBe('5m ago');
-    expect(formatRelativeTime('2024-06-15T11:55:00Z')).not.toBe('5 min ago');
-  });
-});
 
 describe('formatRelativeTime — new capabilities vs SyncLogPage.formatTimeAgo', () => {
   it('supports months and years (SyncLogPage had no months/years)', () => {
