@@ -83,18 +83,6 @@ function Get-FGSQLResource {
 }
 ```
 
-## Reuse Before Creating
-
-Before writing any function — search `Functions/` first. If equivalent logic exists, use or extend it.
-
-**Known function categories to search:**
-- HTTP / auth → `Functions/Base/` (`Invoke-FGGetRequest`, `Invoke-FGPostRequest`, `Get-FGAccessToken`, etc.)
-- Graph API entities → `Functions/Generic/` (users, groups, service principals, access packages, etc.)
-- Data sync → `Functions/Sync/` (`Sync-FGPrincipal`, `Sync-FGResource`, `Sync-FGResourceAssignment`, etc.)
-- SQL operations → `Functions/SQL/` (`Invoke-FGSQLCommand` and table/view helpers)
-- Business logic → `Functions/Specific/`
-- LLM / risk / clustering → `Functions/RiskScoring/`
-
 ## Rules
 
 **DO:**
