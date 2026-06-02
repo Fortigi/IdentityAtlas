@@ -115,7 +115,7 @@ export default function App() {
   const [managedFilter, setManagedFilter] = useState(initial.managed);
   const [wizardOpen, setWizardOpen] = useState(false);
 
-  const { data, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter } = useMatrix(matrixFilter);
+  const { data, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -270,19 +270,27 @@ export default function App() {
   const autoOpenFiredRef = useRef(false);
   useEffect(() => {
     const freshNav = page === 'matrix' && prevPageRef.current !== 'matrix';
-    if (freshNav) autoOpenFiredRef.current = false;
     prevPageRef.current = page;
+    if (freshNav) {
+      autoOpenFiredRef.current = false;
+      // Re-check DB state on every fresh nav — picks up data loaded since mount
+      // (e.g. demo import or crawler run completed while on another tab).
+      // Return immediately so the auto-open logic only runs once the fresh
+      // values land; the version bump resets hasData/defaultFilter to their
+      // loading states, which holds the gate until the fetch resolves.
+      if (!matrixFilter) { refetchPreChecks(); return; }
+    }
     if (page !== 'matrix' || autoOpenFiredRef.current || matrixFilter || wizardOpen) return;
     // Still waiting for hasData or defaultFilter to resolve
     if (hasData === null || defaultFilter === undefined) return;
+    if (hasData === false) return; // don't lock out — DB may get data after import
     autoOpenFiredRef.current = true;
-    if (hasData === false) return; // empty DB — EmptyFilterState handles the message
     if (defaultFilter !== null) {
       setMatrixFilter(defaultFilter.filter); // skip wizard, apply saved default
     } else {
       setWizardOpen(true); // no default — let user configure
     }
-  }, [page, matrixFilter, wizardOpen, hasData, defaultFilter]);
+  }, [page, matrixFilter, wizardOpen, hasData, defaultFilter, refetchPreChecks]);
 
   // Sync URL when on matrix page (debounced replaceState — no history entry)
   useEffect(() => {
