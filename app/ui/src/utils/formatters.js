@@ -71,7 +71,7 @@ export function formatRelativeTime(isoStr) {
   if (minutes < 1)  return 'just now';
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24)   return `${hours}h ago`;
+  if (hours < 24)   return minutes % 60 > 0 ? `${hours}h ${minutes % 60}m ago` : `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30)    return `${days}d ago`;
   const months = Math.floor(days / 30);

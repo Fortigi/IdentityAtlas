@@ -206,9 +206,10 @@ describe('formatRelativeTime — from DashboardPage.formatRelativeTime (canonica
     expect(formatRelativeTime('2024-06-15T11:01:00Z')).toBe('59m ago');
   });
 
-  it('formats hours ago', () => {
-    expect(formatRelativeTime('2024-06-15T10:00:00Z')).toBe('2h ago');
+  it('formats hours ago, including sub-hour minutes', () => {
     expect(formatRelativeTime('2024-06-15T11:00:00Z')).toBe('1h ago');
+    expect(formatRelativeTime('2024-06-15T09:25:00Z')).toBe('2h 35m ago');
+    expect(formatRelativeTime('2024-06-15T10:00:00Z')).toBe('2h ago');  // exactly on the hour
   });
 
   it('formats days ago', () => {
@@ -233,16 +234,8 @@ describe('formatRelativeTime — INTENTIONAL DIFFERENCES from DashboardPage.form
   });
 });
 
-describe('formatRelativeTime — INTENTIONAL DIFFERENCES from SyncLogPage.formatTimeAgo', () => {
-  it('shows only hours, not hours+minutes, for hour-level age (simplified format)', () => {
-    // Old SyncLogPage: "2h 35m ago"
-    // New:             "2h ago"
-    expect(formatRelativeTime('2024-06-15T09:25:00Z')).toBe('2h ago');
-    expect(formatRelativeTime('2024-06-15T09:25:00Z')).not.toBe('2h 35m ago');
-  });
-
-  it('supports months and years (new capability)', () => {
-    // Old SyncLogPage had no months/years — would have returned e.g. "95d 14h ago"
+describe('formatRelativeTime — new capabilities vs SyncLogPage.formatTimeAgo', () => {
+  it('supports months and years (SyncLogPage had no months/years)', () => {
     expect(formatRelativeTime('2024-03-15T12:00:00Z')).toBe('3mo ago');
     expect(formatRelativeTime('2022-06-15T12:00:00Z')).toBe('2y ago');
   });
