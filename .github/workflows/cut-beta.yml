@@ -72,6 +72,44 @@ jobs:
         run: npm run build:node-launcher
         working-directory: app/api
 
+      - name: Generate release notes
+        run: |
+          # Find the previous stable release tag (excludes beta/rc/alpha)
+          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
+            | grep -vE '-(beta|rc|alpha)' \
+            | head -1)
+
+          # Slice the CHANGES.md entries that are new since PREV_TAG
+          if [ -n "$PREV_TAG" ]; then
+            FIRST_OLD=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | head -1)
+            if [ -n "$FIRST_OLD" ]; then
+              CUTLINE=$(grep -Fn "${FIRST_OLD}" CHANGES.md | head -1 | cut -d: -f1)
+              [ -n "$CUTLINE" ] \
+                && NEW_MD=$(head -n $((CUTLINE - 1)) CHANGES.md) \
+                || NEW_MD=$(cat CHANGES.md)
+            else
+              NEW_MD=$(cat CHANGES.md)
+            fi
+          else
+            NEW_MD=$(cat CHANGES.md)
+          fi
+
+          # Strip "## Changes in this PR" headers; collapse consecutive blank lines
+          BULLETS=$(printf '%s\n' "$NEW_MD" \
+            | grep -v '^## Changes in this PR$' \
+            | awk 'BEGIN{blank=1} /^[[:space:]]*$/{if(!blank){print ""; blank=1}; next} {blank=0; print}')
+
+          {
+            printf '> **Pre-release** — For evaluation only; do not use in production.\n\n'
+            printf '## Changes'
+            [ -n "$PREV_TAG" ] && printf ' since %s' "$PREV_TAG"
+            printf '\n\n%s\n' "$BULLETS"
+            [ -n "$PREV_TAG" ] && printf '\n**Full Changelog:** https://github.com/${{ github.repository }}/compare/%s...%s\n' \
+              "$PREV_TAG" "$TAG"
+          } > release-notes.md
+          echo "--- release-notes.md preview ---"
+          cat release-notes.md
+
       - name: Create GitHub pre-release with portable ZIP
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
@@ -79,7 +117,7 @@ jobs:
           gh release create "$TAG" \
             app/api/dist-node-launcher/IdentityAtlas-portable.zip \
             --title "$TAG" \
-            --generate-notes \
+            --notes-file release-notes.md \
             --prerelease
 
       - name: Post run summary
