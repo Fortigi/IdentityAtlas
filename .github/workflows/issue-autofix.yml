@@ -32,14 +32,7 @@
 name: Issue Triage & Auto-fix
 
 on:
-  issues:
-    types: [opened]
-
-  schedule:
-    # 21:00 UTC = 23:00 CEST (summer) / 22:00 CET (winter)
-    - cron: '0 21 * * *'
-
-  workflow_dispatch:
+  workflow_dispatch:  # disabled: issues/schedule triggers removed
 
 jobs:
   # ── Job 1: Ensure all required labels exist ────────────────────────────────
