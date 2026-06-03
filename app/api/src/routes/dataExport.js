@@ -18,11 +18,19 @@
 import { Router } from 'express';
 import { createToken, listTokens, revokeToken } from '../auth/readTokens.js';
 import { generateWorkbook } from '../export/excelWorkbook.js';
+import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
+// Three different gates because these endpoints serve three different roles:
+//   - mintReadToken    — anyone who can export gets to make their own key
+//   - manageReadTokens — admin only: list every key in the tenant, revoke any
+//   - exportWorkbook   — same group as UI Excel buttons
+const mintReadToken    = requirePermission('data.export.apikey');
+const manageReadTokens = requirePermission('admin.read-tokens');
+const exportWorkbook   = requirePermission('data.export.ui');
 
 // ─── GET /api/admin/read-tokens ─────────────────────────────────
-router.get('/admin/read-tokens', async (_req, res) => {
+router.get('/admin/read-tokens', manageReadTokens, async (_req, res) => {
   try {
     res.json(await listTokens());
   } catch (err) {
@@ -34,7 +42,7 @@ router.get('/admin/read-tokens', async (_req, res) => {
 // ─── POST /api/admin/read-tokens ────────────────────────────────
 // Body: { name: string, expiresAt?: ISO date }
 // Returns: { token: 'fgr_…' (one-time), row: { id, name, ... } }
-router.post('/admin/read-tokens', async (req, res) => {
+router.post('/admin/read-tokens', mintReadToken, async (req, res) => {
   try {
     const { name, expiresAt } = req.body || {};
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -54,7 +62,7 @@ router.post('/admin/read-tokens', async (req, res) => {
 });
 
 // ─── DELETE /api/admin/read-tokens/:id ──────────────────────────
-router.delete('/admin/read-tokens/:id', async (req, res) => {
+router.delete('/admin/read-tokens/:id', manageReadTokens, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' });
   try {
@@ -71,7 +79,7 @@ router.delete('/admin/read-tokens/:id', async (req, res) => {
 // One-click flow: create a new read token AND return the pre-stamped
 // .xlsx in the same request. Body: { name?: string }. Default name is
 // derived from the requesting user / timestamp.
-router.post('/admin/data-export/workbook', async (req, res) => {
+router.post('/admin/data-export/workbook', exportWorkbook, async (req, res) => {
   try {
     const requestedName = (req.body?.name && String(req.body.name).trim()) || '';
     const createdBy = req.user?.preferred_username || req.user?.email || 'unknown';

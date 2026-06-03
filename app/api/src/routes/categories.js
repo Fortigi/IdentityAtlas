@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+const writeCategories = requirePermission('data.write.categories');
 
 let db = null;
 if (useSql) {
@@ -46,7 +48,7 @@ router.get('/categories', async (req, res) => {
 });
 
 // ─── POST /api/categories ────────────────────────────────────────
-router.post('/categories', async (req, res) => {
+router.post('/categories', writeCategories, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { name, color } = req.body;
@@ -74,7 +76,7 @@ router.post('/categories', async (req, res) => {
 });
 
 // ─── PATCH /api/categories/:id ───────────────────────────────────
-router.patch('/categories/:id', async (req, res) => {
+router.patch('/categories/:id', writeCategories, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { name, color } = req.body;
@@ -99,7 +101,7 @@ router.patch('/categories/:id', async (req, res) => {
 });
 
 // ─── DELETE /api/categories/:id ──────────────────────────────────
-router.delete('/categories/:id', async (req, res) => {
+router.delete('/categories/:id', writeCategories, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const id = parseInt(req.params.id, 10);
@@ -119,7 +121,7 @@ router.delete('/categories/:id', async (req, res) => {
 // ─── POST /api/categories/:id/assign ─────────────────────────────
 // Assigns category to an access package. Since an AP can only have ONE category,
 // this replaces any existing assignment for that AP.
-router.post('/categories/:id/assign', async (req, res) => {
+router.post('/categories/:id/assign', writeCategories, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { businessRoleId, resourceId: bodyResourceId } = req.body;
@@ -153,7 +155,7 @@ router.post('/categories/:id/assign', async (req, res) => {
 
 // ─── POST /api/categories/unassign ───────────────────────────────
 // Removes the category assignment from a business role.
-router.post('/categories/unassign', async (req, res) => {
+router.post('/categories/unassign', writeCategories, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { businessRoleId, resourceId: bodyResourceId } = req.body;

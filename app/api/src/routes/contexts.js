@@ -20,9 +20,13 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import * as db from '../db/connection.js';
 import { recalcMemberCountsForChain } from '../contexts/memberCounts.js';
+import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+// Same admin who configures context-algorithm plugins owns the resulting
+// contexts (and manual contexts edited here through the UI).
+const writeContexts = requirePermission('admin.context-plugins');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VARIANTS = new Set(['synced', 'generated', 'manual']);
 const TARGET_TYPES = new Set(['Identity', 'Resource', 'Principal', 'System']);
@@ -210,7 +214,7 @@ router.get('/contexts/:id/members', async (req, res) => {
 // ─── POST /api/contexts ──────────────────────────────────────────────
 // Create a manual context. Body: { targetType, contextType, displayName,
 // description?, parentContextId?, scopeSystemId?, ownerUserId?, externalId? }.
-router.post('/contexts', async (req, res) => {
+router.post('/contexts', writeContexts, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const body = req.body || {};
 
@@ -262,7 +266,7 @@ router.post('/contexts', async (req, res) => {
 // Update a manual context. Body keys: displayName, description,
 // parentContextId, ownerUserId, extendedAttributes. Others are ignored
 // (variant, targetType, sourceAlgorithmId are immutable after creation).
-router.patch('/contexts/:id', async (req, res) => {
+router.patch('/contexts/:id', writeContexts, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
@@ -323,7 +327,7 @@ router.patch('/contexts/:id', async (req, res) => {
 // low-signal cluster and wants it gone; re-running the same plugin with
 // the same parameters will re-create it, so for persistent removal the
 // caller should also adjust plugin parameters (e.g., additionalStopwords).
-router.delete('/contexts/:id', async (req, res) => {
+router.delete('/contexts/:id', writeContexts, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
@@ -353,7 +357,7 @@ router.delete('/contexts/:id', async (req, res) => {
 // OK: the plugin runner's reconcile step only deletes ContextMembers
 // rows with addedBy='algorithm', so an analyst-added row (addedBy=
 // 'analyst') survives every subsequent plugin run.
-router.post('/contexts/:id/members', async (req, res) => {
+router.post('/contexts/:id/members', writeContexts, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
@@ -382,7 +386,7 @@ router.post('/contexts/:id/members', async (req, res) => {
 
 // ─── DELETE /api/contexts/:id/members/:memberId ──────────────────────
 // Removal rules mirror POST: manual + generated OK, synced rejected.
-router.delete('/contexts/:id/members/:memberId', async (req, res) => {
+router.delete('/contexts/:id/members/:memberId', writeContexts, async (req, res) => {
   if (!UUID_RE.test(req.params.id) || !UUID_RE.test(req.params.memberId)) {
     return res.status(400).json({ error: 'Invalid ID format' });
   }
