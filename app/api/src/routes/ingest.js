@@ -346,6 +346,45 @@ router.post('/ingest/refresh-views', async (req, res) => {
   }
   try {
     await refreshMatrixViews();
+
+    // Recalculate directMemberCount and totalMemberCount on all Contexts
+    // that have ContextMembers. The ingest engine doesn't trigger the
+    // per-context recalc helper (that's for manual analyst writes), so we
+    // do a bulk UPDATE here instead.
+    try {
+      const pool = await db.getPool();
+      await pool.request().query(`
+        UPDATE "Contexts" c
+           SET "directMemberCount" = COALESCE(d.cnt, 0),
+               "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
+          FROM (
+            SELECT "contextId", COUNT(*)::int AS cnt
+              FROM "ContextMembers"
+             GROUP BY "contextId"
+          ) d
+         WHERE c.id = d."contextId";
+
+        WITH RECURSIVE subtree AS (
+          SELECT id AS root_id, id AS node_id FROM "Contexts"
+          UNION ALL
+          SELECT s.root_id, c.id
+            FROM "Contexts" c JOIN subtree s ON c."parentContextId" = s.node_id
+        ),
+        totals AS (
+          SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
+            FROM subtree s
+            LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
+           GROUP BY s.root_id
+        )
+        UPDATE "Contexts" c
+           SET "totalMemberCount" = t.cnt
+          FROM totals t
+         WHERE c.id = t.root_id;
+      `);
+    } catch (countErr) {
+      console.warn('Context member count refresh failed (non-fatal):', countErr.message);
+    }
+
     res.json({ message: 'Materialized views refreshed' });
   } catch (err) {
     console.error('refresh-views failed:', err.message);

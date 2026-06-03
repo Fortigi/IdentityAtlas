@@ -366,15 +366,6 @@ switch ($JobType) {
 
             & /app/tools/crawlers/omada/Start-OmadaCrawler.ps1 @crawlerParams
 
-            # Post-sync: contexts + account correlation (same as entra-id and csv)
-            Update-JobProgress -Step 'Building contexts from principal data' -Pct 80
-            try { & /app/setup/docker/Build-FGContexts.ps1 } catch { Write-Host "  Context build failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }
-
-            Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
-            try {
-                if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) { Invoke-FGAccountCorrelation }
-            } catch { Write-Host "  Account correlation failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }
-
             Update-JobProgress -Step 'Complete' -Pct 100
             Set-JobResult @{ status = 'Omada sync completed successfully' }
         }

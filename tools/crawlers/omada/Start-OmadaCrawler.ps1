@@ -1183,6 +1183,28 @@ foreach ($P in $Script:phases) {
     Write-Host ("{0,-20} {1,-10} {2}ms" -f $P.name, $Status, $P.durationMs) -ForegroundColor $Color
 }
 
+# Post per-phase results to the jobs API for the UI phase breakout.
+# Done directly from the crawler (not via the dispatcher) because PowerShell
+# child script scopes are isolated — the dispatcher cannot read our $Script: vars.
+if ($JobId -gt 0) {
+    try {
+        $PhasePayload = @{
+            phases = @($Script:phases | ForEach-Object {
+                $P = @{ name = $_.name; status = $_.status; durationMs = $_.durationMs }
+                if ($_.error)   { $P.error   = $_.error }
+                if ($_.records) { $P.records = $_.records }
+                $P
+            })
+        }
+        Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/jobs/$JobId/phases" `
+            -Method Post -TimeoutSec 15 `
+            -Headers @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' } `
+            -Body ($PhasePayload | ConvertTo-Json -Depth 5 -Compress) | Out-Null
+    } catch {
+        Write-Host "  Warning: could not post phase results — $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
 if ($Script:phaseErrors.Count -gt 0) {
     Write-Host "`nPhase errors:" -ForegroundColor Red
     foreach ($E in $Script:phaseErrors) { Write-Host "  $E" -ForegroundColor Red }

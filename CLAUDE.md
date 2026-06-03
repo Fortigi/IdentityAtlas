@@ -277,48 +277,64 @@ docker compose -f docker-compose.prod.yml up -d --pull always
 
 ## Branch: `claude/omada-crawler-sync-a1W3A` — Omada Crawler Sync
 
-**Status (2026-06-01):** Tested end-to-end against `http://enterpriseserver.corporate.com` (BasicAuth, `corporate\demoadm`). All 8 phases passed: 322 contexts, 332 identities, 333 accounts, 315 identity-member links, 13 220 resources, 72 entitlements, 98 assignments (governed + direct), CRAs skipped (module not enabled on this instance). Ready for PR.
+**Status (2026-06-03):** Fully tested end-to-end against `http://enterpriseserver.corporate.com` (BasicAuth, `corporate\demoadm`). All 9 phases complete: 322+ contexts, 321 identities, 332+ principals, 378 context-members, 13 220 resources across 58 systems, 72 entitlements, 30 000+ assignments, 37 961 CRAs. Ready for PR.
 
-Key bugs fixed during live testing:
-- PowerShell 7 silently parses `"$url?$qs"` as `${url?}` (null) + `$qs` — fixed by using `+` concatenation in URI construction
-- On-premise Omada servers do not return `@odata.nextLink` — `Invoke-OmadaPagedRequest` now uses explicit `$skip` offset paging
-- Entity records must carry an `id` UUID field (ingest key); Omada UIds are valid UUIDs and used directly
-- Context ingest requires topological ordering (parents before children) to satisfy FK constraint
-- `IdentityMembers` must skip non-person identities not stored in Identities table
-- `$PID` is a read-only automatic variable in PowerShell — renamed loop variable to `$parentId`
+Server: `172.16.0.28` — AD DNS resolves `enterpriseserver.corporate.com → masterdemo.corporate.com → 172.16.0.28` (persisted via `extra_hosts` in `docker-compose.yml`).
 
 ### What this branch adds
 
-Native Omada API crawler that pulls data directly from the Omada OData 4.0 REST API, eliminating the manual CSV export/transform step.
+Native Omada IGA crawler that pulls data directly from the Omada OData 4.0 REST API.
 
 | Component | Location | What it does |
 |-----------|----------|-------------|
 | Omada SDK — auth | `tools/powershell-sdk/omada/Invoke-OmadaAuth.ps1` | `Connect-OmadaAPI` — 6 auth methods: FormCookie, BasicAuth, OAuth2CC, OAuth2ROPC, ApiToken, CookieString |
-| Omada SDK — GET | `tools/powershell-sdk/omada/Invoke-OmadaGetRequest.ps1` | Authenticated GET with retry, OData `@odata.nextLink` pagination, optional `-OverrideBaseUrl` for the Builtin service |
-| Omada SDK — paged | `tools/powershell-sdk/omada/Invoke-OmadaPagedRequest.ps1` | Thin wrapper that adds `$top=N` page size |
-| Crawler | `tools/crawlers/omada/Start-OmadaCrawler.ps1` | 8 sync phases: Contexts (Orgunit), Identities, Accounts (User), IdentityMembers, Resources, Entitlements (CHILDROLES), Assignments (CalculatedAssignments), CRAs (graceful skip if unavailable) |
-| Job dispatch | `setup/docker/Invoke-CrawlerJob.ps1` | `'omada'` case — validates baseUrl + authMethod before writing temp config, runs crawler, post-sync context + correlation |
-| API validation | `app/api/src/routes/jobs.js` | `validateOmadaConfig` (exported), `maskConfig` masks all 4 secret types, PATCH preserves all secrets, `'omada'` in `VALID_JOB_TYPES` |
+| Omada SDK — GET | `tools/powershell-sdk/omada/Invoke-OmadaGetRequest.ps1` | Authenticated GET with retry; stops pagination on empty page (not short page — Builtin returns variable-size pages) |
+| Omada SDK — paged | `tools/powershell-sdk/omada/Invoke-OmadaPagedRequest.ps1` | Offset paging (`$top=N&$skip=M`); advances skip by actual received count |
+| Crawler | `tools/crawlers/omada/Start-OmadaCrawler.ps1` | 9 phases — see below; posts per-phase results to `/api/crawlers/jobs/:id/phases` |
+| Job dispatch | `setup/docker/Invoke-CrawlerJob.ps1` | `'omada'` case — validates config, runs crawler; no post-sync Build-FGContexts (Omada syncs its own contexts) |
+| API validation | `app/api/src/routes/jobs.js` | `validateOmadaConfig`, `maskConfig`, `POST /admin/omada/validate-metadata` (live $metadata validation for wizard) |
+| Metadata migration | `app/api/src/db/migrations/029_identities_extended_attributes.sql` | Adds `extendedAttributes jsonb` to `Identities` for Omada-specific fields |
+| ingest/refresh-views | `app/api/src/routes/ingest.js` | Now also recalculates `directMemberCount` / `totalMemberCount` on all Contexts after full sync |
 | Scheduler | `app/api/src/scheduler.js` | `'omada'` in crawlerType allowlist |
-| Admin UI | `app/ui/src/components/CrawlersPage.jsx` | `OmadaWizard` (4-step: Connection → Auth → Sync Objects → Schedule), `CrawlerConfigCard` display, routing |
-| Module | `setup/IdentityAtlas.psm1` | Omada SDK glob dot-sourced alongside graph/helpers |
+| Admin UI — wizard | `app/ui/src/components/CrawlersPage.jsx` | `OmadaWizard` 4-step, Step 3 includes `contextObjectTypes` editor with live $metadata validation (entity set + Identity property names, case-sensitive hint + auto-suggest) |
+| Context detail page | `app/ui/src/components/ContextDetailPage.jsx` | Member click uses `targetType` to open correct detail kind (`identity`/`user`/`resource`) |
+| Identities API | `app/api/src/routes/identities.js` | `contextCount` + `/contexts` endpoint now query ContextMembers directly by Identity UUID |
+| User detail API | `app/api/src/routes/details.js` | Context count and `/user/:id/contexts` join through IdentityMembers → ContextMembers |
+| Module | `setup/IdentityAtlas.psm1` | Omada SDK glob dot-sourced |
 | Tests — JS | `app/api/src/routes/jobs.omada.test.js` | 22 Vitest tests for `maskConfig` and `validateOmadaConfig` |
-| Tests — PS | `test/unit/Omada.Tests.ps1` | Pester 5 tests for `Get-OmadaRefValue`, `Get-OmadaRefUid`, function availability, file structure |
+| Tests — PS | `test/unit/Omada.Tests.ps1` | Pester 5 tests for SDK helpers |
 | CI | `.github/workflows/pr.yml` | PSScriptAnalyzer + Pester coverage extended to omada SDK |
 | Changelog | `changes/omada-crawler-sync-a1W3A.md` | Fragment ready for PR merge |
 
-### OData API structure (confirmed from `$metadata`)
+### Crawler phases (9)
 
-- **DataObjects service** (`/odata/dataobjects`): `Orgunit`, `Identity`, `User`, `Resource`, `Resourceassignment`, `Contextassignment`
-- **Builtin service** (`/odata/builtin`): `CalculatedAssignments` — authoritative source for all effective access
-- All property names are ALL CAPS (`FIRSTNAME`, `EMAIL`, `IDENTITYTYPE`)
-- Reference types: `OIS.SetValue` (`.Value`) and `OIS.ReferenceValue` (`.DisplayName`, `.UId`)
-- All entities have `Deleted` bool — always filter `$filter=Deleted eq false`
-- Resource nesting lives in `Resource.CHILDROLES` (`Collection(OIS.ReferenceValue)`) — no separate endpoint
+| Phase | Entity set | What it syncs |
+|-------|-----------|---------------|
+| Systems | `/System` | All 58 Omada-connected systems registered as separate Identity Atlas Systems |
+| Contexts | configurable `contextObjectTypes` | OrgUnits (and other configured types) as Contexts; Orgunit uses topological sort |
+| Identities | `/Identity` | Person records with 30+ attributes mapped to columns + `extendedAttributes` JSON |
+| Accounts | `/User` | Omada user accounts → Principals; builds `$userNameToUid` and `$identityUidToUserUids` lookups |
+| IdentityMembers | join | Links Identities to their User accounts |
+| ContextMembers | `/Contextassignment`, Identity OUREF/COUNTRY/etc., `/Employment` | Three sources; stored with `memberType='Identity'` so context detail page shows members |
+| Resources | `/Resource` | 13 220+ resources grouped by connected system (SAP, AD, Salesforce, etc.) |
+| Entitlements | `Resource.CHILDROLES` | Role nesting extracted inline from resources |
+| Assignments | `/Resourceassignment` + `/CalculatedAssignments` (Builtin) | Role assignments (Governed) + CRA account assignments (Governed/Direct) with status/reasons/validFrom/To |
+
+### OData API (confirmed from `$metadata`)
+
+- **DataObjects** (`/odata/dataobjects`): `Orgunit`, `Identity`, `User`, `Resource`, `Resourceassignment`, `Contextassignment`, `Employment`, `Country`, `Job_titles`, 25 total
+- **Builtin** (`/odata/builtin`): `CalculatedAssignments` — effective account provisioning; use `$top=1000` bulk pagination (server returns variable-size pages — do not stop on short page, stop on empty)
+- All property names ALL CAPS; reference fields are `OIS.SetValue` (`.Value`) or `OIS.ReferenceValue` (`.DisplayName`, `.UId`)
+- Always filter `$filter=Deleted eq false` on DataObjects; `$filter=Status eq true` on CalculatedAssignments
 
 ### Key design decisions
 
-- **Assignments from CalculatedAssignments**: The Builtin service's `CalculatedAssignments` is used for all effective access (both governed `IsManaged=true` and direct `IsManaged=false`). `Identity.UId` is used as `principalExternalId` for governed assignments, consistent with the CSV transform.
-- **Entitlements from CHILDROLES**: No separate `PermissionNesting` endpoint exists; child role nesting is read directly from `Resource.CHILDROLES` during the Resources phase.
-- **CertificationReviews**: Optional Omada module — skipped gracefully if the entity set is absent or returns 404/400.
-- **Builtin URL derivation**: `$builtinBaseUrl = $baseUrl -replace '/dataobjects/?$', '/builtin'`
+- **Systems**: Each connected system (`/System`) registered as a separate Identity Atlas System. Resources and assignments linked to their correct system via `SYSTEMREF`.
+- **ContextMembers**: Stored with `memberType='Identity'`, `memberId=Identity.UId` (one record per identity per context). This matches the context detail page's query (`WHERE memberType = context.targetType`). The identity detail page queries ContextMembers directly by Identity UUID.
+- **Assignments — two sources**:
+  - `Resourceassignment` (DataObjects): IGA-governed role assignments (business roles, AD groups, etc.) → `assignmentType='Governed'`, fanned out to all Identity accounts
+  - `CalculatedAssignments` (Builtin): effective account provisioning → Principals derived from `AccountKey`, `Attributes` (FIRSTNAME/LASTNAME/EMAIL) — for connected-system accounts (Salesforce, AD, etc.)
+- **CRA pagination**: Use `$top=1000` with `$skip` offset; stop when page is empty (`Count == 0`), not when short — Builtin returns variable-size pages even when more records remain.
+- **configObjectTypes**: Configurable via the wizard or JSON. Each entry: `{ entitySet, contextType, identityField }`. The `identityField` (e.g. `OUREF`) creates direct ContextMember links from each Identity's reference fields. Validated live against `$metadata` in the wizard.
+- **Builtin URL**: `$builtinBaseUrl = $baseUrl -replace '/dataobjects/?$', '/builtin'`
+- **directMemberCount**: Populated by `ingest/refresh-views` (called at end of each sync) via bulk SQL UPDATE — the per-context recalc helper is only for manual writes.
