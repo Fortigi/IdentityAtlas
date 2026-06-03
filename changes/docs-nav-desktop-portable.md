@@ -1,1 +1,0 @@
-- Added **Portable Windows Launcher** page to the documentation navigation under Architecture.
