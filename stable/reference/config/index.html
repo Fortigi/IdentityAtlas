@@ -2246,18 +2246,11 @@
 <h1 id="config-file-reference">Config File Reference<a class="headerlink" href="#config-file-reference" title="Permanent link">&para;</a></h1>
 <p>In the Docker deployment, <strong>most settings are managed through the UI</strong> (Admin → Crawlers wizard). You only need a config file when you want to run a crawler script outside the Docker worker container — for example, when the data source lives on a network the worker can't reach.</p>
 <p>The template lives at <code>setup/config/tenantname.json.template</code> and is also returned by the script-download feature in the UI.</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Linux / macOS</label><label for="__tabbed_1_2">Windows (PowerShell)</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cp<span class="w"> </span>setup/config/tenantname.json.template<span class="w"> </span>./config.production.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Copy the template</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>cp<span class="w"> </span>setup/config/tenantname.json.template<span class="w"> </span>./config.production.json
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Edit it with your tenant + Graph credentials</span>
 </code></pre></div>
-</div>
-<div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">Copy-Item</span> <span class="n">setup</span><span class="p">/</span><span class="n">config</span><span class="p">/</span><span class="n">tenantname</span><span class="p">.</span><span class="n">json</span><span class="p">.</span><span class="n">template</span> <span class="p">./</span><span class="n">config</span><span class="p">.</span><span class="n">production</span><span class="p">.</span><span class="n">json</span>
-</code></pre></div>
-</div>
-</div>
-</div>
 <div class="admonition warning">
 <p class="admonition-title">Keep config files out of source control</p>
 <p>Config files contain credentials. The repo <code>.gitignore</code> excludes <code>config*.json</code>. Never commit these files.</p>
