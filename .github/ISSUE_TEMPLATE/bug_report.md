@@ -30,7 +30,7 @@ If applicable, add screenshots to help explain your problem.
 **Server (please complete the following information):**
  - OS: [e.g. OS]
  - Deployment type: [e.g. Docker, Electron]
- - Docker: [e.g. 29.5.2] 
+ - Docker: [e.g. 29.5.2]
  - Identity Atlas Image version: [e.g. v5.65.20260602.1825]
  - Identity Atlas Release Tag: [e.g. edge]
 
