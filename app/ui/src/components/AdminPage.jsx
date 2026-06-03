@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '../auth/AuthGate';
+import { hasPermission } from '../auth/usePermissions';
 import ScheduleEditor from './ScheduleEditor';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
@@ -1880,11 +1881,12 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
   }, [authFetch]);
   const isAzure = platform === 'azure-app-service';
   const { hasWildcard, permissions } = useAuth();
+  // Reuse the shared pure check (can't use the useHasPermission hook here —
+  // this runs inside a .filter() callback). Tabs with no `requires` are always
+  // visible; everything else delegates to the same logic the hook uses.
   const hasAnyPerm = (required) => {
     if (!required) return true;             // no `requires` → always visible
-    if (hasWildcard) return true;           // open mode / Admin role / pre-load
-    if (!permissions || permissions.size === 0) return false;
-    return required.some(p => permissions.has(p));
+    return hasPermission(permissions, hasWildcard, ...required);
   };
   const visibleTabs = ADMIN_TABS.filter(t => {
     if (isAzure && (t.key === 'auth' || t.key === 'containers')) return false;

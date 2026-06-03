@@ -9,15 +9,24 @@
 
 import { useAuth } from './AuthGate';
 
+// Pure permission check — no React, so it's safe to call inside loops/filters
+// where hooks can't be used (e.g. AdminPage's tab .filter()). True if the user
+// has the wildcard ('*' → "everything") or at least one of the listed
+// permissions. With no `required` args it returns false; callers that treat
+// "no requirement" as "always allowed" should special-case that before calling.
+export function hasPermission(permissions, hasWildcard, ...required) {
+  if (hasWildcard) return true;
+  if (!permissions || permissions.size === 0) return false;
+  return required.some(p => permissions.has(p));
+}
+
 // True if the user has at least one of the listed permissions, OR if they
 // have the wildcard ('*' → "everything"). Variadic so call sites read naturally:
 //   useHasPermission('data.export.ui')
 //   useHasPermission('admin.crawlers', 'admin.systems')
 export function useHasPermission(...required) {
   const { hasWildcard, permissions } = useAuth();
-  if (hasWildcard) return true;
-  if (!permissions || permissions.size === 0) return false;
-  return required.some(p => permissions.has(p));
+  return hasPermission(permissions, hasWildcard, ...required);
 }
 
 // Convenience helpers — give component code the verbs it cares about, with

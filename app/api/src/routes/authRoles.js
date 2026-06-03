@@ -62,6 +62,28 @@ function buildSnapshot(req) {
   };
 }
 
+// Self-lockout guard, shared by PUT (save) and DELETE (reset-to-seed).
+//
+// Computes what permissions the *current request user* would have AFTER the
+// mapping change. If they'd lose admin.auth (and the '*' wildcard), refuse —
+// otherwise nobody could edit the mapping back to a sane state without DB
+// access. Returns a 409 error body to send, or null when the change is safe.
+//
+// Exception: a user who currently holds '*' via the backwards-compat "no
+// recognised roles" fallback is exempt — they aren't relying on the mapping
+// yet, and their pre-change permissions weren't from the mapping either.
+function checkSelfLockout(req, mapping, messages) {
+  if (!req.user || req.user.permissions?.has('*')) return null;
+  const myRoles = req.user.roles || [];
+  const futurePerms = resolvePermissions(myRoles, mapping);
+  if (futurePerms.has('*') || futurePerms.has('admin.auth')) return null;
+  return {
+    error: messages.error,
+    hint: (messages.hintPrefix || '') +
+          'Your current roles in this token: ' + JSON.stringify(myRoles),
+  };
+}
+
 router.get('/admin/roles', (req, res) => {
   res.json(buildSnapshot(req));
 });
@@ -95,26 +117,11 @@ router.put('/admin/roles', writeLimiter, async (req, res) => {
   }
 
   // ── Self-lockout guard ──
-  //
-  // Compute what permissions the *current request user* would have AFTER the
-  // save. If they'd lose admin.auth, refuse — otherwise nobody could edit the
-  // mapping back to a sane state without DB access.
-  //
-  // Exception: if the user currently has the '*' wildcard via the backwards-
-  // compat "no recognised roles" fallback, we still let the save go through.
-  // That user is by definition not relying on the mapping yet; their
-  // pre-save permissions weren't from the mapping either.
-  if (req.user && !req.user.permissions?.has('*')) {
-    const myRoles = req.user.roles || [];
-    const futurePerms = resolvePermissions(myRoles, mapping);
-    if (!futurePerms.has('*') && !futurePerms.has('admin.auth')) {
-      return res.status(409).json({
-        error: 'Save refused — this mapping would remove your own admin.auth permission.',
-        hint: 'Make sure at least one of your roles still has admin.auth (or the * wildcard) before saving. ' +
-              'Your current roles in this token: ' + JSON.stringify(myRoles),
-      });
-    }
-  }
+  const lockout = checkSelfLockout(req, mapping, {
+    error: 'Save refused — this mapping would remove your own admin.auth permission.',
+    hintPrefix: 'Make sure at least one of your roles still has admin.auth (or the * wildcard) before saving. ',
+  });
+  if (lockout) return res.status(409).json(lockout);
 
   try {
     const saved = await setRolePermissions(mapping);
@@ -129,16 +136,10 @@ router.delete('/admin/roles', writeLimiter, async (req, res) => {
   // Reset to seed. Apply the same self-lockout guard against the seed mapping
   // (otherwise an admin whose current mapping grants admin.auth to a role
   // they no longer have could lock themselves out by resetting).
-  if (req.user && !req.user.permissions?.has('*')) {
-    const myRoles = req.user.roles || [];
-    const futurePerms = resolvePermissions(myRoles, SEED_ROLE_PERMISSIONS);
-    if (!futurePerms.has('*') && !futurePerms.has('admin.auth')) {
-      return res.status(409).json({
-        error: 'Reset refused — the seed mapping would not grant your roles admin.auth.',
-        hint: 'Your current roles in this token: ' + JSON.stringify(myRoles),
-      });
-    }
-  }
+  const lockout = checkSelfLockout(req, SEED_ROLE_PERMISSIONS, {
+    error: 'Reset refused — the seed mapping would not grant your roles admin.auth.',
+  });
+  if (lockout) return res.status(409).json(lockout);
 
   try {
     await setRolePermissions(null);
