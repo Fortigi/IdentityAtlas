@@ -1928,10 +1928,19 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
   const ctxValidation = (cot) => {
     if (!metaEntitySets) return null;
     const errs = [];
-    if (cot.entitySet && !metaEntitySets.includes(cot.entitySet))
-      errs.push(`"${cot.entitySet}" is not an entity set in $metadata`);
-    if (cot.identityField && metaIdentityProps && !metaIdentityProps.includes(cot.identityField))
-      errs.push(`"${cot.identityField}" is not a property of the Identity entity type`);
+    if (cot.entitySet && !metaEntitySets.includes(cot.entitySet)) {
+      // Check for a case-insensitive match and suggest the correct casing
+      const suggestion = metaEntitySets.find(s => s.toLowerCase() === cot.entitySet.toLowerCase());
+      errs.push(suggestion
+        ? `"${cot.entitySet}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
+        : `"${cot.entitySet}" is not an entity set in $metadata (names are case-sensitive)`);
+    }
+    if (cot.identityField && metaIdentityProps && !metaIdentityProps.includes(cot.identityField)) {
+      const suggestion = metaIdentityProps.find(p => p.toLowerCase() === cot.identityField.toLowerCase());
+      errs.push(suggestion
+        ? `"${cot.identityField}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
+        : `"${cot.identityField}" is not a property of the Identity entity type (names are case-sensitive)`);
+    }
     return errs;
   };
 
@@ -2222,6 +2231,7 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Omada entity sets to sync as Identity Atlas Contexts. Each type has its own OData path.
               <code className="ml-1 text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">identityField</code> links an identity's reference field to that context type for direct membership.
+              {' '}<span className="text-amber-600 dark:text-amber-400 font-medium">Names are case-sensitive</span> — use the exact casing from <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">$metadata</code> (e.g. <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">Job_titles</code>, not <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">job_titles</code>).
             </p>
             {metaLoading && (
               <p className="text-xs text-gray-400 dark:text-gray-500 italic">Fetching $metadata for validation…</p>
