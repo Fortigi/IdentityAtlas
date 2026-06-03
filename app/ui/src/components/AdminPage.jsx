@@ -1353,15 +1353,18 @@ function DangerZoneSection({ onRefresh }) {
 }
 
 // ─── Admin Sub-Tabs ───────────────────────────────────────────────────────────
+// `requires` lists permissions any one of which (logical OR) grants access to
+// that sub-tab. Tabs without `requires` are visible to any authenticated user
+// (read-only stuff: Performance / Containers / About).
 const ADMIN_TABS = [
-  { key: 'crawlers',     label: 'Crawlers',            description: 'Add, configure and run identity data crawlers' },
-  { key: 'data',         label: 'Data',                description: 'Export/import curated data and clean the database' },
-  { key: 'correlation',  label: 'Account Correlation', description: 'Rules for linking accounts to identities' },
-  { key: 'risk-scoring', label: 'Risk Scoring',        description: 'Risk profile, classifiers and feature toggle' },
-  { key: 'llm',          label: 'LLM Settings',        description: 'Configure the LLM provider used by risk scoring and account correlation' },
+  { key: 'crawlers',     label: 'Crawlers',            description: 'Add, configure and run identity data crawlers',                                  requires: ['admin.crawlers'] },
+  { key: 'data',         label: 'Data',                description: 'Export/import curated data and clean the database',                              requires: ['data.export.ui', 'admin.csv-import', 'admin.systems', 'admin.read-tokens', 'data.export.apikey'] },
+  { key: 'correlation',  label: 'Account Correlation', description: 'Rules for linking accounts to identities',                                       requires: ['admin.llm'] },
+  { key: 'risk-scoring', label: 'Risk Scoring',        description: 'Risk profile, classifiers and feature toggle',                                   requires: ['admin.llm', 'admin.crawlers'] },
+  { key: 'llm',          label: 'LLM Settings',        description: 'Configure the LLM provider used by risk scoring and account correlation',        requires: ['admin.llm'] },
   { key: 'performance',  label: 'Performance',         description: 'API and SQL performance metrics' },
   { key: 'containers',   label: 'Containers',          description: 'Live CPU, memory and network for the Docker stack' },
-  { key: 'auth',         label: 'Authentication',      description: 'Configure Entra ID single sign-on' },
+  { key: 'auth',         label: 'Authentication',      description: 'Configure Entra ID single sign-on',                                              requires: ['admin.auth'] },
   { key: 'about',        label: 'About',               description: 'License, version, and software bill of materials' },
 ];
 
@@ -1858,6 +1861,8 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
   // commands shown there assume Docker). Same for the Containers tab,
   // which depends on the Docker socket. Hide both when we detect Azure.
   const { authFetch } = useAuth();
+  // hasWildcard + permissions come from AuthContext (populated by AuthGateProvider
+  // after sign-in via /api/auth-me). Used to hide sub-tabs the user can't use.
   const [platform, setPlatform] = useState(null);
   useEffect(() => {
     let cancelled = false;
@@ -1874,9 +1879,17 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
     return () => { cancelled = true; };
   }, [authFetch]);
   const isAzure = platform === 'azure-app-service';
-  const visibleTabs = isAzure
-    ? ADMIN_TABS.filter(t => t.key !== 'auth' && t.key !== 'containers')
-    : ADMIN_TABS;
+  const { hasWildcard, permissions } = useAuth();
+  const hasAnyPerm = (required) => {
+    if (!required) return true;             // no `requires` → always visible
+    if (hasWildcard) return true;           // open mode / Admin role / pre-load
+    if (!permissions || permissions.size === 0) return false;
+    return required.some(p => permissions.has(p));
+  };
+  const visibleTabs = ADMIN_TABS.filter(t => {
+    if (isAzure && (t.key === 'auth' || t.key === 'containers')) return false;
+    return hasAnyPerm(t.requires);
+  });
 
   // If the user was on a now-hidden tab, bounce them to the first visible one.
   useEffect(() => {
