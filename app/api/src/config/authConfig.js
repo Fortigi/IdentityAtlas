@@ -83,19 +83,18 @@ function parseRolePermissions(raw) {
   catch { return null; }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
 
-  // Role names are user-supplied (via the admin role-mapping API), so they're
-  // used here as object property names. Guard against prototype-polluting keys
-  // before assigning, and accumulate into a null-prototype object so a slipped
-  // key can never reach Object.prototype.
-  const out = Object.create(null);
-  for (const [role, perms] of Object.entries(parsed)) {
-    if (typeof role !== 'string' || !role) continue;
-    if (role === '__proto__' || role === 'constructor' || role === 'prototype') continue;
-    if (!Array.isArray(perms)) continue;
-    const filtered = perms.filter(p => typeof p === 'string' && isKnownPermission(p));
-    out[role] = filtered;
-  }
-  return Object.keys(out).length > 0 ? out : null;
+  // Role names are user-supplied (via the admin role-mapping API). Build the
+  // result with Object.fromEntries over a filtered entry list instead of
+  // assigning to a computed property — and drop prototype-polluting keys
+  // (__proto__/constructor/prototype) so a hostile mapping can't reach
+  // Object.prototype.
+  const entries = Object.entries(parsed)
+    .filter(([role, perms]) =>
+      typeof role === 'string' && role &&
+      role !== '__proto__' && role !== 'constructor' && role !== 'prototype' &&
+      Array.isArray(perms))
+    .map(([role, perms]) => [role, perms.filter(p => typeof p === 'string' && isKnownPermission(p))]);
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
 // Read all auth keys out of WorkerConfig in one query. Missing rows are
