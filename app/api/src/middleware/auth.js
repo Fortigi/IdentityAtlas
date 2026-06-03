@@ -11,8 +11,10 @@ import {
   getTenantId,
   getClientId,
   getRequiredRoles,
+  getRolePermissions,
 } from '../config/authConfig.js';
 import { isReadTokenFormat, findActiveByPlaintext } from '../auth/readTokens.js';
+import { resolvePermissions } from '../auth/permissions.js';
 
 // jwks-rsa's getSigningKey is callback-shaped. We need a stable function ref
 // that resolves the *current* client at call time so a hot reload picks up the
@@ -101,17 +103,77 @@ export function authMiddleware(req, res, next) {
       return res.status(401).json({ error: 'Token issued by unexpected tenant' });
     }
 
-    // Optional app-role gate
+    const tokenRoles = Array.isArray(decoded.roles) ? decoded.roles : [];
+
+    // Optional app-role gate — coarse "must have one of these roles" check
+    // configured via AUTH_REQUIRED_ROLES. Independent of the permission
+    // model below; if both are set, both must pass.
     const requiredRoles = getRequiredRoles();
     if (requiredRoles && requiredRoles.length > 0) {
-      const tokenRoles = decoded.roles || [];
       if (!requiredRoles.some(r => tokenRoles.includes(r))) {
         console.error(`Token missing required role. Has: [${tokenRoles.join(', ')}], needs one of: [${requiredRoles.join(', ')}]`);
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
     }
 
+    // Resolve roles -> permissions via the configured (or seed) mapping.
+    //
+    // Backwards-compat rule: a signed-in user with NO recognised roles gets
+    // a sentinel '*' permission, same as the wildcard for Admin in the seed
+    // mapping. This preserves existing behaviour for installs that have not
+    // yet assigned users to the Entra app roles. The moment the customer
+    // assigns at least one role that's in the mapping, that role's explicit
+    // permissions apply and the wildcard fallback no longer kicks in for
+    // that user.
+    const mapping = getRolePermissions();
+    let permissions = resolvePermissions(tokenRoles, mapping);
+    if (permissions.size === 0) {
+      permissions = new Set(['*']);
+    }
+
     req.user = decoded;
+    req.user.roles = tokenRoles;
+    req.user.permissions = permissions;
     next();
   });
+}
+
+// Per-route permission gate. Use at the mount line (most routers) or as a
+// per-handler middleware (mixed routers with read GETs + admin POSTs).
+//
+//   app.use('/api', authMiddleware, requirePermission('admin.crawlers'), adminCrawlersRouter);
+//   router.post('/categories', requirePermission('data.write.categories'), handler);
+//
+// Accepts one or more permission strings — having ANY one of them is enough.
+// When auth is disabled the gate is a no-op (open mode bypass).
+export function requirePermission(...required) {
+  if (required.length === 0) {
+    throw new Error('requirePermission() requires at least one permission name');
+  }
+  return function permissionGate(req, res, next) {
+    if (!isAuthEnabled()) return next();
+
+    // fgr_ read tokens get data.read implicitly. They're already restricted to
+    // GET + non-admin endpoints by the upstream middleware, so the only
+    // permission gate they ever encounter is data.read.
+    if (req.readToken) {
+      if (required.includes('data.read')) return next();
+      return res.status(403).json({ error: 'Read API keys cannot access this endpoint', required });
+    }
+
+    const perms = req.user?.permissions;
+    if (!perms) {
+      // Should not happen — authMiddleware always sets this on a valid JWT.
+      // Treat as misconfiguration, deny rather than crash.
+      return res.status(403).json({ error: 'No permissions resolved for user', required });
+    }
+    if (perms.has('*')) return next();
+    if (required.some(p => perms.has(p))) return next();
+
+    return res.status(403).json({
+      error: 'Insufficient permissions',
+      required,
+      have: Array.from(perms).filter(p => p !== '*'),
+    });
+  };
 }

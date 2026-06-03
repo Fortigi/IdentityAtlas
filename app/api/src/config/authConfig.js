@@ -23,22 +23,31 @@
 //      run the CLI yet — keeps existing deployments working unchanged)
 //   3. Hardcoded default (auth disabled)
 //
-// reloadAuthConfig() is exposed but called only at startup. There is no
-// runtime mutation API.
+// reloadAuthConfig() is exposed but called only at startup.
+//
+// Exception: AUTH_ROLE_PERMISSIONS (the role→permission mapping) IS
+// hot-updatable via setRolePermissions() because the Admin UI edits it.
+// See the rationale block on setRolePermissions() below for why this is
+// a different risk profile from tenant/client config.
 
 import jwksClient from 'jwks-rsa';
 import * as db from '../db/connection.js';
+import { SEED_ROLE_PERMISSIONS, isKnownPermission } from '../auth/permissions.js';
 
 const useSql = process.env.USE_SQL === 'true';
 
 // Module-level state — a snapshot of the current auth configuration. Read by
-// authMiddleware and the /api/auth-config route. Mutated only by load()/reload().
+// authMiddleware and the /api/auth-config route. Mutated by load()/reload()
+// AND by setRolePermissions() (the latter is a runtime update from the Admin
+// UI — see comment block below for why role mapping is hot-updatable while
+// tenant/client are CLI-only).
 let _state = {
   enabled: false,
   tenantId: '',
   clientId: '',
-  requiredRoles: null, // null = no role check; otherwise array of strings
-  jwksClient: null,    // built when enabled === true && tenantId is set
+  requiredRoles: null,   // null = no role check; otherwise array of strings
+  rolePermissions: null, // null = use SEED_ROLE_PERMISSIONS; otherwise the customer's saved mapping
+  jwksClient: null,      // built when enabled === true && tenantId is set
   loaded: false,
 };
 
@@ -63,14 +72,35 @@ function parseRoles(v) {
   return arr.length > 0 ? arr : null;
 }
 
-// Read all four auth keys out of WorkerConfig in one query. Missing rows are
+// Parse the role->permission JSON blob from WorkerConfig. Defensive: unknown
+// permission strings are dropped silently (so older clients can't keep a
+// removed permission alive); we never throw on a malformed value — that would
+// brick auth on the next startup. Bad input falls back to null (= seed).
+function parseRolePermissions(raw) {
+  if (!raw) return null;
+  let parsed;
+  try { parsed = JSON.parse(raw); }
+  catch { return null; }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+
+  const out = {};
+  for (const [role, perms] of Object.entries(parsed)) {
+    if (typeof role !== 'string' || !role) continue;
+    if (!Array.isArray(perms)) continue;
+    const filtered = perms.filter(p => typeof p === 'string' && isKnownPermission(p));
+    out[role] = filtered;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+// Read all auth keys out of WorkerConfig in one query. Missing rows are
 // just absent from the result — caller falls back to env vars.
 async function readFromDb() {
   if (!useSql) return {};
   try {
     const r = await db.query(
       `SELECT "configKey", "configValue" FROM "WorkerConfig"
-        WHERE "configKey" IN ('AUTH_ENABLED','AUTH_TENANT_ID','AUTH_CLIENT_ID','AUTH_REQUIRED_ROLES')`
+        WHERE "configKey" IN ('AUTH_ENABLED','AUTH_TENANT_ID','AUTH_CLIENT_ID','AUTH_REQUIRED_ROLES','AUTH_ROLE_PERMISSIONS')`
     );
     const out = {};
     for (const row of r.rows) out[row.configKey] = row.configValue;
@@ -91,16 +121,18 @@ function resolve(dbValue, envValue, defaultValue) {
 
 export async function loadAuthConfig() {
   const dbVals = await readFromDb();
-  const enabled  = parseBoolean(resolve(dbVals.AUTH_ENABLED,        process.env.AUTH_ENABLED,        'false'));
-  const tenantId = resolve(dbVals.AUTH_TENANT_ID,        process.env.AUTH_TENANT_ID,        '');
-  const clientId = resolve(dbVals.AUTH_CLIENT_ID,        process.env.AUTH_CLIENT_ID,        '');
-  const roles    = parseRoles(resolve(dbVals.AUTH_REQUIRED_ROLES,   process.env.AUTH_REQUIRED_ROLES,   ''));
+  const enabled         = parseBoolean(resolve(dbVals.AUTH_ENABLED,      process.env.AUTH_ENABLED,      'false'));
+  const tenantId        = resolve(dbVals.AUTH_TENANT_ID,    process.env.AUTH_TENANT_ID,    '');
+  const clientId        = resolve(dbVals.AUTH_CLIENT_ID,    process.env.AUTH_CLIENT_ID,    '');
+  const roles           = parseRoles(resolve(dbVals.AUTH_REQUIRED_ROLES, process.env.AUTH_REQUIRED_ROLES, ''));
+  const rolePermissions = parseRolePermissions(dbVals.AUTH_ROLE_PERMISSIONS);
 
   _state = {
     enabled,
     tenantId,
     clientId,
     requiredRoles: roles,
+    rolePermissions,
     jwksClient: enabled && tenantId ? buildJwksClient(tenantId) : null,
     loaded: true,
   };
@@ -127,3 +159,55 @@ export function getJwksClient()  { return _state.jwksClient; }
 export function getTenantId()    { return _state.tenantId; }
 export function getClientId()    { return _state.clientId; }
 export function getRequiredRoles() { return _state.requiredRoles; }
+
+// Role -> permission mapping. Returns the customer's saved mapping if present,
+// otherwise the built-in seed. Always returns a plain object (never null) so
+// downstream resolvePermissions() always has something to iterate.
+export function getRolePermissions() {
+  return _state.rolePermissions || SEED_ROLE_PERMISSIONS;
+}
+
+// True iff the customer has saved a mapping. The Admin UI uses this to show
+// "you're using the default seed mapping" vs "you've customised it."
+export function hasCustomRolePermissions() {
+  return _state.rolePermissions !== null;
+}
+
+// In-process update used by the Admin → Roles & Permissions page. Persists to
+// WorkerConfig AND updates module state immediately — no restart needed.
+//
+// Why this is hot-updatable while tenant/client are CLI-only:
+//   - Tenant/client mistakes can lock everyone out (wrong tenant → no token
+//     ever validates). Recovery requires shell access anyway, so CLI is the
+//     natural surface.
+//   - Role mapping mistakes are bounded — worst case a role grants too few
+//     permissions, and 'admin.auth' is protected by the self-lockout guard
+//     in the route handler. The Admin user editing the mapping already has
+//     'admin.auth' so a real-time save is no worse than the existing route
+//     mutations they're allowed to perform.
+//
+// Pass `null` to clear the customer mapping and revert to the seed.
+export async function setRolePermissions(mapping) {
+  // Re-validate and re-normalize (drop unknown perms, strip junk) so the DB
+  // never contains a value that wouldn't survive loadAuthConfig().
+  const normalized = mapping === null ? null : parseRolePermissions(JSON.stringify(mapping));
+
+  if (useSql) {
+    if (normalized === null) {
+      await db.query(`DELETE FROM "WorkerConfig" WHERE "configKey" = 'AUTH_ROLE_PERMISSIONS'`);
+    } else {
+      const json = JSON.stringify(normalized);
+      await db.query(
+        `INSERT INTO "WorkerConfig" ("configKey", "configValue")
+              VALUES ('AUTH_ROLE_PERMISSIONS', $1)
+         ON CONFLICT ("configKey") DO UPDATE
+            SET "configValue" = EXCLUDED."configValue",
+                "updatedAt"   = (now() AT TIME ZONE 'utc')`,
+        [json]
+      );
+    }
+  }
+
+  _state = { ..._state, rolePermissions: normalized };
+  return getRolePermissions();
+}
