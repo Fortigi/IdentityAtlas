@@ -272,6 +272,34 @@ app.get('/api/auth-config', publicLimiter, (req, res) => {
   });
 });
 
+// What permissions does the *current request* have? UI calls this once after
+// sign-in (and after editing the mapping) to drive feature-flag-style gating —
+// hide Admin tab, hide export buttons, etc. Server is source of truth for the
+// role→permission mapping; mirroring the resolution in the UI would drift.
+//
+// Behaviour:
+//   - Auth disabled → { enabled:false, hasWildcard:true, permissions:[] }.
+//     UI treats wildcard as "render everything."
+//   - Auth enabled but no Authorization header → 401 (caller should retry
+//     with a token).
+//   - Auth enabled + valid JWT → { roles, permissions, hasWildcard } where
+//     `permissions` excludes the '*' sentinel and `hasWildcard` is the
+//     boolean. Lets the UI distinguish "Admin (full access via *)" from
+//     "RoleMiner (these specific permissions)" for the badge display.
+app.get('/api/auth-me', authMiddleware, (req, res) => {
+  if (!isAuthEnabled()) {
+    return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [] });
+  }
+  const perms = req.user?.permissions || new Set();
+  const hasWildcard = perms.has('*');
+  res.json({
+    enabled: true,
+    roles: req.user?.roles || [],
+    permissions: Array.from(perms).filter(p => p !== '*'),
+    hasWildcard,
+  });
+});
+
 // Performance metrics routes (auth-protected)
 app.use('/api', authMiddleware, perfRouter);
 
