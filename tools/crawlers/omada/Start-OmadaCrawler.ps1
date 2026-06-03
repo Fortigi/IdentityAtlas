@@ -104,6 +104,42 @@ $ApiVersion            = if ($Cfg.apiVersion) { $Cfg.apiVersion } else { 'v14' }
 $PageSize              = if ($Cfg.pageSize)   { [int]$Cfg.pageSize } else { 100 }
 $SessionTimeoutMinutes = if ($Cfg.sessionTimeoutMinutes) { [int]$Cfg.sessionTimeoutMinutes } else { 30 }
 
+# contextObjectTypes: list of Omada entity sets to sync as Identity Atlas Contexts.
+# Each entry: { entitySet: "Orgunit", contextType: "OrgUnit", identityField: "OUREF" }
+# identityField: the field on the Identity entity that references this context type (for direct ContextMember creation).
+# Default: Orgunit only (backward-compatible). Operators add Country, Building, etc. as needed.
+$DefaultContextObjectTypes = @(
+    @{ entitySet = 'Orgunit'; contextType = 'OrgUnit'; identityField = 'OUREF' }
+)
+$ContextObjectTypes = if ($Cfg.contextObjectTypes) {
+    @($Cfg.contextObjectTypes | ForEach-Object {
+        @{ entitySet    = [string]$_.entitySet
+           contextType  = if ($_.contextType)  { [string]$_.contextType  } else { [string]$_.entitySet }
+           identityField = if ($_.identityField) { [string]$_.identityField } else { $Null } }
+    })
+} else {
+    $DefaultContextObjectTypes
+}
+# Map: entitySet → identityField (for ContextMember creation from Identity references)
+$ContextEntitySetToIdentityField = @{}
+foreach ($Cot in $ContextObjectTypes) {
+    if ($Cot.identityField) { $ContextEntitySetToIdentityField[$Cot.entitySet] = $Cot.identityField }
+}
+
+# Built-in field→entitySet map for well-known Omada context reference fields on Identity.
+# Used as a fallback when identityField is not explicitly configured.
+$WellKnownIdentityContextFields = @{
+    OUREF        = 'Orgunit'
+    COUNTRY      = 'Country'
+    BUILDING     = 'Building'
+    BUSINESSUNIT = 'Businessunit'
+    COSTCENTER   = 'Costcenter'
+    DIVISION     = 'Division'
+    JOBTITLE_REF = 'Jobtitle'
+    LOCATION     = 'Location'
+    SUBAREA      = 'Subarea'
+}
+
 # Default type mappings (operator can override in config)
 $DefaultTypeMappings = @{
     identityTypeToIdentityAtlas    = @{ Employee = 'User'; Primary = 'User'; Person = 'User'; Contractor = 'ExternalUser'; 'External Worker' = 'ExternalUser'; 'Service Account' = 'ServicePrincipal'; 'Non-Person' = 'ServicePrincipal'; Machine = 'ServicePrincipal' }
@@ -379,73 +415,92 @@ $SyncedContextIds             = [System.Collections.Generic.HashSet[string]]::ne
 $AllResources                 = $Null  # Resource records — retained for Entitlements (CHILDROLES extraction)
 
 # ─── Phase: Contexts ─────────────────────────────────────────────
-# OData entity: Orgunit
-# Type discriminator: OUTYPE (OIS.ReferenceValue) — .DisplayName gives the type label
+# Syncs all context object types configured in contextObjectTypes (default: Orgunit only).
+# Each type is fetched from its own entity set and registered as Identity Atlas Contexts.
+# Orgunit uses topological sort (PARENTOU hierarchy); other types are flat.
 if ($SyncContexts) {
     $T = [datetime]::UtcNow
     Write-Host "`nContexts:" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing contexts' -Pct 10
-    try {
-        if (-not (Test-EntitySetAvailable 'Orgunit')) {
-            throw "Orgunit entity set not found in OData metadata"
-        }
-        $Items = Invoke-OmadaPagedRequest -Path '/Orgunit' `
-            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
-        Write-Host "  $($Items.Count) context records from Omada" -ForegroundColor Gray
+    $TotalContextsInserted = 0; $TotalContextsUpdated = 0
+    $ContextPhaseErrors    = [System.Collections.Generic.List[string]]::new()
 
-        $RawRecords = @($Items | ForEach-Object {
-            $CtxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $_.OUTYPE -Fallback 'OrgUnit')
-            $ParentUid = Get-OmadaRefUid -Ref $_.PARENTOU
-            [PSCustomObject]@{
-                id               = [string]$_.UId  # Omada UIds are valid UUIDs — use directly as PK
-                externalId       = [string]$_.UId
-                displayName      = if ($_.NAME) { $_.NAME } else { $_.DisplayName }
-                contextType      = $CtxType
-                variant          = 'synced'
-                targetType       = 'Identity'
-                parentContextId  = if ($ParentUid) { $ParentUid } else { $Null }
+    foreach ($Cot in $ContextObjectTypes) {
+        $EntitySet   = $Cot.entitySet
+        $ContextType = $Cot.contextType
+        try {
+            if (-not (Test-EntitySetAvailable $EntitySet)) {
+                Write-Host "  Skipping $EntitySet — entity set not in OData metadata" -ForegroundColor Yellow
+                continue
             }
-        } | Where-Object { $_.externalId -and $_.displayName })
+            $Items = Invoke-OmadaPagedRequest -Path "/$EntitySet" `
+                -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
+            Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
 
-        # Topological sort: parents must be inserted before children so the
-        # parentContextId FK is satisfied. Walk the tree level by level.
-        $RecordById  = @{}
-        foreach ($R in $RawRecords) { $RecordById[$R.id] = $R }
-        $Records     = [System.Collections.Generic.List[object]]::new()
-        $Remaining   = [System.Collections.Generic.List[object]]::new($RawRecords)
-        $Inserted    = [System.Collections.Generic.HashSet[string]]::new()
-        $MaxPasses   = $RawRecords.Count + 1
-        $Pass        = 0
-        while ($Remaining.Count -gt 0 -and $Pass -lt $MaxPasses) {
-            $Pass++
-            $NextRem = [System.Collections.Generic.List[object]]::new()
-            foreach ($Rec in $Remaining) {
-                $ParentId = $Rec.parentContextId
-                if (-not $ParentId -or $Inserted.Contains($ParentId)) {
-                    $Records.Add($Rec)
-                    $Inserted.Add($Rec.id) | Out-Null
-                } else {
-                    $NextRem.Add($Rec)
+            if ($EntitySet -eq 'Orgunit') {
+                # Orgunit has a parent hierarchy — topological sort required
+                $RawRecords = @($Items | ForEach-Object {
+                    $CtxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $_.OUTYPE -Fallback $ContextType)
+                    $ParentUid = Get-OmadaRefUid -Ref $_.PARENTOU
+                    [PSCustomObject]@{
+                        id              = [string]$_.UId
+                        externalId      = [string]$_.UId
+                        displayName     = if ($_.NAME) { $_.NAME } else { $_.DisplayName }
+                        contextType     = $CtxType
+                        variant         = 'synced'
+                        targetType      = 'Identity'
+                        parentContextId = if ($ParentUid) { $ParentUid } else { $Null }
+                    }
+                } | Where-Object { $_.externalId -and $_.displayName })
+
+                # Topological sort — parents before children
+                $Records   = [System.Collections.Generic.List[object]]::new()
+                $Remaining = [System.Collections.Generic.List[object]]::new($RawRecords)
+                $Inserted  = [System.Collections.Generic.HashSet[string]]::new()
+                $Pass = 0; $MaxPasses = $RawRecords.Count + 1
+                while ($Remaining.Count -gt 0 -and $Pass -lt $MaxPasses) {
+                    $Pass++
+                    $NextRem = [System.Collections.Generic.List[object]]::new()
+                    foreach ($Rec in $Remaining) {
+                        $ParentId = $Rec.parentContextId
+                        if (-not $ParentId -or $Inserted.Contains($ParentId)) {
+                            $Records.Add($Rec); $Inserted.Add($Rec.id) | Out-Null
+                        } else { $NextRem.Add($Rec) }
+                    }
+                    $Remaining = $NextRem
                 }
+                foreach ($Rec in $Remaining) { $Records.Add($Rec) }
+            } else {
+                # Flat context type — no hierarchy
+                $Records = @($Items | ForEach-Object {
+                    [PSCustomObject]@{
+                        id          = [string]$_.UId
+                        externalId  = [string]$_.UId
+                        displayName = if ($_.NAME) { $_.NAME } else { $_.DisplayName }
+                        contextType = $ContextType
+                        variant     = 'synced'
+                        targetType  = 'Identity'
+                    }
+                } | Where-Object { $_.externalId -and $_.displayName })
             }
-            $Remaining = $NextRem
+
+            $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode 'full' `
+                -Scope @{ variant = 'synced'; contextType = $ContextType } -Records @($Records)
+            Write-Host "  Contexts ($EntitySet): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+            foreach ($Rec in $Records) { $SyncedContextIds.Add($Rec.id) | Out-Null }
+            $TotalContextsInserted += ($R.inserted ?? 0); $TotalContextsUpdated += ($R.updated ?? 0)
+        } catch {
+            $EMsg = $_.Exception.Message
+            Write-Host "  Contexts ($EntitySet) failed: $EMsg" -ForegroundColor Yellow
+            $ContextPhaseErrors.Add($EntitySet + ': ' + $EMsg)
         }
-        # Any remaining have dangling parents — append them last (FK will accept or warn)
-        foreach ($Rec in $Remaining) { $Records.Add($Rec) }
+    }
 
-        $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode 'full' `
-            -Scope @{ variant = 'synced' } -Records @($Records)
-        Write-Host "  Contexts: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-
-        # Populate shared set so ContextMembers phase can skip CA_CONTEXT refs to unknown entities
-        foreach ($Rec in $Records) { $SyncedContextIds.Add($Rec.id) | Out-Null }
-
-        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $T) -Records @{ contexts = $Records.Count }
-    } catch {
-        $Msg = $_.Exception.Message
-        Write-Host "  Contexts phase failed: $Msg" -ForegroundColor Red
-        $Script:phaseErrors.Add("Contexts: $Msg")
-        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
+    if ($ContextPhaseErrors.Count -eq $ContextObjectTypes.Count) {
+        $Script:phaseErrors.Add("Contexts: all context types failed")
+        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $T) -ErrorMsg "All context types failed"
+    } else {
+        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $T) -Records @{ contexts = $SyncedContextIds.Count }
     }
 }
 
@@ -483,18 +538,61 @@ if ($SyncIdentities) {
         })
 
         $IdentRecords = @($PersonIdentities | ForEach-Object {
-            $IdType = if ($_.IDENTITYTYPE)   { [string]$_.IDENTITYTYPE.Value }   else { 'Employee' }
+            $IdType = if ($_.IDENTITYTYPE)     { [string]$_.IDENTITYTYPE.Value }     else { 'Employee' }
             $IdCat  = if ($_.IDENTITYCATEGORY) { [string]$_.IDENTITYCATEGORY.Value } else { '' }
-            $Name   = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
+            $FName  = if ($_.FIRSTNAME)        { [string]$_.FIRSTNAME } else { '' }
+            $LName  = if ($_.LASTNAME)         { [string]$_.LASTNAME  } else { '' }
+            $Name   = "$FName $LName".Trim()
             if (-not $Name) { $Name = $_.DisplayName }
             [PSCustomObject]@{
                 id                 = [string]$_.UId  # Omada UId is a valid UUID
                 externalId         = [string]$_.UId
                 displayName        = $Name
+                givenName          = $FName
+                surname            = $LName
                 email              = $_.EMAIL
                 employeeId         = $_.EMPLOYEEID
                 jobTitle           = $_.JOBTITLE
-                extendedAttributes = @{ identityType = $IdType; identityCategory = $IdCat }
+                companyName        = Get-OmadaRefValue -Ref $_.COMPANY -Fallback ''
+                city               = if ($_.CITY)    { [string]$_.CITY    } else { '' }
+                country            = Get-OmadaRefValue -Ref $_.COUNTRY -Fallback ''
+                extendedAttributes = @{
+                    # Identity type/category/status
+                    identityType     = $IdType
+                    identityCategory = $IdCat
+                    identityStatus   = if ($_.IDENTITYSTATUS)   { [string]$_.IDENTITYSTATUS.Value }   else { '' }
+                    identityId       = if ($_.IDENTITYID)        { [string]$_.IDENTITYID }             else { '' }
+                    oisId            = if ($_.OISID)             { [string]$_.OISID }                  else { '' }
+                    # Contact / location
+                    email2           = if ($_.EMAIL2)            { [string]$_.EMAIL2 }                 else { '' }
+                    city             = if ($_.CITY)              { [string]$_.CITY }                   else { '' }
+                    zipCode          = if ($_.ZIPCODE)           { [string]$_.ZIPCODE }                else { '' }
+                    # Validity
+                    validFrom        = $_.VALIDFROM
+                    validTo          = $_.VALIDTO
+                    # Org references (UIds for use as context IDs)
+                    ouRefId          = Get-OmadaRefUid -Ref $_.OUREF
+                    countryId        = Get-OmadaRefUid -Ref $_.COUNTRY
+                    locationId       = Get-OmadaRefUid -Ref $_.LOCATION
+                    buildingId       = Get-OmadaRefUid -Ref $_.BUILDING
+                    businessUnitId   = Get-OmadaRefUid -Ref $_.BUSINESSUNIT
+                    costCenterId     = Get-OmadaRefUid -Ref $_.COSTCENTER
+                    divisionId       = Get-OmadaRefUid -Ref $_.DIVISION
+                    subAreaId        = Get-OmadaRefUid -Ref $_.SUBAREA
+                    jobTitleRefId    = Get-OmadaRefUid -Ref $_.JOBTITLE_REF
+                    # Org display names (human-readable counterparts)
+                    company          = Get-OmadaRefValue -Ref $_.COMPANY       -Fallback ''
+                    ouRefName        = Get-OmadaRefValue -Ref $_.OUREF         -Fallback ''
+                    countryName      = Get-OmadaRefValue -Ref $_.COUNTRY       -Fallback ''
+                    jobTitleRef      = Get-OmadaRefValue -Ref $_.JOBTITLE_REF  -Fallback ''
+                    # Risk
+                    riskScore        = if ($_.RISKSCORE)         { [string]$_.RISKSCORE }              else { '' }
+                    riskLevel        = Get-OmadaRefValue -Ref $_.RISKLEVEL     -Fallback ''
+                    # People references
+                    manager          = ($_.MANAGER        | ForEach-Object { $_.DisplayName }) -join '; '
+                    identityOwner    = Get-OmadaRefValue -Ref $_.IDENTITYOWNER  -Fallback ''
+                    explicitOwners   = ($_.EXPLICITOWNER   | ForEach-Object { $_.DisplayName }) -join '; '
+                }
             }
         } | Where-Object { $_.externalId -and $_.displayName })
 
@@ -670,9 +768,75 @@ if ($SyncContextMembers) {
             }
         }
 
-        $R = Send-IngestBatch -Endpoint 'ingest/context-members' -SystemId $SystemId -SyncMode 'full' -Records @($CtxMemberRecords)
-        Write-Host "  ContextMembers: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-        Write-Phase -Name 'ContextMembers' -Duration ([datetime]::UtcNow - $T) -Records @{ members = $CtxMemberRecords.Count }
+        # ── Source 2: Direct context references on Identity (OUREF, COUNTRY, LOCATION, etc.) ──
+        # Each configured contextObjectType with an identityField creates ContextMembers
+        # from the Identity's direct reference field for that context type.
+        if ($AllIdentities) {
+            foreach ($Ident in $AllIdentities) {
+                $IdentUid = [string]$Ident.UId
+                $UserUids = if ($IdentityUidToUserUids.ContainsKey($IdentUid)) { $IdentityUidToUserUids[$IdentUid] } else { $Null }
+                if (-not $UserUids -or $UserUids.Count -eq 0) { continue }
+
+                # Gather all context reference fields — from configured types AND well-known fields
+                $FieldsToCheck = @{}
+                foreach ($Cot in $ContextObjectTypes) {
+                    if ($Cot.identityField) { $FieldsToCheck[$Cot.identityField] = $True }
+                }
+                foreach ($Field in $WellKnownIdentityContextFields.Keys) {
+                    $FieldsToCheck[$Field] = $True
+                }
+
+                foreach ($Field in $FieldsToCheck.Keys) {
+                    $RefValue  = $Ident.$Field
+                    $ContextUid = Get-OmadaRefUid -Ref $RefValue
+                    if (-not $ContextUid -or -not $SyncedContextIds.Contains($ContextUid)) { continue }
+                    foreach ($UserUid in $UserUids) {
+                        $CtxMemberRecords.Add([PSCustomObject]@{
+                            contextId  = $ContextUid
+                            memberId   = $UserUid
+                            memberType = 'Principal'
+                            addedBy    = 'sync'
+                        })
+                    }
+                }
+            }
+        }
+
+        # ── Source 3: Employment entity (IDENTITYREF → OUREF) ──
+        # Employment records link an identity to an OrgUnit with a job title and validity.
+        if (Test-EntitySetAvailable 'Employment') {
+            try {
+                $EmpItems = Invoke-OmadaPagedRequest -Path '/Employment' `
+                    -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
+                foreach ($Emp in $EmpItems) {
+                    $IdentUid   = Get-OmadaRefUid -Ref $Emp.IDENTITYREF
+                    $ContextUid = Get-OmadaRefUid -Ref $Emp.OUREF
+                    if (-not $IdentUid -or -not $ContextUid) { continue }
+                    if (-not $SyncedContextIds.Contains($ContextUid)) { continue }
+                    $UserUids = if ($IdentityUidToUserUids.ContainsKey($IdentUid)) { $IdentityUidToUserUids[$IdentUid] } else { $Null }
+                    if (-not $UserUids -or $UserUids.Count -eq 0) { continue }
+                    foreach ($UserUid in $UserUids) {
+                        $CtxMemberRecords.Add([PSCustomObject]@{
+                            contextId  = $ContextUid
+                            memberId   = $UserUid
+                            memberType = 'Principal'
+                            addedBy    = 'sync'
+                        })
+                    }
+                }
+                Write-Host "  Employment-based context links added from $($EmpItems.Count) employment records" -ForegroundColor Gray
+            } catch {
+                Write-Host "  Warning: Employment-based context members skipped — $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+
+        # Deduplicate before ingest (multiple sources can produce the same contextId+memberId pair)
+        $Seen     = [System.Collections.Generic.HashSet[string]]::new()
+        $Deduped  = @($CtxMemberRecords | Where-Object { $Seen.Add("$($_.contextId)|$($_.memberId)") })
+
+        $R = Send-IngestBatch -Endpoint 'ingest/context-members' -SystemId $SystemId -SyncMode 'full' -Records $Deduped
+        Write-Host "  ContextMembers: +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($Deduped.Count) deduped records)" -ForegroundColor Green
+        Write-Phase -Name 'ContextMembers' -Duration ([datetime]::UtcNow - $T) -Records @{ members = $Deduped.Count }
     } catch {
         $Msg = $_.Exception.Message
         Write-Host "  ContextMembers phase failed: $Msg" -ForegroundColor Red
@@ -856,31 +1020,11 @@ if ($SyncAssignments) {
         Write-Host "  Role assignments (Governed): +$TotalRaInserted ~$TotalRaUpdated" -ForegroundColor Green
 
         # ── Source 2: Calculated Resource Assignments (CRA — account provisioning per connected system) ──
-        # Queried per-identity using the integer Id so the server can use indexed lookups.
-        # The endpoint's natural page size is 1000; most identities have far fewer CRAs,
-        # so each per-identity call returns everything in a single response.
-        # Filter: $filter=Status eq true and Identity/Id eq {Id}
-        # No need to $expand Identity — we already have it from the outer loop.
-        $CaItems = [System.Collections.Generic.List[object]]::new()
-        if ($AllIdentities) {
-            $IdentCount = 0
-            foreach ($Ident in $AllIdentities) {
-                $IdentIntId = $Ident.Id  # integer Id used by the Builtin filter
-                if (-not $IdentIntId) { continue }
-                $Page = Invoke-OmadaPagedRequest -Path '/CalculatedAssignments' `
-                    -QueryParams @{ '$filter' = "Status eq true and Identity/Id eq $IdentIntId"; '$expand' = 'Resource,System,ResourceType' } `
-                    -PageSize 1000 -OverrideBaseUrl $BuiltinBaseUrl
-                foreach ($Ca in $Page) {
-                    # Attach the identity UId so we don't need Identity expanded on each record
-                    $Ca | Add-Member -NotePropertyName '_IdentityUId' -NotePropertyValue ([string]$Ident.UId) -Force
-                    $CaItems.Add($Ca)
-                }
-                $IdentCount++
-                if ($IdentCount % 50 -eq 0) {
-                    Write-Host "    CRA: queried $IdentCount / $($AllIdentities.Count) identities ($($CaItems.Count) records so far)..." -ForegroundColor Gray
-                }
-            }
-        }
+        # Fetched in bulk using $top=1000&$skip paging (server page size is 1000).
+        # $expand=Identity gives the Identity.UId for each record.
+        $CaItems = Invoke-OmadaPagedRequest -Path '/CalculatedAssignments' `
+            -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource,System,ResourceType' } `
+            -PageSize 1000 -OverrideBaseUrl $BuiltinBaseUrl
         Write-Host "  $($CaItems.Count) CRA records from Omada" -ForegroundColor Gray
 
         $CaPrincipalsBySys  = @{}   # connected-system Principals derived from CRA (keyed by OmadaSystemUId)
@@ -891,7 +1035,7 @@ if ($SyncAssignments) {
         foreach ($Item in $CaItems) {
             $SysUId      = if ($Item.System)   { [string]$Item.System.UId   } else { $Null }
             $ResourceUid = if ($Item.Resource)  { [string]$Item.Resource.UId } else { $Null }
-            $IdentityUid = $Item._IdentityUId   # set during per-identity fetch above
+            $IdentityUid = if ($Item.Identity)  { [string]$Item.Identity.UId } else { $Null }
             $AccountKey  = if ($Item.AccountKey)   { [string]$Item.AccountKey      } else { $Null }
             $AccountName = if ($Item.AccountName)  { [string]$Item.AccountName     } else { $Null }
             $ResType     = if ($Item.ResourceType) { $Item.ResourceType.DisplayName } else { '' }
