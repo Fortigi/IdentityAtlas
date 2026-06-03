@@ -77,15 +77,15 @@ Param(
     [Parameter(Mandatory)] [string]$ApiKey,
     [Parameter(Mandatory)] [string]$ConfigFile,
 
-    [switch]$SyncContexts        = $true,
-    [switch]$SyncIdentities      = $true,
-    [switch]$SyncAccounts        = $true,
-    [switch]$SyncContextMembers  = $true,
-    [switch]$SyncResources       = $true,
-    [switch]$SyncEntitlements    = $true,
-    [switch]$SyncAssignments     = $true,
-    [switch]$SyncCRAs            = $true,
-    [switch]$RefreshViews        = $true,
+    [switch]$SyncContexts        = $True,
+    [switch]$SyncIdentities      = $True,
+    [switch]$SyncAccounts        = $True,
+    [switch]$SyncContextMembers  = $True,
+    [switch]$SyncResources       = $True,
+    [switch]$SyncEntitlements    = $True,
+    [switch]$SyncAssignments     = $True,
+    [switch]$SyncCRAs            = $True,
+    [switch]$RefreshViews        = $True,
 
     [ValidateSet('full','delta')]
     [string]$SyncMode = 'full',
@@ -98,14 +98,14 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
 # ─── Load config ─────────────────────────────────────────────────
 if (-not (Test-Path $ConfigFile)) { throw "Config file not found: $ConfigFile" }
-$cfg = Get-Content $ConfigFile -Raw | ConvertFrom-Json
-$baseUrl               = $cfg.baseUrl
-$apiVersion            = if ($cfg.apiVersion) { $cfg.apiVersion } else { 'v14' }
-$pageSize              = if ($cfg.pageSize)   { [int]$cfg.pageSize } else { 100 }
-$sessionTimeoutMinutes = if ($cfg.sessionTimeoutMinutes) { [int]$cfg.sessionTimeoutMinutes } else { 30 }
+$Cfg = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+$BaseUrl               = $Cfg.baseUrl
+$ApiVersion            = if ($Cfg.apiVersion) { $Cfg.apiVersion } else { 'v14' }
+$PageSize              = if ($Cfg.pageSize)   { [int]$Cfg.pageSize } else { 100 }
+$SessionTimeoutMinutes = if ($Cfg.sessionTimeoutMinutes) { [int]$Cfg.sessionTimeoutMinutes } else { 30 }
 
 # Default type mappings (operator can override in config)
-$defaultTypeMappings = @{
+$DefaultTypeMappings = @{
     identityTypeToIdentityAtlas    = @{ Employee = 'User'; Primary = 'User'; Person = 'User'; Contractor = 'ExternalUser'; 'External Worker' = 'ExternalUser'; 'Service Account' = 'ServicePrincipal'; 'Non-Person' = 'ServicePrincipal'; Machine = 'ServicePrincipal' }
     resourceTypeToIdentityAtlas    = @{ 'Business Role' = 'BusinessRole' }
     contextTypeToIdentityAtlas     = @{ 'OrgUnit' = 'OrgUnit'; 'Organisational Unit' = 'OrgUnit'; Department = 'Department'; Location = 'Location'; 'Cost Center' = 'CostCenter'; CostCenter = 'CostCenter' }
@@ -116,82 +116,82 @@ $defaultTypeMappings = @{
 function Merge-TypeMappings {
     param($Defaults, $Overrides)
     if (-not $Overrides) { return $Defaults }
-    $result = @{}
-    foreach ($k in $Defaults.Keys) {
-        if ($Overrides.PSObject.Properties.Name -contains $k) {
-            $ov = $Overrides.$k
-            if ($ov -is [System.Management.Automation.PSCustomObject]) {
+    $Result = @{}
+    foreach ($K in $Defaults.Keys) {
+        if ($Overrides.PSObject.Properties.Name -contains $K) {
+            $Ov = $Overrides.$K
+            if ($Ov -is [System.Management.Automation.PSCustomObject]) {
                 # Convert PSCustomObject to hashtable and merge
-                $merged = @{}
-                foreach ($dk in $Defaults[$k].Keys) { $merged[$dk] = $Defaults[$k][$dk] }
-                foreach ($ok in $ov.PSObject.Properties) { $merged[$ok.Name] = $ok.Value }
-                $result[$k] = $merged
-            } elseif ($ov -is [array]) {
-                $result[$k] = @($ov)
+                $Merged = @{}
+                foreach ($Dk in $Defaults[$K].Keys) { $Merged[$Dk] = $Defaults[$K][$Dk] }
+                foreach ($Ok in $Ov.PSObject.Properties) { $Merged[$Ok.Name] = $Ok.Value }
+                $Result[$K] = $Merged
+            } elseif ($Ov -is [array]) {
+                $Result[$K] = @($Ov)
             } else {
-                $result[$k] = $ov
+                $Result[$K] = $Ov
             }
         } else {
-            $result[$k] = $Defaults[$k]
+            $Result[$K] = $Defaults[$K]
         }
     }
-    return $result
+    return $Result
 }
 
-$typeMappings = Merge-TypeMappings -Defaults $defaultTypeMappings -Overrides $cfg.typeMappings
-$identityTypesForIdentityTable = @($typeMappings['identityTypesForIdentityTable'])
+$TypeMappings = Merge-TypeMappings -Defaults $DefaultTypeMappings -Overrides $Cfg.typeMappings
+$IdentityTypesForIdentityTable = @($TypeMappings['identityTypesForIdentityTable'])
 
 function Map-IdentityTypeToAtlas {
     param([string]$OmadaType)
-    $map = $typeMappings['identityTypeToIdentityAtlas']
-    if ($map.ContainsKey($OmadaType)) { return $map[$OmadaType] }
+    $Map = $TypeMappings['identityTypeToIdentityAtlas']
+    if ($Map.ContainsKey($OmadaType)) { return $Map[$OmadaType] }
     Write-Host "    Warning: unknown IdentityType '$OmadaType' — defaulting to 'User'" -ForegroundColor Yellow
     return 'User'
 }
 
 function Map-ResourceTypeToAtlas {
     param([string]$OmadaType)
-    $map = $typeMappings['resourceTypeToIdentityAtlas']
-    if ($map.ContainsKey($OmadaType)) { return $map[$OmadaType] }
+    $Map = $TypeMappings['resourceTypeToIdentityAtlas']
+    if ($Map.ContainsKey($OmadaType)) { return $Map[$OmadaType] }
     # Normalise: remove spaces, keep as-is
     return $OmadaType -replace '\s+', ''
 }
 
 function Map-ContextTypeToAtlas {
     param([string]$OmadaType)
-    $map = $typeMappings['contextTypeToIdentityAtlas']
-    if ($map.ContainsKey($OmadaType)) { return $map[$OmadaType] }
+    $Map = $TypeMappings['contextTypeToIdentityAtlas']
+    if ($Map.ContainsKey($OmadaType)) { return $Map[$OmadaType] }
     return $OmadaType -replace '\s+', ''
 }
 
 # ─── Phase tracking ───────────────────────────────────────────────
-$script:phases      = [System.Collections.Generic.List[object]]::new()
-$script:phaseErrors = [System.Collections.Generic.List[string]]::new()
-$script:startTime   = [datetime]::UtcNow
+$Script:phases      = [System.Collections.Generic.List[object]]::new()
+$Script:phaseErrors = [System.Collections.Generic.List[string]]::new()
+$Script:startTime   = [datetime]::UtcNow
 
 function Write-Phase {
-    param([string]$Name, [TimeSpan]$Duration, [string]$ErrorMsg = $null, [hashtable]$Records = $null)
-    $phase = @{ name = $Name; durationMs = [int]$Duration.TotalMilliseconds; status = if ($ErrorMsg) { 'failed' } else { 'ok' } }
-    if ($ErrorMsg)  { $phase.error   = $ErrorMsg }
-    if ($Records)   { $phase.records = $Records }
-    $script:phases.Add($phase)
+    param([string]$Name, [TimeSpan]$Duration, [string]$ErrorMsg = $Null, [hashtable]$Records = $Null)
+    $Phase = @{ name = $Name; durationMs = [int]$Duration.TotalMilliseconds; status = if ($ErrorMsg) { 'failed' } else { 'ok' } }
+    if ($ErrorMsg)  { $Phase.error   = $ErrorMsg }
+    if ($Records)   { $Phase.records = $Records }
+    $Script:phases.Add($Phase)
 }
 
 # ─── Progress reporting ───────────────────────────────────────────
 function Update-CrawlerProgress {
     param([string]$Step, [int]$Pct = -1, [string]$Detail = '')
     if (-not $JobId -or $JobId -le 0) { return }
-    $body = @{ jobId = $JobId }
-    if ($PSBoundParameters.ContainsKey('Step'))   { $body['step']   = $Step }
-    if ($Pct -ge 0)                                { $body['pct']    = $Pct }
-    if ($PSBoundParameters.ContainsKey('Detail')) { $body['detail'] = $Detail }
+    $Body = @{ jobId = $JobId }
+    if ($PSBoundParameters.ContainsKey('Step'))   { $Body['step']   = $Step }
+    if ($Pct -ge 0)                                { $Body['pct']    = $Pct }
+    if ($PSBoundParameters.ContainsKey('Detail')) { $Body['detail'] = $Detail }
     try {
         Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/job-progress" -Method Post -TimeoutSec 10 `
             -Headers @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' } `
-            -Body ($body | ConvertTo-Json -Compress) | Out-Null
+            -Body ($Body | ConvertTo-Json -Compress) | Out-Null
     } catch {
-        $sc = $null; try { $sc = $_.Exception.Response.StatusCode.value__ } catch {}
-        if ($sc -eq 409) { throw "Job $JobId terminated server-side (HTTP 409) — aborting crawl" }
+        $Sc = $Null; try { $Sc = $_.Exception.Response.StatusCode.value__ } catch {}
+        if ($Sc -eq 409) { throw "Job $JobId terminated server-side (HTTP 409) — aborting crawl" }
         # Transient errors are non-fatal for progress reporting
     }
 }
@@ -199,20 +199,20 @@ function Update-CrawlerProgress {
 # ─── Ingest API helpers ───────────────────────────────────────────
 function Invoke-IngestAPI {
     param([string]$Endpoint, [hashtable]$Body)
-    $delays = @(2, 4, 8, 16, 32)
-    $uri    = "$ApiBaseUrl/$Endpoint"
-    $headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
-    for ($i = 0; $i -le $delays.Count; $i++) {
+    $Delays = @(2, 4, 8, 16, 32)
+    $Uri    = "$ApiBaseUrl/$Endpoint"
+    $Headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
+    for ($I = 0; $I -le $Delays.Count; $I++) {
         try {
-            return Invoke-RestMethod -Uri $uri -Method Post -Headers $headers `
+            return Invoke-RestMethod -Uri $Uri -Method Post -Headers $Headers `
                 -Body ($Body | ConvertTo-Json -Depth 20 -Compress) -TimeoutSec 300
         } catch {
-            $sc = $null; try { $sc = $_.Exception.Response.StatusCode.value__ } catch {}
-            if ($sc -eq 409) { throw "Job $JobId terminated server-side (HTTP 409)" }
-            $isTransient = ($null -eq $sc) -or ($sc -eq 429) -or ($sc -ge 500 -and $sc -le 504)
-            if (-not $isTransient -or $i -ge $delays.Count) { throw }
-            Write-Host "    Ingest retry in $($delays[$i])s (HTTP $sc)..." -ForegroundColor Yellow
-            Start-Sleep -Seconds $delays[$i]
+            $Sc = $Null; try { $Sc = $_.Exception.Response.StatusCode.value__ } catch {}
+            if ($Sc -eq 409) { throw "Job $JobId terminated server-side (HTTP 409)" }
+            $IsTransient = ($Null -eq $Sc) -or ($Sc -eq 429) -or ($Sc -ge 500 -and $Sc -le 504)
+            if (-not $IsTransient -or $I -ge $Delays.Count) { throw }
+            Write-Host "    Ingest retry in $($Delays[$I])s (HTTP $Sc)..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $Delays[$I]
         }
     }
 }
@@ -235,389 +235,398 @@ function Send-IngestBatch {
     )
     if (-not $Records -or $Records.Count -eq 0) {
         # Still send an empty full-sync batch so the server can scoped-delete stale data
-        $body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = @() }
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body $body
+        $Body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = @() }
+        return Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
     }
 
     if ($DeletedIds.Count -gt 0) {
-        $delBody = @{ systemId = $SystemId; syncMode = 'delta'; scope = $Scope; records = @(); deletedIds = ConvertTo-JsonArray $DeletedIds }
-        Invoke-IngestAPI -Endpoint $Endpoint -Body $delBody | Out-Null
+        $DelBody = @{ systemId = $SystemId; syncMode = 'delta'; scope = $Scope; records = @(); deletedIds = ConvertTo-JsonArray $DeletedIds }
+        Invoke-IngestAPI -Endpoint $Endpoint -Body $DelBody | Out-Null
     }
 
     if ($Records.Count -le $BatchSize) {
-        $body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Records }
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body $body
+        $Body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Records }
+        return Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
     }
 
     # Chunked session for large batches
-    $syncId = $null; $totalInserted = 0; $totalUpdated = 0; $totalDeleted = 0
-    for ($i = 0; $i -lt $Records.Count; $i += $BatchSize) {
-        $chunk   = $Records[$i..([Math]::Min($i + $BatchSize - 1, $Records.Count - 1))]
-        $isFirst = ($i -eq 0)
-        $isLast  = ($i + $BatchSize -ge $Records.Count)
-        $body    = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $chunk
-                      syncSession = if ($isFirst) { 'start' } elseif ($isLast) { 'end' } else { 'continue' } }
-        if ($syncId) { $body.syncId = $syncId }
-        $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
-        if ($isFirst -and $result.syncId) { $syncId = $result.syncId }
-        $totalInserted += ($result.inserted ?? 0); $totalUpdated += ($result.updated ?? 0); $totalDeleted += ($result.deleted ?? 0)
+    $SyncId = $Null; $TotalInserted = 0; $TotalUpdated = 0; $TotalDeleted = 0
+    for ($I = 0; $I -lt $Records.Count; $I += $BatchSize) {
+        $Chunk   = $Records[$I..([Math]::Min($I + $BatchSize - 1, $Records.Count - 1))]
+        $IsFirst = ($I -eq 0)
+        $IsLast  = ($I + $BatchSize -ge $Records.Count)
+        $Body    = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Chunk
+                      syncSession = if ($IsFirst) { 'start' } elseif ($IsLast) { 'end' } else { 'continue' } }
+        if ($SyncId) { $Body.syncId = $SyncId }
+        $Result = Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
+        if ($IsFirst -and $Result.syncId) { $SyncId = $Result.syncId }
+        $TotalInserted += ($Result.inserted ?? 0); $TotalUpdated += ($Result.updated ?? 0); $TotalDeleted += ($Result.deleted ?? 0)
     }
-    return @{ inserted = $totalInserted; updated = $totalUpdated; deleted = $totalDeleted }
+    return @{ inserted = $TotalInserted; updated = $TotalUpdated; deleted = $TotalDeleted }
 }
 
 # ─── Main ─────────────────────────────────────────────────────────
 Write-Host "`n=== Omada Crawler ===" -ForegroundColor Cyan
-Write-Host "Base URL:    $baseUrl" -ForegroundColor Gray
-Write-Host "API version: $apiVersion" -ForegroundColor Gray
-Write-Host "Auth method: $($cfg.authMethod)" -ForegroundColor Gray
+Write-Host "Base URL:    $BaseUrl" -ForegroundColor Gray
+Write-Host "API version: $ApiVersion" -ForegroundColor Gray
+Write-Host "Auth method: $($Cfg.authMethod)" -ForegroundColor Gray
 Write-Host "Sync mode:   full (Omada has no delta API)" -ForegroundColor Gray
 
 Update-CrawlerProgress -Step 'Authenticating to Omada' -Pct 2
 
 # Authenticate
-$authParams = @{
-    BaseUrl               = $baseUrl
-    AuthMethod            = $cfg.authMethod
-    ApiVersion            = $apiVersion
-    SessionTimeoutMinutes = $sessionTimeoutMinutes
+$AuthParams = @{
+    BaseUrl               = $BaseUrl
+    AuthMethod            = $Cfg.authMethod
+    ApiVersion            = $ApiVersion
+    SessionTimeoutMinutes = $SessionTimeoutMinutes
 }
-if ($cfg.username)      { $authParams['Username']      = $cfg.username }
-if ($cfg.password)      { $authParams['Password']      = $cfg.password }
-if ($cfg.clientId)      { $authParams['ClientId']      = $cfg.clientId }
-if ($cfg.clientSecret)  { $authParams['ClientSecret']  = $cfg.clientSecret }
-if ($cfg.tokenEndpoint) { $authParams['TokenEndpoint'] = $cfg.tokenEndpoint }
-if ($cfg.apiToken)      { $authParams['ApiToken']      = $cfg.apiToken }
-if ($cfg.cookieString)  { $authParams['CookieString']  = $cfg.cookieString }
+if ($Cfg.username)      { $AuthParams['Username']      = $Cfg.username }
+if ($Cfg.password)      { $AuthParams['Password']      = $Cfg.password }
+if ($Cfg.clientId)      { $AuthParams['ClientId']      = $Cfg.clientId }
+if ($Cfg.clientSecret)  { $AuthParams['ClientSecret']  = $Cfg.clientSecret }
+if ($Cfg.tokenEndpoint) { $AuthParams['TokenEndpoint'] = $Cfg.tokenEndpoint }
+if ($Cfg.apiToken)      { $AuthParams['ApiToken']      = $Cfg.apiToken }
+if ($Cfg.cookieString)  { $AuthParams['CookieString']  = $Cfg.cookieString }
 Connect-OmadaAPI @authParams
 
 # Derive the Builtin OData service URL from the DataObjects base URL
 # e.g. http://server/odata/dataobjects → http://server/odata/builtin
-$builtinBaseUrl = [regex]::Replace($baseUrl.TrimEnd('/'), '/[^/]+$', '') + '/builtin'
-Write-Host "Builtin URL: $builtinBaseUrl" -ForegroundColor Gray
+$BuiltinBaseUrl = [regex]::Replace($BaseUrl.TrimEnd('/'), '/[^/]+$', '') + '/builtin'
+Write-Host "Builtin URL: $BuiltinBaseUrl" -ForegroundColor Gray
 
 # Discover available entity sets from OData $metadata (diagnostic — non-blocking)
 Update-CrawlerProgress -Step 'Checking Omada API' -Pct 3
-$availableEntitySets = @(Get-OmadaEntitySets)
-if ($availableEntitySets.Count -gt 0) {
-    Write-Host "  Entity sets: $($availableEntitySets -join ', ')" -ForegroundColor Gray
+$AvailableEntitySets = @(Get-OmadaEntitySets)
+if ($AvailableEntitySets.Count -gt 0) {
+    Write-Host "  Entity sets: $($AvailableEntitySets -join ', ')" -ForegroundColor Gray
 } else {
     Write-Host "  Entity set check skipped (metadata unavailable — all phases will attempt to run)" -ForegroundColor Yellow
 }
 
 function Test-EntitySetAvailable {
     param([string]$Name)
-    if ($availableEntitySets.Count -eq 0) { return $true }
-    return $availableEntitySets -contains $Name
+    if ($AvailableEntitySets.Count -eq 0) { return $True }
+    return $AvailableEntitySets -contains $Name
 }
 
 # Register all Omada connected systems as separate Identity Atlas Systems
 Update-CrawlerProgress -Step 'Registering Omada connected systems' -Pct 5
-$allOmadaSystems = $null
-$omadaSystemMap  = @{}  # Omada System.UId → Identity Atlas system.id
-$systemId        = 0    # ID for the main Omada IGA system (used for Contexts/Identities)
+$AllOmadaSystems = $Null
+$OmadaSystemMap  = @{}  # Omada System.UId → Identity Atlas system.id
+$SystemId        = 0    # ID for the main Omada IGA system (used for Contexts/Identities)
 try {
-    $allOmadaSystems = Invoke-OmadaPagedRequest -Path '/System' `
-        -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize 100
-    Write-Host "  $($allOmadaSystems.Count) connected systems in Omada" -ForegroundColor Gray
+    $AllOmadaSystems = Invoke-OmadaPagedRequest -Path '/System' `
+        -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize 100
+    Write-Host "  $($AllOmadaSystems.Count) connected systems in Omada" -ForegroundColor Gray
 
-    $sysRecords = @($allOmadaSystems | ForEach-Object {
+    $SysRecords = @($AllOmadaSystems | ForEach-Object {
         [PSCustomObject]@{
             systemType  = 'Omada'
             displayName = $_.DisplayName
             tenantId    = [string]$_.UId
-            enabled     = $true
-            syncEnabled = $true
+            enabled     = $True
+            syncEnabled = $True
         }
     })
 
     Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
         syncMode = 'full'
-        records  = ConvertTo-JsonArray $sysRecords
+        records  = ConvertTo-JsonArray $SysRecords
     } | Out-Null
 
     # Build UId → system.id map by querying Identity Atlas
-    $atlasSystems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" `
+    $AtlasSystems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" `
         -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
-    foreach ($s in $atlasSystems) {
-        if ($s.systemType -eq 'Omada' -and $s.tenantId) {
-            $omadaSystemMap[$s.tenantId] = [int]$s.id
+    foreach ($S in $AtlasSystems) {
+        if ($S.systemType -eq 'Omada' -and $S.tenantId) {
+            $OmadaSystemMap[$S.tenantId] = [int]$S.id
         }
     }
-    Write-Host "  System map: $($omadaSystemMap.Count) entries" -ForegroundColor Gray
+    Write-Host "  System map: $($OmadaSystemMap.Count) entries" -ForegroundColor Gray
 
     # Omada Identity is the main IGA system — use it for Contexts/Identities
-    $mainSysUId = ($allOmadaSystems | Where-Object { $_.DisplayName -eq 'Omada Identity' } |
-                   Select-Object -First 1).UId
-    if ($mainSysUId -and $omadaSystemMap.ContainsKey([string]$mainSysUId)) {
-        $systemId = $omadaSystemMap[[string]$mainSysUId]
-    } elseif ($omadaSystemMap.Count -gt 0) {
-        $systemId = ($omadaSystemMap.Values | Select-Object -First 1)
+    $MainSysEntry = $AllOmadaSystems | Where-Object { $_.DisplayName -eq 'Omada Identity' } | Select-Object -First 1
+    $MainSysUId   = if ($MainSysEntry) { [string]$MainSysEntry.UId } else { $null }
+    # $OmadaIdentitySystemUId is used in the Assignments phase to distinguish Omada-internal
+    # accounts (already synced via User entity) from connected-system accounts (derived from CA).
+    $OmadaIdentitySystemUId = $MainSysUId
+    if ($MainSysUId -and $OmadaSystemMap.ContainsKey($MainSysUId)) {
+        $SystemId = $OmadaSystemMap[$MainSysUId]
+    } elseif ($OmadaSystemMap.Count -gt 0) {
+        $SystemId = ($OmadaSystemMap.Values | Select-Object -First 1)
     }
-    Write-Host "  Main Omada IGA system ID: $systemId" -ForegroundColor Gray
+    Write-Host "  Main Omada IGA system ID: $SystemId (UId: $MainSysUId)" -ForegroundColor Gray
 } catch {
     Write-Host "  Warning: could not register Omada systems — $($_.Exception.Message)" -ForegroundColor Yellow
     # Fall back to single system registration
-    $fbResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
+    $FbResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
         syncMode = 'full'
-        records  = @(@{ systemType = 'Omada'; displayName = "Omada ($baseUrl)"; tenantId = $baseUrl; enabled = $true; syncEnabled = $true })
+        records  = @(@{ systemType = 'Omada'; displayName = "Omada ($BaseUrl)"; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
     }
-    $systemId = [int]($fbResult.systemIds[0])
-    Write-Host "  Fallback system ID: $systemId" -ForegroundColor Gray
+    $SystemId = [int]($FbResult.systemIds[0])
+    Write-Host "  Fallback system ID: $SystemId" -ForegroundColor Gray
 }
 
 # Shared state across phases
-$allIdentities         = $null  # Identity records — retained for Accounts principalType lookup and IdentityMembers join
-$allAccounts           = $null  # User records — retained for IdentityMembers, ContextMembers, Assignments joins
-$identityLookup        = @{}    # IDENTITYID (string) → @{ uid = UId; identityType = string }
-$userNameToUid         = @{}    # UserName (string) → User.UId — for resolving Assignments AccountName to Principal FK
-$identityUidToUserUids = @{}    # Identity.UId → List[User.UId] — for fanning out Contextassignment to all accounts
-$syncedContextIds      = [System.Collections.Generic.HashSet[string]]::new()  # UIds of synced Contexts (OrgUnits) — filters CA_CONTEXT refs
-$allResources          = $null  # Resource records — retained for Entitlements (CHILDROLES extraction)
+$AllIdentities                = $Null  # Identity records — retained for Accounts principalType lookup and IdentityMembers join
+$AllAccounts                  = $Null  # User records — retained for IdentityMembers, ContextMembers, Assignments joins
+$IdentityLookup               = @{}    # IDENTITYID (string) → @{ uid = UId; identityType = string }
+$UserNameToUid                = @{}    # UserName (string) → User.UId — for resolving Assignments AccountName to Principal FK
+$IdentityUidToUserUids        = @{}    # Identity.UId → List[User.UId] — for fanning out Contextassignment to all accounts
+$IdentityUidInIdentitiesTable = [System.Collections.Generic.HashSet[string]]::new()  # set of Identity.UId values stored in Identities table
+$SyncedContextIds             = [System.Collections.Generic.HashSet[string]]::new()  # UIds of synced Contexts (OrgUnits) — filters CA_CONTEXT refs
+$AllResources                 = $Null  # Resource records — retained for Entitlements (CHILDROLES extraction)
 
 # ─── Phase: Contexts ─────────────────────────────────────────────
 # OData entity: Orgunit
 # Type discriminator: OUTYPE (OIS.ReferenceValue) — .DisplayName gives the type label
 if ($SyncContexts) {
-    $t = [datetime]::UtcNow
+    $T = [datetime]::UtcNow
     Write-Host "`nContexts:" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing contexts' -Pct 10
     try {
         if (-not (Test-EntitySetAvailable 'Orgunit')) {
             throw "Orgunit entity set not found in OData metadata"
         }
-        $items = Invoke-OmadaPagedRequest -Path '/Orgunit' `
-            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
-        Write-Host "  $($items.Count) context records from Omada" -ForegroundColor Gray
+        $Items = Invoke-OmadaPagedRequest -Path '/Orgunit' `
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+        Write-Host "  $($Items.Count) context records from Omada" -ForegroundColor Gray
 
-        $rawRecords = @($items | ForEach-Object {
-            $ctxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $_.OUTYPE -Fallback 'OrgUnit')
-            $parentUid = Get-OmadaRefUid -Ref $_.PARENTOU
+        $RawRecords = @($Items | ForEach-Object {
+            $CtxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $_.OUTYPE -Fallback 'OrgUnit')
+            $ParentUid = Get-OmadaRefUid -Ref $_.PARENTOU
             [PSCustomObject]@{
                 id               = [string]$_.UId  # Omada UIds are valid UUIDs — use directly as PK
                 externalId       = [string]$_.UId
                 displayName      = if ($_.NAME) { $_.NAME } else { $_.DisplayName }
-                contextType      = $ctxType
+                contextType      = $CtxType
                 variant          = 'synced'
                 targetType       = 'Identity'
-                parentContextId  = if ($parentUid) { $parentUid } else { $null }
+                parentContextId  = if ($ParentUid) { $ParentUid } else { $Null }
             }
         } | Where-Object { $_.externalId -and $_.displayName })
 
         # Topological sort: parents must be inserted before children so the
         # parentContextId FK is satisfied. Walk the tree level by level.
-        $recordById  = @{}
-        foreach ($r in $rawRecords) { $recordById[$r.id] = $r }
-        $records     = [System.Collections.Generic.List[object]]::new()
-        $remaining   = [System.Collections.Generic.List[object]]::new($rawRecords)
-        $inserted    = [System.Collections.Generic.HashSet[string]]::new()
-        $maxPasses   = $rawRecords.Count + 1
-        $pass        = 0
-        while ($remaining.Count -gt 0 -and $pass -lt $maxPasses) {
-            $pass++
-            $nextRem = [System.Collections.Generic.List[object]]::new()
-            foreach ($rec in $remaining) {
-                $parentId = $rec.parentContextId
-                if (-not $parentId -or $inserted.Contains($parentId)) {
-                    $records.Add($rec)
-                    $inserted.Add($rec.id) | Out-Null
+        $RecordById  = @{}
+        foreach ($R in $RawRecords) { $RecordById[$R.id] = $R }
+        $Records     = [System.Collections.Generic.List[object]]::new()
+        $Remaining   = [System.Collections.Generic.List[object]]::new($RawRecords)
+        $Inserted    = [System.Collections.Generic.HashSet[string]]::new()
+        $MaxPasses   = $RawRecords.Count + 1
+        $Pass        = 0
+        while ($Remaining.Count -gt 0 -and $Pass -lt $MaxPasses) {
+            $Pass++
+            $NextRem = [System.Collections.Generic.List[object]]::new()
+            foreach ($Rec in $Remaining) {
+                $ParentId = $Rec.parentContextId
+                if (-not $ParentId -or $Inserted.Contains($ParentId)) {
+                    $Records.Add($Rec)
+                    $Inserted.Add($Rec.id) | Out-Null
                 } else {
-                    $nextRem.Add($rec)
+                    $NextRem.Add($Rec)
                 }
             }
-            $remaining = $nextRem
+            $Remaining = $NextRem
         }
         # Any remaining have dangling parents — append them last (FK will accept or warn)
-        foreach ($rec in $remaining) { $records.Add($rec) }
+        foreach ($Rec in $Remaining) { $Records.Add($Rec) }
 
-        $r = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $systemId -SyncMode 'full' `
-            -Scope @{ variant = 'synced' } -Records @($records)
-        Write-Host "  Contexts: +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
+        $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode 'full' `
+            -Scope @{ variant = 'synced' } -Records @($Records)
+        Write-Host "  Contexts: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
 
         # Populate shared set so ContextMembers phase can skip CA_CONTEXT refs to unknown entities
-        foreach ($rec in $records) { $syncedContextIds.Add($rec.id) | Out-Null }
+        foreach ($Rec in $Records) { $SyncedContextIds.Add($Rec.id) | Out-Null }
 
-        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $t) -Records @{ contexts = $records.Count }
+        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $T) -Records @{ contexts = $Records.Count }
     } catch {
-        $msg = $_.Exception.Message
-        Write-Host "  Contexts phase failed: $msg" -ForegroundColor Red
-        $script:phaseErrors.Add("Contexts: $msg")
-        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $t) -ErrorMsg $msg
+        $Msg = $_.Exception.Message
+        Write-Host "  Contexts phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("Contexts: $Msg")
+        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
     }
 }
 
 # ─── Phase: Identities ───────────────────────────────────────────
 # OData entity: Identity
 # Type discriminator: IDENTITYTYPE (OIS.SetValue) — .Value gives the type label
-# Builds $identityLookup (IDENTITYID→uid+identityType) used by Accounts and IdentityMembers phases
+# Builds $IdentityLookup (IDENTITYID→uid+identityType) used by Accounts and IdentityMembers phases
 if ($SyncIdentities) {
-    $t = [datetime]::UtcNow
+    $T = [datetime]::UtcNow
     Write-Host "`nIdentities:" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing identities' -Pct 20
     try {
         if (-not (Test-EntitySetAvailable 'Identity')) {
             throw "Identity entity set not found in OData metadata"
         }
-        $allIdentities = Invoke-OmadaPagedRequest -Path '/Identity' `
-            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
-        Write-Host "  $($allIdentities.Count) identity records from Omada" -ForegroundColor Gray
+        $AllIdentities = Invoke-OmadaPagedRequest -Path '/Identity' `
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+        Write-Host "  $($AllIdentities.Count) identity records from Omada" -ForegroundColor Gray
 
         # Build lookup: Identity.IDENTITYID (string) → { uid, identityType }
         # IDENTITYID is Omada's internal string key (not EMPLOYEEID which is the HR number)
-        $identityLookup = @{}
-        foreach ($id in $allIdentities) {
-            $key = [string]$id.IDENTITYID
-            if ($key) {
-                $idType = if ($id.IDENTITYTYPE) { [string]$id.IDENTITYTYPE.Value } else { 'Employee' }
-                $identityLookup[$key] = @{ uid = [string]$id.UId; identityType = $idType }
+        $IdentityLookup = @{}
+        foreach ($Id in $AllIdentities) {
+            $Key = [string]$Id.IDENTITYID
+            if ($Key) {
+                $IdType = if ($Id.IDENTITYTYPE) { [string]$Id.IDENTITYTYPE.Value } else { 'Employee' }
+                $IdentityLookup[$Key] = @{ uid = [string]$Id.UId; identityType = $IdType }
             }
         }
 
         # Person-type identities go to the Identities table
-        $personIdentities = @($allIdentities | Where-Object {
-            $idType = if ($_.IDENTITYTYPE) { [string]$_.IDENTITYTYPE.Value } else { 'Employee' }
-            $identityTypesForIdentityTable -contains $idType
+        $PersonIdentities = @($AllIdentities | Where-Object {
+            $IdType = if ($_.IDENTITYTYPE) { [string]$_.IDENTITYTYPE.Value } else { 'Employee' }
+            $IdentityTypesForIdentityTable -contains $IdType
         })
 
-        $identRecords = @($personIdentities | ForEach-Object {
-            $idType = if ($_.IDENTITYTYPE)   { [string]$_.IDENTITYTYPE.Value }   else { 'Employee' }
-            $idCat  = if ($_.IDENTITYCATEGORY) { [string]$_.IDENTITYCATEGORY.Value } else { '' }
-            $name   = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
-            if (-not $name) { $name = $_.DisplayName }
+        $IdentRecords = @($PersonIdentities | ForEach-Object {
+            $IdType = if ($_.IDENTITYTYPE)   { [string]$_.IDENTITYTYPE.Value }   else { 'Employee' }
+            $IdCat  = if ($_.IDENTITYCATEGORY) { [string]$_.IDENTITYCATEGORY.Value } else { '' }
+            $Name   = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
+            if (-not $Name) { $Name = $_.DisplayName }
             [PSCustomObject]@{
                 id                 = [string]$_.UId  # Omada UId is a valid UUID
                 externalId         = [string]$_.UId
-                displayName        = $name
+                displayName        = $Name
                 email              = $_.EMAIL
                 employeeId         = $_.EMPLOYEEID
                 jobTitle           = $_.JOBTITLE
-                extendedAttributes = @{ identityType = $idType; identityCategory = $idCat }
+                extendedAttributes = @{ identityType = $IdType; identityCategory = $IdCat }
             }
         } | Where-Object { $_.externalId -and $_.displayName })
 
-        $r = Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $systemId -SyncMode 'full' -Records $identRecords
-        Write-Host "  Identities: +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
-        Write-Phase -Name 'Identities' -Duration ([datetime]::UtcNow - $t) -Records @{ identities = $identRecords.Count }
+        $R = Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $SystemId -SyncMode 'full' -Records $IdentRecords
+        Write-Host "  Identities: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+
+        # Build set of Identity UIds stored in Identities table so CA processing can
+        # guard IdentityMembers against FK violations on non-person identity types.
+        foreach ($Rec in $IdentRecords) { $IdentityUidInIdentitiesTable.Add($Rec.id) | Out-Null }
+
+        Write-Phase -Name 'Identities' -Duration ([datetime]::UtcNow - $T) -Records @{ identities = $IdentRecords.Count }
     } catch {
-        $msg = $_.Exception.Message
-        Write-Host "  Identities phase failed: $msg" -ForegroundColor Red
-        $script:phaseErrors.Add("Identities: $msg")
-        Write-Phase -Name 'Identities' -Duration ([datetime]::UtcNow - $t) -ErrorMsg $msg
+        $Msg = $_.Exception.Message
+        Write-Host "  Identities phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("Identities: $Msg")
+        Write-Phase -Name 'Identities' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
     }
 }
 
 # ─── Phase: Accounts / Principals ────────────────────────────────
 # OData entity: User
-# principalType resolved from linked Identity's IDENTITYTYPE via $identityLookup
+# principalType resolved from linked Identity's IDENTITYTYPE via $IdentityLookup
 # Join key: User.IDENTITYREF.IDENTITYID (string) = Identity.IDENTITYID (string)
 if ($SyncAccounts) {
-    $t = [datetime]::UtcNow
+    $T = [datetime]::UtcNow
     Write-Host "`nAccounts (Principals):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing accounts' -Pct 30
     try {
         if (-not (Test-EntitySetAvailable 'User')) {
             throw "User entity set not found in OData metadata"
         }
-        $allAccounts = Invoke-OmadaPagedRequest -Path '/User' `
-            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
-        Write-Host "  $($allAccounts.Count) account records from Omada" -ForegroundColor Gray
+        $AllAccounts = Invoke-OmadaPagedRequest -Path '/User' `
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+        Write-Host "  $($AllAccounts.Count) account records from Omada" -ForegroundColor Gray
 
-        $accountRecords = @($allAccounts | Where-Object { -not $_.Inactive } | ForEach-Object {
-            $extId = [string]$_.UId
-            $name  = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
-            if (-not $name) { $name = $_.DisplayName }
+        $AccountRecords = @($AllAccounts | Where-Object { -not $_.Inactive } | ForEach-Object {
+            $ExtId = [string]$_.UId
+            $Name  = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
+            if (-not $Name) { $Name = $_.DisplayName }
 
             # Resolve principalType from the linked Identity's IDENTITYTYPE
-            $principalType = 'User'
-            $identId = if ($_.IDENTITYREF) { [string]$_.IDENTITYREF.IDENTITYID } else { $null }
-            if ($identId -and $identityLookup.ContainsKey($identId)) {
-                $principalType = Map-IdentityTypeToAtlas -OmadaType $identityLookup[$identId].identityType
+            $PrincipalType = 'User'
+            $IdentId = if ($_.IDENTITYREF) { [string]$_.IDENTITYREF.IDENTITYID } else { $Null }
+            if ($IdentId -and $IdentityLookup.ContainsKey($IdentId)) {
+                $PrincipalType = Map-IdentityTypeToAtlas -OmadaType $IdentityLookup[$IdentId].identityType
             }
 
             [PSCustomObject]@{
-                id                 = $extId  # Omada UId is a valid UUID
-                externalId         = $extId
-                displayName        = $name
+                id                 = $ExtId  # Omada UId is a valid UUID
+                externalId         = $ExtId
+                displayName        = $Name
                 email              = $_.EMAIL
-                principalType      = $principalType
-                accountEnabled     = $true
+                principalType      = $PrincipalType
+                accountEnabled     = $True
                 jobTitle           = $_.JOBTITLE
                 extendedAttributes = @{ userName = $_.UserName }
             }
         } | Where-Object { $_.externalId -and $_.displayName })
 
-        foreach ($pType in @('User', 'ExternalUser', 'ServicePrincipal')) {
-            $subset = @($accountRecords | Where-Object { $_.principalType -eq $pType })
-            if ($subset.Count -eq 0) { continue }
-            $r = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ principalType = $pType } -Records $subset
-            Write-Host "  Principals ($pType): +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
+        foreach ($PType in @('User', 'ExternalUser', 'ServicePrincipal')) {
+            $Subset = @($AccountRecords | Where-Object { $_.principalType -eq $PType })
+            if ($Subset.Count -eq 0) { continue }
+            $R = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode 'full' `
+                -Scope @{ principalType = $PType } -Records $Subset
+            Write-Host "  Principals ($PType): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
         }
-        $otherTypes = @($accountRecords | Where-Object { $_.principalType -notin @('User','ExternalUser','ServicePrincipal') })
-        if ($otherTypes.Count -gt 0) {
-            $grouped = $otherTypes | Group-Object principalType
-            foreach ($g in $grouped) {
-                $r = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $systemId -SyncMode 'full' `
-                    -Scope @{ principalType = $g.Name } -Records @($g.Group)
-                Write-Host "  Principals ($($g.Name)): +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
+        $OtherTypes = @($AccountRecords | Where-Object { $_.principalType -notin @('User','ExternalUser','ServicePrincipal') })
+        if ($OtherTypes.Count -gt 0) {
+            $Grouped = $OtherTypes | Group-Object principalType
+            foreach ($G in $Grouped) {
+                $R = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode 'full' `
+                    -Scope @{ principalType = $G.Name } -Records @($G.Group)
+                Write-Host "  Principals ($($G.Name)): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
             }
         }
 
         # Build shared lookups used by ContextMembers and Assignments phases:
-        #   $userNameToUid:         UserName → User.UId (CalculatedAssignment.AccountName lookup)
-        #   $identityUidToUserUids: Identity.UId → [User.UIds] (Contextassignment fan-out to all accounts)
-        foreach ($acc in $allAccounts) {
-            if ($acc.Inactive) { continue }
-            if ($acc.UserName) { $userNameToUid[[string]$acc.UserName] = [string]$acc.UId }
-            $identIdStr = if ($acc.IDENTITYREF) { [string]$acc.IDENTITYREF.IDENTITYID } else { $null }
-            if ($identIdStr -and $identityLookup.ContainsKey($identIdStr)) {
-                $identUid = $identityLookup[$identIdStr].uid
-                if (-not $identityUidToUserUids.ContainsKey($identUid)) {
-                    $identityUidToUserUids[$identUid] = [System.Collections.Generic.List[string]]::new()
+        #   $UserNameToUid:         UserName → User.UId (CalculatedAssignment.AccountName lookup)
+        #   $IdentityUidToUserUids: Identity.UId → [User.UIds] (Contextassignment fan-out to all accounts)
+        foreach ($Acc in $AllAccounts) {
+            if ($Acc.Inactive) { continue }
+            if ($Acc.UserName) { $UserNameToUid[[string]$Acc.UserName] = [string]$Acc.UId }
+            $IdentIdStr = if ($Acc.IDENTITYREF) { [string]$Acc.IDENTITYREF.IDENTITYID } else { $Null }
+            if ($IdentIdStr -and $IdentityLookup.ContainsKey($IdentIdStr)) {
+                $IdentUid = $IdentityLookup[$IdentIdStr].uid
+                if (-not $IdentityUidToUserUids.ContainsKey($IdentUid)) {
+                    $IdentityUidToUserUids[$IdentUid] = [System.Collections.Generic.List[string]]::new()
                 }
-                $identityUidToUserUids[$identUid].Add([string]$acc.UId)
+                $IdentityUidToUserUids[$IdentUid].Add([string]$Acc.UId)
             }
         }
 
-        Write-Phase -Name 'Accounts' -Duration ([datetime]::UtcNow - $t) -Records @{ accounts = $accountRecords.Count }
+        Write-Phase -Name 'Accounts' -Duration ([datetime]::UtcNow - $T) -Records @{ accounts = $AccountRecords.Count }
     } catch {
-        $msg = $_.Exception.Message
-        Write-Host "  Accounts phase failed: $msg" -ForegroundColor Red
-        $script:phaseErrors.Add("Accounts: $msg")
-        Write-Phase -Name 'Accounts' -Duration ([datetime]::UtcNow - $t) -ErrorMsg $msg
+        $Msg = $_.Exception.Message
+        Write-Host "  Accounts phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("Accounts: $Msg")
+        Write-Phase -Name 'Accounts' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
     }
 }
 
 # ─── Phase: IdentityMembers ───────────────────────────────────────
 # Join: User.IDENTITYREF.IDENTITYID (string) = Identity.IDENTITYID (string)
 # identityExternalId = Identity.UId, principalExternalId = User.UId
-if ($SyncIdentities -and $allIdentities -and $SyncAccounts -and $allAccounts) {
-    $t = [datetime]::UtcNow
+if ($SyncIdentities -and $AllIdentities -and $SyncAccounts -and $AllAccounts) {
+    $T = [datetime]::UtcNow
     Write-Host "`nIdentity Members:" -ForegroundColor Cyan
     try {
-        $memberRecords = [System.Collections.Generic.List[object]]::new()
-        foreach ($acc in $allAccounts) {
-            if ($acc.Inactive) { continue }
-            $identId = if ($acc.IDENTITYREF) { [string]$acc.IDENTITYREF.IDENTITYID } else { $null }
-            if (-not $identId -or -not $identityLookup.ContainsKey($identId)) { continue }
+        $MemberRecords = [System.Collections.Generic.List[object]]::new()
+        foreach ($Acc in $AllAccounts) {
+            if ($Acc.Inactive) { continue }
+            $IdentId = if ($Acc.IDENTITYREF) { [string]$Acc.IDENTITYREF.IDENTITYID } else { $Null }
+            if (-not $IdentId -or -not $IdentityLookup.ContainsKey($IdentId)) { continue }
             # Only link accounts whose identity type is stored in the Identities table.
             # Non-person identities (Machine, etc.) are not in Identities → skip to avoid FK errors.
-            $identEntry = $identityLookup[$identId]
-            if ($identityTypesForIdentityTable -notcontains $identEntry.identityType) { continue }
-            $memberRecords.Add([PSCustomObject]@{
-                identityId  = $identEntry.uid                 # direct UUID FK to Identities.id
-                principalId = [string]$acc.UId                # direct UUID FK to Principals.id
+            $IdentEntry = $IdentityLookup[$IdentId]
+            if ($IdentityTypesForIdentityTable -notcontains $IdentEntry.identityType) { continue }
+            $MemberRecords.Add([PSCustomObject]@{
+                identityId  = $IdentEntry.uid                 # direct UUID FK to Identities.id
+                principalId = [string]$Acc.UId                # direct UUID FK to Principals.id
                 accountType = 'Primary'
             })
         }
 
-        $r = Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $systemId -SyncMode 'full' -Records @($memberRecords)
-        Write-Host "  IdentityMembers: +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
-        Write-Phase -Name 'IdentityMembers' -Duration ([datetime]::UtcNow - $t) -Records @{ members = $memberRecords.Count }
+        $R = Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $SystemId -SyncMode 'full' -Records @($MemberRecords)
+        Write-Host "  IdentityMembers: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+        Write-Phase -Name 'IdentityMembers' -Duration ([datetime]::UtcNow - $T) -Records @{ members = $MemberRecords.Count }
     } catch {
-        $msg = $_.Exception.Message
-        Write-Host "  IdentityMembers phase failed: $msg" -ForegroundColor Red
-        $script:phaseErrors.Add("IdentityMembers: $msg")
-        Write-Phase -Name 'IdentityMembers' -Duration ([datetime]::UtcNow - $t) -ErrorMsg $msg
+        $Msg = $_.Exception.Message
+        Write-Host "  IdentityMembers phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("IdentityMembers: $Msg")
+        Write-Phase -Name 'IdentityMembers' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
     }
 }
 
@@ -627,48 +636,48 @@ if ($SyncIdentities -and $allIdentities -and $SyncAccounts -and $allAccounts) {
 # so the UI query (IdentityMembers → ContextMembers via principalId) resolves correctly.
 # Each identity assignment is fanned out to all the identity's active User accounts.
 if ($SyncContextMembers) {
-    $t = [datetime]::UtcNow
+    $T = [datetime]::UtcNow
     Write-Host "`nContext Members:" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing context members' -Pct 45
     try {
         if (-not (Test-EntitySetAvailable 'Contextassignment')) {
             throw "Contextassignment entity set not found in OData metadata"
         }
-        $items = Invoke-OmadaPagedRequest -Path '/Contextassignment' `
-            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
-        Write-Host "  $($items.Count) context assignment records from Omada" -ForegroundColor Gray
+        $Items = Invoke-OmadaPagedRequest -Path '/Contextassignment' `
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+        Write-Host "  $($Items.Count) context assignment records from Omada" -ForegroundColor Gray
 
-        $ctxMemberRecords = [System.Collections.Generic.List[object]]::new()
-        foreach ($item in $items) {
-            $identUid  = if ($item.CA_IDENTITY) { [string]$item.CA_IDENTITY.UId } else { $null }
-            $contextUid = if ($item.CA_CONTEXT)  { [string]$item.CA_CONTEXT.UId  } else { $null }
-            if (-not $identUid -or -not $contextUid) { continue }
+        $CtxMemberRecords = [System.Collections.Generic.List[object]]::new()
+        foreach ($Item in $Items) {
+            $IdentUid  = if ($Item.CA_IDENTITY) { [string]$Item.CA_IDENTITY.UId } else { $Null }
+            $ContextUid = if ($Item.CA_CONTEXT)  { [string]$Item.CA_CONTEXT.UId  } else { $Null }
+            if (-not $IdentUid -or -not $ContextUid) { continue }
             # Skip Contextassignment records that reference entity types not in our Contexts table
             # (e.g. training programmes, projects) — CA_CONTEXT can reference any Omada context
-            if ($syncedContextIds.Count -gt 0 -and -not $syncedContextIds.Contains($contextUid)) { continue }
+            if ($SyncedContextIds.Count -gt 0 -and -not $SyncedContextIds.Contains($ContextUid)) { continue }
 
             # Fan out to all User accounts for this identity so the UI query resolves:
             # IdentityMembers.principalId → ContextMembers.memberId → Contexts
-            $userUids = if ($identityUidToUserUids.ContainsKey($identUid)) { $identityUidToUserUids[$identUid] } else { $null }
-            if (-not $userUids -or $userUids.Count -eq 0) { continue }
-            foreach ($userUid in $userUids) {
-                $ctxMemberRecords.Add([PSCustomObject]@{
-                    contextId  = $contextUid
-                    memberId   = $userUid
+            $UserUids = if ($IdentityUidToUserUids.ContainsKey($IdentUid)) { $IdentityUidToUserUids[$IdentUid] } else { $Null }
+            if (-not $UserUids -or $UserUids.Count -eq 0) { continue }
+            foreach ($UserUid in $UserUids) {
+                $CtxMemberRecords.Add([PSCustomObject]@{
+                    contextId  = $ContextUid
+                    memberId   = $UserUid
                     memberType = 'Principal'
                     addedBy    = 'sync'
                 })
             }
         }
 
-        $r = Send-IngestBatch -Endpoint 'ingest/context-members' -SystemId $systemId -SyncMode 'full' -Records @($ctxMemberRecords)
-        Write-Host "  ContextMembers: +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
-        Write-Phase -Name 'ContextMembers' -Duration ([datetime]::UtcNow - $t) -Records @{ members = $ctxMemberRecords.Count }
+        $R = Send-IngestBatch -Endpoint 'ingest/context-members' -SystemId $SystemId -SyncMode 'full' -Records @($CtxMemberRecords)
+        Write-Host "  ContextMembers: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+        Write-Phase -Name 'ContextMembers' -Duration ([datetime]::UtcNow - $T) -Records @{ members = $CtxMemberRecords.Count }
     } catch {
-        $msg = $_.Exception.Message
-        Write-Host "  ContextMembers phase failed: $msg" -ForegroundColor Red
-        $script:phaseErrors.Add("ContextMembers: $msg")
-        Write-Phase -Name 'ContextMembers' -Duration ([datetime]::UtcNow - $t) -ErrorMsg $msg
+        $Msg = $_.Exception.Message
+        Write-Host "  ContextMembers phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("ContextMembers: $Msg")
+        Write-Phase -Name 'ContextMembers' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
     }
 }
 
@@ -676,112 +685,112 @@ if ($SyncContextMembers) {
 # OData entity: Resource
 # Type discriminator: ROLETYPEREF (OIS.ReferenceValue) — .DisplayName gives the type label
 # Category: ROLECATEGORY (OIS.SetValue) — .Value gives the category label
-# $allResources retained for Entitlements phase (CHILDROLES extraction)
+# $AllResources retained for Entitlements phase (CHILDROLES extraction)
 if ($SyncResources) {
-    $t = [datetime]::UtcNow
+    $T = [datetime]::UtcNow
     Write-Host "`nResources:" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing resources' -Pct 50
     try {
         if (-not (Test-EntitySetAvailable 'Resource')) {
             throw "Resource entity set not found in OData metadata"
         }
-        $allResources = Invoke-OmadaPagedRequest -Path '/Resource' `
-            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
-        Write-Host "  $($allResources.Count) resource records from Omada" -ForegroundColor Gray
+        $AllResources = Invoke-OmadaPagedRequest -Path '/Resource' `
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+        Write-Host "  $($AllResources.Count) resource records from Omada" -ForegroundColor Gray
 
         # Group resources by their connected system (SYSTEMREF) so each batch is
         # scoped to one system — preserving scoped-delete correctness.
-        $bySysUId = @{}  # OmadaSystemUId → List[record]
-        foreach ($item in $allResources) {
-            $omadaType = Get-OmadaRefValue -Ref $item.ROLETYPEREF -Fallback 'Role'
-            $atlasType = Map-ResourceTypeToAtlas -OmadaType $omadaType
-            $omadaCat  = if ($item.ROLECATEGORY) { [string]$item.ROLECATEGORY.Value } else { '' }
-            $sysUId    = Get-OmadaRefUid -Ref $item.SYSTEMREF
-            $sysName   = Get-OmadaRefValue -Ref $item.SYSTEMREF -Fallback ''
-            $status    = if ($item.RESOURCESTATUS) { [string]$item.RESOURCESTATUS.Value } else { 'Active' }
-            $enabled   = $status -notin @('Inactive', 'Disabled', 'Deleted')
-            $extId     = [string]$item.UId
-            $dispName  = if ($item.NAME) { $item.NAME } else { $item.DisplayName }
+        $BySysUId = @{}  # OmadaSystemUId → List[record]
+        foreach ($Item in $AllResources) {
+            $OmadaType = Get-OmadaRefValue -Ref $Item.ROLETYPEREF -Fallback 'Role'
+            $AtlasType = Map-ResourceTypeToAtlas -OmadaType $OmadaType
+            $OmadaCat  = if ($Item.ROLECATEGORY) { [string]$Item.ROLECATEGORY.Value } else { '' }
+            $SysUId    = Get-OmadaRefUid -Ref $Item.SYSTEMREF
+            $SysName   = Get-OmadaRefValue -Ref $Item.SYSTEMREF -Fallback ''
+            $Status    = if ($Item.RESOURCESTATUS) { [string]$Item.RESOURCESTATUS.Value } else { 'Active' }
+            $Enabled   = $Status -notin @('Inactive', 'Disabled', 'Deleted')
+            $ExtId     = [string]$Item.UId
+            $DispName  = if ($Item.NAME) { $Item.NAME } else { $Item.DisplayName }
 
-            if (-not $extId -or -not $dispName) { continue }
+            if (-not $ExtId -or -not $DispName) { continue }
 
-            $rec = [PSCustomObject]@{
-                id                 = $extId
-                externalId         = $extId
-                displayName        = $dispName
-                resourceType       = $atlasType
-                description        = $item.DESCRIPTION
-                enabled            = $enabled
-                extendedAttributes = @{ resourceCategory = $omadaCat; omadaSystem = $sysName }
+            $Rec = [PSCustomObject]@{
+                id                 = $ExtId
+                externalId         = $ExtId
+                displayName        = $DispName
+                resourceType       = $AtlasType
+                description        = $Item.DESCRIPTION
+                enabled            = $Enabled
+                extendedAttributes = @{ resourceCategory = $OmadaCat; omadaSystem = $SysName }
             }
             # Use the mapped system or fall back to the main Omada system
-            $key = if ($sysUId -and $omadaSystemMap.ContainsKey($sysUId)) { $sysUId } else { '__main__' }
-            if (-not $bySysUId.ContainsKey($key)) { $bySysUId[$key] = [System.Collections.Generic.List[object]]::new() }
-            $bySysUId[$key].Add($rec)
+            $Key = if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
+            if (-not $BySysUId.ContainsKey($Key)) { $BySysUId[$Key] = [System.Collections.Generic.List[object]]::new() }
+            $BySysUId[$Key].Add($Rec)
         }
 
-        $totalInserted = 0; $totalUpdated = 0; $totalDeleted = 0
-        foreach ($key in $bySysUId.Keys) {
-            $sysId   = if ($key -eq '__main__') { $systemId } else { $omadaSystemMap[$key] }
-            $sysLabel = if ($key -eq '__main__') { 'Omada' } else {
-                ($allOmadaSystems | Where-Object { $_.UId -eq $key } |
+        $TotalInserted = 0; $TotalUpdated = 0; $TotalDeleted = 0
+        foreach ($Key in $BySysUId.Keys) {
+            $SysId   = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
+            $SysLabel = if ($Key -eq '__main__') { 'Omada' } else {
+                ($AllOmadaSystems | Where-Object { $_.UId -eq $Key } |
                  Select-Object -First 1).DisplayName
             }
-            $recs = @($bySysUId[$key])
-            $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $sysId -SyncMode 'full' `
-                -Scope @{} -Records $recs
-            Write-Host "  Resources ($sysLabel, $($recs.Count) records): +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
-            $totalInserted += ($r.inserted ?? 0); $totalUpdated += ($r.updated ?? 0); $totalDeleted += ($r.deleted ?? 0)
+            $Recs = @($BySysUId[$Key])
+            $R = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SysId -SyncMode 'full' `
+                -Scope @{} -Records $Recs
+            Write-Host "  Resources ($SysLabel, $($Recs.Count) records): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+            $TotalInserted += ($R.inserted ?? 0); $TotalUpdated += ($R.updated ?? 0); $TotalDeleted += ($R.deleted ?? 0)
         }
-        Write-Host "  Resources total: +$totalInserted ~$totalUpdated -$totalDeleted" -ForegroundColor Green
+        Write-Host "  Resources total: +$TotalInserted ~$TotalUpdated -$TotalDeleted" -ForegroundColor Green
 
-        Write-Phase -Name 'Resources' -Duration ([datetime]::UtcNow - $t) -Records @{ resources = $allResources.Count }
+        Write-Phase -Name 'Resources' -Duration ([datetime]::UtcNow - $T) -Records @{ resources = $AllResources.Count }
     } catch {
-        $msg = $_.Exception.Message
-        Write-Host "  Resources phase failed: $msg" -ForegroundColor Red
-        $script:phaseErrors.Add("Resources: $msg")
-        Write-Phase -Name 'Resources' -Duration ([datetime]::UtcNow - $t) -ErrorMsg $msg
+        $Msg = $_.Exception.Message
+        Write-Host "  Resources phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("Resources: $Msg")
+        Write-Phase -Name 'Resources' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
     }
 }
 
 # ─── Phase: Entitlements (Resource Relationships) ─────────────────
 # Omada stores child role nesting in Resource.CHILDROLES (Collection(OIS.ReferenceValue)).
-# No separate PermissionNesting endpoint — relationships are extracted from $allResources.
+# No separate PermissionNesting endpoint — relationships are extracted from $AllResources.
 if ($SyncEntitlements) {
-    $t = [datetime]::UtcNow
+    $T = [datetime]::UtcNow
     Write-Host "`nEntitlements (Resource Relationships):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing entitlements' -Pct 65
     try {
-        if (-not $allResources) {
+        if (-not $AllResources) {
             Write-Host "  Skipping entitlements — resources were not synced" -ForegroundColor Yellow
-            Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $t) -Records @{ relationships = 0 }
+            Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $T) -Records @{ relationships = 0 }
         } else {
-            $relRecords = [System.Collections.Generic.List[object]]::new()
-            foreach ($item in $allResources) {
-                if (-not $item.CHILDROLES) { continue }
-                $parentUid = [string]$item.UId
-                foreach ($child in $item.CHILDROLES) {
-                    $childUid = Get-OmadaRefUid -Ref $child
-                    if ($childUid) {
-                        $relRecords.Add([PSCustomObject]@{
-                            parentResourceId = $parentUid   # direct UUID FK to Resources.id
-                            childResourceId  = $childUid    # direct UUID FK to Resources.id
+            $RelRecords = [System.Collections.Generic.List[object]]::new()
+            foreach ($Item in $AllResources) {
+                if (-not $Item.CHILDROLES) { continue }
+                $ParentUid = [string]$Item.UId
+                foreach ($Child in $Item.CHILDROLES) {
+                    $ChildUid = Get-OmadaRefUid -Ref $Child
+                    if ($ChildUid) {
+                        $RelRecords.Add([PSCustomObject]@{
+                            parentResourceId = $ParentUid   # direct UUID FK to Resources.id
+                            childResourceId  = $ChildUid    # direct UUID FK to Resources.id
                             relationshipType = 'Contains'
                         })
                     }
                 }
             }
 
-            $r = Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ relationshipType = 'Contains' } -Records @($relRecords)
-            Write-Host "  Entitlements: +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
-            Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $t) -Records @{ relationships = $relRecords.Count }
+            $R = Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode 'full' `
+                -Scope @{ relationshipType = 'Contains' } -Records @($RelRecords)
+            Write-Host "  Entitlements: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+            Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $T) -Records @{ relationships = $RelRecords.Count }
         }
     } catch {
-        $msg = $_.Exception.Message
-        Write-Host "  Entitlements phase failed: $msg" -ForegroundColor Red
-        $script:phaseErrors.Add("Entitlements: $msg")
-        Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $t) -ErrorMsg $msg
+        $Msg = $_.Exception.Message
+        Write-Host "  Entitlements phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("Entitlements: $Msg")
+        Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
     }
 }
 
@@ -793,170 +802,215 @@ if ($SyncEntitlements) {
 #   2. CalculatedAssignments (Builtin) — effective account provisioning (Identity → Account resource).
 #      IsManaged=true → Governed, IsManaged=false → Direct. Also grouped per system.
 if ($SyncAssignments) {
-    $t = [datetime]::UtcNow
+    $T = [datetime]::UtcNow
     Write-Host "`nAssignments:" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing assignments' -Pct 75
     try {
         # ── Source 1: Resourceassignment (role/permission assignments) ─────────
-        $raItems = Invoke-OmadaPagedRequest -Path '/Resourceassignment' `
-            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
-        Write-Host "  $($raItems.Count) Resourceassignment records from Omada" -ForegroundColor Gray
+        $RaItems = Invoke-OmadaPagedRequest -Path '/Resourceassignment' `
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+        Write-Host "  $($RaItems.Count) Resourceassignment records from Omada" -ForegroundColor Gray
 
         # Group by system for per-system full-sync batches
-        $raBySys = @{}
-        foreach ($item in $raItems) {
-            $status = if ($item.ROLEASSNSTATUS) { [string]$item.ROLEASSNSTATUS.Value } else { 'Active' }
-            if ($status -notin @('Active', 'Pending')) { continue }
+        $RaBySys = @{}
+        foreach ($Item in $RaItems) {
+            $Status = if ($Item.ROLEASSNSTATUS) { [string]$Item.ROLEASSNSTATUS.Value } else { 'Active' }
+            if ($Status -notin @('Active', 'Pending')) { continue }
 
-            $identUid    = if ($item.IDENTITYREF) { [string]$item.IDENTITYREF.UId } else { $null }
-            $resourceUid = Get-OmadaRefUid -Ref $item.ROLEREF
-            $sysUId      = Get-OmadaRefUid -Ref $item.SYSTEMREF
-            if (-not $identUid -or -not $resourceUid) { continue }
+            $IdentUid    = if ($Item.IDENTITYREF) { [string]$Item.IDENTITYREF.UId } else { $Null }
+            $ResourceUid = Get-OmadaRefUid -Ref $Item.ROLEREF
+            $SysUId      = Get-OmadaRefUid -Ref $Item.SYSTEMREF
+            if (-not $IdentUid -or -not $ResourceUid) { continue }
 
             # Fan out to all User accounts for this identity
-            $userUids = if ($identityUidToUserUids.ContainsKey($identUid)) { $identityUidToUserUids[$identUid] } else { $null }
-            if (-not $userUids -or $userUids.Count -eq 0) { continue }
+            $UserUids = if ($IdentityUidToUserUids.ContainsKey($IdentUid)) { $IdentityUidToUserUids[$IdentUid] } else { $Null }
+            if (-not $UserUids -or $UserUids.Count -eq 0) { continue }
 
-            $sysKey = if ($sysUId -and $omadaSystemMap.ContainsKey($sysUId)) { $sysUId } else { '__main__' }
-            if (-not $raBySys.ContainsKey($sysKey)) { $raBySys[$sysKey] = [System.Collections.Generic.List[object]]::new() }
+            $SysKey = if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
+            if (-not $RaBySys.ContainsKey($SysKey)) { $RaBySys[$SysKey] = [System.Collections.Generic.List[object]]::new() }
 
-            foreach ($userUid in $userUids) {
-                $raBySys[$sysKey].Add([PSCustomObject]@{
-                    resourceId         = $resourceUid
-                    principalId        = $userUid
+            foreach ($UserUid in $UserUids) {
+                $RaBySys[$SysKey].Add([PSCustomObject]@{
+                    resourceId         = $ResourceUid
+                    principalId        = $UserUid
                     assignmentType     = 'Governed'
-                    extendedAttributes = @{ validFrom = $item.VALIDFROM; validTo = $item.VALIDTO }
+                    extendedAttributes = @{ validFrom = $Item.VALIDFROM; validTo = $Item.VALIDTO }
                 })
             }
         }
 
-        $totalRaInserted = 0; $totalRaUpdated = 0
-        foreach ($key in $raBySys.Keys) {
-            $sysId = if ($key -eq '__main__') { $systemId } else { $omadaSystemMap[$key] }
+        $TotalRaInserted = 0; $TotalRaUpdated = 0
+        foreach ($Key in $RaBySys.Keys) {
+            $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
             # Deduplicate (principalId, resourceId) pairs — fanout can produce duplicates
             # if the same identity has multiple accounts or the same resource appears twice.
-            $seen  = [System.Collections.Generic.HashSet[string]]::new()
-            $dedup = @($raBySys[$key] | Where-Object {
-                $k = "$($_.principalId)|$($_.resourceId)"
-                $seen.Add($k)
+            $Seen  = [System.Collections.Generic.HashSet[string]]::new()
+            $Dedup = @($RaBySys[$Key] | Where-Object {
+                $K = "$($_.principalId)|$($_.resourceId)"
+                $Seen.Add($K)
             })
-            $r = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $sysId `
-                -SyncMode 'full' -Scope @{ assignmentType = 'Governed' } -Records $dedup
-            $totalRaInserted += ($r.inserted ?? 0); $totalRaUpdated += ($r.updated ?? 0)
+            $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SysId `
+                -SyncMode 'full' -Scope @{ assignmentType = 'Governed' } -Records $Dedup
+            $TotalRaInserted += ($R.inserted ?? 0); $TotalRaUpdated += ($R.updated ?? 0)
         }
-        Write-Host "  Role assignments (Governed): +$totalRaInserted ~$totalRaUpdated" -ForegroundColor Green
+        Write-Host "  Role assignments (Governed): +$TotalRaInserted ~$TotalRaUpdated" -ForegroundColor Green
 
-        # ── Source 2: CalculatedAssignments (account provisioning) ────────────
-        $caItems = Invoke-OmadaPagedRequest -Path '/CalculatedAssignments' `
+        # ── Source 2: Calculated Resource Assignments (CRA — account provisioning per connected system) ──
+        # Each CRA record represents one account provisioned in a connected system for an identity.
+        # Two principal tracks:
+        #   Omada Identity system accounts: already exist in Principals from SyncAccounts — reuse User.UId.
+        #   Connected-system accounts (Salesforce, AD, etc.): derive Principal from CRA Attributes
+        #     using AccountKey as id; also create IdentityMember linking to the Identity.
+        $CaItems = Invoke-OmadaPagedRequest -Path '/CalculatedAssignments' `
             -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource,System,ResourceType' } `
-            -PageSize $pageSize -OverrideBaseUrl $builtinBaseUrl
-        Write-Host "  $($caItems.Count) CalculatedAssignment records from Omada" -ForegroundColor Gray
+            -PageSize $PageSize -OverrideBaseUrl $BuiltinBaseUrl
+        Write-Host "  $($CaItems.Count) CRA records from Omada" -ForegroundColor Gray
 
-        $caBySysGov    = @{}  # governed per system
-        $caBySysDirect = @{}  # direct per system
+        $CaPrincipalsBySys  = @{}   # connected-system Principals derived from CRA (keyed by OmadaSystemUId)
+        $CaIdentityMembers  = [System.Collections.Generic.List[object]]::new()
+        $CaAssignmentsBySys = @{}   # Governed
+        $CaAssignmentsBysD  = @{}   # Direct
 
-        foreach ($item in $caItems) {
-            $accountName  = if ($item.AccountName) { [string]$item.AccountName } else { $null }
-            $principalUid = if ($accountName -and $userNameToUid.ContainsKey($accountName)) { $userNameToUid[$accountName] } else { $null }
-            $resourceUid  = if ($item.Resource)  { [string]$item.Resource.UId  } else { $null }
-            if (-not $principalUid -or -not $resourceUid) { continue }
+        foreach ($Item in $CaItems) {
+            $SysUId      = if ($Item.System)      { [string]$Item.System.UId      } else { $Null }
+            $ResourceUid = if ($Item.Resource)     { [string]$Item.Resource.UId    } else { $Null }
+            $IdentityUid = if ($Item.Identity)     { [string]$Item.Identity.UId    } else { $Null }
+            $AccountKey  = if ($Item.AccountKey)   { [string]$Item.AccountKey      } else { $Null }
+            $AccountName = if ($Item.AccountName)  { [string]$Item.AccountName     } else { $Null }
+            $ResType     = if ($Item.ResourceType) { $Item.ResourceType.DisplayName } else { '' }
+            if (-not $ResourceUid -or -not $IdentityUid) { continue }
 
-            # Use the System navigation property to link to the correct Identity Atlas system
-            $sysUId = if ($item.System) { [string]$item.System.UId } else { $null }
-            $sysKey = if ($sysUId -and $omadaSystemMap.ContainsKey($sysUId)) { $sysUId } else { '__main__' }
+            $SysKey = if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
+            $SysId  = if ($SysKey -eq '__main__') { $SystemId } else { $OmadaSystemMap[$SysKey] }
 
-            $rec = [PSCustomObject]@{
-                resourceId         = $resourceUid
-                principalId        = $principalUid
-                assignmentType     = if ($item.IsManaged) { 'Governed' } else { 'Direct' }
-                extendedAttributes = @{ validFrom = $item.ValidFrom; validTo = $item.ValidTo;
-                                        resourceType = if ($item.ResourceType) { $item.ResourceType.DisplayName } else { '' } }
-            }
-            if ($item.IsManaged) {
-                if (-not $caBySysGov.ContainsKey($sysKey))    { $caBySysGov[$sysKey]    = [System.Collections.Generic.List[object]]::new() }
-                $caBySysGov[$sysKey].Add($rec)
+            # Resolve principalId: reuse existing Omada User for Omada Identity system;
+            # for connected systems, derive Principal from CRA using AccountKey as id.
+            $IsOmadaSys   = ($SysUId -and $SysUId -eq $OmadaIdentitySystemUId)
+            $PrincipalUid = $Null
+
+            if ($IsOmadaSys) {
+                # Reuse existing Omada User Principal (created by SyncAccounts phase)
+                if ($AccountName -and $UserNameToUid.ContainsKey($AccountName)) {
+                    $PrincipalUid = $UserNameToUid[$AccountName]
+                }
             } else {
-                if (-not $caBySysDirect.ContainsKey($sysKey)) { $caBySysDirect[$sysKey] = [System.Collections.Generic.List[object]]::new() }
-                $caBySysDirect[$sysKey].Add($rec)
+                # Connected-system account — derive Principal from CRA Attributes
+                if (-not $AccountKey) { continue }
+                $PrincipalUid = $AccountKey
+
+                $Fn    = if ($Item.Attributes.'FIRSTNAME') { ($Item.Attributes.'FIRSTNAME' -join ' ').Trim() } else { '' }
+                $Ln    = if ($Item.Attributes.'LASTNAME')  { ($Item.Attributes.'LASTNAME'  -join ' ').Trim() } else { '' }
+                $Email = if ($Item.Attributes.'EMAIL')     { ($Item.Attributes.'EMAIL'     | Select-Object -First 1) } else { $Null }
+                $DName = "$Fn $Ln".Trim(); if (-not $DName) { $DName = $AccountName }
+
+                if (-not $CaPrincipalsBySys.ContainsKey($SysKey)) {
+                    $CaPrincipalsBySys[$SysKey] = [System.Collections.Generic.List[object]]::new()
+                }
+                $CaPrincipalsBySys[$SysKey].Add([PSCustomObject]@{
+                    id             = $AccountKey
+                    externalId     = $AccountName
+                    displayName    = $DName
+                    email          = $Email
+                    principalType  = 'User'
+                    accountEnabled = ($Item.Status -eq $True)
+                    extendedAttributes = @{ accountType = $ResType }
+                })
+
+                # IdentityMember: link this account to its Identity (person-type only — FK guard)
+                if ($IdentityUidInIdentitiesTable.Contains($IdentityUid)) {
+                    $CaIdentityMembers.Add([PSCustomObject]@{
+                        identityId  = $IdentityUid   # Identity.UId == Identities.id (set in SyncIdentities)
+                        principalId = $AccountKey
+                        accountType = $ResType
+                    })
+                }
+            }
+
+            if (-not $PrincipalUid) { continue }
+
+            # extendedAttributes: status, reasons, validFrom, validTo, accountType
+            $Reasons = if ($Item.Reasons) {
+                @($Item.Reasons | ForEach-Object { $_.Description }) -join '; '
+            } else { '' }
+            $ExtAttr = @{
+                validFrom   = $Item.ValidFrom
+                validTo     = $Item.ValidTo
+                status      = if ($Item.Status -eq $True) { 'Enabled' } else { 'Disabled' }
+                reasons     = $Reasons
+                accountType = $ResType
+                accountName = $AccountName
+            }
+
+            $Rec = [PSCustomObject]@{
+                resourceId         = $ResourceUid
+                principalId        = $PrincipalUid
+                assignmentType     = if ($Item.IsManaged) { 'Governed' } else { 'Direct' }
+                extendedAttributes = $ExtAttr
+            }
+            if ($Item.IsManaged) {
+                if (-not $CaAssignmentsBySys.ContainsKey($SysKey)) { $CaAssignmentsBySys[$SysKey] = [System.Collections.Generic.List[object]]::new() }
+                $CaAssignmentsBySys[$SysKey].Add($Rec)
+            } else {
+                if (-not $CaAssignmentsBysD.ContainsKey($SysKey))  { $CaAssignmentsBysD[$SysKey]  = [System.Collections.Generic.List[object]]::new() }
+                $CaAssignmentsBysD[$SysKey].Add($Rec)
             }
         }
 
-        $totalCaGovIns = 0; $totalCaDirIns = 0
-        foreach ($key in $caBySysGov.Keys) {
-            $sysId = if ($key -eq '__main__') { $systemId } else { $omadaSystemMap[$key] }
-            $seen  = [System.Collections.Generic.HashSet[string]]::new()
-            $dedup = @($caBySysGov[$key] | Where-Object { $seen.Add("$($_.principalId)|$($_.resourceId)") })
-            $r = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $sysId `
-                -SyncMode 'full' -Scope @{ assignmentType = 'Governed' } -Records $dedup
-            $totalCaGovIns += ($r.inserted ?? 0)
-        }
-        foreach ($key in $caBySysDirect.Keys) {
-            $sysId = if ($key -eq '__main__') { $systemId } else { $omadaSystemMap[$key] }
-            $seen  = [System.Collections.Generic.HashSet[string]]::new()
-            $dedup = @($caBySysDirect[$key] | Where-Object { $seen.Add("$($_.principalId)|$($_.resourceId)") })
-            $r = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $sysId `
-                -SyncMode 'full' -Scope @{ assignmentType = 'Direct' } -Records $dedup
-            $totalCaDirIns += ($r.inserted ?? 0)
-        }
-        Write-Host "  Account assignments (Governed): +$totalCaGovIns, (Direct): +$totalCaDirIns" -ForegroundColor Green
-
-        Write-Phase -Name 'Assignments' -Duration ([datetime]::UtcNow - $t) `
-            -Records @{ roleAssignments = ($raBySys.Values | ForEach-Object { $_.Count } | Measure-Object -Sum).Sum
-                        accountAssignments = ($caBySysGov.Values + $caBySysDirect.Values | ForEach-Object { $_.Count } | Measure-Object -Sum).Sum }
-    } catch {
-        $msg = $_.Exception.Message
-        Write-Host "  Assignments phase failed: $msg" -ForegroundColor Red
-        $script:phaseErrors.Add("Assignments: $msg")
-        Write-Phase -Name 'Assignments' -Duration ([datetime]::UtcNow - $t) -ErrorMsg $msg
-    }
-}
-
-# ─── Phase: CRAs ──────────────────────────────────────────────────
-# CertificationReviews is an optional Omada module (not always enabled).
-# Skip gracefully if absent from the metadata or if the endpoint returns 400/404.
-if ($SyncCRAs) {
-    $t = [datetime]::UtcNow
-    Write-Host "`nCertification Reviews (CRAs):" -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Syncing certification reviews' -Pct 85
-
-    try {
-        $items = Invoke-OmadaPagedRequest -Path '/CertificationReviews' `
-            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
-
-        $records = @($items | ForEach-Object {
-            $extId      = [string]$_.UId
-            $resUid     = Get-OmadaRefUid -Ref $_.ResourceRef
-            $decision   = Get-OmadaRefValue -Ref $_.Decision -Fallback (Get-OmadaRefValue -Ref $_.ComplianceState -Fallback '')
-            [PSCustomObject]@{
-                id                    = $extId
-                externalId            = $extId
-                resourceId            = $resUid
-                principalDisplayName  = Get-OmadaRefValue -Ref $_.IdentityRef -Fallback $_.DisplayName
-                decision              = $decision
-                reviewedByDisplayName = Get-OmadaRefValue -Ref $_.ReviewerRef -Fallback ''
-                reviewedDateTime      = $_.ReviewedDate
+        # Ingest connected-system Principals derived from CRA (delta — SyncAccounts owns full sync for Omada users)
+        $TotalCaPrincipals = 0
+        foreach ($Key in $CaPrincipalsBySys.Keys) {
+            $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
+            $Seen  = [System.Collections.Generic.HashSet[string]]::new()
+            $Dedup = @($CaPrincipalsBySys[$Key] | Where-Object { $Seen.Add($_.id) })
+            if ($Dedup.Count -gt 0) {
+                Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SysId `
+                    -SyncMode 'delta' -Records $Dedup | Out-Null
+                $TotalCaPrincipals += $Dedup.Count
             }
-        } | Where-Object { $_.externalId -and $_.resourceId })
-
-        $r = Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $systemId -SyncMode 'full' -Records $records
-        Write-Host "  CRAs: +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
-        Write-Phase -Name 'CRAs' -Duration ([datetime]::UtcNow - $t) -Records @{ certifications = $records.Count }
-    } catch {
-        $msg = $_.Exception.Message
-        $sc  = $null
-        try { $sc = $_.Exception.Response.StatusCode.value__ } catch {}
-        # Invoke-OmadaGetRequest throws a string: "... failed (HTTP 404): ..." — parse it if needed
-        if ($null -eq $sc -and $msg -match '\(HTTP (\d+)\)') { $sc = [int]$Matches[1] }
-        if ($sc -in @(400, 404, 501)) {
-            Write-Host "  CRAs: endpoint unavailable (HTTP $sc) — skipping" -ForegroundColor Yellow
-            Write-Phase -Name 'CRAs' -Duration ([datetime]::UtcNow - $t) -Records @{ certifications = 0 }
-        } else {
-            Write-Host "  CRAs phase failed: $msg" -ForegroundColor Red
-            $script:phaseErrors.Add("CRAs: $msg")
-            Write-Phase -Name 'CRAs' -Duration ([datetime]::UtcNow - $t) -ErrorMsg $msg
         }
+        # Ingest IdentityMembers for connected-system accounts (delta)
+        if ($CaIdentityMembers.Count -gt 0) {
+            $Seen  = [System.Collections.Generic.HashSet[string]]::new()
+            $Dedup = @($CaIdentityMembers | Where-Object { $Seen.Add("$($_.identityId)|$($_.principalId)") })
+            Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $SystemId `
+                -SyncMode 'delta' -Records $Dedup | Out-Null
+        }
+        Write-Host "  CRA: $($CaItems.Count) records → $TotalCaPrincipals connected-system accounts, $($CaIdentityMembers.Count) identity-member links" -ForegroundColor Green
+
+        # Ingest CRA ResourceAssignments per system
+        $TotalCaGovIns = 0; $TotalCaDirIns = 0
+        foreach ($Key in $CaAssignmentsBySys.Keys) {
+            $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
+            $Seen  = [System.Collections.Generic.HashSet[string]]::new()
+            $Dedup = @($CaAssignmentsBySys[$Key] | Where-Object { $Seen.Add("$($_.principalId)|$($_.resourceId)") })
+            $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SysId `
+                -SyncMode 'full' -Scope @{ assignmentType = 'Governed' } -Records $Dedup
+            $TotalCaGovIns += ($R.inserted ?? 0)
+        }
+        foreach ($Key in $CaAssignmentsBysD.Keys) {
+            $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
+            $Seen  = [System.Collections.Generic.HashSet[string]]::new()
+            $Dedup = @($CaAssignmentsBysD[$Key] | Where-Object { $Seen.Add("$($_.principalId)|$($_.resourceId)") })
+            $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SysId `
+                -SyncMode 'full' -Scope @{ assignmentType = 'Direct' } -Records $Dedup
+            $TotalCaDirIns += ($R.inserted ?? 0)
+        }
+        Write-Host "  CRA assignments (Governed): +$TotalCaGovIns, (Direct): +$TotalCaDirIns" -ForegroundColor Green
+
+        Write-Phase -Name 'Assignments' -Duration ([datetime]::UtcNow - $T) `
+            -Records @{ roleAssignments = ($RaBySys.Values | ForEach-Object { $_.Count } | Measure-Object -Sum).Sum
+                        craAssignments  = ($CaAssignmentsBySys.Values + $CaAssignmentsBysD.Values | ForEach-Object { $_.Count } | Measure-Object -Sum).Sum }
+    } catch {
+        $Msg = $_.Exception.Message
+        Write-Host "  Assignments phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("Assignments: $Msg")
+        Write-Phase -Name 'Assignments' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
     }
 }
+
+# NOTE: CertificationReviews (governance cert-review activity) is not imported —
+# that endpoint is not currently provided via OData on this Omada version.
+# "CRA" in this crawler refers to Calculated Resource Assignments (above).
 
 # ─── Refresh views ────────────────────────────────────────────────
 if ($RefreshViews) {
@@ -972,22 +1026,22 @@ if ($RefreshViews) {
 Update-CrawlerProgress -Step 'Complete' -Pct 100
 
 # ─── Summary ─────────────────────────────────────────────────────
-$elapsed = [datetime]::UtcNow - $script:startTime
+$Elapsed = [datetime]::UtcNow - $Script:startTime
 Write-Host "`n=== Omada Crawler Summary ===" -ForegroundColor Cyan
-Write-Host ("Total time: {0:mm}m {0:ss}s" -f $elapsed) -ForegroundColor Gray
+Write-Host ("Total time: {0:mm}m {0:ss}s" -f $Elapsed) -ForegroundColor Gray
 Write-Host ""
 Write-Host ("{0,-20} {1,-10} {2}" -f 'Phase', 'Status', 'Duration') -ForegroundColor Gray
 Write-Host ("{0,-20} {1,-10} {2}" -f ('─'*20), ('─'*10), ('─'*10)) -ForegroundColor Gray
-foreach ($p in $script:phases) {
-    $status = if ($p.status -eq 'ok') { 'ok' } else { 'FAILED' }
-    $color  = if ($p.status -eq 'ok') { 'Green' } else { 'Red' }
-    Write-Host ("{0,-20} {1,-10} {2}ms" -f $p.name, $status, $p.durationMs) -ForegroundColor $color
+foreach ($P in $Script:phases) {
+    $Status = if ($P.status -eq 'ok') { 'ok' } else { 'FAILED' }
+    $Color  = if ($P.status -eq 'ok') { 'Green' } else { 'Red' }
+    Write-Host ("{0,-20} {1,-10} {2}ms" -f $P.name, $Status, $P.durationMs) -ForegroundColor $Color
 }
 
-if ($script:phaseErrors.Count -gt 0) {
+if ($Script:phaseErrors.Count -gt 0) {
     Write-Host "`nPhase errors:" -ForegroundColor Red
-    foreach ($e in $script:phaseErrors) { Write-Host "  $e" -ForegroundColor Red }
-    throw "Omada sync completed with $($script:phaseErrors.Count) phase error(s). See above for details."
+    foreach ($E in $Script:phaseErrors) { Write-Host "  $E" -ForegroundColor Red }
+    throw "Omada sync completed with $($Script:phaseErrors.Count) phase error(s). See above for details."
 }
 
 Write-Host "`nOmada sync completed successfully." -ForegroundColor Green
