@@ -1016,4 +1016,60 @@ router.get('/admin/status', async (req, res) => {
   }
 });
 
+// POST /api/admin/omada/validate-metadata — fetch $metadata from the Omada server
+// and return the available EntitySets and Identity entity property names.
+// Used by the wizard to validate contextObjectTypes entries in real time.
+router.post('/admin/omada/validate-metadata', async (req, res) => {
+  const { configId } = req.body;
+  if (!configId) return res.status(400).json({ error: 'configId required' });
+
+  try {
+    const pool = await db.getPool();
+    const cfg = await pool.request().input('id', parseInt(configId, 10))
+      .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
+    if (!cfg.recordset.length) return res.status(404).json({ error: 'Config not found' });
+
+    const c = typeof cfg.recordset[0].config === 'string'
+      ? JSON.parse(cfg.recordset[0].config) : cfg.recordset[0].config;
+    const baseUrl = (c.baseUrl || '').replace(/\/?$/, '');
+    if (!baseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
+
+    const metaUrl = `${baseUrl}/$metadata`;
+
+    // Build auth header
+    let authHeader = null;
+    if (c.authMethod === 'BasicAuth' && c.username && c.password) {
+      const encoded = Buffer.from(`${c.username}:${c.password}`).toString('base64');
+      authHeader = `Basic ${encoded}`;
+    } else if ((c.authMethod === 'OAuth2CC' || c.authMethod === 'ApiToken') && c.accessToken) {
+      authHeader = `Bearer ${c.accessToken}`;
+    }
+
+    const fetchOpts = { signal: AbortSignal.timeout(10000) };
+    if (authHeader) fetchOpts.headers = { Authorization: authHeader };
+
+    const metaRes = await fetch(metaUrl, fetchOpts);
+    if (!metaRes.ok) {
+      return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
+    }
+    const xml = await metaRes.text();
+
+    // Parse EntitySet names
+    const entitySets = [...xml.matchAll(/EntitySet\s+Name="([^"]+)"/g)].map(m => m[1]).sort();
+
+    // Parse Identity entity type property names
+    const identityMatch = xml.match(/<EntityType\s+Name="Identity"[^>]*>([\s\S]*?)<\/EntityType>/);
+    let identityProperties = [];
+    if (identityMatch) {
+      identityProperties = [...identityMatch[1].matchAll(/(?:Property|NavigationProperty)\s+Name="([^"]+)"/g)]
+        .map(m => m[1]).sort();
+    }
+
+    res.json({ entitySets, identityProperties });
+  } catch (err) {
+    console.error('validate-metadata error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to fetch metadata' });
+  }
+});
+
 export default router;

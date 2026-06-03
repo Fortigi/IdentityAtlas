@@ -1899,6 +1899,42 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
   const updateContextType = (i, field, val) =>
     setContextObjectTypes(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
 
+  // Metadata validation — fetched once when entering Step 3
+  const [metaEntitySets,   setMetaEntitySets]   = useState(null);   // null = not fetched yet
+  const [metaIdentityProps, setMetaIdentityProps] = useState(null);
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaError,   setMetaError]   = useState(null);
+
+  const fetchMetadata = async () => {
+    if (!initialConfig?.id || metaEntitySets !== null) return;
+    setMetaLoading(true); setMetaError(null);
+    try {
+      const r = await authFetch('/api/admin/omada/validate-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ configId: initialConfig.id }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setMetaEntitySets(d.entitySets || []);
+        setMetaIdentityProps(d.identityProperties || []);
+      } else {
+        setMetaError('Could not reach Omada server — validation unavailable');
+      }
+    } catch { setMetaError('Metadata fetch failed'); }
+    finally { setMetaLoading(false); }
+  };
+
+  const ctxValidation = (cot) => {
+    if (!metaEntitySets) return null;
+    const errs = [];
+    if (cot.entitySet && !metaEntitySets.includes(cot.entitySet))
+      errs.push(`"${cot.entitySet}" is not an entity set in $metadata`);
+    if (cot.identityField && metaIdentityProps && !metaIdentityProps.includes(cot.identityField))
+      errs.push(`"${cot.identityField}" is not a property of the Identity entity type`);
+    return errs;
+  };
+
   // Schedule
   const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
 
@@ -2151,7 +2187,7 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
 
           <div className="flex justify-between">
             <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
-            <button onClick={() => setStep(3)} disabled={!canStep2}
+            <button onClick={() => { setStep(3); fetchMetadata(); }} disabled={!canStep2}
               className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
               Next →
             </button>
@@ -2187,43 +2223,63 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
               Omada entity sets to sync as Identity Atlas Contexts. Each type has its own OData path.
               <code className="ml-1 text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">identityField</code> links an identity's reference field to that context type for direct membership.
             </p>
+            {metaLoading && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 italic">Fetching $metadata for validation…</p>
+            )}
+            {metaError && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">{metaError}</p>
+            )}
             <div className="space-y-2">
-              {contextObjectTypes.map((cot, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input
-                    value={cot.entitySet}
-                    onChange={e => updateContextType(i, 'entitySet', e.target.value)}
-                    placeholder="Entity set (e.g. Orgunit)"
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  />
-                  <input
-                    value={cot.contextType}
-                    onChange={e => updateContextType(i, 'contextType', e.target.value)}
-                    placeholder="Context type (e.g. OrgUnit)"
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  />
-                  <input
-                    value={cot.identityField}
-                    onChange={e => updateContextType(i, 'identityField', e.target.value)}
-                    placeholder="Identity field (e.g. OUREF)"
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  />
-                  <button
-                    onClick={() => removeContextType(i)}
-                    disabled={contextObjectTypes.length === 1}
-                    className="text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30"
-                    title="Remove">×</button>
-                </div>
-              ))}
+              {contextObjectTypes.map((cot, i) => {
+                const errs = ctxValidation(cot);
+                const hasErr = errs && errs.length > 0;
+                return (
+                  <div key={i} className="space-y-1">
+                    <div className="flex gap-2 items-center">
+                      <input
+                        value={cot.entitySet}
+                        onChange={e => updateContextType(i, 'entitySet', e.target.value)}
+                        placeholder="Entity set (e.g. Orgunit)"
+                        className={`flex-1 min-w-0 text-sm border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-200
+                          ${hasErr && errs.some(e => e.includes(cot.entitySet)) ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                      />
+                      <input
+                        value={cot.contextType}
+                        onChange={e => updateContextType(i, 'contextType', e.target.value)}
+                        placeholder="Context type (e.g. OrgUnit)"
+                        className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                      />
+                      <input
+                        value={cot.identityField}
+                        onChange={e => updateContextType(i, 'identityField', e.target.value)}
+                        placeholder="Identity field (e.g. OUREF)"
+                        className={`flex-1 min-w-0 text-sm border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-200
+                          ${hasErr && errs.some(e => e.includes(cot.identityField)) ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                      />
+                      <button
+                        onClick={() => removeContextType(i)}
+                        disabled={contextObjectTypes.length === 1}
+                        className="text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30"
+                        title="Remove">×</button>
+                    </div>
+                    {hasErr && errs.map((e, j) => (
+                      <p key={j} className="text-xs text-red-600 dark:text-red-400 ml-1">⚠ {e}</p>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-2 flex items-center gap-3">
               <button onClick={addContextType}
                 className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">
                 + Add context type
               </button>
-              <span className="text-xs text-gray-400 dark:text-gray-500">
-                Available on this server: Orgunit, Country, Employment
-              </span>
+              {metaEntitySets && (
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  Available: {metaEntitySets.filter(s => !['Identity','User','Resource','Resourceassignment','System','Usergroup','Orgunit','Country','Employment'].includes(s)
+                    ? false : true).join(', ')}
+                </span>
+              )}
             </div>
           </div>
 

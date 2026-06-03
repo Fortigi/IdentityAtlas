@@ -158,7 +158,7 @@ function createIngestHandler(entityType) {
       // Audit log (best effort)
       if (req.crawler) {
         db.query(
-          `INSERT INTO crawler_audit_log (crawler_id, "action", "endpoint", record_count, status_code, ip_address)
+          `INSERT INTO "CrawlerAuditLog" ("crawlerId", "action", "endpoint", "recordCount", "statusCode", "ipAddress")
            VALUES ($1, 'ingest', $2, $3, 201, $4)`,
           [req.crawler.id, req.originalUrl, body.records.length, (req.ip || '').slice(0, 45)]
         ).catch(() => {});
