@@ -745,65 +745,52 @@ if ($SyncContextMembers) {
             -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($Items.Count) context assignment records from Omada" -ForegroundColor Gray
 
+        # ContextMembers use memberType='Identity' and memberId=Identity.UId so the
+        # context detail page (which queries WHERE memberType = context.targetType
+        # and joins to the Identities table) can find members correctly.
+        # One record per (contextId, identityId) pair — no per-account fanout needed.
         $CtxMemberRecords = [System.Collections.Generic.List[object]]::new()
+
+        # ── Source 1: Contextassignment (Omada's explicit context assignment entity) ──
         foreach ($Item in $Items) {
-            $IdentUid  = if ($Item.CA_IDENTITY) { [string]$Item.CA_IDENTITY.UId } else { $Null }
+            $IdentUid   = if ($Item.CA_IDENTITY) { [string]$Item.CA_IDENTITY.UId } else { $Null }
             $ContextUid = if ($Item.CA_CONTEXT)  { [string]$Item.CA_CONTEXT.UId  } else { $Null }
             if (-not $IdentUid -or -not $ContextUid) { continue }
-            # Skip Contextassignment records that reference entity types not in our Contexts table
-            # (e.g. training programmes, projects) — CA_CONTEXT can reference any Omada context
             if ($SyncedContextIds.Count -gt 0 -and -not $SyncedContextIds.Contains($ContextUid)) { continue }
-
-            # Fan out to all User accounts for this identity so the UI query resolves:
-            # IdentityMembers.principalId → ContextMembers.memberId → Contexts
-            $UserUids = if ($IdentityUidToUserUids.ContainsKey($IdentUid)) { $IdentityUidToUserUids[$IdentUid] } else { $Null }
-            if (-not $UserUids -or $UserUids.Count -eq 0) { continue }
-            foreach ($UserUid in $UserUids) {
-                $CtxMemberRecords.Add([PSCustomObject]@{
-                    contextId  = $ContextUid
-                    memberId   = $UserUid
-                    memberType = 'Principal'
-                    addedBy    = 'sync'
-                })
-            }
+            if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
+            $CtxMemberRecords.Add([PSCustomObject]@{
+                contextId  = $ContextUid
+                memberId   = $IdentUid   # Identity.UId → matches Identities table
+                memberType = 'Identity'
+                addedBy    = 'sync'
+            })
         }
 
-        # ── Source 2: Direct context references on Identity (OUREF, COUNTRY, LOCATION, etc.) ──
-        # Each configured contextObjectType with an identityField creates ContextMembers
-        # from the Identity's direct reference field for that context type.
+        # ── Source 2: Direct context reference fields on Identity (OUREF, COUNTRY, etc.) ──
         if ($AllIdentities) {
+            $FieldsToCheck = @{}
+            foreach ($Cot in $ContextObjectTypes) {
+                if ($Cot.identityField) { $FieldsToCheck[$Cot.identityField] = $True }
+            }
+            foreach ($Field in $WellKnownIdentityContextFields.Keys) { $FieldsToCheck[$Field] = $True }
+
             foreach ($Ident in $AllIdentities) {
                 $IdentUid = [string]$Ident.UId
-                $UserUids = if ($IdentityUidToUserUids.ContainsKey($IdentUid)) { $IdentityUidToUserUids[$IdentUid] } else { $Null }
-                if (-not $UserUids -or $UserUids.Count -eq 0) { continue }
-
-                # Gather all context reference fields — from configured types AND well-known fields
-                $FieldsToCheck = @{}
-                foreach ($Cot in $ContextObjectTypes) {
-                    if ($Cot.identityField) { $FieldsToCheck[$Cot.identityField] = $True }
-                }
-                foreach ($Field in $WellKnownIdentityContextFields.Keys) {
-                    $FieldsToCheck[$Field] = $True
-                }
-
+                if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
                 foreach ($Field in $FieldsToCheck.Keys) {
-                    $RefValue  = $Ident.$Field
-                    $ContextUid = Get-OmadaRefUid -Ref $RefValue
+                    $ContextUid = Get-OmadaRefUid -Ref $Ident.$Field
                     if (-not $ContextUid -or -not $SyncedContextIds.Contains($ContextUid)) { continue }
-                    foreach ($UserUid in $UserUids) {
-                        $CtxMemberRecords.Add([PSCustomObject]@{
-                            contextId  = $ContextUid
-                            memberId   = $UserUid
-                            memberType = 'Principal'
-                            addedBy    = 'sync'
-                        })
-                    }
+                    $CtxMemberRecords.Add([PSCustomObject]@{
+                        contextId  = $ContextUid
+                        memberId   = $IdentUid
+                        memberType = 'Identity'
+                        addedBy    = 'sync'
+                    })
                 }
             }
         }
 
         # ── Source 3: Employment entity (IDENTITYREF → OUREF) ──
-        # Employment records link an identity to an OrgUnit with a job title and validity.
         if (Test-EntitySetAvailable 'Employment') {
             try {
                 $EmpItems = Invoke-OmadaPagedRequest -Path '/Employment' `
@@ -813,16 +800,13 @@ if ($SyncContextMembers) {
                     $ContextUid = Get-OmadaRefUid -Ref $Emp.OUREF
                     if (-not $IdentUid -or -not $ContextUid) { continue }
                     if (-not $SyncedContextIds.Contains($ContextUid)) { continue }
-                    $UserUids = if ($IdentityUidToUserUids.ContainsKey($IdentUid)) { $IdentityUidToUserUids[$IdentUid] } else { $Null }
-                    if (-not $UserUids -or $UserUids.Count -eq 0) { continue }
-                    foreach ($UserUid in $UserUids) {
-                        $CtxMemberRecords.Add([PSCustomObject]@{
-                            contextId  = $ContextUid
-                            memberId   = $UserUid
-                            memberType = 'Principal'
-                            addedBy    = 'sync'
-                        })
-                    }
+                    if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
+                    $CtxMemberRecords.Add([PSCustomObject]@{
+                        contextId  = $ContextUid
+                        memberId   = $IdentUid
+                        memberType = 'Identity'
+                        addedBy    = 'sync'
+                    })
                 }
                 Write-Host "  Employment-based context links added from $($EmpItems.Count) employment records" -ForegroundColor Gray
             } catch {
