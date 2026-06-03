@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Documentation site now shows a version picker — visitors land on the **stable** docs by default and can switch to **edge** (latest `main`) via the dropdown in the top bar.
+- Each GitHub Release automatically publishes a new stable docs snapshot; merges to `main` update the edge docs.
+
+## Changes in this PR
+
 - Added customer-editable role → permission mapping under **Admin → Authentication**. Three roles ship by default — **Admin** (full access), **RoleMiner** (read + Excel/CSV export + the ability to mint read-only `fgr_` API keys for PowerQuery / BI), **Servicedesk** (read-only). Role names in the matrix must match the `Value` strings configured on the Entra app registration's app roles.
 - Customers can add their own role names alongside the seed three (one row per Entra app role) and tick which catalog permissions each role grants. Catalog covers read, Excel/CSV export, read-API-key generation, tag / category / risk / certification writes, and the various admin areas (crawlers, systems, LLM, context plugins, CSV import, feature flags, auth itself).
 - Excel export buttons (Matrix, Business Roles), the Admin top-level tab, the Admin sub-tabs, and the PowerQuery read-key UI now hide when the signed-in user lacks the matching permission, so Servicedesk operators don't see controls that would 403 on click.
