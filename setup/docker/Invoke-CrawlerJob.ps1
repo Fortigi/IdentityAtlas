@@ -14,7 +14,8 @@
     One of: demo, entra-id, csv
 
 .PARAMETER Config
-    Hashtable parsed from the job's config JSON column.
+    Hashtable parsed from the job's config JSON column, or a JSON string
+    (accepted for compatibility with the desktop worker which passes JSON directly).
 
 .PARAMETER ApiKey
     The built-in crawler API key.
@@ -29,13 +30,21 @@ Param(
     [string]$JobType,
 
     [Parameter(Mandatory = $false)]
-    [hashtable]$Config = @{},
+    $Config = @{},
 
     [Parameter(Mandatory)]
     [string]$ApiKey
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Accept Config as either a hashtable (scheduler) or a JSON string (desktop worker).
+if ($Config -is [string]) {
+    $Config = if ($Config -and $Config -ne '{}') {
+        $Config | ConvertFrom-Json -AsHashtable
+    } else { @{} }
+}
+
 $apiBaseUrl = $env:WEB_API_URL
 if (-not $apiBaseUrl) { $apiBaseUrl = 'http://web:3001/api' }
 $apiBaseUrl = $apiBaseUrl.TrimEnd('/')
@@ -70,7 +79,7 @@ function Set-JobResult {
 # exactly what the crawler was doing at each step — without requiring
 # SSH into the worker container. The job_data volume is shared between
 # worker and web, so the web container can read the file back out.
-$traceDir  = '/data/uploads/jobs'
+$traceDir  = if ($env:TRACE_DIR) { $env:TRACE_DIR } else { '/data/uploads/jobs' }
 $traceFile = Join-Path $traceDir "$JobId.log"
 $transcriptStarted = $false
 try {
@@ -95,18 +104,20 @@ try {
     # Non-fatal: a failed retention sweep never blocks the job itself.
 }
 
+$appRoot = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app' }
+
 try {
 switch ($JobType) {
 
     'demo' {
         Update-JobProgress -Step 'Loading demo dataset' -Pct 10
-        $datasetPath = '/app/test/demo-dataset/demo-company.json'
-        $ingestScript = '/app/test/demo-dataset/Ingest-DemoDataset.ps1'
+        $datasetPath = "$appRoot/test/demo-dataset/demo-company.json"
+        $ingestScript = "$appRoot/test/demo-dataset/Ingest-DemoDataset.ps1"
 
         if (-not (Test-Path $datasetPath)) {
             # Generate it first
             Update-JobProgress -Step 'Generating demo dataset' -Pct 5
-            $genScript = '/app/test/demo-dataset/Generate-DemoDataset.ps1'
+            $genScript = "$appRoot/test/demo-dataset/Generate-DemoDataset.ps1"
             if (Test-Path $genScript) {
                 & $genScript
             } else {
@@ -211,12 +222,12 @@ switch ($JobType) {
                 $crawlerParams['IdentityFilter'] = $Config['identityFilter']
             }
 
-            & /app/tools/crawlers/entra-id/Start-EntraIDCrawler.ps1 @crawlerParams
+            & "$appRoot/tools/crawlers/entra-id/Start-EntraIDCrawler.ps1" @crawlerParams
 
             # ── Post-sync: build contexts from principal data ────────────
             Update-JobProgress -Step 'Building contexts from principal data' -Pct 80
             try {
-                & /app/setup/docker/Build-FGContexts.ps1
+                & "$appRoot/setup/docker/Build-FGContexts.ps1"
             } catch {
                 Write-Host "  Context build failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
             }
@@ -275,7 +286,7 @@ switch ($JobType) {
 
         Update-JobProgress -Step 'Running CSV crawler' -Pct 10
 
-        & /app/tools/crawlers/csv/Start-CSVCrawler.ps1 `
+        & "$appRoot/tools/crawlers/csv/Start-CSVCrawler.ps1" `
             -ApiBaseUrl $apiBaseUrl `
             -ApiKey $ApiKey `
             -CsvFolder $csvFolder `
@@ -285,7 +296,7 @@ switch ($JobType) {
 
         # Post-sync: contexts + account correlation
         Update-JobProgress -Step 'Building contexts from principal data' -Pct 80
-        try { & /app/setup/docker/Build-FGContexts.ps1 } catch { Write-Host "  Context build failed: $($_.Exception.Message)" -ForegroundColor Yellow }
+        try { & "$appRoot/setup/docker/Build-FGContexts.ps1" } catch { Write-Host "  Context build failed: $($_.Exception.Message)" -ForegroundColor Yellow }
 
         Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
         try {

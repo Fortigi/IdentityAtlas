@@ -1,6 +1,4 @@
-/**
- * Shared Excel export helpers used by both matrix and access-package exporters.
- */
+export { formatDateOnly as formatDate } from './formatters';
 
 export function hexToArgb(hex) {
   const clean = hex.replace('#', '');
@@ -9,11 +7,6 @@ export function hexToArgb(hex) {
   return 'FFFFFFFF';
 }
 
-export function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 export function thinBorder(omitBottom = false, omitTop = false) {
   return {

@@ -7,10 +7,15 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postinstall": "patch-package || true",
+    "build:node-launcher": "node ../desktop/scripts/build-node-launcher.mjs",
+    "build:node-launcher:skip-ui": "node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build"
   },
   "devDependencies": {
-    "vitest": "^2.0.0"
+    "esbuild": "^0.28.0",
+    "patch-package": "^8.0.1",
+    "vitest": "^4.1.5"
   },
   "dependencies": {
     "cors": "^2.8.5",

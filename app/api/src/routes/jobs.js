@@ -9,11 +9,11 @@ import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
 
-const TRACE_DIR = '/data/uploads/jobs';
+const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
 // Pre-resolve once so path-containment checks can use a stable absolute base.
 const TRACE_DIR_RESOLVED = path.resolve(TRACE_DIR);
 // CSV uploads live under this base; configCsvFolder must stay within it.
-const CSV_BASE_DIR = path.resolve('/data/uploads');
+const CSV_BASE_DIR = path.resolve(process.env.UPLOAD_ROOT || '/data/uploads');
 // Tail endpoint returns at most this many bytes per request. If the file is
 // larger than offset + MAX, the client polls again with the new offset. Keeps
 // any single response small enough that a ~10 MB log on a long crawl streams

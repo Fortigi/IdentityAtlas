@@ -21,7 +21,10 @@ import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
-export const EMPTY_FILTER = {
+const WARN_ASSIGNMENTS  =  5_000;
+const BLOCK_ASSIGNMENTS = 25_000;
+
+const EMPTY_FILTER = {
   rowType: 'principal',
   // 'rows-as-resources' — resources on the row axis, subjects on the column
   //                      axis (current default, good when many resources +
@@ -34,7 +37,7 @@ export const EMPTY_FILTER = {
   resource: { include: [], exclude: [] },
 };
 
-export function filterHasAnyCondition(f) {
+function filterHasAnyCondition(f) {
   if (!f) return false;
   const blocks = [f.subject, f.resource];
   for (const b of blocks) {
@@ -230,8 +233,8 @@ export default function MatrixFilterWizard({
   // ─── Apply / Cancel ────────────────────────────────────────────
 
   const handleApply = () => {
-    if (!filterHasAnyCondition(filter)) {
-      setError('Add at least one Subject or Resource condition before applying.');
+    if (preview.assignmentCount > BLOCK_ASSIGNMENTS) {
+      setError(`Matrix too large (${preview.assignmentCount.toLocaleString()} assignments). Add filters to reduce below ${BLOCK_ASSIGNMENTS.toLocaleString()}.`);
       return;
     }
     onApply(filter);
@@ -360,7 +363,7 @@ export default function MatrixFilterWizard({
           {step > 1 && <SecondaryButton onClick={() => setStep(s => s - 1)}>Back</SecondaryButton>}
           {step < 3 && <PrimaryButton onClick={() => setStep(s => s + 1)}>Next</PrimaryButton>}
           {step === 3 && (
-            <PrimaryButton onClick={handleApply} disabled={!filterHasAnyCondition(filter)}>
+            <PrimaryButton onClick={handleApply} disabled={preview.assignmentCount > BLOCK_ASSIGNMENTS}>
               Apply
             </PrimaryButton>
           )}
@@ -476,8 +479,20 @@ function LiveSummary({ preview, loading, rowType }) {
   const resourcePct = preview.resourceTotal > 0
     ? Math.round((preview.resourceCount / preview.resourceTotal) * 100)
     : 0;
+
+  const tooLarge = preview.assignmentCount > BLOCK_ASSIGNMENTS;
+  const large    = !tooLarge && preview.assignmentCount > WARN_ASSIGNMENTS;
+
+  const countClass = tooLarge
+    ? 'font-semibold text-red-700 dark:text-red-400'
+    : large
+      ? 'font-semibold text-amber-700 dark:text-amber-400'
+      : 'font-semibold text-gray-800 dark:text-gray-200';
+
   return (
-    <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700 rounded px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+    <div className={`mt-3 text-xs bg-gray-50 dark:bg-gray-700/30 border rounded px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 ${
+      tooLarge ? 'border-red-300 dark:border-red-700' : large ? 'border-amber-300 dark:border-amber-700' : 'border-gray-100 dark:border-gray-700'
+    } text-gray-600 dark:text-gray-400`}>
       <div>
         <span className="font-semibold text-gray-800 dark:text-gray-200">{preview.subjectCount.toLocaleString()}</span>
         {' '}of {preview.subjectTotal.toLocaleString()} {subjectLabel}
@@ -491,8 +506,10 @@ function LiveSummary({ preview, loading, rowType }) {
       </div>
       <div className="text-gray-500 dark:text-gray-400">·</div>
       <div>
-        <span className="font-semibold text-gray-800 dark:text-gray-200">{preview.assignmentCount.toLocaleString()}</span>
+        <span className={countClass}>{preview.assignmentCount.toLocaleString()}</span>
         {' '}assignments
+        {tooLarge && <span className="ml-1 text-red-700 dark:text-red-400">— too large to load, add filters to reduce below {BLOCK_ASSIGNMENTS.toLocaleString()}</span>}
+        {large    && <span className="ml-1 text-amber-700 dark:text-amber-400">— large, consider narrowing</span>}
       </div>
       {loading && (
         <div className="ml-auto text-[10px] text-gray-600 dark:text-gray-400">updating…</div>
