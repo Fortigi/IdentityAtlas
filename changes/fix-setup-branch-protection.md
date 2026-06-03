@@ -1,0 +1,1 @@
+- Fixed `tools/setup-branch-protection.sh` — the `gh-pages` ruleset section used an invalid bypass actor ID and a non-existent rule type, causing API errors when run. Script now works correctly.
