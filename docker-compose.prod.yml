@@ -69,9 +69,12 @@ services:
       # deployments, set this explicitly so the key can be backed up alongside
       # other root secrets.
       IDENTITY_ATLAS_MASTER_KEY: "${IDENTITY_ATLAS_MASTER_KEY:-}"
-      # Optional Entra ID auth for the UI (set AUTH_ENABLED=true to activate)
-      # AUTH_TENANT_ID: "${AUTH_TENANT_ID:-}"
-      # AUTH_CLIENT_ID: "${AUTH_CLIENT_ID:-}"
+      # Optional Entra ID auth for the UI. AUTH_ENABLED=true alone is NOT
+      # enough — the SPA also needs the tenant + client IDs. Both vars
+      # default to empty, which the API treats as "auth enabled but not
+      # configured" and renders the setup-required page until they're set.
+      AUTH_TENANT_ID: "${AUTH_TENANT_ID:-}"
+      AUTH_CLIENT_ID: "${AUTH_CLIENT_ID:-}"
     ports:
       - "${PORT:-3001}:3001"
     volumes:
