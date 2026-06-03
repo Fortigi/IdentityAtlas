@@ -1,5 +1,12 @@
 [
   {
+    "version": "stable",
+    "title": "stable",
+    "aliases": [
+      "5.6.0"
+    ]
+  },
+  {
     "version": "edge",
     "title": "edge",
     "aliases": []
