@@ -856,14 +856,31 @@ if ($SyncAssignments) {
         Write-Host "  Role assignments (Governed): +$TotalRaInserted ~$TotalRaUpdated" -ForegroundColor Green
 
         # ── Source 2: Calculated Resource Assignments (CRA — account provisioning per connected system) ──
-        # Each CRA record represents one account provisioned in a connected system for an identity.
-        # Two principal tracks:
-        #   Omada Identity system accounts: already exist in Principals from SyncAccounts — reuse User.UId.
-        #   Connected-system accounts (Salesforce, AD, etc.): derive Principal from CRA Attributes
-        #     using AccountKey as id; also create IdentityMember linking to the Identity.
-        $CaItems = Invoke-OmadaPagedRequest -Path '/CalculatedAssignments' `
-            -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource,System,ResourceType' } `
-            -PageSize $PageSize -OverrideBaseUrl $BuiltinBaseUrl
+        # Queried per-identity using the integer Id so the server can use indexed lookups.
+        # The endpoint's natural page size is 1000; most identities have far fewer CRAs,
+        # so each per-identity call returns everything in a single response.
+        # Filter: $filter=Status eq true and Identity/Id eq {Id}
+        # No need to $expand Identity — we already have it from the outer loop.
+        $CaItems = [System.Collections.Generic.List[object]]::new()
+        if ($AllIdentities) {
+            $IdentCount = 0
+            foreach ($Ident in $AllIdentities) {
+                $IdentIntId = $Ident.Id  # integer Id used by the Builtin filter
+                if (-not $IdentIntId) { continue }
+                $Page = Invoke-OmadaPagedRequest -Path '/CalculatedAssignments' `
+                    -QueryParams @{ '$filter' = "Status eq true and Identity/Id eq $IdentIntId"; '$expand' = 'Resource,System,ResourceType' } `
+                    -PageSize 1000 -OverrideBaseUrl $BuiltinBaseUrl
+                foreach ($Ca in $Page) {
+                    # Attach the identity UId so we don't need Identity expanded on each record
+                    $Ca | Add-Member -NotePropertyName '_IdentityUId' -NotePropertyValue ([string]$Ident.UId) -Force
+                    $CaItems.Add($Ca)
+                }
+                $IdentCount++
+                if ($IdentCount % 50 -eq 0) {
+                    Write-Host "    CRA: queried $IdentCount / $($AllIdentities.Count) identities ($($CaItems.Count) records so far)..." -ForegroundColor Gray
+                }
+            }
+        }
         Write-Host "  $($CaItems.Count) CRA records from Omada" -ForegroundColor Gray
 
         $CaPrincipalsBySys  = @{}   # connected-system Principals derived from CRA (keyed by OmadaSystemUId)
@@ -872,9 +889,9 @@ if ($SyncAssignments) {
         $CaAssignmentsBysD  = @{}   # Direct
 
         foreach ($Item in $CaItems) {
-            $SysUId      = if ($Item.System)      { [string]$Item.System.UId      } else { $Null }
-            $ResourceUid = if ($Item.Resource)     { [string]$Item.Resource.UId    } else { $Null }
-            $IdentityUid = if ($Item.Identity)     { [string]$Item.Identity.UId    } else { $Null }
+            $SysUId      = if ($Item.System)   { [string]$Item.System.UId   } else { $Null }
+            $ResourceUid = if ($Item.Resource)  { [string]$Item.Resource.UId } else { $Null }
+            $IdentityUid = $Item._IdentityUId   # set during per-identity fetch above
             $AccountKey  = if ($Item.AccountKey)   { [string]$Item.AccountKey      } else { $Null }
             $AccountName = if ($Item.AccountName)  { [string]$Item.AccountName     } else { $Null }
             $ResType     = if ($Item.ResourceType) { $Item.ResourceType.DisplayName } else { '' }
