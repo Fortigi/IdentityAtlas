@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed: enabling Entra ID auth on a Docker install via env vars (the natural pattern for the README's `Quick Start → Option A`) silently dead-ended in a "setup required" loop. `docker-compose.prod.yml` was wiring `AUTH_ENABLED` through to the web container but had `AUTH_TENANT_ID` and `AUTH_CLIENT_ID` commented out. So someone setting all three in their `.env` would see `AUTH_ENABLED=true` reach the container while the two IDs got dropped on the floor, leaving the API to report `{ enabled:true, configured:false }` and the SPA to render the "Entra ID setup required" page even though everything was filled in. Both vars are now wired through with `${VAR:-}` defaults — behaviour for anyone who hasn't set them is unchanged.
+
+## Changes in this PR
+
 - Improved Vite hot-module reload: non-component exports (hooks, constants, helper functions) moved out of component files so fast refresh works without full page reloads during development
 - Consolidated duplicate formatting utilities (duration, relative time, compact numbers, date-only) into shared formatters; removed multiple inline copies scattered across component files
 - Extracted shared `ASSIGNMENT_TYPE_STYLES` constant; access packages list now correctly applies dark mode badge colors (was missing dark variants)
