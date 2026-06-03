@@ -289,29 +289,40 @@ app.use('/api', authMiddleware, preferencesRouter);
 app.use('/api', authMiddleware, systemsRouter);
 app.use('/api', authMiddleware, resourcesRouter);
 app.use('/api', authMiddleware, contextsRouter);
-app.use('/api', authMiddleware, contextPluginsRouter);
+// Context plugins (Admin → Contexts) — admin-only across the board.
+app.use('/api', authMiddleware, requirePermission('admin.context-plugins'), contextPluginsRouter);
 app.use('/api/admin/import', express.json({ limit: '2mb' }));  // larger limit for import payloads
 // Role -> permission mapping (Admin → Authentication page). Gated by the
 // admin.auth permission so it's editable only by someone whose own mapping
 // already grants it.
 app.use('/api', authMiddleware, requirePermission('admin.auth'), authRolesRouter);
+// adminRouter is a grab-bag of /admin/* endpoints with mixed permission needs
+// (read dashboards, write retention config, toggle feature flags, export curated
+// dumps, …). Gates are applied per-handler inside admin.js so each endpoint
+// requires the right permission.
 app.use('/api', authMiddleware, adminRouter);
-app.use('/api', authMiddleware, llmRouter);
-app.use('/api', authMiddleware, riskProfilesRouter);
+app.use('/api', authMiddleware, requirePermission('admin.llm'), llmRouter);
+// Risk profile / classifier config is owned by the LLM admin — it drives how
+// risk-scoring prompts are built and which sources they cite.
+app.use('/api', authMiddleware, requirePermission('admin.llm'), riskProfilesRouter);
+// Listing existing runs is read-only; triggering one is admin. Per-handler in the router.
 app.use('/api', authMiddleware, riskScoringRunsRouter);
-app.use('/api', authMiddleware, correlationRulesetsRouter);
-app.use('/api', authMiddleware, csvUploadsRouter);
+app.use('/api', authMiddleware, requirePermission('admin.llm'), correlationRulesetsRouter);
+app.use('/api', authMiddleware, requirePermission('admin.csv-import'), csvUploadsRouter);
 app.use('/api', authMiddleware, governanceRouter);
 // Bulk list endpoints used by Power Query / BI tools (read API keys honoured)
 app.use('/api', authMiddleware, bulkListsRouter);
-// Read API token CRUD + Excel workbook download (admin-scoped)
+// Read API token CRUD + Excel workbook download (admin-scoped). Per-handler
+// gates in the router separate "create your own token" (data.export.apikey)
+// from "list/revoke any token in tenant" (admin.read-tokens) and the workbook
+// download (data.export.ui).
 app.use('/api', authMiddleware, dataExportRouter);
 
 // ─── Crawler & job routes ───────────────────────────────────────
 // Admin crawler management (Entra ID auth) — /api/admin/crawlers/*
-app.use('/api', authMiddleware, adminCrawlersRouter);
+app.use('/api', authMiddleware, requirePermission('admin.crawlers'), adminCrawlersRouter);
 // Crawler jobs (Entra ID auth) — /api/admin/crawler-jobs/*, /api/admin/status
-app.use('/api', authMiddleware, jobsRouter);
+app.use('/api', authMiddleware, requirePermission('admin.crawlers'), jobsRouter);
 // Crawler self-service (API key auth) — /api/crawlers/whoami, /api/crawlers/rotate
 app.use('/api', crawlerAuthMiddleware, selfServiceCrawlersRouter);
 // Ingest endpoints (API key auth) — /api/ingest/*

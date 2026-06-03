@@ -3,6 +3,15 @@ import http from 'http';
 import rateLimit from 'express-rate-limit';
 import * as db from '../db/connection.js';
 import { getAuthState } from '../config/authConfig.js';
+import { requirePermission } from '../middleware/auth.js';
+
+// Per-handler gates for the various /admin/* endpoints. Read-only dashboards
+// stay ungated so any authenticated user can see them.
+const exportBulk    = requirePermission('data.export.ui');
+const writeCsv      = requirePermission('admin.csv-import');
+const writeSystems  = requirePermission('admin.systems');
+const writeFeatures = requirePermission('admin.feature-flags');
+const writeAuth     = requirePermission('admin.auth');
 
 // Rate limiter for destructive admin operations (5 requests per minute)
 const adminDestructiveLimiter = rateLimit({
@@ -152,7 +161,7 @@ router.get('/admin/correlation-ruleset', async (req, res) => {
 // ── GET /api/admin/export/curated ────────────────────────────────
 // Exports tags (with assignments) and categories (with AP assignments) to JSON.
 // Compatible with the PowerShell Export-FGCuratedData / Import-FGCuratedData format.
-router.get('/admin/export/curated', async (req, res) => {
+router.get('/admin/export/curated', exportBulk, async (req, res) => {
   if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
 
   try {
@@ -262,7 +271,7 @@ router.get('/admin/export/curated', async (req, res) => {
 //   2. Soft-match — if GUID not found, search by displayName
 //      (+ resourceType for group/resource entities).
 // Skips assignments whose entity cannot be resolved in either way.
-router.post('/admin/import/curated', async (req, res) => {
+router.post('/admin/import/curated', writeCsv, async (req, res) => {
   if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
 
   const { tags = [], categories = [] } = req.body;
@@ -462,7 +471,7 @@ router.post('/admin/import/curated', async (req, res) => {
 // Deletes all rows from data tables (Principals, Resources, Identities, etc.)
 // but preserves crawler configs, risk profiles, and audit log so the user can
 // re-sync from a clean slate without losing their setup.
-router.post('/admin/clean-database', adminDestructiveLimiter, async (req, res) => {
+router.post('/admin/clean-database', writeSystems, adminDestructiveLimiter, async (req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
 
   // Tables to wipe (data only — configs/profiles/audit preserved)
@@ -568,7 +577,7 @@ router.post('/admin/clean-database', adminDestructiveLimiter, async (req, res) =
 //
 // Stores the override in WorkerConfig as FEATURE_<UPPER_SNAKE>. The /api/features
 // endpoint reads this and overrides the matching env var. Survives container restarts.
-router.post('/admin/features/toggle', async (req, res) => {
+router.post('/admin/features/toggle', writeFeatures, async (req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
   const { feature, enabled } = req.body || {};
   const VALID = { riskScoring: 'FEATURE_RISK_SCORING', accountCorrelation: 'FEATURE_ACCOUNT_CORRELATION' };
@@ -742,7 +751,7 @@ router.get('/admin/history-retention', async (_req, res) => {
   }
 });
 
-router.put('/admin/history-retention', async (req, res) => {
+router.put('/admin/history-retention', writeSystems, async (req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
   const { retentionDays } = req.body || {};
   const days = parseInt(retentionDays, 10);
@@ -765,7 +774,7 @@ router.put('/admin/history-retention', async (req, res) => {
   }
 });
 
-router.post('/admin/history-retention/prune', adminDestructiveLimiter, async (_req, res) => {
+router.post('/admin/history-retention/prune', writeSystems, adminDestructiveLimiter, async (_req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
   try {
     const r = await db.queryOne(
@@ -792,7 +801,7 @@ router.post('/admin/history-retention/prune', adminDestructiveLimiter, async (_r
 // avoids the chicken-and-egg of an unauthenticated mutation surface (the only
 // time you'd ever need to change auth from inside the app is when you're
 // not signed in yet, which would require leaving the API write-open).
-router.get('/admin/auth-settings', (req, res) => {
+router.get('/admin/auth-settings', writeAuth, (req, res) => {
   const s = getAuthState();
   // WEBSITE_SITE_NAME is set automatically by Azure App Service. Use it to
   // render Azure-appropriate CLI instructions instead of `docker compose exec`.

@@ -16,8 +16,10 @@
 
 import { Router } from 'express';
 import { timedRequest } from '../perf/sqlTimer.js';
+import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
+const writeRisk = requirePermission('data.write.risk');
 const useSql = process.env.USE_SQL === 'true';
 
 let db = null;
@@ -605,7 +607,7 @@ router.get('/risk-scores/:type/:id', async (req, res) => {
 // ─── PUT /api/risk-scores/:type/:id/override ─────────────────────────
 // Set an analyst override on a risk score.
 // Body: { adjustment: number (-50 to +50), reason: string (required) }
-router.put('/risk-scores/:type/:id/override', async (req, res) => {
+router.put('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
 
@@ -695,7 +697,7 @@ router.put('/risk-scores/:type/:id/override', async (req, res) => {
 
 // ─── DELETE /api/risk-scores/:type/:id/override ──────────────────────
 // Remove an analyst override from an entity.
-router.delete('/risk-scores/:type/:id/override', async (req, res) => {
+router.delete('/risk-scores/:type/:id/override', writeRisk, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
 

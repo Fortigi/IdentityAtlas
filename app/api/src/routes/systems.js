@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { timedRequest } from '../perf/sqlTimer.js';
+import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+const writeSystems = requirePermission('admin.systems');
 const UUID_RE = /^[0-9a-f-]{36}$/i;
 
 let db = null;
@@ -104,7 +106,7 @@ router.get('/systems/:id', async (req, res) => {
 
 // ─── PUT /api/systems/:id ───────────────────────────────────────
 // Update system (displayName, description, enabled only)
-router.put('/systems/:id', async (req, res) => {
+router.put('/systems/:id', writeSystems, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
@@ -163,7 +165,7 @@ router.get('/systems/:id/owners', async (req, res) => {
 });
 
 // ─── POST /api/systems/:id/owners ───────────────────────────────
-router.post('/systems/:id/owners', async (req, res) => {
+router.post('/systems/:id/owners', writeSystems, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
@@ -193,7 +195,7 @@ router.post('/systems/:id/owners', async (req, res) => {
 });
 
 // ─── DELETE /api/systems/:id/owners/:userId ─────────────────────
-router.delete('/systems/:id/owners/:userId', async (req, res) => {
+router.delete('/systems/:id/owners/:userId', writeSystems, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid system ID format' });
   if (!UUID_RE.test(req.params.userId)) return res.status(400).json({ error: 'Invalid user ID format' });
   try {
