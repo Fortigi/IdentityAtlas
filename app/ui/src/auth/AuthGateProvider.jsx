@@ -4,6 +4,12 @@ import { AuthContext } from './AuthGate';
 
 export default function AuthGate({ children }) {
   const [state, setState] = useState({ phase: 'loading', error: null });
+  const [permState, setPermState] = useState({
+    permissions: new Set(),
+    roles: [],
+    hasWildcard: true,        // open-mode default; flipped on /auth-me response
+    loaded: false,
+  });
   const msalRef = useRef(null);
   const configRef = useRef(null);
 
@@ -108,6 +114,38 @@ export default function AuthGate({ children }) {
     }
   }, []);
 
+  // Pull the server's view of "what permissions does this signed-in user have."
+  // Stable callback so consumers can re-trigger after editing the role mapping
+  // — see the Admin → Roles & Permissions save flow.
+  const refreshPermissions = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/auth-me');
+      if (!res.ok) {
+        // Surface the failure as "no permissions resolved" — UI gating then
+        // hides write controls, which is the safe default for a degraded auth
+        // state. A loud retry banner would be better but is out of scope here.
+        setPermState({ permissions: new Set(), roles: [], hasWildcard: false, loaded: true });
+        return;
+      }
+      const body = await res.json();
+      setPermState({
+        permissions: new Set(body.permissions || []),
+        roles: body.roles || [],
+        hasWildcard: !!body.hasWildcard,
+        loaded: true,
+      });
+    } catch {
+      setPermState({ permissions: new Set(), roles: [], hasWildcard: false, loaded: true });
+    }
+  }, [authFetch]);
+
+  // Fetch permissions once we have a sign-in. authEnabled=false also gets a
+  // fetch so the open-mode response (hasWildcard:true) populates the state.
+  useEffect(() => {
+    if (state.phase !== 'ready') return;
+    refreshPermissions();
+  }, [state.phase, refreshPermissions]);
+
   if (state.phase === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -135,7 +173,14 @@ export default function AuthGate({ children }) {
   const authEnabled = configRef.current?.enabled !== false;
 
   return (
-    <AuthContext.Provider value={{ authFetch, account, logout, authEnabled }}>
+    <AuthContext.Provider value={{
+      authFetch, account, logout, authEnabled,
+      permissions: permState.permissions,
+      roles: permState.roles,
+      hasWildcard: permState.hasWildcard,
+      permissionsLoaded: permState.loaded,
+      refreshPermissions,
+    }}>
       {!authEnabled && (
         <div className="bg-amber-400 text-amber-900 text-sm font-medium px-4 py-2 flex items-center gap-2 sticky top-0 z-50">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">

@@ -32,6 +32,7 @@ vi.mock('../config/authConfig.js', () => ({
   getTenantId: () => 'test-tenant',
   getClientId: () => 'test-client',
   getRequiredRoles: () => [],
+  getRolePermissions: () => ({}), // empty mapping — irrelevant for the fgr_/fgc_ paths exercised here
 }));
 
 const { authMiddleware } = await import('./auth.js');
