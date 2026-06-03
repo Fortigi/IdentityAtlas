@@ -1850,13 +1850,13 @@ const OMADA_VERSIONS = [
 ];
 
 const OMADA_SYNC_OPTIONS = [
-  { key: 'contexts',     label: 'Contexts',          description: 'Org units, departments, and other structural contexts' },
-  { key: 'identities',   label: 'Identities',        description: 'Person records and their account links' },
-  { key: 'accounts',     label: 'Accounts',          description: 'User and service accounts (Principals)' },
-  { key: 'resources',    label: 'Resources',         description: 'Business roles and other permissions' },
-  { key: 'entitlements', label: 'Entitlements',      description: 'Role-to-resource containment (ResourceRelationships)' },
-  { key: 'assignments',  label: 'Role Assignments',  description: 'Who has which business role (Governed assignments)' },
-  { key: 'cras',         label: 'Certifications',    description: 'Certification review activity (CRAs)' },
+  { key: 'contexts',        label: 'Contexts',          description: 'Org units and other structural contexts (configured below)' },
+  { key: 'identities',      label: 'Identities',        description: 'Person records and their attributes' },
+  { key: 'accounts',        label: 'Accounts',          description: 'User and service accounts (Principals)' },
+  { key: 'contextMembers',  label: 'Context Members',   description: 'Identity-to-context memberships from Contextassignment, OUREF, Employment' },
+  { key: 'resources',       label: 'Resources',         description: 'Business roles and other permissions, grouped by connected system' },
+  { key: 'entitlements',    label: 'Entitlements',      description: 'Role-to-resource containment (ResourceRelationships)' },
+  { key: 'assignments',     label: 'Assignments',       description: 'Role assignments (Resourceassignment) and account assignments (CRA)' },
 ];
 
 const SECRET_PLACEHOLDER = '••••••••';
@@ -1879,8 +1879,25 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
   const [showCookieHelp, setShowCookieHelp] = useState(false);
 
   // Sync options
-  const defaultObjects = { contexts: true, identities: true, accounts: true, resources: true, entitlements: true, assignments: true, cras: true };
+  const defaultObjects = { contexts: true, identities: true, accounts: true, contextMembers: true, resources: true, entitlements: true, assignments: true };
   const [selectedObjects, setSelectedObjects] = useState({ ...defaultObjects, ...(initialConfig?.selectedObjects || {}) });
+
+  // Context object types — each entry specifies which Omada entity sets to sync as contexts.
+  // Default: Orgunit only. Operators add Country, Building, etc. as needed.
+  const defaultContextTypes = [{ entitySet: 'Orgunit', contextType: 'OrgUnit', identityField: 'OUREF' }];
+  const [contextObjectTypes, setContextObjectTypes] = useState(
+    initialConfig?.contextObjectTypes?.length
+      ? initialConfig.contextObjectTypes.map(c => ({
+          entitySet:    c.entitySet    || '',
+          contextType:  c.contextType  || '',
+          identityField: c.identityField || '',
+        }))
+      : defaultContextTypes
+  );
+  const addContextType    = () => setContextObjectTypes(prev => [...prev, { entitySet: '', contextType: '', identityField: '' }]);
+  const removeContextType = i  => setContextObjectTypes(prev => prev.filter((_, idx) => idx !== i));
+  const updateContextType = (i, field, val) =>
+    setContextObjectTypes(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
 
   // Schedule
   const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
@@ -1914,6 +1931,13 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
         apiVersion,
         authMethod,
         selectedObjects,
+        contextObjectTypes: contextObjectTypes
+          .filter(c => c.entitySet.trim())
+          .map(c => ({
+            entitySet:    c.entitySet.trim(),
+            contextType:  c.contextType.trim()  || c.entitySet.trim(),
+            identityField: c.identityField.trim() || undefined,
+          })),
       };
       if (schedules.length) configPayload.schedules = schedules;
 
@@ -2137,21 +2161,72 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
 
       {/* Step 3 — Sync Options */}
       {step === 3 && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Choose which Omada entity types to sync. All are enabled by default.</p>
-          <div className="space-y-2">
-            {OMADA_SYNC_OPTIONS.map(opt => (
-              <label key={opt.key} className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" checked={!!selectedObjects[opt.key]}
-                  onChange={e => setSelectedObjects(prev => ({ ...prev, [opt.key]: e.target.checked }))}
-                  className="mt-0.5" />
-                <div>
-                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{opt.label}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{opt.description}</span>
-                </div>
-              </label>
-            ))}
+        <div className="space-y-6">
+          {/* Sync object toggles */}
+          <div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Choose which Omada entity types to sync. All are enabled by default.</p>
+            <div className="space-y-2">
+              {OMADA_SYNC_OPTIONS.map(opt => (
+                <label key={opt.key} className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={!!selectedObjects[opt.key]}
+                    onChange={e => setSelectedObjects(prev => ({ ...prev, [opt.key]: e.target.checked }))}
+                    className="mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{opt.label}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{opt.description}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
+
+          {/* Context object types */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Object Types</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Omada entity sets to sync as Identity Atlas Contexts. Each type has its own OData path.
+              <code className="ml-1 text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">identityField</code> links an identity's reference field to that context type for direct membership.
+            </p>
+            <div className="space-y-2">
+              {contextObjectTypes.map((cot, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input
+                    value={cot.entitySet}
+                    onChange={e => updateContextType(i, 'entitySet', e.target.value)}
+                    placeholder="Entity set (e.g. Orgunit)"
+                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  />
+                  <input
+                    value={cot.contextType}
+                    onChange={e => updateContextType(i, 'contextType', e.target.value)}
+                    placeholder="Context type (e.g. OrgUnit)"
+                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  />
+                  <input
+                    value={cot.identityField}
+                    onChange={e => updateContextType(i, 'identityField', e.target.value)}
+                    placeholder="Identity field (e.g. OUREF)"
+                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  />
+                  <button
+                    onClick={() => removeContextType(i)}
+                    disabled={contextObjectTypes.length === 1}
+                    className="text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30"
+                    title="Remove">×</button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex items-center gap-3">
+              <button onClick={addContextType}
+                className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">
+                + Add context type
+              </button>
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                Available on this server: Orgunit, Country, Employment
+              </span>
+            </div>
+          </div>
+
           <div className="flex justify-between">
             <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
             <button onClick={() => setStep(4)} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next →</button>
