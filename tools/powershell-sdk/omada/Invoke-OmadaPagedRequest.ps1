@@ -9,8 +9,12 @@
 
     The two strategies are complementary: each page is fetched with an explicit
     $skip offset. Invoke-OmadaGetRequest will follow any @odata.nextLink returned
-    within a page. The loop stops when a page returns fewer records than $PageSize,
-    indicating the last page has been reached.
+    within a page. The loop stops when a page returns zero records.
+
+    IMPORTANT: The Builtin CalculatedAssignments endpoint returns variable-size
+    pages (fewer than $top even when more records remain), so stopping on
+    page.Count < $PageSize would cut the result short. Stopping on Count == 0
+    is the only safe termination condition for all Omada OData endpoints.
 
     The caller gets a flat list of all records with no pagination ceremony.
 #>
@@ -43,11 +47,12 @@ function Invoke-OmadaPagedRequest {
 
         foreach ($r in $page) { $all.Add($r) }
 
-        # Advance skip by PageSize for the next iteration.
-        # Stop when the page is shorter than PageSize (last page) or empty.
-        $skip += $PageSize
+        # Advance skip by the actual number of records received, not PageSize.
+        # The Builtin endpoint can return fewer than $top records even when more
+        # remain, so we must continue until we get an empty page (Count == 0).
+        $skip += $page.Count
 
-    } while ($page.Count -ge $PageSize)
+    } while ($page.Count -gt 0)
 
     return $all
 }
