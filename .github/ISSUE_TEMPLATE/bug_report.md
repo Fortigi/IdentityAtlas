@@ -22,10 +22,10 @@ If applicable, add screenshots to help explain your problem.
 
 **Client (please complete the following information):**
  - Device Type: [e.g. PC, Mac, Android phone]
- - Device Model [e.g. Samsung Galaxy S25]
+ - Device Model: [e.g. Samsung Galaxy S25]
  - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+ - Browser: [e.g. Chrome, Safari]
+ - Version: [e.g. 22]
 
 **Server (please complete the following information):**
  - OS: [e.g. OS]
