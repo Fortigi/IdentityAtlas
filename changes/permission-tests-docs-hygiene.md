@@ -1,0 +1,4 @@
+- Fixed granular admin roles: each admin permission is now enforced on its own routes, so a role granted (for example) only crawler access is no longer incorrectly blocked by unrelated admin permissions. Previously only the full-access (wildcard) role worked for admin endpoints.
+- Added a "Permissions & Roles" reference page documenting every permission, the default role mapping, and how authorization is enforced.
+- Added comprehensive automated tests for the permission model: an allow/deny check for every permission against its real endpoint, the role→permission gate logic, and UI tests confirming tabs and controls are hidden when a user lacks the permission.
+- Pull request checks now require accompanying tests and a changelog entry whenever code changes (maintainers can override with a label for genuine exceptions).
