@@ -5,11 +5,19 @@
 #
 # What this configures:
 #
-#   main         (classic branch protection)
-#     - Require PR with 1 approval before merging
-#     - Require "PR Summary" status check
+#   main     (ruleset "Protect main")
+#     - Squash-merge only
+#     - Require PR with 1 approval + code owner review
 #     - Dismiss stale reviews on push
-#     - enforce_admins: false  ← lets VERSION_BUMP_PAT push the version bump commit
+#     - Require "PR Summary" status check (strict)
+#     - Require CodeQL to pass (errors + high/higher security alerts)
+#     - No deletion, no force-push
+#     - Bypass (always):    Fortigi CI bot — pushes version bump commits
+#     - Bypass (PR only):   IdentityAtlas-Owners team
+#
+#   gh-pages (ruleset "Protect gh-pages")
+#     - No deletion, no force-push
+#     - No bypass needed — mike only does regular fast-forward pushes
 #
 # Release model uses git tags (v5.2.0, v5.2.1, ...) rather than long-lived
 # release branches. Hotfix branches (bugfixes/*) are short-lived and deleted
@@ -19,48 +27,98 @@
 set -euo pipefail
 
 REPO="${1:-Fortigi/IdentityAtlas}"
+
+# Bypass actor IDs (GitHub internal IDs — do not change without verifying)
+FORTIGI_CI_BOT_ID=3556461       # Integration: Fortigi CI bot
+OWNERS_TEAM_ID=17337877         # Team: IdentityAtlas-Owners
+
 echo "Configuring branch protection for: $REPO"
 
-# ── main — classic branch protection ────────────────────────────────────────
+# ── Helper: delete a ruleset by name if it exists ───────────────────────────
+delete_ruleset_by_name() {
+  local name="$1"
+  local id
+  id=$(gh api "repos/$REPO/rulesets" --jq "[.[] | select(.name==\"$name\")] | first | .id // \"\"" 2>/dev/null || true)
+  if [ -n "$id" ]; then
+    gh api "repos/$REPO/rulesets/$id" --method DELETE
+    echo "  Removed existing ruleset: $name (id=$id)"
+  fi
+}
+
+# ── main — ruleset ───────────────────────────────────────────────────────────
 echo ""
-echo "Setting classic branch protection on main..."
-gh api "repos/$REPO/branches/main/protection" \
-  --method PUT \
-  --input - <<'JSON'
+echo "Setting ruleset: Protect main..."
+delete_ruleset_by_name "Protect main"
+
+gh api "repos/$REPO/rulesets" --method POST --input - <<JSON
 {
-  "required_status_checks": {
-    "strict": true,
-    "contexts": ["PR Summary"]
+  "name": "Protect main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
   },
-  "enforce_admins": false,
-  "required_pull_request_reviews": {
-    "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": true,
-    "required_approving_review_count": 1,
-    "require_last_push_approval": false
-  },
-  "restrictions": null,
-  "allow_force_pushes": false,
-  "allow_deletions": false,
-  "required_conversation_resolution": false
+  "bypass_actors": [
+    {
+      "actor_id": $FORTIGI_CI_BOT_ID,
+      "actor_type": "Integration",
+      "bypass_mode": "always"
+    },
+    {
+      "actor_id": $OWNERS_TEAM_ID,
+      "actor_type": "Team",
+      "bypass_mode": "pull_request"
+    }
+  ],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "allowed_merge_methods": ["squash"],
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": true,
+        "require_last_push_approval": false,
+        "required_approving_review_count": 1,
+        "required_review_thread_resolution": false,
+        "required_reviewers": []
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "required_status_checks": [
+          { "context": "PR Summary", "integration_id": 15368 }
+        ],
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false
+      }
+    },
+    {
+      "type": "code_scanning",
+      "parameters": {
+        "code_scanning_tools": [
+          {
+            "tool": "CodeQL",
+            "alerts_threshold": "errors",
+            "security_alerts_threshold": "high_or_higher"
+          }
+        ]
+      }
+    }
+  ]
 }
 JSON
-echo "✅ main branch protection set"
+echo "✅ Protect main ruleset set"
 
-# ── gh-pages — ruleset (no deletion, no force-push) ─────────────────────────
-# mike commits versioned doc builds directly to this branch from CI via
-# regular fast-forward pushes — it never deletes the branch or force-pushes.
-# GitHub Apps (including github-actions[bot]) cannot be bypass actors on
-# repo-level rulesets, so no bypass is needed: the rules only block operations
-# mike never performs.
+# ── gh-pages — ruleset ───────────────────────────────────────────────────────
 echo ""
-echo "Setting gh-pages ruleset..."
-
-# Remove existing gh-pages ruleset if present (idempotent re-runs)
-GHPAGES_ID=$(gh api "repos/$REPO/rulesets" --jq '[.[] | select(.name=="Protect gh-pages")] | first | .id // ""' 2>/dev/null || true)
-if [ -n "$GHPAGES_ID" ]; then
-  gh api "repos/$REPO/rulesets/$GHPAGES_ID" --method DELETE
-fi
+echo "Setting ruleset: Protect gh-pages..."
+delete_ruleset_by_name "Protect gh-pages"
 
 gh api "repos/$REPO/rulesets" --method POST --input - <<'JSON'
 {
@@ -79,7 +137,7 @@ gh api "repos/$REPO/rulesets" --method POST --input - <<'JSON'
   ]
 }
 JSON
-echo "✅ gh-pages ruleset set (no deletion, no force-push)"
+echo "✅ Protect gh-pages ruleset set"
 
 # ── Remove legacy release/** ruleset if it exists ───────────────────────────
 echo ""
@@ -96,8 +154,8 @@ fi
 
 echo ""
 echo "Done. Branch protection summary:"
-echo "  main      → PR required (1 approval) + PR Summary check + no force-push"
-echo "  gh-pages  → no deletion, no force-push (mike uses regular fast-forward pushes)"
+echo "  main      → squash-only PR (1 approval + code owner) + PR Summary + CodeQL"
+echo "  gh-pages  → no deletion, no force-push"
 echo "  tags      → No branch protection needed (tags are immutable by default)"
 echo ""
 echo "Release model: git tags (v5.2.0, v5.2.1, ...) via Actions → Cut Release / Cut Hotfix"
