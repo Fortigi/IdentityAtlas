@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Disabled the Issue Triage & Auto-fix GitHub Actions workflow (no longer triggers on new issues or nightly schedule).
+
+## Changes in this PR
+
+- Fixed: the worker container's job queue silently went dead if it couldn't find the built-in API key within 5 minutes of starting. The intended behaviour (per the comment in `scheduler.ps1`) was "poll until file appears", but the loop bailed after 60 retries and the main job-tick then no-op'd forever. We hit this on a fresh Docker install where the web container's first bootstrap failed (bad master key length) and was fixed via `up -d --force-recreate web` — by the time web wrote the key, worker had given up, and every crawler the user configured afterwards sat in `queued` with nothing to pick it up. Worker now re-checks the key file on every poll tick, so the queue self-heals once web writes it. Startup keeps the 5-minute "loud warning" window for the common misconfiguration case (volume not shared between web and worker), and the warning now explains both root causes instead of just shrugging.
+
+## Changes in this PR
+
 - Fixed: enabling Entra ID auth on a Docker install via env vars (the natural pattern for the README's `Quick Start → Option A`) silently dead-ended in a "setup required" loop. `docker-compose.prod.yml` was wiring `AUTH_ENABLED` through to the web container but had `AUTH_TENANT_ID` and `AUTH_CLIENT_ID` commented out. So someone setting all three in their `.env` would see `AUTH_ENABLED=true` reach the container while the two IDs got dropped on the floor, leaving the API to report `{ enabled:true, configured:false }` and the SPA to render the "Entra ID setup required" page even though everything was filled in. Both vars are now wired through with `${VAR:-}` defaults — behaviour for anyone who hasn't set them is unchanged.
 
 ## Changes in this PR
