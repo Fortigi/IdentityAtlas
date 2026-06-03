@@ -1,1 +1,1 @@
-- Fixed `tools/setup-branch-protection.sh` — the `gh-pages` ruleset section used an invalid bypass actor ID and a non-existent rule type, causing API errors when run. Script now works correctly.
+- Replaced `tools/setup-branch-protection.sh` with documentation in `docs/architecture/branching-strategy.md` — the script had drifted from the live ruleset config and a written guide is easier to maintain for a repo that is set up once.
