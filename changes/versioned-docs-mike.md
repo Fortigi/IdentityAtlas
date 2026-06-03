@@ -1,0 +1,2 @@
+- Documentation site now shows a version picker — visitors land on the **stable** docs by default and can switch to **edge** (latest `main`) via the dropdown in the top bar.
+- Each GitHub Release automatically publishes a new stable docs snapshot; merges to `main` update the edge docs.

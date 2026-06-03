@@ -63,6 +63,8 @@ markdown_extensions:
 
 plugins:
   - search
+  - mike:
+      canonical_version: stable
 
 extra_css:
   - assets/extra.css
@@ -113,6 +115,9 @@ nav:
       - History: history.md
 
 extra:
+  version:
+    provider: mike
+    default: stable
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/Fortigi/IdentityAtlas
