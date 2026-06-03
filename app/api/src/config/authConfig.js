@@ -83,9 +83,14 @@ function parseRolePermissions(raw) {
   catch { return null; }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
 
-  const out = {};
+  // Role names are user-supplied (via the admin role-mapping API), so they're
+  // used here as object property names. Guard against prototype-polluting keys
+  // before assigning, and accumulate into a null-prototype object so a slipped
+  // key can never reach Object.prototype.
+  const out = Object.create(null);
   for (const [role, perms] of Object.entries(parsed)) {
     if (typeof role !== 'string' || !role) continue;
+    if (role === '__proto__' || role === 'constructor' || role === 'prototype') continue;
     if (!Array.isArray(perms)) continue;
     const filtered = perms.filter(p => typeof p === 'string' && isKnownPermission(p));
     out[role] = filtered;

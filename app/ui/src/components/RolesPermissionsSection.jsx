@@ -244,7 +244,7 @@ export default function RolesPermissionsSection() {
                       type="button"
                       onClick={() => handleRemoveRole(r)}
                       title={`Remove role "${r}"`}
-                      className="text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400 text-xs leading-none"
+                      className="text-gray-600 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400 text-xs leading-none"
                     >
                       ✕
                     </button>
@@ -345,7 +345,7 @@ function PermissionGroup({ group, items, roles, draft, togglePerm }) {
           <td className="py-2 pr-4 align-top sticky left-0 bg-white dark:bg-gray-800 z-10">
             <div className="font-medium text-gray-800 dark:text-gray-100">{item.label}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">{item.description}</div>
-            <code className="text-[10px] font-mono text-gray-400 dark:text-gray-500">{item.key}</code>
+            <code className="text-[10px] font-mono text-gray-600 dark:text-gray-500">{item.key}</code>
           </td>
           {roles.map(role => {
             const list = draft[role] || [];
