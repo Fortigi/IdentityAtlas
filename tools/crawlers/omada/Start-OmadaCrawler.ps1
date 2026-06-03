@@ -310,20 +310,60 @@ function Test-EntitySetAvailable {
     return $availableEntitySets -contains $Name
 }
 
-# Register system
-Update-CrawlerProgress -Step 'Registering system' -Pct 5
-$sysResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
-    syncMode = 'full'
-    records  = @(@{
-        systemType  = 'Omada'
-        displayName = "Omada ($baseUrl)"
-        tenantId    = $baseUrl
-        enabled     = $true
-        syncEnabled = $true
+# Register all Omada connected systems as separate Identity Atlas Systems
+Update-CrawlerProgress -Step 'Registering Omada connected systems' -Pct 5
+$allOmadaSystems = $null
+$omadaSystemMap  = @{}  # Omada System.UId → Identity Atlas system.id
+$systemId        = 0    # ID for the main Omada IGA system (used for Contexts/Identities)
+try {
+    $allOmadaSystems = Invoke-OmadaPagedRequest -Path '/System' `
+        -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize 100
+    Write-Host "  $($allOmadaSystems.Count) connected systems in Omada" -ForegroundColor Gray
+
+    $sysRecords = @($allOmadaSystems | ForEach-Object {
+        [PSCustomObject]@{
+            systemType  = 'Omada'
+            displayName = $_.DisplayName
+            tenantId    = [string]$_.UId
+            enabled     = $true
+            syncEnabled = $true
+        }
     })
+
+    Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
+        syncMode = 'full'
+        records  = ConvertTo-JsonArray $sysRecords
+    } | Out-Null
+
+    # Build UId → system.id map by querying Identity Atlas
+    $atlasSystems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" `
+        -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
+    foreach ($s in $atlasSystems) {
+        if ($s.systemType -eq 'Omada' -and $s.tenantId) {
+            $omadaSystemMap[$s.tenantId] = [int]$s.id
+        }
+    }
+    Write-Host "  System map: $($omadaSystemMap.Count) entries" -ForegroundColor Gray
+
+    # Omada Identity is the main IGA system — use it for Contexts/Identities
+    $mainSysUId = ($allOmadaSystems | Where-Object { $_.DisplayName -eq 'Omada Identity' } |
+                   Select-Object -First 1).UId
+    if ($mainSysUId -and $omadaSystemMap.ContainsKey([string]$mainSysUId)) {
+        $systemId = $omadaSystemMap[[string]$mainSysUId]
+    } elseif ($omadaSystemMap.Count -gt 0) {
+        $systemId = ($omadaSystemMap.Values | Select-Object -First 1)
+    }
+    Write-Host "  Main Omada IGA system ID: $systemId" -ForegroundColor Gray
+} catch {
+    Write-Host "  Warning: could not register Omada systems — $($_.Exception.Message)" -ForegroundColor Yellow
+    # Fall back to single system registration
+    $fbResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
+        syncMode = 'full'
+        records  = @(@{ systemType = 'Omada'; displayName = "Omada ($baseUrl)"; tenantId = $baseUrl; enabled = $true; syncEnabled = $true })
+    }
+    $systemId = [int]($fbResult.systemIds[0])
+    Write-Host "  Fallback system ID: $systemId" -ForegroundColor Gray
 }
-$systemId = [int]($sysResult.systemIds[0])
-Write-Host "  System ID: $systemId" -ForegroundColor Gray
 
 # Shared state across phases
 $allIdentities         = $null  # Identity records — retained for Accounts principalType lookup and IdentityMembers join
@@ -649,11 +689,14 @@ if ($SyncResources) {
             -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
         Write-Host "  $($allResources.Count) resource records from Omada" -ForegroundColor Gray
 
-        $byType = @{}
+        # Group resources by their connected system (SYSTEMREF) so each batch is
+        # scoped to one system — preserving scoped-delete correctness.
+        $bySysUId = @{}  # OmadaSystemUId → List[record]
         foreach ($item in $allResources) {
             $omadaType = Get-OmadaRefValue -Ref $item.ROLETYPEREF -Fallback 'Role'
             $atlasType = Map-ResourceTypeToAtlas -OmadaType $omadaType
             $omadaCat  = if ($item.ROLECATEGORY) { [string]$item.ROLECATEGORY.Value } else { '' }
+            $sysUId    = Get-OmadaRefUid -Ref $item.SYSTEMREF
             $sysName   = Get-OmadaRefValue -Ref $item.SYSTEMREF -Fallback ''
             $status    = if ($item.RESOURCESTATUS) { [string]$item.RESOURCESTATUS.Value } else { 'Active' }
             $enabled   = $status -notin @('Inactive', 'Disabled', 'Deleted')
@@ -663,7 +706,7 @@ if ($SyncResources) {
             if (-not $extId -or -not $dispName) { continue }
 
             $rec = [PSCustomObject]@{
-                id                 = $extId  # Omada UId is a valid UUID
+                id                 = $extId
                 externalId         = $extId
                 displayName        = $dispName
                 resourceType       = $atlasType
@@ -671,16 +714,26 @@ if ($SyncResources) {
                 enabled            = $enabled
                 extendedAttributes = @{ resourceCategory = $omadaCat; omadaSystem = $sysName }
             }
-            if (-not $byType.ContainsKey($atlasType)) { $byType[$atlasType] = [System.Collections.Generic.List[object]]::new() }
-            $byType[$atlasType].Add($rec)
+            # Use the mapped system or fall back to the main Omada system
+            $key = if ($sysUId -and $omadaSystemMap.ContainsKey($sysUId)) { $sysUId } else { '__main__' }
+            if (-not $bySysUId.ContainsKey($key)) { $bySysUId[$key] = [System.Collections.Generic.List[object]]::new() }
+            $bySysUId[$key].Add($rec)
         }
 
-        foreach ($atlasType in $byType.Keys) {
-            $recs = @($byType[$atlasType])
-            $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ resourceType = $atlasType } -Records $recs
-            Write-Host "  Resources ($atlasType): +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
+        $totalInserted = 0; $totalUpdated = 0; $totalDeleted = 0
+        foreach ($key in $bySysUId.Keys) {
+            $sysId   = if ($key -eq '__main__') { $systemId } else { $omadaSystemMap[$key] }
+            $sysLabel = if ($key -eq '__main__') { 'Omada' } else {
+                ($allOmadaSystems | Where-Object { $_.UId -eq $key } |
+                 Select-Object -First 1).DisplayName
+            }
+            $recs = @($bySysUId[$key])
+            $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $sysId -SyncMode 'full' `
+                -Scope @{} -Records $recs
+            Write-Host "  Resources ($sysLabel, $($recs.Count) records): +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
+            $totalInserted += ($r.inserted ?? 0); $totalUpdated += ($r.updated ?? 0); $totalDeleted += ($r.deleted ?? 0)
         }
+        Write-Host "  Resources total: +$totalInserted ~$totalUpdated -$totalDeleted" -ForegroundColor Green
 
         Write-Phase -Name 'Resources' -Duration ([datetime]::UtcNow - $t) -Records @{ resources = $allResources.Count }
     } catch {
@@ -734,56 +787,122 @@ if ($SyncEntitlements) {
 
 # ─── Phase: Assignments ───────────────────────────────────────────
 # Uses /OData/Builtin/CalculatedAssignments — authoritative source for all effective access.
-# IsManaged=true → Governed (IGA-managed role assignment)
-# IsManaged=false → Direct (unmanaged access, bypasses IGA governance)
-# Navigation properties Identity and Resource expanded inline via $expand.
+# Two sources of assignments are combined:
+#   1. Resourceassignment (DataObjects) — IGA-governed role assignments (Identity → Role/Resource).
+#      All records are Governed. Grouped per connected system for correct scoped-delete.
+#   2. CalculatedAssignments (Builtin) — effective account provisioning (Identity → Account resource).
+#      IsManaged=true → Governed, IsManaged=false → Direct. Also grouped per system.
 if ($SyncAssignments) {
     $t = [datetime]::UtcNow
-    Write-Host "`nAssignments (CalculatedAssignments):" -ForegroundColor Cyan
+    Write-Host "`nAssignments:" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing assignments' -Pct 75
     try {
-        $items = Invoke-OmadaPagedRequest -Path '/CalculatedAssignments' `
-            -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource' } `
+        # ── Source 1: Resourceassignment (role/permission assignments) ─────────
+        $raItems = Invoke-OmadaPagedRequest -Path '/Resourceassignment' `
+            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $pageSize
+        Write-Host "  $($raItems.Count) Resourceassignment records from Omada" -ForegroundColor Gray
+
+        # Group by system for per-system full-sync batches
+        $raBySys = @{}
+        foreach ($item in $raItems) {
+            $status = if ($item.ROLEASSNSTATUS) { [string]$item.ROLEASSNSTATUS.Value } else { 'Active' }
+            if ($status -notin @('Active', 'Pending')) { continue }
+
+            $identUid    = if ($item.IDENTITYREF) { [string]$item.IDENTITYREF.UId } else { $null }
+            $resourceUid = Get-OmadaRefUid -Ref $item.ROLEREF
+            $sysUId      = Get-OmadaRefUid -Ref $item.SYSTEMREF
+            if (-not $identUid -or -not $resourceUid) { continue }
+
+            # Fan out to all User accounts for this identity
+            $userUids = if ($identityUidToUserUids.ContainsKey($identUid)) { $identityUidToUserUids[$identUid] } else { $null }
+            if (-not $userUids -or $userUids.Count -eq 0) { continue }
+
+            $sysKey = if ($sysUId -and $omadaSystemMap.ContainsKey($sysUId)) { $sysUId } else { '__main__' }
+            if (-not $raBySys.ContainsKey($sysKey)) { $raBySys[$sysKey] = [System.Collections.Generic.List[object]]::new() }
+
+            foreach ($userUid in $userUids) {
+                $raBySys[$sysKey].Add([PSCustomObject]@{
+                    resourceId         = $resourceUid
+                    principalId        = $userUid
+                    assignmentType     = 'Governed'
+                    extendedAttributes = @{ validFrom = $item.VALIDFROM; validTo = $item.VALIDTO }
+                })
+            }
+        }
+
+        $totalRaInserted = 0; $totalRaUpdated = 0
+        foreach ($key in $raBySys.Keys) {
+            $sysId = if ($key -eq '__main__') { $systemId } else { $omadaSystemMap[$key] }
+            # Deduplicate (principalId, resourceId) pairs — fanout can produce duplicates
+            # if the same identity has multiple accounts or the same resource appears twice.
+            $seen  = [System.Collections.Generic.HashSet[string]]::new()
+            $dedup = @($raBySys[$key] | Where-Object {
+                $k = "$($_.principalId)|$($_.resourceId)"
+                $seen.Add($k)
+            })
+            $r = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $sysId `
+                -SyncMode 'full' -Scope @{ assignmentType = 'Governed' } -Records $dedup
+            $totalRaInserted += ($r.inserted ?? 0); $totalRaUpdated += ($r.updated ?? 0)
+        }
+        Write-Host "  Role assignments (Governed): +$totalRaInserted ~$totalRaUpdated" -ForegroundColor Green
+
+        # ── Source 2: CalculatedAssignments (account provisioning) ────────────
+        $caItems = Invoke-OmadaPagedRequest -Path '/CalculatedAssignments' `
+            -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource,System,ResourceType' } `
             -PageSize $pageSize -OverrideBaseUrl $builtinBaseUrl
-        Write-Host "  $($items.Count) assignment records from Omada" -ForegroundColor Gray
+        Write-Host "  $($caItems.Count) CalculatedAssignment records from Omada" -ForegroundColor Gray
 
-        $governed = [System.Collections.Generic.List[object]]::new()
-        $direct   = [System.Collections.Generic.List[object]]::new()
+        $caBySysGov    = @{}  # governed per system
+        $caBySysDirect = @{}  # direct per system
 
-        foreach ($item in $items) {
-            # CalculatedAssignments.AccountName = User.UserName — use it to resolve the Principal UUID
-            # so that the UI's IdentityMembers → ResourceAssignments join chain resolves correctly.
-            # (Identity.UId cannot be used directly as principalId; Principals contains User.UId values.)
+        foreach ($item in $caItems) {
             $accountName  = if ($item.AccountName) { [string]$item.AccountName } else { $null }
             $principalUid = if ($accountName -and $userNameToUid.ContainsKey($accountName)) { $userNameToUid[$accountName] } else { $null }
             $resourceUid  = if ($item.Resource)  { [string]$item.Resource.UId  } else { $null }
             if (-not $principalUid -or -not $resourceUid) { continue }
 
+            # Use the System navigation property to link to the correct Identity Atlas system
+            $sysUId = if ($item.System) { [string]$item.System.UId } else { $null }
+            $sysKey = if ($sysUId -and $omadaSystemMap.ContainsKey($sysUId)) { $sysUId } else { '__main__' }
+
             $rec = [PSCustomObject]@{
                 resourceId         = $resourceUid
-                principalId        = $principalUid   # direct UUID FK to Principals.id (User.UId)
+                principalId        = $principalUid
                 assignmentType     = if ($item.IsManaged) { 'Governed' } else { 'Direct' }
-                extendedAttributes = @{ validFrom = $item.ValidFrom; validTo = $item.ValidTo }
+                extendedAttributes = @{ validFrom = $item.ValidFrom; validTo = $item.ValidTo;
+                                        resourceType = if ($item.ResourceType) { $item.ResourceType.DisplayName } else { '' } }
             }
-            if ($item.IsManaged) { $governed.Add($rec) } else { $direct.Add($rec) }
+            if ($item.IsManaged) {
+                if (-not $caBySysGov.ContainsKey($sysKey))    { $caBySysGov[$sysKey]    = [System.Collections.Generic.List[object]]::new() }
+                $caBySysGov[$sysKey].Add($rec)
+            } else {
+                if (-not $caBySysDirect.ContainsKey($sysKey)) { $caBySysDirect[$sysKey] = [System.Collections.Generic.List[object]]::new() }
+                $caBySysDirect[$sysKey].Add($rec)
+            }
         }
 
-        if ($governed.Count -gt 0) {
-            $r = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'Governed' } -Records @($governed)
-            Write-Host "  Assignments (Governed): +$($r.inserted) ~$($r.updated) -$($r.deleted)" -ForegroundColor Green
+        $totalCaGovIns = 0; $totalCaDirIns = 0
+        foreach ($key in $caBySysGov.Keys) {
+            $sysId = if ($key -eq '__main__') { $systemId } else { $omadaSystemMap[$key] }
+            $seen  = [System.Collections.Generic.HashSet[string]]::new()
+            $dedup = @($caBySysGov[$key] | Where-Object { $seen.Add("$($_.principalId)|$($_.resourceId)") })
+            $r = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $sysId `
+                -SyncMode 'full' -Scope @{ assignmentType = 'Governed' } -Records $dedup
+            $totalCaGovIns += ($r.inserted ?? 0)
         }
-        if ($direct.Count -gt 0) {
-            $r2 = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'Direct' } -Records @($direct)
-            Write-Host "  Assignments (Direct): +$($r2.inserted) ~$($r2.updated) -$($r2.deleted)" -ForegroundColor Green
+        foreach ($key in $caBySysDirect.Keys) {
+            $sysId = if ($key -eq '__main__') { $systemId } else { $omadaSystemMap[$key] }
+            $seen  = [System.Collections.Generic.HashSet[string]]::new()
+            $dedup = @($caBySysDirect[$key] | Where-Object { $seen.Add("$($_.principalId)|$($_.resourceId)") })
+            $r = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $sysId `
+                -SyncMode 'full' -Scope @{ assignmentType = 'Direct' } -Records $dedup
+            $totalCaDirIns += ($r.inserted ?? 0)
         }
-        if ($governed.Count -eq 0 -and $direct.Count -eq 0) {
-            Write-Host "  Assignments: 0 active assignments found" -ForegroundColor Yellow
-        }
+        Write-Host "  Account assignments (Governed): +$totalCaGovIns, (Direct): +$totalCaDirIns" -ForegroundColor Green
 
         Write-Phase -Name 'Assignments' -Duration ([datetime]::UtcNow - $t) `
-            -Records @{ governed = $governed.Count; direct = $direct.Count }
+            -Records @{ roleAssignments = ($raBySys.Values | ForEach-Object { $_.Count } | Measure-Object -Sum).Sum
+                        accountAssignments = ($caBySysGov.Values + $caBySysDirect.Values | ForEach-Object { $_.Count } | Measure-Object -Sum).Sum }
     } catch {
         $msg = $_.Exception.Message
         Write-Host "  Assignments phase failed: $msg" -ForegroundColor Red

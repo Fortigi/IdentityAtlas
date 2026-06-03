@@ -29,3 +29,7 @@
 - Fixed: Worker job dispatcher now passes the `contextMembers` selectedObjects toggle to `SyncContextMembers` so the context membership phase is honoured when configured via the Admin wizard
 - Fixed: Identity detail page graph now correctly shows the Contexts count — `contextCount` was fetched from the API but silently discarded and never passed to the graph shape function, causing the Contexts node to always show 0
 - Fixed: `docker-compose.yml` worker service adds `extra_hosts` for `enterpriseserver.corporate.com` (resolved via Active Directory DNS at `172.16.0.28`) so the Omada crawler can reach the server after container restarts
+- Added: Each of Omada's 58 connected target systems (SAP ERP, Active Directory, Salesforce, ServiceNow, etc.) is now registered as a separate System in Identity Atlas, replacing the previous single "Omada" system entry
+- Fixed: Resources are now linked to their correct connected system via `SYSTEMREF`, so each resource appears under the right system (e.g. SAP roles under SAP ERP, AD groups under Active Directory)
+- Fixed: Role/permission assignments now use `Resourceassignment` (DataObjects) as the primary source, exposing all IGA-governed assignments (AD security groups, application roles, owner roles, etc.) — not only the account-provisioning records from `CalculatedAssignments`
+- Added: `CalculatedAssignments` (Builtin) is still used as a supplementary source for effective account assignments, now with `System` and `ResourceType` navigation properties expanded and linked to the correct system
