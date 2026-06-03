@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
+import { useCanExportUi } from '../auth/usePermissions';
 import { TAG_COLORS } from '../utils/colors';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { formatDateOnly as formatDate } from '../utils/formatters';
@@ -18,6 +19,7 @@ const ASSIGNMENT_TYPES = ['Auto-assigned', 'Request-based', 'Request-based with 
 
 export default function AccessPackagesPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
+  const canExport = useCanExportUi();
 
   // Data state
   const [packages, setPackages] = useState([]);
@@ -243,14 +245,16 @@ export default function AccessPackagesPage({ onOpenDetail }) {
       <div className="flex items-center gap-4 mb-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Business Roles</h2>
         <span className="text-sm text-gray-500 dark:text-gray-400">{total.toLocaleString()} total</span>
-        <button
-          onClick={handleExportExcel}
-          disabled={!!exportStatus}
-          className="ml-auto px-3 py-1 rounded text-xs text-white bg-green-600 hover:bg-green-700 border border-green-700 font-medium disabled:opacity-50"
-          title="Export business roles to Excel (.xlsx)"
-        >
-          {exportStatus ? exportStatus : 'Export Excel'}
-        </button>
+        {canExport && (
+          <button
+            onClick={handleExportExcel}
+            disabled={!!exportStatus}
+            className="ml-auto px-3 py-1 rounded text-xs text-white bg-green-600 hover:bg-green-700 border border-green-700 font-medium disabled:opacity-50"
+            title="Export business roles to Excel (.xlsx)"
+          >
+            {exportStatus ? exportStatus : 'Export Excel'}
+          </button>
+        )}
       </div>
 
       {/* Category management bar */}
