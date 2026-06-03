@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { authMiddleware } from './middleware/auth.js';
+import { authMiddleware, requirePermission } from './middleware/auth.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import { enable as enablePerf, isEnabled as isPerfEnabled } from './perf/collector.js';
 import permissionsRouter from './routes/permissions.js';
@@ -25,6 +25,7 @@ import resourcesRouter from './routes/resources.js';
 import contextsRouter from './routes/contexts.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
 import adminRouter from './routes/admin.js';
+import authRolesRouter from './routes/authRoles.js';
 import llmRouter from './routes/llm.js';
 import riskProfilesRouter from './routes/riskProfiles.js';
 import riskScoringRunsRouter from './routes/riskScoringRuns.js';
@@ -290,6 +291,10 @@ app.use('/api', authMiddleware, resourcesRouter);
 app.use('/api', authMiddleware, contextsRouter);
 app.use('/api', authMiddleware, contextPluginsRouter);
 app.use('/api/admin/import', express.json({ limit: '2mb' }));  // larger limit for import payloads
+// Role -> permission mapping (Admin → Authentication page). Gated by the
+// admin.auth permission so it's editable only by someone whose own mapping
+// already grants it.
+app.use('/api', authMiddleware, requirePermission('admin.auth'), authRolesRouter);
 app.use('/api', authMiddleware, adminRouter);
 app.use('/api', authMiddleware, llmRouter);
 app.use('/api', authMiddleware, riskProfilesRouter);
