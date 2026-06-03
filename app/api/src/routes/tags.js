@@ -3,6 +3,9 @@ import { randomUUID } from 'crypto';
 import { getGroupColumns as getGroupCols, getResourceColumns as getResourceCols, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues, getGroupColumnValues, getResourceColumnValues } from '../db/columnCache.js';
 import { getOrCreateTagRoot } from '../bootstrap.js';
 import { recalcMemberCountsForChain } from '../contexts/memberCounts.js';
+import { requirePermission } from '../middleware/auth.js';
+
+const writeTags = requirePermission('data.write.tags');
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -110,7 +113,7 @@ function tagRowFromContext(c, assignmentCount) {
 }
 
 // POST /api/tags
-router.post('/tags', async (req, res) => {
+router.post('/tags', writeTags, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { name, color, entityType } = req.body;
@@ -150,7 +153,7 @@ router.post('/tags', async (req, res) => {
 });
 
 // PATCH /api/tags/:id
-router.patch('/tags/:id', async (req, res) => {
+router.patch('/tags/:id', writeTags, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const id = req.params.id;
@@ -187,7 +190,7 @@ router.patch('/tags/:id', async (req, res) => {
 });
 
 // DELETE /api/tags/:id
-router.delete('/tags/:id', async (req, res) => {
+router.delete('/tags/:id', writeTags, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const id = req.params.id;
@@ -204,7 +207,7 @@ router.delete('/tags/:id', async (req, res) => {
 });
 
 // POST /api/tags/:id/assign
-router.post('/tags/:id/assign', async (req, res) => {
+router.post('/tags/:id/assign', writeTags, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const id = req.params.id;
@@ -243,7 +246,7 @@ router.post('/tags/:id/assign', async (req, res) => {
 });
 
 // POST /api/tags/:id/unassign
-router.post('/tags/:id/unassign', async (req, res) => {
+router.post('/tags/:id/unassign', writeTags, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const id = req.params.id;
@@ -273,7 +276,7 @@ router.post('/tags/:id/unassign', async (req, res) => {
 
 // ─── POST /api/tags/:id/assign-by-filter ──────────────────────────
 // Bulk-assign: tags ALL entities matching a search filter (server-side)
-router.post('/tags/:id/assign-by-filter', async (req, res) => {
+router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
   try {
     if (!useSql) return res.status(400).json({ error: 'SQL mode required' });
     const { entityType, search: rawSearch, filters } = req.body;

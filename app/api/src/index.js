@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { authMiddleware } from './middleware/auth.js';
+import { authMiddleware, requirePermission } from './middleware/auth.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import { enable as enablePerf, isEnabled as isPerfEnabled } from './perf/collector.js';
 import permissionsRouter from './routes/permissions.js';
@@ -25,6 +25,7 @@ import resourcesRouter from './routes/resources.js';
 import contextsRouter from './routes/contexts.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
 import adminRouter from './routes/admin.js';
+import authRolesRouter from './routes/authRoles.js';
 import llmRouter from './routes/llm.js';
 import riskProfilesRouter from './routes/riskProfiles.js';
 import riskScoringRunsRouter from './routes/riskScoringRuns.js';
@@ -271,6 +272,34 @@ app.get('/api/auth-config', publicLimiter, (req, res) => {
   });
 });
 
+// What permissions does the *current request* have? UI calls this once after
+// sign-in (and after editing the mapping) to drive feature-flag-style gating —
+// hide Admin tab, hide export buttons, etc. Server is source of truth for the
+// role→permission mapping; mirroring the resolution in the UI would drift.
+//
+// Behaviour:
+//   - Auth disabled → { enabled:false, hasWildcard:true, permissions:[] }.
+//     UI treats wildcard as "render everything."
+//   - Auth enabled but no Authorization header → 401 (caller should retry
+//     with a token).
+//   - Auth enabled + valid JWT → { roles, permissions, hasWildcard } where
+//     `permissions` excludes the '*' sentinel and `hasWildcard` is the
+//     boolean. Lets the UI distinguish "Admin (full access via *)" from
+//     "RoleMiner (these specific permissions)" for the badge display.
+app.get('/api/auth-me', authMiddleware, (req, res) => {
+  if (!isAuthEnabled()) {
+    return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [] });
+  }
+  const perms = req.user?.permissions || new Set();
+  const hasWildcard = perms.has('*');
+  res.json({
+    enabled: true,
+    roles: req.user?.roles || [],
+    permissions: Array.from(perms).filter(p => p !== '*'),
+    hasWildcard,
+  });
+});
+
 // Performance metrics routes (auth-protected)
 app.use('/api', authMiddleware, perfRouter);
 
@@ -288,25 +317,40 @@ app.use('/api', authMiddleware, preferencesRouter);
 app.use('/api', authMiddleware, systemsRouter);
 app.use('/api', authMiddleware, resourcesRouter);
 app.use('/api', authMiddleware, contextsRouter);
-app.use('/api', authMiddleware, contextPluginsRouter);
+// Context plugins (Admin → Contexts) — admin-only across the board.
+app.use('/api', authMiddleware, requirePermission('admin.context-plugins'), contextPluginsRouter);
 app.use('/api/admin/import', express.json({ limit: '2mb' }));  // larger limit for import payloads
+// Role -> permission mapping (Admin → Authentication page). Gated by the
+// admin.auth permission so it's editable only by someone whose own mapping
+// already grants it.
+app.use('/api', authMiddleware, requirePermission('admin.auth'), authRolesRouter);
+// adminRouter is a grab-bag of /admin/* endpoints with mixed permission needs
+// (read dashboards, write retention config, toggle feature flags, export curated
+// dumps, …). Gates are applied per-handler inside admin.js so each endpoint
+// requires the right permission.
 app.use('/api', authMiddleware, adminRouter);
-app.use('/api', authMiddleware, llmRouter);
-app.use('/api', authMiddleware, riskProfilesRouter);
+app.use('/api', authMiddleware, requirePermission('admin.llm'), llmRouter);
+// Risk profile / classifier config is owned by the LLM admin — it drives how
+// risk-scoring prompts are built and which sources they cite.
+app.use('/api', authMiddleware, requirePermission('admin.llm'), riskProfilesRouter);
+// Listing existing runs is read-only; triggering one is admin. Per-handler in the router.
 app.use('/api', authMiddleware, riskScoringRunsRouter);
-app.use('/api', authMiddleware, correlationRulesetsRouter);
-app.use('/api', authMiddleware, csvUploadsRouter);
+app.use('/api', authMiddleware, requirePermission('admin.llm'), correlationRulesetsRouter);
+app.use('/api', authMiddleware, requirePermission('admin.csv-import'), csvUploadsRouter);
 app.use('/api', authMiddleware, governanceRouter);
 // Bulk list endpoints used by Power Query / BI tools (read API keys honoured)
 app.use('/api', authMiddleware, bulkListsRouter);
-// Read API token CRUD + Excel workbook download (admin-scoped)
+// Read API token CRUD + Excel workbook download (admin-scoped). Per-handler
+// gates in the router separate "create your own token" (data.export.apikey)
+// from "list/revoke any token in tenant" (admin.read-tokens) and the workbook
+// download (data.export.ui).
 app.use('/api', authMiddleware, dataExportRouter);
 
 // ─── Crawler & job routes ───────────────────────────────────────
 // Admin crawler management (Entra ID auth) — /api/admin/crawlers/*
-app.use('/api', authMiddleware, adminCrawlersRouter);
+app.use('/api', authMiddleware, requirePermission('admin.crawlers'), adminCrawlersRouter);
 // Crawler jobs (Entra ID auth) — /api/admin/crawler-jobs/*, /api/admin/status
-app.use('/api', authMiddleware, jobsRouter);
+app.use('/api', authMiddleware, requirePermission('admin.crawlers'), jobsRouter);
 // Crawler self-service (API key auth) — /api/crawlers/whoami, /api/crawlers/rotate
 app.use('/api', crawlerAuthMiddleware, selfServiceCrawlersRouter);
 // Ingest endpoints (API key auth) — /api/ingest/*
