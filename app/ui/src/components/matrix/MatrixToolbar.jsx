@@ -4,8 +4,8 @@ import { useCanExportUi } from '../../auth/usePermissions';
 // Simplified Matrix toolbar (post-wizard redesign).
 //
 //   - Row selection / filtering happens in MatrixFilterWizard.
-//   - The toolbar keeps only "view-time" controls: IST/SOLL/Gaps toggle,
-//     Excel export, Share link.
+//   - The toolbar keeps only "view-time" controls: Governed/Non-governed/Gaps
+//     toggle (formerly SOLL/IST), Excel export, Share link.
 //   - "Adjust filter" re-opens the wizard.
 //   - Search, user-limit slider, attribute/context FilterBars are gone.
 
@@ -26,12 +26,12 @@ export default function MatrixToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      {/* IST / SOLL / Gaps */}
+      {/* Governed / Non-governed / Gaps */}
       <div className="inline-flex rounded border border-gray-300 dark:border-gray-600 overflow-hidden">
         {[
           { key: 'all',       label: 'All' },
-          { key: 'unmanaged', label: 'IST (Unmanaged)' },
-          { key: 'managed',   label: 'SOLL (Managed)' },
+          { key: 'managed',   label: 'Governed' },
+          { key: 'unmanaged', label: 'Non-governed' },
           { key: 'gaps',      label: 'Gaps' },
         ].map(opt => (
           <button
