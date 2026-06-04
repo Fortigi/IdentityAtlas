@@ -2,3 +2,24 @@
 
 /* Enable class-based dark mode: add `dark` class to <html> to activate */
 @custom-variant dark (&:is(.dark, .dark *));
+
+/* ── Accessibility baseline ─────────────────────────────────────────────
+   A global keyboard focus indicator (many controls set none of their own)
+   and reduced-motion support for users who request it. */
+:focus-visible {
+  outline: 2px solid #2563eb; /* blue-600 */
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.dark :focus-visible {
+  outline-color: #60a5fa; /* blue-400 — readable on dark surfaces */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -27,3 +27,13 @@ for (const p of pages) {
     expect(serious, `A11y violations on ${p.name}: ${serious.map(v => v.id).join(', ')}`).toHaveLength(0);
   });
 }
+
+// Skip-to-content link: the first focusable element must let keyboard users
+// jump past the nav to the main content (added with the a11y baseline).
+test('a "Skip to main content" link targets the main region', async ({ page }) => {
+  await page.goto(`${BASE}/`);
+  await page.waitForLoadState('networkidle');
+  const skip = page.getByRole('link', { name: /skip to main content/i });
+  await expect(skip).toHaveAttribute('href', '#main-content');
+  await expect(page.locator('#main-content')).toHaveCount(1);
+});
