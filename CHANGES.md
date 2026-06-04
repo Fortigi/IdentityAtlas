@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the run-detail "Go there now →" link, which opened a broken/empty detail tab; it now correctly navigates to the Contexts page. Also cleaned up a dark-mode style glitch on that screen.
+
+## Changes in this PR
+
 - Refreshed the documentation site to follow the UI Style Guide's two-role colour system: green stays the brand colour (header, tabs, logo, cards, table headers) while blue now marks everything interactive — body links, the active navigation item, and hover/accent states — in both light and dark mode.
 
 ## Changes in this PR
