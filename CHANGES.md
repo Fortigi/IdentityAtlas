@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed: documentation site version dropdown now updates automatically when a release or hotfix is cut
+
+## Changes in this PR
+
 - Fixed: portable Windows launcher now binds to 127.0.0.1 only, preventing the API from being accessible to other machines on the network
 - Added: startup warning when the portable launcher runs with authentication disabled
 
