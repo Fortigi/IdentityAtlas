@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Security: the production Docker Compose stack no longer publishes PostgreSQL to all network interfaces. It now binds to localhost (`127.0.0.1`) only by default, so the database is not reachable from other hosts. Set `POSTGRES_BIND_HOST=0.0.0.0` if you deliberately need off-host access.
+- Security: the production Docker Compose stack no longer ships a default database password. `POSTGRES_PASSWORD` is now required — the stack refuses to start until a strong value is set. (The local development compose still provides a default for convenience.)
+- Azure deployments are unaffected — they use a managed PostgreSQL server rather than the Compose Postgres container.
+
+## Changes in this PR
+
 - Security (behaviour change): a signed-in user whose Entra roles map to no permissions is no longer silently granted full administrator access. Such users are now denied all admin and write actions (fail-closed). Previously, on installs where app roles had not been assigned yet, any authenticated tenant user effectively had admin rights.
 - To grant access after enabling authentication, assign users an Entra app role — the default "Admin" role grants full access. If you lock yourself out by enabling auth before assigning a role, recover with the auth CLI (`auth-config.js disable`); see the Permissions & Roles documentation for the bootstrap and recovery steps.
 - Added a startup warning when authentication is enabled without `AUTH_REQUIRED_ROLES`, since any signed-in tenant user can still read data until sign-in is restricted to specific roles.

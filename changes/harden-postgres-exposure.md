@@ -1,3 +1,0 @@
-- Security: the production Docker Compose stack no longer publishes PostgreSQL to all network interfaces. It now binds to localhost (`127.0.0.1`) only by default, so the database is not reachable from other hosts. Set `POSTGRES_BIND_HOST=0.0.0.0` if you deliberately need off-host access.
-- Security: the production Docker Compose stack no longer ships a default database password. `POSTGRES_PASSWORD` is now required — the stack refuses to start until a strong value is set. (The local development compose still provides a default for convenience.)
-- Azure deployments are unaffected — they use a managed PostgreSQL server rather than the Compose Postgres container.
