@@ -260,23 +260,23 @@ export default function EntityGraph({
       >
       <defs>
         <radialGradient id="eg-grad-lime" cx="35%" cy="30%">
-          <stop offset="0%" stopColor="#d9f99d" />
-          <stop offset="40%" stopColor="#a3e635" />
-          <stop offset="100%" stopColor="#65a30d" />
+          <stop offset="0%" stopColor="#f7fee7" />
+          <stop offset="45%" stopColor="#d9f99d" />
+          <stop offset="100%" stopColor="#a3e635" />
         </radialGradient>
         {/* Recent-added — pale yellow fading into amber. Light enough
             that it doesn't shout, distinct enough to pop against green. */}
         <radialGradient id="eg-grad-added" cx="35%" cy="30%">
-          <stop offset="0%"  stopColor="#fef9c3" />
-          <stop offset="40%" stopColor="#fde047" />
-          <stop offset="100%" stopColor="#ca8a04" />
+          <stop offset="0%"  stopColor="#fffbeb" />
+          <stop offset="45%" stopColor="#fde68a" />
+          <stop offset="100%" stopColor="#fcd34d" />
         </radialGradient>
         {/* Recent-removed — rose-pink so strikethrough/gone reads
             instantly without any danger-red alarm. */}
         <radialGradient id="eg-grad-removed" cx="35%" cy="30%">
-          <stop offset="0%"  stopColor="#ffe4e6" />
-          <stop offset="40%" stopColor="#fb7185" />
-          <stop offset="100%" stopColor="#e11d48" />
+          <stop offset="0%"  stopColor="#fff1f2" />
+          <stop offset="45%" stopColor="#fecdd3" />
+          <stop offset="100%" stopColor="#fda4af" />
         </radialGradient>
         <radialGradient id="eg-grad-dim" cx="35%" cy="30%">
           <stop offset="0%" stopColor="#f7fee7" />
