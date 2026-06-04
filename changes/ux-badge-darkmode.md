@@ -1,0 +1,1 @@
+- Fixed dark-mode rendering of status badges: the Business-Role review-compliance badges (Compliant / In Progress / Missed / Reviewed Late) and the account-type badges (Regular / Admin / Test / Service / Shared / External) now use proper dark colours instead of bright pastel blocks on a dark background.
