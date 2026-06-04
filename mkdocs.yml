@@ -95,6 +95,7 @@ nav:
       - Release & Branching Strategy: architecture/branching-strategy.md
       - Ingest API: architecture/ingest-api.md
       - Audit History: architecture/audit-history.md
+      - Matrix Scope Statistics: architecture/matrix-scope-statistics.md
       - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
   - Operations:
       - Scaling & Load Testing: architecture/scaling.md
@@ -112,6 +113,8 @@ nav:
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - Software Bill of Materials: reference/sbom.md
+  - Contributing:
+      - UI Style Guide: contributing/style-guide.md
   - Security:
       - Assessment & Remediation: security/assessment.md
   - About:

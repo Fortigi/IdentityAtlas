@@ -408,6 +408,13 @@ export default function App() {
     <ThemeContext.Provider value={{ isDark, mode }}>
     <ErrorBoundary>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Skip link — first focusable element, visible only when focused */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-[100] focus:rounded focus:bg-blue-600 focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+      >
+        Skip to main content
+      </a>
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex items-center justify-between">
@@ -548,7 +555,7 @@ export default function App() {
           {detailTabs.map(tab => {
             const tabKey = `${tab.type}:${tab.id}`;
             const isActive = page === tabKey;
-            const icon = tab.type === 'user' ? 'U' : tab.type === 'resource' ? 'R' : tab.type === 'group' ? 'G' : tab.type === 'department' ? 'D' : tab.type === 'context' ? 'OU' : 'AP';
+            const icon = tab.type === 'user' ? 'U' : tab.type === 'resource' ? 'R' : tab.type === 'group' ? 'G' : tab.type === 'department' ? 'D' : tab.type === 'context' ? 'C' : 'AP';
             const iconBg = tab.type === 'user' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : tab.type === 'resource' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : tab.type === 'group' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : tab.type === 'department' ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' : tab.type === 'context' ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300';
             return (
               <button
@@ -578,7 +585,7 @@ export default function App() {
       </header>
 
       {/* Content */}
-      <main className="p-6">
+      <main id="main-content" className="p-6">
         <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
           {isDetailPage ? (
             renderDetailPage()

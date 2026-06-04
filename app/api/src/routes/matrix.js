@@ -23,6 +23,11 @@ import {
   UUID_RE,
 } from '../matrix/filterSql.js';
 import {
+  generateSampleDates,
+  buildScopeAsofSql,
+  historyStartSql,
+} from '../matrix/scopeHistory.js';
+import {
   getPrincipalColumns,
   getResourceColumns,
   getPrincipalColumnValues,
@@ -255,6 +260,261 @@ router.post('/matrix/preview', async (req, res) => {
   } catch (err) {
     console.error('matrix/preview failed:', err.message);
     return res.status(500).json({ error: 'Preview failed' });
+  }
+});
+
+// ─── POST /api/matrix/scope-stats ───────────────────────────────────
+// Richer counts for the current selection than /preview: subject + resource
+// totals PLUS the governed-vs-non-governed assignment split. Powers the Scope
+// Statistics panel. "Governed" mirrors the matrix's own managed/SOLL semantics: a
+// (principal, resource) pair is governed when the membership is covered by a business
+// role the user holds — it appears in vw_UserPermissionAssignmentViaBusinessRole
+// (a BusinessRole that Contains the group AND a Governed assignment of that role to the
+// user). This is exactly what the matrix colours as SOLL.
+router.post('/matrix/scope-stats', async (req, res) => {
+  if (!useSql) {
+    return res.json({
+      subjectCount: 0, resourceCount: 0,
+      assignmentCount: 0, governedAssignmentCount: 0, ungovernedAssignmentCount: 0,
+      governedPct: 0, rowType: 'principal',
+    });
+  }
+  const filter = parseFilter(req.body);
+  if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
+
+  try {
+    const built = await buildSubqueries(filter);
+    const p = await db.getPool();
+    const subj = subjectScopeClauses(filter.rowType, built.subjectSql);
+
+    const subjectIdExpr = filter.rowType === 'identity' ? 'im."identityId"' : 'p."principalId"';
+    const assignmentJoin = filter.rowType === 'identity'
+      ? `INNER JOIN "IdentityMembers" im ON im."principalId" = p."principalId"`
+      : '';
+    const assignmentWhere = [`(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`];
+    if (built.subjectSql)  assignmentWhere.push(`${subjectIdExpr} IN ${built.subjectSql}`);
+    if (built.resourceSql) assignmentWhere.push(`p."resourceId" IN ${built.resourceSql}`);
+
+    // One pair-level aggregation: distinct (subject, resource) pairs, each
+    // flagged governed if ANY of its assignment rows is access-package managed.
+    const pairReq = timedRequest(p, 'matrix-scope-pairs', res);
+    for (const [k, v] of Object.entries(built.bindings)) pairReq.input(k, v);
+    const pairSql = `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE managed)::int AS governed
+      FROM (
+        SELECT ${subjectIdExpr} AS sid, p."resourceId" AS rid,
+               bool_or(br."userId" IS NOT NULL) AS managed
+          FROM "vw_ResourceUserPermissionAssignments" p
+          ${assignmentJoin}
+          LEFT JOIN "vw_UserPermissionAssignmentViaBusinessRole" br
+            ON br."userId" = p."principalId" AND br."resourceId" = p."resourceId"
+         WHERE ${assignmentWhere.join(' AND ')}
+         GROUP BY ${subjectIdExpr}, p."resourceId"
+      ) pairs`;
+
+    const [subjectCount, resourceCount, pairRow] = await Promise.all([
+      runCount(p, 'matrix-scope-subject', res,
+        `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`,
+        built.bindings),
+      runCount(p, 'matrix-scope-resource', res,
+        `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceSql ? ` WHERE id IN ${built.resourceSql}` : ''}`,
+        built.bindings),
+      pairReq.query(pairSql).then(r => r.recordset[0] || { total: 0, governed: 0 }),
+    ]);
+
+    const assignmentCount = pairRow.total || 0;
+    const governedAssignmentCount = pairRow.governed || 0;
+    const ungovernedAssignmentCount = assignmentCount - governedAssignmentCount;
+    const governedPct = assignmentCount > 0
+      ? Math.round((governedAssignmentCount / assignmentCount) * 1000) / 10
+      : 0;
+
+    return res.json({
+      rowType: filter.rowType,
+      subjectCount,
+      resourceCount,
+      assignmentCount,
+      governedAssignmentCount,
+      ungovernedAssignmentCount,
+      governedPct,
+      warnings: built.warnings,
+    });
+  } catch (err) {
+    console.error('matrix/scope-stats failed:', err.message);
+    return res.status(500).json({ error: 'Scope statistics failed' });
+  }
+});
+
+// ─── POST /api/matrix/scope-timeseries ──────────────────────────────
+// Historic timeline for the current selection, reconstructed from the audit
+// log (_history) — no dedicated snapshot tables. Body: { filter }. Query:
+// days (range, default 180), points (samples, default 13). Returns one point
+// per sample date with principals / resources / assignments / governed counts
+// and the governed %, plus `historyStart` (earliest reliable instant) and
+// `scopeMode` ('attribute' = fully reconstructed; 'context-current' = scope
+// membership taken from today because ContextMembers is not audited).
+router.post('/matrix/scope-timeseries', async (req, res) => {
+  if (!useSql) return res.json({ historyStart: null, scopeMode: 'attribute', points: [] });
+
+  const filter = parseFilter(req.body);
+  if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
+
+  try {
+    const [principalCols, resourceCols, contextTypes] = await Promise.all([
+      getPrincipalColumns(),
+      getResourceColumns(),
+      resolveContextTypes(filter),
+    ]);
+    const principalColSet = new Set(principalCols.map(c => c.name));
+    const resourceColSet  = new Set(resourceCols.map(c => c.name));
+
+    const { sql, bindings, warnings, scopeMode } = buildScopeAsofSql({
+      filter, principalColSet, resourceColSet, contextTypes,
+    });
+
+    const p = await db.getPool();
+
+    // The audit log is pruned beyond HISTORY_RETENTION_DAYS (default 180), so
+    // the timeline can't reach further back than that. Clamp the requested
+    // range and tell the client the bound so the UI can explain it.
+    const retRow = await db.queryOne(
+      `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = 'HISTORY_RETENTION_DAYS'`,
+    );
+    const retentionDays = retRow ? parseInt(retRow.configValue, 10) : 180;
+    const reqDays = parseInt(req.query.days, 10) || 180;
+    const days = (retentionDays > 0) ? Math.min(reqDays, retentionDays) : reqDays;
+
+    // Earliest reliable instant — don't fabricate points before auditing began.
+    const startRow = await db.queryOne(historyStartSql());
+    const historyStart = startRow?.start ? new Date(startRow.start) : null;
+
+    const dates = generateSampleDates({ days, points: req.query.points });
+
+    const points = await Promise.all(dates.map(async (date) => {
+      const asof = `${date}T23:59:59.999Z`;
+      // Skip points before auditing began (reconstruction unreliable there).
+      if (historyStart && new Date(asof) < historyStart) {
+        return { date, principals: 0, resources: 0, assignments: 0, governed: 0, governedPct: 0, beforeHistory: true };
+      }
+      const r = timedRequest(p, 'matrix-scope-timeseries', res);
+      for (const [k, v] of Object.entries(bindings)) r.input(k, v);
+      r.input('asof', asof);
+      const row = (await r.query(sql)).recordset[0] || {};
+      const assignments = row.assignments || 0;
+      const governed = row.governed || 0;
+      return {
+        date,
+        principals: row.principals || 0,
+        resources: row.resources || 0,
+        assignments,
+        governed,
+        ungoverned: assignments - governed,
+        governedPct: assignments > 0 ? Math.round((governed / assignments) * 1000) / 10 : 0,
+      };
+    }));
+
+    return res.json({
+      historyStart: historyStart ? historyStart.toISOString() : null,
+      retentionDays,
+      scopeMode,
+      points,
+      warnings,
+    });
+  } catch (err) {
+    console.error('matrix/scope-timeseries failed:', err.message);
+    return res.status(500).json({ error: 'Scope timeseries failed' });
+  }
+});
+
+// ─── POST /api/matrix/scope-breakdown ───────────────────────────────
+// Department-by-department (or any principal attribute) breakdown of the
+// current selection: principals, assignments, and governed split per group.
+// Body: { filter }. Query: attribute (default 'department', or an ext.* key).
+// The UI drills into a group by re-querying scope-timeseries with that
+// attribute added to the subject filter.
+router.post('/matrix/scope-breakdown', async (req, res) => {
+  if (!useSql) return res.json({ attribute: 'department', groups: [] });
+
+  const filter = parseFilter(req.body);
+  if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
+
+  // Resolve + validate the grouping attribute (real principal column or ext.*).
+  const rawAttr = typeof req.query.attribute === 'string' && req.query.attribute
+    ? req.query.attribute : 'department';
+  let attrExpr;
+  if (rawAttr.startsWith('ext.')) {
+    const key = rawAttr.slice(4);
+    if (!SAFE_IDENT_RE.test(key)) return res.status(400).json({ error: 'invalid attribute' });
+    attrExpr = `u."extendedAttributes"->>'${key}'`;
+  } else {
+    if (!SAFE_IDENT_RE.test(rawAttr)) return res.status(400).json({ error: 'invalid attribute' });
+    const cols = await getPrincipalColumns();
+    if (!cols.some(c => c.name === rawAttr)) return res.status(400).json({ error: 'unknown attribute' });
+    attrExpr = `u."${rawAttr}"`;
+  }
+
+  try {
+    const built = await buildSubqueries(filter);
+    const p = await db.getPool();
+    const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
+    const notGroup = `(u."principalType" IS NULL OR u."principalType" <> '#microsoft.graph.group')`;
+    const subjIn = built.subjectSql ? ` AND u.id IN ${built.subjectSql}` : '';
+    const resIn  = built.resourceSql ? ` AND p."resourceId" IN ${built.resourceSql}` : '';
+
+    // Principals per group (includes principals with no assignments).
+    const principalsReq = timedRequest(p, 'matrix-breakdown-principals', res);
+    for (const [k, v] of Object.entries(built.bindings)) principalsReq.input(k, v);
+    const principalsRows = (await principalsReq.query(`
+      SELECT ${grp} AS grp, COUNT(*)::int AS principals
+        FROM "Principals" u
+       WHERE ${notGroup}${subjIn}
+       GROUP BY ${grp}
+    `)).recordset;
+
+    // Assignment pairs + governed split per group.
+    const pairsReq = timedRequest(p, 'matrix-breakdown-pairs', res);
+    for (const [k, v] of Object.entries(built.bindings)) pairsReq.input(k, v);
+    const pairsRows = (await pairsReq.query(`
+      SELECT grp,
+             COUNT(*)::int AS assignments,
+             COUNT(*) FILTER (WHERE managed)::int AS governed
+        FROM (
+          SELECT ${grp} AS grp, u.id AS pid, p."resourceId" AS rid,
+                 bool_or(br."userId" IS NOT NULL) AS managed
+            FROM "Principals" u
+            JOIN "vw_ResourceUserPermissionAssignments" p ON p."principalId" = u.id
+            LEFT JOIN "vw_UserPermissionAssignmentViaBusinessRole" br
+              ON br."userId" = u.id AND br."resourceId" = p."resourceId"
+           WHERE ${notGroup}${subjIn}${resIn}
+           GROUP BY ${grp}, u.id, p."resourceId"
+        ) t
+       GROUP BY grp
+    `)).recordset;
+
+    // Merge the two result sets by group key.
+    const byGroup = new Map();
+    for (const r of principalsRows) {
+      byGroup.set(r.grp, { group: r.grp, principals: r.principals, assignments: 0, governed: 0 });
+    }
+    for (const r of pairsRows) {
+      const g = byGroup.get(r.grp) || { group: r.grp, principals: 0, assignments: 0, governed: 0 };
+      g.assignments = r.assignments;
+      g.governed = r.governed;
+      byGroup.set(r.grp, g);
+    }
+
+    const groups = [...byGroup.values()].map(g => ({
+      ...g,
+      ungoverned: g.assignments - g.governed,
+      governedPct: g.assignments > 0 ? Math.round((g.governed / g.assignments) * 1000) / 10 : 0,
+    })).sort((a, b) => b.assignments - a.assignments);
+
+    return res.json({ attribute: rawAttr, groups, warnings: built.warnings });
+  } catch (err) {
+    console.error('matrix/scope-breakdown failed:', err.message);
+    return res.status(500).json({ error: 'Scope breakdown failed' });
   }
 });
 

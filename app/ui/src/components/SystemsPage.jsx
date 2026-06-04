@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
+import EmptyState from './EmptyState';
 
 function formatRelativeTime(dateStr) {
   if (!dateStr) return 'Never';
@@ -67,9 +68,12 @@ export default function SystemsPage() {
       </div>
 
       {systems.length === 0 ? (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-12">
-          No systems configured. Run <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm dark:text-gray-200">Start-FGSync</code> to sync data and register systems.
-        </div>
+        <EmptyState
+          title="No systems yet"
+          hint="Systems are registered automatically when a crawler runs. Add a crawler to connect a source (Entra ID, CSV, …) and import data."
+          actionLabel="Add a crawler →"
+          onAction={() => { window.location.hash = 'admin?sub=crawlers'; }}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
           {systems.map(sys => {

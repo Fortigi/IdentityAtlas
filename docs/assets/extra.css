@@ -1,10 +1,14 @@
 /* ─────────────────────────────────────────────────────────────────
    Identity Atlas — docs site theme
-   Matches the Identity Atlas React UI (Tailwind lime + gray palette).
+   Mirrors the Identity Atlas UI Style Guide's two-role colour system:
+     • GREEN (lime) = brand / identity — header, tabs, logo, decorative
+       chrome (cards, table headers, section labels).
+     • BLUE          = interactive — anything you click: links, the active
+       nav item, accent/hover states.
    Loaded by mkdocs-material via `extra_css` in mkdocs.yml.
    ───────────────────────────────────────────────────────────────── */
 
-/* ── Tailwind lime palette as CSS vars ──────────────────────────── */
+/* ── Palette as CSS vars — lime (brand) + blue (interactive) ────── */
 :root {
   --ia-lime-50:  #f7fee7;
   --ia-lime-100: #ecfccb;
@@ -14,6 +18,12 @@
   --ia-lime-600: #65a30d;
   --ia-lime-700: #4d7c0f;
   --ia-lime-800: #3f6212;
+
+  /* Interactive role — Tailwind blue, matching the UI's action colour */
+  --ia-blue-400: #60a5fa;
+  --ia-blue-500: #3b82f6;
+  --ia-blue-600: #2563eb;
+  --ia-blue-700: #1d4ed8;
 
   --ia-gray-50:  #fafafa;
   --ia-gray-100: #f5f5f5;
@@ -29,27 +39,33 @@
 /* mkdocs-material emits `data-md-color-primary=custom` when
    `primary: custom` is set in mkdocs.yml. */
 [data-md-color-primary=custom] {
+  /* Brand chrome stays lime; links (interactive) go blue. */
   --md-primary-fg-color:               var(--ia-lime-700);
   --md-primary-fg-color--light:        var(--ia-lime-600);
   --md-primary-fg-color--dark:         var(--ia-lime-800);
   --md-primary-bg-color:               #ffffff;
   --md-primary-bg-color--light:        #ffffffcc;
-  --md-typeset-a-color:                var(--ia-lime-700);
+  --md-typeset-a-color:                var(--ia-blue-600);
 }
 
 [data-md-color-accent=custom] {
-  --md-accent-fg-color:                var(--ia-lime-600);
-  --md-accent-fg-color--transparent:   rgba(101, 163, 13, 0.1);
+  /* Accent = interactive hover/active → blue. */
+  --md-accent-fg-color:                var(--ia-blue-600);
+  --md-accent-fg-color--transparent:   rgba(37, 99, 235, 0.1);
   --md-accent-bg-color:                #ffffff;
   --md-accent-bg-color--light:         #ffffffcc;
 }
 
-/* Dark (slate) scheme — slightly lighter lime so contrast stays readable */
+/* Dark (slate) scheme — lighter brand lime + lighter blue links for contrast */
 [data-md-color-scheme=slate][data-md-color-primary=custom] {
   --md-primary-fg-color:               var(--ia-lime-600);
   --md-primary-fg-color--light:        var(--ia-lime-500);
   --md-primary-fg-color--dark:         var(--ia-lime-700);
-  --md-typeset-a-color:                var(--ia-lime-300);
+  --md-typeset-a-color:                var(--ia-blue-400);
+}
+[data-md-color-scheme=slate][data-md-color-accent=custom] {
+  --md-accent-fg-color:                var(--ia-blue-400);
+  --md-accent-fg-color--transparent:   rgba(96, 165, 250, 0.12);
 }
 
 /* ── Page background: soft off-white like the UI ───────────────── */
@@ -263,23 +279,33 @@ body,
   color: #cbd5e1;
 }
 
-/* ── Links — lime-700 with underline on hover (matches the UI) ─── */
+/* ── Links — interactive, so blue with underline on hover ──────── */
 .md-typeset a {
-  color: var(--ia-lime-700);
+  color: var(--ia-blue-600);
   text-decoration: none;
 }
 .md-typeset a:hover {
-  color: var(--ia-lime-800);
+  color: var(--ia-blue-700);
   text-decoration: underline;
 }
+[data-md-color-scheme=slate] .md-typeset a {
+  color: var(--ia-blue-400);
+}
+[data-md-color-scheme=slate] .md-typeset a:hover {
+  color: var(--ia-blue-500);
+}
 
-/* ── Navigation side rail — active item in lime ────────────────── */
+/* ── Navigation side rail — active/hover item is interactive → blue */
 .md-nav__item .md-nav__link--active {
-  color: var(--ia-lime-700);
+  color: var(--ia-blue-600);
   font-weight: 600;
 }
 .md-nav__item .md-nav__link:hover {
-  color: var(--ia-lime-700);
+  color: var(--ia-blue-600);
+}
+[data-md-color-scheme=slate] .md-nav__item .md-nav__link--active,
+[data-md-color-scheme=slate] .md-nav__item .md-nav__link:hover {
+  color: var(--ia-blue-400);
 }
 
 /* ── Search bar ────────────────────────────────────────────────── */

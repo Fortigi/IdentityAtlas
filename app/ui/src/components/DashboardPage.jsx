@@ -42,21 +42,31 @@ export default function DashboardPage({ onNavigate }) {
   const [stats, setStats] = useState(null);
   const [version, setVersion] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);   // dashboard-stats fetch failed (≠ empty DB)
+  const [reloadKey, setReloadKey] = useState(0);
   const [tab, setTab] = useState('overview');  // 'overview' | 'trends'
 
   useEffect(() => {
     let cancelled = false;
+    const STATS_ERR = Symbol('stats-error');
+    setLoading(true);
+    setError(false);
     Promise.all([
-      authFetch('/api/admin/dashboard-stats').then(r => r.ok ? r.json() : null).catch(() => null),
+      authFetch('/api/admin/dashboard-stats')
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .catch(() => STATS_ERR),
       authFetch('/api/version').then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([s, v]) => {
       if (cancelled) return;
-      setStats(s);
+      // Distinguish a failed stats fetch from a genuinely empty database — the
+      // former must NOT show the "configure a crawler" onboarding CTA.
+      if (s === STATS_ERR) { setError(true); setStats(null); }
+      else { setStats(s); }
       setVersion(v);
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [authFetch]);
+  }, [authFetch, reloadKey]);
 
   const hasData = stats?.hasData;
 
@@ -156,6 +166,20 @@ export default function DashboardPage({ onNavigate }) {
 
           {loading ? (
             <div className="text-sm text-gray-500 dark:text-gray-400">Loading…</div>
+          ) : error ? (
+            <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 p-6 text-center">
+              <h3 className="mb-1 text-base font-semibold text-red-800 dark:text-red-300">Couldn&apos;t load the dashboard</h3>
+              <p className="mx-auto mb-4 max-w-md text-sm text-red-700 dark:text-red-400">
+                There was a problem reaching the server. This is a load error — not an empty database, so your data is safe.
+              </p>
+              <button
+                type="button"
+                onClick={() => setReloadKey(k => k + 1)}
+                className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
+              >
+                Retry
+              </button>
+            </div>
           ) : !hasData ? (
             <NoDataState onNavigate={onNavigate} />
           ) : (
