@@ -19,6 +19,15 @@ if (-not (Test-Path $nodeExe)) {
 
 Write-Host 'Starting Identity Atlas...' -ForegroundColor Cyan
 
+# If an instance is already running, open the browser and exit cleanly.
+try {
+    $null = Invoke-WebRequest -Uri 'http://localhost:3001/api/health' `
+        -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+    Write-Host 'Identity Atlas is already running at http://localhost:3001' -ForegroundColor Green
+    Start-Process 'http://localhost:3001'
+    exit 0
+} catch {}
+
 $proc = Start-Process -FilePath $nodeExe `
     -ArgumentList $bootstrap `
     -WorkingDirectory $scriptDir `
