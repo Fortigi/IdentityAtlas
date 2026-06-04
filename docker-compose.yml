@@ -68,11 +68,6 @@ services:
     volumes:
       - ./setup/docker/crontab:/app/setup/docker/crontab:ro
       - job_data:/data/uploads
-    # Omada demo server — resolved via Active Directory DNS (172.16.0.25/28 are DCs)
-    # enterpriseserver.corporate.com → CNAME → masterdemo.corporate.com → 172.16.0.28
-    extra_hosts:
-      - "enterpriseserver.corporate.com:172.16.0.28"
-      - "masterdemo.corporate.com:172.16.0.28"
     depends_on:
       web:
         condition: service_started

@@ -1,5 +1,27 @@
 ## Changes in this PR
 
+- Added native Omada IGA crawler that syncs directly from the Omada OData 4.0 REST API — no manual CSV export or transform step required
+- Supports six authentication methods: Form/Cookie (on-premise), HTTP Basic Auth (on-premise), OAuth2 Client Credentials (Cloud), OAuth2 ROPC (on-premise with token endpoint), API Token, and Cookie String (paste a session cookie from OmadaWeb.PS or browser DevTools)
+- Configure the base URL as the OData service root; entity sets are addressed directly under it using standard OData $top pagination and @odata.nextLink following
+- Syncs contexts, identities, accounts/principals, resources (business roles and other role types), role entitlements (from Resource.CHILDROLES), role assignments (governed and direct via CalculatedAssignments), and effective account assignments (CRA)
+- Fetches OData $metadata at startup to discover available entity sets — phases that require missing entity sets are skipped with a clear warning
+- Each of Omada's connected target systems (SAP, AD, Salesforce, etc.) is registered as a separate Identity Atlas System; resources and assignments are linked to their correct system
+- Context types are configurable via `contextObjectTypes`; ContextMembers are sourced from Contextassignment, direct Identity reference fields, and Employment records
+- Resource category mapping is configurable; default maps Role→BusinessRole, Permission→Resource
+- CRA fetch streams page-by-page to prevent OOM on large cloud datasets
+- Added step-by-step logging throughout the crawler — each fetch, build and ingest operation prints a `→` indicator in the job transcript
+- Base URL normalised using `System.Uri`; Builtin service URL is derived automatically; `oisauthtoken=` prefix auto-prepended for cloud CookieString tokens
+- Added four-step Omada setup wizard in Admin → Crawlers with live $metadata validation for entity set and identity field names
+- Added migration 029: `extendedAttributes jsonb` column on `Identities` table
+- Added Pester unit tests for the Omada SDK (42 tests) and Vitest tests for Omada config validation (22 tests)
+- Extended CI PR checks to cover the Omada SDK and crawler in PSScriptAnalyzer, Pester coverage, and test discovery
+- Fixed: Identity detail page Contexts count and context memberships now appear correctly for Omada-synced identities
+- Fixed: Context detail page member clicks navigate to the correct detail kind (identity/user/resource)
+- Fixed: `$metadata` fetch no longer sends JSON Accept headers that caused HTTP 500 on Omada Cloud
+- Fixed: `directMemberCount`/`totalMemberCount` on Contexts recalculated after every sync via `ingest/refresh-views`
+
+## Changes in this PR
+
 - Fixed the run-detail "Go there now →" link, which opened a broken/empty detail tab; it now correctly navigates to the Contexts page. Also cleaned up a dark-mode style glitch on that screen.
 
 ## Changes in this PR
