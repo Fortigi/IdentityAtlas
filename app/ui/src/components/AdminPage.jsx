@@ -5,7 +5,6 @@ import ScheduleEditor from './ScheduleEditor';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
-const ContainerStatsPage = lazy(() => import('./ContainerStatsPage'));
 const AuthSettingsPage = lazy(() => import('./AuthSettingsPage'));
 const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
@@ -1356,7 +1355,7 @@ function DangerZoneSection({ onRefresh }) {
 // ─── Admin Sub-Tabs ───────────────────────────────────────────────────────────
 // `requires` lists permissions any one of which (logical OR) grants access to
 // that sub-tab. Tabs without `requires` are visible to any authenticated user
-// (read-only stuff: Performance / Containers / About).
+// (read-only stuff: Performance / About).
 const ADMIN_TABS = [
   { key: 'crawlers',     label: 'Crawlers',            description: 'Add, configure and run identity data crawlers',                                  requires: ['admin.crawlers'] },
   { key: 'data',         label: 'Data',                description: 'Export/import curated data and clean the database',                              requires: ['data.export.ui', 'admin.csv-import', 'admin.systems', 'admin.read-tokens', 'data.export.apikey'] },
@@ -1364,7 +1363,6 @@ const ADMIN_TABS = [
   { key: 'risk-scoring', label: 'Risk Scoring',        description: 'Risk profile, classifiers and feature toggle',                                   requires: ['admin.llm', 'admin.crawlers'] },
   { key: 'llm',          label: 'LLM Settings',        description: 'Configure the LLM provider used by risk scoring and account correlation',        requires: ['admin.llm'] },
   { key: 'performance',  label: 'Performance',         description: 'API and SQL performance metrics' },
-  { key: 'containers',   label: 'Containers',          description: 'Live CPU, memory and network for the Docker stack' },
   { key: 'auth',         label: 'Authentication',      description: 'Configure Entra ID single sign-on',                                              requires: ['admin.auth'] },
   { key: 'about',        label: 'About',               description: 'License, version, and software bill of materials' },
 ];
@@ -1859,8 +1857,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
 
   // On Azure App Service, auth is enforced via Bicep parameters at deploy
   // time — there's nothing useful to do from the auth admin page (the CLI
-  // commands shown there assume Docker). Same for the Containers tab,
-  // which depends on the Docker socket. Hide both when we detect Azure.
+  // commands shown there assume Docker), so hide it when we detect Azure.
   const { authFetch } = useAuth();
   // hasWildcard + permissions come from AuthContext (populated by AuthGateProvider
   // after sign-in via /api/auth-me). Used to hide sub-tabs the user can't use.
@@ -1889,7 +1886,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
     return hasPermission(permissions, hasWildcard, ...required);
   };
   const visibleTabs = ADMIN_TABS.filter(t => {
-    if (isAzure && (t.key === 'auth' || t.key === 'containers')) return false;
+    if (isAzure && t.key === 'auth') return false;
     return hasAnyPerm(t.requires);
   });
 
@@ -1957,12 +1954,6 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
         {activeTab === 'performance' && (
           <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
             <PerfPage />
-          </Suspense>
-        )}
-
-        {activeTab === 'containers' && (
-          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
-            <ContainerStatsPage />
           </Suspense>
         )}
 
