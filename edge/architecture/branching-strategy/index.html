@@ -1441,6 +1441,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#repository-rulesets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository Rulesets
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Repository Rulesets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#protect-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protect main
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#protect-gh-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protect gh-pages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2341,6 +2380,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#repository-rulesets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository Rulesets
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Repository Rulesets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#protect-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protect main
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#protect-gh-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protect gh-pages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2640,6 +2718,101 @@
 </tbody>
 </table>
 <p>See <a href="../docker-setup/">Docker Setup</a> for how to select a channel via <code>IMAGE_TAG</code>.</p>
+<hr />
+<h2 id="repository-rulesets">Repository Rulesets<a class="headerlink" href="#repository-rulesets" title="Permanent link">&para;</a></h2>
+<p>Branch protection is configured via two GitHub rulesets. If you ever need to recreate them (e.g. after transferring the repo), do so manually in <strong>Settings → Rules → Rulesets</strong>.</p>
+<h3 id="protect-main">Protect main<a class="headerlink" href="#protect-main" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Target</td>
+<td><code>main</code></td>
+</tr>
+<tr>
+<td>Merge methods</td>
+<td>Squash only</td>
+</tr>
+<tr>
+<td>Required approvals</td>
+<td>1 + code owner review</td>
+</tr>
+<tr>
+<td>Dismiss stale reviews</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Required status checks</td>
+<td><code>PR Summary</code> (strict)</td>
+</tr>
+<tr>
+<td>Code scanning</td>
+<td>CodeQL — errors threshold, high/higher security alerts</td>
+</tr>
+<tr>
+<td>Deletion</td>
+<td>Blocked</td>
+</tr>
+<tr>
+<td>Force push</td>
+<td>Blocked</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Bypass actors:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Actor</th>
+<th>Type</th>
+<th>Mode</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fortigi CI bot</td>
+<td>Integration</td>
+<td>Always</td>
+<td>Pushes automated version bump commits on PR merge</td>
+</tr>
+<tr>
+<td>IdentityAtlas-Owners</td>
+<td>Team</td>
+<td>Pull request only</td>
+<td>Allows team members to merge without a second approval</td>
+</tr>
+</tbody>
+</table>
+<h3 id="protect-gh-pages">Protect gh-pages<a class="headerlink" href="#protect-gh-pages" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Target</td>
+<td><code>gh-pages</code></td>
+</tr>
+<tr>
+<td>Deletion</td>
+<td>Blocked</td>
+</tr>
+<tr>
+<td>Force push</td>
+<td>Blocked</td>
+</tr>
+</tbody>
+</table>
+<p>No bypass actors — <code>mike</code> (the docs versioning tool) only does regular fast-forward pushes and never needs to delete or force-push the branch.</p>
 
 
 
