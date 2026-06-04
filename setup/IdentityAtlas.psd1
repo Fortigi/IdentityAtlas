@@ -12,7 +12,7 @@
 RootModule = '.\IdentityAtlas.psm1'
 
 # Version number of this module.
-ModuleVersion = '5.93.20260604.1218'
+ModuleVersion = '5.94.20260604.1221'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
