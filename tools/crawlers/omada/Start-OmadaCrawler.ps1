@@ -140,6 +140,35 @@ $WellKnownIdentityContextFields = @{
     SUBAREA      = 'Subarea'
 }
 
+# resourceCategoryMapping — maps Omada ROLECATEGORY to Identity Atlas resourceType + optional tags.
+# Entry with empty category = default/catch-all (must be last).
+# Tags land in extendedAttributes.tags and can be used for filtering in the UI.
+$DefaultResourceCategoryMapping = @(
+    @{ category = 'Role';       resourceType = 'BusinessRole'; tags = @() }
+    @{ category = 'Permission'; resourceType = 'Resource';     tags = @('permission') }
+    @{ category = '';           resourceType = 'Resource';     tags = @() }  # default
+)
+$ResourceCategoryMapping = if ($Cfg.resourceCategoryMapping) {
+    @($Cfg.resourceCategoryMapping | ForEach-Object {
+        @{ category    = if ($_.category)    { [string]$_.category    } else { '' }
+           resourceType = if ($_.resourceType){ [string]$_.resourceType } else { 'Resource' }
+           tags         = if ($_.tags)        { @($_.tags)             } else { @() } }
+    })
+} else {
+    $DefaultResourceCategoryMapping
+}
+
+function Map-ResourceCategory {
+    param([string]$Category)
+    # Find first entry where category matches (or is the empty catch-all)
+    foreach ($M in $ResourceCategoryMapping) {
+        if ($M.category -eq $Category -or $M.category -eq '') {
+            return $M
+        }
+    }
+    return @{ resourceType = 'Resource'; tags = @($Category) }
+}
+
 # Default type mappings (operator can override in config)
 $DefaultTypeMappings = @{
     identityTypeToIdentityAtlas    = @{ Employee = 'User'; Primary = 'User'; Person = 'User'; Contractor = 'ExternalUser'; 'External Worker' = 'ExternalUser'; 'Service Account' = 'ServicePrincipal'; 'Non-Person' = 'ServicePrincipal'; Machine = 'ServicePrincipal' }
@@ -413,6 +442,7 @@ $IdentityUidToUserUids        = @{}    # Identity.UId → List[User.UId] — for
 $IdentityUidInIdentitiesTable = [System.Collections.Generic.HashSet[string]]::new()  # set of Identity.UId values stored in Identities table
 $SyncedContextIds             = [System.Collections.Generic.HashSet[string]]::new()  # UIds of synced Contexts (OrgUnits) — filters CA_CONTEXT refs
 $AllResources                 = $Null  # Resource records — retained for Entitlements (CHILDROLES extraction)
+$UserGroupMap                 = @{}    # Usergroup.UId → DisplayName — for USERGROUPREF lookups on Resources
 
 # ─── Phase: Contexts ─────────────────────────────────────────────
 # Syncs all context object types configured in contextObjectTypes (default: Orgunit only).
@@ -831,8 +861,9 @@ if ($SyncContextMembers) {
 
 # ─── Phase: Resources ────────────────────────────────────────────
 # OData entity: Resource
-# Type discriminator: ROLETYPEREF (OIS.ReferenceValue) — .DisplayName gives the type label
-# Category: ROLECATEGORY (OIS.SetValue) — .Value gives the category label
+# Primary type discriminator: ROLECATEGORY → resourceCategoryMapping (configurable)
+# Additional properties: ROLEFOLDER, EXPLICITOWNER, MANUALOWNER, SKIPPROVISIONING,
+#   ROLETYPEREF, USERGROUPREF (looked up from Usergroup entity set)
 # $AllResources retained for Entitlements phase (CHILDROLES extraction)
 if ($SyncResources) {
     $T = [datetime]::UtcNow
@@ -842,25 +873,59 @@ if ($SyncResources) {
         if (-not (Test-EntitySetAvailable 'Resource')) {
             throw "Resource entity set not found in OData metadata"
         }
+
+        # Pre-fetch Usergroups for USERGROUPREF name lookup
+        if ($UserGroupMap.Count -eq 0 -and (Test-EntitySetAvailable 'Usergroup')) {
+            try {
+                $Ugs = Invoke-OmadaPagedRequest -Path '/Usergroup' `
+                    -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
+                foreach ($Ug in $Ugs) { $UserGroupMap[[string]$Ug.UId] = $Ug.DisplayName }
+                Write-Host "  Loaded $($UserGroupMap.Count) usergroups for USERGROUPREF lookup" -ForegroundColor Gray
+            } catch {
+                Write-Host "  Warning: Usergroup fetch failed — USERGROUPREF names unavailable" -ForegroundColor Yellow
+            }
+        }
+
         $AllResources = Invoke-OmadaPagedRequest -Path '/Resource' `
-            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($AllResources.Count) resource records from Omada" -ForegroundColor Gray
 
-        # Group resources by their connected system (SYSTEMREF) so each batch is
-        # scoped to one system — preserving scoped-delete correctness.
-        $BySysUId = @{}  # OmadaSystemUId → List[record]
+        # Group resources by connected system (SYSTEMREF) for correct scoped-delete
+        $BySysUId = @{}
         foreach ($Item in $AllResources) {
-            $OmadaType = Get-OmadaRefValue -Ref $Item.ROLETYPEREF -Fallback 'Role'
-            $AtlasType = Map-ResourceTypeToAtlas -OmadaType $OmadaType
-            $OmadaCat  = if ($Item.ROLECATEGORY) { [string]$Item.ROLECATEGORY.Value } else { '' }
-            $SysUId    = Get-OmadaRefUid -Ref $Item.SYSTEMREF
-            $SysName   = Get-OmadaRefValue -Ref $Item.SYSTEMREF -Fallback ''
-            $Status    = if ($Item.RESOURCESTATUS) { [string]$Item.RESOURCESTATUS.Value } else { 'Active' }
-            $Enabled   = $Status -notin @('Inactive', 'Disabled', 'Deleted')
-            $ExtId     = [string]$Item.UId
-            $DispName  = if ($Item.NAME) { $Item.NAME } else { $Item.DisplayName }
+            $OmadaCat    = if ($Item.ROLECATEGORY)    { [string]$Item.ROLECATEGORY.Value }   else { '' }
+            $CatMapping  = Map-ResourceCategory -Category $OmadaCat
+            $AtlasType   = $CatMapping.resourceType
+            $Tags        = @($CatMapping.tags)
+            # Add the actual category as a tag when it differs from the resourceType name
+            # and the mapping didn't already add a category tag
+            if ($OmadaCat -and $AtlasType -ne 'BusinessRole' -and $Tags -notcontains $OmadaCat.ToLower()) {
+                $Tags += $OmadaCat.ToLower()
+            }
 
+            $SysUId      = Get-OmadaRefUid  -Ref $Item.SYSTEMREF
+            $SysName     = Get-OmadaRefValue -Ref $Item.SYSTEMREF   -Fallback ''
+            $RoleType    = Get-OmadaRefValue -Ref $Item.ROLETYPEREF  -Fallback ''
+            $FolderName  = Get-OmadaRefValue -Ref $Item.ROLEFOLDER   -Fallback ''
+            $Status      = if ($Item.RESOURCESTATUS) { [string]$Item.RESOURCESTATUS.Value } else { 'Active' }
+            $Enabled     = $Status -notin @('Inactive', 'Disabled', 'Deleted')
+            $ExtId       = [string]$Item.UId
+            $DispName    = if ($Item.NAME) { $Item.NAME } else { $Item.DisplayName }
             if (-not $ExtId -or -not $DispName) { continue }
+
+            # USERGROUPREF — look up name from pre-fetched map
+            $UgUId   = Get-OmadaRefUid -Ref $Item.USERGROUPREF
+            $UgName  = if ($UgUId -and $UserGroupMap.ContainsKey($UgUId)) { $UserGroupMap[$UgUId] } else { '' }
+
+            # Owner references (EXPLICITOWNER, MANUALOWNER) — take first if collection
+            $ExplicitOwner = ''
+            if ($Item.EXPLICITOWNER -and $Item.EXPLICITOWNER.Count -gt 0) {
+                $ExplicitOwner = ($Item.EXPLICITOWNER | ForEach-Object { $_.DisplayName }) -join '; '
+            }
+            $ManualOwner = ''
+            if ($Item.MANUALOWNER -and $Item.MANUALOWNER.Count -gt 0) {
+                $ManualOwner = ($Item.MANUALOWNER | ForEach-Object { $_.DisplayName }) -join '; '
+            }
 
             $Rec = [PSCustomObject]@{
                 id                 = $ExtId
@@ -869,9 +934,18 @@ if ($SyncResources) {
                 resourceType       = $AtlasType
                 description        = $Item.DESCRIPTION
                 enabled            = $Enabled
-                extendedAttributes = @{ resourceCategory = $OmadaCat; omadaSystem = $SysName }
+                extendedAttributes = @{
+                    resourceCategory  = $OmadaCat
+                    resourceType      = $RoleType          # ROLETYPEREF.DisplayName
+                    tags              = $Tags
+                    roleFolder        = $FolderName        # ROLEFOLDER.DisplayName
+                    skipProvisioning  = if ($Null -ne $Item.SKIPPROVISIONING) { [bool]$Item.SKIPPROVISIONING } else { $False }
+                    userGroupName     = $UgName            # USERGROUPREF → Usergroup.DisplayName
+                    explicitOwner     = $ExplicitOwner     # EXPLICITOWNER collection
+                    manualOwner       = $ManualOwner        # MANUALOWNER collection
+                    omadaSystem       = $SysName
+                }
             }
-            # Use the mapped system or fall back to the main Omada system
             $Key = if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
             if (-not $BySysUId.ContainsKey($Key)) { $BySysUId[$Key] = [System.Collections.Generic.List[object]]::new() }
             $BySysUId[$Key].Add($Rec)
@@ -879,10 +953,9 @@ if ($SyncResources) {
 
         $TotalInserted = 0; $TotalUpdated = 0; $TotalDeleted = 0
         foreach ($Key in $BySysUId.Keys) {
-            $SysId   = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
+            $SysId    = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
             $SysLabel = if ($Key -eq '__main__') { 'Omada' } else {
-                ($AllOmadaSystems | Where-Object { $_.UId -eq $Key } |
-                 Select-Object -First 1).DisplayName
+                ($AllOmadaSystems | Where-Object { $_.UId -eq $Key } | Select-Object -First 1).DisplayName
             }
             $Recs = @($BySysUId[$Key])
             $R = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SysId -SyncMode 'full' `
@@ -891,7 +964,6 @@ if ($SyncResources) {
             $TotalInserted += ($R.inserted ?? 0); $TotalUpdated += ($R.updated ?? 0); $TotalDeleted += ($R.deleted ?? 0)
         }
         Write-Host "  Resources total: +$TotalInserted ~$TotalUpdated -$TotalDeleted" -ForegroundColor Green
-
         Write-Phase -Name 'Resources' -Duration ([datetime]::UtcNow - $T) -Records @{ resources = $AllResources.Count }
     } catch {
         $Msg = $_.Exception.Message

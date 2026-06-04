@@ -1944,6 +1944,26 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
     return errs;
   };
 
+  // Resource category mapping — maps ROLECATEGORY to Identity Atlas resourceType + optional tags
+  const defaultCategoryMapping = [
+    { category: 'Role',       resourceType: 'BusinessRole', tags: '' },
+    { category: 'Permission', resourceType: 'Resource',     tags: 'permission' },
+    { category: '',           resourceType: 'Resource',     tags: '' },
+  ];
+  const [resCategoryMapping, setResCategoryMapping] = useState(
+    initialConfig?.resourceCategoryMapping?.length
+      ? initialConfig.resourceCategoryMapping.map(m => ({
+          category:     m.category     || '',
+          resourceType: m.resourceType || 'Resource',
+          tags:         Array.isArray(m.tags) ? m.tags.join(', ') : (m.tags || ''),
+        }))
+      : defaultCategoryMapping
+  );
+  const addResMapping    = () => setResCategoryMapping(prev => [...prev, { category: '', resourceType: 'Resource', tags: '' }]);
+  const removeResMapping = i  => setResCategoryMapping(prev => prev.filter((_, idx) => idx !== i));
+  const updateResMapping = (i, field, val) =>
+    setResCategoryMapping(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
+
   // Schedule
   const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
 
@@ -1982,6 +2002,12 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
             entitySet:    c.entitySet.trim(),
             contextType:  c.contextType.trim()  || c.entitySet.trim(),
             identityField: c.identityField.trim() || undefined,
+          })),
+        resourceCategoryMapping: resCategoryMapping
+          .map(m => ({
+            category:    m.category.trim(),
+            resourceType: m.resourceType.trim() || 'Resource',
+            tags: m.tags.trim() ? m.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
           })),
       };
       if (schedules.length) configPayload.schedules = schedules;
@@ -2291,6 +2317,40 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
                 </span>
               )}
             </div>
+          </div>
+
+          {/* Resource category mapping */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Resource Category Mapping</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Maps Omada <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">ROLECATEGORY</code> to an
+              Identity Atlas resource type. Leave <em>Category</em> blank for the default/catch-all row.
+              <em>Tags</em> are stored in extendedAttributes (comma-separated).
+            </p>
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                <span>ROLECATEGORY value</span><span>Identity Atlas type</span><span>Tags (comma-sep)</span>
+              </div>
+              {resCategoryMapping.map((m, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input value={m.category} onChange={e => updateResMapping(i, 'category', e.target.value)}
+                    placeholder="e.g. Role (blank = default)"
+                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                  <input value={m.resourceType} onChange={e => updateResMapping(i, 'resourceType', e.target.value)}
+                    placeholder="e.g. BusinessRole"
+                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                  <input value={m.tags} onChange={e => updateResMapping(i, 'tags', e.target.value)}
+                    placeholder="e.g. permission"
+                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                  <button onClick={() => removeResMapping(i)} disabled={resCategoryMapping.length === 1}
+                    className="text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
+                </div>
+              ))}
+            </div>
+            <button onClick={addResMapping}
+              className="mt-2 text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">
+              + Add mapping row
+            </button>
           </div>
 
           <div className="flex justify-between">
