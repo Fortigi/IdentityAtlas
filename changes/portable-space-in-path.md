@@ -1,1 +1,0 @@
-- Fixed: portable Windows launcher crashes with "Cannot find module" when the installation folder path contains a space
