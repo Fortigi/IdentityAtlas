@@ -32,12 +32,6 @@ services:
       dockerfile: api/Dockerfile
       args:
         MODULE_VERSION: "${MODULE_VERSION:-}"
-    # The container runs as the unprivileged `node` user (Dockerfile USER node).
-    # The Docker socket is owned by root:root with 0660 permissions, so node
-    # needs the root group (GID 0) to read container stats. The socket is
-    # already mounted read-only — adding the group doesn't change the security
-    # posture.
-    group_add: ["0"]
     environment:
       NODE_ENV:    production
       USE_SQL:     "true"  # legacy flag — still used by routes to enable DB-backed mode
@@ -48,7 +42,6 @@ services:
       - "3001:3001"
     volumes:
       - job_data:/data/uploads
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
     depends_on:
       postgres:
