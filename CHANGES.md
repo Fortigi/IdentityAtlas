@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Security: hardened the risk-profile URL scraper against server-side request forgery (SSRF). It now resolves and checks every target address and refuses private, loopback, link-local, and cloud-metadata addresses — including decimal/hex and IPv4-mapped encodings and addresses returned via DNS — pins the connection to the validated address to defeat DNS-rebinding, re-validates every redirect hop, and never forwards credentials across a redirect to a different host.
+
+## Changes in this PR
+
 - Security: fixed a guard that was meant to keep read-only API keys (`fgr_…`) out of admin endpoints but never actually triggered — it checked the mount-stripped request path instead of the full URL, so a leaked read-only key could reach admin GET endpoints (information disclosure). The check now uses the full request URL and correctly rejects read-only keys on `/api/admin/*`.
 
 ## Changes in this PR
