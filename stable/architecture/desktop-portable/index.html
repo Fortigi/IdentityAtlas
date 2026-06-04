@@ -10,9 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/admin/excel-powerquery-export/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/desktop-portable/">
       
       
+        <link rel="prev" href="../docker-setup/">
+      
+      
+        <link rel="next" href="../branching-strategy/">
       
       
         
@@ -23,7 +27,7 @@
     
     
       
-        <title>Excel Power Query workbook export - Identity Atlas</title>
+        <title>Portable Windows Launcher - Identity Atlas</title>
       
     
     
@@ -76,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#excel-power-query-workbook-export" class="md-skip">
+        <a href="#portable-windows-launcher" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Excel Power Query workbook export
+              Portable Windows Launcher
             
           </span>
         </div>
@@ -338,11 +342,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../architecture/docker-setup/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../docker-setup/" class="md-tabs__link">
           
   
   
@@ -362,7 +368,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../architecture/scaling/" class="md-tabs__link">
+        <a href="../scaling/" class="md-tabs__link">
           
   
   
@@ -800,7 +806,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
+      <a href="../csv-import-schema/" class="md-nav__link">
         
   
   
@@ -1150,28 +1156,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
-        
-          
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
             
   
   
@@ -1189,7 +1198,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1207,7 +1216,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/docker-setup/" class="md-nav__link">
+      <a href="../docker-setup/" class="md-nav__link">
         
   
   
@@ -1232,10 +1241,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../architecture/desktop-portable/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1251,6 +1287,215 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How It Works
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How It Works">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-signed-nodeexe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why a signed node.exe?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-portable-launcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the Portable Launcher
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running the Portable Launcher">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#starting-the-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting the App
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-location" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Location
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#crawlers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crawlers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limitations-vs-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations vs Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-the-portable-zip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building the Portable ZIP
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Building the Portable ZIP">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#skipping-the-ui-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skipping the UI build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build Output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1263,7 +1508,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/branching-strategy/" class="md-nav__link">
+      <a href="../branching-strategy/" class="md-nav__link">
         
   
   
@@ -1291,7 +1536,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/ingest-api/" class="md-nav__link">
+      <a href="../ingest-api/" class="md-nav__link">
         
   
   
@@ -1319,7 +1564,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/audit-history/" class="md-nav__link">
+      <a href="../audit-history/" class="md-nav__link">
         
   
   
@@ -1347,7 +1592,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+      <a href="../llm-and-risk-scoring/" class="md-nav__link">
         
   
   
@@ -1436,7 +1681,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/scaling/" class="md-nav__link">
+      <a href="../scaling/" class="md-nav__link">
         
   
   
@@ -1464,7 +1709,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/demo-dataset/" class="md-nav__link">
+      <a href="../demo-dataset/" class="md-nav__link">
         
   
   
@@ -2038,79 +2283,180 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#who-this-is-for" class="md-nav__link">
+  <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Who this is for
+        How It Works
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How It Works">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-signed-nodeexe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why a signed node.exe?
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#what-the-download-contains" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What the download contains
+        Architecture
       
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
-  <a href="#how-to-use-it" class="md-nav__link">
+  <a href="#running-the-portable-launcher" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How to use it
+        Running the Portable Launcher
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running the Portable Launcher">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#rotating-or-retiring-tokens" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#starting-the-app" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Rotating or retiring tokens
+        Starting the App
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#how-the-token-is-used-against-the-api" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#data-location" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How the token is used against the API
+        Data Location
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#updating-a-workbook-to-point-at-a-different-deployment" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#crawlers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Updating a workbook to point at a different deployment
+        Crawlers
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#building-your-own-reports-from-this" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#limitations-vs-docker" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Building your own reports from this
+        Limitations vs Docker
       
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-the-portable-zip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building the Portable ZIP
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Building the Portable ZIP">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#skipping-the-ui-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skipping the UI build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build Output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2118,18 +2464,7 @@
   <a href="#security-notes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Security notes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
+        Security Notes
       
     </span>
   </a>
@@ -2154,6 +2489,46 @@
   
 
 
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../docker-setup/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Architecture
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
               
               <article class="md-content__inner md-typeset">
                 
@@ -2164,173 +2539,239 @@
   
 
 
-<h1 id="excel-power-query-workbook-export">Excel Power Query workbook export<a class="headerlink" href="#excel-power-query-workbook-export" title="Permanent link">&para;</a></h1>
-<p>Identity Atlas can hand a data analyst a pre-configured Excel workbook that
-pulls live data from the API via Power Query. A freshly-minted read-only
-token is embedded in the workbook, so refreshing the data on any machine is
-a single click — no API credentials to paste, no connections to configure.</p>
-<h2 id="who-this-is-for">Who this is for<a class="headerlink" href="#who-this-is-for" title="Permanent link">&para;</a></h2>
+<h1 id="portable-windows-launcher">Portable Windows Launcher<a class="headerlink" href="#portable-windows-launcher" title="Permanent link">&para;</a></h1>
+<p>Identity Atlas can run as a standalone portable ZIP on Windows — no Docker, no WSL, no administrator rights, no installation. Unzip and run a PowerShell script to start the full stack.</p>
+<p>This deployment mode is designed for environments where Docker and WSL are blocked by security policy.</p>
+<hr />
+<h2 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<p><code>IdentityAtlas-portable.zip</code> bundles:</p>
 <ul>
-<li>Data analysts who want Identity Atlas data in Excel or Power BI without
-  learning the API</li>
-<li>Anyone building ad-hoc reports (access reviews, risk dashboards, compliance
-  reports) against live principal / assignment / resource data</li>
-<li>Teams that want to pipe Identity Atlas into an existing BI stack via the
-  API but without standing up interactive OAuth for their service accounts</li>
+<li><code>node.exe</code> — the official Node.js 24 binary, signed by the <strong>OpenJS Foundation</strong> (trusted by enterprise WDAC / application-control policies)</li>
+<li><code>bootstrap.mjs</code> — ESM entry point that initializes PGlite and starts the API</li>
+<li><code>app-bundle.mjs</code> — esbuild bundle of the Express API</li>
+<li><code>migrations/</code> — SQL migration files</li>
+<li><code>@electric-sql/pglite/</code> — PGlite WebAssembly package</li>
+<li><code>desktop-worker.cjs</code> — crawler job dispatcher</li>
+<li><code>dist-frontend/</code> — the built React UI</li>
+<li><code>Start-IdentityAtlas.ps1</code> — launcher script</li>
 </ul>
-<h2 id="what-the-download-contains">What the download contains<a class="headerlink" href="#what-the-download-contains" title="Permanent link">&para;</a></h2>
-<p>One <code>.xlsx</code> file with these sheets:</p>
+<h3 id="why-a-signed-nodeexe">Why a signed node.exe?<a class="headerlink" href="#why-a-signed-nodeexe" title="Permanent link">&para;</a></h3>
+<p>Locked-down corporate laptops enforce <strong>WDAC (Windows Defender Application Control)</strong> — a kernel-level policy that blocks unsigned PE executables. Custom-signed or developer-built exe files are rejected even if you bypass SmartScreen.</p>
+<p><code>node.exe</code> from <a href="https://nodejs.org">nodejs.org</a> is signed by the <strong>OpenJS Foundation</strong>, a trusted publisher in most enterprise WDAC publisher allow-lists. Running your app via a trusted <code>node.exe</code> avoids the signing barrier entirely.</p>
+<h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>IdentityAtlas-portable.zip (extracted)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  ├── node.exe              — signed Node.js binary (OpenJS Foundation cert)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  ├── bootstrap.mjs         — PGlite init + API bootstrap
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  ├── app-bundle.mjs        — Express API bundle
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  ├── migrations/           — SQL migrations
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  ├── @electric-sql/pglite/ — PostgreSQL WebAssembly
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  ├── desktop-worker.cjs    — crawler dispatcher (polls API for jobs)
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  ├── dist-frontend/        — React UI static files
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  └── Start-IdentityAtlas.ps1
+</code></pre></div>
+<p><code>bootstrap.mjs</code> initializes PGlite (WebAssembly PostgreSQL) in-process, sets <code>DESKTOP_MODE=true</code>, then imports the API bundle. <code>connection.js</code> detects this flag and routes all database calls through the in-process PGlite instance instead of a TCP connection pool. No child process is spawned, no executable is written to disk at runtime.</p>
+<p>Database files are stored in <code>%APPDATA%\IdentityAtlas\pgdata\</code> and persist across restarts.</p>
+<hr />
+<h2 id="running-the-portable-launcher">Running the Portable Launcher<a class="headerlink" href="#running-the-portable-launcher" title="Permanent link">&para;</a></h2>
+<h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>Sheet</th>
-<th>Endpoint</th>
+<th>Requirement</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Windows 10/11 x64</strong></td>
+<td>Only x64 builds are produced today</td>
+</tr>
+<tr>
+<td><strong>PowerShell 7</strong> (<code>pwsh.exe</code>)</td>
+<td>Required to start the launcher and run crawlers. Install from <a href="https://aka.ms/powershell">aka.ms/powershell</a> or <code>winget install Microsoft.PowerShell</code></td>
+</tr>
+</tbody>
+</table>
+<p>No Docker. No WSL. No administrator rights.</p>
+<h3 id="starting-the-app">Starting the App<a class="headerlink" href="#starting-the-app" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Download <code>IdentityAtlas-portable.zip</code> from the <a href="https://github.com/Fortigi/IdentityAtlas/releases">GitHub Releases page</a></li>
+<li>Extract the zip to a folder of your choice (e.g. <code>C:\Users\YourName\IdentityAtlas\</code>)</li>
+<li>Open PowerShell 7 and run:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">pwsh</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="nb">Start-IdentityAtlas</span><span class="p">.</span><span class="n">ps1</span>
+</code></pre></div></li>
+<li>The script starts the server and opens <code>http://localhost:3001</code> in your browser once it's ready (~5–10 seconds on first run)</li>
+</ol>
+<p>On first run, load the bundled demo dataset to explore with synthetic data:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">.\</span><span class="n">bundled-scripts</span><span class="p">\</span><span class="n">test</span><span class="p">\</span><span class="n">demo-dataset</span><span class="p">\</span><span class="n">Ingest-DemoDataset</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">-ApiKey</span> <span class="p">(</span><span class="nb">Get-Content</span> <span class="s2">&quot;$env:APPDATA\IdentityAtlas\.builtin-worker-key&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Or go to <strong>Admin → Crawlers</strong> to connect your own data sources.</p>
+<h3 id="data-location">Data Location<a class="headerlink" href="#data-location" title="Permanent link">&para;</a></h3>
+<p>All persistent data lives under <code>%APPDATA%\IdentityAtlas\</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
 <th>Contents</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>README</td>
-<td>—</td>
-<td>Usage notes</td>
+<td><code>pgdata\</code></td>
+<td>PGlite database files</td>
 </tr>
 <tr>
-<td>Settings</td>
-<td>—</td>
-<td><code>BaseUrl</code> + <code>AuthToken</code> pre-populated named-range cells</td>
+<td><code>uploads\</code></td>
+<td>CSV uploads and crawler configs</td>
 </tr>
 <tr>
-<td>Systems</td>
-<td><code>GET /api/systems</code></td>
-<td>Connected systems (Entra ID, Omada, CSV-backed, …)</td>
+<td><code>jobs\</code></td>
+<td>Crawler job trace logs</td>
 </tr>
 <tr>
-<td>Principals</td>
-<td><code>GET /api/users</code></td>
-<td>Every principalType — users, service principals, MIs, AI agents</td>
+<td><code>.master-key</code></td>
+<td>Encryption key for stored secrets</td>
 </tr>
 <tr>
-<td>Resources</td>
-<td><code>GET /api/resources</code></td>
-<td>Groups, directory roles, app roles, business roles</td>
-</tr>
-<tr>
-<td>Assignments</td>
-<td><code>GET /api/assignments</code></td>
-<td>Who has access to what (from <code>ResourceAssignments</code>)</td>
-</tr>
-<tr>
-<td>Identities</td>
-<td><code>GET /api/identities</code></td>
-<td>Real-person identities aggregated from multiple accounts</td>
-</tr>
-<tr>
-<td>IdentityMembers</td>
-<td><code>GET /api/identity-members</code></td>
-<td>Identity ↔ account links</td>
-</tr>
-<tr>
-<td>ResourceRelationships</td>
-<td><code>GET /api/resource-relationships</code></td>
-<td>Parent↔child resource links (Contains, GrantsAccessTo)</td>
+<td><code>.builtin-worker-key</code></td>
+<td>Internal API key for the crawler worker</td>
 </tr>
 </tbody>
 </table>
-<p>The Principals and Resources tabs auto-expand the <code>extendedAttributes</code> JSONB
-column into first-class <code>ext_*</code> columns (<code>ext_userType</code>,
-<code>ext_onPremisesSyncEnabled</code>, <code>ext_signInActivity</code>, <code>ext_appId</code>, etc.). Keys
-are collected across every row, so sparsely-populated attributes still show
-up.</p>
-<h2 id="how-to-use-it">How to use it<a class="headerlink" href="#how-to-use-it" title="Permanent link">&para;</a></h2>
-<ol>
-<li><strong>Admin → Data → Excel Power Query Workbook</strong>.</li>
-<li>Click <strong>Generate token &amp; download workbook</strong>. A token is created and
-   the workbook is streamed back (a few KB).</li>
-<li>Open the file in Excel.</li>
-<li>For each data tab (Principals, Resources, Assignments, …):</li>
-<li>Go to <strong>Data → Get Data → From Other Sources → Blank Query</strong>.</li>
-<li>In Power Query Editor: <strong>Home → Advanced Editor</strong>.</li>
-<li>Copy the M code from cell A6 of that sheet and paste it into the
-     editor. Click <strong>Done</strong>.</li>
-<li>Rename the query to match the sheet name (e.g. <code>Principals</code>).</li>
-<li><strong>Home → Close &amp; Load To… → Existing worksheet → that sheet, cell A1</strong>.</li>
-<li>Back in Excel, <strong>Data → Refresh All</strong>. Every sheet fills with live data.</li>
-</ol>
-<blockquote>
-<p><strong>One-click refresh coming soon.</strong> The current workbook requires the
-paste-into-Advanced-Editor step per sheet. A follow-up PR ships a
-hand-built template where the queries auto-load on first open — at
-that point the flow becomes "download → open → Refresh All".</p>
-</blockquote>
-<h2 id="rotating-or-retiring-tokens">Rotating or retiring tokens<a class="headerlink" href="#rotating-or-retiring-tokens" title="Permanent link">&para;</a></h2>
-<p>Each download mints a <strong>new</strong> read token so you have a fresh credential.
-The <strong>Existing tokens</strong> table on the same page lists every outstanding
-token with its prefix, creation date, and last-used timestamp. Click
-<strong>Revoke</strong> to invalidate any token immediately — workbooks using that
-token stop refreshing on their next attempt.</p>
-<h2 id="how-the-token-is-used-against-the-api">How the token is used against the API<a class="headerlink" href="#how-the-token-is-used-against-the-api" title="Permanent link">&para;</a></h2>
-<p>The workbook's M code reads the token from the <code>AuthToken</code> named range
-and sends it on every request:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Authorization: Bearer fgr_…
+<p>To back up all data, copy this folder. To reset to a clean state, delete it (the app re-initializes on next start).</p>
+<h3 id="crawlers">Crawlers<a class="headerlink" href="#crawlers" title="Permanent link">&para;</a></h3>
+<p>Crawlers run via PowerShell (<code>pwsh.exe</code>). The Entra ID and CSV crawlers are bundled inside the zip and dispatched automatically when you schedule or trigger a run from the Admin → Crawlers page.</p>
+<p>If <code>pwsh.exe</code> is not on <code>PATH</code>, the UI will still load and display existing data, but attempting to run a crawler will fail with a clear error message.</p>
+<h3 id="limitations-vs-docker">Limitations vs Docker<a class="headerlink" href="#limitations-vs-docker" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Docker</th>
+<th>Portable ZIP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL version</td>
+<td>16 (full)</td>
+<td>PGlite (WASM, based on PG 16)</td>
+</tr>
+<tr>
+<td>Concurrent users</td>
+<td>Multi-user</td>
+<td>Single machine, localhost only</td>
+</tr>
+<tr>
+<td><code>pg_class.reltuples</code> stats</td>
+<td>Updated by ANALYZE</td>
+<td>Always 0 — exact COUNT used instead</td>
+</tr>
+<tr>
+<td><code>REFRESH MATERIALIZED VIEW CONCURRENTLY</code></td>
+<td>Supported</td>
+<td>Not supported (no background worker) — plain REFRESH used</td>
+</tr>
+<tr>
+<td>Background worker container</td>
+<td>Separate process</td>
+<td>Integrated, same Node.js process</td>
+</tr>
+<tr>
+<td>Auth (Entra ID JWT)</td>
+<td>Configurable</td>
+<td>Disabled by default</td>
+</tr>
+<tr>
+<td>Azure deployment</td>
+<td>Via Bicep</td>
+<td>N/A</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="building-the-portable-zip">Building the Portable ZIP<a class="headerlink" href="#building-the-portable-zip" title="Permanent link">&para;</a></h2>
+<h3 id="prerequisites_1">Prerequisites<a class="headerlink" href="#prerequisites_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Version</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Node.js</strong></td>
+<td>18 or later</td>
+<td><a href="https://nodejs.org">nodejs.org</a> — the bundled <code>node.exe</code> is always Node.js 24</td>
+</tr>
+<tr>
+<td><strong>npm</strong></td>
+<td>Comes with Node.js</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>PowerShell 7</strong></td>
+<td>7.x</td>
+<td>Required to run the build script (downloads node.exe and creates the zip)</td>
+</tr>
+<tr>
+<td><strong>Git</strong></td>
+<td>Any</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Windows</strong></td>
+<td>Required</td>
+<td>The build script downloads <code>win-x64/node.exe</code> and uses <code>Compress-Archive</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="steps">Steps<a class="headerlink" href="#steps" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c"># 1. Clone the repository</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">://</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="p">/</span><span class="n">Fortigi</span><span class="p">/</span><span class="n">IdentityAtlas</span><span class="p">.</span><span class="n">git</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nb">cd </span><span class="n">IdentityAtlas</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c"># 2. Install desktop dependencies (includes PGlite)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nb">cd </span><span class="n">app</span><span class="p">/</span><span class="n">desktop</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">npm</span> <span class="n">install</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c"># 3. Run the build (from app/api/)</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="nb">cd </span><span class="p">../</span><span class="n">api</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">npm</span> <span class="n">install</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span>
 </code></pre></div>
-<p>The token works on <strong>every read endpoint</strong> (<code>/api/users</code>,
-<code>/api/resources</code>, <code>/api/systems</code>, <code>/api/assignments</code>,
-<code>/api/identity-members</code>, <code>/api/resource-relationships</code>,
-<code>/api/identities</code>, etc.). It does <strong>not</strong> work on mutating endpoints
-(POST/PUT/PATCH/DELETE) nor on any <code>/api/admin/*</code> endpoint — the auth
-middleware rejects those with HTTP 403.</p>
-<p>That scoping means you can hand the token to a BI stack, a script, or a
-curl one-liner and the blast radius of a leak is read access only. It is
-<strong>not</strong> a substitute for a user's Entra ID sign-in when you need to
-manage data.</p>
-<h2 id="updating-a-workbook-to-point-at-a-different-deployment">Updating a workbook to point at a different deployment<a class="headerlink" href="#updating-a-workbook-to-point-at-a-different-deployment" title="Permanent link">&para;</a></h2>
-<p>The workbook works against whatever Identity Atlas host generated it.
-To retarget an existing workbook (e.g. point a locally-authored workbook
-at a production deployment):</p>
+<p>The build script (<code>app/desktop/scripts/build-node-launcher.mjs</code>) does eight steps:</p>
 <ol>
-<li>Open the workbook's <strong>Settings</strong> sheet.</li>
-<li>Change cell <strong>B2</strong> (<code>BaseUrl</code>) to the new <code>/api</code> base — e.g.
-   <code>https://identityatlas.example.com/api</code>.</li>
-<li>Paste in a new read token you generated on the target deployment in
-   cell <strong>B3</strong> (<code>AuthToken</code>).</li>
-<li><strong>Refresh All</strong>. Every query picks up the new values because they all
-   read from the named ranges.</li>
+<li>Installs API dependencies (<code>npm install</code>)</li>
+<li>Builds the React UI (<code>app/ui → app/ui/dist/</code>)</li>
+<li>Cleans the staging area (<code>dist-node-launcher/stage/</code>)</li>
+<li>Bundles the Express API with esbuild → <code>app-bundle.mjs</code></li>
+<li>Copies SQL migrations alongside the bundle</li>
+<li>Copies <code>@electric-sql/pglite</code> from <code>app/desktop/node_modules/</code></li>
+<li>Copies launcher files (<code>bootstrap.mjs</code>, <code>Start-IdentityAtlas.ps1</code>, <code>desktop-worker.cjs</code>, UI dist)</li>
+<li>Downloads <code>node.exe</code> from nodejs.org and creates <code>IdentityAtlas-portable.zip</code></li>
 </ol>
-<p>No M code edits needed — you only touch those two cells.</p>
-<h2 id="building-your-own-reports-from-this">Building your own reports from this<a class="headerlink" href="#building-your-own-reports-from-this" title="Permanent link">&para;</a></h2>
-<p>The workbook's tabs are just starting points. Once the raw data is loaded
-as Excel tables, you can:</p>
-<ul>
-<li>Pivot any tab against any other via Power Query's <strong>Merge</strong> feature
-  (e.g. Assignments ⨝ Principals on <code>principalId</code>)</li>
-<li>Build pivot tables directly on a loaded sheet</li>
-<li>Use the <code>ext_*</code> columns as pivot filters for fine-grained slicing
-  (e.g. "Service Principals with <code>ext_servicePrincipalType = ManagedIdentity</code>")</li>
-<li>Chain into Power BI — same M code, same token pattern, same endpoints</li>
-</ul>
-<h2 id="security-notes">Security notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Tokens are secrets.</strong> The <code>Settings</code> sheet is not encrypted. If you
-  share the workbook, anyone with the file can read from the API as
-  long as the token is active. Rotate the token after sharing.</li>
-<li><strong>Tokens are read-only.</strong> They cannot mutate data or reach admin
-  endpoints — but they CAN list every principal, resource, and
-  assignment. Treat that with the same discretion as a database dump.</li>
-<li><strong>Revoke proactively.</strong> When someone leaves the team, or when a
-  workbook is superseded, revoke the token from Admin → Data. The
-  token's <code>lastUsedAt</code> timestamp helps you tell active from stale.</li>
-<li><strong>Per-user tokens.</strong> Click <strong>Create token only…</strong> to mint named
-  tokens that don't get bundled into a workbook, useful for scripts or
-  BI connectors. The Admin → Data list shows which person/integration
-  owns each one.</li>
-</ul>
-<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="../excel-template-authoring/">Authoring the polished XLSX template</a> —
-  for the maintainer wiring up the one-click-refresh template</li>
-<li><a href="../../api/">API reference</a> — the endpoints your Power Query
-  code hits</li>
-</ul>
+<h4 id="skipping-the-ui-build">Skipping the UI build<a class="headerlink" href="#skipping-the-ui-build" title="Permanent link">&para;</a></h4>
+<p>If you've already built the UI and are iterating on the backend only:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">npm</span> <span class="n">run</span> <span class="n">build</span><span class="p">:</span><span class="n">node-launcher</span><span class="p">:</span><span class="nb">skip-ui</span>
+</code></pre></div>
+<h4 id="build-output">Build Output<a class="headerlink" href="#build-output" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>app/api/dist-node-launcher/
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB)
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  stage/                       ← unpacked contents (can run directly for dev)
+</code></pre></div>
+<hr />
+<h2 id="security-notes">Security Notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>
+<p><strong>Why PGlite instead of embedded-postgres?</strong></p>
+<p>The previous implementation used the <code>embedded-postgres</code> npm package, which extracts a <code>postgres.exe</code> binary to <code>%APPDATA%</code> at runtime and spawns it as a child process. Endpoint security tools (CrowdStrike, Defender for Endpoint, and others) flag this pattern — an exe extracting and executing another exe from a user-writable location.</p>
+<p>PGlite runs PostgreSQL compiled to WebAssembly inside the Node.js process. Nothing is extracted to disk at runtime. The WASM module is part of the zip, loaded like any other Node.js module.</p>
+<p><strong>Network exposure</strong></p>
+<p>The app binds to <code>0.0.0.0:3001</code> (all interfaces). It is reachable from other machines on the same network. In a home or corporate LAN this is typically acceptable for a single-user local install, but be aware that authentication is disabled by default in desktop mode — do not use on untrusted networks without enabling <code>AUTH_ENABLED=true</code>.</p>
+<p><strong>Secret storage</strong></p>
+<p>The master encryption key is stored in <code>%APPDATA%\IdentityAtlas\.master-key</code> (plain text, user-only access). Crawler credentials are stored encrypted using AES-256-GCM in the database.</p>
 
 
 
