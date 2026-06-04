@@ -307,6 +307,75 @@ switch ($JobType) {
         Set-JobResult @{ status = 'CSV import completed successfully' }
     }
 
+    'omada' {
+        Update-JobProgress -Step 'Preparing Omada sync' -Pct 5
+
+        # Fail fast if required connection fields are absent — prevents a
+        # misleading "null authMethod" validation error deep in the crawler.
+        if (-not $Config['baseUrl']) {
+            throw "Omada config is missing 'baseUrl' — check the crawler configuration."
+        }
+        if (-not $Config['authMethod']) {
+            throw "Omada config is missing 'authMethod' — check the crawler configuration."
+        }
+
+        $tempConfig = "/tmp/omada-config-$JobId.json"
+        $omadaConfig = @{
+            baseUrl               = $Config['baseUrl']
+            apiVersion            = if ($Config['apiVersion']) { $Config['apiVersion'] } else { 'v14' }
+            authMethod            = $Config['authMethod']
+            username              = $Config['username']
+            password              = $Config['password']
+            clientId              = $Config['clientId']
+            clientSecret          = $Config['clientSecret']
+            tokenEndpoint         = $Config['tokenEndpoint']
+            apiToken              = $Config['apiToken']
+            cookieString          = $Config['cookieString']
+            sessionTimeoutMinutes = if ($Config['sessionTimeoutMinutes']) { $Config['sessionTimeoutMinutes'] } else { 30 }
+            pageSize              = if ($Config['pageSize']) { $Config['pageSize'] } else { 100 }
+            typeMappings              = $Config['typeMappings']
+            selectedObjects           = $Config['selectedObjects']
+            contextObjectTypes        = $Config['contextObjectTypes']
+            resourceCategoryMapping   = $Config['resourceCategoryMapping']
+        }
+        $omadaConfig | ConvertTo-Json -Depth 10 | Set-Content $tempConfig -Encoding UTF8
+
+        try {
+            Update-JobProgress -Step 'Running Omada crawler' -Pct 10
+
+            $syncMode = if ($Config['_syncMode'] -in @('full','delta')) { $Config['_syncMode'] } else { 'full' }
+
+            $crawlerParams = @{
+                ApiBaseUrl = $apiBaseUrl
+                ApiKey     = $ApiKey
+                ConfigFile = $tempConfig
+                JobId      = $JobId
+                SyncMode   = $syncMode
+            }
+
+            # Apply selectedObjects toggles
+            $objects = $Config['selectedObjects']
+            if ($objects) {
+                if ($objects.ContainsKey('contexts'))        { $crawlerParams['SyncContexts']       = [bool]$objects['contexts'] }
+                if ($objects.ContainsKey('identities'))      { $crawlerParams['SyncIdentities']     = [bool]$objects['identities'] }
+                if ($objects.ContainsKey('accounts'))        { $crawlerParams['SyncAccounts']        = [bool]$objects['accounts'] }
+                if ($objects.ContainsKey('contextMembers'))  { $crawlerParams['SyncContextMembers']  = [bool]$objects['contextMembers'] }
+                if ($objects.ContainsKey('resources'))       { $crawlerParams['SyncResources']       = [bool]$objects['resources'] }
+                if ($objects.ContainsKey('entitlements'))    { $crawlerParams['SyncEntitlements']    = [bool]$objects['entitlements'] }
+                if ($objects.ContainsKey('assignments'))     { $crawlerParams['SyncAssignments']     = [bool]$objects['assignments'] }
+                if ($objects.ContainsKey('cras'))            { $crawlerParams['SyncCRAs']            = [bool]$objects['cras'] }
+            }
+
+            & /app/tools/crawlers/omada/Start-OmadaCrawler.ps1 @crawlerParams
+
+            Update-JobProgress -Step 'Complete' -Pct 100
+            Set-JobResult @{ status = 'Omada sync completed successfully' }
+        }
+        finally {
+            if (Test-Path $tempConfig) { Remove-Item $tempConfig -Force }
+        }
+    }
+
     default {
         throw "Unknown job type: $JobType"
     }
