@@ -14,7 +14,7 @@
 // worker would have read from WorkerConfig in v4.
 
 import crypto from 'crypto';
-import { writeFileSync, readFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import * as db from './db/connection.js';
 import { runMigrations } from './db/migrate.js';

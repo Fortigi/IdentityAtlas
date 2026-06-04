@@ -8,12 +8,14 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import crypto from 'node:crypto';
-import { writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { writeFileSync, rmSync, existsSync, readFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 // Must be set before importing bootstrap.js (it captures WORKER_KEY_FILE at load).
-const KEY_FILE = join(tmpdir(), `iatest-worker-key-${process.pid}`);
+// mkdtempSync creates a unique 0700 directory — avoids the predictable-temp-path
+// pitfall of writing straight into the OS temp dir.
+const KEY_FILE = join(mkdtempSync(join(tmpdir(), 'iatest-')), 'worker-key');
 process.env.WORKER_KEY_FILE = KEY_FILE;
 
 const queryOneMock = vi.fn();
