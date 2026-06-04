@@ -1064,25 +1064,30 @@ router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
       .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
     if (!cfg.recordset.length) return res.status(404).json({ error: 'Config not found' });
 
-    const c = typeof cfg.recordset[0].config === 'string'
-      ? JSON.parse(cfg.recordset[0].config) : cfg.recordset[0].config;
-    const baseUrl = (c.baseUrl || '').replace(/\/?$/, '');
-    if (!baseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
+    const rawBaseUrl = (c.baseUrl || '').trim();
+    if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
+
+    // Normalize to the OData service root the crawler uses.
+    const u = new URL(rawBaseUrl.replace(/\/+$/, ''));
+    const p = u.pathname.replace(/\/+$/, '');
+    if (!/\/odata\/dataobjects$/i.test(p)) u.pathname = '/odata/dataobjects';
+    const baseUrl = u.origin + u.pathname;
 
     const metaUrl = `${baseUrl}/$metadata`;
 
-    // Build auth header
-    let authHeader = null;
+    // Build auth headers (best-effort).
+    const headers = {};
     if (c.authMethod === 'BasicAuth' && c.username && c.password) {
       const encoded = Buffer.from(`${c.username}:${c.password}`).toString('base64');
-      authHeader = `Basic ${encoded}`;
-    } else if ((c.authMethod === 'OAuth2CC' || c.authMethod === 'ApiToken') && c.accessToken) {
-      authHeader = `Bearer ${c.accessToken}`;
+      headers.Authorization = `Basic ${encoded}`;
+    } else if (c.authMethod === 'ApiToken' && c.apiToken) {
+      headers.Authorization = `Bearer ${c.apiToken}`;
+    } else if (c.authMethod === 'CookieString' && c.cookieString) {
+      headers.Cookie = c.cookieString;
     }
 
     const fetchOpts = { signal: AbortSignal.timeout(10000) };
-    if (authHeader) fetchOpts.headers = { Authorization: authHeader };
-
+    if (Object.keys(headers).length) fetchOpts.headers = headers;
     const metaRes = await fetch(metaUrl, fetchOpts);
     if (!metaRes.ok) {
       return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
