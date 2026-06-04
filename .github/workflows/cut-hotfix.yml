@@ -122,11 +122,7 @@ jobs:
       - name: Deploy versioned docs
         run: |
           pip install --quiet mike mkdocs-material
-          OLD=$(mike list --json 2>/dev/null \
-            | python3 -c "import json,sys; [print(v['version']) for v in json.load(sys.stdin) if 'stable' in v.get('aliases',[])]" \
-            || true)
-          [ -n "$OLD" ] && mike delete --push "$OLD" || true
-          mike deploy --push --update-aliases "$VERSION" stable
+          mike deploy --push --title "$VERSION" stable
 
       - name: Post run summary
         run: |
