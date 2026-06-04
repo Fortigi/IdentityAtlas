@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- The Systems page no longer dead-ends new users with a stale `Start-FGSync` command. Its empty state now guides you to **Add a crawler** (the supported path), matching the Dashboard and Sync Log. Added a reusable empty-state panel for consistent onboarding across the app.
+
+## Changes in this PR
+
+- Accessibility: added a keyboard **"Skip to main content"** link, a global keyboard focus indicator so focus is always visible, and support for the OS **"reduce motion"** preference (animations/transitions are minimised when requested).
+- Renamed the context detail-tab badge from "OU" to "C" so it matches the unified "Contexts" terminology (no more leftover "Org Unit" wording).
+
+## Changes in this PR
+
+- Added a **"How to read this matrix"** legend to the Matrix view. It explains the cell badges (Direct, Indirect, Eligible, Owner, Governed, OAuth2 grant, and App role — assigned directly vs via a group), the coloured cells that mean a membership is governed by a business role, the badge showing a membership is covered by more than one business role, and the amber provisioning-gap marker. The legend is collapsible and remembers whether you keep it open.
+
+## Changes in this PR
+
 - Terminology consistency: the Excel export header no longer shows the internal German label "SOLL" (now "Governed (via Business Roles)"), and the Dashboard governance trend now describes access as granted through a **Business Role** rather than "an Access Package or Business Role" (they are the same thing).
 
 ## Changes in this PR
