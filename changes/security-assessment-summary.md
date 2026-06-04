@@ -1,0 +1,1 @@
+- Added a **Security** section to the documentation with a public "Assessment & Remediation" page summarizing the June 2026 independent security assessment — findings by severity and status, the pull requests that remediated each one, confirmed strengths, and the remediation roadmap. Exploit detail remains confidential.
