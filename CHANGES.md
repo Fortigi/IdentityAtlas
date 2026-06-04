@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed: portable Windows launcher crashes with "Cannot find module" when the installation folder path contains a space
+
+## Changes in this PR
+
 - Fixed: Cut Release, Cut Beta and Cut Hotfix workflows now correctly generate release notes (missing fetch-depth caused grep to fail on the tag list)
 - Fixed: deprecated `app-id` input replaced with `client-id` for the GitHub App token action
 
