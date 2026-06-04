@@ -1,0 +1,1 @@
+- Security: Microsoft Graph crawler client secrets are no longer stored in plaintext in the database. They are encrypted in the secrets vault and injected only into the job handed to the authenticated worker at run time. Any existing plaintext client secrets are migrated into the vault automatically on upgrade.
