@@ -277,9 +277,24 @@ docker compose -f docker-compose.prod.yml up -d --pull always
 
 ## Branch: `claude/omada-crawler-sync-a1W3A` — Omada Crawler Sync
 
-**Status (2026-06-03):** Fully tested end-to-end against `http://enterpriseserver.corporate.com` (BasicAuth, `corporate\demoadm`). All 9 phases complete: 322+ contexts, 321 identities, 332+ principals, 378 context-members, 13 220 resources across 58 systems, 72 entitlements, 30 000+ assignments, 37 961 CRAs. Ready for PR.
+**Status (2026-06-04):** Fully tested end-to-end. Merged with main (v5.92). All 9 phases verified with live server. Ready for PR.
+
+| Entity | Count |
+|---|---|
+| Systems | 58 connected systems |
+| Contexts | 322 OrgUnits + 28 Job Titles = 350 |
+| Context Members | 693 (Contextassignment + Identity refs + Employment) |
+| Identities | 321 (person-type) |
+| Principals | 8,235+ (Omada accounts + CRA-derived connected-system accounts) |
+| Identity Members | 8,140+ |
+| Resources | 13,220 across 58 systems |
+| Entitlements | 72 |
+| Assignments | 30,516+ (role assignments + CRA account assignments) |
+| CRA records processed | 37,961 |
 
 Server: `172.16.0.28` — AD DNS resolves `enterpriseserver.corporate.com → masterdemo.corporate.com → 172.16.0.28` (persisted via `extra_hosts` in `docker-compose.yml`).
+
+Full data model reference: `docs/architecture/omada-crawler-datamodel.md`
 
 ### What this branch adds
 
@@ -335,6 +350,12 @@ Native Omada IGA crawler that pulls data directly from the Omada OData 4.0 REST 
   - `Resourceassignment` (DataObjects): IGA-governed role assignments (business roles, AD groups, etc.) → `assignmentType='Governed'`, fanned out to all Identity accounts
   - `CalculatedAssignments` (Builtin): effective account provisioning → Principals derived from `AccountKey`, `Attributes` (FIRSTNAME/LASTNAME/EMAIL) — for connected-system accounts (Salesforce, AD, etc.)
 - **CRA pagination**: Use `$top=1000` with `$skip` offset; stop when page is empty (`Count == 0`), not when short — Builtin returns variable-size pages even when more records remain.
-- **configObjectTypes**: Configurable via the wizard or JSON. Each entry: `{ entitySet, contextType, identityField }`. The `identityField` (e.g. `OUREF`) creates direct ContextMember links from each Identity's reference fields. Validated live against `$metadata` in the wizard.
+- **contextObjectTypes**: Configurable via wizard or JSON. Each entry: `{ entitySet, contextType, identityField }`. The `identityField` (e.g. `OUREF`) creates direct ContextMember links from each Identity's reference field. Validated live against `$metadata` in the wizard (case-sensitive; suggests correct casing on mismatch). **Must be included in the temp config written by `Invoke-CrawlerJob.ps1`** — not just in the DB config.
+- **resourceCategoryMapping**: Configurable via wizard dropdown. Default: Role→BusinessRole, Permission→Resource, *(blank)*→Resource. Stored in extendedAttributes (no tags). Also must be forwarded through temp config.
+- **Resource properties**: ROLECATEGORY→resourceType, ROLETYPEREF→extendedAttributes.resourceType, ROLEFOLDER→roleFolder, SKIPPROVISIONING→skipProvisioning, USERGROUPREF→userGroupName (pre-fetched Usergroup lookup), EXPLICITOWNER/MANUALOWNER→owner fields.
+- **Identity properties**: 30+ fields including IDENTITYTYPE/CATEGORY/STATUS, OUREF/JOBTITLE_REF/COUNTRY/etc. (context ref UIds + names), RISKSCORE/RISKLEVEL, MANAGER/IDENTITYOWNER/EXPLICITOWNER.
 - **Builtin URL**: `$builtinBaseUrl = $baseUrl -replace '/dataobjects/?$', '/builtin'`
 - **directMemberCount**: Populated by `ingest/refresh-views` (called at end of each sync) via bulk SQL UPDATE — the per-context recalc helper is only for manual writes.
+- **lastSyncDateTime**: Populated by `ingest/refresh-views` for all Systems that have Resources or Principals synced to them.
+- **Tab label bug fix**: `App.jsx onCacheData` now extracts displayName from the loaded payload and updates the tab title if it was set to the raw UUID (happens on direct URL navigation). Matched by ID only (not type) due to `#group:` vs `ResourceDetailPage` type mismatch.
+- **Full data model**: `docs/architecture/omada-crawler-datamodel.md`
