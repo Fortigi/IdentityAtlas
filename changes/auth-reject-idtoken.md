@@ -1,2 +1,0 @@
-- Security: the API now accepts only Entra ID **access tokens** issued for its own API scope (audience `api://<client-id>`). ID tokens — and any token whose audience is the bare client ID — are rejected. This prevents an ID token (issued on every interactive sign-in and not intended for API authorization) from being used as an API credential.
-- This requires the Entra App Registration to expose its API with the default `api://<client-id>` Application ID URI, which the in-app setup walkthrough already configures.
