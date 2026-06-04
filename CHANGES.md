@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Security: removed the Admin → "Containers" live-stats view and, with it, the Docker socket mount (`/var/run/docker.sock`) from the web container. Mounting the Docker socket into the web service was a host-takeover risk — a compromise of the web process could control the Docker daemon and the host. The container-stats dashboard didn't justify that exposure. Crawlers, data sync, and all other functionality are unaffected.
+
+## Changes in this PR
+
 - Docs version picker now shows the release version number (e.g. "5.7.0") instead of "stable"
 - Cut Beta and Cut Release workflows now accept an optional ref input so releases can be cut from any commit, tag, or branch (default: main); docs deploy from the same ref
 
