@@ -2667,7 +2667,7 @@
 <h2 id="deployment-notes">Deployment notes<a class="headerlink" href="#deployment-notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Open mode (<code>AUTH_ENABLED=false</code>)</strong> — supported for local/evaluation use; all permission gates are bypassed.</li>
-<li><strong>Azure App Service</strong> — <code>AUTH_ENABLED=true</code> is set from first boot; the Authentication and Containers admin sub-tabs are hidden (managed platform).</li>
+<li><strong>Azure App Service</strong> — <code>AUTH_ENABLED=true</code> is set from first boot; the Authentication admin sub-tab is hidden (managed platform).</li>
 <li>Tenant/client IDs are configured via <code>AUTH_TENANT_ID</code> / <code>AUTH_CLIENT_ID</code>; the role→permission mapping is edited live in Admin → Authentication.</li>
 <li><strong>Token audience</strong> — the API accepts only access tokens whose audience is <code>api://&lt;client-id&gt;</code> (its exposed API scope). ID tokens are rejected. This is why the setup walkthrough has you "Expose an API" with the default <code>api://&lt;client-id&gt;</code> Application ID URI.</li>
 </ul>
