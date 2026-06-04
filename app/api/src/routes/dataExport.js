@@ -18,6 +18,7 @@
 import { Router } from 'express';
 import { createToken, listTokens, revokeToken } from '../auth/readTokens.js';
 import { generateWorkbook } from '../export/excelWorkbook.js';
+import { resolveExportBaseUrl } from '../export/exportBaseUrl.js';
 import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
@@ -87,13 +88,11 @@ router.post('/admin/data-export/workbook', exportWorkbook, async (req, res) => {
 
     const { token } = await createToken({ name: tokenName.slice(0, 200), createdBy });
 
-    // The workbook embeds the API base URL so the same file works against
-    // whatever host actually generated it (compose stack, prod deployment,
-    // tunnel, etc). Honour X-Forwarded-* if present, otherwise fall back
-    // to the request host.
-    const proto = req.get('x-forwarded-proto') || req.protocol;
-    const host = req.get('x-forwarded-host') || req.get('host');
-    const apiBaseUrl = `${proto}://${host}/api`;
+    // The workbook embeds the API base URL AND a live read token, so the URL
+    // must come from a server-trusted source — never a spoofable request header.
+    // See resolveExportBaseUrl() for the trust order (PUBLIC_BASE_URL >
+    // TRUST_PROXY'd X-Forwarded-* > direct request host). (Finding M-09)
+    const apiBaseUrl = resolveExportBaseUrl(req);
 
     const buffer = await generateWorkbook({ apiBaseUrl, token });
 
