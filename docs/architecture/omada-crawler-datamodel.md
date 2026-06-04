@@ -476,8 +476,8 @@ After all phases complete:
 
 | Property | Value |
 |----------|-------|
-| Hostname | `enterpriseserver.corporate.com` (→ `masterdemo.corporate.com` → `172.16.0.28`) |
-| Auth method | BasicAuth (`corporate\demoadm`) |
+| Hostname | `omada-server.example.com` (→ `masterdemo.example.com` → `192.0.2.28`) |
+| Auth method | BasicAuth (`DOMAIN\demouser`) |
 | API version | v15.0 |
 | Entity sets | 25 (DataObjects) + CalculatedAssignments (Builtin) |
 | Systems | 58 connected systems |
@@ -486,13 +486,13 @@ After all phases complete:
 | Resources | 13,220 across all systems |
 | CRA records | ~37,961 active (Status=true) |
 
-DNS: AD DNS at `172.16.0.25`/`172.16.0.28` resolves `corporate.com` zone. Persisted via `extra_hosts` in `docker-compose.yml`.
+DNS: AD DNS at `192.0.2.25`/`192.0.2.28` resolves `example.com` zone. Persisted via `extra_hosts` in `docker-compose.yml`.
 
-### Cloud (rdw-stg.omada.cloud)
+### Cloud (yourtenant.omada.cloud)
 
 | Property | Value |
 |----------|-------|
-| Base URL | `https://rdw-stg.omada.cloud/` (auto-normalised to `/odata/dataobjects`) |
+| Base URL | `https://yourtenant.omada.cloud/` (auto-normalised to `/odata/dataobjects`) |
 | Auth method | CookieString (`oisauthtoken=<token>`) |
 | Entity sets | 18 available (subset of on-premise; `$metadata` may return 500 — gracefully skipped) |
 | Systems | 41 connected systems |
