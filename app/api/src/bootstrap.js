@@ -21,6 +21,7 @@ import { runMigrations } from './db/migrate.js';
 import { selfTest as vaultSelfTest } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
+import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
 
@@ -299,6 +300,12 @@ export async function bootstrapWorker() {
     const pool = await db.getPool();
     await runMigrations(pool);
     await ensureBuiltinCrawler();
+    // Move any legacy plaintext crawler clientSecrets into the encrypted vault.
+    try {
+      await migrateCrawlerSecretsToVault();
+    } catch (err) {
+      console.warn('Crawler secret migration skipped:', err.message);
+    }
     try {
       await seedContextAlgorithms();
     } catch (err) {

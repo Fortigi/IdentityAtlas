@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import crypto from 'crypto';
 import * as db from '../db/connection.js';
+import { injectJobSecret, deleteJobSecret } from '../secrets/crawlerSecrets.js';
 
 const adminCrawlersRouter = Router();
 const gate = requirePermission('admin.crawlers');
@@ -381,7 +382,11 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/claim', async (req, res) => {
     if (r.rows.length === 0) {
       return res.json({ job: null });
     }
-    res.json({ job: r.rows[0] });
+    // Inject the Graph clientSecret (from the vault) into the config handed to
+    // the authenticated worker — it is never stored in plaintext in the job row.
+    const job = r.rows[0];
+    job.config = await injectJobSecret(job);
+    res.json({ job });
   } catch (err) {
     console.error('Job claim failed:', err.message);
     res.status(500).json({ error: 'Failed to claim job' });
@@ -553,6 +558,7 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', async (req, res) =
         WHERE id = $1`,
       [id, result ? JSON.stringify(result) : null]
     );
+    deleteJobSecret(id).catch(() => {}); // best-effort cleanup of any inline-job secret
     res.json({ ok: true });
   } catch (err) {
     console.error('Job complete failed:', err.message);
@@ -576,6 +582,7 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/fail', async (req, res) => {
         WHERE id = $1`,
       [id, errorMessage]
     );
+    deleteJobSecret(id).catch(() => {}); // best-effort cleanup of any inline-job secret
     res.json({ ok: true });
   } catch (err) {
     console.error('Job fail failed:', err.message);
