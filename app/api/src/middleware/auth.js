@@ -67,7 +67,12 @@ export function authMiddleware(req, res, next) {
     if (req.method !== 'GET') {
       return res.status(403).json({ error: 'Read API keys may only be used for GET requests' });
     }
-    if (req.path.startsWith('/api/admin/')) {
+    // Use originalUrl, not req.path: under app.use('/api', ...) the mount prefix
+    // is stripped from req.path, so a `/api/admin/` check on req.path would never
+    // match — leaving admin GET endpoints reachable with a leaked read token
+    // (security finding H-08). originalUrl preserves the full path (same fix the
+    // fgc_ block above uses).
+    if (req.originalUrl.split('?')[0].startsWith('/api/admin/')) {
       return res.status(403).json({ error: 'Read API keys cannot access admin endpoints' });
     }
     findActiveByPlaintext(token).then(row => {

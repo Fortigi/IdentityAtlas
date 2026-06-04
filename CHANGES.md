@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Security: LLM-generated risk-classifier patterns are now matched with a linear-time regular-expression engine (RE2) instead of the built-in engine. A maliciously or accidentally crafted pattern can no longer cause catastrophic backtracking that freezes risk scoring (a denial-of-service / ReDoS risk). Patterns using constructs RE2 cannot run in linear time (e.g. look-ahead) are skipped and logged rather than executed.
+- Fixed: portable Windows launcher worker never picked up queued jobs (demo data import, crawlers) because the worker API key was read before the server finished writing it
+
+## Changes in this PR
+
+- Security: hardened the risk-profile URL scraper against server-side request forgery (SSRF). It now resolves and checks every target address and refuses private, loopback, link-local, and cloud-metadata addresses — including decimal/hex and IPv4-mapped encodings and addresses returned via DNS — pins the connection to the validated address to defeat DNS-rebinding, re-validates every redirect hop, and never forwards credentials across a redirect to a different host.
+
+## Changes in this PR
+
+- Security: fixed a guard that was meant to keep read-only API keys (`fgr_…`) out of admin endpoints but never actually triggered — it checked the mount-stripped request path instead of the full URL, so a leaked read-only key could reach admin GET endpoints (information disclosure). The check now uses the full request URL and correctly rejects read-only keys on `/api/admin/*`.
+
+## Changes in this PR
+
 - Security: Microsoft Graph crawler client secrets are no longer stored in plaintext in the database. They are encrypted in the secrets vault and injected only into the job handed to the authenticated worker at run time. Any existing plaintext client secrets are migrated into the vault automatically on upgrade.
 - Security: the built-in worker's API key is no longer stored in plaintext in the database. It is kept only as a salted scrypt hash (for verification) plus a private, restricted file that the worker reads — and any previously-stored plaintext copy is removed automatically on upgrade. A read of the database can no longer recover a usable worker credential.
 
