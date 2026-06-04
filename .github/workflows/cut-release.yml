@@ -1,12 +1,12 @@
 # ─── Cut a Release ────────────────────────────────────────────────────────────
-# Manually triggered. Tags the current main HEAD with vX.Y.Z, builds the
+# Manually triggered. Tags a chosen ref with vX.Y.Z, builds the
 # portable Windows ZIP, creates a GitHub release with the ZIP attached, and
 # lets docker-publish (triggered by the tag push) push :latest + :X.Y.Z.0.
 #
 # Usage:
 #   1. Go to Actions → Cut Release → Run workflow
-#   2. Enter the version (e.g. "5.2.0" — major.minor.patch)
-#   3. The workflow creates tag v5.2.0 on the current main HEAD
+#   2. Enter the version (e.g. "5.2.0" — major.minor.patch) and optionally a ref (default: main)
+#   3. The workflow creates tag v5.2.0 on that ref
 #   4. A GitHub release is created with IdentityAtlas-portable.zip attached
 #   5. docker-publish builds and pushes :latest + :5.2.0.0
 #
@@ -24,6 +24,10 @@ on:
       version:
         description: 'Release version (major.minor.patch, e.g. "5.2.0")'
         required: true
+      ref:
+        description: 'Branch, tag, or commit to cut from (default: main)'
+        required: false
+        default: 'main'
 
 jobs:
   cut-release:
@@ -48,7 +52,7 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          ref: main
+          ref: ${{ github.event.inputs.ref }}
           token: ${{ steps.bot-token.outputs.token }}
 
       - name: Create and push release tag
@@ -67,6 +71,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+
+      - name: Stamp release version into .psd1
+        run: sed -i "s/ModuleVersion = '[^']*'/ModuleVersion = '${{ env.VERSION }}.0'/" setup/IdentityAtlas.psd1
 
       - name: Install desktop dependencies (PGlite)
         run: npm install --prefer-offline
