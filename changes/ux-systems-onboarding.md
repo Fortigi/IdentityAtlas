@@ -1,0 +1,1 @@
+- The Systems page no longer dead-ends new users with a stale `Start-FGSync` command. Its empty state now guides you to **Add a crawler** (the supported path), matching the Dashboard and Sync Log. Added a reusable empty-state panel for consistent onboarding across the app.
