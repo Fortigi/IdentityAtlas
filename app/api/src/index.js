@@ -56,6 +56,15 @@ const server = app.listen(port, async () => {
   await bootstrapWorker();
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\nError: port ${port} is already in use.`);
+    console.error(`Identity Atlas may already be running. Open http://localhost:${port} in your browser.`);
+    process.exit(1);
+  }
+  throw err;
+});
+
 // Graceful shutdown: close SQL pool before exiting
 async function shutdown(signal) {
   console.log(`${signal} received, shutting down...`);
