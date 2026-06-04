@@ -144,6 +144,20 @@ test.describe('Matrix View', () => {
     await expect(dBadges).toBeVisible({ timeout: 10000 });
   });
 
+  test('"How to read this matrix" legend is available when a matrix is applied', async ({ page }) => {
+    test.slow(); // permissions API cold start
+    const table = page.locator('table').first();
+    const emptyHeading = page.getByRole('heading', { name: /Pick a slice to inspect/i });
+    // Either the grid or the empty state renders; the legend only accompanies
+    // the grid (it shows once a matrix filter is applied).
+    await expect(table.or(emptyHeading)).toBeVisible({ timeout: 60000 });
+    if (await table.isVisible()) {
+      await expect(
+        page.getByRole('button', { name: /How to read this matrix/i })
+      ).toBeVisible({ timeout: 10000 });
+    }
+  });
+
   test('share button exists', async ({ page }) => {
     const shareButton = page.getByRole('button', { name: /Share/i });
     if (await shareButton.count() > 0) {
