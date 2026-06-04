@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthGate';
 import { useMatrixRowOrder } from '../hooks/useMatrixRowOrder';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
+import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
 
@@ -104,17 +105,35 @@ export default function MatrixView({
 
   const rowOrderHook = useMatrixRowOrder(storageKey);
 
-  // Apply CLIENT-SIDE managed-state toggle. Subject and resource filters are
-  // already applied by the backend so the matrix data is "the right subset".
-  const filteredData = useMemo(() => {
-    let result = data;
-    if (managedFilter === 'managed') {
-      result = result.filter(d => !!d.managedByAccessPackage);
-    } else if (managedFilter === 'unmanaged') {
-      result = result.filter(d => !d.managedByAccessPackage);
+  // A (member, resource) membership is "governed" when it is covered by a
+  // business role the user holds — i.e. it appears in managedByPackages, the
+  // SAME signal that colours SOLL cells and feeds the scope-stats panel. We do
+  // NOT use the per-row managedByAccessPackage flag here: that only flags the
+  // rare directly-Governed assignment row, so it reads as ~0 governed on real
+  // data and made the Governed toggle show an empty grid.
+  const coveredPairSet = useMemo(() => {
+    const s = new Set();
+    for (const r of managedByPackages || []) {
+      const rid = (r.resourceId || r.groupId || '').toLowerCase();
+      const mid = (r.memberId || '').toLowerCase();
+      if (rid && mid) s.add(`${rid}|${mid}`);
     }
-    return result;
-  }, [data, managedFilter]);
+    return s;
+  }, [managedByPackages]);
+
+  // Apply CLIENT-SIDE governed/non-governed toggle. Subject and resource filters
+  // are already applied by the backend so the matrix data is "the right subset".
+  const filteredData = useMemo(() => {
+    if (managedFilter !== 'managed' && managedFilter !== 'unmanaged') return data;
+    // Owner memberships are never provisioned through an access package (APs grant
+    // Direct/Eligible/Member roles), so they are always non-governed.
+    const isGoverned = d =>
+      d.membershipType !== 'Owner' &&
+      coveredPairSet.has(`${(d.resourceId || d.groupId || '').toLowerCase()}|${(d.memberId || '').toLowerCase()}`);
+    return managedFilter === 'managed'
+      ? data.filter(isGoverned)
+      : data.filter(d => !isGoverned(d));
+  }, [data, managedFilter, coveredPairSet]);
 
   // Build matrix data structures
   // Owner memberships are split into separate synthetic rows (id: "groupId__owner",
@@ -322,6 +341,10 @@ export default function MatrixView({
   // Default sort: AP staircase pattern.
   // All groups in the leftmost AP first, then next AP, etc. Unmanaged at the bottom.
   const apSortedGroups = useMemo(() => {
+    // Non-governed view hides the AP columns, so the AP-staircase ordering is
+    // meaningless there — fall back to the member-count sort already applied to
+    // `groups` (Direct count desc, then Eligible, Owner, total).
+    if (managedFilter === 'unmanaged') return groups;
     if (accessPackages.length === 0) return groups; // no APs, keep member count sort
 
     // Assign each group to the AP bucket of its leftmost AP column
@@ -358,7 +381,7 @@ export default function MatrixView({
       if (ownerCmp !== 0) return ownerCmp;
       return b.memberCount - a.memberCount;
     });
-  }, [groups, accessPackages, apGroupMap]);
+  }, [groups, accessPackages, apGroupMap, managedFilter]);
 
   // Apply custom drag-row order on top of the default AP staircase sort. All
   // subject/resource selection happens through the filter wizard, so there
@@ -579,13 +602,18 @@ export default function MatrixView({
   // Number of info columns on the left (drag handle + resource name + type)
   const infoColumnCount = 3;
 
+  // The access-package (SOLL) columns represent governance, so they're hidden in
+  // the Non-governed view — there they'd only show governed memberships, which is
+  // what that view is meant to exclude. Kept for All / Governed / Gaps.
+  const visibleAccessPackages = managedFilter === 'unmanaged' ? [] : accessPackages;
+
   // Shared column headers element (used by both sortable and static table)
   const columnHeaders = (
     <MatrixColumnHeaders
       users={users}
       infoColumnCount={infoColumnCount}
       onSortByCount={handleSortByCount}
-      accessPackages={accessPackages}
+      accessPackages={visibleAccessPackages}
       onOpenDetail={onOpenDetail}
     />
   );
@@ -604,6 +632,8 @@ export default function MatrixView({
           onAdjust={onAdjustFilter}
         />
       )}
+
+      {filterIsApplied && <MatrixScopePanel filter={filter} />}
 
       <MatrixToolbar
         managedFilter={managedFilter}
@@ -649,7 +679,7 @@ export default function MatrixView({
               managedMap={managedMap}
               managedApMap={managedApMap}
               apIdToIndex={apIdToIndex}
-              accessPackages={accessPackages}
+              accessPackages={visibleAccessPackages}
               apGroupMap={apGroupMap}
               managedFilter={managedFilter}
               onOpenDetail={onOpenDetail}
@@ -672,7 +702,7 @@ export default function MatrixView({
                     managedMap={managedMap}
                     managedApMap={managedApMap}
                     apIdToIndex={apIdToIndex}
-                    accessPackages={accessPackages}
+                    accessPackages={visibleAccessPackages}
                     apGroupMap={apGroupMap}
                     managedFilter={managedFilter}
                     onOpenDetail={onOpenDetail}
