@@ -10,9 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/resource-cluster-algorithm/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/reference/permissions/">
       
       
+        <link rel="prev" href="../config/">
+      
+      
+        <link rel="next" href="../sql-views/">
       
       
         
@@ -23,7 +27,7 @@
     
     
       
-        <title>Resource-cluster algorithm - Identity Atlas</title>
+        <title>Permissions & Roles - Identity Atlas</title>
       
     
     
@@ -76,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#resource-cluster-algorithm" class="md-skip">
+        <a href="#permissions-role-mapping" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Resource-cluster algorithm
+              Permissions & Roles
             
           </span>
         </div>
@@ -342,7 +346,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../docker-setup/" class="md-tabs__link">
+        <a href="../../architecture/docker-setup/" class="md-tabs__link">
           
   
   
@@ -362,7 +366,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../scaling/" class="md-tabs__link">
+        <a href="../../architecture/scaling/" class="md-tabs__link">
           
   
   
@@ -398,11 +402,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../reference/config/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../config/" class="md-tabs__link">
           
   
   
@@ -800,7 +806,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../csv-import-schema/" class="md-nav__link">
+      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
         
   
   
@@ -1207,7 +1213,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docker-setup/" class="md-nav__link">
+      <a href="../../architecture/docker-setup/" class="md-nav__link">
         
   
   
@@ -1235,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../desktop-portable/" class="md-nav__link">
+      <a href="../../architecture/desktop-portable/" class="md-nav__link">
         
   
   
@@ -1263,7 +1269,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../branching-strategy/" class="md-nav__link">
+      <a href="../../architecture/branching-strategy/" class="md-nav__link">
         
   
   
@@ -1291,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ingest-api/" class="md-nav__link">
+      <a href="../../architecture/ingest-api/" class="md-nav__link">
         
   
   
@@ -1319,7 +1325,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../audit-history/" class="md-nav__link">
+      <a href="../../architecture/audit-history/" class="md-nav__link">
         
   
   
@@ -1347,7 +1353,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../llm-and-risk-scoring/" class="md-nav__link">
+      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
         
   
   
@@ -1436,7 +1442,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../scaling/" class="md-nav__link">
+      <a href="../../architecture/scaling/" class="md-nav__link">
         
   
   
@@ -1464,7 +1470,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../demo-dataset/" class="md-nav__link">
+      <a href="../../architecture/demo-dataset/" class="md-nav__link">
         
   
   
@@ -1520,7 +1526,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/troubleshooting/" class="md-nav__link">
+      <a href="../troubleshooting/" class="md-nav__link">
         
   
   
@@ -1753,28 +1759,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
-        
-          
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
             
   
   
@@ -1792,7 +1801,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1810,7 +1819,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config/" class="md-nav__link">
+      <a href="../config/" class="md-nav__link">
         
   
   
@@ -1835,10 +1844,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../reference/permissions/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1854,6 +1890,142 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-authorization-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How authorization works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#permission-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Permission catalog
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Permission catalog">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#seed-default-role-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Seed (default) role mapping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ui-gating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UI gating
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1866,7 +2038,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/sql-views/" class="md-nav__link">
+      <a href="../sql-views/" class="md-nav__link">
         
   
   
@@ -1894,7 +2066,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/sbom/" class="md-nav__link">
+      <a href="../sbom/" class="md-nav__link">
         
   
   
@@ -2066,10 +2238,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-what-it-does" class="md-nav__link">
+  <a href="#how-authorization-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. What it does
+        How authorization works
       
     </span>
   </a>
@@ -2077,33 +2249,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-when-to-use-it" class="md-nav__link">
+  <a href="#permission-catalog" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. When to use it
+        Permission catalog
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-how-it-works" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. How it works
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. How it works">
+    <nav class="md-nav" aria-label="Permission catalog">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#31-tokenizer-detail" class="md-nav__link">
+  <a href="#read" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.1 Tokenizer detail
+        Read
       
     </span>
   </a>
@@ -2111,10 +2272,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#32-default-stopword-set" class="md-nav__link">
+  <a href="#export" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.2 Default stopword set
+        Export
       
     </span>
   </a>
@@ -2122,10 +2283,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#33-parameters" class="md-nav__link">
+  <a href="#write" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.3 Parameters
+        Write
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin
       
     </span>
   </a>
@@ -2138,10 +2310,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-worked-example" class="md-nav__link">
+  <a href="#seed-default-role-mapping" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Worked example
+        Seed (default) role mapping
       
     </span>
   </a>
@@ -2149,10 +2321,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-real-data-result" class="md-nav__link">
+  <a href="#ui-gating" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Real-data result
+        UI gating
       
     </span>
   </a>
@@ -2160,10 +2332,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#6-limitations" class="md-nav__link">
+  <a href="#deployment-notes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        6. Limitations
+        Deployment notes
       
     </span>
   </a>
@@ -2171,21 +2343,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#7-llm-vs-rule-based-clustering" class="md-nav__link">
+  <a href="#testing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        7. LLM vs rule-based clustering
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#8-where-the-code-lives" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. Where the code lives
+        Testing
       
     </span>
   </a>
@@ -2210,6 +2371,46 @@
   
 
 
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../config/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
               
               <article class="md-content__inner md-typeset">
                 
@@ -2220,356 +2421,189 @@
   
 
 
-<h1 id="resource-cluster-algorithm">Resource-cluster algorithm<a class="headerlink" href="#resource-cluster-algorithm" title="Permanent link">&para;</a></h1>
-<p>This document describes how the <code>resource-cluster</code> context-algorithm plugin
-groups resources. The short answer: it's a <strong>deterministic, rule-based
-tokenizer + index</strong>. No LLM calls, no embeddings, no probabilistic matching.</p>
-<blockquote>
-<p><strong>For the plugin framework itself</strong>, see
-<a href="../context-redesign/">context-redesign.md §4</a>. For the 11-phase rollout
-plan, see <a href="../context-redesign-plan/">context-redesign-plan.md</a>.</p>
-</blockquote>
-<hr />
-<h2 id="1-what-it-does">1. What it does<a class="headerlink" href="#1-what-it-does" title="Permanent link">&para;</a></h2>
-<p>Given the set of <code>Resources</code> in a system, the plugin produces one
-generated <code>Context</code> per "significant token" that appears in ≥ N resource
-names. A resource can belong to multiple clusters — a group named
-<code>SG_APP_AXIOM_FINANCE_Admins_P</code> contributes to both a <strong>AXIOM</strong> cluster
-and a <strong>FINANCE</strong> cluster (if both tokens clear the thresholds).</p>
-<p>The plugin targets <code>Resource</code>, writes with <code>variant='generated'</code> and
-<code>contextType='ResourceCluster'</code>, and attaches every cluster under a
-synthetic root named by the <code>rootName</code> parameter (default
-<em>"Resource Clusters"</em>).</p>
-<h2 id="2-when-to-use-it">2. When to use it<a class="headerlink" href="#2-when-to-use-it" title="Permanent link">&para;</a></h2>
-<p>Use <code>resource-cluster</code> when:
-- You want to quickly see which resources belong to the same app / system
-  / business capability <strong>based on naming conventions</strong>.
-- Your organisation uses consistent tokens (e.g. every AXIOM-related
-  group has "AXIOM" somewhere in its name, even if the surrounding
-  prefix/suffix varies).</p>
-<p>Don't use it (and reach for <a href="../context-redesign/"><code>business-process-llm</code></a>
-once it's wired up) when:
-- Different systems use different names for the same concept
-  (<code>Procurement</code> / <code>Inkoop</code> / <code>P2P</code> will not cluster together here).
-- Names are opaque codes (<code>GRP00123</code>) where the token alone carries no
-  meaning.</p>
-<h2 id="3-how-it-works">3. How it works<a class="headerlink" href="#3-how-it-works" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Resources  ─┐
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>            │  tokenize()         ↓ per-resource token list
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>            │  ── split on /[^a-zA-Z0-9]+/
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>            │  ── lowercase
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>            │  ── drop len &lt; minTokenLength
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>            │  ── drop numerics
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            │  ── drop stopwords  (role / env / type / filler / NL connectives
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>            │                      + user-supplied additionalStopwords)
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>            ▼
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            Map&lt;token, resourceId[]&gt;
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>            │
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>            │  filter:
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>            │   • |resources| ≥ minMembers
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>            │   • |resources| ≤ total × maxTokenCoverage
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>            ▼
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>   one Context per surviving token
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>   one ContextMember per (token, resource) pair
-</code></pre></div>
-<p>Every step is pure data transformation. Same input → same output, every
-run. One SQL query (<code>SELECT id, displayName FROM Resources WHERE
-systemId = $1</code>) and then Node-side processing. Runs in milliseconds on
-10 k resources.</p>
-<h3 id="31-tokenizer-detail">3.1 Tokenizer detail<a class="headerlink" href="#31-tokenizer-detail" title="Permanent link">&para;</a></h3>
-<p>The tokenizer (<code>tokenize.js</code>) does five things in order:</p>
+<h1 id="permissions-role-mapping">Permissions &amp; Role Mapping<a class="headerlink" href="#permissions-role-mapping" title="Permanent link">&para;</a></h1>
+<p>Identity Atlas authorizes every API request against a <strong>fixed catalog of permissions</strong>. Customers map their Entra ID <strong>app roles</strong> to those permissions, so "who can do what" is configurable without code changes.</p>
+<p>This page is the reference for the permission model. The catalog below is kept in sync with the code by a test (<code>app/api/src/auth/docsCoverage.test.js</code>) — if a permission is added to the catalog without being documented here, CI fails.</p>
+<h2 id="how-authorization-works">How authorization works<a class="headerlink" href="#how-authorization-works" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Lowercase</strong> the input.</li>
-<li><strong>Split</strong> on any run of non-alphanumeric ASCII (<code>/[^a-zA-Z0-9]+/</code>).
-   Hyphens, underscores, slashes, backslashes, whitespace, parentheses,
-   brackets, commas, plus signs, ampersands, quotes — all treated as
-   separators.</li>
-<li><strong>Drop tokens</strong> whose length is below <code>minTokenLength</code> (default 3).</li>
-<li><strong>Drop purely numeric</strong> tokens (<code>/^\d+$/</code>).</li>
-<li><strong>Drop stopwords</strong> — see §4.</li>
+<li><strong>Authentication</strong> — when <code>AUTH_ENABLED=true</code>, every <code>/api/*</code> request must carry a valid Entra ID bearer token (or a read/crawler API key). When <code>AUTH_ENABLED=false</code> (the default for local/laptop use) the API runs in <strong>open mode</strong>: all gates are no-ops and a banner warns that anyone with the URL has full access. Open mode is a supported deployment for evaluation and single-user local runs — <strong>do not</strong> use it on a network without a trusted boundary.</li>
+<li><strong>Role → permission resolution</strong> — the token's <code>roles</code> claim is resolved to a set of permissions via the configured mapping (Admin → Authentication → Roles &amp; Permissions), falling back to the built-in seed mapping.</li>
+<li><strong>Per-route enforcement</strong> — each protected route declares the permission(s) it needs via <code>requirePermission(...)</code>. The gate is attached to the <strong>individual route</strong>, not the <code>/api</code> mount, so one router's permission never affects another's endpoints.</li>
+<li><strong>Wildcard</strong> — a role mapped to <code>*</code> is granted every permission (including ones added in future releases). The seed <code>Admin</code> role uses <code>*</code>.</li>
 </ol>
-<h3 id="32-default-stopword-set">3.2 Default stopword set<a class="headerlink" href="#32-default-stopword-set" title="Permanent link">&para;</a></h3>
-<p>Four built-in categories, combined into a single <code>Set</code>:</p>
-<table>
-<thead>
-<tr>
-<th>Category</th>
-<th>Rationale</th>
-<th>Example members</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Role / authority</strong></td>
-<td>Not the thing of interest; distinguishes <em>who</em> has access rather than <em>to what</em>. Both EN + NL.</td>
-<td><code>admin</code>, <code>admins</code>, <code>user</code>, <code>users</code>, <code>owner</code>, <code>owners</code>, <code>reader</code>, <code>writer</code>, <code>viewer</code>, <code>manager</code>, <code>developer</code>, <code>support</code>, <code>approver</code>, <code>beheer</code>, <code>gebruikers</code>, <code>leden</code>, <code>eigenaar</code>, <code>eigenaren</code>, <code>bezoekers</code>, …</td>
-</tr>
-<tr>
-<td><strong>Environment</strong></td>
-<td>Clusters should unify across envs, not split by them.</td>
-<td><code>p</code>, <code>a</code>, <code>t</code>, <code>d</code>, <code>acc</code>, <code>tst</code>, <code>dev</code>, <code>prod</code>, <code>ont</code>, <code>stg</code>, <code>sbx</code>, <code>uat</code>, <code>qa</code>, …</td>
-</tr>
-<tr>
-<td><strong>AD / type prefix</strong></td>
-<td>Purely conventional; tells you what flavour of AD object, not what it's for.</td>
-<td><code>sg</code>, <code>dl</code>, <code>ag</code>, <code>sec</code>, <code>m365</code>, <code>aad</code>, <code>grp</code>, <code>group</code>, <code>team</code>, <code>app</code>, <code>apps</code>, <code>application</code>, …</td>
-</tr>
-<tr>
-<td><strong>Filler</strong></td>
-<td>Generic nouns that form noise clusters if kept.</td>
-<td><code>all</code>, <code>general</code>, <code>misc</code>, <code>role</code>, <code>roles</code>, <code>perm</code>, <code>permissions</code>, …</td>
-</tr>
-<tr>
-<td><strong>NL connectives</strong></td>
-<td>Clutter from descriptive Dutch display names.</td>
-<td><code>van</code>, <code>voor</code>, <code>naar</code>, <code>bij</code>, <code>aan</code>, <code>uit</code>, <code>over</code>, <code>met</code>, <code>als</code>, <code>door</code>, … (short ones like <code>de</code>, <code>en</code>, <code>op</code>, <code>te</code> fall out via <code>minTokenLength</code>)</td>
-</tr>
-</tbody>
-</table>
-<p>The full set lives in
-<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/tokenize.js"><code>tokenize.js</code></a>
-as <code>DEFAULT_STOPWORDS</code>. Tenant-specific additions go through the
-<code>additionalStopwords</code> parameter.</p>
-<h3 id="33-parameters">3.3 Parameters<a class="headerlink" href="#33-parameters" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Parameter</th>
-<th>Default</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>scopeSystemId</code></td>
-<td><em>null</em></td>
-<td><code>Systems.id</code> — limit to one system. If omitted, runs across every Resource in every system.</td>
-</tr>
-<tr>
-<td><code>minMembers</code></td>
-<td><code>4</code></td>
-<td>Drop clusters with fewer than this many resources. Lower → more clusters including noisy ones; higher → only strong signals.</td>
-</tr>
-<tr>
-<td><code>minTokenLength</code></td>
-<td><code>3</code></td>
-<td>Tokens shorter than this are ignored. <code>3</code> drops <code>p</code>, <code>it</code>, and all single-letter tokens.</td>
-</tr>
-<tr>
-<td><code>maxTokenCoverage</code></td>
-<td><code>0.7</code></td>
-<td>Reject tokens that appear in more than this fraction of resources (0..1). Filters out tokens so generic they would swallow the whole dataset.</td>
-</tr>
-<tr>
-<td><code>additionalStopwords</code></td>
-<td><code>[]</code></td>
-<td>Extra tokens to ignore on top of the defaults. Lowercased at parse time. Use this for tenant-specific noise like <code>rol</code>, <code>azure</code>, <code>azuresubscription</code>.</td>
-</tr>
-<tr>
-<td><code>rootName</code></td>
-<td><code>"Resource Clusters"</code></td>
-<td>Display name of the synthetic root that every cluster attaches under.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="4-worked-example">4. Worked example<a class="headerlink" href="#4-worked-example" title="Permanent link">&para;</a></h2>
-<p>Input (an extract from a real Entra tenant):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>SG_APP_AXIOM_Admins_P
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>GRP-AXIOM-ReadOnly-TST
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>AG_AzureDevOps_Axiom_Developer
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>AG_AzureSubscription_SCH_Axiom_Helios_Sandbox_Support
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>AG_AzureTeam_Axiom_GedelegeerdProductOwner
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>AG_JITApprover_APP_AXIOM-APPX_SVCADMIN_A
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>SG_FINANCE_BookKeepers
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>DL_Finance_Readers
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>AG_ROL_DMS_Bezoekers van Finance-Commissie
-</code></pre></div>
-<p>After tokenisation (default stopwords, <code>minTokenLength=3</code>,
-<code>additionalStopwords=["rol","azure","sch","appx","svcadmin","helios","sandbox","gedelegeerdproductowner","commissie"]</code>):</p>
-<table>
-<thead>
-<tr>
-<th>Resource</th>
-<th>Surviving tokens</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>SG_APP_AXIOM_Admins_P</code></td>
-<td><code>axiom</code></td>
-</tr>
-<tr>
-<td><code>GRP-AXIOM-ReadOnly-TST</code></td>
-<td><code>axiom</code></td>
-</tr>
-<tr>
-<td><code>AG_AzureDevOps_Axiom_Developer</code></td>
-<td><code>devops</code>, <code>axiom</code></td>
-</tr>
-<tr>
-<td><code>AG_AzureSubscription_SCH_Axiom_Helios_Sandbox_Support</code></td>
-<td><code>axiom</code></td>
-</tr>
-<tr>
-<td><code>AG_AzureTeam_Axiom_GedelegeerdProductOwner</code></td>
-<td><code>axiom</code></td>
-</tr>
-<tr>
-<td><code>AG_JITApprover_APP_AXIOM-APPX_SVCADMIN_A</code></td>
-<td><code>axiom</code>, <code>jitapprover</code></td>
-</tr>
-<tr>
-<td><code>SG_FINANCE_BookKeepers</code></td>
-<td><code>finance</code>, <code>bookkeepers</code></td>
-</tr>
-<tr>
-<td><code>DL_Finance_Readers</code></td>
-<td><code>finance</code></td>
-</tr>
-<tr>
-<td><code>AG_ROL_DMS_Bezoekers van Finance-Commissie</code></td>
-<td><code>dms</code>, <code>finance</code></td>
-</tr>
-</tbody>
-</table>
-<p>Index built:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>axiom        → 6 resources
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>finance      → 3 resources
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>devops       → 1 resource
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>jitapprover  → 1 resource
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>bookkeepers  → 1 resource
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>dms          → 1 resource
-</code></pre></div>
-<p>With <code>minMembers=4</code>, only the <strong>AXIOM</strong> cluster survives. With
-<code>minMembers=3</code>, <strong>AXIOM</strong> and <strong>FINANCE</strong> both survive. With
-<code>minMembers=1</code>, six clusters survive, most of them size-1 noise.</p>
-<h2 id="5-real-data-result">5. Real-data result<a class="headerlink" href="#5-real-data-result" title="Permanent link">&para;</a></h2>
-<p>Running against one tenant's 9 683 resources with tuned stopwords
-produced this top 10:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>DMS                1890
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Inkoop              788
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Contractmanagement  773
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>SRV                 652
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>MGT                 433
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>SUB                 334
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>RDP                 310
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>RMA                 307
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>ORG                 227
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>IGA                 210
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>AXIOM               176   ← was 6 with the old stem-based algorithm
-</code></pre></div>
-<p>The same dataset with the previous stem-based algorithm produced 5
-clusters (1 root + 4 stems), one of which was "app_axiom" at 6 members.
-The token-based algorithm found 176 AXIOM-named resources — the ones
-the stem stripper missed because they didn't match the fixed <code>(SG|DL|AG|…)_</code>
-prefix whitelist.</p>
-<h2 id="6-limitations">6. Limitations<a class="headerlink" href="#6-limitations" title="Permanent link">&para;</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Read &amp; crawler API keys</p>
 <ul>
-<li><strong>No fuzzy matching.</strong> <code>AXIOM</code> and a typo'd <code>AXOIM</code> are different
-  tokens. No edit-distance or phonetic coalescing.</li>
-<li><strong>No semantic grouping.</strong> <code>Procurement</code> and <code>Inkoop</code> mean the same
-  thing but form separate clusters.</li>
-<li><strong>Token order is ignored.</strong> <code>finance_team</code> and <code>team_finance</code> are both
-  <code>{finance, team}</code> — fine for this algorithm, but don't expect the
-  order of tokens to matter.</li>
-<li><strong>Coverage cap is blunt.</strong> A legitimate tenant-wide concept (say,
-  every group starts with <code>Acme</code>) will be rejected if it clears 70 %
-  coverage. Bump <code>maxTokenCoverage</code> in that case.</li>
-<li><strong>One-shot stopwords.</strong> The default stopword set is a reasonable
-  baseline but not exhaustive. Tune <code>additionalStopwords</code> per tenant;
-  a common pattern is: run once, spot the junky top clusters (e.g.
-  <code>ROL</code>, <code>VAN</code>, <code>AZURESUBSCRIPTION</code>), add them to
-  <code>additionalStopwords</code>, re-run.</li>
+<li><strong>Read API keys (<code>fgr_…</code>)</strong> are accepted only on <code>GET</code> requests to non-admin endpoints and resolve to <code>data.read</code>. They're used by the generated Excel/Power Query workbook.</li>
+<li><strong>Crawler API keys (<code>fgc_…</code>)</strong> authenticate the worker on <code>/api/crawlers/*</code> and <code>/api/ingest/*</code> only, with their own per-crawler scope (<code>systemIds</code>) and permissions (<code>ingest</code>, <code>refreshViews</code>, <code>admin</code>). They are separate from the user-facing permission catalog below.</li>
 </ul>
-<h2 id="7-llm-vs-rule-based-clustering">7. LLM vs rule-based clustering<a class="headerlink" href="#7-llm-vs-rule-based-clustering" title="Permanent link">&para;</a></h2>
-<p>Two plugins cover the same conceptual slot — clustering resources —
-with different trade-offs:</p>
+</div>
+<h2 id="permission-catalog">Permission catalog<a class="headerlink" href="#permission-catalog" title="Permanent link">&para;</a></h2>
+<p>Permissions are grouped into <strong>Read</strong>, <strong>Export</strong>, <strong>Write</strong>, and <strong>Admin</strong>.</p>
+<h3 id="read">Read<a class="headerlink" href="#read" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th></th>
-<th><strong><code>resource-cluster</code></strong></th>
-<th><strong><code>business-process-llm</code></strong> (stub)</th>
+<th>Permission</th>
+<th>Label</th>
+<th>Notes</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Approach</td>
-<td>Token index + stopwords</td>
-<td>LLM assigns each resource to one of N analyst-supplied process descriptions</td>
-</tr>
-<tr>
-<td>Latency</td>
-<td>Milliseconds for 10 k rows</td>
-<td>Seconds per batch; many batches for 10 k rows</td>
-</tr>
-<tr>
-<td>Cost</td>
-<td>Free</td>
-<td>Per-token LLM cost</td>
-</tr>
-<tr>
-<td>Deterministic?</td>
-<td>Yes</td>
-<td>No</td>
-</tr>
-<tr>
-<td>Requires config</td>
-<td>Reasonable defaults; tune stopwords per tenant</td>
-<td>Analyst must describe each process in natural language</td>
-</tr>
-<tr>
-<td>Handles synonyms</td>
-<td>No</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td>Handles typos</td>
-<td>No</td>
-<td>Usually</td>
-</tr>
-<tr>
-<td>Handles opaque codes</td>
-<td>Clusters by shared token; fails for pure codes</td>
-<td>Better — LLM can infer meaning from context</td>
+<td><code>data.read</code></td>
+<td>Read all data</td>
+<td>Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route <code>requirePermission('data.read')</code> gate. <code>fgr_</code> read tokens are granted it implicitly.</td>
 </tr>
 </tbody>
 </table>
-<p>The intended workflow is both: run <code>resource-cluster</code> first for the
-quick, cheap, explainable grouping; run <code>business-process-llm</code>
-(once implemented) when you need to roll up semantically-related
-resources that don't share a token.</p>
-<h2 id="8-where-the-code-lives">8. Where the code lives<a class="headerlink" href="#8-where-the-code-lives" title="Permanent link">&para;</a></h2>
+<h3 id="export">Export<a class="headerlink" href="#export" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>File</th>
-<th>Purpose</th>
+<th>Permission</th>
+<th>Label</th>
+<th>Gated endpoint (representative)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/index.js"><code>app/api/src/contexts/plugins/resource-cluster/index.js</code></a></td>
-<td>Plugin entry (<code>parametersSchema</code>, <code>run</code>)</td>
+<td><code>data.export.ui</code></td>
+<td>Export to Excel/CSV</td>
+<td><code>GET /api/admin/export/curated</code>, <code>POST /api/admin/data-export/workbook</code></td>
 </tr>
 <tr>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/tokenize.js"><code>app/api/src/contexts/plugins/resource-cluster/tokenize.js</code></a></td>
-<td>Tokenizer + stopword set + <code>prettifyToken</code></td>
-</tr>
-<tr>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/tokenize.test.js"><code>app/api/src/contexts/plugins/resource-cluster/tokenize.test.js</code></a></td>
-<td>Unit tests for the tokenizer</td>
-</tr>
-<tr>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/resource-cluster/index.test.js"><code>app/api/src/contexts/plugins/resource-cluster/index.test.js</code></a></td>
-<td>Integration test for <code>run()</code> with a mocked db</td>
-</tr>
-<tr>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/runner.js"><code>app/api/src/contexts/plugins/runner.js</code></a></td>
-<td>Generic plugin runner (reconciler, member-count rollup) — not specific to this plugin</td>
+<td><code>data.export.apikey</code></td>
+<td>Generate read-only API keys</td>
+<td><code>POST /api/admin/read-tokens</code> (mint your own <code>fgr_</code> token)</td>
 </tr>
 </tbody>
 </table>
+<h3 id="write">Write<a class="headerlink" href="#write" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Permission</th>
+<th>Label</th>
+<th>Gated endpoint (representative)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data.write.tags</code></td>
+<td>Manage tags</td>
+<td><code>POST/PATCH/DELETE /api/tags…</code></td>
+</tr>
+<tr>
+<td><code>data.write.categories</code></td>
+<td>Manage categories</td>
+<td><code>POST/PATCH/DELETE /api/categories…</code></td>
+</tr>
+<tr>
+<td><code>data.write.risk</code></td>
+<td>Risk score overrides</td>
+<td><code>PUT/DELETE /api/risk-scores/:type/:id/override</code></td>
+</tr>
+<tr>
+<td><code>data.write.certifications</code></td>
+<td>Certification decisions</td>
+<td><strong>Reserved</strong> — no interactive endpoint yet. Certification decisions are currently ingested via the crawler (<code>POST /api/ingest/governance/certifications</code>). When an approve/revoke endpoint is added it will be gated by this permission.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="admin">Admin<a class="headerlink" href="#admin" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Permission</th>
+<th>Label</th>
+<th>Gated endpoint (representative)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>admin.crawlers</code></td>
+<td>Crawler configuration</td>
+<td><code>GET/POST/PATCH/DELETE /api/admin/crawlers…</code>, crawler jobs, trigger risk-scoring runs</td>
+</tr>
+<tr>
+<td><code>admin.systems</code></td>
+<td>Systems configuration</td>
+<td><code>PUT /api/systems/:id</code>, owners, clean-database, history-retention</td>
+</tr>
+<tr>
+<td><code>admin.llm</code></td>
+<td>LLM configuration</td>
+<td><code>/api/admin/llm/*</code>, risk profiles/classifiers, correlation rulesets</td>
+</tr>
+<tr>
+<td><code>admin.context-plugins</code></td>
+<td>Context plugins</td>
+<td><code>/api/context-plugins…</code> (run/configure clustering, manager-hierarchy, etc.)</td>
+</tr>
+<tr>
+<td><code>admin.csv-import</code></td>
+<td>CSV import</td>
+<td><code>/api/admin/crawler-configs/:id/csv-files</code>, custom-connector ingest</td>
+</tr>
+<tr>
+<td><code>admin.read-tokens</code></td>
+<td>Manage read API keys</td>
+<td><code>GET/DELETE /api/admin/read-tokens</code> (list/revoke tokens minted by others)</td>
+</tr>
+<tr>
+<td><code>admin.feature-flags</code></td>
+<td>Feature flags</td>
+<td><code>POST /api/admin/features/toggle</code></td>
+</tr>
+<tr>
+<td><code>admin.auth</code></td>
+<td>Authentication &amp; roles</td>
+<td><code>GET/PUT/DELETE /api/admin/roles</code> — edits this very mapping. A self-lockout guard prevents a save that would strip your own <code>admin.auth</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="seed-default-role-mapping">Seed (default) role mapping<a class="headerlink" href="#seed-default-role-mapping" title="Permanent link">&para;</a></h2>
+<p>A fresh install ships with this mapping (customisable in the Admin UI):</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Permissions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Admin</code></td>
+<td><code>*</code> (all permissions)</td>
+</tr>
+<tr>
+<td><code>RoleMiner</code></td>
+<td><code>data.read</code>, <code>data.export.ui</code>, <code>data.export.apikey</code></td>
+</tr>
+<tr>
+<td><code>Servicedesk</code></td>
+<td><code>data.read</code></td>
+</tr>
+</tbody>
+</table>
+<p>A signed-in user whose roles resolve to <strong>no</strong> permissions currently falls back to the <code>*</code> wildcard (a backward-compatibility behaviour for installs that haven't assigned app roles yet). Set <code>AUTH_REQUIRED_ROLES</code> to require an explicit role for any access.</p>
+<h2 id="ui-gating">UI gating<a class="headerlink" href="#ui-gating" title="Permanent link">&para;</a></h2>
+<p>The SPA calls <code>GET /api/auth-me</code> after sign-in to learn its own permissions and hides controls the user can't use (the <strong>Admin</strong> tab, its sub-tabs, and export buttons). The server remains the source of truth — hidden controls are also enforced server-side, so hiding is a UX nicety, not a security boundary.</p>
+<h2 id="deployment-notes">Deployment notes<a class="headerlink" href="#deployment-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Open mode (<code>AUTH_ENABLED=false</code>)</strong> — supported for local/evaluation use; all permission gates are bypassed.</li>
+<li><strong>Azure App Service</strong> — <code>AUTH_ENABLED=true</code> is set from first boot; the Authentication and Containers admin sub-tabs are hidden (managed platform).</li>
+<li>Tenant/client IDs are configured via <code>AUTH_TENANT_ID</code> / <code>AUTH_CLIENT_ID</code>; the role→permission mapping is edited live in Admin → Authentication.</li>
+</ul>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<p>Enforcement is verified by:</p>
+<ul>
+<li><strong><code>app/api/src/auth/permissionMatrix.test.js</code></strong> — for every gated permission, asserts the representative endpoint is reachable <strong>with</strong> the permission and returns <code>403</code> <strong>without</strong> it; plus a completeness guard that fails if any catalog permission is unclassified.</li>
+<li><strong><code>app/api/src/middleware/requirePermission.test.js</code></strong> — unit tests for the gate decision logic.</li>
+<li><strong><code>app/ui/e2e/permission-gating.spec.js</code></strong> — confirms the UI shows/hides the Admin tab and sub-tabs per permission.</li>
+<li><strong><code>app/api/src/auth/docsCoverage.test.js</code></strong> — fails if a catalog permission is missing from this page.</li>
+</ul>
 
 
 
