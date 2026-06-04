@@ -266,9 +266,11 @@ router.post('/matrix/preview', async (req, res) => {
 // ─── POST /api/matrix/scope-stats ───────────────────────────────────
 // Richer counts for the current selection than /preview: subject + resource
 // totals PLUS the governed-vs-non-governed assignment split. Powers the Scope
-// Statistics panel. "Governed" mirrors the matrix's own managed/SOLL semantics
-// (vw_ResourceUserPermissionAssignments.managedByAccessPackage) — an assignment
-// pair is governed if it is provisioned via a business role / access package.
+// Statistics panel. "Governed" mirrors the matrix's own managed/SOLL semantics: a
+// (principal, resource) pair is governed when the membership is covered by a business
+// role the user holds — it appears in vw_UserPermissionAssignmentViaBusinessRole
+// (a BusinessRole that Contains the group AND a Governed assignment of that role to the
+// user). This is exactly what the matrix colours as SOLL.
 router.post('/matrix/scope-stats', async (req, res) => {
   if (!useSql) {
     return res.json({
@@ -303,9 +305,11 @@ router.post('/matrix/scope-stats', async (req, res) => {
         COUNT(*) FILTER (WHERE managed)::int AS governed
       FROM (
         SELECT ${subjectIdExpr} AS sid, p."resourceId" AS rid,
-               bool_or(p."managedByAccessPackage") AS managed
+               bool_or(br."userId" IS NOT NULL) AS managed
           FROM "vw_ResourceUserPermissionAssignments" p
           ${assignmentJoin}
+          LEFT JOIN "vw_UserPermissionAssignmentViaBusinessRole" br
+            ON br."userId" = p."principalId" AND br."resourceId" = p."resourceId"
          WHERE ${assignmentWhere.join(' AND ')}
          GROUP BY ${subjectIdExpr}, p."resourceId"
       ) pairs`;
@@ -478,9 +482,11 @@ router.post('/matrix/scope-breakdown', async (req, res) => {
              COUNT(*) FILTER (WHERE managed)::int AS governed
         FROM (
           SELECT ${grp} AS grp, u.id AS pid, p."resourceId" AS rid,
-                 bool_or(p."managedByAccessPackage") AS managed
+                 bool_or(br."userId" IS NOT NULL) AS managed
             FROM "Principals" u
             JOIN "vw_ResourceUserPermissionAssignments" p ON p."principalId" = u.id
+            LEFT JOIN "vw_UserPermissionAssignmentViaBusinessRole" br
+              ON br."userId" = u.id AND br."resourceId" = p."resourceId"
            WHERE ${notGroup}${subjIn}${resIn}
            GROUP BY ${grp}, u.id, p."resourceId"
         ) t

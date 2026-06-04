@@ -99,6 +99,33 @@ function asofAssignmentsCte(name) {
   )`;
 }
 
+// Alive 'Contains' ResourceRelationships at @asof, as (parent, child). Composite
+// key: parentResourceId|childResourceId|relationshipType (see migration 022).
+function asofContainsCte(name) {
+  return `${name} AS (
+    SELECT (s->>'parentResourceId') AS parent, (s->>'childResourceId') AS child
+      FROM (
+        SELECT x."prevData" AS s FROM (
+          SELECT h."prevData",
+                 ROW_NUMBER() OVER (PARTITION BY h."rowId" ORDER BY h."changedAt" ASC) AS rn
+            FROM "_history" h
+           WHERE h."tableName" = 'ResourceRelationships' AND h."changedAt" > @asof
+        ) x
+         WHERE x.rn = 1 AND x."prevData" IS NOT NULL
+      ) hist
+     WHERE (s->>'relationshipType') = 'Contains'
+    UNION ALL
+    SELECT rr."parentResourceId"::text, rr."childResourceId"::text
+      FROM "ResourceRelationships" rr
+     WHERE rr."relationshipType" = 'Contains'
+       AND NOT EXISTS (
+         SELECT 1 FROM "_history" h
+          WHERE h."tableName" = 'ResourceRelationships'
+            AND h."rowId" = rr."parentResourceId"::text || '|' || rr."childResourceId"::text || '|' || rr."relationshipType"
+            AND h."changedAt" > @asof)
+  )`;
+}
+
 // ── Scope condition clauses (evaluated against an as-of `state` jsonb) ──
 
 function attributeClause(stateAlias, field, values, validColumns, bindings, prefix, slot) {
@@ -223,6 +250,15 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
     ${asofSurrogateCte('asof_principals', 'Principals', 'Principals')},
     ${asofSurrogateCte('asof_resources', 'Resources', 'Resources')},
     ${asofAssignmentsCte('asof_assign')},
+    ${asofContainsCte('asof_contains')},
+    -- A (user, group) membership is governed at D when the user held a business
+    -- role (Governed assignment, rid = the role) that Contains the group at D.
+    coverage AS (
+      SELECT DISTINCT ga.pid AS "userId", rr.child AS "groupId"
+        FROM asof_assign ga
+        JOIN asof_contains rr ON rr.parent = ga.rid
+       WHERE ga.atype = 'Governed'
+    ),
     sp AS (
       SELECT (sp.state->>'id')::uuid AS id
         FROM asof_principals sp
@@ -234,8 +270,9 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
        ${res.where ? `WHERE ${res.where}` : ''}
     ),
     pairs AS (
-      SELECT a.rid, a.pid, bool_or(a.atype = 'Governed') AS governed
+      SELECT a.rid, a.pid, bool_or(c."userId" IS NOT NULL) AS governed
         FROM asof_assign a
+        LEFT JOIN coverage c ON c."userId" = a.pid AND c."groupId" = a.rid
        WHERE a.pid::uuid IN (SELECT id FROM sp)
          AND a.rid::uuid IN (SELECT id FROM sr)
        GROUP BY a.rid, a.pid

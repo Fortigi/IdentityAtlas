@@ -50,7 +50,11 @@ describe('buildScopeAsofSql', () => {
     expect(sql).toContain('@asof');
     expect(sql).toContain('_history');
     expect(sql).toContain('asof_assign');
-    expect(sql).toMatch(/bool_or\(a\.atype = 'Governed'\)/);
+    // Governed = covered by a business role: reconstruct Contains relationships
+    // + Governed role assignments as-of D, join into a coverage set.
+    expect(sql).toContain('asof_contains');
+    expect(sql).toContain('coverage');
+    expect(sql).toMatch(/Contains/);
     expect(sql).toMatch(/SELECT COUNT\(\*\)::int FROM pairs WHERE governed/);
     expect(scopeMode).toBe('attribute');
   });

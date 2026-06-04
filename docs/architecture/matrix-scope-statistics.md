@@ -32,7 +32,10 @@ The union of those two branches is the exact set of rows alive at D, with the at
  for each sample date D:
    alive(D) = { prevData of first change after D }  ∪  { current rows with no change after D }
    assignments(D)  = distinct (principal, resource) pairs in alive(D), within scope-at-D
-   governed(D)     = pairs that have a 'Governed' assignment in alive(D)
+   coverage(D)     = (user, group) where the user held a business role (Governed
+                     assignment) that 'Contains' the group at D   ← reconstructed from
+                     ResourceAssignments + ResourceRelationships history
+   governed(D)     = assignment pairs that are in coverage(D)
 ```
 
 ## Endpoints
