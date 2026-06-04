@@ -251,7 +251,7 @@ function DepartmentBreakdown({ breakdown, drill, onDrill }) {
                     onClick={() => drillable && onDrill(g.group)}
                   >
                     <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">
-                      {drillable && <span className="inline-block w-3 text-gray-400">{isOpen ? '▾' : '▸'}</span>}
+                      {drillable && <span className="inline-block w-3 text-gray-500 dark:text-gray-400">{isOpen ? '▾' : '▸'}</span>}
                       {g.group}
                     </td>
                     <td className="py-2 pr-4 text-right tabular-nums text-gray-700 dark:text-gray-300">{num(g.principals)}</td>
