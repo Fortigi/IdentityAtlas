@@ -105,17 +105,32 @@ export default function MatrixView({
 
   const rowOrderHook = useMatrixRowOrder(storageKey);
 
-  // Apply CLIENT-SIDE managed-state toggle. Subject and resource filters are
-  // already applied by the backend so the matrix data is "the right subset".
-  const filteredData = useMemo(() => {
-    let result = data;
-    if (managedFilter === 'managed') {
-      result = result.filter(d => !!d.managedByAccessPackage);
-    } else if (managedFilter === 'unmanaged') {
-      result = result.filter(d => !d.managedByAccessPackage);
+  // A (member, resource) membership is "governed" when it is covered by a
+  // business role the user holds — i.e. it appears in managedByPackages, the
+  // SAME signal that colours SOLL cells and feeds the scope-stats panel. We do
+  // NOT use the per-row managedByAccessPackage flag here: that only flags the
+  // rare directly-Governed assignment row, so it reads as ~0 governed on real
+  // data and made the Governed toggle show an empty grid.
+  const coveredPairSet = useMemo(() => {
+    const s = new Set();
+    for (const r of managedByPackages || []) {
+      const rid = (r.resourceId || r.groupId || '').toLowerCase();
+      const mid = (r.memberId || '').toLowerCase();
+      if (rid && mid) s.add(`${rid}|${mid}`);
     }
-    return result;
-  }, [data, managedFilter]);
+    return s;
+  }, [managedByPackages]);
+
+  // Apply CLIENT-SIDE governed/non-governed toggle. Subject and resource filters
+  // are already applied by the backend so the matrix data is "the right subset".
+  const filteredData = useMemo(() => {
+    if (managedFilter !== 'managed' && managedFilter !== 'unmanaged') return data;
+    const isGoverned = d =>
+      coveredPairSet.has(`${(d.resourceId || d.groupId || '').toLowerCase()}|${(d.memberId || '').toLowerCase()}`);
+    return managedFilter === 'managed'
+      ? data.filter(isGoverned)
+      : data.filter(d => !isGoverned(d));
+  }, [data, managedFilter, coveredPairSet]);
 
   // Build matrix data structures
   // Owner memberships are split into separate synthetic rows (id: "groupId__owner",
