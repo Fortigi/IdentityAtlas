@@ -2149,6 +2149,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#portable-windows-launcher-post-assessment-additions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Portable Windows launcher (post-assessment additions)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2418,6 +2429,17 @@
     <span class="md-ellipsis">
       
         Low / Informational
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#portable-windows-launcher-post-assessment-additions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Portable Windows launcher (post-assessment additions)
       
     </span>
   </a>
@@ -2769,6 +2791,33 @@
 </table>
 <h3 id="low-informational">Low / Informational<a class="headerlink" href="#low-informational" title="Permanent link">&para;</a></h3>
 <p>Seven Low/Informational items were recorded (information disclosure on public metadata endpoints, dependency hygiene, and minor non-security functional bugs). These are tracked internally and scheduled alongside the remaining Medium items. Technical detail is withheld here pending remediation.</p>
+<hr />
+<h3 id="portable-windows-launcher-post-assessment-additions">Portable Windows launcher (post-assessment additions)<a class="headerlink" href="#portable-windows-launcher-post-assessment-additions" title="Permanent link">&para;</a></h3>
+<p>The portable launcher was not in scope for the original assessment (it was added afterwards). A follow-on review identified two issues mirroring findings from the Docker scope:</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Finding</th>
+<th>Status</th>
+<th>PR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P-01</td>
+<td>API bound to <code>0.0.0.0</code> in portable mode — reachable from other machines on the network with no auth (portable variant of H-03 + C-02)</td>
+<td>✅ Fixed — portable now binds to <code>127.0.0.1</code> only</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/222">#222</a></td>
+</tr>
+<tr>
+<td>P-02</td>
+<td><code>node.exe</code> downloaded during build with no integrity check</td>
+<td>✅ Fixed — SHA-256 pinned in source and verified at build time</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/220">#220</a></td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="supporting-work">Supporting work<a class="headerlink" href="#supporting-work" title="Permanent link">&para;</a></h2>
 <p>Beyond the per-finding fixes, the remediation programme added preventative guardrails:</p>
