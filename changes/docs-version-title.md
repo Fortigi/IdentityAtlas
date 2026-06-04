@@ -1,2 +1,4 @@
 - Docs version picker now shows the release version number (e.g. "5.7.0") instead of "stable"
 - Cut Beta and Cut Release workflows now accept an optional ref input so releases can be cut from any commit, tag, or branch (default: main); docs deploy from the same ref
+- Fixed: launching the portable launcher a second time while Identity Atlas is already running no longer crashes with an `EADDRINUSE` error — it now detects the existing instance and opens the browser instead
+- Fixed: portable Windows launcher now correctly shows the release version number (e.g. "5.7.0") in the UI version card and footer instead of showing no version

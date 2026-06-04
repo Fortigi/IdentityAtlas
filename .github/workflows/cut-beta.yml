@@ -68,6 +68,9 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Stamp pre-release version into .psd1
+        run: sed -i "s/ModuleVersion = '[^']*'/ModuleVersion = '${{ env.VERSION }}'/" setup/IdentityAtlas.psd1
+
       - name: Install desktop dependencies (PGlite)
         run: npm install --prefer-offline
         working-directory: app/desktop
