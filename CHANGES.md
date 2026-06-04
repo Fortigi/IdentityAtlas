@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the Contexts tab in dark mode: the variant labels (Synced / Generated / Manual) and target-type badges (Identity / Resource / Principal / System) now render with proper dark-mode colours instead of washed-out pastel chips. "Principal" also gets its own colour so it's no longer visually identical to an unknown type.
+
+## Changes in this PR
+
 - The Systems page no longer dead-ends new users with a stale `Start-FGSync` command. Its empty state now guides you to **Add a crawler** (the supported path), matching the Dashboard and Sync Log. Added a reusable empty-state panel for consistent onboarding across the app.
 
 ## Changes in this PR
