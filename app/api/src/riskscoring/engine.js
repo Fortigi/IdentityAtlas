@@ -52,6 +52,7 @@
 // progress.
 
 import * as db from '../db/connection.js';
+import RE2 from 're2';
 
 // v4 weights (Invoke-FGRiskScoring.ps1 lines 885-888)
 const W_DIRECT      = 0.50;
@@ -129,15 +130,22 @@ export function isExcludedMatch(matchedText) {
   return false;
 }
 
-// Compile a single classifier's patterns to RegExp objects.
+// Compile a single classifier's patterns.
+//
+// These patterns are LLM-GENERATED, so they're untrusted: a catastrophic-
+// backtracking pattern (e.g. `(a+)+$`) run via RegExp.test() across thousands of
+// rows would freeze the single-threaded event loop (ReDoS, security finding
+// H-07). We compile with the RE2 engine instead — it matches in linear time and
+// cannot catastrophically backtrack, so a hostile pattern can't hang scoring.
 //
 // Two gotchas from LLM-generated patterns:
-//   1. `(?i)` inline flag — Perl/Python syntax, NOT supported by JavaScript.
+//   1. `(?i)` inline flag — Perl/Python syntax, NOT supported here.
 //      We strip it before compile since we pass the `i` flag explicitly anyway.
-//   2. Other Perl-isms like `(?s)` (dot-matches-newline) — we strip them too
-//      and let the default JS behaviour apply.
+//   2. Other Perl-isms like `(?s)` (dot-matches-newline) — we strip them too.
 //
-// Compilation failures are logged so we don't silently skip patterns.
+// RE2 also rejects features it can't guarantee linear-time for (lookaround,
+// backreferences). Those — and any genuinely invalid pattern — throw on compile
+// and are logged + skipped, which is the safe outcome for an untrusted pattern.
 // Exported for unit tests.
 export function compileClassifier(c) {
   const compiled = [];
@@ -146,9 +154,9 @@ export function compileClassifier(c) {
     // Strip unsupported inline flag groups (Perl/Python syntax)
     const cleaned = p.replace(/^\(\?[imsx]+\)/, '').replace(/\(\?[imsx]+\)/g, '');
     try {
-      compiled.push(new RegExp(cleaned, 'i'));
+      compiled.push(new RE2(cleaned, 'i'));
     } catch (err) {
-      console.warn(`Classifier '${c.id || '(unknown)'}': skipping invalid regex '${p}' — ${err.message}`);
+      console.warn(`Classifier '${c.id || '(unknown)'}': skipping unsupported/invalid regex '${p}' — ${err.message}`);
     }
   }
   return { ...c, _compiled: compiled };
