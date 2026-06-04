@@ -109,6 +109,7 @@ nav:
       - Risk Scores: api/risk-scores.md
   - Reference:
       - Configuration: reference/config.md
+      - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - Software Bill of Materials: reference/sbom.md
   - About:

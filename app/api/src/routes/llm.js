@@ -9,6 +9,7 @@
 // router-mount level (see index.js).
 
 import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
 import {
   getLLMConfig,
   saveLLMConfig,
@@ -22,9 +23,10 @@ import {
 import { hasSecret } from '../secrets/vault.js';
 
 const router = Router();
+const gate = requirePermission('admin.llm');
 
 // GET /api/admin/llm/config — current settings (no API key)
-router.get('/admin/llm/config', async (_req, res) => {
+router.get('/admin/llm/config', gate, async (_req, res) => {
   try {
     const cfg = await getLLMConfig();
     const apiKeySet = await hasSecret('llm.apikey');
@@ -45,7 +47,7 @@ router.get('/admin/llm/config', async (_req, res) => {
 //
 // body: { provider, model?, endpoint?, deployment?, apiVersion?, apiKey? }
 // apiKey is optional — omit to update other fields without re-typing the secret.
-router.put('/admin/llm/config', async (req, res) => {
+router.put('/admin/llm/config', gate, async (req, res) => {
   try {
     const { provider, model, endpoint, deployment, apiVersion, apiKey } = req.body || {};
     if (!SUPPORTED_PROVIDERS.includes(provider)) {
@@ -64,7 +66,7 @@ router.put('/admin/llm/config', async (req, res) => {
 });
 
 // DELETE /api/admin/llm/config — wipe both the config and the API key
-router.delete('/admin/llm/config', async (_req, res) => {
+router.delete('/admin/llm/config', gate, async (_req, res) => {
   try {
     await clearLLMConfig();
     res.json({ ok: true });
@@ -79,7 +81,7 @@ router.delete('/admin/llm/config', async (_req, res) => {
 // If the body includes an apiKey, the test uses that without saving. Otherwise it
 // loads the saved config from the database. This lets the UI run "Test" before
 // the user clicks Save.
-router.post('/admin/llm/test', async (req, res) => {
+router.post('/admin/llm/test', gate, async (req, res) => {
   try {
     let { provider, model, endpoint, deployment, apiVersion, apiKey } = req.body || {};
 
@@ -114,7 +116,7 @@ router.post('/admin/llm/test', async (req, res) => {
 //
 // Used by the LLM Settings page to populate the model dropdown instead of
 // making the user type the exact model ID.
-router.post('/admin/llm/models', async (req, res) => {
+router.post('/admin/llm/models', gate, async (req, res) => {
   try {
     const { provider, apiKey, endpoint, apiVersion } = req.body || {};
     if (!provider || !SUPPORTED_PROVIDERS.includes(provider)) {
@@ -130,7 +132,7 @@ router.post('/admin/llm/models', async (req, res) => {
 
 // GET /api/admin/llm/status — quick "is it configured at all" probe used by the
 // Risk Profile wizard to gate its UI without exposing the config details.
-router.get('/admin/llm/status', async (_req, res) => {
+router.get('/admin/llm/status', gate, async (_req, res) => {
   try {
     const configured = await isLLMConfigured();
     res.json({ configured });

@@ -4,6 +4,7 @@
 // Mirrors the riskProfiles.js pattern but for account correlation rules.
 
 import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
 import { chatWithSavedConfig, isLLMConfigured } from '../llm/service.js';
 import {
@@ -13,6 +14,7 @@ import {
 } from '../llm/correlationPrompts.js';
 
 const router = Router();
+const gate = requirePermission('admin.llm');
 const useSql = process.env.USE_SQL === 'true';
 
 // Guard: require LLM configuration
@@ -29,7 +31,7 @@ async function requireLLM(res) {
 //
 // Body: { domain, organizationName?, hints?, systems?: [] }
 // Returns { ruleset, llmModel, usage }
-router.post('/correlation-rulesets/generate', async (req, res) => {
+router.post('/correlation-rulesets/generate', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!(await requireLLM(res))) return;
 
@@ -87,7 +89,7 @@ router.post('/correlation-rulesets/generate', async (req, res) => {
 //
 // Body: { ruleset, transcript: [{role, content}], userMessage }
 // Returns { ruleset (updated), assistantMessage }
-router.post('/correlation-rulesets/refine', async (req, res) => {
+router.post('/correlation-rulesets/refine', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!(await requireLLM(res))) return;
 
@@ -148,7 +150,7 @@ router.post('/correlation-rulesets/refine', async (req, res) => {
 //
 // Body: { ruleset, version?, makeActive? }
 // Returns { id, version, generatedAt }
-router.post('/correlation-rulesets', async (req, res) => {
+router.post('/correlation-rulesets', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
   const { ruleset, version } = req.body || {};
@@ -193,7 +195,7 @@ router.post('/correlation-rulesets', async (req, res) => {
 });
 
 // ─── List all saved rulesets ───────────────────────────────────────
-router.get('/correlation-rulesets', async (req, res) => {
+router.get('/correlation-rulesets', gate, async (req, res) => {
   if (!useSql) return res.json([]);
 
   try {
@@ -230,7 +232,7 @@ router.get('/correlation-rulesets', async (req, res) => {
 });
 
 // ─── Get a specific ruleset ────────────────────────────────────────
-router.get('/correlation-rulesets/:id', async (req, res) => {
+router.get('/correlation-rulesets/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
   try {

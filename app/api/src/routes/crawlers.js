@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
 import crypto from 'crypto';
 import * as db from '../db/connection.js';
 
 const adminCrawlersRouter = Router();
+const gate = requirePermission('admin.crawlers');
 const selfServiceCrawlersRouter = Router();
 const useSql = process.env.USE_SQL === 'true';
 
@@ -29,7 +31,7 @@ async function ensureCrawlerTables(_pool) { /* no-op in v5 */ }
 // ─── Admin endpoints (Entra ID auth) ─────────────────────────────
 
 // GET /api/admin/crawlers — List all crawlers
-adminCrawlersRouter.get('/admin/crawlers', async (req, res) => {
+adminCrawlersRouter.get('/admin/crawlers', gate, async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
@@ -48,7 +50,7 @@ adminCrawlersRouter.get('/admin/crawlers', async (req, res) => {
 });
 
 // POST /api/admin/crawlers — Register a new crawler
-adminCrawlersRouter.post('/admin/crawlers', async (req, res) => {
+adminCrawlersRouter.post('/admin/crawlers', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const { displayName, description, systemIds, permissions, expiresAt, rateLimit } = req.body;
 
@@ -96,7 +98,7 @@ adminCrawlersRouter.post('/admin/crawlers', async (req, res) => {
 });
 
 // PATCH /api/admin/crawlers/:id — Update crawler metadata
-adminCrawlersRouter.patch('/admin/crawlers/:id', async (req, res) => {
+adminCrawlersRouter.patch('/admin/crawlers/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid crawler ID' });
@@ -150,7 +152,7 @@ adminCrawlersRouter.patch('/admin/crawlers/:id', async (req, res) => {
 });
 
 // DELETE /api/admin/crawlers/:id — Disable or permanently remove crawler
-adminCrawlersRouter.delete('/admin/crawlers/:id', async (req, res) => {
+adminCrawlersRouter.delete('/admin/crawlers/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid crawler ID' });
@@ -180,7 +182,7 @@ adminCrawlersRouter.delete('/admin/crawlers/:id', async (req, res) => {
 });
 
 // GET /api/admin/crawlers/:id/audit — Paginated audit log
-adminCrawlersRouter.get('/admin/crawlers/:id/audit', async (req, res) => {
+adminCrawlersRouter.get('/admin/crawlers/:id/audit', gate, async (req, res) => {
   if (!useSql) return res.json({ data: [], total: 0 });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid crawler ID' });
@@ -211,7 +213,7 @@ adminCrawlersRouter.get('/admin/crawlers/:id/audit', async (req, res) => {
 });
 
 // POST /api/admin/crawlers/:id/reset — Admin-initiated key reset
-adminCrawlersRouter.post('/admin/crawlers/:id/reset', async (req, res) => {
+adminCrawlersRouter.post('/admin/crawlers/:id/reset', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid crawler ID' });
