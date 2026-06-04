@@ -27,6 +27,7 @@
 
 import * as db from './db/connection.js';
 import { runScoring } from './riskscoring/engine.js';
+import { hasConfigSecret } from './secrets/crawlerSecrets.js';
 
 const TICK_INTERVAL_MS = 60_000;
 const FIRST_RUN_DELAY_MS = 45_000;
@@ -102,6 +103,9 @@ async function queueScheduledJob(configRow, scheduleIndex) {
     _scheduleIndex: scheduleIndex,
     _syncMode: effectiveSyncMode,
   };
+  // The clientSecret lives in the vault (keyed by config id) and is injected at
+  // claim time — never persisted in the job config.
+  delete jobConfig.clientSecret;
 
   // The jobType is derived from crawlerType. The CrawlerConfigs.crawlerType is
   // the canonical source — 'entra-id' or 'csv'.
@@ -113,7 +117,7 @@ async function queueScheduledJob(configRow, scheduleIndex) {
 
   // Validate before queueing — the crawler will fail otherwise
   if (jobType === 'entra-id') {
-    if (!jobConfig.tenantId || !jobConfig.clientId || !jobConfig.clientSecret) {
+    if (!jobConfig.tenantId || !jobConfig.clientId || !(await hasConfigSecret(configRow.id))) {
       console.warn(`Scheduler: config ${configRow.id} missing Entra credentials — skipping scheduled run`);
       return;
     }
