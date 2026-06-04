@@ -100,6 +100,9 @@ describe('validateOmadaConfig', () => {
     expect(validateOmadaConfig({
       baseUrl: 'https://omada.example.com',
       authMethod: 'OAuth2ROPC',
+      tokenEndpoint: 'https://omada.example.com/oauth2/token',
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
       username: 'user',
       password: 'pass',
     })).toBeNull();
