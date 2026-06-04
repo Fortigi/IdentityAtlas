@@ -28,8 +28,9 @@ const DIST_DIR    = join(API_ROOT, 'dist-node-launcher');
 const STAGE_DIR   = join(DIST_DIR, 'stage');
 const ZIP_PATH    = join(DIST_DIR, 'IdentityAtlas-portable.zip');
 
-const NODE_VERSION = '24.16.0';
-const NODE_URL     = `https://nodejs.org/dist/v${NODE_VERSION}/win-x64/node.exe`;
+const NODE_VERSION   = '24.16.0';
+const NODE_URL       = `https://nodejs.org/dist/v${NODE_VERSION}/win-x64/node.exe`;
+const NODE_SHASUMS   = `https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt`;
 
 const SKIP_UI   = process.argv.includes('--skip-ui-build');
 const ESBUILD   = process.platform === 'win32'
@@ -131,7 +132,7 @@ if (existsSync(UI_DIST)) {
   console.warn('  WARNING: UI dist not found at', UI_DIST, '— dist-frontend will be missing from zip');
 }
 
-// ── Step 7/8 — download node.exe ─────────────────────────────────────────────
+// ── Step 7/8 — download node.exe (with SHA-256 verification) ─────────────────
 console.log('\n[8/8] Downloading node.exe...');
 const NODE_DEST = join(STAGE_DIR, 'node.exe');
 if (!existsSync(NODE_DEST)) {
@@ -139,6 +140,15 @@ if (!existsSync(NODE_DEST)) {
 } else {
   console.log('  node.exe already present, skipping download');
 }
+console.log('  Verifying node.exe SHA-256...');
+pwsh(`
+  $shasums = (Invoke-WebRequest -Uri '${NODE_SHASUMS}' -UseBasicParsing).Content
+  $expected = ($shasums -split '\n' | Where-Object { $_ -match 'win-x64/node\\.exe' } | Select-Object -First 1).Trim().Split()[0]
+  if (-not $expected) { throw 'Could not find win-x64/node.exe entry in SHASUMS256.txt' }
+  $actual = (Get-FileHash '${NODE_DEST.replace(/\\/g, '\\\\')}' -Algorithm SHA256).Hash.ToLower()
+  if ($actual -ne $expected) { throw "node.exe SHA-256 mismatch: expected $expected got $actual" }
+  Write-Host "  SHA-256 verified: $actual" -ForegroundColor Green
+`);
 
 // ── Step 8/8 — zip ───────────────────────────────────────────────────────────
 console.log('\n[8/8] Creating zip...');
