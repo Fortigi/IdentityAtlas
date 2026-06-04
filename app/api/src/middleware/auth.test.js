@@ -118,6 +118,25 @@ describe('authMiddleware — fgr_ token scoping', () => {
     }
   });
 
+  it('rejects admin paths even when req.path is mount-stripped — uses originalUrl (H-08)', async () => {
+    // Under app.use('/api', ...) Express strips the mount prefix, so the
+    // middleware sees req.path = '/admin/read-tokens' while originalUrl keeps
+    // '/api/admin/read-tokens'. A req.path-based check would miss it and let a
+    // leaked read token reach admin GET endpoints. The guard must use originalUrl.
+    findActive.mockResolvedValue({ id: 7, name: 'x', expiresAt: null, revoked: false });
+    const req = {
+      path: '/admin/read-tokens',             // mount-stripped (what the middleware actually sees)
+      originalUrl: '/api/admin/read-tokens',  // full request path
+      method: 'GET',
+      headers: { authorization: `Bearer ${GOOD_TOKEN}` },
+    };
+    const { res, nextCalled } = await run(req);
+    expect(nextCalled).toBe(false);
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toMatch(/admin/i);
+    expect(findActive).not.toHaveBeenCalled(); // short-circuits before the DB
+  });
+
   it('short-circuits: admin-path check happens before the DB lookup', async () => {
     // Defence in depth: even with a valid token, never touch the DB on a
     // path we're going to reject anyway. Keeps a leaked token that's
