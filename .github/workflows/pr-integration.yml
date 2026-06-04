@@ -291,6 +291,26 @@ jobs:
             -ApiKey '${{ steps.apikey.outputs.key }}'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      - name: 'Test: Matrix scope statistics'
+        shell: bash
+        run: |
+          # Back-date the audit log so the timeline reconstruction has real depth
+          # to verify (disable history pruning first so the 180-day baseline
+          # survives). This only rewrites _history timestamps — live data is
+          # untouched, so later tests are unaffected.
+          docker compose -f docker-compose.ci.yml exec -T postgres psql -U identity_atlas -d identity_atlas -c \
+            "INSERT INTO \"WorkerConfig\"(\"configKey\",\"configValue\") VALUES ('HISTORY_RETENTION_DAYS','0') ON CONFLICT (\"configKey\") DO UPDATE SET \"configValue\"=EXCLUDED.\"configValue\";"
+          docker compose -f docker-compose.ci.yml exec -T postgres psql -U identity_atlas -d identity_atlas \
+            < test/demo-dataset/Simulate-History.sql
+          # Earlier test steps ingested rows without refreshing the matrix
+          # materialized views, so the live scope-stats (which read the views)
+          # would lag the raw tables the timeline reconstructs from. Refresh so
+          # the "latest timeline point == live stats" check compares like with like.
+          curl -sf -X POST http://localhost:3001/api/ingest/refresh-views \
+            -H "Authorization: Bearer ${{ steps.apikey.outputs.key }}" \
+            -H "Content-Type: application/json" -d '{}' || true
+          pwsh -Command "& test/nightly/Test-MatrixScopeStats.ps1 -ApiBaseUrl http://localhost:3001/api -ApiKey '${{ steps.apikey.outputs.key }}' -ExpectHistoryDepth; if (\$LASTEXITCODE -ne 0) { exit 1 }"
+
       - name: 'Test: Custom connector'
         shell: pwsh
         run: |
