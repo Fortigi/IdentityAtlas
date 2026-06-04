@@ -1080,19 +1080,27 @@ if ($SyncAssignments) {
         Write-Host "  Role assignments (Governed): +$TotalRaInserted ~$TotalRaUpdated" -ForegroundColor Green
 
         # ── Source 2: Calculated Resource Assignments (CRA — account provisioning per connected system) ──
-        # Fetched in bulk using $top=1000&$skip paging (server page size is 1000).
-        # $expand=Identity gives the Identity.UId for each record.
-        $CaItems = Invoke-OmadaPagedRequest -Path '/CalculatedAssignments' `
-            -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource,System,ResourceType' } `
-            -PageSize 1000 -OverrideBaseUrl $BuiltinBaseUrl
-        Write-Host "  $($CaItems.Count) CRA records from Omada" -ForegroundColor Gray
-
+        # Streamed page-by-page to avoid loading the entire dataset into memory at once.
+        # Cloud instances can have 10 000+ CRA records; accumulating them all with full expand
+        # consumes several GB of RAM and OOM-kills the worker process.
+        # Each page is processed and released before fetching the next.
         $CaPrincipalsBySys  = @{}   # connected-system Principals derived from CRA (keyed by OmadaSystemUId)
         $CaIdentityMembers  = [System.Collections.Generic.List[object]]::new()
         $CaAssignmentsBySys = @{}   # Governed
         $CaAssignmentsBysD  = @{}   # Direct
+        $CaTotalCount = 0
+        $CaSkip = 0
+        $CaPageSize = 1000
 
-        foreach ($Item in $CaItems) {
+        do {
+            $CaPage = Invoke-OmadaGetRequest -Path '/CalculatedAssignments' `
+                -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource,System,ResourceType'
+                                '$top' = $CaPageSize; '$skip' = $CaSkip } `
+                -MaxRetries 5 -OverrideBaseUrl $BuiltinBaseUrl
+            $CaTotalCount += $CaPage.Count
+            $CaSkip += $CaPage.Count  # advance by actual received (variable page size)
+
+            foreach ($Item in $CaPage) {
             $SysUId      = if ($Item.System)   { [string]$Item.System.UId   } else { $Null }
             $ResourceUid = if ($Item.Resource)  { [string]$Item.Resource.UId } else { $Null }
             $IdentityUid = if ($Item.Identity)  { [string]$Item.Identity.UId } else { $Null }
@@ -1175,7 +1183,9 @@ if ($SyncAssignments) {
                 if (-not $CaAssignmentsBysD.ContainsKey($SysKey))  { $CaAssignmentsBysD[$SysKey]  = [System.Collections.Generic.List[object]]::new() }
                 $CaAssignmentsBysD[$SysKey].Add($Rec)
             }
-        }
+        }  # end foreach $Item in $CaPage
+        } while ($CaPage.Count -gt 0)  # fetch next page until empty
+        Write-Host "  $CaTotalCount CRA records from Omada" -ForegroundColor Gray
 
         # Ingest connected-system Principals derived from CRA (delta — SyncAccounts owns full sync for Omada users)
         $TotalCaPrincipals = 0
