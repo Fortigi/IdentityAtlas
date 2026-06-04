@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { formatDate, thinBorder, setHeaderCell } from './excelHelpers';
+import { formatDate, thinBorder, setHeaderCell, safeCell } from './excelHelpers';
 
 // Fetch all APs matching current filters (up to 2000)
 async function fetchAllPackages(authFetch, { search, categoryFilter, sortCol, sortDir }) {
@@ -117,7 +117,7 @@ export async function exportAccessPackagesToExcel({ authFetch, search, categoryF
       // AP detail columns — copy value into every row
       apValues.forEach((val, c) => {
         const cell = ws.getCell(rowNum, c + 1);
-        cell.value = val;
+        cell.value = safeCell(val);
         cell.font = { size: 11 };
         cell.border = thinBorder();
         if (c === 4) cell.alignment = { horizontal: 'center', vertical: 'top' };
@@ -137,12 +137,12 @@ export async function exportAccessPackagesToExcel({ authFetch, search, categoryF
         }
 
         const groupCell = ws.getCell(rowNum, AP_COL_COUNT + 1);
-        groupCell.value = groupName;
+        groupCell.value = safeCell(groupName);
         groupCell.font = { size: 11 };
         groupCell.border = thinBorder();
 
         const roleCell = ws.getCell(rowNum, AP_COL_COUNT + 2);
-        roleCell.value = roleName;
+        roleCell.value = safeCell(roleName);
         roleCell.font = { size: 11 };
         roleCell.border = thinBorder();
         if (roleName === 'Owner') {

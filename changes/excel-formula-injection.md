@@ -1,0 +1,1 @@
+- Security: Excel exports (matrix and access-package workbooks) now neutralize spreadsheet formula injection — synced display names, group/role names, and descriptions that begin with `=`, `+`, `-`, or `@` (or a tab/return) are written as literal text, so a maliciously named group can't turn into an executable formula when the exported file is opened.

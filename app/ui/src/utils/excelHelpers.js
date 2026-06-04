@@ -1,5 +1,15 @@
 export { formatDateOnly as formatDate } from './formatters';
 
+// Excel/CSV formula-injection guard (security finding M-05). A cell whose text
+// starts with = + - @ (or a leading tab/CR) is interpreted as a formula by
+// spreadsheet apps. Synced display names / descriptions are externally
+// influenced, so prefix a single quote to force literal text. Non-string values
+// (numbers, rich-text/formula objects) pass through unchanged.
+export function safeCell(value) {
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(value)) return `'${value}`;
+  return value;
+}
+
 export function hexToArgb(hex) {
   const clean = hex.replace('#', '');
   if (clean.length === 6) return 'FF' + clean.toUpperCase();
