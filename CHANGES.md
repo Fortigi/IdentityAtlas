@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Security: Excel exports (matrix and access-package workbooks) now neutralize spreadsheet formula injection — synced display names, group/role names, and descriptions that begin with `=`, `+`, `-`, or `@` (or a tab/return) are written as literal text, so a maliciously named group can't turn into an executable formula when the exported file is opened.
+
+## Changes in this PR
+
 - Security (CI/CD supply chain): all GitHub Actions used in the build/test/release workflows are now pinned to immutable commit SHAs instead of mutable version tags, so a compromised or repointed action tag cannot silently run in CI with repository credentials. A Dependabot configuration keeps the pinned actions updated via reviewed pull requests.
 
 ## Changes in this PR
