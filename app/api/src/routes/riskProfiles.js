@@ -14,6 +14,7 @@
 // half-finished refinement doesn't pollute history.
 
 import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
 import { chatWithSavedConfig, isLLMConfigured, getLLMConfig } from '../llm/service.js';
 import { scrapeAll, buildLLMContextFromScrapes } from '../llm/scraper.js';
@@ -26,6 +27,7 @@ import {
 import { putSecret, getSecret, deleteSecret } from '../secrets/vault.js';
 
 const router = Router();
+const gate = requirePermission('admin.llm');
 const useSql = process.env.USE_SQL === 'true';
 
 // Guard: every LLM-using endpoint should reject early when nothing is configured
@@ -44,7 +46,7 @@ async function requireLLM(res) {
 // credentialId is the id of a Secret in the 'scraper' scope. The route loads
 // and decrypts each one, hands the plaintext to the scraper, and discards it
 // after the call. The scraper itself never touches the database.
-router.post('/risk-profiles/scrape', async (req, res) => {
+router.post('/risk-profiles/scrape', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const { urls } = req.body || {};
   if (!Array.isArray(urls) || urls.length === 0) {
@@ -89,7 +91,7 @@ router.post('/risk-profiles/scrape', async (req, res) => {
 //
 // Body: { domain, organizationName?, hints?, urls?: [{url, credentialId?}, ...] }
 // Returns { profile, scraped: [...status], llmModel }
-router.post('/risk-profiles/generate', async (req, res) => {
+router.post('/risk-profiles/generate', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!(await requireLLM(res))) return;
   const { domain, organizationName, hints, urls } = req.body || {};
@@ -158,7 +160,7 @@ router.post('/risk-profiles/generate', async (req, res) => {
 //
 // Body: { profile, transcript: [{role, content}], userMessage }
 // Returns { profile (updated), assistantMessage: '[updated profile applied]' }
-router.post('/risk-profiles/refine', async (req, res) => {
+router.post('/risk-profiles/refine', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!(await requireLLM(res))) return;
   const { profile, transcript, userMessage } = req.body || {};
@@ -213,7 +215,7 @@ router.post('/risk-profiles/refine', async (req, res) => {
 // ─── Save profile (creates a new version row) ─────────────────────
 //
 // Body: { displayName, profile, transcript?, sources?, makeActive? }
-router.post('/risk-profiles', async (req, res) => {
+router.post('/risk-profiles', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const { displayName, profile, transcript, sources, makeActive } = req.body || {};
   if (!displayName) return res.status(400).json({ error: 'displayName is required' });
@@ -258,7 +260,7 @@ router.post('/risk-profiles', async (req, res) => {
 });
 
 // ─── List saved profiles ──────────────────────────────────────────
-router.get('/risk-profiles', async (_req, res) => {
+router.get('/risk-profiles', gate, async (_req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {
     const r = await db.query(
@@ -276,7 +278,7 @@ router.get('/risk-profiles', async (_req, res) => {
 
 // ─── Scraper credential CRUD — MUST come before /:id routes so the literal
 // path doesn't match the parameter route.
-router.get('/risk-profiles/scraper-credentials', async (_req, res) => {
+router.get('/risk-profiles/scraper-credentials', gate, async (_req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {
     const r = await db.query(
@@ -288,7 +290,7 @@ router.get('/risk-profiles/scraper-credentials', async (_req, res) => {
   }
 });
 
-router.post('/risk-profiles/scraper-credentials', async (req, res) => {
+router.post('/risk-profiles/scraper-credentials', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const { label, username, password, bearer } = req.body || {};
   if (!label) return res.status(400).json({ error: 'label is required' });
@@ -304,7 +306,7 @@ router.post('/risk-profiles/scraper-credentials', async (req, res) => {
   }
 });
 
-router.delete('/risk-profiles/scraper-credentials/:id', async (req, res) => {
+router.delete('/risk-profiles/scraper-credentials/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {
     await deleteSecret(req.params.id);
@@ -315,7 +317,7 @@ router.delete('/risk-profiles/scraper-credentials/:id', async (req, res) => {
 });
 
 // ─── Get one profile (full body) ──────────────────────────────────
-router.get('/risk-profiles/:id', async (req, res) => {
+router.get('/risk-profiles/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
@@ -330,7 +332,7 @@ router.get('/risk-profiles/:id', async (req, res) => {
 });
 
 // ─── Activate a profile (the trigger ensures uniqueness) ──────────
-router.post('/risk-profiles/:id/activate', async (req, res) => {
+router.post('/risk-profiles/:id/activate', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
@@ -347,7 +349,7 @@ router.post('/risk-profiles/:id/activate', async (req, res) => {
   }
 });
 
-router.delete('/risk-profiles/:id', async (req, res) => {
+router.delete('/risk-profiles/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
@@ -363,7 +365,7 @@ router.delete('/risk-profiles/:id', async (req, res) => {
 // ─── Classifiers ──────────────────────────────────────────────────
 
 // Generate from a saved profile (no DB write)
-router.post('/risk-classifiers/generate', async (req, res) => {
+router.post('/risk-classifiers/generate', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!(await requireLLM(res))) return;
   const { profileId } = req.body || {};
@@ -403,7 +405,7 @@ router.post('/risk-classifiers/generate', async (req, res) => {
 });
 
 // Save a classifier set
-router.post('/risk-classifiers', async (req, res) => {
+router.post('/risk-classifiers', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const { displayName, profileId, classifiers, makeActive } = req.body || {};
   if (!displayName) return res.status(400).json({ error: 'displayName is required' });
@@ -438,7 +440,7 @@ router.post('/risk-classifiers', async (req, res) => {
   }
 });
 
-router.get('/risk-classifiers', async (_req, res) => {
+router.get('/risk-classifiers', gate, async (_req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {
     const r = await db.query(
@@ -454,7 +456,7 @@ router.get('/risk-classifiers', async (_req, res) => {
   }
 });
 
-router.get('/risk-classifiers/:id', async (req, res) => {
+router.get('/risk-classifiers/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
@@ -467,7 +469,7 @@ router.get('/risk-classifiers/:id', async (req, res) => {
   }
 });
 
-router.post('/risk-classifiers/:id/activate', async (req, res) => {
+router.post('/risk-classifiers/:id/activate', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
@@ -483,7 +485,7 @@ router.post('/risk-classifiers/:id/activate', async (req, res) => {
   }
 });
 
-router.patch('/risk-classifiers/:id/schedules', async (req, res) => {
+router.patch('/risk-classifiers/:id/schedules', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
@@ -503,7 +505,7 @@ router.patch('/risk-classifiers/:id/schedules', async (req, res) => {
   }
 });
 
-router.delete('/risk-classifiers/:id', async (req, res) => {
+router.delete('/risk-classifiers/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });

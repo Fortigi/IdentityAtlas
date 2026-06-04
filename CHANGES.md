@@ -1,5 +1,34 @@
 ## Changes in this PR
 
+- Security: the production Docker Compose stack no longer publishes PostgreSQL to all network interfaces. It now binds to localhost (`127.0.0.1`) only by default, so the database is not reachable from other hosts. Set `POSTGRES_BIND_HOST=0.0.0.0` if you deliberately need off-host access.
+- Security: the production Docker Compose stack no longer ships a default database password. `POSTGRES_PASSWORD` is now required — the stack refuses to start until a strong value is set. (The local development compose still provides a default for convenience.)
+- Azure deployments are unaffected — they use a managed PostgreSQL server rather than the Compose Postgres container.
+
+## Changes in this PR
+
+- Security (behaviour change): a signed-in user whose Entra roles map to no permissions is no longer silently granted full administrator access. Such users are now denied all admin and write actions (fail-closed). Previously, on installs where app roles had not been assigned yet, any authenticated tenant user effectively had admin rights.
+- To grant access after enabling authentication, assign users an Entra app role — the default "Admin" role grants full access. If you lock yourself out by enabling auth before assigning a role, recover with the auth CLI (`auth-config.js disable`); see the Permissions & Roles documentation for the bootstrap and recovery steps.
+- Added a startup warning when authentication is enabled without `AUTH_REQUIRED_ROLES`, since any signed-in tenant user can still read data until sign-in is restricted to specific roles.
+- Security: the API now accepts only Entra ID **access tokens** issued for its own API scope (audience `api://<client-id>`). ID tokens — and any token whose audience is the bare client ID — are rejected. This prevents an ID token (issued on every interactive sign-in and not intended for API authorization) from being used as an API credential.
+- This requires the Entra App Registration to expose its API with the default `api://<client-id>` Application ID URI, which the in-app setup walkthrough already configures.
+
+## Changes in this PR
+
+- Replaced `tools/setup-branch-protection.sh` with documentation in `docs/architecture/branching-strategy.md` — the script had drifted from the live ruleset config and a written guide is easier to maintain for a repo that is set up once.
+
+## Changes in this PR
+
+- Fixed granular admin roles: each admin permission is now enforced on its own routes, so a role granted (for example) only crawler access is no longer incorrectly blocked by unrelated admin permissions. Previously only the full-access (wildcard) role worked for admin endpoints.
+- Added a "Permissions & Roles" reference page documenting every permission, the default role mapping, and how authorization is enforced.
+- Added comprehensive automated tests for the permission model: an allow/deny check for every permission against its real endpoint, the role→permission gate logic, UI tests confirming tabs and controls are hidden when a user lacks the permission, a round-trip test proving that saving a changed role→permission mapping immediately changes access, and validation that signed tokens are rejected when their signature, audience, issuer, tenant, or expiry is wrong.
+- Pull request checks now require accompanying tests and a changelog entry whenever code changes (maintainers can override with a label for genuine exceptions).
+
+## Changes in this PR
+
+- Added **Portable Windows Launcher** page to the documentation navigation under Architecture.
+
+## Changes in this PR
+
 - Documentation site now shows a version picker — visitors land on the **stable** docs by default and can switch to **edge** (latest `main`) via the dropdown in the top bar.
 - Each GitHub Release automatically publishes a new stable docs snapshot; merges to `main` update the edge docs.
 

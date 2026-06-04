@@ -1,80 +1,27 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { authMiddleware, requirePermission } from './middleware/auth.js';
-import { perfMetrics } from './middleware/perfMetrics.js';
+// Process entry point. Builds the Express app (see app.js) and owns all the
+// startup side-effects that must NOT run on a bare `import` (so tests can
+// import createApp without binding a port or hitting the DB):
+//   - performance collector enable
+//   - production auth warning
+//   - initial auth-config load
+//   - app.listen + worker bootstrap
+//   - graceful shutdown
+
+import { createApp } from './app.js';
 import { enable as enablePerf, isEnabled as isPerfEnabled } from './perf/collector.js';
-import permissionsRouter from './routes/permissions.js';
-import matrixRouter from './routes/matrix.js';
-import tagsRouter from './routes/tags.js';
-import categoriesRouter from './routes/categories.js';
-import detailsRouter from './routes/details.js';
-import recentChangesRouter from './routes/recentChanges.js';
-import governanceRouter from './routes/governance.js';
-import perfRouter from './routes/perf.js';
-import riskRouter from './routes/riskScores.js';
-import orgChartRouter from './routes/orgChart.js';
-import identitiesRouter from './routes/identities.js';
-import preferencesRouter from './routes/preferences.js';
-import systemsRouter from './routes/systems.js';
-import resourcesRouter from './routes/resources.js';
-import contextsRouter from './routes/contexts.js';
-import contextPluginsRouter from './routes/contextPlugins.js';
-import adminRouter from './routes/admin.js';
-import authRolesRouter from './routes/authRoles.js';
-import llmRouter from './routes/llm.js';
-import riskProfilesRouter from './routes/riskProfiles.js';
-import riskScoringRunsRouter from './routes/riskScoringRuns.js';
-import correlationRulesetsRouter from './routes/correlationRulesets.js';
-import { adminCrawlersRouter, selfServiceCrawlersRouter } from './routes/crawlers.js';
-import { crawlerAuthMiddleware } from './middleware/crawlerAuth.js';
-import ingestRouter from './routes/ingest.js';
-import jobsRouter from './routes/jobs.js';
-import csvUploadsRouter from './routes/csvUploads.js';
-import dataExportRouter from './routes/dataExport.js';
-import bulkListsRouter from './routes/bulkLists.js';
-import { loadAuthConfig, isAuthEnabled, getTenantId, getClientId } from './config/authConfig.js';
-import swaggerUi from 'swagger-ui-express';
-import YAML from 'yamljs';
-import { join as pathJoin } from 'path';
+import { loadAuthConfig, isAuthEnabled } from './config/authConfig.js';
 import { bootstrapWorker } from './bootstrap.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const app = express();
 const port = process.env.PORT || 3001;
 const isProduction = process.env.NODE_ENV === 'production';
-// Note: authentication state is now dynamic — read it via isAuthEnabled() which
-// reflects the current value from authConfig.js (DB-backed, hot-reloadable).
-// The local authEnabled below is a startup snapshot used only for the boot warning.
+// Snapshot of AUTH_ENABLED at boot — used only for the production warning below.
+// The live value is read via isAuthEnabled() (DB-backed, hot-reloadable).
 const authEnabledAtBoot = process.env.AUTH_ENABLED === 'true';
 // Performance monitoring is ON by default — opt-out by setting PERF_METRICS_ENABLED=false.
 // The runtime toggle in the Performance page still works to enable/disable per session.
 const perfEnabled = process.env.PERF_METRICS_ENABLED !== 'false';
 
-// Resolve module version: env var (set during deployment) → fallback to .psd1 manifest
-let moduleVersion = process.env.MODULE_VERSION || null;
-if (!moduleVersion) {
-  // Try to read the version from the .psd1 manifest. Two paths:
-  //   1. /app/setup/IdentityAtlas.psd1 — mounted by docker-compose.yml for local dev
-  //   2. ../../../setup/IdentityAtlas.psd1 — works when running outside Docker (e.g. npm start)
-  const candidates = [
-    '/app/setup/IdentityAtlas.psd1',
-    join(__dirname, '../../../setup/IdentityAtlas.psd1'),
-  ];
-  for (const p of candidates) {
-    try {
-      const content = readFileSync(p, 'utf-8');
-      const match = content.match(/ModuleVersion\s*=\s*'([^']+)'/);
-      if (match) { moduleVersion = match[1]; break; }
-    } catch { /* not available at this path */ }
-  }
-}
-
-// ─── Performance metrics (opt-in via PERF_METRICS_ENABLED=true) ─
+// ─── Performance metrics (opt-out via PERF_METRICS_ENABLED=false) ─
 if (perfEnabled) {
   enablePerf();
 }
@@ -82,6 +29,12 @@ if (perfEnabled) {
 // ─── Startup env validation ──────────────────────────────────────
 if (isProduction && !authEnabledAtBoot) {
   console.warn('WARNING: AUTH_ENABLED is not set to "true" in production. All API endpoints are unauthenticated until configured via Admin → Authentication.');
+}
+// Auth is on, but with no AUTH_REQUIRED_ROLES backstop any signed-in tenant user
+// can still READ all data (roleless users are denied write/admin since C-01, but
+// read endpoints aren't permission-gated). Nudge operators to lock sign-in down.
+if (authEnabledAtBoot && !process.env.AUTH_REQUIRED_ROLES) {
+  console.warn('WARNING: AUTH_ENABLED is true but AUTH_REQUIRED_ROLES is not set. Any authenticated tenant user can read data (they cannot perform admin/write actions without a mapped role). Assign Entra app roles and/or set AUTH_REQUIRED_ROLES to restrict who can sign in.');
 }
 
 // Load auth config from DB (with env var fallback). Best-effort — if the DB
@@ -91,285 +44,7 @@ loadAuthConfig().catch(err => {
   console.warn('Initial auth config load failed:', err.message);
 });
 
-// ─── Security headers ────────────────────────────────────────────
-// HSTS and CSP `upgrade-insecure-requests` are opt-in via BEHIND_TLS=true.
-// The default deployment story is plain HTTP on port 3001; sending these
-// headers over HTTP traps browsers into HTTPS-only for a year and then fails
-// because there's no TLS listener. Set BEHIND_TLS=true only when a TLS
-// terminator (Caddy, nginx, Azure Front Door) sits in front of the container.
-const behindTls = process.env.BEHIND_TLS === 'true';
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],  // Tailwind uses inline styles
-      fontSrc: ["'self'"],
-      connectSrc: [
-        "'self'",
-        'https://login.microsoftonline.com',
-        'https://graph.microsoft.com',
-      ],
-      frameSrc: ["'self'", 'https://login.microsoftonline.com'],
-      imgSrc: ["'self'", 'data:'],
-      upgradeInsecureRequests: behindTls ? [] : null,
-    },
-  },
-  strictTransportSecurity: behindTls,
-  crossOriginEmbedderPolicy: false,  // Required for MSAL redirects
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-}));
-
-// ─── CORS ────────────────────────────────────────────────────────
-// ALLOWED_ORIGINS must not contain '*' — filter it out to prevent accidental
-// broad access. In development, restrict to known localhost origins instead
-// of `true` (which would allow any origin including cross-site attackers).
-const DEV_ORIGINS = [
-  'http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001',
-  'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001',
-];
-const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(o => o && o !== '*')
-    : isProduction
-      ? false  // Disallow cross-origin in production if not explicitly configured
-      : DEV_ORIGINS,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Server-Timing'],  // Allow browser to read Server-Timing header
-};
-app.use(cors(corsOptions));
-
-// ─── Body parsing with size limits ───────────────────────────────
-// Route-specific parsers for large payloads are set below (ingest: 10mb, import: 2mb).
-// The global parser handles all other routes with a conservative limit.
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/ingest') || req.path.startsWith('/api/admin/import')) {
-    return next(); // Skip global parser — route-specific parsers handle these
-  }
-  express.json({ limit: '100kb' })(req, res, next);
-});
-
-// ─── Performance metrics middleware (before routes, after body parsing) ─
-app.use('/api', perfMetrics);
-
-// ─── Swagger / OpenAPI docs (public) ─────────────────────────────
-try {
-  const openapiSpec = YAML.load(pathJoin(__dirname, 'openapi.yaml'));
-  app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
-    customSiteTitle: 'Identity Atlas Ingest API',
-  }));
-} catch {
-  // OpenAPI spec not available — skip Swagger UI
-}
-
-// ─── Rate limiting on unauthenticated endpoints ──────────────────
-const publicLimiter = rateLimit({
-  windowMs: 60 * 1000,  // 1 minute
-  max: 30,               // 30 requests per minute per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later' },
-});
-
-// Authenticated /api/* endpoints get a permissive global limit. The
-// point is just to bound DoS / credential-stuffing against the auth
-// middleware itself — which CodeQL flags as "authorization without
-// rate limiting" otherwise. The cap must NOT bite normal interactive
-// use (matrix page fires 20+ calls on load) or parallel CI tests
-// running through a single source IP, so we leave wide headroom.
-//   6000 req/min  =  100 req/sec sustained per IP
-const authedApiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 6000,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please slow down' },
-});
-app.use('/api', authedApiLimiter);
-
-// Unauthenticated endpoints (rate-limited)
-app.get('/api/health', publicLimiter, (req, res) => {
-  res.json({ status: 'ok' });
-});
-
-// Minimum compose file version this image expects. Bump this whenever
-// docker-compose.prod.yml changes in a way that affects runtime behavior
-// (new env vars, volume mounts, group_add, etc.). Users with an older
-// compose file will see a warning on the Dashboard.
-const MIN_COMPOSE_FILE_VERSION = 1;
-
-app.get('/api/version', publicLimiter, (req, res) => {
-  const composeFileVersion = parseInt(process.env.COMPOSE_FILE_VERSION || '0', 10);
-  res.json({
-    version: moduleVersion || null,
-    composeFileVersion: composeFileVersion || null,
-    minComposeFileVersion: MIN_COMPOSE_FILE_VERSION,
-    composeFileOutdated: composeFileVersion > 0 && composeFileVersion < MIN_COMPOSE_FILE_VERSION,
-  });
-});
-
-// Helper: read a feature flag override from WorkerConfig (overrides the env var)
-async function getFeatureOverride(key) {
-  if (process.env.USE_SQL !== 'true') return null;
-  try {
-    const db = await import('./db/connection.js');
-    const r = await db.queryOne(
-      `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = $1`,
-      [`FEATURE_${key}`]
-    );
-    if (!r) return null;
-    const v = r.configValue;
-    return v === 'true' ? true : v === 'false' ? false : null;
-  } catch (err) {
-    console.warn(`getFeatureOverride(${key}) failed: ${err.message}`);
-    return null;
-  }
-}
-
-app.get('/api/features', publicLimiter, async (req, res) => {
-  // WorkerConfig overrides win over env vars; env vars are the fallback default.
-  // Risk Scoring defaults to OFF on a fresh install — opt-in via the toggle
-  // in Admin → Risk Scoring or via FEATURE_RISK_SCORING=true.
-  const riskOverride = await getFeatureOverride('RISK_SCORING');
-  const corrOverride = await getFeatureOverride('ACCOUNT_CORRELATION');
-  res.json({
-    riskScoring: riskOverride !== null
-      ? riskOverride
-      : process.env.FEATURE_RISK_SCORING === 'true',
-    accountCorrelation: corrOverride !== null
-      ? corrOverride
-      : process.env.FEATURE_ACCOUNT_CORRELATION !== 'false',
-  });
-});
-
-app.get('/api/auth-config', publicLimiter, (req, res) => {
-  // Reads the live config from authConfig.js so a UI-driven save takes effect
-  // immediately for any new browser session.
-  //
-  // `configured` distinguishes two enabled-but-different states for the SPA:
-  //   enabled=true, configured=true   → run MSAL sign-in
-  //   enabled=true, configured=false  → show the "set up Entra" page instead
-  //                                     of trying to sign in (happens on Azure
-  //                                     between Step 1 and Step 2 of the
-  //                                     walkthrough, when the env vars are
-  //                                     still empty)
-  //
-  // `platform` lets the setup page render Azure-specific or Docker-specific
-  // instructions. Same WEBSITE_SITE_NAME check that admin.js uses.
-  const enabled = isAuthEnabled();
-  const tenantId = enabled ? (getTenantId() || '') : '';
-  const clientId = enabled ? (getClientId() || '') : '';
-  const platform = process.env.WEBSITE_SITE_NAME ? 'azure-app-service' : 'docker';
-  res.json({
-    enabled,
-    configured: enabled && !!tenantId && !!clientId,
-    tenantId,
-    clientId,
-    platform,
-  });
-});
-
-// What permissions does the *current request* have? UI calls this once after
-// sign-in (and after editing the mapping) to drive feature-flag-style gating —
-// hide Admin tab, hide export buttons, etc. Server is source of truth for the
-// role→permission mapping; mirroring the resolution in the UI would drift.
-//
-// Behaviour:
-//   - Auth disabled → { enabled:false, hasWildcard:true, permissions:[] }.
-//     UI treats wildcard as "render everything."
-//   - Auth enabled but no Authorization header → 401 (caller should retry
-//     with a token).
-//   - Auth enabled + valid JWT → { roles, permissions, hasWildcard } where
-//     `permissions` excludes the '*' sentinel and `hasWildcard` is the
-//     boolean. Lets the UI distinguish "Admin (full access via *)" from
-//     "RoleMiner (these specific permissions)" for the badge display.
-app.get('/api/auth-me', authMiddleware, (req, res) => {
-  if (!isAuthEnabled()) {
-    return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [] });
-  }
-  const perms = req.user?.permissions || new Set();
-  const hasWildcard = perms.has('*');
-  res.json({
-    enabled: true,
-    roles: req.user?.roles || [],
-    permissions: Array.from(perms).filter(p => p !== '*'),
-    hasWildcard,
-  });
-});
-
-// Performance metrics routes (auth-protected)
-app.use('/api', authMiddleware, perfRouter);
-
-// Auth middleware for all other API routes
-app.use('/api', authMiddleware, permissionsRouter);
-app.use('/api', authMiddleware, matrixRouter);
-app.use('/api', authMiddleware, tagsRouter);
-app.use('/api', authMiddleware, categoriesRouter);
-app.use('/api', authMiddleware, detailsRouter);
-app.use('/api', authMiddleware, recentChangesRouter);
-app.use('/api', authMiddleware, riskRouter);
-app.use('/api', authMiddleware, orgChartRouter);
-app.use('/api', authMiddleware, identitiesRouter);
-app.use('/api', authMiddleware, preferencesRouter);
-app.use('/api', authMiddleware, systemsRouter);
-app.use('/api', authMiddleware, resourcesRouter);
-app.use('/api', authMiddleware, contextsRouter);
-// Context plugins (Admin → Contexts) — admin-only across the board.
-app.use('/api', authMiddleware, requirePermission('admin.context-plugins'), contextPluginsRouter);
-app.use('/api/admin/import', express.json({ limit: '2mb' }));  // larger limit for import payloads
-// Role -> permission mapping (Admin → Authentication page). Gated by the
-// admin.auth permission so it's editable only by someone whose own mapping
-// already grants it.
-app.use('/api', authMiddleware, requirePermission('admin.auth'), authRolesRouter);
-// adminRouter is a grab-bag of /admin/* endpoints with mixed permission needs
-// (read dashboards, write retention config, toggle feature flags, export curated
-// dumps, …). Gates are applied per-handler inside admin.js so each endpoint
-// requires the right permission.
-app.use('/api', authMiddleware, adminRouter);
-app.use('/api', authMiddleware, requirePermission('admin.llm'), llmRouter);
-// Risk profile / classifier config is owned by the LLM admin — it drives how
-// risk-scoring prompts are built and which sources they cite.
-app.use('/api', authMiddleware, requirePermission('admin.llm'), riskProfilesRouter);
-// Listing existing runs is read-only; triggering one is admin. Per-handler in the router.
-app.use('/api', authMiddleware, riskScoringRunsRouter);
-app.use('/api', authMiddleware, requirePermission('admin.llm'), correlationRulesetsRouter);
-app.use('/api', authMiddleware, requirePermission('admin.csv-import'), csvUploadsRouter);
-app.use('/api', authMiddleware, governanceRouter);
-// Bulk list endpoints used by Power Query / BI tools (read API keys honoured)
-app.use('/api', authMiddleware, bulkListsRouter);
-// Read API token CRUD + Excel workbook download (admin-scoped). Per-handler
-// gates in the router separate "create your own token" (data.export.apikey)
-// from "list/revoke any token in tenant" (admin.read-tokens) and the workbook
-// download (data.export.ui).
-app.use('/api', authMiddleware, dataExportRouter);
-
-// ─── Crawler & job routes ───────────────────────────────────────
-// Admin crawler management (Entra ID auth) — /api/admin/crawlers/*
-app.use('/api', authMiddleware, requirePermission('admin.crawlers'), adminCrawlersRouter);
-// Crawler jobs (Entra ID auth) — /api/admin/crawler-jobs/*, /api/admin/status
-app.use('/api', authMiddleware, requirePermission('admin.crawlers'), jobsRouter);
-// Crawler self-service (API key auth) — /api/crawlers/whoami, /api/crawlers/rotate
-app.use('/api', crawlerAuthMiddleware, selfServiceCrawlersRouter);
-// Ingest endpoints (API key auth) — /api/ingest/*
-// Ingest body size cap. Crawler chunks at 5,000 records per batch; with
-// extendedAttributes populated (SPs in particular carry appId, tags,
-// servicePrincipalNames, publisherName, etc.) a typical batch can reach
-// 20-30 MB. 50 MB gives ~5x headroom over real-world observed sizes while
-// still keeping a sane upper bound on memory use per request.
-app.use('/api/ingest', express.json({ limit: '50mb' }));
-app.use('/api', crawlerAuthMiddleware, ingestRouter);
-
-// In production, serve the frontend build output
-const frontendDist = process.env.FRONTEND_DIST || join(__dirname, '../../frontend/dist');
-app.use(express.static(frontendDist));
-app.get('*', publicLimiter, (req, res, next) => {
-  // Only serve index.html for non-API routes (SPA fallback)
-  if (req.path.startsWith('/api')) return next();
-  res.sendFile(join(frontendDist, 'index.html'));
-});
+const app = createApp();
 
 const server = app.listen(port, async () => {
   console.log(`Identity Atlas running on http://localhost:${port}`);
