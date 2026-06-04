@@ -347,6 +347,22 @@ router.post('/ingest/refresh-views', async (req, res) => {
   try {
     await refreshMatrixViews();
 
+    // Mark every system that has synced data with the current timestamp so the
+    // Systems page shows "Last sync: <date>" instead of "Never".
+    try {
+      await db.query(`
+        UPDATE "Systems" s
+           SET "lastSyncDateTime" = now() AT TIME ZONE 'utc'
+         WHERE s.id IN (
+           SELECT DISTINCT "systemId" FROM "Resources"  WHERE "systemId" IS NOT NULL
+           UNION
+           SELECT DISTINCT "systemId" FROM "Principals" WHERE "systemId" IS NOT NULL
+         )
+      `);
+    } catch (tsErr) {
+      console.warn('lastSyncDateTime update failed (non-fatal):', tsErr.message);
+    }
+
     // Recalculate directMemberCount and totalMemberCount on all Contexts
     // that have ContextMembers. The ingest engine doesn't trigger the
     // per-context recalc helper (that's for manual analyst writes), so we
