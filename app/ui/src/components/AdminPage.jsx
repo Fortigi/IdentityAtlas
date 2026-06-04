@@ -435,7 +435,7 @@ function ClassifiersSection() {
                 + Add Schedule
               </button>
               <button onClick={handleSaveSchedules} disabled={savingSchedules}
-                className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50">
+                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
                 {savingSchedules ? 'Saving...' : 'Save Schedules'}
               </button>
               {scheduleError && <span className="text-xs text-red-600 dark:text-red-400">{scheduleError}</span>}
@@ -464,14 +464,14 @@ function NewCorrelationRulesetLauncher({ onRefresh }) {
   };
 
   return (
-    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg p-4 flex items-center justify-between mb-4">
+    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 flex items-center justify-between mb-4">
       <div>
-        <div className="text-sm font-medium text-indigo-900 dark:text-indigo-200">Create a new account correlation ruleset</div>
-        <div className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
+        <div className="text-sm font-medium text-blue-900 dark:text-blue-200">Create a new account correlation ruleset</div>
+        <div className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
           Generates correlation signals and account type rules to link accounts across systems.
         </div>
       </div>
-      <button onClick={() => setOpen(true)} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
+      <button onClick={() => setOpen(true)} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
         New Ruleset
       </button>
       {open && (
@@ -1183,7 +1183,7 @@ function HistoryRetentionSection() {
         <button
           onClick={save}
           disabled={!dirty || !valid || saving || loading}
-          className="px-4 py-1.5 text-sm font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
+          className="px-4 py-1.5 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
@@ -1555,7 +1555,7 @@ function LLMSettingsSection() {
                 type="button"
                 onClick={handleRefreshModels}
                 disabled={modelsLoading || (!config.apiKey && !apiKeySet)}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 disabled:text-gray-400 dark:disabled:text-gray-600"
+                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 disabled:text-gray-400 dark:disabled:text-gray-600"
                 title={(!config.apiKey && !apiKeySet) ? 'Enter an API key first' : 'Fetch available models from the provider'}
               >
                 {modelsLoading ? 'Loading…' : models ? 'Refresh' : 'Discover models'}
@@ -1645,7 +1645,7 @@ function LLMSettingsSection() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-1.5 text-sm font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500"
+            className="px-4 py-1.5 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
@@ -1697,14 +1697,14 @@ function NewRiskProfileLauncher({ onRiskScoresRefresh }) {
   const [open, setOpen] = useState(false);
   const [bumpKey, setBumpKey] = useState(0);
   return (
-    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg p-4 flex items-center justify-between">
+    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 flex items-center justify-between">
       <div>
-        <div className="text-sm font-medium text-indigo-900 dark:text-indigo-200">Create a new risk profile</div>
-        <div className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
+        <div className="text-sm font-medium text-blue-900 dark:text-blue-200">Create a new risk profile</div>
+        <div className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
           Walks you through generating an organisational profile and classifier set with the LLM, then optionally runs a scoring pass.
         </div>
       </div>
-      <button onClick={() => setOpen(true)} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
+      <button onClick={() => setOpen(true)} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
         New profile
       </button>
       {open && (
@@ -1826,7 +1826,7 @@ function AdminSubTabs({ activeTab, onTabChange, tabs }) {
             onClick={() => onTabChange(tab.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.key
-                ? 'border-indigo-600 text-indigo-700 dark:text-indigo-400'
+                ? 'border-blue-600 text-blue-700 dark:text-blue-400'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
