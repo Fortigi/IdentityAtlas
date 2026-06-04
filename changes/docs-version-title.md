@@ -1,0 +1,1 @@
+- Docs version picker now shows the release version number (e.g. "5.7.0") instead of "stable"
