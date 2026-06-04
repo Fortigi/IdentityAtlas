@@ -2203,16 +2203,17 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
               </button>
               {showCookieHelp && (
                 <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-xs space-y-2 dark:bg-gray-700/50 dark:border-gray-600 text-gray-700 dark:text-gray-300">
-                  <p><strong>Option A — Browser DevTools:</strong> Log in to Omada → F12 → Application → Cookies → copy Name=Value pairs → join with <code>; </code></p>
-                  <p><strong>Option B — OmadaWeb.PS:</strong> <code>Connect-OmadaIAM</code>, then export via <code>Get-OmadaSession</code> and format as <code>name=value; name2=value2</code></p>
-                  <p><strong>Option C — PowerShell direct:</strong></p>
+                  <p><strong>Omada Cloud (oisauthtoken):</strong> Log in to Omada Cloud → F12 DevTools → Application → Cookies → find <code>oisauthtoken</code> → copy its <em>Value</em> (a long JWT starting with <code>eyJ…</code>) → enter as <code>oisauthtoken=eyJ…</code></p>
+                  <p className="text-amber-600 dark:text-amber-400 font-medium">The value must start with <code>oisauthtoken=</code> followed by the full JWT (200+ characters). A short or missing value will cause 401 errors even though the format is correct.</p>
+                  <p><strong>On-premise (multiple cookies):</strong> Log in → F12 → Application → Cookies → copy all Name=Value pairs → join with <code>; </code> (e.g. <code>ASP.NET_SessionId=abc; OmadaAuth=xyz</code>)</p>
+                  <p><strong>PowerShell direct (on-prem):</strong></p>
                   <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">{`$s = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
 Invoke-RestMethod -Uri "https://omada.example.com/api/authenticate" \\
   -Method Post -ContentType application/json \\
   -Body '{"Username":"svc","Password":"..."}' \\
   -SessionVariable s | Out-Null
 $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
-  ForEach-Object { "$($_.Name)=$($_.Value)" }) -join '; '`}</pre>
+  ForEach-Object { "$($_.Name)=$($_.Value)" } | Join-String -Separator '; '`}</pre>
                   <p className="text-gray-500 dark:text-gray-400">⚠️ Omada session cookies expire (typically 20–60 min). Use FormCookie or OAuth2 for unattended scheduled syncs.</p>
                 </div>
               )}
