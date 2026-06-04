@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Refreshed the documentation site to follow the UI Style Guide's two-role colour system: green stays the brand colour (header, tabs, logo, cards, table headers) while blue now marks everything interactive — body links, the active navigation item, and hover/accent states — in both light and dark mode.
+
+## Changes in this PR
+
 - Added a CI lint gate that blocks native browser dialogs (`confirm`/`alert`/`prompt`) in new UI code — these aren't styled, dark-mode aware, or testable; use an in-app dialog or toast instead.
 - Added a CI lint gate that keeps legacy/internal jargon (SOLL, IST, "Org Unit", Start-FGSync) out of user-facing UI text, steering contributors to the current terminology (Governed/Non-governed, Context, in-app crawlers).
 - Renamed the stale "Contexts (Org Units)" crawler label to "Contexts".
