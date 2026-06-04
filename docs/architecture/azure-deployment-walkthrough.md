@@ -154,7 +154,7 @@ The Web App restarts automatically (~30 seconds). Refresh the app URL — you'll
 
 - No yellow "Authentication is disabled" banner (it only shows if you explicitly set `AUTH_ENABLED=false`)
 - **Admin** sub-tabs visible: Crawlers · Data · Account Correlation · Risk Scoring · LLM Settings · Performance · About
-- **Hidden on Azure**: Authentication · Containers
+- **Hidden on Azure**: Authentication
 
 ### Common first-sign-in issues
 
