@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Hardened the Sync Log: a row with a missing record count no longer crashes the page (it now shows 0).
+
+## Changes in this PR
+
 - Fixed dark-mode rendering of status badges: the Business-Role review-compliance badges (Compliant / In Progress / Missed / Reviewed Late) and the account-type badges (Regular / Admin / Test / Service / Shared / External) now use proper dark colours instead of bright pastel blocks on a dark background.
 
 ## Changes in this PR
