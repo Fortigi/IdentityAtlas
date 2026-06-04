@@ -13,6 +13,7 @@
 // the "could a bad save lock everyone out?" property.
 
 import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 import {
   getRolePermissions,
@@ -28,6 +29,7 @@ import {
 } from '../auth/permissions.js';
 
 const router = Router();
+const gate = requirePermission('admin.auth');
 
 // Rate-limit destructive operations the same way admin.js does. The mapping
 // rarely changes — 10/min is plenty for a deliberate human editor and cheap
@@ -84,11 +86,11 @@ function checkSelfLockout(req, mapping, messages) {
   };
 }
 
-router.get('/admin/roles', (req, res) => {
+router.get('/admin/roles', gate, (req, res) => {
   res.json(buildSnapshot(req));
 });
 
-router.put('/admin/roles', writeLimiter, async (req, res) => {
+router.put('/admin/roles', gate, writeLimiter, async (req, res) => {
   const body = req.body || {};
   const mapping = body.mapping;
 
@@ -132,7 +134,7 @@ router.put('/admin/roles', writeLimiter, async (req, res) => {
   }
 });
 
-router.delete('/admin/roles', writeLimiter, async (req, res) => {
+router.delete('/admin/roles', gate, writeLimiter, async (req, res) => {
   // Reset to seed. Apply the same self-lockout guard against the seed mapping
   // (otherwise an admin whose current mapping grants admin.auth to a role
   // they no longer have could lock themselves out by resetting).

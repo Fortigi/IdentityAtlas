@@ -4,6 +4,7 @@
  * Configs are stored in CrawlerConfigs for persistent crawler settings.
  */
 import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
 import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
@@ -21,6 +22,7 @@ const CSV_BASE_DIR = path.resolve(process.env.UPLOAD_ROOT || '/data/uploads');
 const MAX_TRACE_CHUNK = 256 * 1024;  // 256 KB
 
 const router = Router();
+const gate = requirePermission('admin.crawlers');
 const useSql = process.env.USE_SQL === 'true';
 
 const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv', 'omada'];
@@ -162,7 +164,7 @@ export function validateOmadaConfig(config) {
 // ═══════════════════════════════════════════════════════════════════
 
 // GET /api/admin/crawler-configs — List all configs (secrets masked)
-router.get('/admin/crawler-configs', async (req, res) => {
+router.get('/admin/crawler-configs', gate, async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
@@ -181,7 +183,7 @@ router.get('/admin/crawler-configs', async (req, res) => {
 });
 
 // POST /api/admin/crawler-configs — Create a new config
-router.post('/admin/crawler-configs', async (req, res) => {
+router.post('/admin/crawler-configs', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const { crawlerType, displayName, config } = req.body;
 
@@ -208,7 +210,7 @@ router.post('/admin/crawler-configs', async (req, res) => {
 });
 
 // GET /api/admin/crawler-configs/:id — Single config (secret masked)
-router.get('/admin/crawler-configs/:id', async (req, res) => {
+router.get('/admin/crawler-configs/:id', gate, async (req, res) => {
   if (!useSql) return res.status(404).json({ error: 'Not found' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid config ID' });
@@ -227,7 +229,7 @@ router.get('/admin/crawler-configs/:id', async (req, res) => {
 });
 
 // PATCH /api/admin/crawler-configs/:id — Update config
-router.patch('/admin/crawler-configs/:id', async (req, res) => {
+router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid config ID' });
@@ -282,7 +284,7 @@ router.patch('/admin/crawler-configs/:id', async (req, res) => {
 });
 
 // DELETE /api/admin/crawler-configs/:id — Remove config
-router.delete('/admin/crawler-configs/:id', async (req, res) => {
+router.delete('/admin/crawler-configs/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid config ID' });
@@ -306,7 +308,7 @@ router.delete('/admin/crawler-configs/:id', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════
 
 // POST /api/admin/validate-graph-credentials
-router.post('/admin/validate-graph-credentials', async (req, res) => {
+router.post('/admin/validate-graph-credentials', gate, async (req, res) => {
   const { tenantId, clientId, clientSecret } = req.body;
   if (!tenantId || !clientId || !clientSecret) {
     return res.status(400).json({ error: 'tenantId, clientId, and clientSecret are required' });
@@ -481,7 +483,7 @@ function flattenExtensionAttributes(obj) {
 // POST /api/admin/discover-graph-attributes
 // body: { tenantId, clientId, clientSecret, type: 'users'|'groups' }
 //   OR: { configId, type }
-router.post('/admin/discover-graph-attributes', async (req, res) => {
+router.post('/admin/discover-graph-attributes', gate, async (req, res) => {
   let { tenantId, clientId, clientSecret, configId, type } = req.body;
   if (!type || !['users', 'groups'].includes(type)) {
     return res.status(400).json({ error: 'type must be "users" or "groups"' });
@@ -706,7 +708,7 @@ router.post('/admin/discover-graph-attributes', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════
 
 // POST /api/admin/crawler-jobs — Create a new job
-router.post('/admin/crawler-jobs', async (req, res) => {
+router.post('/admin/crawler-jobs', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
   const { jobType, config, configId: rawConfigId, syncMode: explicitSyncMode } = req.body;
@@ -829,7 +831,7 @@ router.post('/admin/crawler-jobs', async (req, res) => {
 });
 
 // GET /api/admin/crawler-jobs — List recent jobs
-router.get('/admin/crawler-jobs', async (req, res) => {
+router.get('/admin/crawler-jobs', gate, async (req, res) => {
   if (!useSql) return res.json([]);
 
   try {
@@ -846,7 +848,7 @@ router.get('/admin/crawler-jobs', async (req, res) => {
 });
 
 // GET /api/admin/crawler-jobs/:id — Single job with progress
-router.get('/admin/crawler-jobs/:id', async (req, res) => {
+router.get('/admin/crawler-jobs/:id', gate, async (req, res) => {
   if (!useSql) return res.status(404).json({ error: 'Not found' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid job ID' });
@@ -880,7 +882,7 @@ router.get('/admin/crawler-jobs/:id', async (req, res) => {
 //
 // `truncated=true` means the response was capped at MAX_TRACE_CHUNK bytes
 // — the client should poll again with the new offset (offset + text.length).
-router.get('/admin/crawler-jobs/:id/log', async (req, res) => {
+router.get('/admin/crawler-jobs/:id/log', gate, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id) || id < 0) return res.status(400).json({ error: 'Invalid job ID' });
   const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
@@ -917,7 +919,7 @@ router.get('/admin/crawler-jobs/:id/log', async (req, res) => {
 
 // DELETE /api/admin/crawler-jobs/:id — Cancel a queued job
 // DELETE /api/admin/crawler-jobs/:id — cancel a queued job
-router.delete('/admin/crawler-jobs/:id', async (req, res) => {
+router.delete('/admin/crawler-jobs/:id', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid job ID' });
@@ -948,7 +950,7 @@ router.delete('/admin/crawler-jobs/:id', async (req, res) => {
 // This does NOT kill the PowerShell process — there's no clean way to do that
 // from the web container. The worker's scheduler.ps1 checks job status before
 // starting new work, so a force-stopped job won't block the next run.
-router.post('/admin/crawler-jobs/:id/force-stop', async (req, res) => {
+router.post('/admin/crawler-jobs/:id/force-stop', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid job ID' });
@@ -978,7 +980,7 @@ router.post('/admin/crawler-jobs/:id/force-stop', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════
 
 // GET /api/admin/status — System status for getting-started UI
-router.get('/admin/status', async (req, res) => {
+router.get('/admin/status', gate, async (req, res) => {
   if (!useSql) {
     return res.json({ hasData: true, hasCrawlers: false, hasConfigs: false, pendingJobs: 0, runningJobs: 0 });
   }
