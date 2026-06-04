@@ -372,11 +372,21 @@ router.post('/matrix/scope-timeseries', async (req, res) => {
 
     const p = await db.getPool();
 
+    // The audit log is pruned beyond HISTORY_RETENTION_DAYS (default 180), so
+    // the timeline can't reach further back than that. Clamp the requested
+    // range and tell the client the bound so the UI can explain it.
+    const retRow = await db.queryOne(
+      `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = 'HISTORY_RETENTION_DAYS'`,
+    );
+    const retentionDays = retRow ? parseInt(retRow.configValue, 10) : 180;
+    const reqDays = parseInt(req.query.days, 10) || 180;
+    const days = (retentionDays > 0) ? Math.min(reqDays, retentionDays) : reqDays;
+
     // Earliest reliable instant — don't fabricate points before auditing began.
     const startRow = await db.queryOne(historyStartSql());
     const historyStart = startRow?.start ? new Date(startRow.start) : null;
 
-    const dates = generateSampleDates({ days: req.query.days, points: req.query.points });
+    const dates = generateSampleDates({ days, points: req.query.points });
 
     const points = await Promise.all(dates.map(async (date) => {
       const asof = `${date}T23:59:59.999Z`;
@@ -403,6 +413,7 @@ router.post('/matrix/scope-timeseries', async (req, res) => {
 
     return res.json({
       historyStart: historyStart ? historyStart.toISOString() : null,
+      retentionDays,
       scopeMode,
       points,
       warnings,
@@ -410,6 +421,94 @@ router.post('/matrix/scope-timeseries', async (req, res) => {
   } catch (err) {
     console.error('matrix/scope-timeseries failed:', err.message);
     return res.status(500).json({ error: 'Scope timeseries failed' });
+  }
+});
+
+// ─── POST /api/matrix/scope-breakdown ───────────────────────────────
+// Department-by-department (or any principal attribute) breakdown of the
+// current selection: principals, assignments, and governed split per group.
+// Body: { filter }. Query: attribute (default 'department', or an ext.* key).
+// The UI drills into a group by re-querying scope-timeseries with that
+// attribute added to the subject filter.
+router.post('/matrix/scope-breakdown', async (req, res) => {
+  if (!useSql) return res.json({ attribute: 'department', groups: [] });
+
+  const filter = parseFilter(req.body);
+  if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
+
+  // Resolve + validate the grouping attribute (real principal column or ext.*).
+  const rawAttr = typeof req.query.attribute === 'string' && req.query.attribute
+    ? req.query.attribute : 'department';
+  let attrExpr;
+  if (rawAttr.startsWith('ext.')) {
+    const key = rawAttr.slice(4);
+    if (!SAFE_IDENT_RE.test(key)) return res.status(400).json({ error: 'invalid attribute' });
+    attrExpr = `u."extendedAttributes"->>'${key}'`;
+  } else {
+    if (!SAFE_IDENT_RE.test(rawAttr)) return res.status(400).json({ error: 'invalid attribute' });
+    const cols = await getPrincipalColumns();
+    if (!cols.some(c => c.name === rawAttr)) return res.status(400).json({ error: 'unknown attribute' });
+    attrExpr = `u."${rawAttr}"`;
+  }
+
+  try {
+    const built = await buildSubqueries(filter);
+    const p = await db.getPool();
+    const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
+    const notGroup = `(u."principalType" IS NULL OR u."principalType" <> '#microsoft.graph.group')`;
+    const subjIn = built.subjectSql ? ` AND u.id IN ${built.subjectSql}` : '';
+    const resIn  = built.resourceSql ? ` AND p."resourceId" IN ${built.resourceSql}` : '';
+
+    // Principals per group (includes principals with no assignments).
+    const principalsReq = timedRequest(p, 'matrix-breakdown-principals', res);
+    for (const [k, v] of Object.entries(built.bindings)) principalsReq.input(k, v);
+    const principalsRows = (await principalsReq.query(`
+      SELECT ${grp} AS grp, COUNT(*)::int AS principals
+        FROM "Principals" u
+       WHERE ${notGroup}${subjIn}
+       GROUP BY ${grp}
+    `)).recordset;
+
+    // Assignment pairs + governed split per group.
+    const pairsReq = timedRequest(p, 'matrix-breakdown-pairs', res);
+    for (const [k, v] of Object.entries(built.bindings)) pairsReq.input(k, v);
+    const pairsRows = (await pairsReq.query(`
+      SELECT grp,
+             COUNT(*)::int AS assignments,
+             COUNT(*) FILTER (WHERE managed)::int AS governed
+        FROM (
+          SELECT ${grp} AS grp, u.id AS pid, p."resourceId" AS rid,
+                 bool_or(p."managedByAccessPackage") AS managed
+            FROM "Principals" u
+            JOIN "vw_ResourceUserPermissionAssignments" p ON p."principalId" = u.id
+           WHERE ${notGroup}${subjIn}${resIn}
+           GROUP BY ${grp}, u.id, p."resourceId"
+        ) t
+       GROUP BY grp
+    `)).recordset;
+
+    // Merge the two result sets by group key.
+    const byGroup = new Map();
+    for (const r of principalsRows) {
+      byGroup.set(r.grp, { group: r.grp, principals: r.principals, assignments: 0, governed: 0 });
+    }
+    for (const r of pairsRows) {
+      const g = byGroup.get(r.grp) || { group: r.grp, principals: 0, assignments: 0, governed: 0 };
+      g.assignments = r.assignments;
+      g.governed = r.governed;
+      byGroup.set(r.grp, g);
+    }
+
+    const groups = [...byGroup.values()].map(g => ({
+      ...g,
+      ungoverned: g.assignments - g.governed,
+      governedPct: g.assignments > 0 ? Math.round((g.governed / g.assignments) * 1000) / 10 : 0,
+    })).sort((a, b) => b.assignments - a.assignments);
+
+    return res.json({ attribute: rawAttr, groups, warnings: built.warnings });
+  } catch (err) {
+    console.error('matrix/scope-breakdown failed:', err.message);
+    return res.status(500).json({ error: 'Scope breakdown failed' });
   }
 });
 
