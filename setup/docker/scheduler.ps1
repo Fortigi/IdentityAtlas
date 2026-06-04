@@ -44,7 +44,20 @@ try {
 }
 
 # ── Discover the built-in API key ─────────────────────────────────────────────
-# Read priority: env var → shared volume file → poll until file appears.
+# Read priority: env var → shared volume file. Startup polls for 5 minutes so
+# the common case (volume mount missing) surfaces a loud warning quickly. If
+# the key still isn't there after that, the main loop keeps re-checking on
+# every tick — the queue self-heals once web's bootstrap eventually writes it.
+
+function Get-BuiltinApiKey {
+    if (-not (Test-Path $WorkerKeyFile)) { return $null }
+    try {
+        $key = (Get-Content $WorkerKeyFile -Raw -ErrorAction Stop).Trim()
+        if ($key) { return $key }
+    } catch { }
+    return $null
+}
+
 $Global:BuiltinApiKey = $null
 if ($env:CRAWLER_API_KEY) {
     $Global:BuiltinApiKey = $env:CRAWLER_API_KEY
@@ -52,20 +65,18 @@ if ($env:CRAWLER_API_KEY) {
 } else {
     Write-Host "  Discovering API key from $WorkerKeyFile..." -ForegroundColor Gray
     for ($i = 0; $i -lt 60; $i++) {
-        if (Test-Path $WorkerKeyFile) {
-            try {
-                $key = (Get-Content $WorkerKeyFile -Raw -ErrorAction Stop).Trim()
-                if ($key) {
-                    $Global:BuiltinApiKey = $key
-                    Write-Host "  API key: discovered (prefix: $($key.Substring(0, [Math]::Min(8, $key.Length))))" -ForegroundColor Green
-                    break
-                }
-            } catch { }
+        $key = Get-BuiltinApiKey
+        if ($key) {
+            $Global:BuiltinApiKey = $key
+            Write-Host "  API key: discovered (prefix: $($key.Substring(0, [Math]::Min(8, $key.Length))))" -ForegroundColor Green
+            break
         }
         if ($i -lt 59) { Start-Sleep -Seconds 5 }
     }
     if (-not $Global:BuiltinApiKey) {
-        Write-Host "  API key: not found after 5 minutes (job queue will not work)" -ForegroundColor Yellow
+        Write-Host "  API key: not found after 5 minutes — will keep retrying on every poll tick." -ForegroundColor Yellow
+        Write-Host "           Check that web's bootstrap completed (it writes the key file) and that the" -ForegroundColor Yellow
+        Write-Host "           job_data volume is shared between web and worker." -ForegroundColor Yellow
     }
 }
 
@@ -96,6 +107,16 @@ function Test-CronMatch {
 # ── Job queue poller ──────────────────────────────────────────────────────────
 
 function Invoke-PendingJob {
+    # Self-heal: if the key wasn't there at startup (web bootstrap slow, volume
+    # populated late, master key fixed and web restarted, etc.) keep checking
+    # the volume file. Once it shows up the queue starts running on the next tick.
+    if (-not $Global:BuiltinApiKey) {
+        $key = Get-BuiltinApiKey
+        if ($key) {
+            $Global:BuiltinApiKey = $key
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] API key: discovered late (prefix: $($key.Substring(0, [Math]::Min(8, $key.Length)))) — job queue resuming" -ForegroundColor Green
+        }
+    }
     if (-not $Global:BuiltinApiKey) { return }
 
     $headers = @{ 'Authorization' = "Bearer $Global:BuiltinApiKey" }

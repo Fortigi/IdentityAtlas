@@ -1,5 +1,17 @@
 # Node.js API — Coding Guide
 
+## Reuse Before Creating
+
+Before writing any helper, utility, middleware, or route logic — search first. If equivalent logic already exists, use or extend it.
+
+**Known shared utilities in `src/`:**
+- `db/connection.js` — connection pool; never create one-off connections
+- `db/columnCache.js` — column discovery with 5-minute TTL; never query `information_schema` per-request
+- `db/migrate.js` — migration runner; add files to `src/db/migrations/`, never edit existing ones
+- `middleware/auth.js` — Entra ID JWT validation (v1 + v2 tokens)
+- `middleware/perfMetrics.js` — request timing + Server-Timing headers
+- `secrets/vault.js` — encrypted secret storage/retrieval for crawler credentials
+
 ## Always Test Locally Before Committing
 
 After any change to the API, rebuild the container and verify the fix before touching git:

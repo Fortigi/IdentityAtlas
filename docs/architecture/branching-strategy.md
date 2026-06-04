@@ -165,3 +165,39 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 | `:5.3.0-beta.1` | Same time as `:beta` — exact pre-release version | Testers who want a reproducible pre-release build |
 
 See [Docker Setup](docker-setup.md) for how to select a channel via `IMAGE_TAG`.
+
+---
+
+## Repository Rulesets
+
+Branch protection is configured via two GitHub rulesets. If you ever need to recreate them (e.g. after transferring the repo), do so manually in **Settings → Rules → Rulesets**.
+
+### Protect main
+
+| Setting | Value |
+|---------|-------|
+| Target | `main` |
+| Merge methods | Squash only |
+| Required approvals | 1 + code owner review |
+| Dismiss stale reviews | Yes |
+| Required status checks | `PR Summary` (strict) |
+| Code scanning | CodeQL — errors threshold, high/higher security alerts |
+| Deletion | Blocked |
+| Force push | Blocked |
+
+**Bypass actors:**
+
+| Actor | Type | Mode | Why |
+|-------|------|------|-----|
+| Fortigi CI bot | Integration | Always | Pushes automated version bump commits on PR merge |
+| IdentityAtlas-Owners | Team | Pull request only | Allows team members to merge without a second approval |
+
+### Protect gh-pages
+
+| Setting | Value |
+|---------|-------|
+| Target | `gh-pages` |
+| Deletion | Blocked |
+| Force push | Blocked |
+
+No bypass actors — `mike` (the docs versioning tool) only does regular fast-forward pushes and never needs to delete or force-push the branch.

@@ -63,6 +63,8 @@ markdown_extensions:
 
 plugins:
   - search
+  - mike:
+      canonical_version: stable
 
 extra_css:
   - assets/extra.css
@@ -89,6 +91,7 @@ nav:
       - Plugin Architecture: risk-scoring/plugin-architecture.md
   - Architecture:
       - Docker Setup: architecture/docker-setup.md
+      - Portable Windows Launcher: architecture/desktop-portable.md
       - Release & Branching Strategy: architecture/branching-strategy.md
       - Ingest API: architecture/ingest-api.md
       - Audit History: architecture/audit-history.md
@@ -106,6 +109,7 @@ nav:
       - Risk Scores: api/risk-scores.md
   - Reference:
       - Configuration: reference/config.md
+      - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - Software Bill of Materials: reference/sbom.md
   - About:
@@ -113,6 +117,9 @@ nav:
       - History: history.md
 
 extra:
+  version:
+    provider: mike
+    default: stable
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/Fortigi/IdentityAtlas

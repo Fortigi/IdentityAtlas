@@ -9,11 +9,12 @@
 import { Router } from 'express';
 import * as db from '../db/connection.js';
 import { runScoring } from '../riskscoring/engine.js';
+import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
-router.post('/risk-scoring/runs', async (req, res) => {
+router.post('/risk-scoring/runs', requirePermission('admin.crawlers'), async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const { classifierId } = req.body || {};
   try {

@@ -1,5 +1,70 @@
 ## Changes in this PR
 
+- Security: Microsoft Graph crawler client secrets are no longer stored in plaintext in the database. They are encrypted in the secrets vault and injected only into the job handed to the authenticated worker at run time. Any existing plaintext client secrets are migrated into the vault automatically on upgrade.
+- Security: the built-in worker's API key is no longer stored in plaintext in the database. It is kept only as a salted scrypt hash (for verification) plus a private, restricted file that the worker reads — and any previously-stored plaintext copy is removed automatically on upgrade. A read of the database can no longer recover a usable worker credential.
+
+## Changes in this PR
+
+- Security: the built-in worker's API key is no longer stored in plaintext in the database. It is kept only as a salted scrypt hash (for verification) plus a private, restricted file that the worker reads — and any previously-stored plaintext copy is removed automatically on upgrade. A read of the database can no longer recover a usable worker credential.
+
+## Changes in this PR
+
+- Security: the production Docker Compose stack no longer publishes PostgreSQL to all network interfaces. It now binds to localhost (`127.0.0.1`) only by default, so the database is not reachable from other hosts. Set `POSTGRES_BIND_HOST=0.0.0.0` if you deliberately need off-host access.
+- Security: the production Docker Compose stack no longer ships a default database password. `POSTGRES_PASSWORD` is now required — the stack refuses to start until a strong value is set. (The local development compose still provides a default for convenience.)
+- Azure deployments are unaffected — they use a managed PostgreSQL server rather than the Compose Postgres container.
+
+## Changes in this PR
+
+- Security (behaviour change): a signed-in user whose Entra roles map to no permissions is no longer silently granted full administrator access. Such users are now denied all admin and write actions (fail-closed). Previously, on installs where app roles had not been assigned yet, any authenticated tenant user effectively had admin rights.
+- To grant access after enabling authentication, assign users an Entra app role — the default "Admin" role grants full access. If you lock yourself out by enabling auth before assigning a role, recover with the auth CLI (`auth-config.js disable`); see the Permissions & Roles documentation for the bootstrap and recovery steps.
+- Added a startup warning when authentication is enabled without `AUTH_REQUIRED_ROLES`, since any signed-in tenant user can still read data until sign-in is restricted to specific roles.
+- Security: the API now accepts only Entra ID **access tokens** issued for its own API scope (audience `api://<client-id>`). ID tokens — and any token whose audience is the bare client ID — are rejected. This prevents an ID token (issued on every interactive sign-in and not intended for API authorization) from being used as an API credential.
+- This requires the Entra App Registration to expose its API with the default `api://<client-id>` Application ID URI, which the in-app setup walkthrough already configures.
+
+## Changes in this PR
+
+- Replaced `tools/setup-branch-protection.sh` with documentation in `docs/architecture/branching-strategy.md` — the script had drifted from the live ruleset config and a written guide is easier to maintain for a repo that is set up once.
+
+## Changes in this PR
+
+- Fixed granular admin roles: each admin permission is now enforced on its own routes, so a role granted (for example) only crawler access is no longer incorrectly blocked by unrelated admin permissions. Previously only the full-access (wildcard) role worked for admin endpoints.
+- Added a "Permissions & Roles" reference page documenting every permission, the default role mapping, and how authorization is enforced.
+- Added comprehensive automated tests for the permission model: an allow/deny check for every permission against its real endpoint, the role→permission gate logic, UI tests confirming tabs and controls are hidden when a user lacks the permission, a round-trip test proving that saving a changed role→permission mapping immediately changes access, and validation that signed tokens are rejected when their signature, audience, issuer, tenant, or expiry is wrong.
+- Pull request checks now require accompanying tests and a changelog entry whenever code changes (maintainers can override with a label for genuine exceptions).
+
+## Changes in this PR
+
+- Added **Portable Windows Launcher** page to the documentation navigation under Architecture.
+
+## Changes in this PR
+
+- Documentation site now shows a version picker — visitors land on the **stable** docs by default and can switch to **edge** (latest `main`) via the dropdown in the top bar.
+- Each GitHub Release automatically publishes a new stable docs snapshot; merges to `main` update the edge docs.
+
+## Changes in this PR
+
+- Added customer-editable role → permission mapping under **Admin → Authentication**. Three roles ship by default — **Admin** (full access), **RoleMiner** (read + Excel/CSV export + the ability to mint read-only `fgr_` API keys for PowerQuery / BI), **Servicedesk** (read-only). Role names in the matrix must match the `Value` strings configured on the Entra app registration's app roles.
+- Customers can add their own role names alongside the seed three (one row per Entra app role) and tick which catalog permissions each role grants. Catalog covers read, Excel/CSV export, read-API-key generation, tag / category / risk / certification writes, and the various admin areas (crawlers, systems, LLM, context plugins, CSV import, feature flags, auth itself).
+- Excel export buttons (Matrix, Business Roles), the Admin top-level tab, the Admin sub-tabs, and the PowerQuery read-key UI now hide when the signed-in user lacks the matching permission, so Servicedesk operators don't see controls that would 403 on click.
+- API enforcement is layered: every mutating / exporting / admin endpoint is gated server-side regardless of what the UI shows, so a leaked or replayed request can't bypass the page-level hiding.
+- Backwards compatible — installs that haven't saved a role mapping AND users whose JWT carries no `roles` claim both fall back to "full access," so upgrades don't break existing setups. Enforcement starts the moment you assign Entra app roles to users + save a mapping.
+- Self-lockout guard: the save endpoint refuses any change that would strip the editing user's own `admin.auth` permission — there's no path to lock yourself out of the role mapping page short of direct DB access.
+- New endpoints: `GET /api/auth-me` returns the calling user's resolved roles + permissions; `GET/PUT/DELETE /api/admin/roles` reads and edits the mapping (gated by `admin.auth`).
+
+## Changes in this PR
+
+- Disabled the Issue Triage & Auto-fix GitHub Actions workflow (no longer triggers on new issues or nightly schedule).
+
+## Changes in this PR
+
+- Fixed: the worker container's job queue silently went dead if it couldn't find the built-in API key within 5 minutes of starting. The intended behaviour (per the comment in `scheduler.ps1`) was "poll until file appears", but the loop bailed after 60 retries and the main job-tick then no-op'd forever. We hit this on a fresh Docker install where the web container's first bootstrap failed (bad master key length) and was fixed via `up -d --force-recreate web` — by the time web wrote the key, worker had given up, and every crawler the user configured afterwards sat in `queued` with nothing to pick it up. Worker now re-checks the key file on every poll tick, so the queue self-heals once web writes it. Startup keeps the 5-minute "loud warning" window for the common misconfiguration case (volume not shared between web and worker), and the warning now explains both root causes instead of just shrugging.
+
+## Changes in this PR
+
+- Fixed: enabling Entra ID auth on a Docker install via env vars (the natural pattern for the README's `Quick Start → Option A`) silently dead-ended in a "setup required" loop. `docker-compose.prod.yml` was wiring `AUTH_ENABLED` through to the web container but had `AUTH_TENANT_ID` and `AUTH_CLIENT_ID` commented out. So someone setting all three in their `.env` would see `AUTH_ENABLED=true` reach the container while the two IDs got dropped on the floor, leaving the API to report `{ enabled:true, configured:false }` and the SPA to render the "Entra ID setup required" page even though everything was filled in. Both vars are now wired through with `${VAR:-}` defaults — behaviour for anyone who hasn't set them is unchanged.
+
+## Changes in this PR
+
 - Improved Vite hot-module reload: non-component exports (hooks, constants, helper functions) moved out of component files so fast refresh works without full page reloads during development
 - Consolidated duplicate formatting utilities (duration, relative time, compact numbers, date-only) into shared formatters; removed multiple inline copies scattered across component files
 - Extracted shared `ASSIGNMENT_TYPE_STYLES` constant; access packages list now correctly applies dark mode badge colors (was missing dark variants)

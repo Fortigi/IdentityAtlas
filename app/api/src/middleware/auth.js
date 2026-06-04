@@ -11,8 +11,10 @@ import {
   getTenantId,
   getClientId,
   getRequiredRoles,
+  getRolePermissions,
 } from '../config/authConfig.js';
 import { isReadTokenFormat, findActiveByPlaintext } from '../auth/readTokens.js';
+import { resolvePermissions } from '../auth/permissions.js';
 
 // jwks-rsa's getSigningKey is callback-shaped. We need a stable function ref
 // that resolves the *current* client at call time so a hot reload picks up the
@@ -83,7 +85,15 @@ export function authMiddleware(req, res, next) {
   const clientId = getClientId();
 
   jwt.verify(token, keyResolver, {
-    audience: [`api://${clientId}`, clientId],
+    // Accept ONLY access tokens issued for our exposed API scope
+    // (aud = api://<clientId>). The bare <clientId> audience is deliberately
+    // NOT accepted: an id_token's aud is the bare client ID, and id_tokens are
+    // minted on every interactive sign-in, cached in browsers/logs, and are not
+    // meant for API authorization (security finding H-01). The SPA already
+    // requests the `api://<clientId>/access` scope, so its access tokens carry
+    // aud = api://<clientId>. (Requires the Entra App ID URI to be the default
+    // `api://<clientId>` — see the setup walkthrough's "Expose an API" step.)
+    audience: `api://${clientId}`,
     issuer: [
       `https://login.microsoftonline.com/${tenantId}/v2.0`,
       `https://sts.windows.net/${tenantId}/`,
@@ -101,17 +111,78 @@ export function authMiddleware(req, res, next) {
       return res.status(401).json({ error: 'Token issued by unexpected tenant' });
     }
 
-    // Optional app-role gate
+    const tokenRoles = Array.isArray(decoded.roles) ? decoded.roles : [];
+
+    // Optional app-role gate — coarse "must have one of these roles" check
+    // configured via AUTH_REQUIRED_ROLES. Independent of the permission
+    // model below; if both are set, both must pass.
     const requiredRoles = getRequiredRoles();
     if (requiredRoles && requiredRoles.length > 0) {
-      const tokenRoles = decoded.roles || [];
       if (!requiredRoles.some(r => tokenRoles.includes(r))) {
         console.error(`Token missing required role. Has: [${tokenRoles.join(', ')}], needs one of: [${requiredRoles.join(', ')}]`);
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
     }
 
+    // Resolve roles -> permissions via the configured (or seed) mapping.
+    //
+    // Fail closed: a token whose roles aren't in the mapping resolves to an
+    // EMPTY permission set and is denied by every requirePermission gate. There
+    // is deliberately NO "no recognised roles -> wildcard admin" fallback — that
+    // previously made any authenticated tenant user a full admin whenever app
+    // roles hadn't been assigned yet (security finding C-01).
+    //
+    // To grant access, assign the user an Entra app role that the mapping maps
+    // to permissions (the seed maps the 'Admin' role to '*'). Locked yourself
+    // out by enabling auth before assigning a role? Use the CLI to toggle auth
+    // off, assign the role, then turn it back on (see cli/auth-config.js).
+    // Set AUTH_REQUIRED_ROLES to also keep roleless users off read endpoints.
+    const mapping = getRolePermissions();
+    const permissions = resolvePermissions(tokenRoles, mapping);
+
     req.user = decoded;
+    req.user.roles = tokenRoles;
+    req.user.permissions = permissions;
     next();
   });
+}
+
+// Per-route permission gate. Use at the mount line (most routers) or as a
+// per-handler middleware (mixed routers with read GETs + admin POSTs).
+//
+//   app.use('/api', authMiddleware, requirePermission('admin.crawlers'), adminCrawlersRouter);
+//   router.post('/categories', requirePermission('data.write.categories'), handler);
+//
+// Accepts one or more permission strings — having ANY one of them is enough.
+// When auth is disabled the gate is a no-op (open mode bypass).
+export function requirePermission(...required) {
+  if (required.length === 0) {
+    throw new Error('requirePermission() requires at least one permission name');
+  }
+  return function permissionGate(req, res, next) {
+    if (!isAuthEnabled()) return next();
+
+    // fgr_ read tokens get data.read implicitly. They're already restricted to
+    // GET + non-admin endpoints by the upstream middleware, so the only
+    // permission gate they ever encounter is data.read.
+    if (req.readToken) {
+      if (required.includes('data.read')) return next();
+      return res.status(403).json({ error: 'Read API keys cannot access this endpoint', required });
+    }
+
+    const perms = req.user?.permissions;
+    if (!perms) {
+      // Should not happen — authMiddleware always sets this on a valid JWT.
+      // Treat as misconfiguration, deny rather than crash.
+      return res.status(403).json({ error: 'No permissions resolved for user', required });
+    }
+    if (perms.has('*')) return next();
+    if (required.some(p => perms.has(p))) return next();
+
+    return res.status(403).json({
+      error: 'Insufficient permissions',
+      required,
+      have: Array.from(perms).filter(p => p !== '*'),
+    });
+  };
 }

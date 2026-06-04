@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { useMatrix } from './hooks/useMatrix';
 import { useAuth } from './auth/AuthGate';
+import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
 import { ThemeContext } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -126,13 +127,20 @@ export default function App() {
   const [riskScoresRefreshKey, setRiskScoresRefreshKey] = useState(0);
   const { isDark, mode, setTheme } = useTheme();
 
+  // Hide the Admin tab from users with no admin.* permission. Clicking it
+  // would 403 on every sub-page anyway — better not to advertise the door
+  // than to let them find a locked one. The Auth → Roles & Permissions
+  // page inside Admin further self-gates by admin.auth.
+  const canSeeAdmin = useCanSeeAdminTab();
+
   const navTabs = useMemo(() =>
     ALL_NAV_TABS.filter(tab => {
       if (tab.feature && !features[tab.feature]) return false;
       if (tab.optional && visibleTabs && !visibleTabs.includes(tab.key)) return false;
+      if (tab.key === 'admin' && !canSeeAdmin) return false;
       return true;
     }),
-    [features, visibleTabs]
+    [features, visibleTabs, canSeeAdmin]
   );
 
   // Available optional tabs (respecting feature flags)

@@ -17,9 +17,14 @@
 #   edge    — latest merged commit on main; may be unstable (set IMAGE_TAG=edge)
 #   5.2.1.0 — pin to a specific release version
 #
-# SECURITY: The default POSTGRES_PASSWORD is for local evaluation only.
-#   For any networked or production deployment, set a strong password and an
-#   explicit master key for the secrets vault:
+# SECURITY:
+#   - POSTGRES_PASSWORD is REQUIRED — this file refuses to start without it (no
+#     default password is shipped). Set a strong, unique value.
+#   - Postgres is bound to loopback (127.0.0.1) only and is NOT reachable from
+#     other hosts; the web container reaches it over the internal compose network.
+#     Set POSTGRES_BIND_HOST=0.0.0.0 only if you deliberately need off-host access.
+#   - Set an explicit IDENTITY_ATLAS_MASTER_KEY for the secrets vault so it can be
+#     backed up; otherwise the bootstrap auto-generates one.
 #     POSTGRES_PASSWORD=... IDENTITY_ATLAS_MASTER_KEY=... docker compose -f docker-compose.prod.yml up
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -33,9 +38,15 @@ services:
     environment:
       POSTGRES_DB:       "${POSTGRES_DB:-identity_atlas}"
       POSTGRES_USER:     "${POSTGRES_USER:-identity_atlas}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-identity_atlas_local}"
+      # Required — no default. `:?` makes `docker compose up` fail fast if unset
+      # or empty, so a networked DB can never run under a shipped default password.
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — copy setup/config/.env.example to .env and set a strong value}"
+    # Bind to loopback by default — the web container reaches Postgres over the
+    # internal compose network (hostname `postgres`), so it never needs to be on
+    # the host's external interfaces. Override POSTGRES_BIND_HOST=0.0.0.0 only if
+    # you deliberately need off-host access (and firewall it).
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -55,7 +66,7 @@ services:
     environment:
       NODE_ENV:    production
       USE_SQL:     "true"  # legacy flag — still used by routes to enable DB-backed mode
-      DATABASE_URL: "postgres://${POSTGRES_USER:-identity_atlas}:${POSTGRES_PASSWORD:-identity_atlas_local}@postgres:5432/${POSTGRES_DB:-identity_atlas}"
+      DATABASE_URL: "postgres://${POSTGRES_USER:-identity_atlas}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-identity_atlas}"
       AUTH_ENABLED: "${AUTH_ENABLED:-false}"
       PORT:         "3001"
       # Compose file version — the API checks this to warn users when their
@@ -69,9 +80,12 @@ services:
       # deployments, set this explicitly so the key can be backed up alongside
       # other root secrets.
       IDENTITY_ATLAS_MASTER_KEY: "${IDENTITY_ATLAS_MASTER_KEY:-}"
-      # Optional Entra ID auth for the UI (set AUTH_ENABLED=true to activate)
-      # AUTH_TENANT_ID: "${AUTH_TENANT_ID:-}"
-      # AUTH_CLIENT_ID: "${AUTH_CLIENT_ID:-}"
+      # Optional Entra ID auth for the UI. AUTH_ENABLED=true alone is NOT
+      # enough — the SPA also needs the tenant + client IDs. Both vars
+      # default to empty, which the API treats as "auth enabled but not
+      # configured" and renders the setup-required page until they're set.
+      AUTH_TENANT_ID: "${AUTH_TENANT_ID:-}"
+      AUTH_CLIENT_ID: "${AUTH_CLIENT_ID:-}"
     ports:
       - "${PORT:-3001}:3001"
     volumes:

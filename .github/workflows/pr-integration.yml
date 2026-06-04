@@ -38,6 +38,7 @@ on:
       - 'app/desktop/scripts/**'
       - 'changes/**'
       - 'docs/**'
+      - 'mkdocs.yml'
       - '**.md'
 
 env:
