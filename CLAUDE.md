@@ -277,7 +277,7 @@ docker compose -f docker-compose.prod.yml up -d --pull always
 
 ## Branch: `claude/omada-crawler-sync-a1W3A` — Omada Crawler Sync
 
-**Status (2026-06-04):** Fully tested end-to-end. Merged with main (v5.92). All 9 phases verified with live server. Ready for PR.
+**Status (2026-06-04):** Fully tested end-to-end. All 9 phases verified. Ready for PR.
 
 | Entity | Count |
 |---|---|
@@ -291,8 +291,6 @@ docker compose -f docker-compose.prod.yml up -d --pull always
 | Entitlements | 72 |
 | Assignments | 30,516+ (role assignments + CRA account assignments) |
 | CRA records processed | 37,961 |
-
-Server: `172.16.0.28` — AD DNS resolves `enterpriseserver.corporate.com → masterdemo.corporate.com → 172.16.0.28` (persisted via `extra_hosts` in `docker-compose.yml`).
 
 Full data model reference: `docs/architecture/omada-crawler-datamodel.md`
 
