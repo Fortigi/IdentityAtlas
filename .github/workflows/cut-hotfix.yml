@@ -47,6 +47,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch }}
           token: ${{ steps.bot-token.outputs.token }}
+          fetch-depth: 0
 
       - name: Create and push hotfix tag
         run: |
@@ -80,10 +81,7 @@ jobs:
 
       - name: Generate release notes
         run: |
-          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
-            | grep -vE '-(beta|rc|alpha)' \
-            | grep -v "^${TAG}$" \
-            | head -1)
+          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -vE '-(beta|rc|alpha)' | grep -v "^${TAG}$" | head -1)
 
           if [ -n "$PREV_TAG" ]; then
             FIRST_OLD=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | head -1)
