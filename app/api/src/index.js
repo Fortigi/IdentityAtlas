@@ -44,8 +44,12 @@ import { bootstrapWorker } from './bootstrap.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-const port = process.env.PORT || 3001;
+const port       = process.env.PORT || 3001;
+// Desktop mode binds to 127.0.0.1 only — the portable is a local app and should
+// not be reachable from other machines on the network (H-03 / portable variant).
+const host       = process.env.DESKTOP_MODE === 'true' ? '127.0.0.1' : (process.env.HOST || '0.0.0.0');
 const isProduction = process.env.NODE_ENV === 'production';
+const isDesktop    = process.env.DESKTOP_MODE === 'true';
 // Note: authentication state is now dynamic — read it via isAuthEnabled() which
 // reflects the current value from authConfig.js (DB-backed, hot-reloadable).
 // The local authEnabled below is a startup snapshot used only for the boot warning.
@@ -81,6 +85,9 @@ if (perfEnabled) {
 // ─── Startup env validation ──────────────────────────────────────
 if (isProduction && !authEnabledAtBoot) {
   console.warn('WARNING: AUTH_ENABLED is not set to "true" in production. All API endpoints are unauthenticated until configured via Admin → Authentication.');
+}
+if (isDesktop && !authEnabledAtBoot) {
+  console.warn('WARNING: Identity Atlas is running in portable mode with authentication disabled. The API is accessible to any process on this machine. Enable authentication via Admin → Authentication if this machine is shared or connected to an untrusted network.');
 }
 
 // Load auth config from DB (with env var fallback). Best-effort — if the DB
@@ -327,7 +334,7 @@ app.get('*', publicLimiter, (req, res, next) => {
   res.sendFile(join(frontendDist, 'index.html'));
 });
 
-const server = app.listen(port, async () => {
+const server = app.listen(port, host, async () => {
   console.log(`Identity Atlas running on http://localhost:${port}`);
   console.log(`Mode: ${process.env.USE_SQL === 'true' ? 'SQL' : 'Mock data'}`);
   console.log(`Auth: ${isAuthEnabled() ? 'Entra ID' : 'Disabled'}`);
