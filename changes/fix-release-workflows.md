@@ -1,2 +1,0 @@
-- Fixed: Cut Release, Cut Beta and Cut Hotfix workflows now correctly generate release notes (missing fetch-depth caused grep to fail on the tag list)
-- Fixed: deprecated `app-id` input replaced with `client-id` for the GitHub App token action
