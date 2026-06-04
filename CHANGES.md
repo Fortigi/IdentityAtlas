@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Replaced `tools/setup-branch-protection.sh` with documentation in `docs/architecture/branching-strategy.md` — the script had drifted from the live ruleset config and a written guide is easier to maintain for a repo that is set up once.
+
+## Changes in this PR
+
 - Fixed granular admin roles: each admin permission is now enforced on its own routes, so a role granted (for example) only crawler access is no longer incorrectly blocked by unrelated admin permissions. Previously only the full-access (wildcard) role worked for admin endpoints.
 - Added a "Permissions & Roles" reference page documenting every permission, the default role mapping, and how authorization is enforced.
 - Added comprehensive automated tests for the permission model: an allow/deny check for every permission against its real endpoint, the role→permission gate logic, UI tests confirming tabs and controls are hidden when a user lacks the permission, a round-trip test proving that saving a changed role→permission mapping immediately changes access, and validation that signed tokens are rejected when their signature, audience, issuer, tenant, or expiry is wrong.
