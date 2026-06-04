@@ -1,1 +1,0 @@
-- Portable Windows launcher build now verifies the SHA-256 checksum of the downloaded node.exe against the official Node.js SHASUMS256.txt before packaging
