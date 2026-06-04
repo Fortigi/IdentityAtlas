@@ -50,13 +50,25 @@ function Invoke-OmadaGetRequest {
         $reqParams = @{ Uri = $nextUri; Method = 'Get'; ErrorAction = 'Stop' }
         switch ($script:OmadaSession.AuthMethod) {
             { $_ -in 'OAuth2CC','OAuth2ROPC','ApiToken' } {
-                $reqParams['Headers'] = @{ Authorization = "Bearer $($script:OmadaSession.AccessToken)" }
+                $reqParams['Headers'] = @{ Authorization = "Bearer $($script:OmadaSession.AccessToken)"
+                                           Accept = 'application/json' }
             }
-            { $_ -in 'FormCookie','CookieString' } {
+            'CookieString' {
+                # Cloud Omada requires an explicit Cookie header — WebSession domain
+                # matching is unreliable for cloud/HTTPS and the cookie would not be sent.
+                $reqParams['Headers'] = @{
+                    Cookie         = $script:OmadaSession.CookieHeader
+                    Accept         = 'application/json'
+                    'Content-Type' = 'application/json'
+                }
+            }
+            'FormCookie' {
                 $reqParams['WebSession'] = $script:OmadaSession.WebSession
+                $reqParams['Headers']    = @{ Accept = 'application/json' }
             }
             'BasicAuth' {
-                $reqParams['Headers'] = @{ Authorization = $script:OmadaSession.BasicAuthHeader }
+                $reqParams['Headers'] = @{ Authorization = $script:OmadaSession.BasicAuthHeader
+                                           Accept = 'application/json' }
             }
         }
 

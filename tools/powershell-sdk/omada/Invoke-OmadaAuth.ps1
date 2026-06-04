@@ -53,6 +53,7 @@ function Connect-OmadaAPI {
         WebSession            = $null
         AccessToken           = $null
         BasicAuthHeader       = $null  # pre-computed for BasicAuth
+        CookieHeader          = $null  # raw Cookie header string for CookieString auth (cloud)
         TokenExpiresAt        = $null
         LastAuthAt            = $null
         SessionTimeoutMinutes = $SessionTimeoutMinutes
@@ -144,21 +145,11 @@ function Invoke-OmadaCookieStringAuth {
     param([string]$CookieString)
     if (-not $CookieString.Trim()) { throw "Omada CookieString: cookieString cannot be empty" }
 
-    $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-    $uri = [Uri]$script:OmadaSession.BaseUrl
-
-    foreach ($pair in $CookieString.Split(';')) {
-        $kv = $pair.Trim()
-        if (-not $kv) { continue }
-        $eqIdx = $kv.IndexOf('=')
-        if ($eqIdx -le 0) { continue }
-        $name  = $kv.Substring(0, $eqIdx).Trim()
-        $value = $kv.Substring($eqIdx + 1).Trim()
-        $cookie = [System.Net.Cookie]::new($name, $value, '/', $uri.Host)
-        $webSession.Cookies.Add($cookie)
-    }
-
-    $script:OmadaSession.WebSession = $webSession
+    # Cloud Omada requires the cookie as an explicit request header:
+    #   Cookie: oisauthtoken=<value>
+    # WebSession cookie-domain matching is unreliable for cloud/HTTPS URLs,
+    # so we store the raw string and send it as a Cookie header on every request.
+    $script:OmadaSession.CookieHeader = $CookieString.Trim()
     # No LastAuthAt — CookieString has no auto re-auth capability
 }
 
@@ -247,7 +238,14 @@ function Get-OmadaEntitySets {
         { $_ -in 'OAuth2CC','OAuth2ROPC','ApiToken' } {
             $reqParams['Headers'] = @{ Authorization = "Bearer $($script:OmadaSession.AccessToken)" }
         }
-        { $_ -in 'FormCookie','CookieString' } {
+        'CookieString' {
+            $reqParams['Headers'] = @{
+                Cookie         = $script:OmadaSession.CookieHeader
+                Accept         = 'application/json'
+                'Content-Type' = 'application/json'
+            }
+        }
+        'FormCookie' {
             $reqParams['WebSession'] = $script:OmadaSession.WebSession
         }
         'BasicAuth' {
