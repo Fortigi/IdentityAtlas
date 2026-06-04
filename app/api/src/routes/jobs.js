@@ -9,6 +9,7 @@ import * as db from '../db/connection.js';
 import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
+import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, storeJobSecret } from '../secrets/crawlerSecrets.js';
 
 const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
 // Pre-resolve once so path-containment checks can use a stable absolute base.
@@ -132,6 +133,14 @@ function maskConfig(config) {
   return masked;
 }
 
+// Like maskConfig, but also surfaces the mask when the clientSecret lives in the
+// vault (the normal case now) rather than in the stored config JSON.
+async function maskedConfigForResponse(id, config) {
+  const masked = maskConfig(config);
+  if (await hasConfigSecret(id)) return { ...(masked || {}), clientSecret: SECRET_MASK };
+  return masked;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // CRAWLER CONFIGS — Persistent crawler configurations
 // ═══════════════════════════════════════════════════════════════════
@@ -144,10 +153,10 @@ router.get('/admin/crawler-configs', gate, async (req, res) => {
     const result = await pool.request().query(
       `SELECT * FROM "CrawlerConfigs" WHERE "enabled" = TRUE ORDER BY "createdAt" DESC`
     );
-    const configs = result.recordset.map(r => ({
+    const configs = await Promise.all(result.recordset.map(async r => ({
       ...r,
-      config: maskConfig(r.config),
-    }));
+      config: await maskedConfigForResponse(r.id, r.config),
+    })));
     res.json(configs);
   } catch (err) {
     console.error('Error listing crawler configs:', err.message);
@@ -165,17 +174,23 @@ router.post('/admin/crawler-configs', gate, async (req, res) => {
   }
 
   try {
+    // Strip the clientSecret out of the stored JSON — it goes to the vault.
+    const incoming = { ...(config || {}) };
+    const clientSecret = incoming.clientSecret;
+    delete incoming.clientSecret;
+
     const pool = await db.getPool();
     const result = await pool.request()
       .input('crawlerType', crawlerType)
       .input('displayName', displayName.trim().slice(0, 255))
-      .input('config', JSON.stringify(config || {}))
+      .input('config', JSON.stringify(incoming))
       .query(`INSERT INTO "CrawlerConfigs" ("crawlerType", "displayName", config)
               VALUES (@crawlerType, @displayName, @config)
               RETURNING *`);
 
     const row = result.recordset[0];
-    res.status(201).json({ ...row, config: maskConfig(row.config) });
+    if (clientSecret && clientSecret !== SECRET_MASK) await storeConfigSecret(row.id, clientSecret);
+    res.status(201).json({ ...row, config: await maskedConfigForResponse(row.id, row.config) });
   } catch (err) {
     console.error('Error creating crawler config:', err.message);
     res.status(500).json({ error: 'Failed to create config' });
@@ -194,7 +209,7 @@ router.get('/admin/crawler-configs/:id', gate, async (req, res) => {
       .query(`SELECT * FROM "CrawlerConfigs" WHERE id = @id`);
     if (result.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
     const row = result.recordset[0];
-    res.json({ ...row, config: maskConfig(row.config) });
+    res.json({ ...row, config: await maskedConfigForResponse(row.id, row.config) });
   } catch (err) {
     console.error('Error fetching crawler config:', err.message);
     res.status(500).json({ error: 'Failed to fetch config' });
@@ -215,20 +230,24 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
   try {
     const pool = await db.getPool();
 
-    // Read existing config to preserve secret if not provided
+    // Read existing config. The clientSecret lives in the vault, not here.
     const existing = await pool.request().input('id', id)
       .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
     if (existing.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
 
-    let mergedConfig = (typeof existing.recordset[0].config === "string" ? JSON.parse(existing.recordset[0].config) : existing.recordset[0].config);
+    let mergedConfig = (typeof existing.recordset[0].config === "string" ? JSON.parse(existing.recordset[0].config) : existing.recordset[0].config) || {};
+    let newSecret = null;
     if (config) {
       const incoming = { ...config };
-      // If secret is the mask or empty, keep existing
-      if (!incoming.clientSecret || incoming.clientSecret === SECRET_MASK) {
-        incoming.clientSecret = mergedConfig.clientSecret;
+      // A real (non-mask, non-empty) clientSecret replaces the vaulted one;
+      // the mask or an empty value means "leave the existing secret untouched".
+      if (incoming.clientSecret && incoming.clientSecret !== SECRET_MASK) {
+        newSecret = incoming.clientSecret;
       }
+      delete incoming.clientSecret;
       mergedConfig = { ...mergedConfig, ...incoming };
     }
+    delete mergedConfig.clientSecret; // never persist plaintext in the JSON
 
     const sets = ['config = @config', '"updatedAt" = now()'];
     const request = pool.request().input('id', id).input('config', JSON.stringify(mergedConfig));
@@ -247,7 +266,8 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
       `UPDATE "CrawlerConfigs" SET ${sets.join(', ')} WHERE id = @id RETURNING *`
     );
     const row = result.recordset[0];
-    res.json({ ...row, config: maskConfig(row.config) });
+    if (newSecret) await storeConfigSecret(id, newSecret);
+    res.json({ ...row, config: await maskedConfigForResponse(row.id, row.config) });
   } catch (err) {
     console.error('Error updating crawler config:', err.message);
     res.status(500).json({ error: 'Failed to update config' });
@@ -265,8 +285,9 @@ router.delete('/admin/crawler-configs/:id', gate, async (req, res) => {
     const result = await pool.request().input('id', id)
       .query(`DELETE FROM "CrawlerConfigs" WHERE id = @id`);
     if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Config not found' });
-    // Best-effort cleanup of any uploaded CSV files for this config
+    // Best-effort cleanup of any uploaded CSV files + the vaulted secret.
     deleteConfigFolder(id).catch(() => {});
+    deleteConfigSecret(id).catch(() => {});
     res.json({ message: 'Config removed' });
   } catch (err) {
     console.error('Error removing crawler config:', err.message);
@@ -723,9 +744,11 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
       configNextRunMode = cfgResult.recordset[0].nextRunMode || 'delta';
     }
 
-    // Validate entra-id has credentials
+    // Validate entra-id has credentials. The clientSecret lives in the vault for
+    // saved configs (config-based jobs) or is supplied inline for ad-hoc runs.
     if (jobType === 'entra-id') {
-      if (!resolvedConfig?.tenantId || !resolvedConfig?.clientId || !resolvedConfig?.clientSecret) {
+      const hasSecret = configId ? await hasConfigSecret(configId) : !!resolvedConfig?.clientSecret;
+      if (!resolvedConfig?.tenantId || !resolvedConfig?.clientId || !hasSecret) {
         return res.status(400).json({ error: 'Entra ID jobs require tenantId, clientId, and clientSecret' });
       }
     }
@@ -770,9 +793,14 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     // then delta. Inline configs without a configId still accept an explicit
     // syncMode so API clients can control it.
     const effectiveSyncMode = explicitSyncMode || configNextRunMode || 'delta';
+    // Inline jobs may carry their own clientSecret — vault it under the job id
+    // and never persist plaintext in the job config. Config-based jobs reference
+    // the config's vaulted secret via _scheduledByConfigId (injected at claim).
+    const inlineSecret = (!configId && resolvedConfig?.clientSecret) ? resolvedConfig.clientSecret : null;
     const configToStore = configId
       ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
       : (resolvedConfig ? { ...resolvedConfig, _syncMode: effectiveSyncMode } : null);
+    if (configToStore) delete configToStore.clientSecret;
     const configJson = configToStore ? JSON.stringify(configToStore) : null;
 
     const result = await pool.request()
@@ -782,6 +810,7 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
       .query(`INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")
               VALUES (@jobType, @config, @createdBy)
               RETURNING *`);
+    if (inlineSecret) await storeJobSecret(result.recordset[0].id, inlineSecret);
 
     // Update lastRunAt on the source config
     if (configId) {

@@ -21,6 +21,7 @@ import { runMigrations } from './db/migrate.js';
 import { selfTest as vaultSelfTest } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
+import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
 
@@ -47,71 +48,62 @@ function hashKey(apiKey, salt) {
   return crypto.scryptSync(apiKey, salt, 64, { N: 16384, r: 8, p: 1 });
 }
 
-async function ensureBuiltinCrawler() {
+// Read the persisted worker key from the shared-volume file (the worker's
+// source of truth). Returns the key, or null if absent/unreadable.
+function readWorkerKeyFile() {
+  try {
+    const key = readFileSync(WORKER_KEY_FILE, 'utf8').trim();
+    return key || null;
+  } catch {
+    return null;
+  }
+}
+
+// Ensure the built-in worker crawler exists and the worker has a valid API key.
+//
+// The key is persisted ONLY in two places: the scrypt hash in Crawlers (for
+// auth verification) and the 0600 shared-volume file the worker reads. It is
+// deliberately NOT stored in plaintext in the database — that copy was
+// recoverable from a DB read (security finding H-02).
+export async function ensureBuiltinCrawler() {
+  // One-time scrub of the legacy plaintext key. Older versions persisted it in
+  // WorkerConfig; it is no longer written or read, so remove it on upgrade.
+  await db.query(`DELETE FROM "WorkerConfig" WHERE "configKey" = 'BUILTIN_CRAWLER_API_KEY'`).catch(() => {});
+
   const existing = await db.queryOne(
-    `SELECT id FROM "Crawlers" WHERE "displayName" = $1 AND "enabled" = TRUE`,
+    `SELECT id, "apiKeyHash", "apiKeySalt" FROM "Crawlers" WHERE "displayName" = $1 AND "enabled" = TRUE`,
     [BUILTIN_CRAWLER_NAME]
   );
 
   if (existing) {
-    // Check if the stored hash needs upgrading from SHA-256 (32 bytes) to scrypt (64 bytes).
-    const hashRow = await db.queryOne(
-      `SELECT "apiKeyHash" FROM "Crawlers" WHERE id = $1`,
-      [existing.id]
-    );
-    if (hashRow?.apiKeyHash?.length === 32) {
-      console.log('Built-in Worker has legacy SHA-256 hash — rotating to scrypt...');
-      const apiKey = generateApiKey();
-      const salt = crypto.randomBytes(32);
-      const hash = hashKey(apiKey, salt);
-      const prefix = apiKey.slice(0, 8);
-      await db.query(
-        `UPDATE "Crawlers"
-            SET "apiKeyHash" = $1, "apiKeySalt" = $2, "apiKeyPrefix" = $3,
-                "lastRotatedAt" = (now() AT TIME ZONE 'utc')
-          WHERE id = $4`,
-        [hash, salt, prefix, existing.id]
-      );
-      await db.query(
-        `INSERT INTO "WorkerConfig" ("configKey", "configValue")
-         VALUES ('BUILTIN_CRAWLER_API_KEY', $1)
-         ON CONFLICT ("configKey") DO UPDATE SET "configValue" = EXCLUDED."configValue", "updatedAt" = now()`,
-        [apiKey]
-      );
-      writeWorkerKeyFile(apiKey);
-      console.log('Built-in Worker key upgraded to scrypt');
-      return;
+    // Reuse the key on the shared volume IFF it still matches the stored scrypt
+    // hash. Otherwise (file missing/stale, or a legacy 32-byte SHA-256 hash),
+    // rotate: generate a new key, update the hash, and re-write the file.
+    const fileKey = readWorkerKeyFile();
+    const hash = existing.apiKeyHash;
+    const salt = existing.apiKeySalt;
+    const isScrypt = !!(hash && hash.length === 64 && salt);
+    if (fileKey && isScrypt) {
+      try {
+        if (crypto.timingSafeEqual(hashKey(fileKey, salt), hash)) {
+          return; // key on disk is valid — nothing to do
+        }
+      } catch { /* length mismatch etc. — fall through to rotate */ }
     }
 
-    const cfg = await db.queryOne(
-      `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = 'BUILTIN_CRAWLER_API_KEY'`
-    );
-    if (cfg) {
-      // Existing key — re-write the shared-volume file in case the volume
-      // was nuked since the last restart (common during dev iteration).
-      writeWorkerKeyFile(cfg.configValue);
-      return;
-    }
-
-    console.log('Built-in Worker crawler exists but WorkerConfig key missing — rotating...');
     const apiKey = generateApiKey();
-    const salt = crypto.randomBytes(32);
-    const hash = hashKey(apiKey, salt);
+    const newSalt = crypto.randomBytes(32);
+    const newHash = hashKey(apiKey, newSalt);
     const prefix = apiKey.slice(0, 8);
-
     await db.query(
       `UPDATE "Crawlers"
           SET "apiKeyHash" = $1, "apiKeySalt" = $2, "apiKeyPrefix" = $3,
               "lastRotatedAt" = (now() AT TIME ZONE 'utc')
         WHERE id = $4`,
-      [hash, salt, prefix, existing.id]
-    );
-    await db.query(
-      `INSERT INTO "WorkerConfig" ("configKey", "configValue") VALUES ('BUILTIN_CRAWLER_API_KEY', $1)`,
-      [apiKey]
+      [newHash, newSalt, prefix, existing.id]
     );
     writeWorkerKeyFile(apiKey);
-    console.log('Built-in Worker key rotated and stored in WorkerConfig');
+    console.log(`Built-in Worker key ${isScrypt ? 'rotated' : 'upgraded to scrypt'} (prefix: ${prefix})`);
     return;
   }
 
@@ -127,14 +119,6 @@ async function ensureBuiltinCrawler() {
      VALUES ($1, $2, $3, $4, $5, 'system-bootstrap', '["ingest","refreshViews","admin"]'::jsonb)`,
     [BUILTIN_CRAWLER_NAME, 'Auto-created crawler for the Docker worker container. Do not delete.',
      hash, salt, prefix]
-  );
-
-  await db.query(
-    `INSERT INTO "WorkerConfig" ("configKey", "configValue")
-     VALUES ('BUILTIN_CRAWLER_API_KEY', $1)
-     ON CONFLICT ("configKey") DO UPDATE
-       SET "configValue" = EXCLUDED."configValue", "updatedAt" = now()`,
-    [apiKey]
   );
 
   writeWorkerKeyFile(apiKey);
@@ -316,6 +300,12 @@ export async function bootstrapWorker() {
     const pool = await db.getPool();
     await runMigrations(pool);
     await ensureBuiltinCrawler();
+    // Move any legacy plaintext crawler clientSecrets into the encrypted vault.
+    try {
+      await migrateCrawlerSecretsToVault();
+    } catch (err) {
+      console.warn('Crawler secret migration skipped:', err.message);
+    }
     try {
       await seedContextAlgorithms();
     } catch (err) {
