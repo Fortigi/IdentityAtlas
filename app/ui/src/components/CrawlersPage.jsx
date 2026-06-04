@@ -1945,21 +1945,21 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
   };
 
   // Resource category mapping — maps ROLECATEGORY to Identity Atlas resourceType + optional tags
+  const RESOURCE_TYPE_OPTIONS = ['BusinessRole', 'Resource', 'AppRole', 'DelegatedPermission'];
   const defaultCategoryMapping = [
-    { category: 'Role',       resourceType: 'BusinessRole', tags: '' },
-    { category: 'Permission', resourceType: 'Resource',     tags: 'permission' },
-    { category: '',           resourceType: 'Resource',     tags: '' },
+    { category: 'Role',       resourceType: 'BusinessRole' },
+    { category: 'Permission', resourceType: 'Resource' },
+    { category: '',           resourceType: 'Resource' },
   ];
   const [resCategoryMapping, setResCategoryMapping] = useState(
     initialConfig?.resourceCategoryMapping?.length
       ? initialConfig.resourceCategoryMapping.map(m => ({
           category:     m.category     || '',
           resourceType: m.resourceType || 'Resource',
-          tags:         Array.isArray(m.tags) ? m.tags.join(', ') : (m.tags || ''),
         }))
       : defaultCategoryMapping
   );
-  const addResMapping    = () => setResCategoryMapping(prev => [...prev, { category: '', resourceType: 'Resource', tags: '' }]);
+  const addResMapping    = () => setResCategoryMapping(prev => [...prev, { category: '', resourceType: 'Resource' }]);
   const removeResMapping = i  => setResCategoryMapping(prev => prev.filter((_, idx) => idx !== i));
   const updateResMapping = (i, field, val) =>
     setResCategoryMapping(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
@@ -2006,8 +2006,7 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
         resourceCategoryMapping: resCategoryMapping
           .map(m => ({
             category:    m.category.trim(),
-            resourceType: m.resourceType.trim() || 'Resource',
-            tags: m.tags.trim() ? m.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+            resourceType: m.resourceType || 'Resource',
           })),
       };
       if (schedules.length) configPayload.schedules = schedules;
@@ -2324,24 +2323,23 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Resource Category Mapping</p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Maps Omada <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">ROLECATEGORY</code> to an
-              Identity Atlas resource type. Leave <em>Category</em> blank for the default/catch-all row.
-              <em>Tags</em> are stored in extendedAttributes (comma-separated).
+              Identity Atlas resource type. Leave <em>ROLECATEGORY</em> blank for the default/catch-all row (must be last).
             </p>
             <div className="space-y-2">
-              <div className="grid grid-cols-3 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                <span>ROLECATEGORY value</span><span>Identity Atlas type</span><span>Tags (comma-sep)</span>
+              <div className="grid grid-cols-2 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 pr-6">
+                <span>ROLECATEGORY value</span><span>Identity Atlas type</span>
               </div>
               {resCategoryMapping.map((m, i) => (
                 <div key={i} className="flex gap-2 items-center">
                   <input value={m.category} onChange={e => updateResMapping(i, 'category', e.target.value)}
-                    placeholder="e.g. Role (blank = default)"
+                    placeholder="e.g. Role  (blank = default)"
                     className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                  <input value={m.resourceType} onChange={e => updateResMapping(i, 'resourceType', e.target.value)}
-                    placeholder="e.g. BusinessRole"
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                  <input value={m.tags} onChange={e => updateResMapping(i, 'tags', e.target.value)}
-                    placeholder="e.g. permission"
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                  <select value={m.resourceType} onChange={e => updateResMapping(i, 'resourceType', e.target.value)}
+                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                    {RESOURCE_TYPE_OPTIONS.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                   <button onClick={() => removeResMapping(i)} disabled={resCategoryMapping.length === 1}
                     className="text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
                 </div>

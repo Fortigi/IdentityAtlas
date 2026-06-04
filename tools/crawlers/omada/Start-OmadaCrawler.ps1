@@ -144,15 +144,14 @@ $WellKnownIdentityContextFields = @{
 # Entry with empty category = default/catch-all (must be last).
 # Tags land in extendedAttributes.tags and can be used for filtering in the UI.
 $DefaultResourceCategoryMapping = @(
-    @{ category = 'Role';       resourceType = 'BusinessRole'; tags = @() }
-    @{ category = 'Permission'; resourceType = 'Resource';     tags = @('permission') }
-    @{ category = '';           resourceType = 'Resource';     tags = @() }  # default
+    @{ category = 'Role';       resourceType = 'BusinessRole' }
+    @{ category = 'Permission'; resourceType = 'Resource' }
+    @{ category = '';           resourceType = 'Resource' }  # default/catch-all
 )
 $ResourceCategoryMapping = if ($Cfg.resourceCategoryMapping) {
     @($Cfg.resourceCategoryMapping | ForEach-Object {
         @{ category    = if ($_.category)    { [string]$_.category    } else { '' }
-           resourceType = if ($_.resourceType){ [string]$_.resourceType } else { 'Resource' }
-           tags         = if ($_.tags)        { @($_.tags)             } else { @() } }
+           resourceType = if ($_.resourceType){ [string]$_.resourceType } else { 'Resource' } }
     })
 } else {
     $DefaultResourceCategoryMapping
@@ -160,13 +159,12 @@ $ResourceCategoryMapping = if ($Cfg.resourceCategoryMapping) {
 
 function Map-ResourceCategory {
     param([string]$Category)
-    # Find first entry where category matches (or is the empty catch-all)
     foreach ($M in $ResourceCategoryMapping) {
         if ($M.category -eq $Category -or $M.category -eq '') {
-            return $M
+            return $M.resourceType
         }
     }
-    return @{ resourceType = 'Resource'; tags = @($Category) }
+    return 'Resource'
 }
 
 # Default type mappings (operator can override in config)
@@ -894,14 +892,7 @@ if ($SyncResources) {
         $BySysUId = @{}
         foreach ($Item in $AllResources) {
             $OmadaCat    = if ($Item.ROLECATEGORY)    { [string]$Item.ROLECATEGORY.Value }   else { '' }
-            $CatMapping  = Map-ResourceCategory -Category $OmadaCat
-            $AtlasType   = $CatMapping.resourceType
-            $Tags        = @($CatMapping.tags)
-            # Add the actual category as a tag when it differs from the resourceType name
-            # and the mapping didn't already add a category tag
-            if ($OmadaCat -and $AtlasType -ne 'BusinessRole' -and $Tags -notcontains $OmadaCat.ToLower()) {
-                $Tags += $OmadaCat.ToLower()
-            }
+            $AtlasType   = Map-ResourceCategory -Category $OmadaCat
 
             $SysUId      = Get-OmadaRefUid  -Ref $Item.SYSTEMREF
             $SysName     = Get-OmadaRefValue -Ref $Item.SYSTEMREF   -Fallback ''
@@ -937,7 +928,6 @@ if ($SyncResources) {
                 extendedAttributes = @{
                     resourceCategory  = $OmadaCat
                     resourceType      = $RoleType          # ROLETYPEREF.DisplayName
-                    tags              = $Tags
                     roleFolder        = $FolderName        # ROLEFOLDER.DisplayName
                     skipProvisioning  = if ($Null -ne $Item.SKIPPROVISIONING) { [bool]$Item.SKIPPROVISIONING } else { $False }
                     userGroupName     = $UgName            # USERGROUPREF → Usergroup.DisplayName
