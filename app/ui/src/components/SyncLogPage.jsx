@@ -85,7 +85,7 @@ export default function SyncLogPage() {
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-400 tabular-nums">{formatDateTime(log.StartTime)}</td>
                   <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{formatTimeAgo(log.StartTime)}</td>
                   <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400 tabular-nums">{formatDuration(log.DurationSeconds)}</td>
-                  <td className="px-3 py-2 text-right text-gray-900 dark:text-white tabular-nums">{log.RecordCount.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right text-gray-900 dark:text-white tabular-nums">{(log.RecordCount ?? 0).toLocaleString()}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusColors[log.Status] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
                       {log.Status}
