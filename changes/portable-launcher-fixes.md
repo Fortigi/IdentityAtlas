@@ -1,2 +1,0 @@
-- Fixed: launching the portable launcher a second time while Identity Atlas is already running no longer crashes — it now detects the existing instance and opens the browser instead
-- Fixed: portable Windows launcher now correctly shows the release version number (e.g. "5.7.0") in the UI version card and footer instead of showing no version
