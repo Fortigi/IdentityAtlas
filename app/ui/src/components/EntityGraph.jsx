@@ -1,4 +1,21 @@
-﻿import { useMemo, useState, useRef } from 'react';
+﻿import { useMemo, useState, useRef, useEffect } from 'react';
+
+// The graph's pulsing rings/edges use SVG SMIL <animate>, which the global
+// prefers-reduced-motion CSS rule can't reach. Subscribe to the media query so
+// we can drop those animations for users who ask for reduced motion.
+function usePrefersReducedMotion() {
+  const [reduce, setReduce] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!mq) return undefined;
+    const handler = (e) => setReduce(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return reduce;
+}
 
 // ─── EntityGraph ──────────────────────────────────────────────────────
 // Radial graph: the current entity sits in the middle, relationship nodes
@@ -214,6 +231,7 @@ export default function EntityGraph({
   }
 
   const isDirty = pan.x !== 0 || pan.y !== 0 || scale !== 1;
+  const reduceMotion = usePrefersReducedMotion();
 
   return (
     <div className="relative">
@@ -300,7 +318,7 @@ export default function EntityGraph({
               strokeDasharray={active ? '' : '3,3'}
               opacity={opacity}
             >
-              {active && !selected && !isOnPath && (
+              {active && !selected && !isOnPath && !reduceMotion && (
                 <animate attributeName="stroke-opacity" values="0.45;0.8;0.45"
                   dur={`${4 + (i % 3)}s`} repeatCount="indefinite"
                   begin={`${(i * 0.29) % 3}s`} />
@@ -338,8 +356,12 @@ export default function EntityGraph({
                 <circle cx={n.x} cy={n.y} r={r + 4} fill="none"
                   stroke={n.recent === 'added' ? '#fde047' : n.recent === 'removed' ? '#fb7185' : GREEN_MID}
                   strokeWidth={1.1} opacity={onPath ? 0.6 : 0.35}>
-                  <animate attributeName="r" values={`${r + 4};${r + 8};${r + 4}`} dur={`${3.5 + i * 0.25}s`} repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.4;0.05;0.4" dur={`${3.5 + i * 0.25}s`} repeatCount="indefinite" />
+                  {!reduceMotion && (
+                    <>
+                      <animate attributeName="r" values={`${r + 4};${r + 8};${r + 4}`} dur={`${3.5 + i * 0.25}s`} repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.4;0.05;0.4" dur={`${3.5 + i * 0.25}s`} repeatCount="indefinite" />
+                    </>
+                  )}
                 </circle>
               )}
               <circle
