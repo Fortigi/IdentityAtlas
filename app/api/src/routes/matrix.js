@@ -258,6 +258,86 @@ router.post('/matrix/preview', async (req, res) => {
   }
 });
 
+// ─── POST /api/matrix/scope-stats ───────────────────────────────────
+// Richer counts for the current selection than /preview: subject + resource
+// totals PLUS the governed-vs-non-governed assignment split. Powers the Scope
+// Statistics panel. "Governed" mirrors the matrix's own managed/SOLL semantics
+// (vw_ResourceUserPermissionAssignments.managedByAccessPackage) — an assignment
+// pair is governed if it is provisioned via a business role / access package.
+router.post('/matrix/scope-stats', async (req, res) => {
+  if (!useSql) {
+    return res.json({
+      subjectCount: 0, resourceCount: 0,
+      assignmentCount: 0, governedAssignmentCount: 0, ungovernedAssignmentCount: 0,
+      governedPct: 0, rowType: 'principal',
+    });
+  }
+  const filter = parseFilter(req.body);
+  if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
+
+  try {
+    const built = await buildSubqueries(filter);
+    const p = await db.getPool();
+    const subj = subjectScopeClauses(filter.rowType, built.subjectSql);
+
+    const subjectIdExpr = filter.rowType === 'identity' ? 'im."identityId"' : 'p."principalId"';
+    const assignmentJoin = filter.rowType === 'identity'
+      ? `INNER JOIN "IdentityMembers" im ON im."principalId" = p."principalId"`
+      : '';
+    const assignmentWhere = [`(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`];
+    if (built.subjectSql)  assignmentWhere.push(`${subjectIdExpr} IN ${built.subjectSql}`);
+    if (built.resourceSql) assignmentWhere.push(`p."resourceId" IN ${built.resourceSql}`);
+
+    // One pair-level aggregation: distinct (subject, resource) pairs, each
+    // flagged governed if ANY of its assignment rows is access-package managed.
+    const pairReq = timedRequest(p, 'matrix-scope-pairs', res);
+    for (const [k, v] of Object.entries(built.bindings)) pairReq.input(k, v);
+    const pairSql = `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE managed)::int AS governed
+      FROM (
+        SELECT ${subjectIdExpr} AS sid, p."resourceId" AS rid,
+               bool_or(p."managedByAccessPackage") AS managed
+          FROM "vw_ResourceUserPermissionAssignments" p
+          ${assignmentJoin}
+         WHERE ${assignmentWhere.join(' AND ')}
+         GROUP BY ${subjectIdExpr}, p."resourceId"
+      ) pairs`;
+
+    const [subjectCount, resourceCount, pairRow] = await Promise.all([
+      runCount(p, 'matrix-scope-subject', res,
+        `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`,
+        built.bindings),
+      runCount(p, 'matrix-scope-resource', res,
+        `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceSql ? ` WHERE id IN ${built.resourceSql}` : ''}`,
+        built.bindings),
+      pairReq.query(pairSql).then(r => r.recordset[0] || { total: 0, governed: 0 }),
+    ]);
+
+    const assignmentCount = pairRow.total || 0;
+    const governedAssignmentCount = pairRow.governed || 0;
+    const ungovernedAssignmentCount = assignmentCount - governedAssignmentCount;
+    const governedPct = assignmentCount > 0
+      ? Math.round((governedAssignmentCount / assignmentCount) * 1000) / 10
+      : 0;
+
+    return res.json({
+      rowType: filter.rowType,
+      subjectCount,
+      resourceCount,
+      assignmentCount,
+      governedAssignmentCount,
+      ungovernedAssignmentCount,
+      governedPct,
+      warnings: built.warnings,
+    });
+  } catch (err) {
+    console.error('matrix/scope-stats failed:', err.message);
+    return res.status(500).json({ error: 'Scope statistics failed' });
+  }
+});
+
 // ─── POST /api/matrix/data ──────────────────────────────────────────
 router.post('/matrix/data', async (req, res) => {
   if (!useSql) {
