@@ -1,2 +1,0 @@
-- Accessibility: added a keyboard **"Skip to main content"** link, a global keyboard focus indicator so focus is always visible, and support for the OS **"reduce motion"** preference (animations/transitions are minimised when requested).
-- Renamed the context detail-tab badge from "OU" to "C" so it matches the unified "Contexts" terminology (no more leftover "Org Unit" wording).
