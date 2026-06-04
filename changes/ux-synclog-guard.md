@@ -1,1 +1,0 @@
-- Hardened the Sync Log: a row with a missing record count no longer crashes the page (it now shows 0).
