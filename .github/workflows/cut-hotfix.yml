@@ -119,6 +119,11 @@ jobs:
             --notes-file release-notes.md \
             --latest
 
+      - name: Deploy versioned docs
+        run: |
+          pip install --quiet mike mkdocs-material
+          mike deploy --push --update-aliases "$VERSION" stable
+
       - name: Post run summary
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
