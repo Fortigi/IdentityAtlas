@@ -186,18 +186,86 @@ jobs:
         working-directory: app/api
         run: npm audit --audit-level=high
 
+  # ── Stage 7: PR hygiene (tests + changelog required for code changes) ────
+  # Blocks merging a code change that ships without tests or a changelog
+  # fragment — the gap that let an undocumented, untested feature reach main.
+  # Escape hatch: a maintainer can apply the 'skip-hygiene' label.
+  hygiene:
+    name: 'PR Hygiene'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Require tests + changelog fragment for code changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+
+          # Escape hatch for genuinely test-less changes (reviewed by a human).
+          if echo ",${PR_LABELS}," | grep -q ',skip-hygiene,'; then
+            echo "::notice::'skip-hygiene' label present — skipping PR hygiene checks."
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
+          echo "Changed files:"; echo "${CHANGED}" | sed 's/^/  /'
+
+          # Product (non-test) source that ought to be covered by a test.
+          CODE=$(echo "${CHANGED}" | grep -E \
+            -e '^app/api/src/.*\.js$' \
+            -e '^app/ui/src/.*\.(js|jsx)$' \
+            -e '^tools/.*\.ps1$' \
+            -e '^setup/docker/.*\.ps1$' \
+            | grep -vE '\.(test|spec)\.(js|jsx)$' || true)
+
+          # Anything that counts as a test.
+          TESTS=$(echo "${CHANGED}" | grep -E \
+            -e '\.(test|spec)\.(js|jsx)$' \
+            -e '^app/ui/e2e/' \
+            -e '^test/' \
+            -e '\.Tests\.ps1$' || true)
+
+          # Changelog fragment (the project mandates one per branch).
+          FRAGMENT=$(echo "${CHANGED}" | grep -E '^changes/.*\.md$' || true)
+
+          FAIL=0
+          if [ -n "${CODE}" ]; then
+            if [ -z "${TESTS}" ]; then
+              echo "::error::Source code changed but no test files were added or modified."
+              echo "Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), or *.Tests.ps1 (PowerShell)."
+              FAIL=1
+            fi
+            if [ -z "${FRAGMENT}" ]; then
+              echo "::error::Code changed but no changelog fragment found. Add a bullet to changes/<branch>.md (never edit CHANGES.md)."
+              FAIL=1
+            fi
+          else
+            echo "No product code changed — tests/changelog not required."
+          fi
+
+          if [ "${FAIL}" = "1" ]; then
+            echo "If this change genuinely needs neither, a maintainer can add the 'skip-hygiene' label."
+            exit 1
+          fi
+          echo "PR hygiene OK."
+
   # ── Summary ─────────────────────────────────────────────────────────────
   pr-summary:
     name: 'PR Summary'
     runs-on: ubuntu-latest
-    needs: [lint-ps, lint-js, unit-tests, unit-js, openapi, audit]
+    needs: [lint-ps, lint-js, unit-tests, unit-js, openapi, audit, hygiene]
     if: always()
     steps:
       - name: Report results
         run: |
           echo "## PR Check Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          for job in lint-ps lint-js unit-tests unit-js openapi audit; do
+          for job in lint-ps lint-js unit-tests unit-js openapi audit hygiene; do
             result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('$job', {}).get('result','unknown'))")
             if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
             echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
@@ -210,5 +278,6 @@ jobs:
           needs.unit-tests.result == 'failure' ||
           needs.unit-js.result == 'failure' ||
           needs.openapi.result == 'failure' ||
-          needs.audit.result == 'failure'
+          needs.audit.result == 'failure' ||
+          needs.hygiene.result == 'failure'
         run: exit 1
