@@ -9,7 +9,7 @@ import { formatDurationMs } from '../utils/formatters';
 
 const TERMINAL = new Set(['succeeded', 'failed']);
 
-export default function RunDetailPage({ runId, onClose, onOpenDetail }) {
+export default function RunDetailPage({ runId, onClose }) {
   const { authFetch } = useAuth();
   const [run, setRun] = useState(null);
   const [error, setError] = useState(null);
@@ -142,19 +142,14 @@ export default function RunDetailPage({ runId, onClose, onOpenDetail }) {
       </div>
 
       {run.status === 'succeeded' && (
-        <p className="text-center text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">
-          Generated contexts are visible in the Contexts tab.
-          {onOpenDetail && (
-            <>
-              {' '}
-              <button
-                onClick={() => onOpenDetail?.('context', null)}
-                className="text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Go there now →
-              </button>
-            </>
-          )}
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+          Generated contexts are visible in the Contexts tab.{' '}
+          <button
+            onClick={() => { window.location.hash = 'contexts'; }}
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Go there now →
+          </button>
         </p>
       )}
     </div>
