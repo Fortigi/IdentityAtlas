@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Docs version picker now shows the release version number (e.g. "5.7.0") instead of "stable"
+- Cut Beta and Cut Release workflows now accept an optional ref input so releases can be cut from any commit, tag, or branch (default: main); docs deploy from the same ref
+
+## Changes in this PR
+
+- Security: LLM-generated risk-classifier patterns are now matched with a linear-time regular-expression engine (RE2) instead of the built-in engine. A maliciously or accidentally crafted pattern can no longer cause catastrophic backtracking that freezes risk scoring (a denial-of-service / ReDoS risk). Patterns using constructs RE2 cannot run in linear time (e.g. look-ahead) are skipped and logged rather than executed.
+- Fixed: portable Windows launcher worker never picked up queued jobs (demo data import, crawlers) because the worker API key was read before the server finished writing it
+
+## Changes in this PR
+
 - Security: hardened the risk-profile URL scraper against server-side request forgery (SSRF). It now resolves and checks every target address and refuses private, loopback, link-local, and cloud-metadata addresses — including decimal/hex and IPv4-mapped encodings and addresses returned via DNS — pins the connection to the validated address to defeat DNS-rebinding, re-validates every redirect hop, and never forwards credentials across a redirect to a different host.
 
 ## Changes in this PR
