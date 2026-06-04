@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { TYPE_COLORS as TYPE_COLORS_SRC, AP_COLORS } from './colors';
-import { hexToArgb, thinBorder, setHeaderCell } from './excelHelpers';
+import { hexToArgb, thinBorder, setHeaderCell, safeCell } from './excelHelpers';
 
 /**
  * Exports the matrix view to an Excel workbook matching the on-screen layout.
@@ -118,7 +118,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
 
   for (let u = 0; u < userCount; u++) {
     const cell = ws.getCell(2, infoColCount + u + 1);
-    cell.value = users[u].displayName;
+    cell.value = safeCell(users[u].displayName);
     cell.font = { size: 11, bold: false };
     cell.alignment = { textRotation: 90, vertical: 'bottom', horizontal: 'center' };
     cell.fill = {
@@ -132,7 +132,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   // Row 2 access package name headers (each AP gets a distinct color)
   for (let a = 0; a < apCount; a++) {
     const cell = ws.getCell(2, apColStart + a);
-    cell.value = accessPackages[a].displayName;
+    cell.value = safeCell(accessPackages[a].displayName);
     cell.font = { size: 11, bold: false };
     cell.alignment = { textRotation: 90, vertical: 'bottom', horizontal: 'center' };
     cell.fill = {
@@ -151,12 +151,12 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
 
     // Info columns: Resource Name | Type | GUID
     const nameCell = ws.getCell(rowNum, 1);
-    nameCell.value = group.displayName;
+    nameCell.value = safeCell(group.displayName);
     nameCell.font = { size: 11 };
     nameCell.border = thinBorder();
 
     const typeCell = ws.getCell(rowNum, 2);
-    typeCell.value = group.groupType || '';
+    typeCell.value = safeCell(group.groupType || '');
     typeCell.font = { size: 11, color: { argb: 'FF6B7280' } };
     typeCell.border = thinBorder();
 
@@ -223,7 +223,7 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
     countCell.border = thinBorder();
 
     const descCell = ws.getCell(rowNum, metaColStart + 1);
-    descCell.value = group.description;
+    descCell.value = safeCell(group.description);
     descCell.font = { size: 11 };
     descCell.border = thinBorder();
 

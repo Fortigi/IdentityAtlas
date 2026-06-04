@@ -96,7 +96,8 @@ The SPA calls `GET /api/auth-me` after sign-in to learn its own permissions and 
 ## Deployment notes
 
 - **Open mode (`AUTH_ENABLED=false`)** — supported for local/evaluation use; all permission gates are bypassed.
-- **Azure App Service** — `AUTH_ENABLED=true` is set from first boot; the Authentication and Containers admin sub-tabs are hidden (managed platform).
+- **Azure App Service** — `AUTH_ENABLED=true` is set from first boot; the Authentication admin sub-tab is hidden (managed platform).
+
 - Tenant/client IDs are configured via `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`; the role→permission mapping is edited live in Admin → Authentication.
 - **Token audience** — the API accepts only access tokens whose audience is `api://<client-id>` (its exposed API scope). ID tokens are rejected. This is why the setup walkthrough has you "Expose an API" with the default `api://<client-id>` Application ID URI.
 

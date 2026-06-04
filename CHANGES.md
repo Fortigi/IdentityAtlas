@@ -1,5 +1,62 @@
 ## Changes in this PR
 
+- Added a **Security** section to the documentation with a public "Assessment & Remediation" page summarizing the June 2026 independent security assessment — findings by severity and status, the pull requests that remediated each one, confirmed strengths, and the remediation roadmap. Exploit detail remains confidential.
+
+## Changes in this PR
+
+- Security: the one-click Excel workbook export no longer trusts spoofable request headers when stamping the API URL into the file. Because the workbook also carries a live read token, a forged `X-Forwarded-Host`/`Host` could previously have made an analyst's data refresh send that token to an attacker's server. The export URL is now taken from a server-trusted source.
+- Added `PUBLIC_BASE_URL` (recommended for deployments behind a proxy, tunnel, or Azure) to set the workbook's API URL explicitly, and `TRUST_PROXY` to opt in to honouring `X-Forwarded-*` headers from a trusted reverse proxy. Local and default deployments are unchanged.
+
+## Changes in this PR
+
+- Security: Excel exports (matrix and access-package workbooks) now neutralize spreadsheet formula injection — synced display names, group/role names, and descriptions that begin with `=`, `+`, `-`, or `@` (or a tab/return) are written as literal text, so a maliciously named group can't turn into an executable formula when the exported file is opened.
+
+## Changes in this PR
+
+- Security (CI/CD supply chain): all GitHub Actions used in the build/test/release workflows are now pinned to immutable commit SHAs instead of mutable version tags, so a compromised or repointed action tag cannot silently run in CI with repository credentials. A Dependabot configuration keeps the pinned actions updated via reviewed pull requests.
+
+## Changes in this PR
+
+- Cut Hotfix workflow now builds and attaches the portable Windows ZIP to the GitHub release, matching the Cut Release workflow
+
+## Changes in this PR
+
+- Fixed: launching the portable launcher a second time while Identity Atlas is already running no longer crashes — it now detects the existing instance and opens the browser instead
+- Fixed: portable Windows launcher now correctly shows the release version number (e.g. "5.7.0") in the UI version card and footer instead of showing no version
+
+## Changes in this PR
+
+- Security: removed the Admin → "Containers" live-stats view and, with it, the Docker socket mount (`/var/run/docker.sock`) from the web container. Mounting the Docker socket into the web service was a host-takeover risk — a compromise of the web process could control the Docker daemon and the host. The container-stats dashboard didn't justify that exposure. Crawlers, data sync, and all other functionality are unaffected.
+
+## Changes in this PR
+
+- Docs version picker now shows the release version number (e.g. "5.7.0") instead of "stable"
+- Cut Beta and Cut Release workflows now accept an optional ref input so releases can be cut from any commit, tag, or branch (default: main); docs deploy from the same ref
+
+## Changes in this PR
+
+- Security: LLM-generated risk-classifier patterns are now matched with a linear-time regular-expression engine (RE2) instead of the built-in engine. A maliciously or accidentally crafted pattern can no longer cause catastrophic backtracking that freezes risk scoring (a denial-of-service / ReDoS risk). Patterns using constructs RE2 cannot run in linear time (e.g. look-ahead) are skipped and logged rather than executed.
+- Fixed: portable Windows launcher worker never picked up queued jobs (demo data import, crawlers) because the worker API key was read before the server finished writing it
+
+## Changes in this PR
+
+- Security: hardened the risk-profile URL scraper against server-side request forgery (SSRF). It now resolves and checks every target address and refuses private, loopback, link-local, and cloud-metadata addresses — including decimal/hex and IPv4-mapped encodings and addresses returned via DNS — pins the connection to the validated address to defeat DNS-rebinding, re-validates every redirect hop, and never forwards credentials across a redirect to a different host.
+
+## Changes in this PR
+
+- Security: fixed a guard that was meant to keep read-only API keys (`fgr_…`) out of admin endpoints but never actually triggered — it checked the mount-stripped request path instead of the full URL, so a leaked read-only key could reach admin GET endpoints (information disclosure). The check now uses the full request URL and correctly rejects read-only keys on `/api/admin/*`.
+
+## Changes in this PR
+
+- Security: Microsoft Graph crawler client secrets are no longer stored in plaintext in the database. They are encrypted in the secrets vault and injected only into the job handed to the authenticated worker at run time. Any existing plaintext client secrets are migrated into the vault automatically on upgrade.
+- Security: the built-in worker's API key is no longer stored in plaintext in the database. It is kept only as a salted scrypt hash (for verification) plus a private, restricted file that the worker reads — and any previously-stored plaintext copy is removed automatically on upgrade. A read of the database can no longer recover a usable worker credential.
+
+## Changes in this PR
+
+- Security: the built-in worker's API key is no longer stored in plaintext in the database. It is kept only as a salted scrypt hash (for verification) plus a private, restricted file that the worker reads — and any previously-stored plaintext copy is removed automatically on upgrade. A read of the database can no longer recover a usable worker credential.
+
+## Changes in this PR
+
 - Security: the production Docker Compose stack no longer publishes PostgreSQL to all network interfaces. It now binds to localhost (`127.0.0.1`) only by default, so the database is not reachable from other hosts. Set `POSTGRES_BIND_HOST=0.0.0.0` if you deliberately need off-host access.
 - Security: the production Docker Compose stack no longer ships a default database password. `POSTGRES_PASSWORD` is now required — the stack refuses to start until a strong value is set. (The local development compose still provides a default for convenience.)
 - Azure deployments are unaffected — they use a managed PostgreSQL server rather than the Compose Postgres container.

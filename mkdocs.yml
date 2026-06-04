@@ -112,6 +112,8 @@ nav:
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - Software Bill of Materials: reference/sbom.md
+  - Security:
+      - Assessment & Remediation: security/assessment.md
   - About:
       - About Identity Atlas: about.md
       - History: history.md

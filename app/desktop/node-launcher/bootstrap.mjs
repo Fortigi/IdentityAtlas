@@ -30,6 +30,15 @@ process.env.TRACE_DIR       = join(DATA_DIR, 'jobs');
 process.env.FRONTEND_DIST   = join(__dirname, 'dist-frontend');
 process.env.IA_APP_ROOT     = join(__dirname, 'bundled-scripts');
 
+// Resolve module version from the bundled .psd1 manifest so the UI footer shows the correct version.
+if (!process.env.MODULE_VERSION) {
+  try {
+    const psd1 = readFileSync(join(__dirname, 'bundled-scripts', 'setup', 'IdentityAtlas.psd1'), 'utf-8');
+    const m = psd1.match(/ModuleVersion\s*=\s*'([^']+)'/);
+    if (m) process.env.MODULE_VERSION = m[1];
+  } catch { /* psd1 not present — version will show as blank */ }
+}
+
 const pgDataDir = join(DATA_DIR, 'pgdata');
 mkdirSync(pgDataDir, { recursive: true });
 
@@ -50,13 +59,20 @@ globalThis.__pgliteInstance = pgInstance;
 
 await import(pathToFileURL(join(__dirname, 'app-bundle.mjs')).href);
 
-// bootstrap.js writes the key synchronously during init, so it exists by now.
-// Pass it via env so desktop-worker.cjs never needs readFileSync itself
-// (avoids a CodeQL js/file-data-in-request false positive in that file).
-try {
-  const key = readFileSync(process.env.WORKER_KEY_FILE, 'utf8').trim();
+// bootstrapWorker() writes the key inside app.listen()'s async callback, so it
+// is not guaranteed to exist immediately after the import resolves. Poll until
+// the file appears (up to 15 s) before starting the worker.
+{
+  let key = null;
+  for (let i = 0; i < 30; i++) {
+    try {
+      const k = readFileSync(process.env.WORKER_KEY_FILE, 'utf8').trim();
+      if (k) { key = k; break; }
+    } catch {}
+    await new Promise(r => setTimeout(r, 500));
+  }
   if (key) process.env.WORKER_API_KEY = key;
-} catch {}
+}
 
 const { startWorker } = require('./desktop-worker.cjs');
 startWorker();

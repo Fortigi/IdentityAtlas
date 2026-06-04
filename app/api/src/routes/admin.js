@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import http from 'http';
 import rateLimit from 'express-rate-limit';
 import * as db from '../db/connection.js';
 import { getAuthState } from '../config/authConfig.js';
@@ -818,87 +817,5 @@ router.get('/admin/auth-settings', writeAuth, (req, res) => {
   });
 });
 
-// ─── Container stats (Docker socket) ─────────────────────────────────────────
-const DOCKER_SOCKET = process.env.DOCKER_SOCKET || '/var/run/docker.sock';
-
-function dockerRequest(path) {
-  return new Promise((resolve, reject) => {
-    const req = http.request({ socketPath: DOCKER_SOCKET, path, method: 'GET' }, (res) => {
-      let body = '';
-      res.on('data', (c) => { body += c; });
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
-        } else {
-          reject(new Error(`Docker API ${res.statusCode}`));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.setTimeout(5000, () => { req.destroy(new Error('Docker API timeout')); });
-    req.end();
-  });
-}
-
-function calcCpuPercent(stats) {
-  const cpu = stats.cpu_stats || {};
-  const pre = stats.precpu_stats || {};
-  const cpuDelta = (cpu.cpu_usage?.total_usage || 0) - (pre.cpu_usage?.total_usage || 0);
-  const sysDelta = (cpu.system_cpu_usage || 0) - (pre.system_cpu_usage || 0);
-  const cores = cpu.online_cpus || cpu.cpu_usage?.percpu_usage?.length || 1;
-  if (sysDelta > 0 && cpuDelta > 0) return (cpuDelta / sysDelta) * cores * 100;
-  return 0;
-}
-
-function sumNet(stats) {
-  const nets = stats.networks || {};
-  let rx = 0, tx = 0;
-  for (const k of Object.keys(nets)) { rx += nets[k].rx_bytes || 0; tx += nets[k].tx_bytes || 0; }
-  return { rx, tx };
-}
-
-router.get('/admin/container-stats', async (req, res) => {
-  try {
-    const containers = await dockerRequest('/containers/json?all=0');
-    const wanted = containers.filter(c => {
-      const names = (c.Names || []).map(n => n.replace(/^\//, ''));
-      return names.some(n => /(?:fortigigraph|identityatlas|identity[-_]atlas)[-_](postgres|web|worker)/i.test(n));
-    });
-
-    const results = await Promise.all(wanted.map(async (c) => {
-      const name = (c.Names[0] || '').replace(/^\//, '');
-      const service = (name.match(/(postgres|web|worker)/i) || [])[1]?.toLowerCase() || name;
-      try {
-        const stats = await dockerRequest(`/containers/${c.Id}/stats?stream=false`);
-        const memUsage = stats.memory_stats?.usage || 0;
-        const memLimit = stats.memory_stats?.limit || 0;
-        const net = sumNet(stats);
-        return {
-          name, service,
-          state: c.State,
-          status: c.Status,
-          cpuPercent: calcCpuPercent(stats),
-          memUsageBytes: memUsage,
-          memLimitBytes: memLimit,
-          memPercent: memLimit > 0 ? (memUsage / memLimit) * 100 : 0,
-          netRxBytes: net.rx,
-          netTxBytes: net.tx,
-          pids: stats.pids_stats?.current || 0,
-        };
-      } catch (err) {
-        return { name, service, state: c.State, status: c.Status, error: err.message };
-      }
-    }));
-
-    const order = { web: 0, worker: 1, postgres: 2 };
-    results.sort((a, b) => (order[a.service] ?? 99) - (order[b.service] ?? 99));
-    res.json({ containers: results, timestamp: new Date().toISOString() });
-  } catch (err) {
-    // Docker socket not mounted or not accessible — degrade gracefully.
-    // This is a monitoring endpoint; a hard 500 breaks the nightly smoke test
-    // and the Admin dashboard for no good reason.
-    res.json({ containers: [], unavailable: true, reason: err.message, timestamp: new Date().toISOString() });
-  }
-});
 
 export default router;
