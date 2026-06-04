@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Security (behaviour change): a signed-in user whose Entra roles map to no permissions is no longer silently granted full administrator access. Such users are now denied all admin and write actions (fail-closed). Previously, on installs where app roles had not been assigned yet, any authenticated tenant user effectively had admin rights.
+- To grant access after enabling authentication, assign users an Entra app role — the default "Admin" role grants full access. If you lock yourself out by enabling auth before assigning a role, recover with the auth CLI (`auth-config.js disable`); see the Permissions & Roles documentation for the bootstrap and recovery steps.
+- Added a startup warning when authentication is enabled without `AUTH_REQUIRED_ROLES`, since any signed-in tenant user can still read data until sign-in is restricted to specific roles.
+- Security: the API now accepts only Entra ID **access tokens** issued for its own API scope (audience `api://<client-id>`). ID tokens — and any token whose audience is the bare client ID — are rejected. This prevents an ID token (issued on every interactive sign-in and not intended for API authorization) from being used as an API credential.
+- This requires the Entra App Registration to expose its API with the default `api://<client-id>` Application ID URI, which the in-app setup walkthrough already configures.
+
+## Changes in this PR
+
 - Replaced `tools/setup-branch-protection.sh` with documentation in `docs/architecture/branching-strategy.md` — the script had drifted from the live ruleset config and a written guide is easier to maintain for a repo that is set up once.
 
 ## Changes in this PR
