@@ -81,7 +81,7 @@ jobs:
 
       - name: Generate release notes
         run: |
-          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -vE '-(beta|rc|alpha)' | grep -v "^${TAG}$" | head -1)
+          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -v beta | grep -v rc | grep -v alpha | grep -v "^${TAG}$" | head -1)
 
           if [ -n "$PREV_TAG" ]; then
             FIRST_OLD=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | head -1)
