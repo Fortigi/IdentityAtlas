@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthGate';
 import { useMatrixRowOrder } from '../hooks/useMatrixRowOrder';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
+import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
 
@@ -604,6 +605,8 @@ export default function MatrixView({
           onAdjust={onAdjustFilter}
         />
       )}
+
+      {filterIsApplied && <MatrixScopePanel filter={filter} />}
 
       <MatrixToolbar
         managedFilter={managedFilter}

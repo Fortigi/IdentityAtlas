@@ -1,0 +1,294 @@
+// Scope Statistics panel for the Matrix view.
+//
+// For the current matrix selection it shows live counts (principals / resources
+// / assignments) and the governed-vs-non-governed split, and — on expand —
+// a historic timeline (reconstructed from the audit log by the API) plus a
+// department-by-department breakdown that drills into each department's trend.
+//
+// Endpoints (see app/api/src/routes/matrix.js):
+//   POST /api/matrix/scope-stats        — live counts + governed split
+//   POST /api/matrix/scope-timeseries   — reconstructed historic timeline
+//   POST /api/matrix/scope-breakdown    — per-department breakdown
+
+import { Fragment, useEffect, useMemo, useState, useCallback } from 'react';
+import { useAuth } from '../../auth/AuthGate';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import TimeSeriesChart from '../TimeSeriesChart';
+
+const GOVERNED_COLOR = '#059669';   // emerald-600 — governed (progress)
+const UNGOVERNED_COLOR = '#d97706'; // amber-600 — not yet governed
+
+function pct(n) { return `${Math.round((n + Number.EPSILON) * 10) / 10}%`; }
+function num(n) { return (n ?? 0).toLocaleString(); }
+
+// One headline number.
+function Stat({ label, value, sub }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-2xl font-semibold text-gray-900 dark:text-white tabular-nums">{value}</span>
+      <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
+      {sub && <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span>}
+    </div>
+  );
+}
+
+// Governed vs non-governed bar.
+function GovernedBar({ governed, ungoverned, governedPct }) {
+  const total = governed + ungoverned;
+  const gWidth = total > 0 ? (governed / total) * 100 : 0;
+  return (
+    <div className="flex flex-col gap-1 min-w-[220px]">
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs text-gray-500 dark:text-gray-400">Governed vs non-governed</span>
+        <span className="text-sm font-semibold tabular-nums" style={{ color: GOVERNED_COLOR }}>{pct(governedPct)}</span>
+      </div>
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="img"
+           aria-label={`${pct(governedPct)} governed`}>
+        <div style={{ width: `${gWidth}%`, backgroundColor: GOVERNED_COLOR }} />
+        <div style={{ width: `${100 - gWidth}%`, backgroundColor: UNGOVERNED_COLOR }} />
+      </div>
+      <div className="flex justify-between text-xs">
+        <span style={{ color: GOVERNED_COLOR }}>{num(governed)} governed</span>
+        <span style={{ color: UNGOVERNED_COLOR }}>{num(ungoverned)} non-governed</span>
+      </div>
+    </div>
+  );
+}
+
+// A compact count chart for one metric.
+function MetricChart({ title, points, metric, color, isPct }) {
+  const data = useMemo(
+    () => points.filter(p => !p.beforeHistory).map(p => ({ date: p.date, value: p[metric] })),
+    [points, metric],
+  );
+  if (data.length === 0) return null;
+  return (
+    <TimeSeriesChart
+      data={data}
+      title={title}
+      height={isPct ? 200 : 150}
+      color={color}
+      yMin={0}
+      yMax={isPct ? 100 : null}
+      yUnit={isPct ? '%' : ''}
+    />
+  );
+}
+
+export default function MatrixScopePanel({ filter }) {
+  const { authFetch } = useAuth();
+  const debouncedFilter = useDebouncedValue(filter, 400);
+  const filterKey = useMemo(() => JSON.stringify(debouncedFilter || null), [debouncedFilter]);
+
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const [series, setSeries] = useState(null);     // { points, historyStart, retentionDays, scopeMode }
+  const [breakdown, setBreakdown] = useState(null); // { attribute, groups }
+  const [trendsLoading, setTrendsLoading] = useState(false);
+  const [drill, setDrill] = useState(null);        // { key, points } for an expanded department
+
+  const post = useCallback((path, body) =>
+    authFetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(r => (r.ok ? r.json() : null)), [authFetch]);
+
+  // Live stats — refetch whenever the (debounced) filter changes.
+  useEffect(() => {
+    if (!debouncedFilter) { setStats(null); return; }
+    let cancelled = false;
+    setStatsLoading(true);
+    post('/api/matrix/scope-stats', { filter: debouncedFilter })
+      .then(d => { if (!cancelled) setStats(d); })
+      .finally(() => { if (!cancelled) setStatsLoading(false); });
+    return () => { cancelled = true; };
+  }, [filterKey, debouncedFilter, post]);
+
+  // Trends + breakdown — only once the panel is expanded, and on filter change.
+  useEffect(() => {
+    if (!expanded || !debouncedFilter) return;
+    let cancelled = false;
+    setTrendsLoading(true);
+    setDrill(null);
+    Promise.all([
+      post('/api/matrix/scope-timeseries', { filter: debouncedFilter }),
+      post('/api/matrix/scope-breakdown?attribute=department', { filter: debouncedFilter }),
+    ]).then(([ts, bd]) => {
+      if (cancelled) return;
+      setSeries(ts);
+      setBreakdown(bd);
+    }).finally(() => { if (!cancelled) setTrendsLoading(false); });
+    return () => { cancelled = true; };
+  }, [expanded, filterKey, debouncedFilter, post]);
+
+  const toggleDrill = useCallback(async (groupKey) => {
+    if (!groupKey || groupKey === '(none)') return;
+    if (drill?.key === groupKey) { setDrill(null); return; }
+    const attr = breakdown?.attribute || 'department';
+    const deptFilter = {
+      ...debouncedFilter,
+      subject: {
+        include: [...(debouncedFilter.subject?.include || []), { kind: 'attribute', field: attr, values: [groupKey] }],
+        exclude: debouncedFilter.subject?.exclude || [],
+      },
+    };
+    setDrill({ key: groupKey, points: null });
+    const ts = await post('/api/matrix/scope-timeseries', { filter: deptFilter });
+    setDrill({ key: groupKey, points: ts?.points || [] });
+  }, [drill, breakdown, debouncedFilter, post]);
+
+  if (!filter) return null;
+
+  const s = stats || {};
+  const subjectLabel = (s.rowType === 'identity') ? 'Identities' : 'Principals';
+
+  return (
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      {/* Summary row */}
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-4 p-4">
+        <Stat label={subjectLabel} value={statsLoading && !stats ? '—' : num(s.subjectCount)} />
+        <Stat label="Resources" value={statsLoading && !stats ? '—' : num(s.resourceCount)} />
+        <Stat label="Assignments" value={statsLoading && !stats ? '—' : num(s.assignmentCount)} />
+        <div className="flex-1 min-w-[220px]">
+          <GovernedBar
+            governed={s.governedAssignmentCount || 0}
+            ungoverned={s.ungovernedAssignmentCount || 0}
+            governedPct={s.governedPct || 0}
+          />
+        </div>
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="ml-auto px-3 py-1.5 rounded text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+        >
+          {expanded ? 'Hide trends & breakdown' : 'Trends & breakdown'}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-6">
+          {trendsLoading && <div className="text-sm text-gray-500 dark:text-gray-400">Reconstructing history…</div>}
+
+          {/* History boundary / scope-mode caveats */}
+          {series && (
+            <HistoryNote series={series} />
+          )}
+
+          {/* Timeline charts */}
+          {series && series.points?.some(p => !p.beforeHistory) && (
+            <div className="flex flex-col gap-4">
+              <MetricChart title="Governed % over time" points={series.points} metric="governedPct" color={GOVERNED_COLOR} isPct />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <MetricChart title={subjectLabel} points={series.points} metric="principals" color="#2563eb" />
+                <MetricChart title="Resources" points={series.points} metric="resources" color="#7c3aed" />
+                <MetricChart title="Assignments" points={series.points} metric="assignments" color="#0891b2" />
+              </div>
+            </div>
+          )}
+
+          {/* Department breakdown */}
+          {breakdown && breakdown.groups?.length > 0 && (
+            <DepartmentBreakdown
+              breakdown={breakdown}
+              drill={drill}
+              onDrill={toggleDrill}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryNote({ series }) {
+  const start = series.historyStart ? new Date(series.historyStart) : null;
+  return (
+    <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-col gap-1">
+      {start && (
+        <span>
+          History reconstructed from the change-audit log
+          {series.retentionDays > 0 && <> (retained {series.retentionDays} days)</>}.
+          Data available from <span className="font-medium text-gray-700 dark:text-gray-300">{start.toLocaleDateString()}</span>.
+        </span>
+      )}
+      {series.scopeMode === 'context-current' && (
+        <span className="text-amber-700 dark:text-amber-400">
+          This selection scopes by context membership, which isn't audited — historic membership is approximated using today's members.
+        </span>
+      )}
+    </div>
+  );
+}
+
+function DepartmentBreakdown({ breakdown, drill, onDrill }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+        By {breakdown.attribute} — governed vs non-governed
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+              <th className="py-2 pr-4 font-medium">{breakdown.attribute}</th>
+              <th className="py-2 pr-4 font-medium text-right">Principals</th>
+              <th className="py-2 pr-4 font-medium text-right">Assignments</th>
+              <th className="py-2 pr-4 font-medium w-56">Governed</th>
+              <th className="py-2 font-medium text-right">%</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+            {breakdown.groups.map((g) => {
+              const drillable = g.group !== '(none)' && g.assignments > 0;
+              const isOpen = drill?.key === g.group;
+              const gWidth = g.assignments > 0 ? (g.governed / g.assignments) * 100 : 0;
+              return (
+                <Fragment key={g.group}>
+                  <tr
+                    className={`${drillable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
+                    onClick={() => drillable && onDrill(g.group)}
+                  >
+                    <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">
+                      {drillable && <span className="inline-block w-3 text-gray-400">{isOpen ? '▾' : '▸'}</span>}
+                      {g.group}
+                    </td>
+                    <td className="py-2 pr-4 text-right tabular-nums text-gray-700 dark:text-gray-300">{num(g.principals)}</td>
+                    <td className="py-2 pr-4 text-right tabular-nums text-gray-700 dark:text-gray-300">{num(g.assignments)}</td>
+                    <td className="py-2 pr-4">
+                      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                        <div style={{ width: `${gWidth}%`, backgroundColor: GOVERNED_COLOR }} />
+                        <div style={{ width: `${100 - gWidth}%`, backgroundColor: UNGOVERNED_COLOR }} />
+                      </div>
+                    </td>
+                    <td className="py-2 text-right tabular-nums font-medium" style={{ color: GOVERNED_COLOR }}>{pct(g.governedPct)}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={5} className="bg-gray-50 dark:bg-gray-900/30 px-4 py-3">
+                        {drill.points == null ? (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Loading {g.group} trend…</div>
+                        ) : drill.points.some(p => !p.beforeHistory) ? (
+                          <MetricChart
+                            title={`${g.group} — governed % over time`}
+                            points={drill.points}
+                            metric="governedPct"
+                            color={GOVERNED_COLOR}
+                            isPct
+                          />
+                        ) : (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">No history available for {g.group}.</div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
