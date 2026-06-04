@@ -29,7 +29,7 @@ try {
 } catch {}
 
 $proc = Start-Process -FilePath $nodeExe `
-    -ArgumentList $bootstrap `
+    -ArgumentList "`"$bootstrap`"" `
     -WorkingDirectory $scriptDir `
     -NoNewWindow -PassThru
 
