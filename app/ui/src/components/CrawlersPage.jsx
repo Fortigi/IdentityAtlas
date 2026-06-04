@@ -1850,7 +1850,7 @@ const OMADA_VERSIONS = [
 ];
 
 const OMADA_SYNC_OPTIONS = [
-  { key: 'contexts',        label: 'Contexts',          description: 'Org units and other structural contexts (configured below)' },
+  { key: 'contexts',        label: 'Contexts',          description: 'Configured context types (OrgUnit, Country, Job titles, etc.)' },
   { key: 'identities',      label: 'Identities',        description: 'Person records and their attributes' },
   { key: 'accounts',        label: 'Accounts',          description: 'User and service accounts (Principals)' },
   { key: 'contextMembers',  label: 'Context Members',   description: 'Identity-to-context memberships from Contextassignment, OUREF, Employment' },
@@ -2260,7 +2260,7 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
               {' '}<span className="text-amber-600 dark:text-amber-400 font-medium">Names are case-sensitive</span> — use the exact casing from <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">$metadata</code> (e.g. <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">Job_titles</code>, not <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">job_titles</code>).
             </p>
             {metaLoading && (
-              <p className="text-xs text-gray-400 dark:text-gray-500 italic">Fetching $metadata for validation…</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 italic">Fetching $metadata for validation…</p>
             )}
             {metaError && (
               <p className="text-xs text-amber-600 dark:text-amber-400">{metaError}</p>
@@ -2295,7 +2295,7 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
                       <button
                         onClick={() => removeContextType(i)}
                         disabled={contextObjectTypes.length === 1}
-                        className="text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30"
+                        className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30"
                         title="Remove">×</button>
                     </div>
                     {hasErr && errs.map((e, j) => (
@@ -2311,7 +2311,7 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
                 + Add context type
               </button>
               {metaEntitySets && (
-                <span className="text-xs text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-gray-600 dark:text-gray-400">
                   Available: {metaEntitySets.filter(s => !['Identity','User','Resource','Resourceassignment','System','Usergroup','Orgunit','Country','Employment'].includes(s)
                     ? false : true).join(', ')}
                 </span>
@@ -2342,7 +2342,7 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
                     ))}
                   </select>
                   <button onClick={() => removeResMapping(i)} disabled={resCategoryMapping.length === 1}
-                    className="text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
+                    className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
                 </div>
               ))}
             </div>
