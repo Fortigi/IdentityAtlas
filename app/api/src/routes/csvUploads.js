@@ -8,6 +8,7 @@
 // the parent router mount in index.js.
 
 import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
 import multer from 'multer';
 import { mkdir, readdir, stat, unlink, rm } from 'fs/promises';
 import { existsSync } from 'fs';
@@ -15,6 +16,7 @@ import { join, basename } from 'path';
 import * as db from '../db/connection.js';
 
 const router = Router();
+const gate = requirePermission('admin.csv-import');
 
 const UPLOAD_ROOT = process.env.UPLOAD_ROOT || '/data/uploads';
 
@@ -117,7 +119,7 @@ const upload = multer({
 });
 
 // ─── List uploaded files for a CSV config ───────────────────────────────────
-router.get('/admin/crawler-configs/:configId/csv-files', async (req, res) => {
+router.get('/admin/crawler-configs/:configId/csv-files', gate, async (req, res) => {
   const configId = parseConfigId(req, res);
   if (configId === null) return;
   if (!(await assertCsvConfig(configId, res))) return;
@@ -143,6 +145,7 @@ router.get('/admin/crawler-configs/:configId/csv-files', async (req, res) => {
 // by multer's diskStorage (it just opens the destination for write).
 router.post(
   '/admin/crawler-configs/:configId/csv-files',
+  gate,
   async (req, res, next) => {
     const configId = parseConfigId(req, res);
     if (configId === null) return;
@@ -161,7 +164,7 @@ router.post(
 );
 
 // ─── Delete a single uploaded file ───────────────────────────────────────────
-router.delete('/admin/crawler-configs/:configId/csv-files/:filename', async (req, res) => {
+router.delete('/admin/crawler-configs/:configId/csv-files/:filename', gate, async (req, res) => {
   const configId = parseConfigId(req, res);
   if (configId === null) return;
   if (!(await assertCsvConfig(configId, res))) return;
@@ -213,7 +216,7 @@ const SCHEMA_HEADERS = {
   'Certifications.csv':       'ExternalId;ResourceExternalId;UserDisplayName;Decision;ReviewerDisplayName;ReviewedDateTime',
 };
 
-router.get('/admin/csv-schema', (_req, res) => {
+router.get('/admin/csv-schema', gate, (_req, res) => {
   const lines = [];
   for (const slot of CSV_FILE_SLOTS) {
     const header = SCHEMA_HEADERS[slot.file] || '(unknown)';
@@ -226,7 +229,7 @@ router.get('/admin/csv-schema', (_req, res) => {
   res.send(lines.join('\n'));
 });
 
-router.get('/admin/csv-schema/:filename', (req, res) => {
+router.get('/admin/csv-schema/:filename', gate, (req, res) => {
   const filename = basename(req.params.filename);
   const slot = CSV_FILE_SLOTS.find(s => s.file.toLowerCase() === filename.toLowerCase());
   if (!slot) return res.status(404).json({ error: 'Unknown template file' });

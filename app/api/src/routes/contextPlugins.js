@@ -7,16 +7,18 @@
 // GET  /api/context-plugins/runs/:id    — single run status
 
 import { Router } from 'express';
+import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
 import { REGISTERED_PLUGINS, getPlugin } from '../contexts/plugins/registry.js';
 import { enqueueRun, dryRun, getRun, listRuns } from '../contexts/plugins/runner.js';
 
 const router = Router();
+const gate = requirePermission('admin.context-plugins');
 const useSql = process.env.USE_SQL === 'true';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // GET /api/context-plugins
-router.get('/context-plugins', async (req, res) => {
+router.get('/context-plugins', gate, async (req, res) => {
   if (!useSql) return res.json({ data: REGISTERED_PLUGINS.map(stripPlugin), total: REGISTERED_PLUGINS.length });
   try {
     const rows = (await db.query(`
@@ -48,7 +50,7 @@ router.get('/context-plugins', async (req, res) => {
 });
 
 // POST /api/context-plugins/:name/dry-run
-router.post('/context-plugins/:name/dry-run', async (req, res) => {
+router.post('/context-plugins/:name/dry-run', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const plugin = getPlugin(req.params.name);
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' });
@@ -65,7 +67,7 @@ router.post('/context-plugins/:name/dry-run', async (req, res) => {
 });
 
 // POST /api/context-plugins/:name/run
-router.post('/context-plugins/:name/run', async (req, res) => {
+router.post('/context-plugins/:name/run', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const plugin = getPlugin(req.params.name);
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' });
@@ -81,7 +83,7 @@ router.post('/context-plugins/:name/run', async (req, res) => {
 });
 
 // GET /api/context-plugins/runs
-router.get('/context-plugins/runs', async (req, res) => {
+router.get('/context-plugins/runs', gate, async (req, res) => {
   if (!useSql) return res.json({ data: [], total: 0 });
   try {
     const rows = await listRuns({
@@ -96,7 +98,7 @@ router.get('/context-plugins/runs', async (req, res) => {
 });
 
 // GET /api/context-plugins/runs/:id
-router.get('/context-plugins/runs/:id', async (req, res) => {
+router.get('/context-plugins/runs/:id', gate, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid run id' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {
