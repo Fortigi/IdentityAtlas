@@ -1,0 +1,1 @@
+- Fixed: documentation site version dropdown now updates automatically when a release or hotfix is cut
