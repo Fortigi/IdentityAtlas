@@ -145,11 +145,22 @@ function Invoke-OmadaCookieStringAuth {
     param([string]$CookieString)
     if (-not $CookieString.Trim()) { throw "Omada CookieString: cookieString cannot be empty" }
 
-    # Cloud Omada requires the cookie as an explicit request header:
-    #   Cookie: oisauthtoken=<value>
-    # WebSession cookie-domain matching is unreliable for cloud/HTTPS URLs,
-    # so we store the raw string and send it as a Cookie header on every request.
-    $script:OmadaSession.CookieHeader = $CookieString.Trim()
+    $raw = $CookieString.Trim()
+
+    # If the value is just a token (no cookie name prefix like "oisauthtoken=…"),
+    # auto-prepend "oisauthtoken=". A name=value pair is detected by checking that
+    # the first '=' is followed by a non-'=' character (i.e. not base64 padding).
+    # Examples:
+    #   "MHXp1OG0seFfKwNYzQkZwA=="        → oisauthtoken=MHXp1OG0seFfKwNYzQkZwA==
+    #   "oisauthtoken=MHXp1OG0seFfKwNYzQkZwA==" → sent as-is (already name=value)
+    #   "ASP.NET_SessionId=abc; Auth=xyz"  → sent as-is (multi-cookie, on-prem)
+    if ($raw -notmatch '^[A-Za-z][A-Za-z0-9_.%-]*=[^=]') {
+        $raw = 'oisauthtoken=' + $raw
+    }
+
+    # Cloud Omada requires an explicit Cookie request header; WebSession cookie-domain
+    # matching is unreliable for cloud/HTTPS URLs.
+    $script:OmadaSession.CookieHeader = $raw
     # No LastAuthAt — CookieString has no auto re-auth capability
 }
 
