@@ -50,6 +50,9 @@ Two endpoints are exempt and do not require a token:
 | `AUTH_ENABLED` | Yes | Set to `true` to enable JWT validation. A startup warning is logged if unset in production. |
 | `AUTH_REQUIRED_ROLES` | No | Comma-separated list of required app roles (e.g. `IdentityAtlas.Read`) |
 | `ALLOWED_ORIGINS` | No | Comma-separated allowed CORS origins. Defaults to same-origin in production. |
+| `BEHIND_TLS` | No | Set to `true` when a TLS terminator (Caddy, nginx, Azure Front Door) sits in front. Enables HSTS/CSP upgrades and makes the Excel workbook export embed `https://` URLs. |
+| `PUBLIC_BASE_URL` | No | Authoritative public URL of the deployment (e.g. `https://atlas.example.com`). When set, the Excel workbook export embeds this instead of deriving the URL from request headers. **Recommended for any deployment reached through a proxy, tunnel, or Azure** — it removes any dependency on (spoofable) `Host`/`X-Forwarded-*` headers. |
+| `TRUST_PROXY` | No | Set to `true` only when a trusted reverse proxy in front overwrites `X-Forwarded-Host`/`X-Forwarded-Proto`. Off by default, so forwarded headers are ignored when resolving the workbook export URL (prevents token exfiltration via header spoofing). Prefer `PUBLIC_BASE_URL` where possible. |
 | `USE_MOCK` | No | Set to `true` to use mock data instead of PostgreSQL (local dev only) |
 
 ---
