@@ -30,15 +30,6 @@ process.env.TRACE_DIR       = join(DATA_DIR, 'jobs');
 process.env.FRONTEND_DIST   = join(__dirname, 'dist-frontend');
 process.env.IA_APP_ROOT     = join(__dirname, 'bundled-scripts');
 
-// Resolve module version from the bundled .psd1 manifest so the UI footer shows the correct version.
-if (!process.env.MODULE_VERSION) {
-  try {
-    const psd1 = readFileSync(join(__dirname, 'bundled-scripts', 'setup', 'IdentityAtlas.psd1'), 'utf-8');
-    const m = psd1.match(/ModuleVersion\s*=\s*'([^']+)'/);
-    if (m) process.env.MODULE_VERSION = m[1];
-  } catch { /* psd1 not present — version will show as blank */ }
-}
-
 const pgDataDir = join(DATA_DIR, 'pgdata');
 mkdirSync(pgDataDir, { recursive: true });
 
