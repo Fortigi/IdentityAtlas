@@ -291,6 +291,19 @@ jobs:
             -ApiKey '${{ steps.apikey.outputs.key }}'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      - name: 'Test: Matrix scope statistics'
+        shell: bash
+        run: |
+          # Back-date the audit log so the timeline reconstruction has real depth
+          # to verify (disable history pruning first so the 180-day baseline
+          # survives). This only rewrites _history timestamps — live data is
+          # untouched, so later tests are unaffected.
+          docker compose exec -T postgres psql -U identity_atlas -d identity_atlas -c \
+            "INSERT INTO \"WorkerConfig\"(\"configKey\",\"configValue\") VALUES ('HISTORY_RETENTION_DAYS','0') ON CONFLICT (\"configKey\") DO UPDATE SET \"configValue\"=EXCLUDED.\"configValue\";"
+          docker compose exec -T postgres psql -U identity_atlas -d identity_atlas \
+            -f - < test/demo-dataset/Simulate-History.sql
+          pwsh -Command "& test/nightly/Test-MatrixScopeStats.ps1 -ApiBaseUrl http://localhost:3001/api -ApiKey '${{ steps.apikey.outputs.key }}' -ExpectHistoryDepth; if (\$LASTEXITCODE -ne 0) { exit 1 }"
+
       - name: 'Test: Custom connector'
         shell: pwsh
         run: |

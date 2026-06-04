@@ -1,0 +1,95 @@
+// Unit tests for matrix/scopeHistory.js — pure SQL/date logic, no DB needed.
+
+import { describe, it, expect } from 'vitest';
+import { generateSampleDates, buildScopeAsofSql } from './scopeHistory.js';
+
+const PRINCIPAL_COLS = new Set(['displayName', 'department', 'jobTitle', 'email', 'principalType']);
+const RESOURCE_COLS  = new Set(['displayName', 'resourceType', 'systemId']);
+const CTX_PRINCIPAL  = 'a0000001-0000-0000-0000-000000000001';
+const CONTEXT_TYPES  = new Map([[CTX_PRINCIPAL, 'Principal']]);
+
+function build(filter, ctx = CONTEXT_TYPES) {
+  return buildScopeAsofSql({
+    filter,
+    principalColSet: PRINCIPAL_COLS,
+    resourceColSet: RESOURCE_COLS,
+    contextTypes: ctx,
+  });
+}
+
+const EMPTY = { rowType: 'principal', subject: { include: [], exclude: [] }, resource: { include: [], exclude: [] } };
+
+describe('generateSampleDates', () => {
+  it('returns the requested number of ascending dates ending today', () => {
+    const dates = generateSampleDates({ days: 180, points: 13 });
+    expect(dates.length).toBe(13);
+    // ascending
+    for (let i = 1; i < dates.length; i++) expect(dates[i] > dates[i - 1]).toBe(true);
+    // last point is today (UTC)
+    expect(dates[dates.length - 1]).toBe(new Date().toISOString().slice(0, 10));
+  });
+
+  it('spans roughly the requested range', () => {
+    const dates = generateSampleDates({ days: 180, points: 13 });
+    const first = new Date(dates[0] + 'T00:00:00Z');
+    const last = new Date(dates[dates.length - 1] + 'T00:00:00Z');
+    const spanDays = (last - first) / 86_400_000;
+    expect(spanDays).toBeGreaterThanOrEqual(178);
+    expect(spanDays).toBeLessThanOrEqual(182);
+  });
+
+  it('clamps points and days to safe bounds', () => {
+    expect(generateSampleDates({ days: 99999, points: 9999 }).length).toBeLessThanOrEqual(60);
+    expect(generateSampleDates({ days: 0, points: 1 }).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('buildScopeAsofSql', () => {
+  it('reconstructs from _history with a bound @asof param and governed split', () => {
+    const { sql, scopeMode } = build(EMPTY);
+    expect(sql).toContain('@asof');
+    expect(sql).toContain('_history');
+    expect(sql).toContain('asof_assign');
+    expect(sql).toMatch(/bool_or\(a\.atype = 'Governed'\)/);
+    expect(sql).toMatch(/SELECT COUNT\(\*\)::int FROM pairs WHERE governed/);
+    expect(scopeMode).toBe('attribute');
+  });
+
+  it('excludes group-shaped principals from the subject count', () => {
+    const { sql } = build(EMPTY);
+    expect(sql).toContain('#microsoft.graph.group');
+  });
+
+  it('reconstructs an attribute subject condition against the as-of state', () => {
+    const { sql, bindings, scopeMode } = build({
+      ...EMPTY,
+      subject: { include: [{ kind: 'attribute', field: 'department', values: ['Finance'] }], exclude: [] },
+    });
+    expect(sql).toMatch(/sp\.state->>'department'/);
+    expect(Object.values(bindings)).toContain('Finance');
+    expect(scopeMode).toBe('attribute'); // attribute conditions are fully reconstructable
+  });
+
+  it('flags scopeMode=context-current when a context condition is used', () => {
+    const { sql, scopeMode } = build({
+      ...EMPTY,
+      subject: { include: [{ kind: 'context', contextId: CTX_PRINCIPAL, includeChildren: true }], exclude: [] },
+    });
+    expect(scopeMode).toBe('context-current');
+    expect(sql).toContain('ContextMembers'); // current membership lookup
+  });
+
+  it('counts distinct identities for rowType=identity', () => {
+    const { sql } = build({ ...EMPTY, rowType: 'identity' });
+    expect(sql).toMatch(/COUNT\(DISTINCT im\."identityId"\)/);
+    expect(sql).toContain('IdentityMembers');
+  });
+
+  it('drops an unknown attribute column with a warning', () => {
+    const { warnings } = build({
+      ...EMPTY,
+      subject: { include: [{ kind: 'attribute', field: 'nope', values: ['x'] }], exclude: [] },
+    });
+    expect(warnings.some(w => /nope/.test(w))).toBe(true);
+  });
+});
