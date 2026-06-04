@@ -127,7 +127,7 @@ export default function SystemsPage() {
                       <span className="font-medium text-gray-900 dark:text-white">{(sys.assignmentCount || 0).toLocaleString()}</span> Assignments
                     </span>
                     <span className="ml-auto text-gray-600 dark:text-gray-500">
-                      Last sync: {formatRelativeTime(sys.lastSyncTime)}
+                      Last sync: {formatRelativeTime(sys.lastSyncDateTime)}
                     </span>
                   </div>
 

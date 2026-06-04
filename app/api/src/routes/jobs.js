@@ -26,7 +26,7 @@ const router = Router();
 const gate = requirePermission('admin.crawlers');
 const useSql = process.env.USE_SQL === 'true';
 
-const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv'];
+const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv', 'omada'];
 const MAX_RECENT_JOBS = 50;
 const SECRET_MASK = '••••••••';
 
@@ -125,12 +125,39 @@ const ENTRA_OBJECT_TYPES = [
   { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
 ];
 
-function maskConfig(config) {
+const SECRET_FIELDS = ['clientSecret', 'password', 'apiToken', 'cookieString'];
+
+export function maskConfig(config) {
   if (!config) return null;
   const parsed = typeof config === 'string' ? JSON.parse(config) : config;
   const masked = { ...parsed };
-  if (masked.clientSecret) masked.clientSecret = SECRET_MASK;
+  for (const field of SECRET_FIELDS) {
+    if (masked[field]) masked[field] = SECRET_MASK;
+  }
   return masked;
+}
+
+export function validateOmadaConfig(config) {
+  if (!config?.baseUrl) return 'Omada jobs require baseUrl';
+  const method = config?.authMethod;
+  if (method === 'FormCookie' || method === 'OAuth2ROPC') {
+    if (!config.username || !config.password) {
+      return `Omada ${method} auth requires username and password`;
+    }
+  } else if (method === 'OAuth2CC') {
+    if (!config.clientId || !config.clientSecret) {
+      return 'Omada OAuth2CC auth requires clientId and clientSecret';
+    }
+  } else if (method === 'ApiToken') {
+    if (!config.apiToken) return 'Omada ApiToken auth requires apiToken';
+  } else if (method === 'CookieString') {
+    if (!config.cookieString) return 'Omada CookieString auth requires cookieString';
+  } else if (method === 'BasicAuth') {
+    if (!config.username || !config.password) {
+      return 'Omada BasicAuth requires username and password';
+    }
+  }
+  return null;
 }
 
 // Like maskConfig, but also surfaces the mask when the clientSecret lives in the
@@ -239,10 +266,16 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
     let newSecret = null;
     if (config) {
       const incoming = { ...config };
-      // A real (non-mask, non-empty) clientSecret replaces the vaulted one;
-      // the mask or an empty value means "leave the existing secret untouched".
+      // clientSecret goes to the vault; mask or empty means "keep existing"
       if (incoming.clientSecret && incoming.clientSecret !== SECRET_MASK) {
         newSecret = incoming.clientSecret;
+      }
+      // Other secret fields (password, apiToken, cookieString): preserve existing if blank/masked
+      for (const field of SECRET_FIELDS.filter(f => f !== 'clientSecret')) {
+        if (!incoming[field] || incoming[field] === SECRET_MASK) {
+          if (mergedConfig[field]) incoming[field] = mergedConfig[field];
+          else delete incoming[field];
+        }
       }
       delete incoming.clientSecret;
       mergedConfig = { ...mergedConfig, ...incoming };
@@ -753,6 +786,11 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
       }
     }
 
+    if (jobType === 'omada') {
+      const omadaErr = validateOmadaConfig(resolvedConfig);
+      if (omadaErr) return res.status(400).json({ error: omadaErr });
+    }
+
     // For CSV jobs, inject the per-config upload folder so the worker knows where
     // to read files from. The folder must already exist and contain at least one file.
     if (jobType === 'csv') {
@@ -1010,6 +1048,67 @@ router.get('/admin/status', gate, async (req, res) => {
   } catch (err) {
     console.error('Error fetching status:', err.message);
     res.status(500).json({ error: 'Failed to fetch status' });
+  }
+});
+
+// POST /api/admin/omada/validate-metadata — fetch $metadata from the Omada server
+// and return the available EntitySets and Identity entity property names.
+// Used by the wizard to validate contextObjectTypes entries in real time.
+router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
+  const { configId } = req.body;
+  if (!configId) return res.status(400).json({ error: 'configId required' });
+
+  try {
+    const pool = await db.getPool();
+    const cfg = await pool.request().input('id', parseInt(configId, 10))
+      .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
+    if (!cfg.recordset.length) return res.status(404).json({ error: 'Config not found' });
+
+    const rawBaseUrl = (c.baseUrl || '').trim();
+    if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
+
+    // Normalize to the OData service root the crawler uses.
+    const u = new URL(rawBaseUrl.replace(/\/+$/, ''));
+    const p = u.pathname.replace(/\/+$/, '');
+    if (!/\/odata\/dataobjects$/i.test(p)) u.pathname = '/odata/dataobjects';
+    const baseUrl = u.origin + u.pathname;
+
+    const metaUrl = `${baseUrl}/$metadata`;
+
+    // Build auth headers (best-effort).
+    const headers = {};
+    if (c.authMethod === 'BasicAuth' && c.username && c.password) {
+      const encoded = Buffer.from(`${c.username}:${c.password}`).toString('base64');
+      headers.Authorization = `Basic ${encoded}`;
+    } else if (c.authMethod === 'ApiToken' && c.apiToken) {
+      headers.Authorization = `Bearer ${c.apiToken}`;
+    } else if (c.authMethod === 'CookieString' && c.cookieString) {
+      headers.Cookie = c.cookieString;
+    }
+
+    const fetchOpts = { signal: AbortSignal.timeout(10000) };
+    if (Object.keys(headers).length) fetchOpts.headers = headers;
+    const metaRes = await fetch(metaUrl, fetchOpts);
+    if (!metaRes.ok) {
+      return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
+    }
+    const xml = await metaRes.text();
+
+    // Parse EntitySet names
+    const entitySets = [...xml.matchAll(/EntitySet\s+Name="([^"]+)"/g)].map(m => m[1]).sort();
+
+    // Parse Identity entity type property names
+    const identityMatch = xml.match(/<EntityType\s+Name="Identity"[^>]*>([\s\S]*?)<\/EntityType>/);
+    let identityProperties = [];
+    if (identityMatch) {
+      identityProperties = [...identityMatch[1].matchAll(/(?:Property|NavigationProperty)\s+Name="([^"]+)"/g)]
+        .map(m => m[1]).sort();
+    }
+
+    res.json({ entitySets, identityProperties });
+  } catch (err) {
+    console.error('validate-metadata error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to fetch metadata' });
   }
 });
 

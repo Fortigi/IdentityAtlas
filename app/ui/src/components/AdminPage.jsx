@@ -1363,6 +1363,7 @@ const ADMIN_TABS = [
   { key: 'risk-scoring', label: 'Risk Scoring',        description: 'Risk profile, classifiers and feature toggle',                                   requires: ['admin.llm', 'admin.crawlers'] },
   { key: 'llm',          label: 'LLM Settings',        description: 'Configure the LLM provider used by risk scoring and account correlation',        requires: ['admin.llm'] },
   { key: 'performance',  label: 'Performance',         description: 'API and SQL performance metrics' },
+
   { key: 'auth',         label: 'Authentication',      description: 'Configure Entra ID single sign-on',                                              requires: ['admin.auth'] },
   { key: 'about',        label: 'About',               description: 'License, version, and software bill of materials' },
 ];

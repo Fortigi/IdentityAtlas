@@ -1,0 +1,10 @@
+- Added native Omada IGA crawler type to the API — validates config, masks secrets, dispatches jobs, and schedules automatic syncs
+- Added Omada crawler setup wizard to Admin → Crawlers — four-step flow with live `$metadata` validation for context entity sets and identity field names (case-sensitive auto-suggest), and a resource-category mapping editor
+- Added `POST /api/admin/omada/validate-metadata` endpoint for live wizard validation against the Omada OData `$metadata` document
+- Added Omada to the scheduler allowlist so crawls can be scheduled from the Admin UI
+- Extended `ingest/refresh-views` to recalculate `directMemberCount`/`totalMemberCount` on all Contexts after any full sync
+- Fixed: Identity detail page Contexts count was fetched but never passed to the graph shape function, causing the Contexts node to always display 0
+- Fixed: Context detail page member clicks now use `targetType` to open the correct detail kind (`identity`, `user`, `resource`) instead of always using `user`
+- Fixed: User detail `/contexts` endpoint and context count now query `ContextMembers` directly by Identity UUID via `IdentityMembers`, so Omada-synced context memberships appear on the identity detail page
+- Added migration 029: `extendedAttributes jsonb` column on `Identities` table for system-specific identity attributes
+- Added: Identities API `/contexts` endpoint and `contextCount` now query `ContextMembers` directly by Identity UUID so context memberships appear on identity detail pages for all crawlers
