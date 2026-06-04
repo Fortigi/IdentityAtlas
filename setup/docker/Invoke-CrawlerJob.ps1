@@ -333,8 +333,10 @@ switch ($JobType) {
             cookieString          = $Config['cookieString']
             sessionTimeoutMinutes = if ($Config['sessionTimeoutMinutes']) { $Config['sessionTimeoutMinutes'] } else { 30 }
             pageSize              = if ($Config['pageSize']) { $Config['pageSize'] } else { 100 }
-            typeMappings          = $Config['typeMappings']
-            selectedObjects       = $Config['selectedObjects']
+            typeMappings              = $Config['typeMappings']
+            selectedObjects           = $Config['selectedObjects']
+            contextObjectTypes        = $Config['contextObjectTypes']
+            resourceCategoryMapping   = $Config['resourceCategoryMapping']
         }
         $omadaConfig | ConvertTo-Json -Depth 10 | Set-Content $tempConfig -Encoding UTF8
 
