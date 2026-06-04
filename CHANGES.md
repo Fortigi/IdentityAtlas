@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Terminology consistency: the Excel export header no longer shows the internal German label "SOLL" (now "Governed (via Business Roles)"), and the Dashboard governance trend now describes access as granted through a **Business Role** rather than "an Access Package or Business Role" (they are the same thing).
+
+## Changes in this PR
+
 - Added a **Scope Statistics** panel to the Matrix view. For the current matrix selection it shows the number of principals/identities, resources, and assignments in scope, plus the split of **governed vs non-governed** assignments (% managed by a business role / access package).
 - Added a **historic timeline** for the selection — see how the number of principals, resources, assignments, and crucially the **% governed vs non-governed** have changed over time. History is reconstructed from the existing change-audit log (no new tracking), accurate back to when auditing began on each table.
 - Added a **department / business-unit drill-down**: governed-vs-non-governed broken down department by department, each expandable to its own trend line — built for reporting on role-mining progress.
