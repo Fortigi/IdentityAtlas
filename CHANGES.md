@@ -1,5 +1,14 @@
 ## Changes in this PR
 
+- Fixed: Cut Release, Cut Beta and Cut Hotfix workflows now correctly generate release notes (missing fetch-depth caused grep to fail on the tag list)
+- Fixed: deprecated `app-id` input replaced with `client-id` for the GitHub App token action
+
+## Changes in this PR
+
+- Portable Windows launcher build now verifies the SHA-256 checksum of the downloaded node.exe against the official Node.js SHASUMS256.txt before packaging
+
+## Changes in this PR
+
 - Added a **Security** section to the documentation with a public "Assessment & Remediation" page summarizing the June 2026 independent security assessment — findings by severity and status, the pull requests that remediated each one, confirmed strengths, and the remediation roadmap. Exploit detail remains confidential.
 
 ## Changes in this PR
