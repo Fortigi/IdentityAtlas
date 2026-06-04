@@ -146,14 +146,20 @@ describe('catalog completeness — every permission checkbox is classified and c
   });
 });
 
-describe('wildcard semantics (documents current behaviour — see security finding C-01)', () => {
-  it('a signed-in user whose roles map to NO permissions is granted wildcard admin', async () => {
-    // No recognised roles → resolvePermissions() is empty → authMiddleware
-    // substitutes the '*' sentinel (fail-open fallback). This is the C-01
-    // finding; pinned here so a future hardening PR must update this test
-    // deliberately rather than silently changing behaviour.
+describe('wildcard semantics & fail-closed default (security finding C-01)', () => {
+  it('FAILS CLOSED: a signed-in user whose roles map to NO permissions is denied (403), not granted admin', async () => {
+    // No recognised roles → resolvePermissions() is empty → DENY. There is no
+    // "no roles -> '*'" fallback any more (C-01 fix). A roleless token must not
+    // reach an admin endpoint.
     const res = await call(app, GATED_ENDPOINTS['admin.auth'], 'Bearer roles:totally-unmapped-role');
-    expect(res.status).not.toBe(403);
+    expect(res.status).toBe(403);
+  });
+
+  it('a roleless token is denied on EVERY gated endpoint', async () => {
+    for (const ep of Object.values(GATED_ENDPOINTS)) {
+      const res = await call(app, ep, 'Bearer roles:totally-unmapped-role');
+      expect(res.status, `${ep.method} ${ep.path} must 403 for a roleless caller`).toBe(403);
+    }
   });
 
   it('a role mapped to "*" passes every gate', async () => {
