@@ -1987,6 +1987,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Seed (default) role mapping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#no-role-users-fail-closed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No-role users fail closed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getting-the-first-admin-in-bootstrap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting the first admin in (bootstrap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2318,6 +2346,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Seed (default) role mapping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#no-role-users-fail-closed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No-role users fail closed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getting-the-first-admin-in-bootstrap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting the first admin in (bootstrap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2587,7 +2643,25 @@
 </tr>
 </tbody>
 </table>
-<p>A signed-in user whose roles resolve to <strong>no</strong> permissions currently falls back to the <code>*</code> wildcard (a backward-compatibility behaviour for installs that haven't assigned app roles yet). Set <code>AUTH_REQUIRED_ROLES</code> to require an explicit role for any access.</p>
+<h3 id="no-role-users-fail-closed">No-role users fail closed<a class="headerlink" href="#no-role-users-fail-closed" title="Permanent link">&para;</a></h3>
+<p>A signed-in user whose roles resolve to <strong>no</strong> permissions is <strong>denied</strong> every permission gate — they can authenticate but cannot perform any admin or write action. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw). Note that read endpoints are not permission-gated, so a roleless user can still <em>read</em> data; set <code>AUTH_REQUIRED_ROLES</code> to keep roleless users from signing in at all.</p>
+<h3 id="getting-the-first-admin-in-bootstrap">Getting the first admin in (bootstrap)<a class="headerlink" href="#getting-the-first-admin-in-bootstrap" title="Permanent link">&para;</a></h3>
+<p>Because there's no fallback, you must grant access explicitly:</p>
+<ol>
+<li>In Entra ID, assign your user to an <strong>app role</strong> that the mapping maps to permissions — the seed maps the <strong><code>Admin</code></strong> role to <code>*</code> (full access).</li>
+<li>Then enable auth (<code>AUTH_ENABLED=true</code>) and sign in.</li>
+</ol>
+<p><strong>Locked yourself out?</strong> If you enabled auth before assigning yourself a role, no one can reach the admin UI. Recover from the host shell with the auth CLI — disable auth, assign the role in Entra, then re-enable:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 1. Disable auth (recovery path), then restart:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>node<span class="w"> </span>src/cli/auth-config.js<span class="w"> </span>disable
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>restart<span class="w"> </span>web
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># 2. Assign your user the Admin app role in Entra ID.</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># 3. Re-enable auth and restart:</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>node<span class="w"> </span>src/cli/auth-config.js<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--tenant<span class="w"> </span>&lt;tenant-guid&gt;<span class="w"> </span>--client<span class="w"> </span>&lt;client-guid&gt;
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>docker<span class="w"> </span>compose<span class="w"> </span>restart<span class="w"> </span>web
+</code></pre></div>
 <h2 id="ui-gating">UI gating<a class="headerlink" href="#ui-gating" title="Permanent link">&para;</a></h2>
 <p>The SPA calls <code>GET /api/auth-me</code> after sign-in to learn its own permissions and hides controls the user can't use (the <strong>Admin</strong> tab, its sub-tabs, and export buttons). The server remains the source of truth — hidden controls are also enforced server-side, so hiding is a UX nicety, not a security boundary.</p>
 <h2 id="deployment-notes">Deployment notes<a class="headerlink" href="#deployment-notes" title="Permanent link">&para;</a></h2>
@@ -2595,6 +2669,7 @@
 <li><strong>Open mode (<code>AUTH_ENABLED=false</code>)</strong> — supported for local/evaluation use; all permission gates are bypassed.</li>
 <li><strong>Azure App Service</strong> — <code>AUTH_ENABLED=true</code> is set from first boot; the Authentication and Containers admin sub-tabs are hidden (managed platform).</li>
 <li>Tenant/client IDs are configured via <code>AUTH_TENANT_ID</code> / <code>AUTH_CLIENT_ID</code>; the role→permission mapping is edited live in Admin → Authentication.</li>
+<li><strong>Token audience</strong> — the API accepts only access tokens whose audience is <code>api://&lt;client-id&gt;</code> (its exposed API scope). ID tokens are rejected. This is why the setup walkthrough has you "Expose an API" with the default <code>api://&lt;client-id&gt;</code> Application ID URI.</li>
 </ul>
 <h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <p>Enforcement is verified by:</p>
