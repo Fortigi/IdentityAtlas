@@ -91,6 +91,15 @@ $splitOk = ($all.governedAssignmentCount + $all.ungovernedAssignmentCount) -eq $
 Report-Result 'scope-stats: governed split sums to total' $splitOk `
     "$($all.governedAssignmentCount)+$($all.ungovernedAssignmentCount) vs $($all.assignmentCount)"
 
+# Governed is determined by business-role coverage (vw_UserPermissionAssignmentViaBusinessRole),
+# NOT the per-row managedByAccessPackage flag. On the demo data (business roles that
+# Contain groups + Governed role assignments) some access IS governed and some is not.
+# These guard against the regression where governed read as 0.
+Report-Result 'scope-stats: some access is governed (BR coverage)' ($all.governedAssignmentCount -gt 0) `
+    "governed=$($all.governedAssignmentCount)"
+Report-Result 'scope-stats: some access is non-governed' ($all.ungovernedAssignmentCount -gt 0) `
+    "non-governed=$($all.ungovernedAssignmentCount)"
+
 $expectPct = if ($all.assignmentCount -gt 0) { [math]::Round($all.governedAssignmentCount / $all.assignmentCount * 100, 1) } else { 0 }
 Report-Result 'scope-stats: governedPct consistent' ([math]::Abs($all.governedPct - $expectPct) -lt 0.2) `
     "api=$($all.governedPct) expected≈$expectPct"

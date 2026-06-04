@@ -17,6 +17,19 @@ Expand **Trends & breakdown** for:
 
 It was built for reporting role-mining progress: "what share of access is governed, by department, and is it improving?"
 
+## What counts as "governed"
+
+A `(principal, resource)` membership is **governed** when it is **covered by a business role the user holds** — i.e. it appears in [`vw_UserPermissionAssignmentViaBusinessRole`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql): there is a `BusinessRole` that **Contains** the group (`ResourceRelationships.relationshipType = 'Contains'`) **and** the user holds that role (a `Governed` assignment to it). This is exactly what the matrix paints as **SOLL**.
+
+This is deliberately *not* the same as `vw_ResourceUserPermissionAssignments.managedByAccessPackage`, which is only true for the rare assignment recorded directly as `Governed` on the group itself. In real data, users hold the **business role** while their group membership is recorded as `Direct`, so that flag reads as ~0% governed — which is why the whole feature (panel counts, the `Governed` / `Non-governed` toggle, and the trends) keys off business-role *coverage* instead, so every surface agrees.
+
+**Owner memberships** are always **non-governed**: access packages provision Direct / Eligible / Member roles, never ownership.
+
+## Matrix view behaviour
+
+- The view toggle reads **All / Governed / Non-governed / Gaps** (renamed from SOLL / IST). *Governed* shows memberships covered by a held business role; *Non-governed* shows the rest (the role-mining backlog); *Gaps* shows memberships a held business role *should* grant but the user lacks.
+- The **Non-governed** view hides the access-package (SOLL) columns — they only ever show governed memberships — and orders rows by member count (Direct desc → Eligible → Owner → total) rather than the AP staircase, since there are no AP columns to stair-step against.
+
 ## Where the history comes from
 
 There is **no dedicated snapshot table** for scope statistics. The timeline is reconstructed on demand from the existing change-audit log (`_history`, see [Audit History](audit-history.md)).
