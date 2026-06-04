@@ -135,6 +135,24 @@ describe('compileClassifier', () => {
     expect(c._compiled[0].test('prefixAdmin')).toBe(true);
   });
 
+  it('does not catastrophically backtrack on a hostile pattern (ReDoS, H-07)', () => {
+    // `(a+)+$` against a long non-matching string is the classic catastrophic-
+    // backtracking case — a native RegExp would hang for seconds. RE2 is linear.
+    const c = compileClassifier({ id: 'evil', patterns: ['(a+)+$'] });
+    expect(c._compiled).toHaveLength(1);
+    const start = Date.now();
+    const result = c._compiled[0].test('a'.repeat(50) + '!');
+    expect(result).toBe(false);
+    expect(Date.now() - start).toBeLessThan(500);
+  });
+
+  it('skips patterns using RE2-unsupported features (e.g. lookahead) and logs', () => {
+    const c = compileClassifier({ id: 'la', patterns: ['admin(?=istrator)', '^safe$'] });
+    expect(c._compiled).toHaveLength(1);      // lookahead pattern skipped
+    expect(c._compiled[0].test('safe')).toBe(true);
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
   it('skips truly malformed patterns and logs a warning', () => {
     const c = compileClassifier({ id: 'bad', patterns: ['[unbalanced', '^good$'] });
     expect(c._compiled).toHaveLength(1);
