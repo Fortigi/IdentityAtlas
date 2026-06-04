@@ -62,6 +62,65 @@ jobs:
           echo "COMMIT=$COMMIT" >> "$GITHUB_ENV"
           echo "✅ Tagged ${TAG} on ${COMMIT}"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Stamp hotfix version into .psd1
+        run: sed -i "s/ModuleVersion = '[^']*'/ModuleVersion = '${{ env.VERSION }}.0'/" setup/IdentityAtlas.psd1
+
+      - name: Install desktop dependencies (PGlite)
+        run: npm install --prefer-offline
+        working-directory: app/desktop
+
+      - name: Build portable Windows ZIP
+        run: npm run build:node-launcher
+        working-directory: app/api
+
+      - name: Generate release notes
+        run: |
+          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
+            | grep -vE '-(beta|rc|alpha)' \
+            | grep -v "^${TAG}$" \
+            | head -1)
+
+          if [ -n "$PREV_TAG" ]; then
+            FIRST_OLD=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | head -1)
+            if [ -n "$FIRST_OLD" ]; then
+              CUTLINE=$(grep -Fn "${FIRST_OLD}" CHANGES.md | head -1 | cut -d: -f1)
+              [ -n "$CUTLINE" ] \
+                && NEW_MD=$(head -n $((CUTLINE - 1)) CHANGES.md) \
+                || NEW_MD=$(cat CHANGES.md)
+            else
+              NEW_MD=$(cat CHANGES.md)
+            fi
+          else
+            NEW_MD=$(cat CHANGES.md)
+          fi
+
+          BULLETS=$(printf '%s\n' "$NEW_MD" \
+            | grep -v '^## Changes in this PR$' \
+            | awk 'BEGIN{blank=1} /^[[:space:]]*$/{if(!blank){print ""; blank=1}; next} {blank=0; print}')
+
+          {
+            printf '## Changes'
+            [ -n "$PREV_TAG" ] && printf ' since %s' "$PREV_TAG"
+            printf '\n\n%s\n' "$BULLETS"
+            [ -n "$PREV_TAG" ] && printf '\n**Full Changelog:** https://github.com/${{ github.repository }}/compare/%s...%s\n' \
+              "$PREV_TAG" "$TAG"
+          } > release-notes.md
+
+      - name: Create GitHub release with portable ZIP
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          gh release create "$TAG" \
+            app/api/dist-node-launcher/IdentityAtlas-portable.zip \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            --latest
+
       - name: Post run summary
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
