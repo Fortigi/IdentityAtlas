@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed: portable Windows launcher now binds to 127.0.0.1 only, preventing the API from being accessible to other machines on the network
+- Added: startup warning when the portable launcher runs with authentication disabled
+
+## Changes in this PR
+
 - Fixed: portable Windows launcher crashes with "Cannot find module" when the installation folder path contains a space
 
 ## Changes in this PR
