@@ -19,6 +19,8 @@
     The caller gets a flat list of all records with no pagination ceremony.
 #>
 
+#region Functions
+
 function Invoke-OmadaPagedRequest {
     [CmdletBinding()]
     [OutputType([System.Collections.Generic.List[object]])]
@@ -56,3 +58,5 @@ function Invoke-OmadaPagedRequest {
 
     return $all
 }
+
+#endregion Functions

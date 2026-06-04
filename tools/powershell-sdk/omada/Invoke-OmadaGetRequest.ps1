@@ -3,6 +3,8 @@
     Authenticated GET against the Omada REST API with retry and OData pagination.
 #>
 
+#region Functions
+
 function Invoke-OmadaGetRequest {
     <#
     .SYNOPSIS
@@ -135,3 +137,5 @@ function Invoke-OmadaGetRequest {
 
     return $collected
 }
+
+#endregion Functions

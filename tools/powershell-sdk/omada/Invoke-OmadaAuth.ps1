@@ -23,11 +23,14 @@
 
 $script:OmadaSession = $null
 
+#region Functions
+
 function Connect-OmadaAPI {
     <#
     .SYNOPSIS
         Authenticate to Omada and store the session for subsequent calls.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessage('PSAvoidUsingUsernameAndPasswordParams', '')]
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)] [string]$BaseUrl,
@@ -272,3 +275,5 @@ function Get-OmadaEntitySets {
         return @()
     }
 }
+
+#endregion Functions

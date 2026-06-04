@@ -71,6 +71,8 @@
     .\Start-OmadaCrawler.ps1 -ApiBaseUrl http://localhost:3001/api -ApiKey fgc_... -ConfigFile .\omada.json
 #>
 
+#region Parameters
+
 [CmdletBinding()]
 Param(
     [Parameter(Mandatory)] [string]$ApiBaseUrl,
@@ -92,6 +94,10 @@ Param(
 
     [int]$JobId = 0
 )
+
+#endregion Parameters
+
+#region Configuration
 
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
@@ -169,6 +175,10 @@ $ResourceCategoryMapping = if ($Cfg.resourceCategoryMapping) {
 } else {
     $DefaultResourceCategoryMapping
 }
+
+#endregion Configuration
+
+#region Functions
 
 function Map-ResourceCategory {
     param([string]$Category)
@@ -347,7 +357,10 @@ function Send-IngestBatch {
     return @{ inserted = $TotalInserted; updated = $TotalUpdated; deleted = $TotalDeleted }
 }
 
-# ─── Main ─────────────────────────────────────────────────────────
+#endregion Functions
+
+#region Main
+
 Write-Host "`n=== Omada Crawler ===" -ForegroundColor Cyan
 Write-Host "Base URL:    $BaseUrl" -ForegroundColor Gray
 Write-Host "API version: $ApiVersion" -ForegroundColor Gray
@@ -1326,3 +1339,5 @@ if ($Script:phaseErrors.Count -gt 0) {
 }
 
 Write-Host "`nOmada sync completed successfully." -ForegroundColor Green
+
+#endregion Main

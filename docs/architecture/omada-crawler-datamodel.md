@@ -1,8 +1,7 @@
 # Omada IGA Crawler — Data Model Reference
 
-> **Branch:** `claude/omada-crawler-sync-a1W3A`  
 > **Last updated:** 2026-06-04  
-> **Tested against:** Omada Identity v15.0 on-premise (OData 4.0)
+> **Tested against:** Omada Identity v15.0 on-premise (OData 4.0) and Omada Cloud (rdw-stg.omada.cloud)
 
 ---
 
@@ -14,6 +13,41 @@ The Omada IGA crawler pulls data directly from Omada's OData 4.0 REST API (`/oda
 - Always performs a **full sync** (Omada has no delta API; `SyncMode` is accepted for dispatcher compatibility but ignored)
 - Registers every Omada connected system as a separate Identity Atlas **System**
 - Uses configurable type mappings, context object types, and resource category mapping
+- Supports on-premise and Omada Cloud deployments
+
+---
+
+## Authentication Methods
+
+Configure `authMethod` in the crawler config. All methods work for both on-premise and cloud.
+
+| Method | Required fields | Description |
+|--------|----------------|-------------|
+| `BasicAuth` | `username`, `password` | HTTP Basic Auth — most common for on-premise |
+| `FormCookie` | `username`, `password` | POST to `/api/authenticate`, capture session cookie |
+| `OAuth2CC` | `clientId`, `clientSecret`, `tokenEndpoint` | OAuth2 client credentials (app registration) |
+| `OAuth2ROPC` | `username`, `password`, `clientId`, `clientSecret`, `tokenEndpoint` | OAuth2 resource owner password credentials |
+| `ApiToken` | `apiToken` | Static Bearer token (no refresh) |
+| `CookieString` | `cookieString` | Pre-built cookie string — use for Omada Cloud when only browser/PS session cookies are available |
+
+**CookieString (cloud):** Paste the `oisauthtoken` value from your browser DevTools or from OmadaWeb.PS. A bare token value is automatically prefixed with `oisauthtoken=`. A valid `name=value` cookie string is sent as-is. Multi-cookie strings (`ASP.NET_SessionId=x; Auth=y`) are also supported unchanged.
+
+---
+
+## URL and Service Root
+
+Configure `baseUrl` as either:
+- The OData service root: `https://tenant.omada.cloud/odata/dataobjects` (explicit)
+- The server root: `https://tenant.omada.cloud/` (auto-appended with `/odata/dataobjects`)
+
+The crawler uses `System.Uri` to normalise the URL and derives the Builtin service URL automatically:
+
+```
+DataObjects: https://tenant.omada.cloud/odata/dataobjects
+Builtin:     https://tenant.omada.cloud/odata/builtin
+```
+
+The `$metadata` endpoint (used for entity-set discovery) is fetched at startup as a non-blocking diagnostic. If it fails (e.g. HTTP 500 on some cloud instances), all phases still attempt to run.
 
 ---
 
@@ -22,9 +56,9 @@ The Omada IGA crawler pulls data directly from Omada's OData 4.0 REST API (`/oda
 | Service | Base URL | Entity sets used |
 |---------|----------|-----------------|
 | DataObjects | `{baseUrl}` | System, Orgunit, Identity, User, Resource, Resourceassignment, Contextassignment, Employment, Usergroup, Country, Job_titles, + configured context types |
-| Builtin | `{baseUrl}/../builtin` | CalculatedAssignments |
+| Builtin | `{builtinBaseUrl}` (derived from DataObjects URL) | CalculatedAssignments |
 
-**Pagination:** `$top=N&$skip=M` offset paging. Stops on **empty page** (not short page — Builtin returns variable-size pages). Default page size: 100 (Builtin CRA: 1000).
+**Pagination:** `$top=N&$skip=M` offset paging. Stops on **empty page** (not short page — Builtin returns variable-size pages). Default page size: 100 (Builtin CRA: 1000). CRA pages are streamed one-at-a-time to avoid OOM on large datasets.
 
 ---
 
@@ -436,7 +470,9 @@ After all phases complete:
 
 ---
 
-## Live Omada Server (dev/test)
+## Test Environments
+
+### On-Premise (masterdemo)
 
 | Property | Value |
 |----------|-------|
@@ -451,3 +487,18 @@ After all phases complete:
 | CRA records | ~37,961 active (Status=true) |
 
 DNS: AD DNS at `172.16.0.25`/`172.16.0.28` resolves `corporate.com` zone. Persisted via `extra_hosts` in `docker-compose.yml`.
+
+### Cloud (rdw-stg.omada.cloud)
+
+| Property | Value |
+|----------|-------|
+| Base URL | `https://rdw-stg.omada.cloud/` (auto-normalised to `/odata/dataobjects`) |
+| Auth method | CookieString (`oisauthtoken=<token>`) |
+| Entity sets | 18 available (subset of on-premise; `$metadata` may return 500 — gracefully skipped) |
+| Systems | 41 connected systems |
+| Identities | 4,279 |
+| Contexts | 403 OrgUnits + 277 Job Titles |
+| Resources | 30,355+ across all systems |
+| CRA records | 12,421+ active |
+
+**Cloud notes:** The `$metadata` endpoint on cloud may return HTTP 500 — this is handled gracefully (all phases still run). CookieString auth sends the cookie in a `Cookie` request header (not via WebSession), which is required for cloud HTTPS URLs where WebSession cookie-domain matching is unreliable.
