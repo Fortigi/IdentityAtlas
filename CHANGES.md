@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Added a CI lint gate that blocks native browser dialogs (`confirm`/`alert`/`prompt`) in new UI code — these aren't styled, dark-mode aware, or testable; use an in-app dialog or toast instead.
+- Added a CI lint gate that keeps legacy/internal jargon (SOLL, IST, "Org Unit", Start-FGSync) out of user-facing UI text, steering contributors to the current terminology (Governed/Non-governed, Context, in-app crawlers).
+- Renamed the stale "Contexts (Org Units)" crawler label to "Contexts".
+
+## Changes in this PR
+
 - Added a **UI Style Guide** to the documentation (Contributing → UI Style Guide): the canonical colour system (green = brand/identity, blue = interactive), dark-mode and accessibility rules, component conventions, and a terminology glossary that future contributions follow.
 
 ## Changes in this PR
