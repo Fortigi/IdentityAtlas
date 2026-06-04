@@ -250,11 +250,10 @@ function Get-OmadaEntitySets {
             $reqParams['Headers'] = @{ Authorization = "Bearer $($script:OmadaSession.AccessToken)" }
         }
         'CookieString' {
-            $reqParams['Headers'] = @{
-                Cookie         = $script:OmadaSession.CookieHeader
-                Accept         = 'application/json'
-                'Content-Type' = 'application/json'
-            }
+            # $metadata returns XML — do NOT send Accept: application/json or Content-Type
+            # here; those headers cause a 500 on cloud instances when the server tries to
+            # serialize the metadata as JSON (which it does not support on this endpoint).
+            $reqParams['Headers'] = @{ Cookie = $script:OmadaSession.CookieHeader }
         }
         'FormCookie' {
             $reqParams['WebSession'] = $script:OmadaSession.WebSession
