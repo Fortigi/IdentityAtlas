@@ -1,1 +1,0 @@
-- Fixed the run-detail "Go there now →" link, which opened a broken/empty detail tab; it now correctly navigates to the Contexts page. Also cleaned up a dark-mode style glitch on that screen.
