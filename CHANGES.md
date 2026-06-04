@@ -1,5 +1,36 @@
 ## Changes in this PR
 
+- Added a **Scope Statistics** panel to the Matrix view. For the current matrix selection it shows the number of principals/identities, resources, and assignments in scope, plus the split of **governed vs non-governed** assignments (% managed by a business role / access package).
+- Added a **historic timeline** for the selection — see how the number of principals, resources, assignments, and crucially the **% governed vs non-governed** have changed over time. History is reconstructed from the existing change-audit log (no new tracking), accurate back to when auditing began on each table.
+- Added a **department / business-unit drill-down**: governed-vs-non-governed broken down department by department, each expandable to its own trend line — built for reporting on role-mining progress.
+- Renamed the Matrix view-toggle from **IST / SOLL** to **Non-governed / Governed** (with All / Gaps unchanged) so the terminology matches the rest of the app. An assignment counts as *governed* when the membership is covered by a business role / access package the user holds.
+- Fixed the governed/non-governed determination everywhere in the Matrix (the toggle, the scope counts, and the trends) to recognise access provided through a business role / access package, not only assignments recorded directly as "Governed". Previously the Governed view and the % could read as 0 even when most access was managed.
+- Refined the Non-governed view: owner memberships are always treated as non-governed (access packages never grant ownership), the access-package columns are hidden, and rows are ordered by member count instead of the access-package staircase.
+
+## Changes in this PR
+
+- Fixed: documentation site version dropdown now updates automatically when a release or hotfix is cut
+
+## Changes in this PR
+
+- Fixed: portable Windows launcher now binds to 127.0.0.1 only, preventing the API from being accessible to other machines on the network
+- Added: startup warning when the portable launcher runs with authentication disabled
+
+## Changes in this PR
+
+- Fixed: portable Windows launcher crashes with "Cannot find module" when the installation folder path contains a space
+
+## Changes in this PR
+
+- Fixed: Cut Release, Cut Beta and Cut Hotfix workflows now correctly generate release notes (missing fetch-depth caused grep to fail on the tag list)
+- Fixed: deprecated `app-id` input replaced with `client-id` for the GitHub App token action
+
+## Changes in this PR
+
+- Portable Windows launcher build now verifies the SHA-256 checksum of the downloaded node.exe against the official Node.js SHASUMS256.txt before packaging
+
+## Changes in this PR
+
 - Added a **Security** section to the documentation with a public "Assessment & Remediation" page summarizing the June 2026 independent security assessment — findings by severity and status, the pull requests that remediated each one, confirmed strengths, and the remediation roadmap. Exploit detail remains confidential.
 
 ## Changes in this PR
