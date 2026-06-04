@@ -81,19 +81,31 @@ function Connect-OmadaAPI {
     Write-Host "  Omada: authenticated via $AuthMethod to $base" -ForegroundColor Green
 }
 
+function Get-OmadaAuthRoot {
+    # Derive the server root URL for /api/authenticate from the OData base URL.
+    # Cloud:    https://tenant.omada.cloud/odata/dataobjects  → https://tenant.omada.cloud
+    # On-prem:  http://server/odata/dataobjects               → http://server
+    # Fallback: http://server/anything-else                   → http://server/anything-else (unchanged)
+    $base     = $script:OmadaSession.BaseUrl
+    $odataIdx = $base.IndexOf('/odata/')
+    if ($odataIdx -gt 0) { return $base.Substring(0, $odataIdx) }
+    return $base
+}
+
 function Invoke-OmadaFormAuth {
-    $base = $script:OmadaSession.BaseUrl
+    $authRoot  = Get-OmadaAuthRoot
+    $authUri   = $authRoot + '/api/authenticate'
     $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
     $body = @{ Username = $script:OmadaSession._Username; Password = $script:OmadaSession._Password } | ConvertTo-Json -Compress
 
     try {
-        Invoke-RestMethod -Uri "$base/api/authenticate" -Method Post `
+        Invoke-RestMethod -Uri $authUri -Method Post `
             -ContentType 'application/json' -Body $body `
             -WebSession $webSession -ErrorAction Stop | Out-Null
     } catch {
         $status = $null
         try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
-        throw "Omada FormCookie auth failed (HTTP $status): $($_.Exception.Message)"
+        throw "Omada FormCookie auth failed (HTTP $status) at $authUri`: $($_.Exception.Message)"
     }
 
     $script:OmadaSession.WebSession  = $webSession

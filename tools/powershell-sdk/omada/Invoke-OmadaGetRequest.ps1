@@ -72,8 +72,20 @@ function Invoke-OmadaGetRequest {
                 $status = $null
                 try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
 
-                if ($status -in @(401, 403) -and $script:OmadaSession.AuthMethod -eq 'CookieString') {
-                    throw "Omada cookie has expired. Retrieve a new cookie and update the crawler config."
+                if ($status -in @(401, 403)) {
+                    if ($script:OmadaSession.AuthMethod -eq 'CookieString') {
+                        throw "Omada cookie has expired. Retrieve a new cookie and update the crawler config."
+                    }
+                    if ($script:OmadaSession.AuthMethod -eq 'FormCookie' -and $attempt -lt $MaxRetries) {
+                        # Server-side session expired — re-authenticate and retry with the new cookie.
+                        Write-Host "  Omada: session expired (HTTP $status) — re-authenticating..." -ForegroundColor Yellow
+                        try { Invoke-OmadaFormAuth } catch {
+                            throw "Omada session expired and re-authentication failed: $($_.Exception.Message)"
+                        }
+                        $reqParams['WebSession'] = $script:OmadaSession.WebSession
+                        $attempt++
+                        continue
+                    }
                 }
 
                 $retryAfter = 0
