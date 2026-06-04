@@ -99,7 +99,20 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 # ─── Load config ─────────────────────────────────────────────────
 if (-not (Test-Path $ConfigFile)) { throw "Config file not found: $ConfigFile" }
 $Cfg = Get-Content $ConfigFile -Raw | ConvertFrom-Json
-$BaseUrl               = $Cfg.baseUrl
+
+# ── Normalise base URL via System.Uri ─────────────────────────────
+# Accepts both:
+#   https://tenant.omada.cloud/               (root — auto-appends /odata/dataobjects)
+#   https://tenant.omada.cloud/odata/dataobjects   (explicit — used as-is)
+#   http://server/odata/dataobjects               (on-prem)
+$_rawUri  = [System.Uri]::new(($Cfg.baseUrl.Trim().TrimEnd('/')))
+$_host    = $_rawUri.Scheme + '://' + $_rawUri.Authority   # scheme + host + non-default port
+$_path    = $_rawUri.AbsolutePath.TrimEnd('/')
+if ($_path -notmatch '(?i)/odata/dataobjects$') { $_path = '/odata/dataobjects' }
+$BaseUrl        = $_host + $_path
+$BuiltinBaseUrl = $_host + ($_path -replace '(?i)/dataobjects$', '/builtin')
+# ──────────────────────────────────────────────────────────────────
+
 $ApiVersion            = if ($Cfg.apiVersion) { $Cfg.apiVersion } else { 'v14' }
 $PageSize              = if ($Cfg.pageSize)   { [int]$Cfg.pageSize } else { 100 }
 $SessionTimeoutMinutes = if ($Cfg.sessionTimeoutMinutes) { [int]$Cfg.sessionTimeoutMinutes } else { 30 }
@@ -354,8 +367,6 @@ if ($Cfg.cookieString)  { $AuthParams['CookieString']  = $Cfg.cookieString }
 Connect-OmadaAPI @authParams
 
 # Derive the Builtin OData service URL from the DataObjects base URL
-# e.g. http://server/odata/dataobjects → http://server/odata/builtin
-$BuiltinBaseUrl = [regex]::Replace($BaseUrl.TrimEnd('/'), '/[^/]+$', '') + '/builtin'
 Write-Host "Builtin URL: $BuiltinBaseUrl" -ForegroundColor Gray
 
 # Discover available entity sets from OData $metadata (diagnostic — non-blocking)
