@@ -84,6 +84,17 @@ Seven Low/Informational items were recorded (information disclosure on public me
 
 ---
 
+### Portable Windows launcher (post-assessment additions)
+
+The portable launcher was not in scope for the original assessment (it was added afterwards). A follow-on review identified two issues mirroring findings from the Docker scope:
+
+| ID | Finding | Status | PR |
+|---|---|---|---|
+| P-01 | API bound to `0.0.0.0` in portable mode — reachable from other machines on the network with no auth (portable variant of H-03 + C-02) | ✅ Fixed — portable now binds to `127.0.0.1` only | [#222](https://github.com/Fortigi/IdentityAtlas/pull/222) |
+| P-02 | `node.exe` downloaded during build with no integrity check | ✅ Fixed — SHA-256 pinned in source and verified at build time | [#220](https://github.com/Fortigi/IdentityAtlas/pull/220) |
+
+---
+
 ## Supporting work
 
 Beyond the per-finding fixes, the remediation programme added preventative guardrails:
