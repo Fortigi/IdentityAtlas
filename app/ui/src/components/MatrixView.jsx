@@ -341,6 +341,10 @@ export default function MatrixView({
   // Default sort: AP staircase pattern.
   // All groups in the leftmost AP first, then next AP, etc. Unmanaged at the bottom.
   const apSortedGroups = useMemo(() => {
+    // Non-governed view hides the AP columns, so the AP-staircase ordering is
+    // meaningless there — fall back to the member-count sort already applied to
+    // `groups` (Direct count desc, then Eligible, Owner, total).
+    if (managedFilter === 'unmanaged') return groups;
     if (accessPackages.length === 0) return groups; // no APs, keep member count sort
 
     // Assign each group to the AP bucket of its leftmost AP column
@@ -377,7 +381,7 @@ export default function MatrixView({
       if (ownerCmp !== 0) return ownerCmp;
       return b.memberCount - a.memberCount;
     });
-  }, [groups, accessPackages, apGroupMap]);
+  }, [groups, accessPackages, apGroupMap, managedFilter]);
 
   // Apply custom drag-row order on top of the default AP staircase sort. All
   // subject/resource selection happens through the filter wizard, so there
