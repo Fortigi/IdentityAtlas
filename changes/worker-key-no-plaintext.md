@@ -1,1 +1,0 @@
-- Security: the built-in worker's API key is no longer stored in plaintext in the database. It is kept only as a salted scrypt hash (for verification) plus a private, restricted file that the worker reads — and any previously-stored plaintext copy is removed automatically on upgrade. A read of the database can no longer recover a usable worker credential.
