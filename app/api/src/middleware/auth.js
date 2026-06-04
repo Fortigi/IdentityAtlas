@@ -85,7 +85,15 @@ export function authMiddleware(req, res, next) {
   const clientId = getClientId();
 
   jwt.verify(token, keyResolver, {
-    audience: [`api://${clientId}`, clientId],
+    // Accept ONLY access tokens issued for our exposed API scope
+    // (aud = api://<clientId>). The bare <clientId> audience is deliberately
+    // NOT accepted: an id_token's aud is the bare client ID, and id_tokens are
+    // minted on every interactive sign-in, cached in browsers/logs, and are not
+    // meant for API authorization (security finding H-01). The SPA already
+    // requests the `api://<clientId>/access` scope, so its access tokens carry
+    // aud = api://<clientId>. (Requires the Entra App ID URI to be the default
+    // `api://<clientId>` — see the setup walkthrough's "Expose an API" step.)
+    audience: `api://${clientId}`,
     issuer: [
       `https://login.microsoftonline.com/${tenantId}/v2.0`,
       `https://sts.windows.net/${tenantId}/`,
