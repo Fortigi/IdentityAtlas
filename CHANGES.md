@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The dashboard/entity relationship graph now respects the OS "reduce motion" setting — its pulsing rings and animated edges stop for users who request reduced motion (completing the reduced-motion support added to the rest of the app).
+
+## Changes in this PR
+
 - The Dashboard now tells the difference between "couldn't reach the server" and "no data yet". A load error shows a clear retry message instead of the "configure a crawler" onboarding panel, so a transient backend hiccup no longer looks like your data disappeared.
 
 ## Changes in this PR
