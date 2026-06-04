@@ -50,13 +50,20 @@ globalThis.__pgliteInstance = pgInstance;
 
 await import(pathToFileURL(join(__dirname, 'app-bundle.mjs')).href);
 
-// bootstrap.js writes the key synchronously during init, so it exists by now.
-// Pass it via env so desktop-worker.cjs never needs readFileSync itself
-// (avoids a CodeQL js/file-data-in-request false positive in that file).
-try {
-  const key = readFileSync(process.env.WORKER_KEY_FILE, 'utf8').trim();
+// bootstrapWorker() writes the key inside app.listen()'s async callback, so it
+// is not guaranteed to exist immediately after the import resolves. Poll until
+// the file appears (up to 15 s) before starting the worker.
+{
+  let key = null;
+  for (let i = 0; i < 30; i++) {
+    try {
+      const k = readFileSync(process.env.WORKER_KEY_FILE, 'utf8').trim();
+      if (k) { key = k; break; }
+    } catch {}
+    await new Promise(r => setTimeout(r, 500));
+  }
   if (key) process.env.WORKER_API_KEY = key;
-} catch {}
+}
 
 const { startWorker } = require('./desktop-worker.cjs');
 startWorker();
