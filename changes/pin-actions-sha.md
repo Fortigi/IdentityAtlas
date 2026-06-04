@@ -1,0 +1,1 @@
+- Security (CI/CD supply chain): all GitHub Actions used in the build/test/release workflows are now pinned to immutable commit SHAs instead of mutable version tags, so a compromised or repointed action tag cannot silently run in CI with repository credentials. A Dependabot configuration keeps the pinned actions updated via reviewed pull requests.
