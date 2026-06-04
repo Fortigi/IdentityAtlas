@@ -86,7 +86,7 @@ function Invoke-OmadaGetRequest {
 
                 if ($status -in @(401, 403)) {
                     if ($script:OmadaSession.AuthMethod -eq 'CookieString') {
-                        throw "Omada cookie has expired. Retrieve a new cookie and update the crawler config."
+                        throw "Omada authentication failed (HTTP $status). The cookie may have expired or been rejected by the server. Retrieve a fresh oisauthtoken cookie from your browser and update the crawler config."
                     }
                     if ($script:OmadaSession.AuthMethod -eq 'FormCookie' -and $attempt -lt $MaxRetries) {
                         # Server-side session expired — re-authenticate and retry with the new cookie.
