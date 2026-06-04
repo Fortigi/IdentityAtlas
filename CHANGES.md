@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a **"How to read this matrix"** legend to the Matrix view. It explains the cell badges (Direct, Indirect, Eligible, Owner, Governed, OAuth2 grant, and App role — assigned directly vs via a group), the coloured cells that mean a membership is governed by a business role, the badge showing a membership is covered by more than one business role, and the amber provisioning-gap marker. The legend is collapsible and remembers whether you keep it open.
+
+## Changes in this PR
+
 - Terminology consistency: the Excel export header no longer shows the internal German label "SOLL" (now "Governed (via Business Roles)"), and the Dashboard governance trend now describes access as granted through a **Business Role** rather than "an Access Package or Business Role" (they are the same thing).
 
 ## Changes in this PR
