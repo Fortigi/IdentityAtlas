@@ -15,8 +15,16 @@ import { useAuth } from '../../auth/AuthGate';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import TimeSeriesChart from '../TimeSeriesChart';
 
-const GOVERNED_COLOR = '#059669';   // emerald-600 — governed (progress)
-const UNGOVERNED_COLOR = '#d97706'; // amber-600 — not yet governed
+// Aligned with the Dashboard Trends palette (TimeSeriesChart colours):
+//   governed → emerald, principals → blue, resources → violet, assignments → amber.
+const GOV_FILL = '#10b981';    // emerald-500 — governed (matches "% Governed" trend)
+const UNGOV_FILL = '#f59e0b';  // amber-500 — not yet governed
+const PRINCIPALS_COLOR = '#3b82f6';  // blue-500
+const RESOURCES_COLOR = '#8b5cf6';   // violet-500
+const ASSIGNMENTS_COLOR = '#f59e0b'; // amber-500
+// Text shades meet WCAG AA on white; dark-mode override for legibility.
+const GOV_TEXT = 'text-emerald-700 dark:text-emerald-400';
+const UNGOV_TEXT = 'text-amber-700 dark:text-amber-400';
 
 function pct(n) { return `${Math.round((n + Number.EPSILON) * 10) / 10}%`; }
 function num(n) { return (n ?? 0).toLocaleString(); }
@@ -40,16 +48,16 @@ function GovernedBar({ governed, ungoverned, governedPct }) {
     <div className="flex flex-col gap-1 min-w-[220px]">
       <div className="flex items-baseline justify-between">
         <span className="text-xs text-gray-500 dark:text-gray-400">Governed vs non-governed</span>
-        <span className="text-sm font-semibold tabular-nums" style={{ color: GOVERNED_COLOR }}>{pct(governedPct)}</span>
+        <span className={`text-sm font-semibold tabular-nums ${GOV_TEXT}`}>{pct(governedPct)}</span>
       </div>
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="img"
            aria-label={`${pct(governedPct)} governed`}>
-        <div style={{ width: `${gWidth}%`, backgroundColor: GOVERNED_COLOR }} />
-        <div style={{ width: `${100 - gWidth}%`, backgroundColor: UNGOVERNED_COLOR }} />
+        <div style={{ width: `${gWidth}%`, backgroundColor: GOV_FILL }} />
+        <div style={{ width: `${100 - gWidth}%`, backgroundColor: UNGOV_FILL }} />
       </div>
       <div className="flex justify-between text-xs">
-        <span style={{ color: GOVERNED_COLOR }}>{num(governed)} governed</span>
-        <span style={{ color: UNGOVERNED_COLOR }}>{num(ungoverned)} non-governed</span>
+        <span className={GOV_TEXT}>{num(governed)} governed</span>
+        <span className={UNGOV_TEXT}>{num(ungoverned)} non-governed</span>
       </div>
     </div>
   );
@@ -179,11 +187,11 @@ export default function MatrixScopePanel({ filter }) {
           {/* Timeline charts */}
           {series && series.points?.some(p => !p.beforeHistory) && (
             <div className="flex flex-col gap-4">
-              <MetricChart title="Governed % over time" points={series.points} metric="governedPct" color={GOVERNED_COLOR} isPct />
+              <MetricChart title="Governed % over time" points={series.points} metric="governedPct" color={GOV_FILL} isPct />
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <MetricChart title={subjectLabel} points={series.points} metric="principals" color="#2563eb" />
-                <MetricChart title="Resources" points={series.points} metric="resources" color="#7c3aed" />
-                <MetricChart title="Assignments" points={series.points} metric="assignments" color="#0891b2" />
+                <MetricChart title={subjectLabel} points={series.points} metric="principals" color={PRINCIPALS_COLOR} />
+                <MetricChart title="Resources" points={series.points} metric="resources" color={RESOURCES_COLOR} />
+                <MetricChart title="Assignments" points={series.points} metric="assignments" color={ASSIGNMENTS_COLOR} />
               </div>
             </div>
           )}
@@ -258,11 +266,11 @@ function DepartmentBreakdown({ breakdown, drill, onDrill }) {
                     <td className="py-2 pr-4 text-right tabular-nums text-gray-700 dark:text-gray-300">{num(g.assignments)}</td>
                     <td className="py-2 pr-4">
                       <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                        <div style={{ width: `${gWidth}%`, backgroundColor: GOVERNED_COLOR }} />
-                        <div style={{ width: `${100 - gWidth}%`, backgroundColor: UNGOVERNED_COLOR }} />
+                        <div style={{ width: `${gWidth}%`, backgroundColor: GOV_FILL }} />
+                        <div style={{ width: `${100 - gWidth}%`, backgroundColor: UNGOV_FILL }} />
                       </div>
                     </td>
-                    <td className="py-2 text-right tabular-nums font-medium" style={{ color: GOVERNED_COLOR }}>{pct(g.governedPct)}</td>
+                    <td className={`py-2 text-right tabular-nums font-medium ${GOV_TEXT}`}>{pct(g.governedPct)}</td>
                   </tr>
                   {isOpen && (
                     <tr>
@@ -274,7 +282,7 @@ function DepartmentBreakdown({ breakdown, drill, onDrill }) {
                             title={`${g.group} — governed % over time`}
                             points={drill.points}
                             metric="governedPct"
-                            color={GOVERNED_COLOR}
+                            color={GOV_FILL}
                             isPct
                           />
                         ) : (

@@ -125,7 +125,10 @@ export default function MatrixView({
   // are already applied by the backend so the matrix data is "the right subset".
   const filteredData = useMemo(() => {
     if (managedFilter !== 'managed' && managedFilter !== 'unmanaged') return data;
+    // Owner memberships are never provisioned through an access package (APs grant
+    // Direct/Eligible/Member roles), so they are always non-governed.
     const isGoverned = d =>
+      d.membershipType !== 'Owner' &&
       coveredPairSet.has(`${(d.resourceId || d.groupId || '').toLowerCase()}|${(d.memberId || '').toLowerCase()}`);
     return managedFilter === 'managed'
       ? data.filter(isGoverned)
@@ -595,13 +598,18 @@ export default function MatrixView({
   // Number of info columns on the left (drag handle + resource name + type)
   const infoColumnCount = 3;
 
+  // The access-package (SOLL) columns represent governance, so they're hidden in
+  // the Non-governed view — there they'd only show governed memberships, which is
+  // what that view is meant to exclude. Kept for All / Governed / Gaps.
+  const visibleAccessPackages = managedFilter === 'unmanaged' ? [] : accessPackages;
+
   // Shared column headers element (used by both sortable and static table)
   const columnHeaders = (
     <MatrixColumnHeaders
       users={users}
       infoColumnCount={infoColumnCount}
       onSortByCount={handleSortByCount}
-      accessPackages={accessPackages}
+      accessPackages={visibleAccessPackages}
       onOpenDetail={onOpenDetail}
     />
   );
@@ -667,7 +675,7 @@ export default function MatrixView({
               managedMap={managedMap}
               managedApMap={managedApMap}
               apIdToIndex={apIdToIndex}
-              accessPackages={accessPackages}
+              accessPackages={visibleAccessPackages}
               apGroupMap={apGroupMap}
               managedFilter={managedFilter}
               onOpenDetail={onOpenDetail}
@@ -690,7 +698,7 @@ export default function MatrixView({
                     managedMap={managedMap}
                     managedApMap={managedApMap}
                     apIdToIndex={apIdToIndex}
-                    accessPackages={accessPackages}
+                    accessPackages={visibleAccessPackages}
                     apGroupMap={apGroupMap}
                     managedFilter={managedFilter}
                     onOpenDetail={onOpenDetail}
