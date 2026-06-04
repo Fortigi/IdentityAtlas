@@ -30,6 +30,12 @@ if (perfEnabled) {
 if (isProduction && !authEnabledAtBoot) {
   console.warn('WARNING: AUTH_ENABLED is not set to "true" in production. All API endpoints are unauthenticated until configured via Admin → Authentication.');
 }
+// Auth is on, but with no AUTH_REQUIRED_ROLES backstop any signed-in tenant user
+// can still READ all data (roleless users are denied write/admin since C-01, but
+// read endpoints aren't permission-gated). Nudge operators to lock sign-in down.
+if (authEnabledAtBoot && !process.env.AUTH_REQUIRED_ROLES) {
+  console.warn('WARNING: AUTH_ENABLED is true but AUTH_REQUIRED_ROLES is not set. Any authenticated tenant user can read data (they cannot perform admin/write actions without a mapped role). Assign Entra app roles and/or set AUTH_REQUIRED_ROLES to restrict who can sign in.');
+}
 
 // Load auth config from DB (with env var fallback). Best-effort — if the DB
 // isn't reachable yet at startup we'll fall back to env vars and the admin

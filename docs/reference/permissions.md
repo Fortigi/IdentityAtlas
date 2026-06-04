@@ -64,7 +64,30 @@ A fresh install ships with this mapping (customisable in the Admin UI):
 | `RoleMiner` | `data.read`, `data.export.ui`, `data.export.apikey` |
 | `Servicedesk` | `data.read` |
 
-A signed-in user whose roles resolve to **no** permissions currently falls back to the `*` wildcard (a backward-compatibility behaviour for installs that haven't assigned app roles yet). Set `AUTH_REQUIRED_ROLES` to require an explicit role for any access.
+### No-role users fail closed
+
+A signed-in user whose roles resolve to **no** permissions is **denied** every permission gate — they can authenticate but cannot perform any admin or write action. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw). Note that read endpoints are not permission-gated, so a roleless user can still *read* data; set `AUTH_REQUIRED_ROLES` to keep roleless users from signing in at all.
+
+### Getting the first admin in (bootstrap)
+
+Because there's no fallback, you must grant access explicitly:
+
+1. In Entra ID, assign your user to an **app role** that the mapping maps to permissions — the seed maps the **`Admin`** role to `*` (full access).
+2. Then enable auth (`AUTH_ENABLED=true`) and sign in.
+
+**Locked yourself out?** If you enabled auth before assigning yourself a role, no one can reach the admin UI. Recover from the host shell with the auth CLI — disable auth, assign the role in Entra, then re-enable:
+
+```bash
+# 1. Disable auth (recovery path), then restart:
+docker compose exec web node src/cli/auth-config.js disable
+docker compose restart web
+
+# 2. Assign your user the Admin app role in Entra ID.
+
+# 3. Re-enable auth and restart:
+docker compose exec web node src/cli/auth-config.js enable --tenant <tenant-guid> --client <client-guid>
+docker compose restart web
+```
 
 ## UI gating
 

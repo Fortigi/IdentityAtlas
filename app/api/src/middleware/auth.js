@@ -118,18 +118,19 @@ export function authMiddleware(req, res, next) {
 
     // Resolve roles -> permissions via the configured (or seed) mapping.
     //
-    // Backwards-compat rule: a signed-in user with NO recognised roles gets
-    // a sentinel '*' permission, same as the wildcard for Admin in the seed
-    // mapping. This preserves existing behaviour for installs that have not
-    // yet assigned users to the Entra app roles. The moment the customer
-    // assigns at least one role that's in the mapping, that role's explicit
-    // permissions apply and the wildcard fallback no longer kicks in for
-    // that user.
+    // Fail closed: a token whose roles aren't in the mapping resolves to an
+    // EMPTY permission set and is denied by every requirePermission gate. There
+    // is deliberately NO "no recognised roles -> wildcard admin" fallback — that
+    // previously made any authenticated tenant user a full admin whenever app
+    // roles hadn't been assigned yet (security finding C-01).
+    //
+    // To grant access, assign the user an Entra app role that the mapping maps
+    // to permissions (the seed maps the 'Admin' role to '*'). Locked yourself
+    // out by enabling auth before assigning a role? Use the CLI to toggle auth
+    // off, assign the role, then turn it back on (see cli/auth-config.js).
+    // Set AUTH_REQUIRED_ROLES to also keep roleless users off read endpoints.
     const mapping = getRolePermissions();
-    let permissions = resolvePermissions(tokenRoles, mapping);
-    if (permissions.size === 0) {
-      permissions = new Set(['*']);
-    }
+    const permissions = resolvePermissions(tokenRoles, mapping);
 
     req.user = decoded;
     req.user.roles = tokenRoles;
