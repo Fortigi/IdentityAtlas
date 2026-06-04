@@ -795,7 +795,10 @@ if ($SyncContextMembers) {
             $IdentUid   = if ($Item.CA_IDENTITY) { [string]$Item.CA_IDENTITY.UId } else { $Null }
             $ContextUid = if ($Item.CA_CONTEXT)  { [string]$Item.CA_CONTEXT.UId  } else { $Null }
             if (-not $IdentUid -or -not $ContextUid) { continue }
-            if ($SyncedContextIds.Count -gt 0 -and -not $SyncedContextIds.Contains($ContextUid)) { continue }
+            # Skip when no contexts were synced (empty set = all IDs unknown) OR this specific ID wasn't synced.
+            # The previous check ($Count -gt 0 -and -not Contains) allowed ALL IDs through when the set was
+            # empty, causing FK violations if the Contexts table is empty (e.g. cloud with no Orgunit entity set).
+            if ($SyncedContextIds.Count -eq 0 -or -not $SyncedContextIds.Contains($ContextUid)) { continue }
             if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
             $CtxMemberRecords.Add([PSCustomObject]@{
                 contextId  = $ContextUid
