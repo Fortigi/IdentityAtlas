@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Cut Hotfix workflow now builds and attaches the portable Windows ZIP to the GitHub release, matching the Cut Release workflow
+
+## Changes in this PR
+
+- Fixed: launching the portable launcher a second time while Identity Atlas is already running no longer crashes — it now detects the existing instance and opens the browser instead
+- Fixed: portable Windows launcher now correctly shows the release version number (e.g. "5.7.0") in the UI version card and footer instead of showing no version
+
+## Changes in this PR
+
+- Security: removed the Admin → "Containers" live-stats view and, with it, the Docker socket mount (`/var/run/docker.sock`) from the web container. Mounting the Docker socket into the web service was a host-takeover risk — a compromise of the web process could control the Docker daemon and the host. The container-stats dashboard didn't justify that exposure. Crawlers, data sync, and all other functionality are unaffected.
+
+## Changes in this PR
+
 - Docs version picker now shows the release version number (e.g. "5.7.0") instead of "stable"
 - Cut Beta and Cut Release workflows now accept an optional ref input so releases can be cut from any commit, tag, or branch (default: main); docs deploy from the same ref
 

@@ -60,9 +60,6 @@ services:
   # ── Web (serves built frontend + API) ────────────────────────────────────────
   web:
     image: ghcr.io/fortigi/identity-atlas:${IMAGE_TAG:-latest}
-    # The container runs as the unprivileged `node` user. The Docker socket
-    # is owned by root:root 0660, so node needs GID 0 to read container stats.
-    group_add: ["0"]
     environment:
       NODE_ENV:    production
       USE_SQL:     "true"  # legacy flag — still used by routes to enable DB-backed mode
@@ -90,7 +87,6 @@ services:
       - "${PORT:-3001}:3001"
     volumes:
       - job_data:/data/uploads
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       postgres:
         condition: service_healthy
