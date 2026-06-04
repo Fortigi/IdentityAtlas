@@ -2511,6 +2511,21 @@
 <td>Comma-separated allowed CORS origins. Defaults to same-origin in production.</td>
 </tr>
 <tr>
+<td><code>BEHIND_TLS</code></td>
+<td>No</td>
+<td>Set to <code>true</code> when a TLS terminator (Caddy, nginx, Azure Front Door) sits in front. Enables HSTS/CSP upgrades and makes the Excel workbook export embed <code>https://</code> URLs.</td>
+</tr>
+<tr>
+<td><code>PUBLIC_BASE_URL</code></td>
+<td>No</td>
+<td>Authoritative public URL of the deployment (e.g. <code>https://atlas.example.com</code>). When set, the Excel workbook export embeds this instead of deriving the URL from request headers. <strong>Recommended for any deployment reached through a proxy, tunnel, or Azure</strong> — it removes any dependency on (spoofable) <code>Host</code>/<code>X-Forwarded-*</code> headers.</td>
+</tr>
+<tr>
+<td><code>TRUST_PROXY</code></td>
+<td>No</td>
+<td>Set to <code>true</code> only when a trusted reverse proxy in front overwrites <code>X-Forwarded-Host</code>/<code>X-Forwarded-Proto</code>. Off by default, so forwarded headers are ignored when resolving the workbook export URL (prevents token exfiltration via header spoofing). Prefer <code>PUBLIC_BASE_URL</code> where possible.</td>
+</tr>
+<tr>
 <td><code>USE_MOCK</code></td>
 <td>No</td>
 <td>Set to <code>true</code> to use mock data instead of PostgreSQL (local dev only)</td>
