@@ -1,0 +1,1 @@
+- Fixed: portable Windows launcher worker never picked up queued jobs (demo data import, crawlers) because the worker API key was read before the server finished writing it
