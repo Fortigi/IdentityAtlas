@@ -69,9 +69,11 @@ describe('authMiddleware — real RS256 token validation', () => {
     expect(res.body.enabled).toBe(true);
   });
 
-  it('accepts the bare clientId audience too (documents current behaviour — finding H-01)', async () => {
+  it('rejects the bare clientId audience — id_tokens are not accepted (H-01 fixed)', async () => {
+    // An id_token carries aud = bare <clientId>. Only access tokens for the
+    // exposed API scope (aud = api://<clientId>) are accepted.
     const res = await callWith(mint({ aud: CLIENT }));
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
   });
 
   it('rejects a wrong audience (401)', async () => {
