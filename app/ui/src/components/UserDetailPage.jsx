@@ -303,12 +303,12 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
 // ─── Identity Membership banner — unchanged from v1 ────────────────────
 
 const ACCOUNT_TYPE_COLORS = {
-  Regular:  'bg-blue-100 text-blue-800 border-blue-200',
-  Admin:    'bg-red-100 text-red-800 border-red-200',
-  Test:     'bg-amber-100 text-amber-800 border-amber-200',
-  Service:  'bg-purple-100 text-purple-800 border-purple-200',
-  Shared:   'bg-teal-100 text-teal-800 border-teal-200',
-  External: 'bg-gray-100 text-gray-600 border-gray-200',
+  Regular:  'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
+  Admin:    'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700',
+  Test:     'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700',
+  Service:  'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700',
+  Shared:   'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-700',
+  External: 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600',
 };
 
 function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
