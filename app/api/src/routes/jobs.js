@@ -1021,7 +1021,7 @@ router.get('/admin/status', gate, async (req, res) => {
 // POST /api/admin/omada/validate-metadata — fetch $metadata from the Omada server
 // and return the available EntitySets and Identity entity property names.
 // Used by the wizard to validate contextObjectTypes entries in real time.
-router.post('/admin/omada/validate-metadata', async (req, res) => {
+router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
   const { configId } = req.body;
   if (!configId) return res.status(400).json({ error: 'configId required' });
 
