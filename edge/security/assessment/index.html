@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/operations/nightly-review/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/security/assessment/">
       
       
-        <link rel="prev" href="../../architecture/demo-dataset/">
+        <link rel="prev" href="../../reference/sbom/">
       
       
-        <link rel="next" href="../../reference/troubleshooting/">
+        <link rel="next" href="../../about/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Nightly Review - Identity Atlas</title>
+        <title>Assessment & Remediation - Identity Atlas</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#nightly-tests-automated-claude-review" class="md-skip">
+        <a href="#security-assessment-remediation" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Nightly Review
+              Assessment & Remediation
             
           </span>
         </div>
@@ -362,12 +362,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../architecture/scaling/" class="md-tabs__link">
           
   
@@ -424,11 +422,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../security/assessment/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -1405,31 +1405,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
             
   
   
@@ -1447,7 +1444,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1518,37 +1515,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Nightly Review
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
         
   
   
@@ -1564,170 +1534,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#what-gets-tested" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What gets tested
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What gets tested">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#deep-assertions-added-april-2026" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deep assertions added April 2026
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scheduling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Scheduling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-review-pass" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The review pass
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The review pass">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#path-a-claude-code-in-headless-fix-it-mode-preferred" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path A — Claude Code in headless fix-it mode (preferred)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-b-anthropic-api-analysis-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path B — Anthropic API analysis only
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-c-no-llm-available" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path C — No LLM available
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cost-shape" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost shape
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#safety-constraints" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Safety constraints
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#testing-the-wrapper-without-scheduling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Testing the wrapper without scheduling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#where-to-look-in-the-morning" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Where to look in the morning
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#limitations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Limitations
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2146,28 +1952,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
-        
-          
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="">
             
   
   
@@ -2185,7 +1994,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2200,10 +2009,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../security/assessment/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2219,6 +2055,142 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#result-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Result at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#findings-remediation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Findings &amp; remediation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Findings &amp; remediation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#critical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#low-informational" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Low / Informational
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supporting-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supporting work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strengths-confirmed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strengths (confirmed)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remediation-roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remediation roadmap
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2375,22 +2347,77 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-gets-tested" class="md-nav__link">
+  <a href="#scope" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What gets tested
+        Scope
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="What gets tested">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#result-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Result at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#findings-remediation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Findings &amp; remediation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Findings &amp; remediation">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#deep-assertions-added-april-2026" class="md-nav__link">
+  <a href="#critical" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deep assertions added April 2026
+        Critical
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#low-informational" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Low / Informational
       
     </span>
   </a>
@@ -2403,10 +2430,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scheduling" class="md-nav__link">
+  <a href="#supporting-work" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Scheduling
+        Supporting work
       
     </span>
   </a>
@@ -2414,60 +2441,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-review-pass" class="md-nav__link">
+  <a href="#strengths-confirmed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The review pass
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The review pass">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#path-a-claude-code-in-headless-fix-it-mode-preferred" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path A — Claude Code in headless fix-it mode (preferred)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-b-anthropic-api-analysis-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path B — Anthropic API analysis only
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#path-c-no-llm-available" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Path C — No LLM available
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cost-shape" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost shape
+        Strengths (confirmed)
       
     </span>
   </a>
@@ -2475,43 +2452,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#safety-constraints" class="md-nav__link">
+  <a href="#remediation-roadmap" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Safety constraints
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#testing-the-wrapper-without-scheduling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Testing the wrapper without scheduling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#where-to-look-in-the-morning" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Where to look in the morning
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#limitations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Limitations
+        Remediation roadmap
       
     </span>
   </a>
@@ -2561,10 +2505,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../architecture/scaling/" class="md-path__link">
+        <a href="./" class="md-path__link">
           
   <span class="md-ellipsis">
-    Operations
+    Security
   </span>
 
         </a>
@@ -2586,252 +2530,301 @@
   
 
 
-<h1 id="nightly-tests-automated-claude-review">Nightly tests + automated Claude review<a class="headerlink" href="#nightly-tests-automated-claude-review" title="Permanent link">&para;</a></h1>
-<p>This document covers the automated nightly suite that runs at 04:00 daily on
-the developer workstation, plus the optional Claude-driven review pass that
-fires only when something fails.</p>
-<h2 id="what-gets-tested">What gets tested<a class="headerlink" href="#what-gets-tested" title="Permanent link">&para;</a></h2>
-<p>The runner is <code>test/nightly/Run-NightlyAndReview.ps1</code>. It wraps the existing
-<code>Run-NightlyLocal.ps1</code> and adds a post-test review step. Phases:</p>
+<h1 id="security-assessment-remediation">Security Assessment &amp; Remediation<a class="headerlink" href="#security-assessment-remediation" title="Permanent link">&para;</a></h1>
+<p>Identity Atlas underwent an independent <strong>white-box security assessment and penetration test</strong> by Fortigi in June 2026, commissioned for a regulated financial-services deployment. The review combined a full source-code audit with authenticated and black-box testing of a live deployment.</p>
+<p>This page is a <strong>public, sanitized summary</strong>: it records what was assessed, the findings by severity and status, and the pull requests that remediated them. Step-by-step exploit detail, proof-of-concept payloads, attack chains, and live-environment specifics are deliberately omitted. The full technical report is <strong>confidential</strong> and available to customers and auditors on request.</p>
+<div class="admonition info">
+<p class="admonition-title">Why we publish this</p>
+<p>We believe a governance product should be transparent about its own security. Every Critical and High finding has been remediated and merged; the remaining items are tracked openly below. Technical exploit detail for any finding that is not yet fully remediated is withheld.</p>
+</div>
+<hr />
+<h2 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Node.js API</strong> — authentication, authorization, all route handlers, the database access layer, secrets vault, ingest pipeline, and the LLM / risk-scoring subsystem.</li>
+<li><strong>React UI</strong> — client-side injection sinks and data-export routines.</li>
+<li><strong>PowerShell worker &amp; crawlers.</strong></li>
+<li><strong>Container &amp; deployment artefacts</strong> — Compose files, Dockerfiles, setup scripts, Azure IaC, and CI/CD workflows.</li>
+<li><strong>A live deployment</strong> — unauthenticated network surface, transport security, and data-at-rest exposure.</li>
+</ul>
+<p><strong>Methodology:</strong> manual white-box code review across six specialist work-streams (authentication/authorization, SQL/data, secrets/crypto, the PowerShell worker, container/infrastructure, and web/SSRF/upload), cross-checked against live testing. Risk ratings reflect a regulated financial-services context (DORA, SOX ITGC, ISO 27001, NIST 800-53).</p>
+<hr />
+<h2 id="result-at-a-glance">Result at a glance<a class="headerlink" href="#result-at-a-glance" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Phase</th>
-<th>What it does</th>
+<th>Severity</th>
+<th>Found</th>
+<th>Remediated / accepted</th>
+<th>Open</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>1</td>
-<td>PowerShell unit tests (Pester)</td>
-</tr>
-<tr>
-<td>1b</td>
-<td>Verify deleted-function references don't sneak back in</td>
-</tr>
-<tr>
+<td>Critical</td>
 <td>2</td>
-<td>Backend Vitest tests (<code>app/api/</code>)</td>
+<td>2</td>
+<td>0</td>
 </tr>
 <tr>
+<td>High</td>
+<td>9</td>
+<td>9</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>12</td>
 <td>3</td>
-<td>Frontend Vitest tests (<code>app/ui/</code>)</td>
+<td>9</td>
 </tr>
 <tr>
-<td>4a-c</td>
-<td>Provision a fresh Docker stack, wait for migrations, verify schema</td>
-</tr>
-<tr>
-<td>4d-e</td>
-<td>Queue a demo crawler job, verify the data lands</td>
-</tr>
-<tr>
-<td>4f</td>
-<td>Smoke-test all read endpoints</td>
-</tr>
-<tr>
-<td>4g</td>
-<td>Entra ID crawler scenarios (Validate-Only, Identity-Only, Users-Groups, Full-Sync, With-Identity-Filter). Skipped when test/test.secrets.json is missing.</td>
-</tr>
-<tr>
-<td>4h</td>
-<td>LLM / secrets / risk-profile substrate smoke test</td>
-</tr>
-<tr>
-<td>5</td>
-<td>Playwright E2E browser tests</td>
-</tr>
-<tr>
-<td>6</td>
-<td>API documentation completeness check</td>
-</tr>
-<tr>
-<td>Review</td>
-<td>(Only on failure) Investigate, fix, re-run</td>
+<td>Low / Informational</td>
+<td>7</td>
+<td>—</td>
+<td>7</td>
 </tr>
 </tbody>
 </table>
-<h3 id="deep-assertions-added-april-2026">Deep assertions added April 2026<a class="headerlink" href="#deep-assertions-added-april-2026" title="Permanent link">&para;</a></h3>
-<p>The Full-Sync scenario does more than count rows now. After every Entra crawler
-completes successfully it runs:</p>
-<ul>
-<li><strong><code>Assert-MatrixWorks</code></strong> — verifies <code>/api/permissions?userLimit=25</code> returns
-  rows with the right shape, <code>/api/access-package-groups</code> is reachable, and
-  <code>/api/groups-with-nested</code> returns the expected envelope. This catches the
-  "matrix loads but is empty" class of bug.</li>
-<li><strong><code>Assert-BusinessRolesWork</code></strong> — verifies the Business Roles list returns
-  rows with non-zero <code>totalAssignments</code>. This was the April 2026 regression
-  where the route returned rows but with all-zero counts because the SQL
-  filter used lowercase <code>'delivered'</code> while the column stores <code>'Delivered'</code>.</li>
-<li><strong><code>Assert-SyncLogShape</code></strong> — verifies the sync log has entries, every entry
-  has a numeric <code>DurationSeconds</code>, and (only after a real Entra Full-Sync)
-  there's an <code>EntraID-FullCrawl</code> row written by the crawler script at
-  end-of-run.</li>
-<li><strong><code>Assert-PostSyncEndpoints</code></strong> — pings all the routes that were broken or
-  T-SQL-leftover after the postgres rewrite (governance/summary,
-  governance/categories, governance/review-compliance, admin/llm/status,
-  admin/llm/config, admin/history-retention, risk-profiles, risk-classifiers,
-  risk-scoring/runs).</li>
-</ul>
-<p>The substrate phase (4h) runs <code>Test-LLMSubstrate.ps1</code> and validates the LLM
-config endpoint, the secrets vault round-trip, and that the scoring run
-endpoint returns 412 (preconditions failed) rather than 500 when no
-classifier is active.</p>
-<h2 id="scheduling">Scheduling<a class="headerlink" href="#scheduling" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c"># Register the wrapper at 04:00 daily (default)</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c"># Pick a different time</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-Time</span> <span class="s1">&#39;03:30&#39;</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c"># Also remove the old standalone test task — recommended, since the wrapper</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c"># already runs the nightly tests.</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-RemoveOldNightlyTask</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c"># Remove the schedule</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Register-ReviewSchedule</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-Unregister</span>
-</code></pre></div>
-<p>The task runs as the current user with <code>S4U</code> logon — no password prompt, runs
-whether or not the user is signed in. It does <strong>not</strong> wake the workstation,
-because Docker on Windows doesn't always cope with cold-start under power
-management. Make sure the box stays awake (or wake it via BIOS scheduling
-if you need to).</p>
-<p>Logs land in <code>test/nightly/results/&lt;yyyy-MM-dd_HHmm&gt;/</code>. A one-line summary
-per run is appended to <code>test/nightly/results/_rolling-summary.log</code> so you can
-<code>tail</code> it to see the last week of pass/fail status.</p>
-<h2 id="the-review-pass">The review pass<a class="headerlink" href="#the-review-pass" title="Permanent link">&para;</a></h2>
-<p>When the test suite has zero failures, the review pass is a <strong>no-op</strong> — it
-writes a single line to the rolling log and exits. No LLM tokens are spent.
-This is the design: pay only when there's something to fix.</p>
-<p>When there are failures, the wrapper builds a structured prompt with:</p>
-<ul>
-<li>The list of failed test names and their detail strings</li>
-<li>The current branch, HEAD commit, and last commit's <code>git log -1 --name-status</code></li>
-<li>Paths to all log files in the run folder</li>
-<li>The constraint block (what Claude is and isn't allowed to do)</li>
-<li>The token budget</li>
-</ul>
-<p>Then it picks one of three execution paths in priority order:</p>
-<h3 id="path-a-claude-code-in-headless-fix-it-mode-preferred">Path A — Claude Code in headless fix-it mode (preferred)<a class="headerlink" href="#path-a-claude-code-in-headless-fix-it-mode-preferred" title="Permanent link">&para;</a></h3>
-<p>If the <code>claude</code> CLI is on <code>PATH</code> (or at <code>$ClaudeCli</code>), the wrapper invokes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>claude -p &quot;&lt;prompt&gt;&quot; --dangerously-skip-permissions --add-dir &lt;repo&gt;
-</code></pre></div>
-<p>Claude has read/edit/run permission on the repo, can rebuild containers,
-re-run individual tests, and commit fixes on a fresh <code>nightly-review/&lt;date&gt;</code>
-branch. <strong>It cannot push.</strong> The morning operator reviews and decides.</p>
-<p>After Claude finishes, the wrapper re-runs the nightly suite once and uses
-<em>that</em> exit code as its own. So a successful auto-fix run looks like:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>04:00  Run-NightlyAndReview.ps1 starts
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>04:01  Phase 1-4 run, 1 failure detected in Phase 4f
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>04:30  Claude invoked, identifies the issue, edits a file, rebuilds web
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>04:35  Claude commits to nightly-review/2026-04-09 and exits
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>04:35  Wrapper re-runs the nightly suite
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>05:05  Re-run completes with 0 failures
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>05:05  Wrapper writes &quot;FIXED&quot; to the rolling log and exits 0
-</code></pre></div>
-<h3 id="path-b-anthropic-api-analysis-only">Path B — Anthropic API analysis only<a class="headerlink" href="#path-b-anthropic-api-analysis-only" title="Permanent link">&para;</a></h3>
-<p>If <code>claude</code> isn't installed but <code>ANTHROPIC_API_KEY</code> is set (or
-<code>test/test.secrets.json</code> has an <code>AnthropicApiKey</code> field), the wrapper makes
-<strong>one</strong> API call and writes Claude's analysis to <code>review-analysis.md</code> in the
-run folder. No fix attempt, no re-run. Token usage is bounded by
-<code>-MaxTokensPerReview</code> (default 4096 → roughly $0.05 per call).</p>
-<h3 id="path-c-no-llm-available">Path C — No LLM available<a class="headerlink" href="#path-c-no-llm-available" title="Permanent link">&para;</a></h3>
-<p>If neither path is configured, the wrapper writes the full prompt to
-<code>claude-prompt.txt</code> in the run folder so you can paste it into Claude Code
-manually in the morning.</p>
-<h2 id="cost-shape">Cost shape<a class="headerlink" href="#cost-shape" title="Permanent link">&para;</a></h2>
+<p><strong>All Critical and High findings are fixed and merged to <code>main</code>.</strong> Remediation of the remaining Medium and Low items is in progress and tracked below.</p>
+<p>The assessment also recorded a number of <strong>existing strengths</strong> that were explicitly preserved during remediation — see <a href="#strengths-confirmed">Strengths</a>.</p>
+<hr />
+<h2 id="findings-remediation">Findings &amp; remediation<a class="headerlink" href="#findings-remediation" title="Permanent link">&para;</a></h2>
+<p>Status legend: ✅ <strong>Fixed</strong> (merged) · 🟦 <strong>By design</strong> (supported configuration, documented) · 🟨 <strong>Partially addressed</strong> · 🔧 <strong>Remediation planned</strong>.</p>
+<h3 id="critical">Critical<a class="headerlink" href="#critical" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>Outcome</th>
-<th>LLM tokens</th>
-<th>Cost (rough)</th>
+<th>ID</th>
+<th>Finding</th>
+<th>Status</th>
+<th>PR</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>All tests pass</td>
-<td>0</td>
-<td>$0</td>
+<td>C-01</td>
+<td>Authorization fail-open: a token resolving to no permissions was granted full admin</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/197">#197</a></td>
 </tr>
 <tr>
-<td>Failure, Path A</td>
-<td>~5k-30k</td>
-<td>$0.10-$2.00</td>
-</tr>
-<tr>
-<td>Failure, Path B</td>
-<td>~2k-4k</td>
-<td>$0.02-$0.08</td>
+<td>C-02</td>
+<td>Self-hosted deployment can run with authentication disabled</td>
+<td>🟦 By design — no-auth is a supported option for trusted/local installs; behaviour and guidance documented</td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
-<p>If the suite has been green for a week, the review system has cost you
-nothing. Cost only happens when there's actually something to investigate.</p>
-<h2 id="safety-constraints">Safety constraints<a class="headerlink" href="#safety-constraints" title="Permanent link">&para;</a></h2>
-<p>The prompt template at <code>test/nightly/claude-review-prompt.md</code> explicitly
-forbids:</p>
+<h3 id="high">High<a class="headerlink" href="#high" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Finding</th>
+<th>Status</th>
+<th>PR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H-01</td>
+<td>Token-audience boundary: <code>id_token</code>s were accepted alongside access tokens</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/198">#198</a></td>
+</tr>
+<tr>
+<td>H-02</td>
+<td>Privileged credentials stored in plaintext instead of the encrypted vault</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/201">#201</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/202">#202</a></td>
+</tr>
+<tr>
+<td>H-03</td>
+<td>Database reachable on the network by default</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/199">#199</a></td>
+</tr>
+<tr>
+<td>H-04</td>
+<td>Default database password in the shipped production Compose file</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/199">#199</a></td>
+</tr>
+<tr>
+<td>H-05</td>
+<td>Docker socket bind-mounted into the web container</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/213">#213</a></td>
+</tr>
+<tr>
+<td>H-06</td>
+<td>Server-Side Request Forgery (SSRF) in the URL scraper</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/205">#205</a></td>
+</tr>
+<tr>
+<td>H-07</td>
+<td>Regular-expression denial-of-service via generated patterns</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/209">#209</a></td>
+</tr>
+<tr>
+<td>H-08</td>
+<td>Read-token admin-path guard was ineffective</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/204">#204</a></td>
+</tr>
+<tr>
+<td>H-09</td>
+<td>CI/CD secret-exposure and untrusted-input hardening</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/214">#214</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="medium">Medium<a class="headerlink" href="#medium" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Category</th>
+<th>Status</th>
+<th>PR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-01</td>
+<td>Transport security — wire TLS / <code>BEHIND_TLS</code> end to end</td>
+<td>🟨 Partially addressed (env documented)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>M-02</td>
+<td>Authorization coverage on mutating endpoints</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>M-03</td>
+<td>Crawler ingest authorization scoping</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>M-04</td>
+<td>Role-permission editor: lockout guard, audit trail</td>
+<td>🟨 Partially addressed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/194">#194</a></td>
+</tr>
+<tr>
+<td>M-05</td>
+<td>Spreadsheet formula injection in UI exporters</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/215">#215</a></td>
+</tr>
+<tr>
+<td>M-06</td>
+<td>Internal error detail returned to clients</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>M-07</td>
+<td>Vault master-key handling policy</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>M-08</td>
+<td>PowerShell worker hardening</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>M-09</td>
+<td>Workbook export base URL trust (token-handling)</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/216">#216</a></td>
+</tr>
+<tr>
+<td>M-10</td>
+<td>Rate limiting on expensive surfaces (auth-off installs)</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>M-11</td>
+<td>Container hardening &amp; resource limits</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>M-12</td>
+<td>Azure IaC network/secret hardening</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="low-informational">Low / Informational<a class="headerlink" href="#low-informational" title="Permanent link">&para;</a></h3>
+<p>Seven Low/Informational items were recorded (information disclosure on public metadata endpoints, dependency hygiene, and minor non-security functional bugs). These are tracked internally and scheduled alongside the remaining Medium items. Technical detail is withheld here pending remediation.</p>
+<hr />
+<h2 id="supporting-work">Supporting work<a class="headerlink" href="#supporting-work" title="Permanent link">&para;</a></h2>
+<p>Beyond the per-finding fixes, the remediation programme added preventative guardrails:</p>
 <ul>
-<li><code>git push</code> (anywhere, ever)</li>
-<li><code>git reset --hard</code>, <code>git clean -f</code>, <code>git branch -D</code></li>
-<li><code>docker compose down -v</code></li>
-<li>Dropping database tables, deleting database rows</li>
-<li><code>--no-verify</code>, <code>--no-gpg-sign</code>, or any flag that bypasses commit hooks</li>
-<li>Modifying CI/CD pipeline files</li>
+<li><strong>Permission model</strong> — a documented, tested role/permission catalog with the granular-permission bug fixed and per-route gating, plus a CI gate that blocks merges lacking tests or documentation (<a href="https://github.com/Fortigi/IdentityAtlas/pull/194">#194</a>).</li>
+<li><strong>Supply chain</strong> — all GitHub Actions pinned to commit SHAs with Dependabot keeping them current (<a href="https://github.com/Fortigi/IdentityAtlas/pull/214">#214</a>).</li>
 </ul>
-<p>Claude is told to commit fixes on a fresh <code>nightly-review/&lt;date&gt;</code> branch and
-stop. The morning operator decides whether to merge.</p>
-<h2 id="testing-the-wrapper-without-scheduling">Testing the wrapper without scheduling<a class="headerlink" href="#testing-the-wrapper-without-scheduling" title="Permanent link">&para;</a></h2>
-<p>Run it on demand:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c"># Full thing — runs the nightly suite, reviews failures, re-runs</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">Run-NightlyAndReview</span><span class="p">.</span><span class="n">ps1</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c"># Skip the fix-it Claude invocation. Useful before you trust the system.</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c"># Will still run the nightly tests + (if there&#39;s an API key) produce a</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c"># read-only analysis markdown.</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">Run-NightlyAndReview</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-NoFix</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c"># Check that the assertions wired up correctly without a full nightly run</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="nb">Test-LLMSubstrate</span><span class="p">.</span><span class="n">ps1</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">pwsh</span> <span class="o">-File</span> <span class="n">test</span><span class="p">\</span><span class="n">nightly</span><span class="p">\</span><span class="n">dry-run-assertions</span><span class="p">.</span><span class="n">ps1</span>
-</code></pre></div>
-<p>The dry-run script loads only the new <code>Assert-*</code> helpers from
-<code>Test-EntraIdCrawler.ps1</code> and runs them against whatever data is currently in
-the local stack. It needs the demo dataset (or a real crawler) loaded first;
-queue a demo job from the UI or via:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;jobType&quot;:&quot;demo&quot;}&#39;</span><span class="w"> </span>http://localhost:3001/api/admin/crawler-jobs
-</code></pre></div>
-<h2 id="where-to-look-in-the-morning">Where to look in the morning<a class="headerlink" href="#where-to-look-in-the-morning" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>test/nightly/results/_rolling-summary.log    ← one line per nightly run
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>test/nightly/results/&lt;date&gt;/
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  ├── results.json                            ← machine-readable test results
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  ├── nightly-output.log                      ← full nightly stdout
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  ├── review.log                              ← wrapper&#39;s own log
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  ├── review-analysis.md                      ← Claude&#39;s analysis (Path A or B)
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  └── claude-prompt.txt                       ← the prompt that was sent (Path C)
-</code></pre></div>
-<p>If the rolling log says <code>FIXED</code>, look at the <code>nightly-review/&lt;date&gt;</code> git
-branch to see what Claude changed.</p>
-<p>If it says <code>FAIL</code>, open <code>review-analysis.md</code> to see what Claude found before
-giving up.</p>
-<p>If it says <code>PASS</code>, you have nothing to do.</p>
-<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<hr />
+<h2 id="strengths-confirmed">Strengths (confirmed)<a class="headerlink" href="#strengths-confirmed" title="Permanent link">&para;</a></h2>
+<p>The assessment confirmed a number of design strengths, which were preserved throughout remediation:</p>
 <ul>
-<li><strong>The wrapper cannot wake the workstation.</strong> If the box was suspended at
-  04:00 the task runs whenever it next starts. Plan accordingly.</li>
-<li><strong>The Anthropic API key must live somewhere the wrapper can read it
-  without the Identity Atlas stack.</strong> The vault inside Identity Atlas is
-  intentionally NOT used as the primary source — at 4 AM the most likely
-  reason for needing the review is that Identity Atlas itself is broken.
-  Use <code>ANTHROPIC_API_KEY</code> env var or <code>test/test.secrets.json</code>.</li>
-<li><strong>Path A (fix-it mode) requires the Claude Code CLI on PATH.</strong> If you
-  haven't installed it, the wrapper falls back to Path B automatically.</li>
-<li><strong>Re-runs are full nightly runs.</strong> They take ~30 minutes. The wrapper does
-  not yet support "re-run only the failed tests" — if you need that, run
-  the individual scenario script directly (e.g.
-  <code>Test-EntraIdCrawler.ps1 -Scenarios @('Identity-Only')</code>).</li>
+<li><strong>No SQL injection</strong> — every dynamic-SQL site is parameterised, with identifiers gated by fixed lookup maps or strict allowlists.</li>
+<li><strong>Sound vault cryptography</strong> — AES-256-GCM envelope encryption with per-row data keys and verified authentication tags.</li>
+<li><strong>Strong crawler-key handling</strong> — scrypt with OWASP parameters, salted, constant-time comparison.</li>
+<li><strong>Disciplined JWT validation</strong> — pinned RS256, with issuer and tenant checks.</li>
+<li><strong>CORS done correctly</strong> — static allowlist, no origin reflection, closed-by-default in production.</li>
+<li><strong>No XSS sinks</strong> in the UI, with a restrictive Content-Security-Policy.</li>
+<li><strong>Hardened CSV upload</strong> — path-traversal blocked, type/size caps, sanitised filenames.</li>
+<li><strong>Well-hardened Azure deployment path</strong> — HTTPS-only, TLS 1.2, Key Vault via managed identity, authentication on by default.</li>
 </ul>
+<hr />
+<h2 id="remediation-roadmap">Remediation roadmap<a class="headerlink" href="#remediation-roadmap" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Focus</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P0</strong></td>
+<td>Authorization fail-closed, token audience, database exposure, vaulted credentials</td>
+<td>✅ Complete</td>
+</tr>
+<tr>
+<td><strong>P1</strong></td>
+<td>Auth-on guidance, mandatory DB password, Docker socket removal, read-token fix, transport</td>
+<td>✅ Complete (transport guidance documented)</td>
+</tr>
+<tr>
+<td><strong>P2</strong></td>
+<td>SSRF &amp; ReDoS, CI hardening, authorization gates, crawler scoping, key-management policy</td>
+<td>🟨 In progress</td>
+</tr>
+<tr>
+<td><strong>P3</strong></td>
+<td>Remaining Medium &amp; Low items</td>
+<td>🔧 Scheduled</td>
+</tr>
+</tbody>
+</table>
+<p>A follow-up re-test is recommended once the remaining Medium items are remediated.</p>
+<hr />
+<p><em>The full technical report is classified </em><em>Confidential</em><em> and is available to customers and auditors on request. No changes were made to any repository or deployment during the assessment itself — it was a read-only inspection.</em></p>
 
 
 
