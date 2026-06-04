@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a **UI Style Guide** to the documentation (Contributing → UI Style Guide): the canonical colour system (green = brand/identity, blue = interactive), dark-mode and accessibility rules, component conventions, and a terminology glossary that future contributions follow.
+
+## Changes in this PR
+
 - The dashboard/entity relationship graph now respects the OS "reduce motion" setting — its pulsing rings and animated edges stop for users who request reduced motion (completing the reduced-motion support added to the rest of the app).
 
 ## Changes in this PR
