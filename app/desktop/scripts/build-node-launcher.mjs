@@ -30,7 +30,9 @@ const ZIP_PATH    = join(DIST_DIR, 'IdentityAtlas-portable.zip');
 
 const NODE_VERSION   = '24.16.0';
 const NODE_URL       = `https://nodejs.org/dist/v${NODE_VERSION}/win-x64/node.exe`;
-const NODE_SHASUMS   = `https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt`;
+// SHA-256 from https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt (win-x64/node.exe)
+// Update both NODE_VERSION and NODE_SHA256 together when bumping Node.js.
+const NODE_SHA256    = 'b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3';
 
 const SKIP_UI   = process.argv.includes('--skip-ui-build');
 const ESBUILD   = process.platform === 'win32'
@@ -142,9 +144,7 @@ if (!existsSync(NODE_DEST)) {
 }
 console.log('  Verifying node.exe SHA-256...');
 pwsh(`
-  $shasums = (Invoke-WebRequest -Uri '${NODE_SHASUMS}' -UseBasicParsing).Content
-  $expected = ($shasums -split '\n' | Where-Object { $_ -match 'win-x64/node\\.exe' } | Select-Object -First 1).Trim().Split()[0]
-  if (-not $expected) { throw 'Could not find win-x64/node.exe entry in SHASUMS256.txt' }
+  $expected = '${NODE_SHA256}'
   $actual = (Get-FileHash '${NODE_DEST.replace(/\\/g, '\\\\')}' -Algorithm SHA256).Hash.ToLower()
   if ($actual -ne $expected) { throw "node.exe SHA-256 mismatch: expected $expected got $actual" }
   Write-Host "  SHA-256 verified: $actual" -ForegroundColor Green
