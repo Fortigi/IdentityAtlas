@@ -1,5 +1,25 @@
 ## Changes in this PR
 
+- Added a **UI Style Guide** to the documentation (Contributing → UI Style Guide): the canonical colour system (green = brand/identity, blue = interactive), dark-mode and accessibility rules, component conventions, and a terminology glossary that future contributions follow.
+
+## Changes in this PR
+
+- The dashboard/entity relationship graph now respects the OS "reduce motion" setting — its pulsing rings and animated edges stop for users who request reduced motion (completing the reduced-motion support added to the rest of the app).
+
+## Changes in this PR
+
+- The Dashboard now tells the difference between "couldn't reach the server" and "no data yet". A load error shows a clear retry message instead of the "configure a crawler" onboarding panel, so a transient backend hiccup no longer looks like your data disappeared.
+
+## Changes in this PR
+
+- Hardened the Sync Log: a row with a missing record count no longer crashes the page (it now shows 0).
+
+## Changes in this PR
+
+- Fixed dark-mode rendering of status badges: the Business-Role review-compliance badges (Compliant / In Progress / Missed / Reviewed Late) and the account-type badges (Regular / Admin / Test / Service / Shared / External) now use proper dark colours instead of bright pastel blocks on a dark background.
+
+## Changes in this PR
+
 - Fixed the Contexts tab in dark mode: the variant labels (Synced / Generated / Manual) and target-type badges (Identity / Resource / Principal / System) now render with proper dark-mode colours instead of washed-out pastel chips. "Principal" also gets its own colour so it's no longer visually identical to an unknown type.
 
 ## Changes in this PR
