@@ -50,6 +50,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref }}
           token: ${{ steps.bot-token.outputs.token }}
+          fetch-depth: 0
 
       - name: Create and push pre-release tag
         run: |
@@ -82,9 +83,7 @@ jobs:
       - name: Generate release notes
         run: |
           # Find the previous stable release tag (excludes beta/rc/alpha)
-          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
-            | grep -vE '-(beta|rc|alpha)' \
-            | head -1)
+          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -vE '-(beta|rc|alpha)' | head -1)
 
           # Slice the CHANGES.md entries that are new since PREV_TAG
           if [ -n "$PREV_TAG" ]; then
