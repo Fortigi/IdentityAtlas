@@ -1444,7 +1444,7 @@ function GettingStarted({ onAddCrawler }) {
 // csvUploads.js and the schema templates in tools/csv-templates/schema/.
 const CSV_SLOTS = [
   { key: 'systems',              file: 'Systems.csv',              label: 'Systems',                required: false, hint: 'Optional. Columns: ExternalId, DisplayName, SystemType, Description' },
-  { key: 'contexts',             file: 'Contexts.csv',             label: 'Contexts (Org Units)',   required: false, hint: 'Optional. Columns: ExternalId, DisplayName, ContextType, TargetType, Description, ParentExternalId, SystemName, OwnerUserId' },
+  { key: 'contexts',             file: 'Contexts.csv',             label: 'Contexts',               required: false, hint: 'Optional. Columns: ExternalId, DisplayName, ContextType, TargetType, Description, ParentExternalId, SystemName, OwnerUserId' },
   { key: 'context-members',      file: 'ContextMembers.csv',       label: 'Context Members',        required: false, hint: 'Optional. Columns: ContextExternalId, MemberExternalId, MemberType (Identity / Resource / Principal / System).' },
   { key: 'resources',            file: 'Resources.csv',            label: 'Resources',              required: true,  hint: 'Required. Columns: ExternalId, DisplayName, ResourceType, Description, SystemName, Enabled' },
   { key: 'resourceRelationships',file: 'ResourceRelationships.csv',label: 'Resource Relationships', required: false, hint: 'Optional. Columns: ParentExternalId, ChildExternalId, RelationshipType, SystemName' },
