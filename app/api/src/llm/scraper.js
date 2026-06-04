@@ -13,20 +13,95 @@
 // this module. Persistence is the responsibility of the route layer (and uses
 // the secrets vault). The caller decrypts secrets and passes plaintext here.
 //
-// HTML stripping is intentionally crude. The goal is "give the LLM enough text
-// to identify the organisation, regulations, processes" — not perfect fidelity.
-// We strip script/style/nav, collapse whitespace, and cap at 50 KB per URL to
-// keep token usage bounded.
+// SSRF hardening (security finding H-06): this module never lets a scrape reach
+// a non-public address. Instead of a hostname regex (bypassable via DNS
+// rebinding, decimal/hex IP encodings, IPv4-mapped IPv6, or redirects) we:
+//   - reject literal non-public IP hosts up front,
+//   - resolve hostnames ourselves and refuse if ANY resolved address is
+//     private/loopback/link-local/ULA, then PIN the connection to a validated
+//     address (a custom `lookup`), so the IP that's checked is the IP that's
+//     connected to — closing the rebinding TOCTOU,
+//   - follow redirects manually, re-validating every hop, and
+//   - never send the Authorization header across a redirect to another origin.
+
+import dns from 'node:dns';
+import net from 'node:net';
+import { request as httpsRequest } from 'node:https';
+import { request as httpRequest } from 'node:http';
 
 const MAX_BYTES_PER_URL = 50_000;
 const TIMEOUT_MS = 15_000;
+const MAX_REDIRECTS = 5;
 const USER_AGENT = 'Identity-Atlas-Scraper/1.0';
 
-// Block requests to private/loopback addresses to prevent SSRF.
-// DNS-rebinding attacks are not fully mitigated here — this guards against
-// the common accidental/deliberate cases where the configured URL points
-// directly at an internal hostname or IP.
-const PRIVATE_HOST_RE = /^(localhost|127\.\d+\.\d+\.\d+|::1|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+)$/i;
+// ── SSRF address guard ───────────────────────────────────────────────────────
+
+// True if an IPv4 dotted-quad is in a blocked (non-public) range.
+export function isBlockedIPv4(ip) {
+  const parts = ip.split('.').map((n) => Number(n));
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
+  const [a, b] = parts;
+  if (a === 0) return true;                          // 0.0.0.0/8 "this network"
+  if (a === 127) return true;                        // loopback
+  if (a === 10) return true;                         // private
+  if (a === 172 && b >= 16 && b <= 31) return true;  // private
+  if (a === 192 && b === 168) return true;           // private
+  if (a === 169 && b === 254) return true;           // link-local / cloud metadata
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64/10
+  if (a >= 224) return true;                         // multicast / reserved
+  return false;
+}
+
+// True if the given IP literal (v4 or v6) must not be connected to.
+export function isBlockedAddress(ip) {
+  const fam = net.isIP(ip);
+  if (fam === 4) return isBlockedIPv4(ip);
+  if (fam === 6) {
+    const low = ip.toLowerCase().replace(/^\[|\]$/g, '');
+    if (low === '::1' || low === '::') return true;          // loopback / unspecified
+    if (low.startsWith('fe80')) return true;                 // link-local
+    if (/^f[cd]/.test(low)) return true;                     // unique-local fc00::/7
+    if (low.startsWith('ff')) return true;                   // multicast
+    const mapped = low.match(/(?:::ffff:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+    if (mapped) return isBlockedIPv4(mapped[1]);             // IPv4-mapped IPv6
+    return false;
+  }
+  return true; // not a valid IP literal → block defensively
+}
+
+// net.connect-compatible lookup that resolves the host, refuses if ANY resolved
+// address is non-public, and returns a validated address to connect to. Because
+// the connection uses exactly this resolution, an attacker can't rebind DNS
+// between the check and the connect.
+export function pinnedSafeLookup(hostname, options, callback) {
+  dns.lookup(hostname, { all: true, verbatim: true }, (err, addresses) => {
+    if (err) return callback(err);
+    if (!addresses || addresses.length === 0) return callback(new Error(`No address for ${hostname}`));
+    for (const a of addresses) {
+      if (isBlockedAddress(a.address)) {
+        return callback(new Error(`Refusing to connect to non-public address ${a.address} for ${hostname}`));
+      }
+    }
+    const wantFamily = options && options.family;
+    const chosen = (wantFamily ? addresses.find((a) => a.family === wantFamily) : null) || addresses[0];
+    callback(null, chosen.address, chosen.family);
+  });
+}
+
+// Validate a URL for scraping: must be http(s), and a literal IP host must be
+// public. (Hostnames are validated at connect time by pinnedSafeLookup.) Throws
+// on rejection; returns the parsed URL otherwise.
+export function validateScrapeUrl(urlString, base) {
+  const u = new URL(urlString, base);
+  if (!['http:', 'https:'].includes(u.protocol)) {
+    throw new Error('Only http(s) URLs are allowed');
+  }
+  const host = u.hostname.replace(/^\[|\]$/g, '');
+  if (net.isIP(host) && isBlockedAddress(host)) {
+    throw new Error('URLs pointing to private, loopback, or link-local addresses are not allowed');
+  }
+  return u;
+}
 
 function buildAuthHeader(creds) {
   if (!creds) return null;
@@ -37,6 +112,48 @@ function buildAuthHeader(creds) {
   }
   return null;
 }
+
+// One HTTP(S) GET with the SSRF-safe pinned lookup. Resolves to the response
+// (IncomingMessage). Rejects on transport/timeout/blocked-address errors.
+function httpGet(urlObj, headers) {
+  return new Promise((resolve, reject) => {
+    const reqFn = urlObj.protocol === 'https:' ? httpsRequest : httpRequest;
+    const req = reqFn(
+      urlObj,
+      { method: 'GET', headers, lookup: pinnedSafeLookup, timeout: TIMEOUT_MS },
+      (res) => resolve(res)
+    );
+    req.on('timeout', () => req.destroy(Object.assign(new Error('Request timed out'), { code: 'ETIMEDOUT' })));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+// Read a response body up to maxBytes, then stop. Returns { buf, truncated }.
+function readCapped(res, maxBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    let truncated = false;
+    res.on('data', (chunk) => {
+      if (total >= maxBytes) { truncated = true; return; }
+      if (total + chunk.length > maxBytes) {
+        chunks.push(chunk.subarray(0, maxBytes - total));
+        truncated = true;
+        total = maxBytes;
+        res.destroy();
+      } else {
+        chunks.push(chunk);
+        total += chunk.length;
+      }
+    });
+    res.on('end', () => resolve({ buf: Buffer.concat(chunks), truncated }));
+    res.on('close', () => resolve({ buf: Buffer.concat(chunks), truncated }));
+    res.on('error', reject);
+  });
+}
+
+const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
 
 // Crude HTML → text. Removes script/style blocks, drops all tags, decodes a few
 // common entities, and collapses whitespace. We intentionally don't pull in a
@@ -64,54 +181,56 @@ function htmlToText(html) {
 // Never throws — failures are reported in the result so the caller can show
 // per-URL status without aborting the whole batch.
 export async function scrapeOne(url, credentials = null) {
-  let parsed;
-  try { parsed = new URL(url); }
-  catch { return { url, ok: false, error: 'Invalid URL' }; }
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
-    return { url, ok: false, error: 'Only http(s) URLs are allowed' };
-  }
-  if (PRIVATE_HOST_RE.test(parsed.hostname)) {
-    return { url, ok: false, error: 'URLs pointing to private or loopback addresses are not allowed' };
-  }
+  let current;
+  try { current = validateScrapeUrl(url); }
+  catch (err) { return { url, ok: false, error: err.message }; }
 
-  const headers = {
-    'User-Agent': USER_AGENT,
-    'Accept': 'text/html,text/plain,*/*;q=0.8',
-  };
   const auth = buildAuthHeader(credentials);
-  if (auth) headers['Authorization'] = auth;
+  const baseHeaders = { 'User-Agent': USER_AGENT, 'Accept': 'text/html,text/plain,*/*;q=0.8' };
+  // Auth is only ever sent to the original, operator-supplied origin — never
+  // replayed across a redirect to a different origin (credential-leak guard).
+  const originForAuth = current.origin;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const r = await fetch(parsed.href, { method: 'GET', headers, signal: controller.signal });
-    clearTimeout(timer);
-    if (!r.ok) return { url, ok: false, status: r.status, error: `HTTP ${r.status}` };
+    let res;
+    for (let hop = 0; ; hop++) {
+      const headers = { ...baseHeaders };
+      if (auth && current.origin === originForAuth) headers['Authorization'] = auth;
+      res = await httpGet(current, headers);
 
-    const ct = (r.headers.get('content-type') || '').toLowerCase();
-    if (!ct.startsWith('text/') && !ct.includes('html') && !ct.includes('xml') && !ct.includes('json')) {
-      return { url, ok: false, status: r.status, error: `Unsupported content-type: ${ct}` };
+      if (REDIRECT_CODES.has(res.statusCode) && res.headers.location) {
+        res.resume(); // drain so the socket can be reused/closed
+        if (hop >= MAX_REDIRECTS) return { url, ok: false, error: 'Too many redirects' };
+        try { current = validateScrapeUrl(res.headers.location, current); }
+        catch (err) { return { url, ok: false, error: `Blocked redirect: ${err.message}` }; }
+        continue;
+      }
+      break;
     }
 
-    // Read body up to the cap
-    const buf = await r.arrayBuffer();
-    const sliced = Buffer.from(buf).slice(0, MAX_BYTES_PER_URL);
-    let raw = sliced.toString('utf8');
-    let text;
-    if (ct.includes('html') || ct.includes('xml')) text = htmlToText(raw);
-    else text = raw.replace(/\s+/g, ' ').trim();
+    const status = res.statusCode;
+    if (status < 200 || status >= 300) { res.resume(); return { url, ok: false, status, error: `HTTP ${status}` }; }
+
+    const ct = String(res.headers['content-type'] || '').toLowerCase();
+    if (!ct.startsWith('text/') && !ct.includes('html') && !ct.includes('xml') && !ct.includes('json')) {
+      res.resume();
+      return { url, ok: false, status, error: `Unsupported content-type: ${ct}` };
+    }
+
+    const { buf, truncated } = await readCapped(res, MAX_BYTES_PER_URL);
+    const raw = buf.toString('utf8');
+    const text = (ct.includes('html') || ct.includes('xml')) ? htmlToText(raw) : raw.replace(/\s+/g, ' ').trim();
 
     return {
       url,
       ok: true,
-      status: r.status,
-      bytes: sliced.length,
-      truncated: buf.byteLength > MAX_BYTES_PER_URL,
+      status,
+      bytes: buf.length,
+      truncated,
       text: text.slice(0, MAX_BYTES_PER_URL), // post-strip text can still be long
     };
   } catch (err) {
-    clearTimeout(timer);
-    return { url, ok: false, error: err.name === 'AbortError' ? 'Request timed out' : err.message };
+    return { url, ok: false, error: err.code === 'ETIMEDOUT' ? 'Request timed out' : err.message };
   }
 }
 
@@ -129,7 +248,7 @@ export async function scrapeAll(targets) {
 // Build a single text blob suitable for stuffing into an LLM context. Each URL
 // is delimited so the model can attribute sources back to a specific document.
 export function buildLLMContextFromScrapes(results) {
-  const okOnes = (results || []).filter(r => r.ok && r.text);
+  const okOnes = (results || []).filter((r) => r.ok && r.text);
   if (okOnes.length === 0) return '';
-  return okOnes.map(r => `--- SOURCE: ${r.url} ---\n${r.text}`).join('\n\n');
+  return okOnes.map((r) => `--- SOURCE: ${r.url} ---\n${r.text}`).join('\n\n');
 }
