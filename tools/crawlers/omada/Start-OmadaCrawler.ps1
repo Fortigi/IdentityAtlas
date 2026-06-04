@@ -240,6 +240,12 @@ function Map-ContextTypeToAtlas {
     return $OmadaType -replace '\s+', ''
 }
 
+# ─── Step logging ─────────────────────────────────────────────────
+function Write-Step {
+    param([string]$Msg)
+    Write-Host "  → $Msg" -ForegroundColor DarkGray
+}
+
 # ─── Phase tracking ───────────────────────────────────────────────
 $Script:phases      = [System.Collections.Generic.List[object]]::new()
 $Script:phaseErrors = [System.Collections.Generic.List[string]]::new()
@@ -390,6 +396,7 @@ $AllOmadaSystems = $Null
 $OmadaSystemMap  = @{}  # Omada System.UId → Identity Atlas system.id
 $SystemId        = 0    # ID for the main Omada IGA system (used for Contexts/Identities)
 try {
+    Write-Step 'Fetching connected systems from Omada...'
     $AllOmadaSystems = Invoke-OmadaPagedRequest -Path '/System' `
         -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize 100
     Write-Host "  $($AllOmadaSystems.Count) connected systems in Omada" -ForegroundColor Gray
@@ -404,6 +411,7 @@ try {
         }
     })
 
+    Write-Step "Registering $($SysRecords.Count) systems in Identity Atlas..."
     Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
         syncMode = 'full'
         records  = ConvertTo-JsonArray $SysRecords
@@ -472,6 +480,7 @@ if ($SyncContexts) {
                 Write-Host "  Skipping $EntitySet — entity set not in OData metadata" -ForegroundColor Yellow
                 continue
             }
+            Write-Step "Fetching $EntitySet entities from Omada..."
             $Items = Invoke-OmadaPagedRequest -Path "/$EntitySet" `
                 -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
             Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
@@ -523,6 +532,7 @@ if ($SyncContexts) {
                 } | Where-Object { $_.externalId -and $_.displayName })
             }
 
+            Write-Step "Ingesting $($Records.Count) $ContextType contexts..."
             $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode 'full' `
                 -Scope @{ variant = 'synced'; contextType = $ContextType } -Records @($Records)
             Write-Host "  Contexts ($EntitySet): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
@@ -555,6 +565,7 @@ if ($SyncIdentities) {
         if (-not (Test-EntitySetAvailable 'Identity')) {
             throw "Identity entity set not found in OData metadata"
         }
+        Write-Step 'Fetching identities from Omada...'
         $AllIdentities = Invoke-OmadaPagedRequest -Path '/Identity' `
             -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($AllIdentities.Count) identity records from Omada" -ForegroundColor Gray
@@ -635,6 +646,7 @@ if ($SyncIdentities) {
             }
         } | Where-Object { $_.externalId -and $_.displayName })
 
+        Write-Step "Ingesting $($IdentRecords.Count) identity records..."
         $R = Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $SystemId -SyncMode 'full' -Records $IdentRecords
         Write-Host "  Identities: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
 
@@ -663,10 +675,12 @@ if ($SyncAccounts) {
         if (-not (Test-EntitySetAvailable 'User')) {
             throw "User entity set not found in OData metadata"
         }
+        Write-Step 'Fetching user accounts from Omada...'
         $AllAccounts = Invoke-OmadaPagedRequest -Path '/User' `
             -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($AllAccounts.Count) account records from Omada" -ForegroundColor Gray
 
+        Write-Step "Building $($AllAccounts.Count) account records..."
         $AccountRecords = @($AllAccounts | Where-Object { -not $_.Inactive } | ForEach-Object {
             $ExtId = [string]$_.UId
             $Name  = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
@@ -756,6 +770,7 @@ if ($SyncIdentities -and $AllIdentities -and $SyncAccounts -and $AllAccounts) {
             })
         }
 
+        Write-Step "Ingesting $($MemberRecords.Count) identity-member links..."
         $R = Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $SystemId -SyncMode 'full' -Records @($MemberRecords)
         Write-Host "  IdentityMembers: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
         Write-Phase -Name 'IdentityMembers' -Duration ([datetime]::UtcNow - $T) -Records @{ members = $MemberRecords.Count }
@@ -780,6 +795,7 @@ if ($SyncContextMembers) {
         if (-not (Test-EntitySetAvailable 'Contextassignment')) {
             throw "Contextassignment entity set not found in OData metadata"
         }
+        Write-Step 'Fetching context assignments from Omada...'
         $Items = Invoke-OmadaPagedRequest -Path '/Contextassignment' `
             -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($Items.Count) context assignment records from Omada" -ForegroundColor Gray
@@ -835,6 +851,7 @@ if ($SyncContextMembers) {
         # ── Source 3: Employment entity (IDENTITYREF → OUREF) ──
         if (Test-EntitySetAvailable 'Employment') {
             try {
+                Write-Step 'Fetching employment records from Omada...'
                 $EmpItems = Invoke-OmadaPagedRequest -Path '/Employment' `
                     -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
                 foreach ($Emp in $EmpItems) {
@@ -860,6 +877,7 @@ if ($SyncContextMembers) {
         $Seen     = [System.Collections.Generic.HashSet[string]]::new()
         $Deduped  = @($CtxMemberRecords | Where-Object { $Seen.Add("$($_.contextId)|$($_.memberId)") })
 
+        Write-Step "Ingesting $($Deduped.Count) context-member links..."
         $R = Send-IngestBatch -Endpoint 'ingest/context-members' -SystemId $SystemId -SyncMode 'full' -Records $Deduped
         Write-Host "  ContextMembers: +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($Deduped.Count) deduped records)" -ForegroundColor Green
         Write-Phase -Name 'ContextMembers' -Duration ([datetime]::UtcNow - $T) -Records @{ members = $Deduped.Count }
@@ -898,10 +916,12 @@ if ($SyncResources) {
             }
         }
 
+        Write-Step 'Fetching resources from Omada (this may take a few minutes)...'
         $AllResources = Invoke-OmadaPagedRequest -Path '/Resource' `
             -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($AllResources.Count) resource records from Omada" -ForegroundColor Gray
 
+        Write-Step "Building resource records from $($AllResources.Count) Omada resources..."
         # Group resources by connected system (SYSTEMREF) for correct scoped-delete
         $BySysUId = @{}
         foreach ($Item in $AllResources) {
@@ -955,6 +975,7 @@ if ($SyncResources) {
             $BySysUId[$Key].Add($Rec)
         }
 
+        Write-Step "Ingesting resources across $($BySysUId.Keys.Count) system(s)..."
         $TotalInserted = 0; $TotalUpdated = 0; $TotalDeleted = 0
         foreach ($Key in $BySysUId.Keys) {
             $SysId    = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
@@ -989,6 +1010,7 @@ if ($SyncEntitlements) {
             Write-Host "  Skipping entitlements — resources were not synced" -ForegroundColor Yellow
             Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $T) -Records @{ relationships = 0 }
         } else {
+            Write-Step "Extracting entitlements (CHILDROLES) from $($AllResources.Count) resources..."
             $RelRecords = [System.Collections.Generic.List[object]]::new()
             foreach ($Item in $AllResources) {
                 if (-not $Item.CHILDROLES) { continue }
@@ -1005,6 +1027,7 @@ if ($SyncEntitlements) {
                 }
             }
 
+            Write-Step "Ingesting $($RelRecords.Count) resource relationships (Contains)..."
             $R = Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode 'full' `
                 -Scope @{ relationshipType = 'Contains' } -Records @($RelRecords)
             Write-Host "  Entitlements: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
@@ -1031,6 +1054,7 @@ if ($SyncAssignments) {
     Update-CrawlerProgress -Step 'Syncing assignments' -Pct 75
     try {
         # ── Source 1: Resourceassignment (role/permission assignments) ─────────
+        Write-Step 'Fetching role assignments from Omada...'
         $RaItems = Invoke-OmadaPagedRequest -Path '/Resourceassignment' `
             -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($RaItems.Count) Resourceassignment records from Omada" -ForegroundColor Gray
@@ -1063,6 +1087,7 @@ if ($SyncAssignments) {
             }
         }
 
+        Write-Step "Ingesting role assignments (Governed) across $($RaBySys.Keys.Count) system(s)..."
         $TotalRaInserted = 0; $TotalRaUpdated = 0
         foreach ($Key in $RaBySys.Keys) {
             $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
@@ -1093,6 +1118,7 @@ if ($SyncAssignments) {
         $CaPageSize = 1000
 
         do {
+            Write-Step "Fetching CRA page (skip=$CaSkip, total so far: $CaTotalCount)..."
             $CaPage = Invoke-OmadaGetRequest -Path '/CalculatedAssignments' `
                 -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource,System,ResourceType'
                                 '$top' = $CaPageSize; '$skip' = $CaSkip } `
@@ -1187,6 +1213,7 @@ if ($SyncAssignments) {
         } while ($CaPage.Count -gt 0)  # fetch next page until empty
         Write-Host "  $CaTotalCount CRA records from Omada" -ForegroundColor Gray
 
+        Write-Step "Ingesting CRA-derived principals and identity-member links..."
         # Ingest connected-system Principals derived from CRA (delta — SyncAccounts owns full sync for Omada users)
         $TotalCaPrincipals = 0
         foreach ($Key in $CaPrincipalsBySys.Keys) {
@@ -1208,6 +1235,7 @@ if ($SyncAssignments) {
         }
         Write-Host "  CRA: $($CaItems.Count) records → $TotalCaPrincipals connected-system accounts, $($CaIdentityMembers.Count) identity-member links" -ForegroundColor Green
 
+        Write-Step "Ingesting CRA resource assignments (Governed + Direct) per system..."
         # Ingest CRA ResourceAssignments per system
         $TotalCaGovIns = 0; $TotalCaDirIns = 0
         foreach ($Key in $CaAssignmentsBySys.Keys) {
