@@ -90,7 +90,7 @@ export default function DashboardTrendsTab() {
         <div className="flex items-start justify-between mb-2">
           <div>
             <div className="text-sm font-medium text-gray-800 dark:text-gray-200">Governed assignments — % of total</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">How much of your access is wrapped by an Access Package or Business Role.</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">How much of your access is granted through a Business Role.</div>
           </div>
           {latest && (
             <div className="text-right">
