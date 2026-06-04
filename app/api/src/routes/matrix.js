@@ -23,6 +23,11 @@ import {
   UUID_RE,
 } from '../matrix/filterSql.js';
 import {
+  generateSampleDates,
+  buildScopeAsofSql,
+  historyStartSql,
+} from '../matrix/scopeHistory.js';
+import {
   getPrincipalColumns,
   getResourceColumns,
   getPrincipalColumnValues,
@@ -335,6 +340,76 @@ router.post('/matrix/scope-stats', async (req, res) => {
   } catch (err) {
     console.error('matrix/scope-stats failed:', err.message);
     return res.status(500).json({ error: 'Scope statistics failed' });
+  }
+});
+
+// ─── POST /api/matrix/scope-timeseries ──────────────────────────────
+// Historic timeline for the current selection, reconstructed from the audit
+// log (_history) — no dedicated snapshot tables. Body: { filter }. Query:
+// days (range, default 180), points (samples, default 13). Returns one point
+// per sample date with principals / resources / assignments / governed counts
+// and the governed %, plus `historyStart` (earliest reliable instant) and
+// `scopeMode` ('attribute' = fully reconstructed; 'context-current' = scope
+// membership taken from today because ContextMembers is not audited).
+router.post('/matrix/scope-timeseries', async (req, res) => {
+  if (!useSql) return res.json({ historyStart: null, scopeMode: 'attribute', points: [] });
+
+  const filter = parseFilter(req.body);
+  if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
+
+  try {
+    const [principalCols, resourceCols, contextTypes] = await Promise.all([
+      getPrincipalColumns(),
+      getResourceColumns(),
+      resolveContextTypes(filter),
+    ]);
+    const principalColSet = new Set(principalCols.map(c => c.name));
+    const resourceColSet  = new Set(resourceCols.map(c => c.name));
+
+    const { sql, bindings, warnings, scopeMode } = buildScopeAsofSql({
+      filter, principalColSet, resourceColSet, contextTypes,
+    });
+
+    const p = await db.getPool();
+
+    // Earliest reliable instant — don't fabricate points before auditing began.
+    const startRow = await db.queryOne(historyStartSql());
+    const historyStart = startRow?.start ? new Date(startRow.start) : null;
+
+    const dates = generateSampleDates({ days: req.query.days, points: req.query.points });
+
+    const points = await Promise.all(dates.map(async (date) => {
+      const asof = `${date}T23:59:59.999Z`;
+      // Skip points before auditing began (reconstruction unreliable there).
+      if (historyStart && new Date(asof) < historyStart) {
+        return { date, principals: 0, resources: 0, assignments: 0, governed: 0, governedPct: 0, beforeHistory: true };
+      }
+      const r = timedRequest(p, 'matrix-scope-timeseries', res);
+      for (const [k, v] of Object.entries(bindings)) r.input(k, v);
+      r.input('asof', asof);
+      const row = (await r.query(sql)).recordset[0] || {};
+      const assignments = row.assignments || 0;
+      const governed = row.governed || 0;
+      return {
+        date,
+        principals: row.principals || 0,
+        resources: row.resources || 0,
+        assignments,
+        governed,
+        ungoverned: assignments - governed,
+        governedPct: assignments > 0 ? Math.round((governed / assignments) * 1000) / 10 : 0,
+      };
+    }));
+
+    return res.json({
+      historyStart: historyStart ? historyStart.toISOString() : null,
+      scopeMode,
+      points,
+      warnings,
+    });
+  } catch (err) {
+    console.error('matrix/scope-timeseries failed:', err.message);
+    return res.status(500).json({ error: 'Scope timeseries failed' });
   }
 });
 
