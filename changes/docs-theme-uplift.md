@@ -1,0 +1,1 @@
+- Refreshed the documentation site to follow the UI Style Guide's two-role colour system: green stays the brand colour (header, tabs, logo, cards, table headers) while blue now marks everything interactive — body links, the active navigation item, and hover/accent states — in both light and dark mode.
