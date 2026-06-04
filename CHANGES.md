@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The Dashboard now tells the difference between "couldn't reach the server" and "no data yet". A load error shows a clear retry message instead of the "configure a crawler" onboarding panel, so a transient backend hiccup no longer looks like your data disappeared.
+
+## Changes in this PR
+
 - Hardened the Sync Log: a row with a missing record count no longer crashes the page (it now shows 0).
 
 ## Changes in this PR
