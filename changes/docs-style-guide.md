@@ -1,0 +1,1 @@
+- Added a **UI Style Guide** to the documentation (Contributing → UI Style Guide): the canonical colour system (green = brand/identity, blue = interactive), dark-mode and accessibility rules, component conventions, and a terminology glossary that future contributions follow.

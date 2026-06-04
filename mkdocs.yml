@@ -113,6 +113,8 @@ nav:
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - Software Bill of Materials: reference/sbom.md
+  - Contributing:
+      - UI Style Guide: contributing/style-guide.md
   - Security:
       - Assessment & Remediation: security/assessment.md
   - About:
