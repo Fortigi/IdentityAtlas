@@ -23,6 +23,7 @@ export default [
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      'react-hooks/exhaustive-deps': 'error',
       'local/no-low-contrast-text': 'error',
       // React Compiler strict rules — downgrade to warnings until data-fetching
       // patterns are refactored to avoid setState-in-effect (requires Suspense or

@@ -1,0 +1,1 @@
+- Promoted `react-hooks/exhaustive-deps` from a warning to an error in ESLint, so missing hook dependencies now block CI instead of being silently ignored.
