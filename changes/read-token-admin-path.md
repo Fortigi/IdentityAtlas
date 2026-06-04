@@ -1,1 +1,0 @@
-- Security: fixed a guard that was meant to keep read-only API keys (`fgr_…`) out of admin endpoints but never actually triggered — it checked the mount-stripped request path instead of the full URL, so a leaked read-only key could reach admin GET endpoints (information disclosure). The check now uses the full request URL and correctly rejects read-only keys on `/api/admin/*`.
