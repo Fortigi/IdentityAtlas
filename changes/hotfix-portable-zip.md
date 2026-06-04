@@ -1,1 +1,0 @@
-- Cut Hotfix workflow now builds and attaches the portable Windows ZIP to the GitHub release, matching the Cut Release workflow
