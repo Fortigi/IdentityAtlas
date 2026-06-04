@@ -1,1 +1,0 @@
-- Terminology consistency: the Excel export header no longer shows the internal German label "SOLL" (now "Governed (via Business Roles)"), and the Dashboard governance trend now describes access as granted through a **Business Role** rather than "an Access Package or Business Role" (they are the same thing).
