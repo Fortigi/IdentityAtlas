@@ -1,5 +1,60 @@
 ## Changes in this PR
 
+- Fixed the run-detail "Go there now →" link, which opened a broken/empty detail tab; it now correctly navigates to the Contexts page. Also cleaned up a dark-mode style glitch on that screen.
+
+## Changes in this PR
+
+- Refreshed the documentation site to follow the UI Style Guide's two-role colour system: green stays the brand colour (header, tabs, logo, cards, table headers) while blue now marks everything interactive — body links, the active navigation item, and hover/accent states — in both light and dark mode.
+
+## Changes in this PR
+
+- Added a CI lint gate that blocks native browser dialogs (`confirm`/`alert`/`prompt`) in new UI code — these aren't styled, dark-mode aware, or testable; use an in-app dialog or toast instead.
+- Added a CI lint gate that keeps legacy/internal jargon (SOLL, IST, "Org Unit", Start-FGSync) out of user-facing UI text, steering contributors to the current terminology (Governed/Non-governed, Context, in-app crawlers).
+- Renamed the stale "Contexts (Org Units)" crawler label to "Contexts".
+
+## Changes in this PR
+
+- Added a **UI Style Guide** to the documentation (Contributing → UI Style Guide): the canonical colour system (green = brand/identity, blue = interactive), dark-mode and accessibility rules, component conventions, and a terminology glossary that future contributions follow.
+
+## Changes in this PR
+
+- The dashboard/entity relationship graph now respects the OS "reduce motion" setting — its pulsing rings and animated edges stop for users who request reduced motion (completing the reduced-motion support added to the rest of the app).
+
+## Changes in this PR
+
+- The Dashboard now tells the difference between "couldn't reach the server" and "no data yet". A load error shows a clear retry message instead of the "configure a crawler" onboarding panel, so a transient backend hiccup no longer looks like your data disappeared.
+
+## Changes in this PR
+
+- Hardened the Sync Log: a row with a missing record count no longer crashes the page (it now shows 0).
+
+## Changes in this PR
+
+- Fixed dark-mode rendering of status badges: the Business-Role review-compliance badges (Compliant / In Progress / Missed / Reviewed Late) and the account-type badges (Regular / Admin / Test / Service / Shared / External) now use proper dark colours instead of bright pastel blocks on a dark background.
+
+## Changes in this PR
+
+- Fixed the Contexts tab in dark mode: the variant labels (Synced / Generated / Manual) and target-type badges (Identity / Resource / Principal / System) now render with proper dark-mode colours instead of washed-out pastel chips. "Principal" also gets its own colour so it's no longer visually identical to an unknown type.
+
+## Changes in this PR
+
+- The Systems page no longer dead-ends new users with a stale `Start-FGSync` command. Its empty state now guides you to **Add a crawler** (the supported path), matching the Dashboard and Sync Log. Added a reusable empty-state panel for consistent onboarding across the app.
+
+## Changes in this PR
+
+- Accessibility: added a keyboard **"Skip to main content"** link, a global keyboard focus indicator so focus is always visible, and support for the OS **"reduce motion"** preference (animations/transitions are minimised when requested).
+- Renamed the context detail-tab badge from "OU" to "C" so it matches the unified "Contexts" terminology (no more leftover "Org Unit" wording).
+
+## Changes in this PR
+
+- Added a **"How to read this matrix"** legend to the Matrix view. It explains the cell badges (Direct, Indirect, Eligible, Owner, Governed, OAuth2 grant, and App role — assigned directly vs via a group), the coloured cells that mean a membership is governed by a business role, the badge showing a membership is covered by more than one business role, and the amber provisioning-gap marker. The legend is collapsible and remembers whether you keep it open.
+
+## Changes in this PR
+
+- Terminology consistency: the Excel export header no longer shows the internal German label "SOLL" (now "Governed (via Business Roles)"), and the Dashboard governance trend now describes access as granted through a **Business Role** rather than "an Access Package or Business Role" (they are the same thing).
+
+## Changes in this PR
+
 - Added a **Scope Statistics** panel to the Matrix view. For the current matrix selection it shows the number of principals/identities, resources, and assignments in scope, plus the split of **governed vs non-governed** assignments (% managed by a business role / access package).
 - Added a **historic timeline** for the selection — see how the number of principals, resources, assignments, and crucially the **% governed vs non-governed** have changed over time. History is reconstructed from the existing change-audit log (no new tracking), accurate back to when auditing began on each table.
 - Added a **department / business-unit drill-down**: governed-vs-non-governed broken down department by department, each expandable to its own trend line — built for reporting on role-mining progress.

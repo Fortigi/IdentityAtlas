@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { useMatrixRowOrder } from '../hooks/useMatrixRowOrder';
 import MatrixToolbar from './matrix/MatrixToolbar';
+import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
@@ -647,6 +648,8 @@ export default function MatrixView({
         onExpandAll={expandAll}
         onCollapseAll={collapseAll}
       />
+
+      {filterIsApplied && <MatrixLegend />}
 
       {!filterIsApplied ? (
         <EmptyFilterState onAdjustFilter={onAdjustFilter} hasData={hasData} />
