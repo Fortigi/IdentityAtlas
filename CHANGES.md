@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a **Security** section to the documentation with a public "Assessment & Remediation" page summarizing the June 2026 independent security assessment — findings by severity and status, the pull requests that remediated each one, confirmed strengths, and the remediation roadmap. Exploit detail remains confidential.
+
+## Changes in this PR
+
 - Security: the one-click Excel workbook export no longer trusts spoofable request headers when stamping the API URL into the file. Because the workbook also carries a live read token, a forged `X-Forwarded-Host`/`Host` could previously have made an analyst's data refresh send that token to an attacker's server. The export URL is now taken from a server-trusted source.
 - Added `PUBLIC_BASE_URL` (recommended for deployments behind a proxy, tunnel, or Azure) to set the workbook's API URL explicitly, and `TRUST_PROXY` to opt in to honouring `X-Forwarded-*` headers from a trusted reverse proxy. Local and default deployments are unchanged.
 
