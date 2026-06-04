@@ -1,0 +1,1 @@
+- Replaced `tools/setup-branch-protection.sh` with documentation in `docs/architecture/branching-strategy.md` — the script had drifted from the live ruleset config and a written guide is easier to maintain for a repo that is set up once.
