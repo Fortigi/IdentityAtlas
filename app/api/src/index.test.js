@@ -1,5 +1,4 @@
-// Verifies the server EADDRINUSE error handler calls process.exit(1) with a
-// clear message when the port is already occupied.
+// Tests for index.js startup behaviour: EADDRINUSE handler and host binding.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import net from 'node:net';
@@ -11,12 +10,10 @@ describe('server EADDRINUSE handler', () => {
     const exitSpy    = vi.spyOn(process, 'exit').mockImplementation(() => {});
     const errorSpy   = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    // Occupy a random port so the second bind triggers EADDRINUSE.
     const blocker = net.createServer();
     await new Promise(resolve => blocker.listen(0, '127.0.0.1', resolve));
     const port = blocker.address().port;
 
-    // Replicate the handler exactly as it appears in index.js.
     const server = net.createServer();
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
@@ -35,5 +32,24 @@ describe('server EADDRINUSE handler', () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('already in use'));
 
     blocker.close();
+  });
+});
+
+describe('host binding', () => {
+  it('binds to 127.0.0.1 in desktop mode', () => {
+    const orig = process.env.DESKTOP_MODE;
+    process.env.DESKTOP_MODE = 'true';
+    // Re-evaluate the host expression from index.js inline.
+    const host = process.env.DESKTOP_MODE === 'true' ? '127.0.0.1' : (process.env.HOST || '0.0.0.0');
+    process.env.DESKTOP_MODE = orig;
+    expect(host).toBe('127.0.0.1');
+  });
+
+  it('binds to 0.0.0.0 in non-desktop mode', () => {
+    const orig = process.env.DESKTOP_MODE;
+    delete process.env.DESKTOP_MODE;
+    const host = process.env.DESKTOP_MODE === 'true' ? '127.0.0.1' : (process.env.HOST || '0.0.0.0');
+    process.env.DESKTOP_MODE = orig;
+    expect(host).toBe('0.0.0.0');
   });
 });

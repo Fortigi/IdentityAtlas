@@ -12,8 +12,12 @@ import { enable as enablePerf, isEnabled as isPerfEnabled } from './perf/collect
 import { loadAuthConfig, isAuthEnabled } from './config/authConfig.js';
 import { bootstrapWorker } from './bootstrap.js';
 
-const port = process.env.PORT || 3001;
+const port       = process.env.PORT || 3001;
+// Desktop mode binds to 127.0.0.1 only — the portable is a local app and should
+// not be reachable from other machines on the network (H-03 / portable variant).
+const host       = process.env.DESKTOP_MODE === 'true' ? '127.0.0.1' : (process.env.HOST || '0.0.0.0');
 const isProduction = process.env.NODE_ENV === 'production';
+const isDesktop    = process.env.DESKTOP_MODE === 'true';
 // Snapshot of AUTH_ENABLED at boot — used only for the production warning below.
 // The live value is read via isAuthEnabled() (DB-backed, hot-reloadable).
 const authEnabledAtBoot = process.env.AUTH_ENABLED === 'true';
@@ -29,6 +33,9 @@ if (perfEnabled) {
 // ─── Startup env validation ──────────────────────────────────────
 if (isProduction && !authEnabledAtBoot) {
   console.warn('WARNING: AUTH_ENABLED is not set to "true" in production. All API endpoints are unauthenticated until configured via Admin → Authentication.');
+}
+if (isDesktop && !authEnabledAtBoot) {
+  console.warn('WARNING: Identity Atlas is running in portable mode with authentication disabled. The API is accessible to any process on this machine. Enable authentication via Admin → Authentication if this machine is shared or connected to an untrusted network.');
 }
 // Auth is on, but with no AUTH_REQUIRED_ROLES backstop any signed-in tenant user
 // can still READ all data (roleless users are denied write/admin since C-01, but
@@ -46,7 +53,7 @@ loadAuthConfig().catch(err => {
 
 const app = createApp();
 
-const server = app.listen(port, async () => {
+const server = app.listen(port, host, async () => {
   console.log(`Identity Atlas running on http://localhost:${port}`);
   console.log(`Mode: ${process.env.USE_SQL === 'true' ? 'SQL' : 'Mock data'}`);
   console.log(`Auth: ${isAuthEnabled() ? 'Entra ID' : 'Disabled'}`);
