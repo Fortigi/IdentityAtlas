@@ -1,5 +1,27 @@
 ## Changes in this PR
 
+- Fixed: portable Windows launcher now binds to 127.0.0.1 only, preventing the API from being accessible to other machines on the network
+- Added: startup warning when the portable launcher runs with authentication disabled
+
+## Changes in this PR
+
+- Fixed: portable Windows launcher crashes with "Cannot find module" when the installation folder path contains a space
+
+## Changes in this PR
+
+- Fixed: Cut Release, Cut Beta and Cut Hotfix workflows now correctly generate release notes (missing fetch-depth caused grep to fail on the tag list)
+- Fixed: deprecated `app-id` input replaced with `client-id` for the GitHub App token action
+
+## Changes in this PR
+
+- Portable Windows launcher build now verifies the SHA-256 checksum of the downloaded node.exe against the official Node.js SHASUMS256.txt before packaging
+
+## Changes in this PR
+
+- Added a **Security** section to the documentation with a public "Assessment & Remediation" page summarizing the June 2026 independent security assessment — findings by severity and status, the pull requests that remediated each one, confirmed strengths, and the remediation roadmap. Exploit detail remains confidential.
+
+## Changes in this PR
+
 - Security: the one-click Excel workbook export no longer trusts spoofable request headers when stamping the API URL into the file. Because the workbook also carries a live read token, a forged `X-Forwarded-Host`/`Host` could previously have made an analyst's data refresh send that token to an attacker's server. The export URL is now taken from a server-trusted source.
 - Added `PUBLIC_BASE_URL` (recommended for deployments behind a proxy, tunnel, or Azure) to set the workbook's API URL explicitly, and `TRUST_PROXY` to opt in to honouring `X-Forwarded-*` headers from a trusted reverse proxy. Local and default deployments are unchanged.
 
