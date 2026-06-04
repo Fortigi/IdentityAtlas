@@ -86,7 +86,7 @@ nav:
           - Role Mining UI: ui/overview.md
           - Local Development: ui/local-dev.md
 
-  - Architecture & Ops:
+  - Concepts:
       - Risk Scoring:
           - Overview: risk-scoring/overview.md
           - Classifiers: risk-scoring/classifiers.md
