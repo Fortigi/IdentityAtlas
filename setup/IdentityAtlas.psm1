@@ -17,7 +17,7 @@ $correlation = @( Get-ChildItem -Path (Join-Path $repoRoot 'tools\correlation') 
 # Crawler registry — scanned once at module load; worker is single-threaded so no invalidation needed.
 # Restart the worker container to pick up newly added crawlers (Docker model: always rebuild anyway).
 $script:_CrawlerRegistry = $null
-function global:Get-CrawlerRegistry {
+function Get-CrawlerRegistry {
     if ($script:_CrawlerRegistry) { return $script:_CrawlerRegistry }
     $reg = @{}
     Get-ChildItem -Path (Join-Path $repoRoot 'tools\crawlers') -Directory -ErrorAction SilentlyContinue |

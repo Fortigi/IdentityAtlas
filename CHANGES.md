@@ -1,5 +1,29 @@
 ## Changes in this PR
 
+- Fixed tags on identities: a tag created/assigned to an identity is now actually shown and can be (re)assigned. Previously identity tags were saved but never appeared because the tag compatibility view excluded identities.
+
+## Changes in this PR
+
+- Rebuilt **Account Linking** (formerly the non-functional "Account Correlation"). It now actually runs: for each existing identity it finds orphan accounts that belong to that person — admin (`adm-…`), guest, and secondary accounts — and links them with a confidence score.
+- Account linking is deterministic and no longer needs an LLM. The matching dictionary (signals, account-type patterns, threshold) ships with sensible defaults and is editable in **Admin → Account Linking**.
+- Account linking can run on a schedule and on demand ("Run now"), with a run history showing how many accounts were linked, updated, or skipped.
+- Accounts that can't be linked to a person are now grouped into a generated **Orphaned Accounts** context (sub-grouped by type: admin / guest / service / shared) instead of being a hidden property.
+- Analyst decisions are preserved across runs: a confirmed/rejected/moved link is never overwritten, and a rejected account is never re-linked.
+- Account linking now matches a person's accounts even when their email convention differs (e.g. `r.euson@…` and `robin.euson@…`) by matching on the parsed name, attaching them at a lower, honest confidence the analyst can review. Role/company qualifiers in display names (e.g. `(OGD)`, `(ADM-azure)`) are ignored when matching.
+- Added an **Auto-link certainty** slider in Admin → Account Linking to choose the minimum confidence required before accounts are linked.
+- Ambiguous name-only matches (the same name across multiple identities) are left for manual review instead of being auto-linked to the wrong person.
+- Retired the LLM-based correlation ruleset wizard and its endpoints.
+
+## Changes in this PR
+
+- Warmed up the documentation site so it's less stark white and better matches the app: a green brand accent on the header, green ticks on section headings, the active left-nav item highlighted in soft green, the in-page table-of-contents active link in blue, and blue-accented blockquotes.
+
+## Changes in this PR
+
+- The in-app "Documentation" and "CSV Schema Reference" links now point to the docs version that matches the running build — an **edge** build links to the edge docs, a release links to the stable docs — instead of always opening the default (stable) docs.
+
+## Changes in this PR
+
 - Business Role detail page: the Attributes tab now opens with an **Overview** panel showing Type, Review status, Review date, Reviewed by and Category using the same badges and colours as the Business Roles list; the governance records (policies, access reviews grouped by review instance, pending requests) now sit at the bottom of the Attributes tab; and the Relationships tab is back to just the relationship graph.
 - The Business Role **Timeline** now shows access-review activity ("Access review started" / "ended").
 

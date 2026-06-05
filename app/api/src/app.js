@@ -39,7 +39,7 @@ import authRolesRouter from './routes/authRoles.js';
 import llmRouter from './routes/llm.js';
 import riskProfilesRouter from './routes/riskProfiles.js';
 import riskScoringRunsRouter from './routes/riskScoringRuns.js';
-import correlationRulesetsRouter from './routes/correlationRulesets.js';
+import accountLinkingRouter from './routes/accountLinking.js';
 import { adminCrawlersRouter, selfServiceCrawlersRouter } from './routes/crawlers.js';
 import { crawlerAuthMiddleware } from './middleware/crawlerAuth.js';
 import ingestRouter from './routes/ingest.js';
@@ -221,14 +221,16 @@ export function createApp() {
     // Risk Scoring defaults to OFF on a fresh install — opt-in via the toggle
     // in Admin → Risk Scoring or via FEATURE_RISK_SCORING=true.
     const riskOverride = await getFeatureOverride('RISK_SCORING');
-    const corrOverride = await getFeatureOverride('ACCOUNT_CORRELATION');
+    // Account linking (formerly "account correlation"). Honour the new override
+    // key, falling back to the legacy one + legacy env var so upgrades keep their setting.
+    const linkOverride = (await getFeatureOverride('ACCOUNT_LINKING')) ?? (await getFeatureOverride('ACCOUNT_CORRELATION'));
     res.json({
       riskScoring: riskOverride !== null
         ? riskOverride
         : process.env.FEATURE_RISK_SCORING === 'true',
-      accountCorrelation: corrOverride !== null
-        ? corrOverride
-        : process.env.FEATURE_ACCOUNT_CORRELATION !== 'false',
+      accountLinking: linkOverride !== null
+        ? linkOverride
+        : (process.env.FEATURE_ACCOUNT_LINKING ?? process.env.FEATURE_ACCOUNT_CORRELATION) !== 'false',
     });
   });
 
@@ -326,7 +328,7 @@ export function createApp() {
   app.use('/api', authMiddleware, riskProfilesRouter);
   // Listing existing runs is read-only; triggering one is admin. Per-handler in the router.
   app.use('/api', authMiddleware, riskScoringRunsRouter);
-  app.use('/api', authMiddleware, correlationRulesetsRouter);
+  app.use('/api', authMiddleware, accountLinkingRouter);
   app.use('/api', authMiddleware, csvUploadsRouter);
   app.use('/api', authMiddleware, governanceRouter);
   // Bulk list endpoints used by Power Query / BI tools (read API keys honoured)
@@ -356,7 +358,7 @@ export function createApp() {
   // In production, serve the frontend build output
   const frontendDist = process.env.FRONTEND_DIST || join(__dirname, '../../frontend/dist');
   app.use(express.static(frontendDist));
-  app.get('*', publicLimiter, (req, res, next) => {
+  app.get('*path', publicLimiter, (req, res, next) => {
     // Only serve index.html for non-API routes (SPA fallback)
     if (req.path.startsWith('/api')) return next();
     res.sendFile(join(frontendDist, 'index.html'));

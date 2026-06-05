@@ -18,6 +18,7 @@ function Get-OmadaRefValue {
         OIS.ReferenceValue has .DisplayName (string label).
         CSV export fallback: column_VALUE, column_ENGLISH, _DISPLAYNAME.
     #>
+    [CmdletBinding()]
     param($Ref, [string]$Fallback = '')
     if ($null -eq $Ref)           { return $Fallback }
     if ($Ref -is [string])        { return $Ref }
@@ -36,6 +37,7 @@ function Get-OmadaRefUid {
     .DESCRIPTION
         OData 4.0: OIS.ReferenceValue has .UId (Guid). Legacy: ._UID.
     #>
+    [CmdletBinding()]
     param($Ref, [string]$Fallback = '')
     if ($null -eq $Ref)    { return $Fallback }
     if ($Ref -is [string]) { return $Ref }
@@ -52,6 +54,8 @@ function Get-OmadaEntitySets {
         Fetch the OData $metadata document and return the list of entity set names.
         Returns an empty array if the fetch fails (non-blocking — caller decides how to handle).
     #>
+    [CmdletBinding()]
+    param()
     if ($null -eq $script:ODataSession) { return @() }
     # Build URI via string concat — NOT interpolation — to keep the literal '$metadata' intact
     $metaUri = $script:ODataSession.BaseUrl.TrimEnd('/') + '/$metadata'
