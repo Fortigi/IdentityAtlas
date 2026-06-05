@@ -40,26 +40,55 @@ jobs:
       - name: Analyse PowerShell files
         shell: pwsh
         run: |
-          # Scan all function roots (Docker-only project: no setup/azure folder)
-          # Error severity only — Write-Host and global vars are intentional patterns in this module
+          # Scan all production PowerShell roots.
+          #
+          # Excluded paths:
+          #   test/               — test-harness scripts use non-approved verbs
+          #                         (Report-Result) intentionally; not production code
+          #   setup/CreatePSD.ps1 — developer-only manifest regeneration tool with
+          #                         hardcoded local paths; not shipped in the container
+          #
+          # Excluded rules:
+          #   PSAvoidUsingWriteHost — Write-Host is the intentional logging mechanism
+          #                           throughout the crawler / worker codebase
           $paths = @(
             'tools/powershell-sdk/graph',
             'tools/powershell-sdk/helpers',
+            'tools/powershell-sdk/omada',
             'tools/riskscoring',
-            'app/db'
+            'tools/crawlers',
+            'tools/csv-templates/transforms',
+            'setup/docker',
+            'setup/IdentityAtlas.psm1'
+          )
+          $excludeRules = @(
+            'PSAvoidUsingWriteHost'                    # Write-Host is the intentional logging mechanism
+            'PSAvoidGlobalVars'                        # intentional: token caching uses globals across function calls
+            'PSUseShouldProcessForStateChangingFunctions'  # internal library functions, not interactive cmdlets
+            'PSUseBOMForUnicodeEncodedFile'            # Linux-first codebase; BOM is unnecessary
+            'PSUseSingularNouns'                       # internal naming convention; not module exports
+            'PSAvoidDefaultValueSwitchParameter'       # crawler phase switches default to $true intentionally
+            'PSUseProcessBlockForPipelineCommand'      # these functions are not designed for pipeline use
+            'PSUseApprovedVerbs'                       # Map- prefix used for private script-level helpers
+            'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
+            'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
+            'PSAvoidUsingInvokeExpression'             # scheduler crontab is image-baked, not dynamic user input
+            'PSReviewUnusedParameter'                  # some parameters are kept for dispatcher API compatibility
           )
           $results = @()
           foreach ($p in $paths) {
             if (Test-Path $p) {
-              $results += Invoke-ScriptAnalyzer -Path $p -Recurse -Severity Error
+              $results += Invoke-ScriptAnalyzer -Path $p -Recurse `
+                -Severity Warning, Error `
+                -ExcludeRule $excludeRules
             }
           }
           if ($results) {
             $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize
-            Write-Host "::error::PSScriptAnalyzer found $($results.Count) error(s)"
+            Write-Host "::error::PSScriptAnalyzer found $($results.Count) issue(s)"
             exit 1
           }
-          Write-Host "PSScriptAnalyzer: no errors found" -ForegroundColor Green
+          Write-Host "PSScriptAnalyzer: no issues found" -ForegroundColor Green
 
   # ── Stage 2: JavaScript linting ──────────────────────────────────────────
   lint-js:
@@ -75,12 +104,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: app/ui/package-lock.json
 
-      - name: Install dependencies
+      - name: Install UI dependencies
         working-directory: app/ui
         run: npm ci
 
-      - name: Run ESLint
+      - name: Run ESLint (UI)
         working-directory: app/ui
+        run: npm run lint
+
+      - name: Install API dependencies
+        working-directory: app/api
+        run: npm ci
+
+      - name: Run ESLint (API — security rules)
+        working-directory: app/api
         run: npm run lint
 
   # ── Stage 3: Pester unit tests ───────────────────────────────────────────
@@ -98,7 +135,8 @@ jobs:
         shell: pwsh
         run: |
           $cfg = New-PesterConfiguration
-          $cfg.Run.Path = 'test/unit/IdentityAtlas.Tests.ps1'
+          $cfg.Run.Path = 'test/unit'
+          $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
           $cfg.TestResult.Enabled = $true
           $cfg.TestResult.OutputPath = 'pester-results.xml'
@@ -107,8 +145,8 @@ jobs:
           $cfg.CodeCoverage.Path = @(
             'tools/powershell-sdk/graph',
             'tools/powershell-sdk/helpers',
-            'tools/riskscoring',
-            'app/db'
+            'tools/powershell-sdk/omada',
+            'tools/riskscoring'
           )
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
