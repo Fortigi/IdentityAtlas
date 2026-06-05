@@ -1229,7 +1229,6 @@ if ($SyncAssignments) {
             $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
             $Seen  = [System.Collections.Generic.HashSet[string]]::new()
             $Dedup = @($CaPrincipalsBySys[$Key] | Where-Object { $Seen.Add($_.id) })
-        Write-Host "  CRA: $CaTotalCount records → $TotalCaPrincipals connected-system accounts, $($CaIdentityMembers.Count) identity-member links" -ForegroundColor Green
                 Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SysId `
                     -SyncMode 'delta' -Records $Dedup | Out-Null
                 $TotalCaPrincipals += $Dedup.Count

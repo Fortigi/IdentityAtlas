@@ -366,7 +366,7 @@ switch ($JobType) {
                 if ($objects.ContainsKey('cras'))            { $crawlerParams['SyncCRAs']            = [bool]$objects['cras'] }
             }
 
-            & /app/tools/crawlers/omada/Start-OmadaCrawler.ps1 @crawlerParams
+            & "$appRoot/tools/crawlers/omada/Start-OmadaCrawler.ps1" @crawlerParams
 
             Update-JobProgress -Step 'Complete' -Pct 100
             Set-JobResult @{ status = 'Omada sync completed successfully' }
