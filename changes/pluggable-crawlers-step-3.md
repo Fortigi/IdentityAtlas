@@ -7,3 +7,4 @@
 - Updated `app/api/CLAUDE.md` with crawler job system documentation: `routes/jobs.js`, `scheduler.js`, manifest discovery path, and exported functions
 - Removed PowerShell scripts from the web container image (Node.js only — scripts belong in the worker); malformed manifests now log a warning instead of silently disappearing from the job type allowlist
 - Eliminated duplicate `SECRET_FIELDS` definition in `jobs.js` — now derived from the shared `OTHER_SECRET_FIELDS` constant already imported from `crawlerSecrets.js`
+- Fixed load test (`Test-LoadAndBenchmark.ps1`) to use the standard `-ConfigPath` / `-JobId` interface when calling the CSV crawler directly (the old `-CsvFolder` / `-SystemName` / `-SystemType` parameters were removed in the step-2 dispatcher refactor)
