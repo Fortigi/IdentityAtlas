@@ -1130,7 +1130,7 @@ router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
 
     const fetchOpts = { signal: AbortSignal.timeout(10000) };
     if (Object.keys(headers).length) fetchOpts.headers = headers;
-    const metaRes = await fetch(metaUrl, fetchOpts); // lgtm[js/request-forgery] — admin-only endpoint, scheme validated above
+    const metaRes = await fetch(metaUrl, fetchOpts);
     if (!metaRes.ok) {
       return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
     }
