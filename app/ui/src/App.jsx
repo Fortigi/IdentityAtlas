@@ -98,13 +98,14 @@ const ALL_NAV_TABS = [
   { key: 'access-packages',  label: 'Business Roles' },
   { key: 'sync-log',         label: 'Sync Log' },
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring',        optional: true },
-  { key: 'identities',       label: 'Identities',   feature: 'accountCorrelation', optional: true },
+  { key: 'identities',       label: 'Identities',   feature: 'accountLinking', optional: true },
   { key: 'contexts',         label: 'Contexts' },
   { key: 'admin',            label: 'Admin' },
 ];
 
 export default function App() {
-  // Parse initial state from URL (runs once)
+  // Parse initial state from URL (runs once — empty deps intentional)
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const initial = useMemo(() => {
     const { page, params } = parseHash();
     if (page === 'matrix') return parseMatrixParams(params);
@@ -120,7 +121,7 @@ export default function App() {
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
-  const [features, setFeatures] = useState({ riskScoring: true, accountCorrelation: true });
+  const [features, setFeatures] = useState({ riskScoring: true, accountLinking: true });
   const [visibleTabs, setVisibleTabs] = useState(null); // null = loading, [] = loaded
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);

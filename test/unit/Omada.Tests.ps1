@@ -14,8 +14,10 @@
 
 BeforeAll {
     $script:repoRoot   = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    # Load OData base functions (auth, pagination)
-    Get-ChildItem (Join-Path $script:repoRoot 'tools\crawlers\odata') -Filter '*.ps1' | ForEach-Object { . $_.FullName }
+    # Load OData base functions (auth, pagination) — exclude Start-*.ps1 entry points (they have mandatory params)
+    Get-ChildItem (Join-Path $script:repoRoot 'tools\crawlers\odata') -Filter '*.ps1' |
+        Where-Object { $_.Name -notlike 'Start-*' } |
+        ForEach-Object { . $_.FullName }
     # Load Omada-specific helpers (Get-OmadaRefValue, Get-OmadaRefUid, Get-OmadaEntitySets)
     . (Join-Path $script:repoRoot 'tools\crawlers\omada\Get-OmadaHelpers.ps1')
 }
