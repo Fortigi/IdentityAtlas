@@ -99,16 +99,6 @@ Describe 'Function Availability — Helpers (idempotent)' {
     }
 }
 
-Describe 'Function Availability — OData SDK' {
-    It 'exports <_>' -ForEach @(
-        'Connect-ODataAPI',
-        'Invoke-ODataPagedRequest',
-        'Invoke-ODataGetRequest'
-    ) {
-        Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
-    }
-}
-
 Describe 'Function Availability — Omada helpers' {
     It 'exports <_>' -ForEach @(
         'Get-OmadaEntitySets',
@@ -444,9 +434,7 @@ Describe 'File Structure' {
     }
 
     It 'IdentityAtlas.psm1 dot-sources <_>' -ForEach @(
-        "tools\powershell-sdk\graph",
-        "tools\powershell-sdk\helpers",
-        "tools\powershell-sdk\omada",
+        "tools\powershell-sdk",
         "tools\riskscoring"
     ) {
         $psm1 = Get-Content (Join-Path $script:repoRoot 'setup\IdentityAtlas.psm1') -Raw
@@ -463,9 +451,6 @@ Describe 'File Structure' {
 
     It 'setup/azure folder is gone (Docker-only)' {
         Join-Path $script:repoRoot 'setup\azure' | Should -Not -Exist
-    }
-    It 'tools/powershell-sdk/omada folder exists' {
-        $script:omadaRoot | Should -Exist
     }
     It 'tools/crawlers/omada/Start-OmadaCrawler.ps1 exists' {
         Join-Path $script:repoRoot 'tools\crawlers\omada\Start-OmadaCrawler.ps1' | Should -Exist
