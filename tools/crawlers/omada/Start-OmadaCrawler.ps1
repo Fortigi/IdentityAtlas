@@ -53,9 +53,6 @@
     Sync Omada context assignments (Contextassignment) → ContextMembers table.
     Requires SyncContexts and SyncAccounts to have run in the same job.
 
-.PARAMETER SyncCRAs
-    Sync Omada certification review activities → CertificationDecisions.
-
 .PARAMETER RefreshViews
     Refresh SQL views after sync (default: true).
 
@@ -86,7 +83,6 @@ Param(
     [switch]$SyncResources       = $True,
     [switch]$SyncEntitlements    = $True,
     [switch]$SyncAssignments     = $True,
-    [switch]$SyncCRAs            = $True,
     [switch]$RefreshViews        = $True,
 
     [ValidateSet('full','delta')]
@@ -1246,7 +1242,7 @@ if ($SyncAssignments) {
             Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $SystemId `
                 -SyncMode 'delta' -Records $Dedup | Out-Null
         }
-        Write-Host "  CRA: $($CaItems.Count) records → $TotalCaPrincipals connected-system accounts, $($CaIdentityMembers.Count) identity-member links" -ForegroundColor Green
+        Write-Host "  CRA: $CaTotalCount records → $TotalCaPrincipals connected-system accounts, $($CaIdentityMembers.Count) identity-member links" -ForegroundColor Green
 
         Write-Step "Ingesting CRA resource assignments (Governed + Direct) per system..."
         # Ingest CRA ResourceAssignments per system

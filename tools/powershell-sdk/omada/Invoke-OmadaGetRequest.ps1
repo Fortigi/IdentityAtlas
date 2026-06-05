@@ -23,7 +23,6 @@ function Invoke-OmadaGetRequest {
     param(
         [Parameter(Mandatory)] [string]$Path,
         [hashtable]$QueryParams = @{},
-        [int]$PageSize  = 100,
         [int]$MaxRetries = 5,
         [string]$OverrideBaseUrl = ''  # use session BaseUrl when empty; pass Builtin URL for CalculatedAssignments
     )
@@ -113,7 +112,8 @@ function Invoke-OmadaGetRequest {
                     throw "Omada GET $nextUri failed (HTTP $status): $($_.Exception.Message)"
                 }
 
-                $wait = if ($retryAfter -gt 0) { $retryAfter } else { $delays[$attempt] }
+                $delayIdx = [Math]::Min($attempt, $delays.Count - 1)
+                $wait = if ($retryAfter -gt 0) { $retryAfter } else { $delays[$delayIdx] }
                 Write-Host "  Omada: retrying in ${wait}s (HTTP $status, attempt $($attempt+1)/$MaxRetries)..." -ForegroundColor Yellow
                 Start-Sleep -Seconds $wait
                 $attempt++
