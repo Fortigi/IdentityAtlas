@@ -39,12 +39,15 @@
 /* mkdocs-material emits `data-md-color-primary=custom` when
    `primary: custom` is set in mkdocs.yml. */
 [data-md-color-primary=custom] {
-  /* Brand chrome stays lime; links (interactive) go blue. */
-  --md-primary-fg-color:               var(--ia-lime-700);
-  --md-primary-fg-color--light:        var(--ia-lime-600);
-  --md-primary-fg-color--dark:         var(--ia-lime-800);
-  --md-primary-bg-color:               #ffffff;
-  --md-primary-bg-color--light:        #ffffffcc;
+  /* The app shell has a WHITE top bar (logo + dark title), not a solid
+     colour band — mirror that: primary (header/tabs bg) = white, header
+     foreground (title/icons) = dark. Green is a brand ACCENT, not the
+     whole header. Links (interactive) stay blue. */
+  --md-primary-fg-color:               #ffffff;
+  --md-primary-fg-color--light:        var(--ia-gray-100);
+  --md-primary-fg-color--dark:         var(--ia-gray-200);
+  --md-primary-bg-color:               var(--ia-gray-900);
+  --md-primary-bg-color--light:        var(--ia-gray-700);
   --md-typeset-a-color:                var(--ia-blue-600);
 }
 
@@ -56,11 +59,14 @@
   --md-accent-bg-color--light:         #ffffffcc;
 }
 
-/* Dark (slate) scheme — lighter brand lime + lighter blue links for contrast */
+/* Dark (slate) scheme — dark header (matches the app's dark shell), light
+   header text, lighter blue links for contrast. */
 [data-md-color-scheme=slate][data-md-color-primary=custom] {
-  --md-primary-fg-color:               var(--ia-lime-600);
-  --md-primary-fg-color--light:        var(--ia-lime-500);
-  --md-primary-fg-color--dark:         var(--ia-lime-700);
+  --md-primary-fg-color:               #1e293b;
+  --md-primary-fg-color--light:        #334155;
+  --md-primary-fg-color--dark:         #0f172a;
+  --md-primary-bg-color:               #f1f5f9;
+  --md-primary-bg-color--light:        #cbd5e1;
   --md-typeset-a-color:                var(--ia-blue-400);
 }
 [data-md-color-scheme=slate][data-md-color-accent=custom] {
@@ -114,30 +120,47 @@ body,
   margin-bottom: 0.5rem;
 }
 
-/* ── Header bar ────────────────────────────────────────────────── */
+/* ── Header bar — white app-shell look (bg comes from --md-primary-* above) */
 .md-header {
-  background-color: var(--ia-lime-700);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--ia-gray-200);
 }
 .md-header__title {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
+[data-md-color-scheme=slate] .md-header {
+  border-bottom-color: #334155;
+}
 
-/* Tabs row — same lime so it reads as one unit */
+/* Tabs row — white bar with a green (brand) underline on the active tab,
+   matching the app's tab strip. */
 .md-tabs {
-  background-color: var(--ia-lime-700);
+  border-bottom: 1px solid var(--ia-gray-200);
 }
 .md-tabs__link {
-  opacity: 0.8;
+  opacity: 1;
+  color: var(--ia-gray-600);
   font-weight: 500;
 }
 .md-tabs__link:hover,
 .md-tabs__link--active {
-  opacity: 1;
+  color: var(--ia-lime-700);
 }
 .md-tabs__link--active {
-  border-bottom: 2px solid #ffffff;
+  font-weight: 600;
+  border-bottom: 2px solid var(--ia-lime-700);
+}
+[data-md-color-scheme=slate] .md-tabs {
+  border-bottom-color: #334155;
+}
+[data-md-color-scheme=slate] .md-tabs__link {
+  color: #cbd5e1;
+}
+[data-md-color-scheme=slate] .md-tabs__link:hover,
+[data-md-color-scheme=slate] .md-tabs__link--active {
+  color: var(--ia-lime-300);
+  border-bottom-color: var(--ia-lime-300);
 }
 
 /* ── Logo: don't let mkdocs squish it too much ─────────────────── */
@@ -308,12 +331,20 @@ body,
   color: var(--ia-blue-400);
 }
 
-/* ── Search bar ────────────────────────────────────────────────── */
+/* ── Search bar — soft grey field on the white header (like the app) ── */
 .md-search__input {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: var(--ia-gray-100);
+  color: var(--ia-gray-900);
 }
 .md-search__input::placeholder {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ia-gray-500);
+}
+[data-md-color-scheme=slate] .md-search__input {
+  background-color: #334155;
+  color: #f1f5f9;
+}
+[data-md-color-scheme=slate] .md-search__input::placeholder {
+  color: #94a3b8;
 }
 
 /* ── Footer — softer on light background ───────────────────────── */
