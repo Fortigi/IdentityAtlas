@@ -4,3 +4,4 @@
 - Fixed scheduler import (`validateOmadaConfig` → `validateCrawlerConfig`) and replaced hardcoded crawler type allowlist with the manifest-driven `VALID_JOB_TYPES` list
 - Fixed crawler manifest discovery path for Docker (`CRAWLER_MANIFESTS_DIR=/app/crawlers`) and node-launcher (`bundled-scripts/tools/crawlers`)
 - Added tests for manifest-driven `VALID_JOB_TYPES` (including sentinel check that `odata` is present, proving manifests are loaded rather than the hardcoded fallback)
+- Updated `app/api/CLAUDE.md` with crawler job system documentation: `routes/jobs.js`, `scheduler.js`, manifest discovery path, and exported functions
