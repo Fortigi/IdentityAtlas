@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../../auth/AuthGate';
+import Stepper from '../Stepper';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '../contexts/ModalPrimitives';
 import ContextPicker from '../contexts/ContextPicker';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
@@ -393,30 +394,7 @@ function StepIndicator({ step, onJump }) {
     { n: 2, label: 'Subjects' },
     { n: 3, label: 'Resources' },
   ];
-  return (
-    <div className="flex items-center gap-1 text-[11px]">
-      {steps.map((s, idx) => (
-        <span key={s.n} className="flex items-center gap-1">
-          <button
-            onClick={() => onJump(s.n)}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded transition-colors ${
-              step === s.n
-                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold ${
-              step === s.n
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}>{s.n}</span>
-            {s.label}
-          </button>
-          {idx < steps.length - 1 && <span className="text-gray-500 dark:text-gray-400">›</span>}
-        </span>
-      ))}
-    </div>
-  );
+  return <Stepper steps={steps} current={step} onStepClick={onJump} allowAll />;
 }
 
 // ─── Saved-filter dropdown ─────────────────────────────────────────
