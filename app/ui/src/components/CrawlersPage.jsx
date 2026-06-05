@@ -2,6 +2,7 @@
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 import Stepper from './Stepper';
+import useDocsUrl from '../hooks/useDocsUrl';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
 
 const SECRET_MASK = '••••••••';
@@ -2361,6 +2362,7 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function CustomConnectorWizard({ onComplete, onCancel, authFetch }) {
+  const docsLink = useDocsUrl();
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -2571,7 +2573,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
               <span className="font-medium text-sm dark:text-gray-200">Download OpenAPI Spec</span>
               <span className="text-xs text-gray-500 dark:text-gray-400">JSON format</span>
             </a>
-            <a href="https://fortigi.github.io/IdentityAtlas/datasources/csv-schema/" target="_blank" rel="noopener noreferrer"
+            <a href={docsLink('/architecture/csv-import-schema/')} target="_blank" rel="noopener noreferrer"
               className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-blue-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-blue-500">
               <span className="text-2xl mb-1">📋</span>
               <span className="font-medium text-sm dark:text-gray-200">CSV Schema Reference</span>
