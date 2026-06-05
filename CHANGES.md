@@ -1,5 +1,67 @@
 ## Changes in this PR
 
+- Published a **UX & Interface Assessment & Remediation** page in the docs (under Project → User Experience), a sanitized public summary of the June 2026 UX/GUI audit — findings by severity with status and links to the pull requests that fixed them, mirroring the existing security assessment page.
+
+## Changes in this PR
+
+- Dependabot now tracks Docker base image updates (worker PowerShell image, API Node.js image) alongside the existing GitHub Actions SHA-pinning
+- Extended CI PR checks to include the Omada PowerShell SDK and crawler in PSScriptAnalyzer linting
+- Extended Pester code coverage to the Omada SDK (`tools/powershell-sdk/omada`)
+- Pester test runner now scans the full `test/unit/` directory so new test files are picked up automatically without CI changes
+- Removed stale `app/db` path reference from PSScriptAnalyzer and Pester coverage scopes
+- Upgraded PSScriptAnalyzer from Error-only to Warning + Error severity; expanded coverage to all production PowerShell roots (job dispatcher, module, CSV transforms)
+- Added eslint-plugin-security to the API build — catches unsafe regex, dynamic RegExp construction, and similar security anti-patterns on every pull request
+- Fixed: manager-hierarchy context plugin now uses the RE2 engine for admin-supplied exclude patterns, preventing ReDoS via a crafted regex (same fix already applied to the risk-scoring engine)
+- Fixed: `$input` variable in `New-OAuth2ScopeResourceId` (EntraID crawler) shadowed a PowerShell automatic variable — renamed to `$hashInput`
+- Fixed: `$matches` variable in `Get-FGAttributeMapping` shadowed a PowerShell automatic variable — renamed to `$regexMatches`
+
+## Changes in this PR
+
+- Added native Omada IGA crawler that syncs directly from the Omada OData 4.0 REST API — no manual CSV export or transform step required
+- Supports six authentication methods: Form/Cookie (on-premise), HTTP Basic Auth, OAuth2 Client Credentials (cloud), OAuth2 ROPC, API Token, and Cookie String (session cookie from browser DevTools)
+- Syncs systems, contexts (OrgUnits + configured types), identities, accounts/principals, resources (business roles and permissions), entitlements (CHILDROLES nesting), role assignments (Resourceassignment), and effective account assignments (CalculatedAssignments/CRA)
+- Each of Omada's connected target systems (SAP, AD, Salesforce, etc.) is registered as a separate Identity Atlas System; resources and assignments are linked to their correct system
+- Fetches OData `$metadata` at startup to discover available entity sets — phases that require missing sets are skipped with a warning
+- Context types are configurable (`contextObjectTypes`): each entry specifies entity set, contextType label, and an optional identity reference field for direct context membership
+- Resource category mapping is configurable (`resourceCategoryMapping`): maps Omada ROLECATEGORY to Identity Atlas resourceType
+- CRA (CalculatedAssignments) pages are streamed one-at-a-time to prevent OOM on large cloud datasets
+- Added step-by-step logging throughout the crawler — each fetch, build and ingest operation prints a `→` indicator in the job transcript
+- Base URL is normalised using `System.Uri` — both root URLs and explicit OData paths are accepted; the Builtin service URL is derived automatically
+- Fixed: `oisauthtoken=` prefix is auto-prepended to bare CookieString tokens for Omada Cloud
+- Fixed: `$metadata` fetch no longer sends JSON Accept headers (caused HTTP 500 on cloud); XML is accepted as returned
+- Added 42 Pester unit tests for the Omada SDK (auth methods, helper functions, URL normalisation, config forwarding)
+- Added data model reference documentation for the Omada crawler (`docs/architecture/omada-crawler-datamodel.md`)
+- Added PowerShell formatting style guide to `Functions/CLAUDE.md` (Stroustrup preset, region blocks, operator spacing)
+- Fixed: Omada crawler script path in job dispatcher now respects the `IA_APP_ROOT` environment variable instead of hardcoding `/app`
+- Fixed: CRA summary log line reported wrong record count (referenced a removed variable from before the streaming refactor)
+- Omada post-sync now calls account correlation (cross-system identity linking with Entra and other crawlers)
+
+## Changes in this PR
+
+- Added native Omada IGA crawler type to the API — validates config, masks secrets, dispatches jobs, and schedules automatic syncs
+- Added Omada crawler setup wizard to Admin → Crawlers — four-step flow with live `$metadata` validation for context entity sets and identity field names (case-sensitive auto-suggest), and a resource-category mapping editor
+- Added `POST /api/admin/omada/validate-metadata` endpoint for live wizard validation against the Omada OData `$metadata` document
+- Added Omada to the scheduler allowlist so crawls can be scheduled from the Admin UI
+- Extended `ingest/refresh-views` to recalculate `directMemberCount`/`totalMemberCount` on all Contexts after any full sync
+- Fixed: Identity detail page Contexts count was fetched but never passed to the graph shape function, causing the Contexts node to always display 0
+- Fixed: Context detail page member clicks now use `targetType` to open the correct detail kind (`identity`, `user`, `resource`) instead of always using `user`
+- Fixed: User detail `/contexts` endpoint and context count now query `ContextMembers` directly by Identity UUID via `IdentityMembers`, so Omada-synced context memberships appear on the identity detail page
+- Added migration 029: `extendedAttributes jsonb` column on `Identities` table for system-specific identity attributes
+- Added: Identities API `/contexts` endpoint and `contextCount` now query `ContextMembers` directly by Identity UUID so context memberships appear on identity detail pages for all crawlers
+- Fixed: `POST /api/admin/omada/validate-metadata` crashed with a reference error due to an undefined variable; `configId` now also rejects non-numeric values with a clear 400 error
+- Fixed: `POST /api/admin/omada/validate-metadata` now accepts an inline config object so the Omada wizard can validate `$metadata` when adding a new crawler (not only when editing an existing one)
+- Fixed: `validateOmadaConfig` now correctly requires `tokenEndpoint`, `clientId`, and `clientSecret` for OAuth2ROPC connections instead of only username and password
+- Fixed: Omada wizard Step 2 (`canStep2`) now correctly requires `tokenEndpoint`, `clientId`, and `clientSecret` for OAuth2ROPC before advancing to Step 3
+- Fixed: Omada wizard "Add Schedule" now sets `syncMode: 'full'` on new schedules, matching the fact that Omada does not support delta syncs
+- Fixed: Context `directMemberCount` is now reset to 0 after a full sync for contexts that lost all their members, not left with a stale non-zero count
+- Fixed: Omada credential fields (`password`, `apiToken`, `cookieString`) are now vaulted per-job and stripped from `CrawlerJobs.config` before storage, matching the existing behaviour for `clientSecret`; `injectJobSecret` retrieves and injects all credential fields at claim time
+- Fixed: Scheduler now validates the full Omada config (auth credentials, not just `baseUrl`) before queuing a scheduled run, matching the validation applied by the manual "Run Now" path
+- Fixed: `validateOmadaConfig` now correctly requires `tokenEndpoint` for OAuth2CC connections (in addition to `clientId` and `clientSecret`)
+- Fixed: `POST /api/admin/omada/validate-metadata` now rejects `baseUrl` values that use schemes other than `http` or `https` with a 400 error, preventing potential server-side request forgery
+- Fixed: Editing a crawler config via `PATCH /api/admin/crawler-configs/:id` now validates the merged config against Omada rules when the crawler type is `omada`, preventing invalid configs from being saved silently
+
+## Changes in this PR
+
 - Consolidated documentation navigation from 13 top-level tabs to 5 (Home, Guide, Concepts, Reference, Project) to prevent tab overflow on standard screen widths
 
 ## Changes in this PR

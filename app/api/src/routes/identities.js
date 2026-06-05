@@ -376,9 +376,9 @@ router.get('/identities/:id', async (req, res) => {
       const r = await timedRequest(p, 'identity-context-count', res)
         .input('identityId', identityId)
         .query(`SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
-                  FROM "IdentityMembers" m
-                  JOIN "ContextMembers" cm ON cm."memberId" = m."principalId"
-                 WHERE m."identityId" = @identityId`);
+                  FROM "ContextMembers" cm
+                 WHERE cm."memberId"::text = @identityId
+                   AND cm."memberType" = 'Identity'`);
       contextCount = r.recordset[0]?.cnt || 0;
     } catch { /* ContextMembers may not exist */ }
 
@@ -394,9 +394,9 @@ router.get('/identities/:id', async (req, res) => {
   }
 });
 
-// GET /api/identities/:id/contexts — Lazy-loaded context memberships
-// across every linked account. Distinct on context.id so the same context
-// joined via two different accounts only appears once.
+// GET /api/identities/:id/contexts — Lazy-loaded context memberships.
+// ContextMembers are stored with memberType='Identity' and memberId=Identity.UId
+// so we can look up directly without going through IdentityMembers.
 router.get('/identities/:id/contexts', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
@@ -405,10 +405,10 @@ router.get('/identities/:id/contexts', async (req, res) => {
       .input('identityId', req.params.id)
       .query(`SELECT DISTINCT ON (c.id) c.id, c."displayName", c."contextType",
                      c."targetType", c.variant
-                FROM "IdentityMembers" m
-                JOIN "ContextMembers" cm ON cm."memberId" = m."principalId"
+                FROM "ContextMembers" cm
                 JOIN "Contexts" c ON c.id = cm."contextId"
-               WHERE m."identityId" = @identityId
+               WHERE cm."memberId"::text = @identityId
+                 AND cm."memberType" = 'Identity'
                ORDER BY c.id, c."contextType", c."displayName"`);
     res.json(r.recordset);
   } catch (err) {

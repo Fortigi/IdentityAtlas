@@ -24,6 +24,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
   const [identity, setIdentity] = useState(null);
   const [members, setMembers] = useState([]);
   const [aggregate, setAggregate] = useState({});
+  const [contextCount, setContextCount] = useState(0);
   const [riskData, setRiskData] = useState(null);
   const [verifying, setVerifying] = useState(false);
 
@@ -46,6 +47,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
       setIdentity(data.identity);
       setMembers(data.members || []);
       setAggregate(data.aggregateAssignments || {});
+      setContextCount(data.contextCount || 0);
       if (onCacheData) onCacheData(identityId, 'identity', data);
     } catch (err) {
       console.error('Failed to load identity detail:', err);
@@ -82,8 +84,8 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
 
   // Pack the identity core payload into the shape getRootNodes expects.
   const core = useMemo(() => (
-    identity ? { identity, members, aggregateAssignments: aggregate } : null
-  ), [identity, members, aggregate]);
+    identity ? { identity, members, aggregateAssignments: aggregate, contextCount } : null
+  ), [identity, members, aggregate, contextCount]);
 
   const rootNodes = useMemo(() => (
     core ? getRootNodes('identity', core, rootExtras) : []
