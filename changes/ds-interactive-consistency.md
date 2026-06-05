@@ -1,0 +1,2 @@
+- Unified the look of every step-by-step wizard (crawler setup, matrix filter, risk profile, account correlation) behind one shared stepper component — same blue active step, "✓" for completed steps, and chevron separators everywhere, instead of four slightly different hand-built versions.
+- Made interactive controls consistently **blue** across the app: the crawler wizard, Admin save/new buttons, and the risk-profile and correlation wizards previously used purple/indigo (and a few green) buttons, which now match the rest of the UI and the Style Guide.

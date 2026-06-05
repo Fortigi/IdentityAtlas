@@ -19,6 +19,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import JsonViewer from './JsonViewer';
+import Stepper from './Stepper';
 
 const STEPS = [
   { key: 'sources',     label: 'Sources' },
@@ -314,14 +315,8 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
   return (
     <Modal onClose={onClose} title="Risk Profile Wizard" wide>
       {/* Step indicator */}
-      <div className="flex items-center gap-2 px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-xs">
-        {STEPS.map((s, i) => (
-          <div key={s.key} className={`flex items-center gap-2 ${i === stepIdx ? 'font-semibold text-indigo-700 dark:text-indigo-400' : i < stepIdx ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-500'}`}>
-            <span className={`inline-flex w-5 h-5 rounded-full items-center justify-center text-[10px] ${i === stepIdx ? 'bg-indigo-600 text-white' : i < stepIdx ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-gray-600'}`}>{i + 1}</span>
-            <span>{s.label}</span>
-            {i < STEPS.length - 1 && <span className="text-gray-500 dark:text-gray-600 mx-1">›</span>}
-          </div>
-        ))}
+      <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+        <Stepper steps={STEPS.map((s, i) => ({ n: i + 1, label: s.label }))} current={stepIdx + 1} />
       </div>
 
       <div className="p-6 max-h-[70vh] overflow-y-auto">
@@ -366,21 +361,21 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
 
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={onClose} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">Cancel</button>
-              <button onClick={handleGenerate} disabled={!domain || generating} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
+              <button onClick={handleGenerate} disabled={!domain || generating} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
                 {generating ? `Generating… (${elapsedSec}s)` : 'Generate profile →'}
               </button>
             </div>
             {generating && (
-              <div className="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded text-sm">
-                <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300">
+              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-sm">
+                <div className="flex items-center gap-2 text-blue-900 dark:text-blue-300">
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
                     <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" className="opacity-75" />
                   </svg>
                   <span className="font-medium">The AI is researching the organisation…</span>
-                  <span className="text-xs text-indigo-700 dark:text-indigo-400 ml-auto">{elapsedSec}s elapsed</span>
+                  <span className="text-xs text-blue-700 dark:text-blue-400 ml-auto">{elapsedSec}s elapsed</span>
                 </div>
-                <div className="text-xs text-indigo-700 dark:text-indigo-400 mt-2 space-y-1">
+                <div className="text-xs text-blue-700 dark:text-blue-400 mt-2 space-y-1">
                   <div>1. {urls.filter(u => u.url).length > 0 ? `Scraping ${urls.filter(u => u.url).length} URL${urls.filter(u => u.url).length === 1 ? '' : 's'}` : 'Skipping URL scraping'}</div>
                   <div>2. Calling the LLM to generate the profile JSON</div>
                   <div className="opacity-70 mt-2">This typically takes 20–60 seconds depending on the model. Opus/GPT-4 are slower but produce better industry-specific profiles.</div>
@@ -423,12 +418,12 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
                     <div className="text-xs text-gray-500 dark:text-gray-400">Ask the AI to adjust anything or ask a question: "drop NIS2 — we're US-only", "what software does this org use?", "add critical role for Customs Officer"…</div>
                   )}
                   {transcript.map((m, i) => (
-                    <div key={i} className={`text-xs ${m.role === 'user' ? 'text-gray-900 dark:text-gray-200' : 'text-indigo-700 dark:text-indigo-400'}`}>
+                    <div key={i} className={`text-xs ${m.role === 'user' ? 'text-gray-900 dark:text-gray-200' : 'text-blue-700 dark:text-blue-400'}`}>
                       <span className="font-semibold">{m.role === 'user' ? 'You' : 'AI'}:</span> {m.content}
                     </div>
                   ))}
                   {refining && (
-                    <div className="text-xs text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+                    <div className="text-xs text-blue-700 dark:text-blue-400 flex items-center gap-2">
                       <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
                         <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" className="opacity-75" />
@@ -439,7 +434,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
                 </div>
                 <div className="flex gap-2 mt-2">
                   <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleRefine()} disabled={refining} placeholder="Ask for a change or a question…" className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-                  <button onClick={handleRefine} disabled={!chatInput.trim() || refining} className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
+                  <button onClick={handleRefine} disabled={!chatInput.trim() || refining} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
                     {refining ? `${elapsedSec}s` : 'Send'}
                   </button>
                 </div>
@@ -448,7 +443,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
 
             <div className="flex justify-between pt-2">
               <button onClick={() => setStepIdx(0)} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">← Back</button>
-              <button onClick={() => setStepIdx(2)} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">Looks good — save →</button>
+              <button onClick={() => setStepIdx(2)} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Looks good — save →</button>
             </div>
           </div>
         )}
@@ -467,7 +462,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
             </label>
             <div className="flex justify-between pt-2">
               <button onClick={() => setStepIdx(1)} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">← Back</button>
-              <button onClick={handleSaveProfile} disabled={!profileName || savingProfile} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
+              <button onClick={handleSaveProfile} disabled={!profileName || savingProfile} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
                 {savingProfile ? 'Saving…' : 'Save profile →'}
               </button>
             </div>
@@ -484,23 +479,23 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
             </p>
             {!classifiers && (
               <div className="flex gap-2">
-                <button onClick={handleGenerateClassifiers} disabled={genClassifiers} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
+                <button onClick={handleGenerateClassifiers} disabled={genClassifiers} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
                   {genClassifiers ? `Generating… (${classifierElapsedSec}s)` : 'Generate classifiers'}
                 </button>
                 <button onClick={() => { onSaved?.(); onClose(); }} disabled={genClassifiers} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-50">Skip — done for now</button>
               </div>
             )}
             {genClassifiers && (
-              <div className="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded text-sm">
-                <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300">
+              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-sm">
+                <div className="flex items-center gap-2 text-blue-900 dark:text-blue-300">
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
                     <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" className="opacity-75" />
                   </svg>
                   <span className="font-medium">Generating regex classifiers from the profile…</span>
-                  <span className="text-xs text-indigo-700 dark:text-indigo-400 ml-auto">{classifierElapsedSec}s elapsed</span>
+                  <span className="text-xs text-blue-700 dark:text-blue-400 ml-auto">{classifierElapsedSec}s elapsed</span>
                 </div>
-                <div className="text-xs text-indigo-700 dark:text-indigo-400 mt-2 space-y-1">
+                <div className="text-xs text-blue-700 dark:text-blue-400 mt-2 space-y-1">
                   <div>The LLM is translating the profile's regulations, critical roles, and known systems into regex patterns that will match high-risk principals during scoring.</div>
                   <div className="opacity-70 mt-2">This typically takes 30–90 seconds with Opus — classifiers are larger than profiles. Switch to Sonnet or Haiku in Admin → LLM Settings for faster (but less nuanced) output.</div>
                 </div>
@@ -522,7 +517,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
                 </div>
                 <div className="flex justify-between pt-2">
                   <button onClick={handleGenerateClassifiers} disabled={genClassifiers} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">Regenerate</button>
-                  <button onClick={handleSaveClassifiers} disabled={!classifierName || savingClassifiers} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
+                  <button onClick={handleSaveClassifiers} disabled={!classifierName || savingClassifiers} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600">
                     {savingClassifiers ? 'Saving…' : 'Save classifiers →'}
                   </button>
                 </div>
@@ -541,7 +536,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
             </p>
             {!scoringRun && !scoring && (
               <div className="flex gap-2">
-                <button onClick={handleStartScoring} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                <button onClick={handleStartScoring} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
                   Run scoring now
                 </button>
                 <button onClick={() => { onSaved?.(); onClose(); }} className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:text-gray-300 dark:hover:bg-gray-700">Done</button>
@@ -551,16 +546,16 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
             {scoringRun && (
               <div className="space-y-2">
                 <div className="text-sm dark:text-gray-300">
-                  Status: <span className={`font-semibold ${scoringRun.status === 'completed' ? 'text-green-700 dark:text-green-400' : scoringRun.status === 'failed' ? 'text-red-700 dark:text-red-400' : 'text-indigo-700 dark:text-indigo-400'}`}>{scoringRun.status}</span>
+                  Status: <span className={`font-semibold ${scoringRun.status === 'completed' ? 'text-green-700 dark:text-green-400' : scoringRun.status === 'failed' ? 'text-red-700 dark:text-red-400' : 'text-blue-700 dark:text-blue-400'}`}>{scoringRun.status}</span>
                   {scoringRun.step && <span className="text-gray-500 dark:text-gray-400"> · {scoringRun.step}</span>}
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded h-2">
-                  <div className="bg-indigo-600 h-2 rounded transition-all" style={{ width: `${scoringRun.pct || 0}%` }} />
+                  <div className="bg-blue-600 h-2 rounded transition-all" style={{ width: `${scoringRun.pct || 0}%` }} />
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">{scoringRun.scoredEntities || 0} / {scoringRun.totalEntities || '?'} entities</div>
                 {scoringRun.errorMessage && <div className="text-sm text-red-700 dark:text-red-400">{scoringRun.errorMessage}</div>}
                 {(scoringRun.status === 'completed' || scoringRun.status === 'failed') && (
-                  <button onClick={() => { onSaved?.(); onClose(); }} className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                  <button onClick={() => { onSaved?.(); onClose(); }} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
                     Done
                   </button>
                 )}
