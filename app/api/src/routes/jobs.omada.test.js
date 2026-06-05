@@ -1,13 +1,13 @@
 /**
  * Unit tests for Omada-specific logic in jobs.js:
  *   - maskConfig: ensures all credential types are masked
- *   - validateOmadaConfig: covers all six auth methods + missing required fields
+ *   - validateCrawlerConfig('omada', ...): covers all six auth methods + missing required fields
  *   - PATCH secret preservation: existing secrets survive a no-secret PATCH
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import jobsRouter, { maskConfig, validateOmadaConfig } from './jobs.js';
+import jobsRouter, { maskConfig, validateCrawlerConfig } from './jobs.js';
 
 // ─── Mocks for validate-metadata endpoint tests ───────────────────────────────
 
@@ -69,17 +69,20 @@ describe('maskConfig', () => {
   });
 });
 
-describe('validateOmadaConfig', () => {
+// Helper: call validateCrawlerConfig for the 'omada' type
+const validateOmada = (config) => validateCrawlerConfig('omada', config);
+
+describe('validateCrawlerConfig (omada)', () => {
   it('returns error when baseUrl is missing', () => {
-    expect(validateOmadaConfig({})).toMatch(/baseUrl/);
+    expect(validateOmada({})).toMatch(/baseUrl/);
   });
 
   it('returns error when baseUrl is empty string', () => {
-    expect(validateOmadaConfig({ baseUrl: '' })).toMatch(/baseUrl/);
+    expect(validateOmada({ baseUrl: '' })).toMatch(/baseUrl/);
   });
 
   it('returns null for valid FormCookie config', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'FormCookie',
       username: 'admin',
@@ -88,15 +91,15 @@ describe('validateOmadaConfig', () => {
   });
 
   it('returns error for FormCookie missing password', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'FormCookie',
       username: 'admin',
-    })).toMatch(/username and password/);
+    })).toMatch(/password/);
   });
 
   it('returns null for valid OAuth2CC config', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'OAuth2CC',
       tokenEndpoint: 'https://omada.example.com/oauth2/token',
@@ -106,15 +109,15 @@ describe('validateOmadaConfig', () => {
   });
 
   it('returns error for OAuth2CC missing clientSecret', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'OAuth2CC',
       clientId: 'client-id',
-    })).toMatch(/clientId and clientSecret/);
+    })).toMatch(/clientSecret/);
   });
 
   it('returns error for OAuth2CC missing tokenEndpoint', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'OAuth2CC',
       clientId: 'client-id',
@@ -123,7 +126,7 @@ describe('validateOmadaConfig', () => {
   });
 
   it('returns null for valid OAuth2ROPC config', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'OAuth2ROPC',
       tokenEndpoint: 'https://omada.example.com/oauth2/token',
@@ -135,7 +138,7 @@ describe('validateOmadaConfig', () => {
   });
 
   it('returns error for OAuth2ROPC missing tokenEndpoint', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'OAuth2ROPC',
       clientId: 'client-id',
@@ -146,18 +149,18 @@ describe('validateOmadaConfig', () => {
   });
 
   it('returns error for OAuth2ROPC missing username', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'OAuth2ROPC',
       tokenEndpoint: 'https://omada.example.com/oauth2/token',
       clientId: 'client-id',
       clientSecret: 'client-secret',
       password: 'pass',
-    })).toMatch(/username and password/);
+    })).toMatch(/username/);
   });
 
   it('returns null for valid ApiToken config', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'ApiToken',
       apiToken: 'tok_abc123',
@@ -165,14 +168,14 @@ describe('validateOmadaConfig', () => {
   });
 
   it('returns error for ApiToken missing apiToken', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'ApiToken',
     })).toMatch(/apiToken/);
   });
 
   it('returns null for valid CookieString config', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'CookieString',
       cookieString: 'session=abc',
@@ -180,14 +183,14 @@ describe('validateOmadaConfig', () => {
   });
 
   it('returns error for CookieString missing cookieString', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'CookieString',
     })).toMatch(/cookieString/);
   });
 
   it('returns null for valid BasicAuth config', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'BasicAuth',
       username: 'admin',
@@ -196,16 +199,16 @@ describe('validateOmadaConfig', () => {
   });
 
   it('returns error for BasicAuth missing username', () => {
-    expect(validateOmadaConfig({
+    expect(validateOmada({
       baseUrl: 'https://omada.example.com',
       authMethod: 'BasicAuth',
       password: 'pass',
-    })).toMatch(/username and password/);
+    })).toMatch(/username/);
   });
 
-  it('returns null when no authMethod is specified (no credentials required)', () => {
-    // No authMethod = no credential check fires — the worker will fail at connect time
-    expect(validateOmadaConfig({ baseUrl: 'https://omada.example.com' })).toBeNull();
+  it('returns null when authMethod is missing (no credential check fires)', () => {
+    // authMethod is required per schema — should return an error
+    expect(validateOmada({ baseUrl: 'https://omada.example.com' })).toMatch(/authMethod/);
   });
 });
 

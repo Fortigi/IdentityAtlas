@@ -1,12 +1,12 @@
-# Build context: ./app  (contains api/ and ui/)
-# Usage: docker build -f api/Dockerfile -t fortigraph-backend .
+# Build context: repo root  (so tools/crawlers manifests are accessible)
+# Usage: docker build -f app/api/Dockerfile -t fortigraph-backend .
 
 # ── Stage 1: Build frontend ───────────────────────────────────────────────────
 FROM node:26-slim AS frontend-build
 WORKDIR /app/frontend
-COPY ui/package*.json ./
+COPY app/ui/package*.json ./
 RUN npm ci
-COPY ui/ .
+COPY app/ui/ .
 RUN npm run build
 
 # ── Stage 2: Backend runtime ──────────────────────────────────────────────────
@@ -19,9 +19,12 @@ ARG MODULE_VERSION=""
 ENV MODULE_VERSION=$MODULE_VERSION
 
 WORKDIR /app/backend
-COPY api/package*.json ./
+COPY app/api/package*.json ./
 RUN npm ci --omit=dev
-COPY api/src ./src
+COPY app/api/src ./src
+# Copy crawler manifests (JSON only — no PS1 scripts) so the API can
+# auto-discover valid job types and their config schemas at startup.
+COPY tools/crawlers /app/crawlers
 # Copy the compiled frontend so Express can serve it as static files
 COPY --from=frontend-build /app/frontend/dist ../frontend/dist
 

@@ -1,0 +1,3 @@
+- API now auto-discovers valid crawler job types from `crawler.json` manifests — adding a new crawler automatically makes it available in the API without editing `jobs.js`
+- Crawler config validation replaced hardcoded per-crawler functions with JSON Schema validation (ajv) driven by each crawler's `configSchema` in its manifest
+- Docker web image build context changed to repo root so crawler manifests are included in the image; manifests live at `/app/crawlers/` in the container

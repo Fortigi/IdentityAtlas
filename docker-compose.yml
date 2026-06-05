@@ -28,8 +28,8 @@ services:
   web:
     restart: unless-stopped
     build:
-      context: ./app
-      dockerfile: api/Dockerfile
+      context: .
+      dockerfile: app/api/Dockerfile
       args:
         MODULE_VERSION: "${MODULE_VERSION:-}"
     environment:
