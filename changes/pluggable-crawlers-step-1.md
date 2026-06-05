@@ -6,3 +6,5 @@
 - Module loader (`IdentityAtlas.psm1`) now auto-discovers shared SDK directories — adding a new shared SDK no longer requires editing the module
 - PR workflow code coverage paths now auto-discover all crawler and SDK directories — no manual updates needed when adding new crawlers
 - Extracted demo dataset logic into its own crawler script (`tools/crawlers/demo/Start-DemoCrawler.ps1`)
+- Restored Pester code-quality coverage for `tools/crawlers/` (CmdletBinding, secrets, Dutch comments); the file move from `tools/powershell-sdk/omada/` had silently dropped that coverage
+- Added `[CmdletBinding()]` to `Get-OmadaRefValue`, `Get-OmadaRefUid`, and `Get-OmadaEntitySets` (detected by the restored coverage gate)
