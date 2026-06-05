@@ -87,3 +87,95 @@ if invoked directly as a job.
 
 `Connect-ODataAPI` stores session state in `$script:ODataSession`. All subsequent `Invoke-OData*`
 calls read from that session automatically — no token passing between calls.
+
+## Standard Entry Point Interface
+
+Every entry point must accept exactly these four mandatory parameters:
+
+```powershell
+[CmdletBinding()]
+Param(
+    [Parameter(Mandatory)] [string]$ApiBaseUrl,   # Identity Atlas API root, e.g. http://web:3001/api
+    [Parameter(Mandatory)] [string]$ApiKey,       # Built-in crawler API key (fgc_...)
+    [Parameter(Mandatory)] [int]$JobId,           # CrawlerJobs.id for live progress reporting
+    [Parameter(Mandatory)] [string]$ConfigPath    # Path to JSON config written by the dispatcher
+)
+```
+
+The dispatcher writes the job config to a temp JSON file and passes the path as `$ConfigPath`.
+Read it at the top of your entry point:
+
+```powershell
+$Cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+```
+
+The dispatcher cleans up the temp file after the entry point exits (success or error).
+
+### Reserved config keys
+
+The dispatcher injects these keys before writing the file:
+
+| Key | Type | Description |
+|---|---|---|
+| `_syncMode` | `"full"` \| `"delta"` | Sync mode selected by the operator; honour it or document why you ignore it |
+
+All other keys come directly from the operator-supplied config stored in the database.
+
+### Conventional config keys (not injected — operators set them)
+
+| Key | Used by | Purpose |
+|---|---|---|
+| `selectedObjects` | entra-id, omada | Hashtable of `phase → bool` to enable/disable individual sync phases |
+| `contextObjectTypes` | omada | List of OData entity sets to sync as Identity Atlas Contexts |
+| `resourceCategoryMapping` | omada | Maps source category labels to Identity Atlas `resourceType` values |
+
+## Building an OData-based Crawler
+
+1. Create `tools/crawlers/my-source/crawler.json` with `"dependsOn": ["odata"]`
+2. Create the entry point with the standard interface
+3. Authenticate with `Connect-ODataAPI`, then call `Invoke-ODataPagedRequest`
+
+**crawler.json**
+```json
+{
+  "type": "my-source",
+  "displayName": "My OData Source",
+  "entryPoint": "Start-MySourceCrawler.ps1",
+  "dependsOn": ["odata"],
+  "postSyncHooks": ["buildContexts", "accountCorrelation"],
+  "configSchema": {
+    "type": "object",
+    "required": ["baseUrl", "authMethod"],
+    "properties": {
+      "baseUrl":    { "type": "string" },
+      "authMethod": { "enum": ["ApiToken","BasicAuth","OAuth2CC","OAuth2ROPC","CookieString","FormCookie"] },
+      "apiToken":   { "type": "string" }
+    }
+  }
+}
+```
+
+**Start-MySourceCrawler.ps1**
+```powershell
+[CmdletBinding()]
+Param(
+    [Parameter(Mandatory)] [string]$ApiBaseUrl,
+    [Parameter(Mandatory)] [string]$ApiKey,
+    [Parameter(Mandatory)] [int]$JobId,
+    [Parameter(Mandatory)] [string]$ConfigPath
+)
+
+$ErrorActionPreference = 'Stop'
+$Cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+
+# Connect-ODataAPI is available because "dependsOn": ["odata"] caused the
+# dispatcher to dot-source odata library files before this script ran.
+Connect-ODataAPI -BaseUrl $Cfg.baseUrl -AuthMethod $Cfg.authMethod -ApiToken $Cfg.apiToken
+
+$Items = Invoke-ODataPagedRequest -Path '/MyEntity' -QueryParams @{ '$filter' = 'Active eq true' }
+
+# Push to Identity Atlas ingest API ...
+```
+
+> **Note:** Never run the `odata` crawler type as a job — its `Start-ODataCrawler.ps1` entry point
+> throws immediately by design. It exists solely as a `dependsOn` base layer.
