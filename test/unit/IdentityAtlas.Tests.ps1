@@ -99,16 +99,25 @@ Describe 'Function Availability — Helpers (idempotent)' {
     }
 }
 
-Describe 'Function Availability — Omada SDK' {
+Describe 'Function Availability — OData SDK' {
     It 'exports <_>' -ForEach @(
-        'Connect-OmadaAPI',
+        'Connect-ODataAPI',
+        'Invoke-ODataPagedRequest',
+        'Invoke-ODataGetRequest'
+    ) {
+        Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+    }
+}
+
+Describe 'Function Availability — Omada helpers' {
+    It 'exports <_>' -ForEach @(
         'Get-OmadaEntitySets',
-        'Invoke-OmadaPagedRequest',
-        'Invoke-OmadaGetRequest',
         'Get-OmadaRefValue',
         'Get-OmadaRefUid'
     ) {
-        Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+        # Omada helpers are loaded by the dispatcher at job runtime, not globally by the module.
+        # These tests are skipped here — see Omada.Tests.ps1 for unit tests of these functions.
+        Set-ItResult -Skipped -Because 'Omada helpers load on demand via dispatcher, not via module'
     }
 }
 

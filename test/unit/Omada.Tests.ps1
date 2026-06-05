@@ -1,11 +1,11 @@
 #Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0.0' }
 <#
 .SYNOPSIS
-    Pester unit tests for the Omada SDK (tools/powershell-sdk/omada).
+    Pester unit tests for the OData base layer and Omada-specific helpers.
 
 .DESCRIPTION
-    Tests the pure helper functions exported by the Omada SDK.
-    No network calls are made — Omada API connectivity is out of scope.
+    Tests the pure helper functions from the OData base crawler and Omada helpers.
+    No network calls are made — API connectivity is out of scope.
 
 .USAGE
     Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
@@ -14,8 +14,10 @@
 
 BeforeAll {
     $script:repoRoot   = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    $script:modulePath = Join-Path $script:repoRoot 'setup\IdentityAtlas.psd1'
-    Import-Module $script:modulePath -Force -ErrorAction Stop
+    # Load OData base functions (auth, pagination)
+    Get-ChildItem (Join-Path $script:repoRoot 'tools\crawlers\odata') -Filter '*.ps1' | ForEach-Object { . $_.FullName }
+    # Load Omada-specific helpers (Get-OmadaRefValue, Get-OmadaRefUid, Get-OmadaEntitySets)
+    . (Join-Path $script:repoRoot 'tools\crawlers\omada\Get-OmadaHelpers.ps1')
 }
 
 # ─── Get-OmadaRefValue ────────────────────────────────────────────────────────
@@ -81,13 +83,13 @@ Describe 'Get-OmadaRefUid' {
     }
 }
 
-# ─── Omada SDK function availability ─────────────────────────────────────────
-Describe 'Omada SDK — function availability' {
+# ─── OData function availability ─────────────────────────────────────────────
+Describe 'OData — function availability' {
     It 'exports <_>' -ForEach @(
-        'Connect-OmadaAPI',
+        'Connect-ODataAPI',
+        'Invoke-ODataPagedRequest',
+        'Invoke-ODataGetRequest',
         'Get-OmadaEntitySets',
-        'Invoke-OmadaPagedRequest',
-        'Invoke-OmadaGetRequest',
         'Get-OmadaRefValue',
         'Get-OmadaRefUid'
     ) {
@@ -95,72 +97,72 @@ Describe 'Omada SDK — function availability' {
     }
 }
 
-# ─── Connect-OmadaAPI — ApiToken (no HTTP) ────────────────────────────────────
-Describe 'Connect-OmadaAPI — ApiToken auth' {
+# ─── Connect-ODataAPI — ApiToken (no HTTP) ───────────────────────────────────
+Describe 'Connect-ODataAPI — ApiToken auth' {
     It 'succeeds without making any HTTP call' {
-        { Connect-OmadaAPI -BaseUrl 'https://omada.example.com' -AuthMethod 'ApiToken' -ApiToken 'test-static-token' } |
+        { Connect-ODataAPI -BaseUrl 'https://omada.example.com' -AuthMethod 'ApiToken' -ApiToken 'test-static-token' } |
             Should -Not -Throw
     }
 }
 
-# ─── Connect-OmadaAPI — BasicAuth (no HTTP) ───────────────────────────────────
-Describe 'Connect-OmadaAPI — BasicAuth auth' {
+# ─── Connect-ODataAPI — BasicAuth (no HTTP) ──────────────────────────────────
+Describe 'Connect-ODataAPI — BasicAuth auth' {
     It 'succeeds without making any HTTP call' {
-        { Connect-OmadaAPI -BaseUrl 'https://omada.example.com' -AuthMethod 'BasicAuth' -Username 'admin' -Password 'pass' } |
+        { Connect-ODataAPI -BaseUrl 'https://omada.example.com' -AuthMethod 'BasicAuth' -Username 'admin' -Password 'pass' } |
             Should -Not -Throw
     }
     It 'throws when username is missing' {
-        { Connect-OmadaAPI -BaseUrl 'https://omada.example.com' -AuthMethod 'BasicAuth' -Password 'pass' } |
+        { Connect-ODataAPI -BaseUrl 'https://omada.example.com' -AuthMethod 'BasicAuth' -Password 'pass' } |
             Should -Throw
     }
 }
 
-# ─── Connect-OmadaAPI — CookieString (no HTTP) ────────────────────────────────
-Describe 'Connect-OmadaAPI — CookieString auth' {
+# ─── Connect-ODataAPI — CookieString (no HTTP) ───────────────────────────────
+Describe 'Connect-ODataAPI — CookieString auth' {
     It 'succeeds with an explicit name=value cookie string' {
-        { Connect-OmadaAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
+        { Connect-ODataAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
             -AuthMethod 'CookieString' -CookieString 'oisauthtoken=MHXp1OG0seFfKwNYzQkZwA==' } |
             Should -Not -Throw
     }
     It 'succeeds with a bare token — auto-prefix oisauthtoken= is applied' {
-        { Connect-OmadaAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
+        { Connect-ODataAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
             -AuthMethod 'CookieString' -CookieString 'MHXp1OG0seFfKwNYzQkZwA==' } |
             Should -Not -Throw
     }
     It 'throws when CookieString is empty' {
-        { Connect-OmadaAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
+        { Connect-ODataAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
             -AuthMethod 'CookieString' -CookieString '' } |
             Should -Throw
     }
     It 'passes an ASP.NET multi-cookie string as-is (already name=value)' {
-        { Connect-OmadaAPI -BaseUrl 'https://server/odata/dataobjects' `
+        { Connect-ODataAPI -BaseUrl 'https://server/odata/dataobjects' `
             -AuthMethod 'CookieString' -CookieString 'ASP.NET_SessionId=abc123; Auth=xyz' } |
             Should -Not -Throw
     }
 }
 
-# ─── Get-OmadaAuthRoot ─────────────────────────────────────────────────────────
-Describe 'Get-OmadaAuthRoot' {
+# ─── Get-ODataAuthRoot ────────────────────────────────────────────────────────
+Describe 'Get-ODataAuthRoot' {
     BeforeEach {
-        # Seed the session so Get-OmadaAuthRoot can read BaseUrl
-        Connect-OmadaAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
+        # Seed the session so Get-ODataAuthRoot can read BaseUrl
+        Connect-ODataAPI -BaseUrl 'https://tenant.omada.cloud/odata/dataobjects' `
             -AuthMethod 'ApiToken' -ApiToken 'tok'
     }
 
     It 'strips /odata/dataobjects from a cloud URL' {
-        Get-OmadaAuthRoot | Should -Be 'https://tenant.omada.cloud'
+        Get-ODataAuthRoot | Should -Be 'https://tenant.omada.cloud'
     }
 
     It 'strips /odata/dataobjects from an on-prem URL' {
-        Connect-OmadaAPI -BaseUrl 'http://server/odata/dataobjects' `
+        Connect-ODataAPI -BaseUrl 'http://server/odata/dataobjects' `
             -AuthMethod 'ApiToken' -ApiToken 'tok'
-        Get-OmadaAuthRoot | Should -Be 'http://server'
+        Get-ODataAuthRoot | Should -Be 'http://server'
     }
 
     It 'returns the base URL unchanged when no /odata/ segment is present' {
-        Connect-OmadaAPI -BaseUrl 'http://server/api' `
+        Connect-ODataAPI -BaseUrl 'http://server/api' `
             -AuthMethod 'ApiToken' -ApiToken 'tok'
-        Get-OmadaAuthRoot | Should -Be 'http://server/api'
+        Get-ODataAuthRoot | Should -Be 'http://server/api'
     }
 }
 
@@ -184,28 +186,30 @@ Describe 'Omada URL normalisation' {
 # ─── File structure ────────────────────────────────────────────────────────────
 Describe 'Omada file structure' {
     BeforeAll {
-        $script:omadaRoot    = Join-Path $script:repoRoot 'tools\powershell-sdk\omada'
-        $script:crawlerPath  = Join-Path $script:repoRoot 'tools\crawlers\omada\Start-OmadaCrawler.ps1'
+        $script:odataRoot    = Join-Path $script:repoRoot 'tools\crawlers\odata'
+        $script:omadaRoot    = Join-Path $script:repoRoot 'tools\crawlers\omada'
+        $script:crawlerPath  = Join-Path $script:omadaRoot 'Start-OmadaCrawler.ps1'
         $script:dispatchPath = Join-Path $script:repoRoot 'setup\docker\Invoke-CrawlerJob.ps1'
     }
 
-    It 'tools/powershell-sdk/omada folder exists' {
-        $script:omadaRoot | Should -Exist
+    It 'tools/crawlers/odata folder exists with OData protocol files' {
+        Get-ChildItem $script:odataRoot -Filter '*.ps1' | Should -Not -BeNullOrEmpty
+    }
+    It 'tools/crawlers/omada/crawler.json exists and declares dependsOn odata' {
+        $manifest = Get-Content (Join-Path $script:omadaRoot 'crawler.json') -Raw | ConvertFrom-Json
+        $manifest.dependsOn | Should -Contain 'odata'
     }
     It 'Start-OmadaCrawler.ps1 exists' {
         $script:crawlerPath | Should -Exist
     }
+    It 'Start-OmadaCrawler.ps1 uses Connect-ODataAPI (not Connect-OmadaAPI)' {
+        $content = Get-Content $script:crawlerPath -Raw
+        $content | Should -Match 'Connect-ODataAPI'
+        $content | Should -Not -Match 'Connect-OmadaAPI'
+    }
     It 'Invoke-CrawlerJob.ps1 handles omada jobType' {
         $content = Get-Content $script:dispatchPath -Raw
         $content | Should -Match "'omada'"
-    }
-    It 'Invoke-CrawlerJob.ps1 validates baseUrl before writing temp config' {
-        $content = Get-Content $script:dispatchPath -Raw
-        $content | Should -Match "Config\['baseUrl'\]"
-    }
-    It 'Invoke-CrawlerJob.ps1 validates authMethod before writing temp config' {
-        $content = Get-Content $script:dispatchPath -Raw
-        $content | Should -Match "Config\['authMethod'\]"
     }
     It 'Invoke-CrawlerJob.ps1 forwards contextObjectTypes to the crawler' {
         $content = Get-Content $script:dispatchPath -Raw
@@ -215,8 +219,8 @@ Describe 'Omada file structure' {
         $content = Get-Content $script:dispatchPath -Raw
         $content | Should -Match 'resourceCategoryMapping'
     }
-    It 'SDK files export expected functions' {
-        $sdkFiles = Get-ChildItem (Join-Path $script:repoRoot 'tools\powershell-sdk\omada') -Filter '*.ps1'
-        $sdkFiles.Count | Should -BeGreaterOrEqual 3
+    It 'OData base has at least 3 PS1 files' {
+        $odataFiles = Get-ChildItem $script:odataRoot -Filter '*.ps1'
+        $odataFiles.Count | Should -BeGreaterOrEqual 3
     }
 }

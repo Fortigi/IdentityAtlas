@@ -1,0 +1,8 @@
+- Restructured crawler architecture to be fully pluggable: each crawler now declares its identity and dependencies in a `crawler.json` manifest
+- Extracted the generic OData protocol layer (auth, pagination, retry) into `tools/crawlers/odata/` as a reusable base that any OData-based crawler can depend on
+- Renamed OData protocol functions from `*-OmadaAPI` / `Invoke-Omada*` to `*-ODataAPI` / `Invoke-OData*` to reflect their generic purpose
+- Added crawler manifests for all existing crawlers: `entra-id`, `csv`, `omada`, `odata`, and `demo`
+- Moved Omada-specific helpers (`Get-OmadaRefValue`, `Get-OmadaRefUid`, `Get-OmadaEntitySets`) into the Omada crawler folder
+- Module loader (`IdentityAtlas.psm1`) now auto-discovers shared SDK directories — adding a new shared SDK no longer requires editing the module
+- PR workflow code coverage paths now auto-discover all crawler and SDK directories — no manual updates needed when adding new crawlers
+- Extracted demo dataset logic into its own crawler script (`tools/crawlers/demo/Start-DemoCrawler.ps1`)
