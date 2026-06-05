@@ -1,15 +1,17 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
-import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
-import { CollapsibleSection } from './DetailSection';
+import { formatDate } from '../utils/formatters';
 import EntityGraph from './EntityGraph';
-import EntityDetailLayout, { AttributesTable } from './EntityDetailLayout';
+import { AttributesTable } from './EntityDetailLayout';
 import { buildAttributeEntries } from '../utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
-import RecentChangesSection from './RecentChangesSection';
+import TabBar from './TabBar';
+import UserTimeline from './UserTimeline';
+import ConfidenceBar from './ConfidenceBar';
 import useExpandableGraph from '../hooks/useExpandableGraph';
-import useRecentChanges from '../hooks/useRecentChanges';
+import useTimeline from '../hooks/useTimeline';
+import useFeatures from '../hooks/useFeatures';
 import { getRootNodes } from './entityGraphShape';
 
 const HEADER_FIELDS = ['userPrincipalName', 'email', 'department', 'jobTitle', 'companyName'];
@@ -23,18 +25,18 @@ const HIDDEN_FIELDS = new Set([
 
 export default function UserDetailPage({ userId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
+  const features = useFeatures();
 
   // Core data (attributes, tags, all counts incl. membership breakdown)
   const [data, setData] = useState(cachedData?.core || null);
   const [loading, setLoading] = useState(!cachedData?.core);
   const [error, setError] = useState(null);
 
-  // Lazy-loaded history
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [history, setHistory] = useState(cachedData?.history || null);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  // Sub-tab + timeline range
+  const [activeTab, setActiveTab] = useState('attributes');
+  const [timelineDays, setTimelineDays] = useState(90);
 
-  // Identity membership banner
+  // Identity membership banner (a relationship — lives on the Relationships tab)
   const [identityInfo, setIdentityInfo] = useState(undefined);
 
   // Manager (one record) — fetched eagerly because the header uses it and
@@ -78,36 +80,21 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     return () => { cancelled = true; };
   }, [userId, authFetch]);
 
-  const loadHistory = useCallback(() => {
-    if (history) return;
-    setHistoryLoading(true);
-    authFetch(`/api/user/${encodeURIComponent(userId)}/history`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => {
-        setHistory(d);
-        onCacheData?.(userId, 'user', { history: d });
-      })
-      .catch(() => setHistory([]))
-      .finally(() => setHistoryLoading(false));
-  }, [userId, authFetch, history, onCacheData]);
+  // Timeline — lazy: only fetched once the Timeline tab is opened.
+  const timeline = useTimeline(userId, authFetch, {
+    sinceDays: timelineDays,
+    enabled: activeTab === 'timeline',
+  });
 
-  const toggleHistory = useCallback(() => {
-    setHistoryOpen(prev => {
-      if (!prev) loadHistory();
-      return !prev;
-    });
-  }, [loadHistory]);
-
-  const recent = useRecentChanges('user', userId, authFetch);
-
-  // Root-ring nodes + extras are rebuilt whenever the core/manager/identity/
-  // recent-changes state changes. The hook then manages click-driven fanout.
+  // Root-ring nodes for the relationship graph. recent: null → the graph drops
+  // the "Recently Added/Removed" pseudo-nodes (those changes live on the
+  // Timeline tab now).
   const rootExtras = useMemo(() => ({
     manager,
     identityInfo,
     contextId: data?.attributes?.contextId,
-    recent,
-  }), [manager, identityInfo, data, recent]);
+    recent: null,
+  }), [manager, identityInfo, data]);
 
   const rootNodes = useMemo(() => (
     data ? getRootNodes('user', data, rootExtras) : []
@@ -134,15 +121,20 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   }
   if (!data) return null;
 
-  const { attributes, tags, historyCount, lastActivity } = data;
-  const resolvedHistoryCount = history ? history.length : historyCount;
+  const { attributes, tags, lastActivity } = data;
   const attributeEntries = buildAttributeEntries(attributes, attributes.extendedAttributesParsed, HIDDEN_FIELDS);
-  const historyDiffs = history ? computeHistoryDiffs(history) : [];
+
+  const tabs = [
+    { key: 'attributes', label: 'Attributes', count: attributeEntries.length },
+    { key: 'relationships', label: 'Relationships' },
+    { key: 'timeline', label: 'Timeline' },
+    features.riskScoring && { key: 'risk', label: 'Risk' },
+  ];
 
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex items-center justify-center text-lg font-bold">
@@ -152,7 +144,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>
                 {attributes.principalType && (
-                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
                     {attributes.principalType}
                   </span>
                 )}
@@ -198,9 +190,14 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
         </button>
       </div>
 
-      <EntityDetailLayout
-        left={<AttributesTable entries={attributeEntries} />}
-        right={
+      <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+
+      <div className="mt-4">
+        {activeTab === 'attributes' && (
+          <AttributesTable entries={attributeEntries} />
+        )}
+
+        {activeTab === 'relationships' && (
           <div className="space-y-4">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
               <EntityGraph
@@ -231,76 +228,35 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                 <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
               </div>
             )}
-          </div>
-        }
-      >
-        <RiskScoreSection attributes={attributes} entityType="user" entityId={userId} authFetch={authFetch} />
 
-        {identityInfo && (
-          <IdentityMembershipSection
-            identityInfo={identityInfo}
-            onNavigateToIdentities={() => { window.location.hash = 'identities'; }}
+            {identityInfo && (
+              <IdentityMembershipSection
+                identityInfo={identityInfo}
+                onNavigateToIdentities={() => { window.location.hash = 'identities'; }}
+              />
+            )}
+          </div>
+        )}
+
+        {activeTab === 'timeline' && (
+          <UserTimeline
+            events={timeline.events}
+            loading={timeline.loading}
+            sinceDays={timelineDays}
+            onSinceDaysChange={setTimelineDays}
+            onOpenDetail={onOpenDetail}
           />
         )}
 
-        <RecentChangesSection
-          events={recent.events}
-          addedCount={recent.addedCount}
-          removedCount={recent.removedCount}
-          sinceDays={recent.sinceDays}
-          loading={recent.loading}
-          onOpenDetail={onOpenDetail}
-        />
-
-        <CollapsibleSection
-          title="Version History"
-          count={resolvedHistoryCount}
-          countLabel={resolvedHistoryCount === 1 ? 'version' : 'versions'}
-          open={historyOpen}
-          onToggle={toggleHistory}
-          loading={historyLoading}
-        >
-          {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-500 italic p-4">No changes recorded</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-4 py-2 font-medium w-44">Date</th>
-                  <th className="px-4 py-2 font-medium">Changes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyDiffs.map((diff, i) => (
-                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs align-top whitespace-nowrap">
-                      {formatDate(diff.date)}
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-col gap-1">
-                        {diff.changes.map((c, j) => (
-                          <div key={j} className="text-xs">
-                            <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(c.field)}</span>
-                            <span className="text-gray-600 dark:text-gray-500 mx-1">:</span>
-                            <span className="text-red-500 dark:text-red-400 line-through mr-1">{c.from}</span>
-                            <span className="text-gray-600 dark:text-gray-500 mr-1">&rarr;</span>
-                            <span className="text-green-600 dark:text-green-400">{c.to}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CollapsibleSection>
-      </EntityDetailLayout>
+        {activeTab === 'risk' && (
+          <RiskScoreSection attributes={attributes} entityType="user" entityId={userId} authFetch={authFetch} />
+        )}
+      </div>
     </div>
   );
 }
 
-// ─── Identity Membership banner — unchanged from v1 ────────────────────
+// ─── Identity Membership banner ───────────────────────────────────────
 
 const ACCOUNT_TYPE_COLORS = {
   Regular:  'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
@@ -338,23 +294,30 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
               {memberInfo.accountType}
             </span>
             {memberInfo.isPrimary && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">Primary</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700">Primary</span>
             )}
             {memberInfo.isHrAuthoritative && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200" title={`HR Score: ${memberInfo.hrScore}`}>HR Source</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700" title={`HR Score: ${memberInfo.hrScore}`}>HR Source</span>
             )}
             {memberInfo.analystOverride && (
               <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                memberInfo.analystOverride === 'confirmed' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                memberInfo.analystOverride === 'confirmed' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300'
               }`}>{memberInfo.analystOverride}</span>
             )}
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {identity.accountCount} account{identity.accountCount !== 1 ? 's' : ''} · primary: {identity.primaryAccountUpn}
-            {identity.correlationConfidence != null && ` · ${identity.correlationConfidence}% confidence`}
           </div>
+          {/* Correlation confidence — the correlation result IS this identity
+              relationship, so its confidence belongs right here. */}
+          {identity.correlationConfidence != null && (
+            <div className="mt-2">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Correlation confidence</div>
+              <ConfidenceBar confidence={identity.correlationConfidence} />
+            </div>
+          )}
           {memberInfo.correlationSignals && (
-            <div className="text-xs text-gray-600 dark:text-gray-500 mt-0.5">
+            <div className="text-xs text-gray-600 dark:text-gray-500 mt-1">
               Signals: {memberInfo.correlationSignals}
             </div>
           )}
@@ -374,11 +337,11 @@ function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
                 return (
                   <div key={m.userId} className="flex items-center gap-2 text-xs">
                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full font-medium border ${tc}`}>{m.accountType}</span>
-                    {m.isPrimary && <span className="text-blue-600 font-medium">Primary</span>}
-                    {m.isHrAuthoritative && <span className="text-emerald-700 font-medium">HR</span>}
+                    {m.isPrimary && <span className="text-blue-600 dark:text-blue-400 font-medium">Primary</span>}
+                    {m.isHrAuthoritative && <span className="text-emerald-700 dark:text-emerald-300 font-medium">HR</span>}
                     <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-48">{m.displayName}</span>
                     <span className="text-gray-600 dark:text-gray-500 truncate max-w-64">{m.userPrincipalName}</span>
-                    <span className={`ml-auto ${m.accountEnabled === 'True' || m.accountEnabled === true ? 'text-green-500' : 'text-gray-500'}`}>
+                    <span className={`ml-auto ${m.accountEnabled === 'True' || m.accountEnabled === true ? 'text-green-600 dark:text-green-400' : 'text-gray-500'}`}>
                       {m.accountEnabled === 'True' || m.accountEnabled === true ? '●' : '○'}
                     </span>
                   </div>
