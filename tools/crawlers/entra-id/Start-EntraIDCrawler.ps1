@@ -58,66 +58,82 @@
 
 [CmdletBinding()]
 Param(
-    [Parameter(Mandatory = $true)]
-    [string]$ApiBaseUrl,
-
-    [Parameter(Mandatory = $true)]
-    [string]$ApiKey,
-
-    [Parameter(Mandatory = $true)]
-    [string]$ConfigFile,
-
-    [switch]$SyncPrincipals = $true,
-    [switch]$SyncServicePrincipals = $false,
-    [switch]$SyncResources = $true,
-    [switch]$SyncAssignments = $true,
-    [switch]$SyncGovernance = $true,
-    [switch]$SyncPim = $false,
-    [switch]$SyncSignInLogs = $false,
-    [switch]$SyncOAuth2Grants = $false,
-    [switch]$SyncAppRoles = $false,
-    [switch]$RefreshViews = $true,
-
-    # Window for the sign-in logs fetch. Graph retains events for ~30 days so
-    # the value is capped there. Default 7 is a good steady-state (daily
-    # crawls comfortably overlap); bump to 30 on the first-ever run.
-    [ValidateRange(1, 30)]
-    [int]$SignInLogsDays = 7,
-
-    # Custom user attributes to include in the sync (added to $select)
-    [string[]]$CustomUserAttributes = @(),
-
-    # Custom group attributes to include in the sync (added to $select)
-    [string[]]$CustomGroupAttributes = @(),
-
-    # Extra regex fragments applied to servicePrincipal.displayName to flag an
-    # SP as AIAgent. Combined with the built-in list ('copilot', 'openai', etc).
-    # Case-insensitive; use \b word boundaries if exactness matters.
-    [string[]]$AINamePatterns = @(),
-
-    # Identity filter: select which users are treated as identities
-    # Format: @{ attribute='employeeId'; condition='isNotNull' }
-    #     or: @{ attribute='employeeType'; condition='equals'; value='Employee' }
-    #     or: @{ attribute='companyName'; condition='inValues'; values=@('Contoso','Fabrikam') }
-    [hashtable]$IdentityFilter = @{},
-
-    # Optional CrawlerJobs.id — when set, the crawler reports fine-grained progress
-    # back to the API so the UI can show a live "what is it doing right now" line.
-    # Zero / unset = no progress reporting (script is being run standalone).
-    [int]$JobId = 0,
-
-    # 'full'  — ignore any stored delta tokens and re-fetch everything; the
-    #           scoped-delete path removes rows that disappeared upstream.
-    # 'delta' — use `/delta` endpoints where available (users, service
-    #           principals) with stored deltatoken; first-ever run still
-    #           falls back to full because there's no token yet.
-    # The worker dispatcher reads `nextRunMode` from the CrawlerConfigs row
-    # and forwards it here; after a successful full run the dispatcher
-    # resets nextRunMode=delta so subsequent runs stay on the fast path
-    # until the operator toggles "Force full sync next run" in the UI.
-    [ValidateSet('full', 'delta')]
-    [string]$SyncMode = 'delta'
+    [Parameter(Mandatory)] [string]$ApiBaseUrl,
+    [Parameter(Mandatory)] [string]$ApiKey,
+    [Parameter(Mandatory)] [int]$JobId,
+    [Parameter(Mandatory)] [string]$ConfigPath
 )
+
+# Read full job config and derive all crawler variables from it.
+# This replaces the many named parameters previously splatted by the dispatcher.
+$RawConfig = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
+
+# Build a synthetic ConfigFile so Get-FGAccessToken can be called with -ConfigFile.
+# The Graph SDK expects { Graph: { TenantId, ClientId, ClientSecret } }.
+$_graphConfigFile = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.json'
+try {
+    @{ Graph = @{
+        TenantId     = $RawConfig['tenantId']
+        ClientId     = $RawConfig['clientId']
+        ClientSecret = $RawConfig['clientSecret']
+    }} | ConvertTo-Json -Depth 5 | Set-Content $_graphConfigFile -Encoding UTF8
+} catch {
+    Remove-Item $_graphConfigFile -Force -ErrorAction SilentlyContinue
+    throw
+}
+$ConfigFile = $_graphConfigFile  # used by Get-FGAccessToken and Graph SDK helpers
+
+# Sync toggles — defaults, then apply selectedObjects overrides from config
+$SyncPrincipals        = $true
+$SyncServicePrincipals = $false
+$SyncResources         = $true
+$SyncAssignments       = $true
+$SyncGovernance        = $true
+$SyncPim               = $false
+$SyncSignInLogs        = $false
+$SyncOAuth2Grants      = $false
+$SyncAppRoles          = $false
+$RefreshViews          = $true
+$SignInLogsDays        = 7
+$CustomUserAttributes  = @()
+$CustomGroupAttributes = @()
+$AINamePatterns        = @()
+$IdentityFilter        = @{}
+
+$SyncMode = if ($RawConfig['_syncMode'] -in @('full','delta')) { $RawConfig['_syncMode'] } else { 'delta' }
+
+$objects = $RawConfig['selectedObjects']
+if ($objects) {
+    if ($objects.ContainsKey('identity'))           { $SyncPrincipals        = [bool]$objects['identity'] }
+    if ($objects.ContainsKey('usersGroupsMembers')) {
+        $SyncPrincipals  = [bool]$objects['usersGroupsMembers']
+        $SyncResources   = [bool]$objects['usersGroupsMembers']
+        $SyncAssignments = [bool]$objects['usersGroupsMembers']
+    }
+    if ($objects.ContainsKey('servicePrincipals'))  { $SyncServicePrincipals = [bool]$objects['servicePrincipals'] }
+    if ($objects.ContainsKey('identityGovernance')) { $SyncGovernance        = [bool]$objects['identityGovernance'] }
+    if ($objects.ContainsKey('pim'))                { $SyncPim               = [bool]$objects['pim'] }
+    if ($objects.ContainsKey('signInLogs'))         { $SyncSignInLogs        = [bool]$objects['signInLogs'] }
+    if ($objects.ContainsKey('oauth2Grants'))       { $SyncOAuth2Grants      = [bool]$objects['oauth2Grants'] }
+    if ($objects.ContainsKey('appsAppRoles'))       { $SyncAppRoles          = [bool]$objects['appsAppRoles'] }
+}
+# Direct config toggles (backward compat with older job configs)
+if ($RawConfig.ContainsKey('syncPrincipals'))        { $SyncPrincipals        = [bool]$RawConfig['syncPrincipals'] }
+if ($RawConfig.ContainsKey('syncServicePrincipals'))  { $SyncServicePrincipals = [bool]$RawConfig['syncServicePrincipals'] }
+if ($RawConfig.ContainsKey('syncResources'))          { $SyncResources         = [bool]$RawConfig['syncResources'] }
+if ($RawConfig.ContainsKey('syncAssignments'))        { $SyncAssignments       = [bool]$RawConfig['syncAssignments'] }
+if ($RawConfig.ContainsKey('syncGovernance'))         { $SyncGovernance        = [bool]$RawConfig['syncGovernance'] }
+if ($RawConfig.ContainsKey('syncSignInLogs'))         { $SyncSignInLogs        = [bool]$RawConfig['syncSignInLogs'] }
+if ($RawConfig.ContainsKey('signInLogsDays'))         { $SignInLogsDays        = [int]$RawConfig['signInLogsDays'] }
+if ($RawConfig.ContainsKey('syncOAuth2Grants'))       { $SyncOAuth2Grants      = [bool]$RawConfig['syncOAuth2Grants'] }
+if ($RawConfig.ContainsKey('syncAppRoles'))           { $SyncAppRoles          = [bool]$RawConfig['syncAppRoles'] }
+if ($RawConfig['customUserAttributes'])  { $CustomUserAttributes  = @($RawConfig['customUserAttributes']) }
+if ($RawConfig['identityAttributes'])    { $CustomUserAttributes  += @($RawConfig['identityAttributes']); $CustomUserAttributes = $CustomUserAttributes | Select-Object -Unique }
+if ($RawConfig['customGroupAttributes']) { $CustomGroupAttributes = @($RawConfig['customGroupAttributes']) }
+if ($RawConfig['aiNamePatterns'])        { $AINamePatterns        = @($RawConfig['aiNamePatterns']) }
+if ($RawConfig['identityFilter'] -and $RawConfig['identityFilter']['attribute']) {
+    $IdentityFilter = $RawConfig['identityFilter']
+}
 
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
@@ -2556,3 +2572,21 @@ if ($script:phaseErrors.Count -gt 0) {
     Write-Host "`n$summary" -ForegroundColor Red
     throw $summary
 }
+
+# After a successful full sync, flip the config back to delta so the next
+# scheduled run uses the fast path. Non-fatal — worst case the next run
+# is also full, which is slow but correct.
+if ($SyncMode -eq 'full' -and $RawConfig['_scheduledByConfigId']) {
+    try {
+        $cid = [int]$RawConfig['_scheduledByConfigId']
+        $headers = @{ 'Authorization' = "Bearer $ApiKey" }
+        Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/configs/$cid/mark-delta-mode" `
+            -Method Post -Headers $headers -TimeoutSec 10 | Out-Null
+        Write-Host "  Reset nextRunMode to 'delta' on config $cid" -ForegroundColor Gray
+    } catch {
+        Write-Host "  (mark-delta-mode failed: $($_.Exception.Message))" -ForegroundColor DarkGray
+    }
+}
+
+# Clean up the temporary Graph credentials file (contains client secret)
+Remove-Item $_graphConfigFile -Force -ErrorAction SilentlyContinue

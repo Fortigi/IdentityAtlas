@@ -1,0 +1,7 @@
+- Replaced hardcoded switch statement in the crawler dispatcher with manifest-driven dispatch: adding a new crawler no longer requires editing `Invoke-CrawlerJob.ps1`
+- Crawler dependencies (e.g. Omada building on OData) are resolved automatically via DFS before each job run, loading dependency layers in topological order
+- All crawlers now use a standard interface (`-ApiBaseUrl`, `-ApiKey`, `-JobId`, `-ConfigPath`); each crawler reads its own configuration from the JSON file written by the dispatcher
+- Circular dependency detection throws a clear error naming the cycle rather than hanging indefinitely
+- Moved Entra ID selectedObjects mapping and mark-delta-mode reset from the dispatcher into the Entra ID crawler
+- Moved Omada selectedObjects mapping from the dispatcher into the Omada crawler
+- Added `Dispatcher.Tests.ps1` with Pester unit tests covering registry building, DFS ordering, cycle detection, and live manifest validation
