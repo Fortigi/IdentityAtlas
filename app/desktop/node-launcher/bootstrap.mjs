@@ -28,7 +28,8 @@ process.env.MASTER_KEY_FILE = join(DATA_DIR, '.master-key');
 process.env.UPLOAD_ROOT     = join(DATA_DIR, 'uploads');
 process.env.TRACE_DIR       = join(DATA_DIR, 'jobs');
 process.env.FRONTEND_DIST   = join(__dirname, 'dist-frontend');
-process.env.IA_APP_ROOT     = join(__dirname, 'bundled-scripts');
+process.env.IA_APP_ROOT          = join(__dirname, 'bundled-scripts');
+process.env.CRAWLER_MANIFESTS_DIR = join(__dirname, 'bundled-scripts', 'tools', 'crawlers');
 
 // Resolve module version from the bundled .psd1 manifest so the UI footer shows the correct version.
 if (!process.env.MODULE_VERSION) {

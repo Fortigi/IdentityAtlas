@@ -11,6 +11,68 @@
 - Restored Pester code-quality coverage for `tools/crawlers/` (CmdletBinding, secrets, Dutch comments); the file move from `tools/powershell-sdk/omada/` had silently dropped that coverage
 - Added `[CmdletBinding()]` to `Get-OmadaRefValue`, `Get-OmadaRefUid`, and `Get-OmadaEntitySets` (detected by the restored coverage gate)
 - Added `tools/crawlers/CLAUDE.md`: crawler authoring guide covering the manifest schema, auto-discovery, dependency system, and OData base layer
+- Replaced hardcoded switch statement in the crawler dispatcher with manifest-driven dispatch: adding a new crawler no longer requires editing `Invoke-CrawlerJob.ps1`
+- Crawler dependencies (e.g. Omada building on OData) are resolved automatically via DFS before each job run, loading dependency layers in topological order
+- All crawlers now use a standard interface (`-ApiBaseUrl`, `-ApiKey`, `-JobId`, `-ConfigPath`); each crawler reads its own configuration from the JSON file written by the dispatcher
+- Circular dependency detection throws a clear error naming the cycle rather than hanging indefinitely
+- Moved Entra ID selectedObjects mapping and mark-delta-mode reset from the dispatcher into the Entra ID crawler
+- Moved Omada selectedObjects mapping from the dispatcher into the Omada crawler
+- Added `Dispatcher.Tests.ps1` with Pester unit tests covering registry building, DFS ordering, cycle detection, and live manifest validation
+- Updated `Omada.Tests.ps1` file-structure assertions to match the new generic dispatcher: dispatcher now verified via `Get-CrawlerRegistry` usage; `contextObjectTypes` and `resourceCategoryMapping` now verified in `Start-OmadaCrawler.ps1` where they live
+- Added `docs/sync/custom-crawlers.md`: step-by-step guide for building a new crawler, including the standard interface, config keys, and OData base layer walkthrough
+- Added `docs/architecture/crawler-architecture.md`: technical reference covering the registry, DFS dependency loading, OData functions, and end-to-end dispatch flow
+- Replaced `tools/crawlers/CLAUDE.md` content with a concise dev quick-reference pointing to the new docs pages
+- Fixed load test (`Test-LoadAndBenchmark.ps1`) to use the standard `-ConfigPath` / `-JobId` interface when calling the CSV crawler directly (old `-CsvFolder` / `-SystemName` / `-SystemType` parameters removed as part of this step)
+- API now auto-discovers valid crawler job types from `crawler.json` manifests — adding a new crawler automatically makes it available in the API without editing `jobs.js`
+- Crawler config validation replaced hardcoded per-crawler functions with JSON Schema validation (ajv) driven by each crawler's `configSchema` in its manifest
+- Docker web image build context changed to repo root so crawler manifests are included in the image; manifests live at `/app/crawlers/` in the container
+- Fixed scheduler import (`validateOmadaConfig` → `validateCrawlerConfig`) and replaced hardcoded crawler type allowlist with the manifest-driven `VALID_JOB_TYPES` list
+- Fixed crawler manifest discovery path for Docker (`CRAWLER_MANIFESTS_DIR=/app/crawlers`) and node-launcher (`bundled-scripts/tools/crawlers`)
+- Added tests for manifest-driven `VALID_JOB_TYPES` (including sentinel check that `odata` is present, proving manifests are loaded rather than the hardcoded fallback)
+- Updated `app/api/CLAUDE.md` with crawler job system documentation: `routes/jobs.js`, `scheduler.js`, manifest discovery path, and exported functions
+- Removed PowerShell scripts from the web container image (Node.js only — scripts belong in the worker); malformed manifests now log a warning instead of silently disappearing from the job type allowlist
+- Eliminated duplicate `SECRET_FIELDS` definition in `jobs.js` — now derived from the shared `OTHER_SECRET_FIELDS` constant already imported from `crawlerSecrets.js`
+- Fixed load test (`Test-LoadAndBenchmark.ps1`) to use the standard `-ConfigPath` / `-JobId` interface when calling the CSV crawler directly (the old `-CsvFolder` / `-SystemName` / `-SystemType` parameters were removed in the step-2 dispatcher refactor)
+
+## Changes in this PR
+
+- Restructured crawler architecture to be fully pluggable: each crawler now declares its identity and dependencies in a `crawler.json` manifest
+- Extracted the generic OData protocol layer (auth, pagination, retry) into `tools/crawlers/odata/` as a reusable base that any OData-based crawler can depend on
+- Renamed OData protocol functions from `*-OmadaAPI` / `Invoke-Omada*` to `*-ODataAPI` / `Invoke-OData*` to reflect their generic purpose
+- Added crawler manifests for all existing crawlers: `entra-id`, `csv`, `omada`, `odata`, and `demo`
+- Moved Omada-specific helpers (`Get-OmadaRefValue`, `Get-OmadaRefUid`, `Get-OmadaEntitySets`) into the Omada crawler folder
+- Module loader (`IdentityAtlas.psm1`) now auto-discovers shared SDK directories — adding a new shared SDK no longer requires editing the module
+- PR workflow code coverage paths now auto-discover all crawler and SDK directories — no manual updates needed when adding new crawlers
+- Extracted demo dataset logic into its own crawler script (`tools/crawlers/demo/Start-DemoCrawler.ps1`)
+- Restored Pester code-quality coverage for `tools/crawlers/` (CmdletBinding, secrets, Dutch comments); the file move from `tools/powershell-sdk/omada/` had silently dropped that coverage
+- Added `[CmdletBinding()]` to `Get-OmadaRefValue`, `Get-OmadaRefUid`, and `Get-OmadaEntitySets` (detected by the restored coverage gate)
+- Added `tools/crawlers/CLAUDE.md`: crawler authoring guide covering the manifest schema, auto-discovery, dependency system, and OData base layer
+- Replaced hardcoded switch statement in the crawler dispatcher with manifest-driven dispatch: adding a new crawler no longer requires editing `Invoke-CrawlerJob.ps1`
+- Crawler dependencies (e.g. Omada building on OData) are resolved automatically via DFS before each job run, loading dependency layers in topological order
+- All crawlers now use a standard interface (`-ApiBaseUrl`, `-ApiKey`, `-JobId`, `-ConfigPath`); each crawler reads its own configuration from the JSON file written by the dispatcher
+- Circular dependency detection throws a clear error naming the cycle rather than hanging indefinitely
+- Moved Entra ID selectedObjects mapping and mark-delta-mode reset from the dispatcher into the Entra ID crawler
+- Moved Omada selectedObjects mapping from the dispatcher into the Omada crawler
+- Added `Dispatcher.Tests.ps1` with Pester unit tests covering registry building, DFS ordering, cycle detection, and live manifest validation
+- Updated `Omada.Tests.ps1` file-structure assertions to match the new generic dispatcher: dispatcher now verified via `Get-CrawlerRegistry` usage; `contextObjectTypes` and `resourceCategoryMapping` now verified in `Start-OmadaCrawler.ps1` where they live
+- Added `docs/sync/custom-crawlers.md`: step-by-step guide for building a new crawler, including the standard interface, config keys, and OData base layer walkthrough
+- Added `docs/architecture/crawler-architecture.md`: technical reference covering the registry, DFS dependency loading, OData functions, and end-to-end dispatch flow
+- Replaced `tools/crawlers/CLAUDE.md` content with a concise dev quick-reference pointing to the new docs pages
+- Fixed load test (`Test-LoadAndBenchmark.ps1`) to use the standard `-ConfigPath` / `-JobId` interface when calling the CSV crawler directly (old `-CsvFolder` / `-SystemName` / `-SystemType` parameters removed as part of this step)
+
+## Changes in this PR
+
+- Restructured crawler architecture to be fully pluggable: each crawler now declares its identity and dependencies in a `crawler.json` manifest
+- Extracted the generic OData protocol layer (auth, pagination, retry) into `tools/crawlers/odata/` as a reusable base that any OData-based crawler can depend on
+- Renamed OData protocol functions from `*-OmadaAPI` / `Invoke-Omada*` to `*-ODataAPI` / `Invoke-OData*` to reflect their generic purpose
+- Added crawler manifests for all existing crawlers: `entra-id`, `csv`, `omada`, `odata`, and `demo`
+- Moved Omada-specific helpers (`Get-OmadaRefValue`, `Get-OmadaRefUid`, `Get-OmadaEntitySets`) into the Omada crawler folder
+- Module loader (`IdentityAtlas.psm1`) now auto-discovers shared SDK directories — adding a new shared SDK no longer requires editing the module
+- PR workflow code coverage paths now auto-discover all crawler and SDK directories — no manual updates needed when adding new crawlers
+- Extracted demo dataset logic into its own crawler script (`tools/crawlers/demo/Start-DemoCrawler.ps1`)
+- Restored Pester code-quality coverage for `tools/crawlers/` (CmdletBinding, secrets, Dutch comments); the file move from `tools/powershell-sdk/omada/` had silently dropped that coverage
+- Added `[CmdletBinding()]` to `Get-OmadaRefValue`, `Get-OmadaRefUid`, and `Get-OmadaEntitySets` (detected by the restored coverage gate)
+- Added `tools/crawlers/CLAUDE.md`: crawler authoring guide covering the manifest schema, auto-discovery, dependency system, and OData base layer
 
 ## Changes in this PR
 

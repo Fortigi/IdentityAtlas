@@ -209,16 +209,21 @@ Describe 'Omada file structure' {
         $content | Should -Match 'Connect-ODataAPI'
         $content | Should -Not -Match 'Connect-OmadaAPI'
     }
-    It 'Invoke-CrawlerJob.ps1 handles omada jobType' {
+    It 'Invoke-CrawlerJob.ps1 dispatches via registry (no hardcoded jobType switch)' {
+        # Step-2: the dispatcher is fully generic — it uses Get-CrawlerRegistry,
+        # not a switch($JobType) with hardcoded crawler types.
         $content = Get-Content $script:dispatchPath -Raw
-        $content | Should -Match "'omada'"
+        $content | Should -Match 'Get-CrawlerRegistry'
+        $content | Should -Not -Match "switch\s*\(\s*\`$JobType"
     }
-    It 'Invoke-CrawlerJob.ps1 forwards contextObjectTypes to the crawler' {
-        $content = Get-Content $script:dispatchPath -Raw
+    It 'Start-OmadaCrawler.ps1 reads contextObjectTypes from config' {
+        # contextObjectTypes moved from the dispatcher into the crawler config section.
+        $content = Get-Content $script:crawlerPath -Raw
         $content | Should -Match 'contextObjectTypes'
     }
-    It 'Invoke-CrawlerJob.ps1 forwards resourceCategoryMapping to the crawler' {
-        $content = Get-Content $script:dispatchPath -Raw
+    It 'Start-OmadaCrawler.ps1 reads resourceCategoryMapping from config' {
+        # resourceCategoryMapping moved from the dispatcher into the crawler config section.
+        $content = Get-Content $script:crawlerPath -Raw
         $content | Should -Match 'resourceCategoryMapping'
     }
     It 'OData base has at least 3 PS1 files' {
