@@ -9,7 +9,8 @@ import * as db from '../db/connection.js';
 import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
-import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, storeJobSecret } from '../secrets/crawlerSecrets.js';
+import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
+import { fetchOmadaMetadata } from '../omada/metadataProxy.js';
 
 const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
 // Pre-resolve once so path-containment checks can use a stable absolute base.
@@ -26,7 +27,7 @@ const router = Router();
 const gate = requirePermission('admin.crawlers');
 const useSql = process.env.USE_SQL === 'true';
 
-const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv'];
+const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv', 'omada'];
 const MAX_RECENT_JOBS = 50;
 const SECRET_MASK = '••••••••';
 
@@ -125,12 +126,46 @@ const ENTRA_OBJECT_TYPES = [
   { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
 ];
 
-function maskConfig(config) {
+const SECRET_FIELDS = ['clientSecret', 'password', 'apiToken', 'cookieString'];
+
+export function maskConfig(config) {
   if (!config) return null;
   const parsed = typeof config === 'string' ? JSON.parse(config) : config;
   const masked = { ...parsed };
-  if (masked.clientSecret) masked.clientSecret = SECRET_MASK;
+  for (const field of SECRET_FIELDS) {
+    if (masked[field]) masked[field] = SECRET_MASK;
+  }
   return masked;
+}
+
+export function validateOmadaConfig(config) {
+  if (!config?.baseUrl) return 'Omada jobs require baseUrl';
+  const method = config?.authMethod;
+  if (method === 'FormCookie') {
+    if (!config.username || !config.password) {
+      return 'Omada FormCookie auth requires username and password';
+    }
+  } else if (method === 'OAuth2ROPC') {
+    if (!config.tokenEndpoint || !config.clientId || !config.clientSecret) {
+      return 'Omada OAuth2ROPC auth requires tokenEndpoint, clientId and clientSecret';
+    }
+    if (!config.username || !config.password) {
+      return 'Omada OAuth2ROPC auth requires username and password';
+    }
+  } else if (method === 'OAuth2CC') {
+    if (!config.tokenEndpoint || !config.clientId || !config.clientSecret) {
+      return 'Omada OAuth2CC auth requires tokenEndpoint, clientId and clientSecret';
+    }
+  } else if (method === 'ApiToken') {
+    if (!config.apiToken) return 'Omada ApiToken auth requires apiToken';
+  } else if (method === 'CookieString') {
+    if (!config.cookieString) return 'Omada CookieString auth requires cookieString';
+  } else if (method === 'BasicAuth') {
+    if (!config.username || !config.password) {
+      return 'Omada BasicAuth requires username and password';
+    }
+  }
+  return null;
 }
 
 // Like maskConfig, but also surfaces the mask when the clientSecret lives in the
@@ -232,22 +267,34 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
 
     // Read existing config. The clientSecret lives in the vault, not here.
     const existing = await pool.request().input('id', id)
-      .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
+      .query(`SELECT config, "crawlerType" FROM "CrawlerConfigs" WHERE id = @id`);
     if (existing.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
 
     let mergedConfig = (typeof existing.recordset[0].config === "string" ? JSON.parse(existing.recordset[0].config) : existing.recordset[0].config) || {};
     let newSecret = null;
     if (config) {
       const incoming = { ...config };
-      // A real (non-mask, non-empty) clientSecret replaces the vaulted one;
-      // the mask or an empty value means "leave the existing secret untouched".
+      // clientSecret goes to the vault; mask or empty means "keep existing"
       if (incoming.clientSecret && incoming.clientSecret !== SECRET_MASK) {
         newSecret = incoming.clientSecret;
+      }
+      // Other secret fields (password, apiToken, cookieString): preserve existing if blank/masked
+      for (const field of SECRET_FIELDS.filter(f => f !== 'clientSecret')) {
+        if (!incoming[field] || incoming[field] === SECRET_MASK) {
+          if (mergedConfig[field]) incoming[field] = mergedConfig[field];
+          else delete incoming[field];
+        }
       }
       delete incoming.clientSecret;
       mergedConfig = { ...mergedConfig, ...incoming };
     }
     delete mergedConfig.clientSecret; // never persist plaintext in the JSON
+
+    const crawlerType = existing.recordset[0].crawlerType;
+    if (crawlerType === 'omada' && config) {
+      const omadaErr = validateOmadaConfig(mergedConfig);
+      if (omadaErr) return res.status(400).json({ error: omadaErr });
+    }
 
     const sets = ['config = @config', '"updatedAt" = now()'];
     const request = pool.request().input('id', id).input('config', JSON.stringify(mergedConfig));
@@ -753,6 +800,11 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
       }
     }
 
+    if (jobType === 'omada') {
+      const omadaErr = validateOmadaConfig(resolvedConfig);
+      if (omadaErr) return res.status(400).json({ error: omadaErr });
+    }
+
     // For CSV jobs, inject the per-config upload folder so the worker knows where
     // to read files from. The folder must already exist and contain at least one file.
     if (jobType === 'csv') {
@@ -793,14 +845,21 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     // then delta. Inline configs without a configId still accept an explicit
     // syncMode so API clients can control it.
     const effectiveSyncMode = explicitSyncMode || configNextRunMode || 'delta';
-    // Inline jobs may carry their own clientSecret — vault it under the job id
-    // and never persist plaintext in the job config. Config-based jobs reference
-    // the config's vaulted secret via _scheduledByConfigId (injected at claim).
+    // Strip all credential fields before storing — they are vaulted per-job and
+    // injected at claim time by injectJobSecret.  Config-based jobs reference the
+    // config's vaulted clientSecret via _scheduledByConfigId; inline jobs get both
+    // clientSecret and any Omada credentials vaulted under the job id.
     const inlineSecret = (!configId && resolvedConfig?.clientSecret) ? resolvedConfig.clientSecret : null;
     const configToStore = configId
       ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
       : (resolvedConfig ? { ...resolvedConfig, _syncMode: effectiveSyncMode } : null);
-    if (configToStore) delete configToStore.clientSecret;
+    const extraCreds = {};
+    if (configToStore) {
+      delete configToStore.clientSecret;
+      for (const f of OTHER_SECRET_FIELDS) {
+        if (configToStore[f]) { extraCreds[f] = configToStore[f]; delete configToStore[f]; }
+      }
+    }
     const configJson = configToStore ? JSON.stringify(configToStore) : null;
 
     const result = await pool.request()
@@ -810,7 +869,9 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
       .query(`INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")
               VALUES (@jobType, @config, @createdBy)
               RETURNING *`);
-    if (inlineSecret) await storeJobSecret(result.recordset[0].id, inlineSecret);
+    const newJobId = result.recordset[0].id;
+    if (inlineSecret) await storeJobSecret(newJobId, inlineSecret);
+    if (Object.keys(extraCreds).length) await storeJobCredentials(newJobId, extraCreds);
 
     // Update lastRunAt on the source config
     if (configId) {
@@ -1010,6 +1071,85 @@ router.get('/admin/status', gate, async (req, res) => {
   } catch (err) {
     console.error('Error fetching status:', err.message);
     res.status(500).json({ error: 'Failed to fetch status' });
+  }
+});
+
+// POST /api/admin/omada/validate-metadata — fetch $metadata from the Omada server
+// and return the available EntitySets and Identity entity property names.
+// Used by the wizard to validate contextObjectTypes entries in real time.
+router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
+  const { configId, config: inlineConfig } = req.body;
+
+  let c;
+  try {
+    if (configId != null) {
+      const id = parseInt(configId, 10);
+      if (isNaN(id)) return res.status(400).json({ error: 'configId must be a number' });
+      const pool = await db.getPool();
+      const cfg = await pool.request().input('id', id)
+        .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
+      if (!cfg.recordset.length) return res.status(404).json({ error: 'Config not found' });
+      const raw = cfg.recordset[0].config;
+      c = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } else if (inlineConfig && typeof inlineConfig === 'object') {
+      c = inlineConfig;
+    } else {
+      return res.status(400).json({ error: 'configId or config required' });
+    }
+  } catch (err) {
+    console.error('validate-metadata config lookup error:', err.message);
+    return res.status(500).json({ error: err.message || 'Failed to load config' });
+  }
+
+  try {
+
+    const rawBaseUrl = (c.baseUrl || '').trim();
+    if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
+
+    // Normalize to the OData service root the crawler uses.
+    // Strip trailing slashes without a user-input regex to avoid polynomial ReDoS.
+    let trimLen = rawBaseUrl.length;
+    while (trimLen > 0 && rawBaseUrl[trimLen - 1] === '/') trimLen--;
+    const u = new URL(trimLen < rawBaseUrl.length ? rawBaseUrl.slice(0, trimLen) : rawBaseUrl);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:')
+      return res.status(400).json({ error: 'baseUrl must use http or https' });
+    if (!u.pathname.toLowerCase().endsWith('/odata/dataobjects')) u.pathname = '/odata/dataobjects';
+    const baseUrl = u.origin + u.pathname;
+
+    const metaUrl = `${baseUrl}/$metadata`;
+
+    // Build auth headers (best-effort).
+    const headers = {};
+    if (c.authMethod === 'BasicAuth' && c.username && c.password) {
+      const encoded = Buffer.from(`${c.username}:${c.password}`).toString('base64');
+      headers.Authorization = `Basic ${encoded}`;
+    } else if (c.authMethod === 'ApiToken' && c.apiToken) {
+      headers.Authorization = `Bearer ${c.apiToken}`;
+    } else if (c.authMethod === 'CookieString' && c.cookieString) {
+      headers.Cookie = c.cookieString;
+    }
+
+    const metaRes = await fetchOmadaMetadata(metaUrl, headers);
+    if (!metaRes.ok) {
+      return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
+    }
+    const xml = await metaRes.text();
+
+    // Parse EntitySet names
+    const entitySets = [...xml.matchAll(/EntitySet\s+Name="([^"]+)"/g)].map(m => m[1]).sort();
+
+    // Parse Identity entity type property names
+    const identityMatch = xml.match(/<EntityType\s+Name="Identity"[^>]*>([\s\S]*?)<\/EntityType>/);
+    let identityProperties = [];
+    if (identityMatch) {
+      identityProperties = [...identityMatch[1].matchAll(/(?:Property|NavigationProperty)\s+Name="([^"]+)"/g)]
+        .map(m => m[1]).sort();
+    }
+
+    res.json({ entitySets, identityProperties });
+  } catch (err) {
+    console.error('validate-metadata error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to fetch metadata' });
   }
 });
 

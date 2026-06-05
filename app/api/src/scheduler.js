@@ -27,7 +27,8 @@
 
 import * as db from './db/connection.js';
 import { runScoring } from './riskscoring/engine.js';
-import { hasConfigSecret } from './secrets/crawlerSecrets.js';
+import { hasConfigSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
+import { validateOmadaConfig } from './routes/jobs.js';
 
 const TICK_INTERVAL_MS = 60_000;
 const FIRST_RUN_DELAY_MS = 45_000;
@@ -108,9 +109,9 @@ async function queueScheduledJob(configRow, scheduleIndex) {
   delete jobConfig.clientSecret;
 
   // The jobType is derived from crawlerType. The CrawlerConfigs.crawlerType is
-  // the canonical source — 'entra-id' or 'csv'.
+  // the canonical source — 'entra-id', 'csv', or 'omada'.
   const jobType = configRow.crawlerType;
-  if (!['entra-id', 'csv'].includes(jobType)) {
+  if (!['entra-id', 'csv', 'omada'].includes(jobType)) {
     console.warn(`Scheduler: unsupported crawlerType '${jobType}' for config ${configRow.id}`);
     return;
   }
@@ -123,11 +124,33 @@ async function queueScheduledJob(configRow, scheduleIndex) {
     }
   }
 
-  await db.query(
+  if (jobType === 'omada') {
+    const omadaErr = validateOmadaConfig(jobConfig);
+    if (omadaErr) {
+      console.warn(`Scheduler: config ${configRow.id} invalid Omada config — skipping scheduled run: ${omadaErr}`);
+      return;
+    }
+  }
+
+  // Strip all credential fields before storing in CrawlerJobs — they are
+  // vaulted per-job and injected at claim time by injectJobSecret.
+  const extraCreds = {};
+  for (const f of OTHER_SECRET_FIELDS) {
+    if (jobConfig[f]) { extraCreds[f] = jobConfig[f]; delete jobConfig[f]; }
+  }
+  delete jobConfig.clientSecret;
+
+  const inserted = await db.queryOne(
     `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")
-     VALUES ($1, $2::jsonb, 'scheduler')`,
+     VALUES ($1, $2::jsonb, 'scheduler')
+     RETURNING id`,
     [jobType, JSON.stringify(jobConfig)]
   );
+  if (inserted && Object.keys(extraCreds).length) {
+    await storeJobCredentials(inserted.id, extraCreds).catch(err =>
+      console.warn(`Scheduler: failed to vault credentials for job ${inserted.id}:`, err.message)
+    );
+  }
 
   // Update lastRunAt on the source config (same bookkeeping as the manual route)
   try {
@@ -305,6 +328,12 @@ async function tick() {
           console.error(`Scheduler: failed to queue scoring run for classifier ${classifierRow.id}: ${err.message}`);
         }
       }
+    }
+
+    // Prune entries from previous minutes — they've served their double-fire
+    // protection purpose and would otherwise grow unbounded.
+    for (const [k, v] of lastFired) {
+      if (v !== minuteKey) lastFired.delete(k);
     }
   } catch (err) {
     console.error(`Scheduler tick failed: ${err.message}`);

@@ -1,6 +1,8 @@
-# Keep the SHA-pinned GitHub Actions up to date. Dependabot opens PRs that bump
-# both the pinned commit SHA and the `# vX` version comment, so pinning to a SHA
-# (supply-chain hardening) doesn't mean the actions go stale.
+# Keep dependencies up to date automatically.
+#
+# github-actions: bumps SHA-pinned actions (both the digest and the # vX comment).
+# docker:         bumps base image tags in Dockerfiles.
+# npm:            bumps package.json dependencies.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -9,3 +11,19 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "ci"
+
+  # Worker container (PowerShell)
+  - package-ecosystem: "docker"
+    directory: "/setup/docker"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+
+  # API + frontend runtime image
+  - package-ecosystem: "docker"
+    directory: "/app/api"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
