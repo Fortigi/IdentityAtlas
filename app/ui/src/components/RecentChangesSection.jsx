@@ -8,13 +8,15 @@ import { formatDate } from '../utils/formatters';
 // History but reads the relationship tables so permission-debugging
 // gets a single "what moved recently" surface.
 
-const OP_STYLES = {
+// Exported so the user Timeline tab (UserTimeline.jsx) shares the exact same
+// operation badges + counterparty-link rendering — one source of truth.
+export const OP_STYLES = {
   added:   { badge: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-700',       label: 'Added' },
   removed: { badge: 'bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-700',              label: 'Removed' },
   changed: { badge: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-700',              label: 'Changed' },
 };
 
-const KIND_TO_TAB = {
+export const KIND_TO_TAB = {
   user:             'user',
   resource:         'resource',
   'access-package': 'access-package',
@@ -112,7 +114,7 @@ export default function RecentChangesSection({
 // as a link. The summary format is consistent (backend controls it), so
 // a simple first-occurrence split is reliable and keeps the rest of the
 // phrasing intact.
-function renderSummaryWithLink(ev, target, onOpenDetail) {
+export function renderSummaryWithLink(ev, target, onOpenDetail) {
   const label = ev.counterpartyLabel;
   const summary = ev.summary;
   const idx = summary.indexOf(label);
