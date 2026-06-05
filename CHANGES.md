@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Removed the **Tags** column from the matrix — it no longer carried meaningful information now that tags are modelled as contexts. The matrix right-side metadata is now just member count and description.
+
+## Changes in this PR
+
 - Softened the colours of data visualisations so they match the app's gentle palette instead of looking harsh/bright: the entity relationship graph nodes, the correlation-confidence bar, the governance compliance bar, the risk-score bars, and the department risk-distribution bars now use soft pastel fills (their outlines, chart lines, and labels keep their stronger colour for legibility).
 
 ## Changes in this PR
