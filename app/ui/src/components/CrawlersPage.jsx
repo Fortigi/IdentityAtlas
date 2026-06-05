@@ -1,53 +1,10 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
+import Stepper from './Stepper';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
 
 const SECRET_MASK = '••••••••';
-
-function StepIndicator({ steps, step, onStepClick, allowAll }) {
-  // onStepClick: (n) => void. allowAll=true lets the user jump to ANY step
-  // (used in edit mode because all config is already valid). Otherwise,
-  // only past and current steps are clickable — forward nav requires the
-  // wizard's Next button so step-level validation runs.
-  const isClickable = (n) => {
-    if (!onStepClick) return false;
-    if (allowAll) return true;
-    return n <= step;
-  };
-  return (
-    <div className="flex items-center gap-2 mb-5 text-xs">
-      {steps.filter(s => s.shown !== false).map((s, i, arr) => {
-        const clickable = isClickable(s.n);
-        const bubbleCls = s.n === step ? 'bg-indigo-600 text-white'
-          : s.n < step ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
-          : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400';
-        const labelCls = s.n === step ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400';
-        const content = (
-          <>
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold ${bubbleCls} ${clickable ? 'group-hover:ring-2 group-hover:ring-indigo-300 transition' : ''}`}>{i + 1}</div>
-            <span className={`${labelCls} ${clickable ? 'group-hover:text-indigo-700 dark:group-hover:text-indigo-300 group-hover:underline' : ''}`}>{s.label}</span>
-          </>
-        );
-        return (
-          <div key={s.n} className="flex items-center gap-2">
-            {clickable ? (
-              <button
-                type="button"
-                onClick={() => onStepClick(s.n)}
-                className="group flex items-center gap-2 cursor-pointer focus:outline-none"
-                aria-label={`Go to step ${i + 1}: ${s.label}`}
-              >{content}</button>
-            ) : (
-              <div className="flex items-center gap-2">{content}</div>
-            )}
-            {i < arr.length - 1 && <span className="text-gray-500 dark:text-gray-600">→</span>}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ─── Crawler type catalog ─────────────────────────────────────────────────────
 const CRAWLER_TYPES = [
@@ -93,7 +50,7 @@ function SelectType({ onSelect, onCancel }) {
             disabled={!t.available}
             className={`flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all ${
               t.available
-                ? 'border-gray-200 hover:border-indigo-400 hover:shadow-md cursor-pointer dark:border-gray-700 dark:hover:border-indigo-500'
+                ? 'border-gray-200 hover:border-blue-400 hover:shadow-md cursor-pointer dark:border-gray-700 dark:hover:border-blue-500'
                 : 'border-gray-100 opacity-50 cursor-not-allowed dark:border-gray-700'
             }`}
           >
@@ -148,7 +105,7 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
         <div className="flex items-center gap-2">
           <button
             onClick={selectAll}
-            className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
             type="button"
           >
             Select All
@@ -176,13 +133,13 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
               return (
                 <label key={attr}
                   className={`flex items-center gap-2 text-xs px-2 py-1 ${
-                    isCore ? 'cursor-default bg-indigo-50/40 dark:bg-indigo-900/20' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700'
+                    isCore ? 'cursor-default bg-blue-50/40 dark:bg-blue-900/20' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                   title={isCore ? 'Core attribute (always synced)' : attr}>
                   <input type="checkbox" checked={isSelected} disabled={isCore}
                     onChange={() => toggle(attr)} className="rounded flex-shrink-0" />
                   <span className="truncate">{attr}</span>
-                  {isCore && <span className="text-indigo-700 text-[10px] flex-shrink-0">core</span>}
+                  {isCore && <span className="text-blue-700 text-[10px] flex-shrink-0">core</span>}
                 </label>
               );
             })}
@@ -190,7 +147,7 @@ function AttributePicker({ title, available, selected, onChange, coreAttrs = [] 
         )}
       </div>
       <p className="text-xs text-gray-600 mt-1 dark:text-gray-500">
-        <span className="text-indigo-500 dark:text-indigo-400">core</span> = always synced.
+        <span className="text-blue-500 dark:text-blue-400">core</span> = always synced.
         Extras go into the extendedAttributes JSON column.
       </p>
     </div>
@@ -488,7 +445,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
 
-      <StepIndicator steps={entraSteps} step={step} onStepClick={setStep} allowAll={!!isEdit} />
+      <div className="mb-5"><Stepper steps={entraSteps} current={step} onStepClick={setStep} allowAll={!!isEdit} /></div>
 
       {/* ─── Step 1: Name + Credentials ─────────────────────────── */}
       {step === 1 && (
@@ -530,7 +487,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           <div className="flex justify-end">
             <button onClick={handleValidate}
               disabled={validating || !tenantId.trim() || !clientId.trim() || (!isEdit && !clientSecret.trim()) || !crawlerName.trim()}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
               {validating ? 'Validating...' : (isEdit && !clientSecret.trim() ? 'Next' : 'Validate & Next')}
             </button>
           </div>
@@ -581,7 +538,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
 
           <div className="flex justify-between">
             <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={nextStep} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next</button>
+            <button onClick={nextStep} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Next</button>
           </div>
         </div>
       )}
@@ -672,7 +629,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
 
           <div className="flex justify-between">
             <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={nextStep} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next</button>
+            <button onClick={nextStep} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Next</button>
           </div>
         </div>
       )}
@@ -711,7 +668,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
 
           <div className="flex justify-between">
             <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={nextStep} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next</button>
+            <button onClick={nextStep} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Next</button>
           </div>
         </div>
       )}
@@ -791,7 +748,7 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
           <div className="flex justify-between border-t pt-4 dark:border-gray-700">
             <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={handleSave} disabled={saving}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Deploy to Worker')}
             </button>
           </div>
@@ -856,7 +813,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
               <button
                 onClick={() => onRunNow(config.id, 'delta')}
                 title="Queue a delta run — fetches only what changed since the last successful sync."
-                className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
               >
                 Run Delta
               </button>
@@ -893,7 +850,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
           <div>
             <span className="text-gray-500 dark:text-gray-400">Objects:</span>{' '}
             {objectLabels.length > 0
-              ? objectLabels.map(l => <span key={l} className="inline-block mr-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded dark:bg-indigo-900/30 dark:text-indigo-300">{l}</span>)
+              ? objectLabels.map(l => <span key={l} className="inline-block mr-1 px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded dark:bg-blue-900/30 dark:text-blue-300">{l}</span>)
               : <span className="text-gray-600 text-xs dark:text-gray-500">none</span>
             }
           </div>
@@ -1170,7 +1127,7 @@ function JobPhasesModal({ job, onClose }) {
       onClick={() => setActiveTab(id)}
       className={`px-3 py-1.5 text-sm rounded-t border-b-2 -mb-px transition-colors ${
         activeTab === id
-          ? 'border-indigo-600 text-indigo-700 font-medium'
+          ? 'border-blue-600 text-blue-700 font-medium'
           : 'border-transparent text-gray-500 hover:text-gray-700'
       }`}
     >{label}</button>
@@ -1624,7 +1581,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
 
-      <StepIndicator steps={csvSteps} step={step} onStepClick={setStep} allowAll={!!isEdit} />
+      <div className="mb-5"><Stepper steps={csvSteps} current={step} onStepClick={setStep} allowAll={!!isEdit} /></div>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">
@@ -1669,7 +1626,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           </div>
           <div className="flex justify-end gap-2">
             <button onClick={() => setStep(2)} disabled={!canProceedFromInfo}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
               Next: Upload files
             </button>
           </div>
@@ -1682,7 +1639,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300">
             <div>Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name.</div>
             <div className="mt-1">
-              <a href="/api/admin/csv-schema" download className="text-indigo-700 underline hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200">
+              <a href="/api/admin/csv-schema" download className="text-blue-700 underline hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-200">
                 Download schema templates
               </a>
               <span className="text-blue-600 ml-2 dark:text-blue-400">— empty CSVs with the expected column headers. Use a transform script to convert your source data to this format.</span>
@@ -1690,7 +1647,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <label className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 cursor-pointer">
+            <label className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 cursor-pointer">
               Select folder
               <input type="file" multiple webkitdirectory="" directory="" onChange={handleFileSelect} className="hidden" />
             </label>
@@ -1775,7 +1732,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           <div className="flex justify-between">
             <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={() => setStep(3)} disabled={missingRequired.length > 0 || allFiles.length === 0}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
               Next: Review
             </button>
           </div>
@@ -1794,7 +1751,7 @@ function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
           <div className="flex justify-between">
             <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={handleSave} disabled={!canSave}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
               {uploading ? 'Uploading...' : saving ? 'Saving...' : (isEdit ? 'Save changes' : 'Create crawler')}
             </button>
           </div>
@@ -1933,7 +1890,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
 
-      <StepIndicator steps={connectorSteps} step={step} />
+      <div className="mb-5"><Stepper steps={connectorSteps} current={step} /></div>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">{error}</div>
@@ -1961,7 +1918,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
           <div className="flex justify-end gap-2">
             <button onClick={onCancel} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Cancel</button>
             <button onClick={handleRegister} disabled={!name.trim() || registering}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
               {registering ? 'Registering...' : 'Register Connector'}
             </button>
           </div>
@@ -1995,7 +1952,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
           </div>
           <div className="flex justify-end">
             <button onClick={() => setStep(3)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
               Next: Getting Started
             </button>
           </div>
@@ -2008,19 +1965,19 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
           {/* Quick links */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <a href={`${apiBaseUrl}/docs`} target="_blank" rel="noopener noreferrer"
-              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-indigo-500">
+              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-blue-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-blue-500">
               <span className="text-2xl mb-1">📖</span>
               <span className="font-medium text-sm dark:text-gray-200">Swagger UI</span>
               <span className="text-xs text-gray-500 dark:text-gray-400">Interactive API explorer</span>
             </a>
             <a href={`${apiBaseUrl}/openapi.json`} download="identity-atlas-openapi.json"
-              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-indigo-500">
+              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-blue-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-blue-500">
               <span className="text-2xl mb-1">📄</span>
               <span className="font-medium text-sm dark:text-gray-200">Download OpenAPI Spec</span>
               <span className="text-xs text-gray-500 dark:text-gray-400">JSON format</span>
             </a>
             <a href="https://fortigi.github.io/IdentityAtlas/datasources/csv-schema/" target="_blank" rel="noopener noreferrer"
-              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-indigo-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-indigo-500">
+              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-blue-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-blue-500">
               <span className="text-2xl mb-1">📋</span>
               <span className="font-medium text-sm dark:text-gray-200">CSV Schema Reference</span>
               <span className="text-xs text-gray-500 dark:text-gray-400">Field definitions for all entity types</span>
@@ -2056,7 +2013,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
 
           <div className="flex justify-end">
             <button onClick={onComplete}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">
+              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
               Done
             </button>
           </div>
@@ -2075,7 +2032,7 @@ function ExampleTabs({ examples, onCopy, copied }) {
         {examples.map((ex, i) => (
           <button key={ex.label} onClick={() => setActive(i)}
             className={`px-4 py-2 text-sm font-medium ${
-              i === active ? 'bg-white border-b-2 border-indigo-500 text-indigo-700 dark:bg-gray-800 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              i === active ? 'bg-white border-b-2 border-blue-500 text-blue-700 dark:bg-gray-800 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
             }`}>
             {ex.label}
           </button>
@@ -2476,7 +2433,7 @@ export default function CrawlersPage({ onNavigate }) {
               Import
             </button>
             <button onClick={() => setWizardStep('select')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
               Add Crawler
             </button>
           </div>
