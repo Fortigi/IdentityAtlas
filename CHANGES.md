@@ -1,5 +1,16 @@
 ## Changes in this PR
 
+- Rolled the new sub-tab detail layout out to all the main entity pages — **Resource**, **Business Role (Access Package)**, **Identity**, and **Context** now have the same Attributes / Relationships / Timeline / Risk tabs as the user page (Risk shown only where the entity is actually scored).
+- Each of these pages now has a **Timeline** showing attribute updates and relationship changes over time (e.g. who was granted/removed from a resource, members linked to an identity), grouped by day.
+- The **Identity** page shows correlation confidence and signals on the Relationships tab (correlation is what links the accounts).
+- Removed the duplicate **Group** detail page — group links already open the Resource page, so there is now one consistent page per object.
+- The **Department** view keeps its purpose-built hierarchy/risk-distribution layout, since a department is a computed grouping rather than a stored entity (no per-entity attributes, history, or single risk score).
+- Business Role pages now surface the **governance records behind the overview** — assignment policies, access reviews (who reviewed, when, and the decision), and pending requests — as references on the Relationships tab, so the data driving the Review Status / Type columns is visible.
+- Business Role detail now shows the **calculated overview fields** (Type, Review Status, last review date, reviewed by, and policy/review/request counts) in an "Overview (calculated)" panel on the Attributes tab, matching the Business Roles list.
+- Restructured the access-review references to reflect how the data actually relates: assignment **policies** show their review **cadence** (how often a review recurs), and access reviews are grouped by **review instance** (each scheduled campaign run, with status and dates) containing the individual per-person decisions — instead of a flat list of people.
+
+## Changes in this PR
+
 - Reorganised the user detail page into sub-tabs (like the Admin section) so it's no longer one long cramped scroll: **Attributes**, **Relationships**, **Timeline**, and **Risk** (the Risk tab appears only when risk scoring is enabled).
 - The **Relationships** tab shows the relationship graph (without the recent-added/removed nodes) plus the identity-membership panel, now with the account-correlation **confidence shown as a bar** alongside its signals.
 - Added a **Timeline** tab: a single chronological view of what changed for the user over time — both attribute updates (e.g. department or job-title changes, shown as before → after) and relationship changes (access granted/removed, manager changes, linked accounts) — with a 30-day / 90-day / 1-year / all range selector.
