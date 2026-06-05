@@ -7,7 +7,7 @@ import { AttributesTable } from './EntityDetailLayout';
 import { buildAttributeEntries } from '../utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
-import UserTimeline from './UserTimeline';
+import EntityTimeline from './EntityTimeline';
 import useExpandableGraph from '../hooks/useExpandableGraph';
 import useTimeline from '../hooks/useTimeline';
 import useFeatures from '../hooks/useFeatures';
@@ -80,7 +80,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
   }, [userId, authFetch]);
 
   // Timeline — lazy: only fetched once the Timeline tab is opened.
-  const timeline = useTimeline(userId, authFetch, {
+  const timeline = useTimeline('user', userId, authFetch, {
     sinceDays: timelineDays,
     enabled: activeTab === 'timeline',
   });
@@ -233,7 +233,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
         )}
 
         {activeTab === 'timeline' && (
-          <UserTimeline
+          <EntityTimeline
             events={timeline.events}
             loading={timeline.loading}
             sinceDays={timelineDays}
