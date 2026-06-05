@@ -28,8 +28,8 @@ services:
   web:
     restart: unless-stopped
     build:
-      context: ./app
-      dockerfile: api/Dockerfile
+      context: .
+      dockerfile: app/api/Dockerfile
       args:
         MODULE_VERSION: "${MODULE_VERSION:-}"
     environment:
@@ -38,6 +38,7 @@ services:
       DATABASE_URL: "postgres://${POSTGRES_USER:-identity_atlas}:${POSTGRES_PASSWORD:-identity_atlas_local}@postgres:5432/${POSTGRES_DB:-identity_atlas}"
       AUTH_ENABLED: "false"
       PORT:         "3001"
+      CRAWLER_MANIFESTS_DIR: "/app/crawlers"
     ports:
       - "3001:3001"
     volumes:
