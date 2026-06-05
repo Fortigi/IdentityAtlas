@@ -1,0 +1,39 @@
+{
+  "type": "omada",
+  "displayName": "Omada IGA",
+  "entryPoint": "Start-OmadaCrawler.ps1",
+  "dependsOn": ["odata"],
+  "configSchema": {
+    "type": "object",
+    "required": ["baseUrl", "authMethod"],
+    "properties": {
+      "baseUrl":     { "type": "string", "description": "Omada OData base URL (e.g. https://tenant.omada.cloud/odata/dataobjects)" },
+      "authMethod":  { "enum": ["FormCookie","OAuth2CC","OAuth2ROPC","ApiToken","CookieString","BasicAuth"] },
+      "username":    { "type": "string" },
+      "password":    { "type": "string" },
+      "clientId":    { "type": "string" },
+      "clientSecret":{ "type": "string" },
+      "tokenEndpoint":{ "type": "string" },
+      "apiToken":    { "type": "string" },
+      "cookieString":{ "type": "string" },
+      "apiVersion":  { "type": "string", "default": "v14" },
+      "sessionTimeoutMinutes": { "type": "number", "default": 30 },
+      "pageSize":    { "type": "number", "default": 100 }
+    },
+    "allOf": [
+      { "if": { "properties": { "authMethod": { "const": "OAuth2ROPC" } } },
+        "then": { "required": ["tokenEndpoint","clientId","clientSecret","username","password"] } },
+      { "if": { "properties": { "authMethod": { "const": "OAuth2CC" } } },
+        "then": { "required": ["tokenEndpoint","clientId","clientSecret"] } },
+      { "if": { "properties": { "authMethod": { "const": "FormCookie" } } },
+        "then": { "required": ["username","password"] } },
+      { "if": { "properties": { "authMethod": { "const": "ApiToken" } } },
+        "then": { "required": ["apiToken"] } },
+      { "if": { "properties": { "authMethod": { "const": "CookieString" } } },
+        "then": { "required": ["cookieString"] } },
+      { "if": { "properties": { "authMethod": { "const": "BasicAuth" } } },
+        "then": { "required": ["username","password"] } }
+    ]
+  },
+  "postSyncHooks": ["accountCorrelation"]
+}
