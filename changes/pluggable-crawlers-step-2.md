@@ -9,3 +9,4 @@
 - Added `docs/sync/custom-crawlers.md`: step-by-step guide for building a new crawler, including the standard interface, config keys, and OData base layer walkthrough
 - Added `docs/architecture/crawler-architecture.md`: technical reference covering the registry, DFS dependency loading, OData functions, and end-to-end dispatch flow
 - Replaced `tools/crawlers/CLAUDE.md` content with a concise dev quick-reference pointing to the new docs pages
+- Fixed load test (`Test-LoadAndBenchmark.ps1`) to use the standard `-ConfigPath` / `-JobId` interface when calling the CSV crawler directly (old `-CsvFolder` / `-SystemName` / `-SystemType` parameters removed as part of this step)
