@@ -1,5 +1,34 @@
 ## Changes in this PR
 
+- Consolidated documentation navigation from 13 top-level tabs to 5 (Home, Guide, Concepts, Reference, Project) to prevent tab overflow on standard screen widths
+
+## Changes in this PR
+
+- Corrected the matrix "How to read this matrix" legend so it matches what the grid actually shows: only the four ways access is *held* — Direct, Indirect (via a nested resource), Eligible (just-in-time access), and Owner. Business-role, OAuth2, and app-role assignments already render as Direct (or Indirect for an app role inherited via a group), so they're no longer listed as separate badges; whether access is governed is shown by the cell colour.
+
+## Changes in this PR
+
+- Documented the colour-saturation rule in the UI Style Guide: solid fills (bars, chips, graph nodes) use soft pastel tiers while thin marks (chart lines, borders, icons, text) keep stronger colour — so future contributions stay consistent with the app's soft look.
+
+## Changes in this PR
+
+- Reworked the documentation site to look like the app: the bright solid-green header and tab bar are now a clean white shell with a dark title and the green logo as the accent (dark slate header in dark mode), with the active tab marked by a green underline and a soft grey search field — so the docs and the product feel like one product.
+
+## Changes in this PR
+
+- Removed the **Tags** column from the matrix — it no longer carried meaningful information now that tags are modelled as contexts. The matrix right-side metadata is now just member count and description.
+
+## Changes in this PR
+
+- Softened the colours of data visualisations so they match the app's gentle palette instead of looking harsh/bright: the entity relationship graph nodes, the correlation-confidence bar, the governance compliance bar, the risk-score bars, and the department risk-distribution bars now use soft pastel fills (their outlines, chart lines, and labels keep their stronger colour for legibility).
+
+## Changes in this PR
+
+- Unified the look of every step-by-step wizard (crawler setup, matrix filter, risk profile, account correlation) behind one shared stepper component — same blue active step, "✓" for completed steps, and chevron separators everywhere, instead of four slightly different hand-built versions.
+- Made interactive controls consistently **blue** across the app: the crawler wizard, Admin save/new buttons, and the risk-profile and correlation wizards previously used purple/indigo (and a few green) buttons, which now match the rest of the UI and the Style Guide.
+
+## Changes in this PR
+
 - Fixed the run-detail "Go there now →" link, which opened a broken/empty detail tab; it now correctly navigates to the Contexts page. Also cleaned up a dark-mode style glitch on that screen.
 
 ## Changes in this PR
