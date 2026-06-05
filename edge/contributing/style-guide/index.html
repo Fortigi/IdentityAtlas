@@ -2153,6 +2153,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#saturation-match-the-fill-to-the-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saturation: match the fill to the shape
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2506,6 +2517,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#saturation-match-the-fill-to-the-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saturation: match the fill to the shape
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2712,6 +2734,11 @@
 <li><code>utils/accessPackageStyles.js</code> — assignment-policy badges.</li>
 <li><code>utils/contextStyles.js</code> — context variant/target badges.</li>
 </ul>
+<h3 id="saturation-match-the-fill-to-the-shape">Saturation: match the fill to the shape<a class="headerlink" href="#saturation-match-the-fill-to-the-shape" title="Permanent link">&para;</a></h3>
+<p>The app reads as <em>soft</em> — badges are <code>bg-{color}-50/100</code>, the data-viz pastels in <code>AP_COLORS</code> sit around the 200 tier. Pick saturation by <strong>how much area the colour covers</strong>, not by hue:
+- <strong>Solid fills</strong> — progress/ratio bars, chips, swatches, graph nodes, large blocks → <strong>soft pastel tier (200–300)</strong>. A saturated 500/600-tier block reads as "hard" next to everything else.
+- <strong>Thin marks</strong> — chart lines, 1–2px borders, small icons, coloured <strong>text</strong> → keep the <strong>saturated tier (500+ / 700 for text)</strong>; they're too small to register otherwise.</p>
+<p>The same hue therefore often needs <em>two</em> tokens — don't reuse a chart-line colour as a bar fill. (This was the "hard governed/non-governed bar" and "bright entity-graph nodes" bug: <code>MatrixScopePanel</code> now splits <code>GOV_LINE</code> from <code>GOV_BAR</code>, and the <code>EntityGraph</code> node gradients end soft.)</p>
 <hr />
 <h2 id="2-dark-mode-hard-rule">2. Dark mode (hard rule)<a class="headerlink" href="#2-dark-mode-hard-rule" title="Permanent link">&para;</a></h2>
 <p><strong>Every component ships dark mode from the start</strong> — no cleanup pass later.</p>
