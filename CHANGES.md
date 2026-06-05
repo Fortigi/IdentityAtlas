@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Documented the colour-saturation rule in the UI Style Guide: solid fills (bars, chips, graph nodes) use soft pastel tiers while thin marks (chart lines, borders, icons, text) keep stronger colour — so future contributions stay consistent with the app's soft look.
+
+## Changes in this PR
+
 - Reworked the documentation site to look like the app: the bright solid-green header and tab bar are now a clean white shell with a dark title and the green logo as the accent (dark slate header in dark mode), with the active tab marked by a green underline and a soft grey search field — so the docs and the product feel like one product.
 
 ## Changes in this PR
