@@ -248,21 +248,12 @@ function identityRootNodes(core) {
 }
 
 async function fetchIdentityItems(identityId, categoryKey, authFetch, extras = {}) {
-  const { members, aggregateAssignments } = extras;
+  const { members } = extras;
   if (categoryKey === 'accounts') {
-    // Access hangs off the accounts, not the identity: the Linked Accounts node
-    // fans out to the access categories (aggregate roll-up across all accounts,
-    // marked `aggregate`) plus the individual account nodes you can drill into.
-    const agg = aggregateAssignments || {};
-    const categories = [
-      { key: 'groups-direct',   label: 'Groups (Direct)', count: agg.Direct || 0,      kind: 'category', aggregate: true },
-      { key: 'groups-governed', label: 'Governed',        count: agg.Governed || 0,    kind: 'category', aggregate: true },
-      { key: 'groups-owner',    label: 'Owned',           count: agg.Owner || 0,       kind: 'category', aggregate: true },
-      { key: 'groups-eligible', label: 'Eligible',        count: agg.Eligible || 0,    kind: 'category', aggregate: true },
-      { key: 'oauth2-grants',   label: 'OAuth2 Grants',   count: agg.OAuth2Grant || 0, kind: 'category', aggregate: true },
-    ].filter(c => c.count > 0);
-    const accounts = (members || []).map(m => toItem({ id: m.principalId, displayName: m.displayName }, 'user'));
-    return [...categories, ...accounts];
+    // Keep it simple: Linked Accounts lists the individual accounts. Click an
+    // account to see that account's own relationships (groups/oauth/etc.) via
+    // the normal user graph — no special aggregate treatment on the identity.
+    return (members || []).map(m => toItem({ id: m.principalId, displayName: m.displayName }, 'user'));
   }
   if (categoryKey === 'contexts') {
     const rows = await authFetch(`/api/identities/${encodeURIComponent(identityId)}/contexts`)
