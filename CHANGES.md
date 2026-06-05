@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Business Role detail page: the Attributes tab now opens with an **Overview** panel showing Type, Review status, Review date, Reviewed by and Category using the same badges and colours as the Business Roles list; the governance records (policies, access reviews grouped by review instance, pending requests) now sit at the bottom of the Attributes tab; and the Relationships tab is back to just the relationship graph.
+- The Business Role **Timeline** now shows access-review activity ("Access review started" / "ended").
+
+## Changes in this PR
+
 - Rolled the new sub-tab detail layout out to all the main entity pages — **Resource**, **Business Role (Access Package)**, **Identity**, and **Context** now have the same Attributes / Relationships / Timeline / Risk tabs as the user page (Risk shown only where the entity is actually scored).
 - Each of these pages now has a **Timeline** showing attribute updates and relationship changes over time (e.g. who was granted/removed from a resource, members linked to an identity), grouped by day.
 - The **Identity** page shows correlation confidence and signals on the Relationships tab (correlation is what links the accounts).
