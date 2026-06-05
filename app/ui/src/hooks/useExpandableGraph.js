@@ -5,6 +5,7 @@ import {
   getRootNodes,
   isExpandableItem,
   extrasFromCore,
+  capItems,
 } from '../components/entityGraphShape';
 
 // ─── useExpandableGraph ──────────────────────────────────────────────
@@ -102,14 +103,16 @@ export default function useExpandableGraph({ rootEntityKind, rootEntityId, rootE
     }
   }, [path, authFetch, currentParent]);
 
-  // Turn the flat path into the nested tree EntityGraph wants.
+  // Turn the flat path into the nested tree EntityGraph wants. Each expanded
+  // level is capped with capItems for the GRAPH ring only (too many orbiting
+  // nodes is unreadable); the full list lives in activeListItems below.
   const nodesWithExpansion = useMemo(() => {
     function attach(level, remainingPath) {
       if (remainingPath.length === 0) return level;
       const [first, ...rest] = remainingPath;
       return level.map(n => {
         if (n.key === first.nodeKey) {
-          return { ...n, children: attach(first.children, rest) };
+          return { ...n, children: capItems(attach(first.children, rest)) };
         }
         return n;
       });
