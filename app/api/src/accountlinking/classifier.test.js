@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes } from './classifier.js';
+import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, parseName, nameMatchLevel } from './classifier.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 
 describe('classifyAccount', () => {
@@ -34,5 +34,34 @@ describe('match helpers', () => {
   it('normalizeName strips suffixes and non-alnum', () => {
     expect(normalizeName('John Doe (Admin)', ['(admin)'])).toBe('johndoe');
     expect(normalizeName('John  Doe')).toBe('johndoe');
+  });
+});
+
+describe('parseName', () => {
+  it('parses "Surname, Given" and strips qualifiers', () => {
+    expect(parseName('Euson, Robin (OGD)')).toMatchObject({ given: 'robin', surname: 'euson' });
+    expect(parseName('(ADM-azure) Euson, Robin')).toMatchObject({ given: 'robin', surname: 'euson' });
+  });
+  it('parses "Given Surname"', () => {
+    expect(parseName('Robin Euson')).toMatchObject({ given: 'robin', surname: 'euson' });
+  });
+  it('produces an order-independent key', () => {
+    expect(parseName('Euson, Robin').key).toBe(parseName('Robin Euson').key);
+  });
+  it('falls back to explicit given/surname fields', () => {
+    expect(parseName('', 'Robin', 'Euson')).toMatchObject({ given: 'robin', surname: 'euson' });
+  });
+});
+
+describe('nameMatchLevel', () => {
+  const n = (dn) => parseName(dn);
+  it('full match on same given + surname despite qualifiers', () => {
+    expect(nameMatchLevel(n('Euson, Robin (OGD)'), n('(ADM-azure) Euson, Robin'))).toBe('full');
+  });
+  it('surnameInitial when only the initial matches', () => {
+    expect(nameMatchLevel(parseName('', 'R', 'Euson'), n('Euson, Robin'))).toBe('surnameInitial');
+  });
+  it('none when surnames differ', () => {
+    expect(nameMatchLevel(n('Smith, Jane'), n('Euson, Robin'))).toBe('none');
   });
 });

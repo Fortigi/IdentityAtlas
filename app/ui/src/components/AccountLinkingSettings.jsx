@@ -29,6 +29,7 @@ export default function AccountLinkingSettings() {
   const [rulesText, setRulesText] = useState('');
   const [schedules, setSchedules] = useState([]);
   const [isActive, setIsActive] = useState(true);
+  const [threshold, setThreshold] = useState(50);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
@@ -46,6 +47,7 @@ export default function AccountLinkingSettings() {
         setRulesText(JSON.stringify(d.rules ?? {}, null, 2));
         setSchedules(Array.isArray(d.schedules) ? d.schedules : []);
         setIsActive(d.isActive !== false);
+        setThreshold(Number(d.rules?.linkThreshold ?? 50));
       })
       .catch(() => setError('Failed to load configuration.'))
       .finally(() => setLoading(false));
@@ -70,6 +72,7 @@ export default function AccountLinkingSettings() {
       setError(`Rules is not valid JSON: ${e.message}`);
       return;
     }
+    rules.linkThreshold = threshold; // the slider is authoritative for the threshold
     setSaving(true);
     try {
       const r = await authFetch('/api/account-linking/config', {
@@ -155,11 +158,32 @@ export default function AccountLinkingSettings() {
           {typeRuleCount} account-type rule{typeRuleCount !== 1 ? 's' : ''}
         </span>
         <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-          threshold {rulesObj.linkThreshold ?? '—'}
+          threshold {threshold}%
         </span>
         {config?.defaults && (
           <span className="text-xs text-gray-600 dark:text-gray-400">(showing shipped defaults — save to persist)</span>
         )}
+      </div>
+
+      {/* Certainty threshold slider */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Auto-link certainty</h3>
+          <span className="text-sm font-mono text-gray-700 dark:text-gray-300">&ge; {threshold}%</span>
+        </div>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+          Minimum confidence to link an account to an identity. Lower links more (incl. fuzzy name-only matches at ~60%);
+          higher requires stronger evidence. Weaker links still show their score on the identity for analyst review.
+        </p>
+        <input
+          type="range" min="0" max="100" step="5" value={threshold}
+          onChange={e => setThreshold(Number(e.target.value))}
+          className="w-full accent-blue-600"
+        />
+        <div className="flex justify-between text-[10px] text-gray-600 dark:text-gray-400 mt-1">
+          <span>0 · link freely</span><span>~60 · name match</span><span>90 · near-certain</span>
+        </div>
+        <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1">Saved with the rules below.</p>
       </div>
 
       {/* Schedule */}

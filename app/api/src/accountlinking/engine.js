@@ -29,18 +29,24 @@ import {
   normalizeName,
   emailLocalPart,
   stripKnownPrefixes,
+  parseName,
+  nameMatchLevel,
 } from './classifier.js';
 
 export { classifyAccount };
 
 const norm = (v) => (v == null ? '' : String(v).trim().toLowerCase());
 const fullName = (o, suffixes = []) => normalizeName([o.givenName, o.surname].filter(Boolean).join(' '), suffixes);
+const personName = (o) => parseName(o.displayName, o.givenName, o.surname);
 
 function prefixesFrom(rules) {
   return (rules.signals || []).find(s => s.type === 'prefix')?.stripPrefixes || [];
 }
 function suffixesFrom(rules) {
   return (rules.signals || []).find(s => s.type === 'fuzzy')?.stripSuffixes || [];
+}
+function nameSignalNames(rules) {
+  return new Set((rules.signals || []).filter(s => s.type === 'name').map(s => s.name));
 }
 
 /**
@@ -51,6 +57,13 @@ function suffixesFrom(rules) {
 export function scoreMatch(orphan, identity, rules = DEFAULT_RULES) {
   const signals = [];
   let total = 0;
+  // Compute the name-match level once (lazily) — name signals are mutually
+  // exclusive: only the signal whose level equals the computed best level fires.
+  let level;
+  const getLevel = () => {
+    if (level === undefined) level = nameMatchLevel(personName(orphan), personName(identity));
+    return level;
+  };
   for (const sig of (rules.signals || [])) {
     let matched = false;
     if (sig.type === 'exact') {
@@ -61,7 +74,9 @@ export function scoreMatch(orphan, identity, rules = DEFAULT_RULES) {
       const a = stripKnownPrefixes(emailLocalPart(orphan[sig.field]), sig.stripPrefixes || []);
       const b = emailLocalPart(identity[sig.field]);
       matched = !!a && a === b;
-    } else if (sig.type === 'fuzzy') {
+    } else if (sig.type === 'name') {
+      matched = getLevel() === sig.level;
+    } else if (sig.type === 'fuzzy') { // legacy single-signal name match
       const suf = sig.stripSuffixes || [];
       const a = normalizeName(orphan[sig.field], suf) || fullName(orphan, suf);
       const b = normalizeName(identity[sig.field], suf) || fullName(identity, suf);
@@ -82,16 +97,19 @@ export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
   const compiled = { ...rules, __compiled: compileAccountTypeRules(rules) };
   const prefixes = prefixesFrom(rules);
   const suffixes = suffixesFrom(rules);
+  const nameSigs = nameSignalNames(rules);
 
   // Index identities so we only score plausible candidates per orphan.
   const byEmployeeId = new Map();
   const byEmailLocal = new Map();
   const byName = new Map();
+  const byNameKey = new Map();
   const push = (map, key, v) => { if (!key) return; (map.get(key) || map.set(key, []).get(key)).push(v); };
   for (const idy of identities) {
     push(byEmployeeId, norm(idy.employeeId), idy);
     push(byEmailLocal, emailLocalPart(idy.email), idy);
     push(byName, normalizeName(idy.displayName) || fullName(idy), idy);
+    push(byNameKey, personName(idy).key, idy);
   }
 
   const links = [];
@@ -105,26 +123,38 @@ export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
     addAll(byEmailLocal.get(emailLocalPart(orphan.email)));
     addAll(byEmailLocal.get(stripKnownPrefixes(emailLocalPart(orphan.email), prefixes)));
     addAll(byName.get(normalizeName(orphan.displayName, suffixes) || fullName(orphan, suffixes)));
+    addAll(byNameKey.get(personName(orphan).key));
 
     let best = null;
+    let ties = 0;
     for (const idy of candidates.values()) {
       const { confidence, signals } = scoreMatch(orphan, idy, rules);
-      if (confidence >= threshold && (!best || confidence > best.confidence)) {
+      if (confidence < threshold) continue;
+      if (!best || confidence > best.confidence) {
         best = { identityId: idy.id, confidence, signals };
+        ties = 1;
+      } else if (confidence === best.confidence) {
+        ties++;
       }
     }
-    if (best) {
-      links.push({
-        principalId: orphan.id,
-        identityId: best.identityId,
-        confidence: best.confidence,
-        signals: best.signals,
-        accountType,
-        accountTypePattern: pattern,
-        displayName: orphan.displayName ?? null,
-        accountEnabled: orphan.accountEnabled ?? null,
-      });
-    }
+    if (!best) continue;
+
+    // Ambiguity guard: a name-only match (no strong email/employeeId signal) that
+    // ties across multiple identities is too risky to auto-pick — leave it orphan
+    // for the principals-clustering / manual review path rather than guess.
+    const nameOnly = best.signals.length > 0 && best.signals.every(s => nameSigs.has(s));
+    if (nameOnly && ties > 1) continue;
+
+    links.push({
+      principalId: orphan.id,
+      identityId: best.identityId,
+      confidence: best.confidence,
+      signals: best.signals,
+      accountType,
+      accountTypePattern: pattern,
+      displayName: orphan.displayName ?? null,
+      accountEnabled: orphan.accountEnabled ?? null,
+    });
   }
   return links;
 }

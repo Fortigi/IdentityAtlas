@@ -3,4 +3,7 @@
 - Account linking can run on a schedule and on demand ("Run now"), with a run history showing how many accounts were linked, updated, or skipped.
 - Accounts that can't be linked to a person are now grouped into a generated **Orphaned Accounts** context (sub-grouped by type: admin / guest / service / shared) instead of being a hidden property.
 - Analyst decisions are preserved across runs: a confirmed/rejected/moved link is never overwritten, and a rejected account is never re-linked.
+- Account linking now matches a person's accounts even when their email convention differs (e.g. `r.euson@…` and `robin.euson@…`) by matching on the parsed name, attaching them at a lower, honest confidence the analyst can review. Role/company qualifiers in display names (e.g. `(OGD)`, `(ADM-azure)`) are ignored when matching.
+- Added an **Auto-link certainty** slider in Admin → Account Linking to choose the minimum confidence required before accounts are linked.
+- Ambiguous name-only matches (the same name across multiple identities) are left for manual review instead of being auto-linked to the wrong person.
 - Retired the LLM-based correlation ruleset wizard and its endpoints.

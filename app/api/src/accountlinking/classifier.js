@@ -77,3 +77,54 @@ export function classifyAccount(principal, rules = DEFAULT_RULES) {
   }
   return { accountType: 'Secondary', pattern: null };
 }
+
+// ─── Name parsing (for graded name matching) ──────────────────────
+// Role/company qualifiers carried in display names: "(OGD)", "[extern]",
+// "(ADM-azure)". Stripped before parsing so the same person under different
+// roles reduces to the same name.
+const QUALIFIER_RE = /\([^)]*\)|\[[^\]]*\]/g;
+const normToken = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+/**
+ * Parse a person name into { given, surname, initial, key }.
+ * Handles "Surname, Given" and "Given Surname"; falls back to explicit
+ * givenName/surname fields when the display name yields nothing.
+ * `key` is the order-independent surname+given token (for candidate indexing).
+ */
+export function parseName(displayName, givenName, surname) {
+  const dn = String(displayName || '').replace(QUALIFIER_RE, ' ').trim();
+  let given = '';
+  let sur = '';
+  if (dn.includes(',')) {
+    const [a, b] = dn.split(',');
+    sur = a;
+    given = (b || '').trim().split(/\s+/)[0] || '';
+  } else if (dn) {
+    const t = dn.split(/\s+/).filter(Boolean);
+    if (t.length >= 2) { given = t[0]; sur = t[t.length - 1]; }
+    else if (t.length === 1) { sur = t[0]; }
+  }
+  if (!sur && surname) sur = surname;
+  if (!given && givenName) given = givenName;
+  given = normToken(given);
+  sur = normToken(sur);
+  return {
+    given,
+    surname: sur,
+    initial: given.slice(0, 1),
+    key: sur ? [sur, given].filter(Boolean).sort().join('|') : '',
+  };
+}
+
+/**
+ * Compare two parsed names. Returns the strongest match level:
+ *   'full'           — same surname AND same given name
+ *   'surnameInitial' — same surname AND same given initial
+ *   'none'           — otherwise (surname-only is treated as no match)
+ */
+export function nameMatchLevel(a, b) {
+  if (!a.surname || !b.surname || a.surname !== b.surname) return 'none';
+  if (a.given && b.given && a.given === b.given) return 'full';
+  if (a.initial && b.initial && a.initial === b.initial) return 'surnameInitial';
+  return 'none';
+}
