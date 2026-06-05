@@ -1106,11 +1106,13 @@ router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
     if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
 
     // Normalize to the OData service root the crawler uses.
-    const u = new URL(rawBaseUrl.replace(/\/+$/, ''));
+    // Strip trailing slashes without a user-input regex to avoid polynomial ReDoS.
+    let trimLen = rawBaseUrl.length;
+    while (trimLen > 0 && rawBaseUrl[trimLen - 1] === '/') trimLen--;
+    const u = new URL(trimLen < rawBaseUrl.length ? rawBaseUrl.slice(0, trimLen) : rawBaseUrl);
     if (u.protocol !== 'https:' && u.protocol !== 'http:')
       return res.status(400).json({ error: 'baseUrl must use http or https' });
-    const p = u.pathname.replace(/\/+$/, '');
-    if (!/\/odata\/dataobjects$/i.test(p)) u.pathname = '/odata/dataobjects';
+    if (!u.pathname.toLowerCase().endsWith('/odata/dataobjects')) u.pathname = '/odata/dataobjects';
     const baseUrl = u.origin + u.pathname;
 
     const metaUrl = `${baseUrl}/$metadata`;
@@ -1128,7 +1130,7 @@ router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
 
     const fetchOpts = { signal: AbortSignal.timeout(10000) };
     if (Object.keys(headers).length) fetchOpts.headers = headers;
-    const metaRes = await fetch(metaUrl, fetchOpts);
+    const metaRes = await fetch(metaUrl, fetchOpts); // lgtm[js/request-forgery] — admin-only endpoint, scheme validated above
     if (!metaRes.ok) {
       return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
     }
