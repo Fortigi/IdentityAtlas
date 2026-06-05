@@ -60,16 +60,22 @@ function AttributeDiff({ attribute }) {
 }
 
 export default function UserTimeline({ events, loading, sinceDays, onSinceDaysChange, onOpenDetail }) {
-  // Group events into moments by timestamp, oldest → newest (left → right).
+  // Group events into one dot per DAY, oldest → newest (left → right). A day's
+  // dot bundles everything that changed that day; clicking it lists them all.
   const moments = useMemo(() => {
-    const byAt = new Map();
+    const byDay = new Map();
     for (const ev of events || []) {
-      if (!byAt.has(ev.at)) byAt.set(ev.at, []);
-      byAt.get(ev.at).push(ev);
+      const d = new Date(ev.at);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!byDay.has(key)) byDay.set(key, { at: ev.at, events: [] });
+      const m = byDay.get(key);
+      m.events.push(ev);
+      if (new Date(ev.at) > new Date(m.at)) m.at = ev.at; // representative = latest that day
     }
-    return [...byAt.entries()]
-      .map(([at, evs]) => ({ at, events: evs }))
-      .sort((a, b) => new Date(a.at) - new Date(b.at));
+    const arr = [...byDay.values()];
+    for (const m of arr) m.events.sort((a, b) => new Date(a.at) - new Date(b.at));
+    arr.sort((a, b) => new Date(a.at) - new Date(b.at));
+    return arr;
   }, [events]);
 
   // Default selection = the most recent moment (no effect needed, so it also
@@ -125,7 +131,7 @@ export default function UserTimeline({ events, loading, sinceDays, onSinceDaysCh
                     type="button"
                     onClick={() => setSel(i)}
                     aria-pressed={isSel}
-                    title={`${formatDate(m.at)} — ${contextLabel(m)}`}
+                    title={`${formatDateOnly(m.at)} — ${contextLabel(m)}`}
                     className="group relative z-10 flex w-20 shrink-0 flex-col items-center focus:outline-none"
                   >
                     <span className={`w-4 h-4 rounded-full ring-2 ring-white dark:ring-gray-800 transition-transform ${dotColor(m)} ${isSel ? 'scale-125' : 'group-hover:scale-110'}`} />
@@ -139,9 +145,12 @@ export default function UserTimeline({ events, loading, sinceDays, onSinceDaysCh
             </div>
           </div>
 
-          {/* Detail of the selected moment */}
+          {/* Detail of the selected day */}
           <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3">
-            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">{formatDate(moments[selIdx].at)}</h4>
+            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              {formatDateOnly(moments[selIdx].at)}
+              <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">{contextLabel(moments[selIdx])}</span>
+            </h4>
             <ul className="space-y-2">
               {moments[selIdx].events.map((ev, i) => {
                 const style = OP_STYLES[ev.operation] || OP_STYLES.changed;
@@ -149,6 +158,9 @@ export default function UserTimeline({ events, loading, sinceDays, onSinceDaysCh
                 const linkable = ev.counterpartyLabel && target && ev.counterpartyId;
                 return (
                   <li key={i} className="flex items-start gap-2">
+                    <span className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0 w-12" title={formatDate(ev.at)}>
+                      {new Date(ev.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                     <span className={`mt-0.5 inline-block px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${style.badge}`}>
                       {style.label}
                     </span>
