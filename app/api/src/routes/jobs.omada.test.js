@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import jobsRouter, { maskConfig, validateCrawlerConfig } from './jobs.js';
+import jobsRouter, { maskConfig, validateCrawlerConfig, VALID_JOB_TYPES } from './jobs.js';
 
 // ─── Mocks for validate-metadata endpoint tests ───────────────────────────────
 
@@ -24,6 +24,26 @@ vi.mock('../middleware/auth.js', () => ({
 }));
 
 const SECRET_MASK = '••••••••';
+
+describe('VALID_JOB_TYPES — manifest discovery', () => {
+  it('contains all baseline crawler types', () => {
+    expect(VALID_JOB_TYPES).toEqual(expect.arrayContaining(['demo', 'entra-id', 'csv', 'omada']));
+  });
+
+  it('contains odata (proves manifests loaded — odata is not in the hardcoded fallback)', () => {
+    expect(VALID_JOB_TYPES).toContain('odata');
+  });
+});
+
+describe('validateCrawlerConfig — type coverage', () => {
+  it('returns null for an unknown/unregistered type (no schema = no validation)', () => {
+    expect(validateCrawlerConfig('unknown-type', {})).toBeNull();
+  });
+
+  it('returns null for a type with no configSchema (csv has none)', () => {
+    expect(validateCrawlerConfig('csv', {})).toBeNull();
+  });
+});
 
 describe('maskConfig', () => {
   it('returns null for null input', () => {
