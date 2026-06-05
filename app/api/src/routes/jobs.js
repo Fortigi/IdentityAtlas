@@ -10,6 +10,7 @@ import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
 import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
+import { fetchOmadaMetadata } from '../omada/metadataProxy.js';
 
 const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
 // Pre-resolve once so path-containment checks can use a stable absolute base.
@@ -1128,9 +1129,7 @@ router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
       headers.Cookie = c.cookieString;
     }
 
-    const fetchOpts = { signal: AbortSignal.timeout(10000) };
-    if (Object.keys(headers).length) fetchOpts.headers = headers;
-    const metaRes = await fetch(metaUrl, fetchOpts);
+    const metaRes = await fetchOmadaMetadata(metaUrl, headers);
     if (!metaRes.ok) {
       return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
     }
