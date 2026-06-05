@@ -1,0 +1,16 @@
+{
+  "type": "entra-id",
+  "displayName": "Microsoft Entra ID",
+  "entryPoint": "Start-EntraIDCrawler.ps1",
+  "dependsOn": [],
+  "configSchema": {
+    "type": "object",
+    "required": ["tenantId", "clientId", "clientSecret"],
+    "properties": {
+      "tenantId":     { "type": "string" },
+      "clientId":     { "type": "string" },
+      "clientSecret": { "type": "string" }
+    }
+  },
+  "postSyncHooks": ["buildContexts", "accountCorrelation"]
+}

@@ -3,15 +3,18 @@
     Dispatches a CrawlerJob to the appropriate crawler script.
 
 .DESCRIPTION
-    Called by the scheduler when a job is picked up from dbo.CrawlerJobs.
-    Dispatches based on jobType: demo, entra-id, csv.
-    Updates progress in SQL during execution.
+    Called by the scheduler when a job is picked up from CrawlerJobs.
+    Dispatches based on jobType using the crawler manifest registry
+    (built at module load by Get-CrawlerRegistry in IdentityAtlas.psm1).
+
+    Each crawler lives in tools/crawlers/<type>/ with a crawler.json manifest.
+    Adding a new crawler requires no changes here — drop in the folder and restart.
 
 .PARAMETER JobId
     The CrawlerJobs.id for progress reporting.
 
 .PARAMETER JobType
-    One of: demo, entra-id, csv
+    The crawler type key (matches the "type" field in crawler.json).
 
 .PARAMETER Config
     Hashtable parsed from the job's config JSON column, or a JSON string
@@ -49,9 +52,6 @@ $apiBaseUrl = $env:WEB_API_URL
 if (-not $apiBaseUrl) { $apiBaseUrl = 'http://web:3001/api' }
 $apiBaseUrl = $apiBaseUrl.TrimEnd('/')
 
-# In v5 the dispatcher updates job progress and result via the REST API.
-# Both call the existing /api/crawlers/job-progress endpoint that the
-# crawler scripts already use for fine-grained progress reporting.
 function Update-JobProgress {
     param([string]$Step, [int]$Pct = 0, [string]$Detail = '')
     try {
@@ -66,19 +66,42 @@ function Update-JobProgress {
 
 function Set-JobResult {
     param([hashtable]$Result)
-    # In v5 the result is set via /crawlers/jobs/:id/complete which the
-    # scheduler calls after this dispatcher returns. We can also call it now
-    # to attach a partial result; for simplicity we just log and let the
-    # scheduler do the final mark-complete.
     Write-Host "  Job result: $($Result | ConvertTo-Json -Compress)" -ForegroundColor Gray
 }
 
-# ─── Per-job trace log ───────────────────────────────────────────────
-# Every line this dispatcher and its child scripts print is captured to
-# /data/uploads/jobs/{id}.log so the UI's "Trace" tab can show operators
-# exactly what the crawler was doing at each step — without requiring
-# SSH into the worker container. The job_data volume is shared between
-# worker and web, so the web container can read the file back out.
+# ─── DFS dependency resolver ─────────────────────────────────────────────────
+# Returns a list of crawler types in topological order (dependencies first).
+# Throws a clear error when a circular dependency is detected.
+function Resolve-CrawlerDependencies {
+    param([string]$Type, [hashtable]$Registry)
+
+    $result     = [System.Collections.Generic.List[string]]::new()
+    $inProgress = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $done       = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    function Visit ([string]$T, [string[]]$CallPath) {
+        if ($done.Contains($T)) { return }
+        if (-not $inProgress.Add($T)) {
+            throw "Circular crawler dependency: $(($CallPath + $T) -join ' → ')"
+        }
+        if (-not $Registry.ContainsKey($T)) {
+            $from = if ($CallPath) { " (required by: $($CallPath[-1]))" } else { '' }
+            throw "Crawler dependency '$T' not found in registry$from"
+        }
+        $deps = $Registry[$T].Manifest['dependsOn']
+        if ($deps) {
+            foreach ($dep in $deps) { Visit $dep ($CallPath + $T) }
+        }
+        [void]$inProgress.Remove($T)
+        [void]$done.Add($T)
+        [void]$result.Add($T)
+    }
+
+    Visit $Type @()
+    return $result
+}
+
+# ─── Per-job trace log ────────────────────────────────────────────────────────
 $traceDir  = if ($env:TRACE_DIR) { $env:TRACE_DIR } else { '/data/uploads/jobs' }
 $traceFile = Join-Path $traceDir "$JobId.log"
 $transcriptStarted = $false
@@ -90,9 +113,6 @@ try {
     Write-Host "  (trace: failed to start transcript: $($_.Exception.Message))" -ForegroundColor Yellow
 }
 
-# Retention — keep the 20 most recent job logs, drop the rest. Cheap to
-# run here (a few dozen `stat`s against a single directory) and avoids
-# adding a separate cron or web-bootstrap hook.
 try {
     $keep = 20
     $all = Get-ChildItem -Path $traceDir -Filter '*.log' -File -ErrorAction SilentlyContinue |
@@ -100,293 +120,89 @@ try {
     if ($all -and $all.Count -gt $keep) {
         $all | Select-Object -Skip $keep | Remove-Item -Force -ErrorAction SilentlyContinue
     }
-} catch {
-    # Non-fatal: a failed retention sweep never blocks the job itself.
-}
+} catch {}
 
 $appRoot = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app' }
 
 try {
-switch ($JobType) {
 
-    'demo' {
-        Update-JobProgress -Step 'Loading demo dataset' -Pct 10
-        $datasetPath = "$appRoot/test/demo-dataset/demo-company.json"
-        $ingestScript = "$appRoot/test/demo-dataset/Ingest-DemoDataset.ps1"
-
-        if (-not (Test-Path $datasetPath)) {
-            # Generate it first
-            Update-JobProgress -Step 'Generating demo dataset' -Pct 5
-            $genScript = "$appRoot/test/demo-dataset/Generate-DemoDataset.ps1"
-            if (Test-Path $genScript) {
-                & $genScript
-            } else {
-                throw "Demo dataset not found at $datasetPath and generator not available"
-            }
-        }
-
-        Update-JobProgress -Step 'Ingesting demo data' -Pct 30
-
-        & $ingestScript -ApiBaseUrl $apiBaseUrl -ApiKey $ApiKey -DatasetPath $datasetPath
-
-        Update-JobProgress -Step 'Refreshing views' -Pct 90
-
-        # Views are refreshed by the ingest script, but ensure it's done
-        try {
-            $headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
-            Invoke-RestMethod -Uri "$apiBaseUrl/ingest/refresh-views" -Method Post -Headers $headers -Body '{}' -ErrorAction SilentlyContinue
-        } catch {}
-
-        Update-JobProgress -Step 'Complete' -Pct 100
-        Set-JobResult @{ status = 'Demo data loaded successfully' }
+    # ─── Registry lookup ──────────────────────────────────────────────────────
+    $registry = Get-CrawlerRegistry
+    if (-not $registry.ContainsKey($JobType)) {
+        $available = ($registry.Keys | Sort-Object) -join ', '
+        throw "Unknown job type: '$JobType'. Available: $available"
     }
 
-    'entra-id' {
-        Update-JobProgress -Step 'Preparing Entra ID sync' -Pct 5
+    $entry      = $registry[$JobType]
+    $manifest   = $entry.Manifest
+    $crawlerDir = $entry.Dir
+    $entryPoint = $manifest['entryPoint']
 
-        # Write a temporary config file for the crawler
-        $tempConfig = "/tmp/entra-config-$JobId.json"
-        $graphConfig = @{
-            Graph = @{
-                TenantId     = $Config['tenantId']
-                ClientId     = $Config['clientId']
-                ClientSecret = $Config['clientSecret']
-            }
-        }
-        $graphConfig | ConvertTo-Json -Depth 5 | Set-Content $tempConfig -Encoding UTF8
+    if (-not $entryPoint) { throw "crawler.json for '$JobType' is missing 'entryPoint'" }
+    $entryPointPath = Join-Path $crawlerDir $entryPoint
+    if (-not (Test-Path $entryPointPath)) {
+        throw "Crawler entry point not found: $entryPointPath"
+    }
 
-        try {
-            Update-JobProgress -Step 'Running Entra ID crawler' -Pct 10
+    # ─── Load dependencies + crawler code ─────────────────────────────────────
+    $resolved = Resolve-CrawlerDependencies -Type $JobType -Registry $registry
+    foreach ($layer in $resolved) {
+        $layerDir        = $registry[$layer].Dir
+        $layerEntryPoint = $registry[$layer].Manifest['entryPoint']
+        Get-ChildItem -Path $layerDir -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $layer -ne $JobType -or $_.Name -ne $layerEntryPoint } |
+            ForEach-Object { . $_.FullName }
+    }
 
-            $crawlerParams = @{
-                ApiBaseUrl = $apiBaseUrl
-                ApiKey     = $ApiKey
-                ConfigFile = $tempConfig
-                JobId      = $JobId
-            }
+    # ─── Write config + invoke crawler ────────────────────────────────────────
+    $configPath = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.json'
+    try {
+        $Config | ConvertTo-Json -Depth 20 -Compress | Set-Content $configPath -Encoding UTF8
 
-            # Forward sync mode. POST /admin/crawler-jobs stamps `_syncMode`
-            # into the config blob from CrawlerConfigs.nextRunMode. Absent/
-            # unknown values default to 'delta' so legacy configs keep
-            # working (they simply haven't opted into delta yet — the
-            # crawler's priming call still harvests a token the first run).
-            $syncMode = if ($Config['_syncMode'] -in @('full','delta')) { $Config['_syncMode'] } else { 'delta' }
-            $crawlerParams['SyncMode'] = $syncMode
-            Write-Host "  Sync mode: $syncMode" -ForegroundColor Gray
+        $displayName = if ($manifest['displayName']) { $manifest['displayName'] } else { $JobType }
+        Update-JobProgress -Step "Running $displayName crawler" -Pct 10
 
-            # Apply sync toggles from selectedObjects or direct config keys
-            $objects = $Config['selectedObjects']
-            if ($objects) {
-                if ($objects.ContainsKey('identity'))           { $crawlerParams['SyncPrincipals']         = [bool]$objects['identity'] }
-                if ($objects.ContainsKey('usersGroupsMembers')) {
-                    $crawlerParams['SyncPrincipals']  = [bool]$objects['usersGroupsMembers']
-                    $crawlerParams['SyncResources']   = [bool]$objects['usersGroupsMembers']
-                    $crawlerParams['SyncAssignments'] = [bool]$objects['usersGroupsMembers']
+        & $entryPointPath -ApiBaseUrl $apiBaseUrl -ApiKey $ApiKey -JobId $JobId -ConfigPath $configPath
+
+    } finally {
+        Remove-Item $configPath -Force -ErrorAction SilentlyContinue
+    }
+
+    # ─── Post-sync hooks ──────────────────────────────────────────────────────
+    $hooks = $manifest['postSyncHooks']
+    if ($hooks) {
+        foreach ($hook in $hooks) {
+            switch ($hook) {
+                'buildContexts' {
+                    Update-JobProgress -Step 'Building contexts from principal data' -Pct 80
+                    try {
+                        & "$appRoot/setup/docker/Build-FGContexts.ps1"
+                    } catch {
+                        Write-Host "  Context build failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+                    }
                 }
-                if ($objects.ContainsKey('servicePrincipals'))  { $crawlerParams['SyncServicePrincipals']   = [bool]$objects['servicePrincipals'] }
-                if ($objects.ContainsKey('identityGovernance')) { $crawlerParams['SyncGovernance']          = [bool]$objects['identityGovernance'] }
-                if ($objects.ContainsKey('pim'))                { $crawlerParams['SyncPim']                 = [bool]$objects['pim'] }
-                if ($objects.ContainsKey('signInLogs'))         { $crawlerParams['SyncSignInLogs']          = [bool]$objects['signInLogs'] }
-                if ($objects.ContainsKey('oauth2Grants'))       { $crawlerParams['SyncOAuth2Grants']        = [bool]$objects['oauth2Grants'] }
-                if ($objects.ContainsKey('appsAppRoles'))       { $crawlerParams['SyncAppRoles']            = [bool]$objects['appsAppRoles'] }
-            }
-            # Direct sync toggles (backward compat)
-            if ($Config.ContainsKey('syncPrincipals'))         { $crawlerParams['SyncPrincipals']         = [bool]$Config['syncPrincipals'] }
-            if ($Config.ContainsKey('syncServicePrincipals'))   { $crawlerParams['SyncServicePrincipals']   = [bool]$Config['syncServicePrincipals'] }
-            if ($Config.ContainsKey('syncResources'))           { $crawlerParams['SyncResources']           = [bool]$Config['syncResources'] }
-            if ($Config.ContainsKey('syncAssignments'))         { $crawlerParams['SyncAssignments']         = [bool]$Config['syncAssignments'] }
-            if ($Config.ContainsKey('syncGovernance'))          { $crawlerParams['SyncGovernance']          = [bool]$Config['syncGovernance'] }
-            if ($Config.ContainsKey('syncSignInLogs'))          { $crawlerParams['SyncSignInLogs']          = [bool]$Config['syncSignInLogs'] }
-            if ($Config.ContainsKey('signInLogsDays'))          { $crawlerParams['SignInLogsDays']          = [int]$Config['signInLogsDays'] }
-            if ($Config.ContainsKey('syncOAuth2Grants'))        { $crawlerParams['SyncOAuth2Grants']        = [bool]$Config['syncOAuth2Grants'] }
-            if ($Config.ContainsKey('syncAppRoles'))            { $crawlerParams['SyncAppRoles']            = [bool]$Config['syncAppRoles'] }
-
-            # Custom attributes — merge identityAttributes into CustomUserAttributes
-            # so they're fetched in the same Graph call AND included in identity records
-            $userAttrs = @()
-            if ($Config['customUserAttributes']) { $userAttrs += @($Config['customUserAttributes']) }
-            if ($Config['identityAttributes']) { $userAttrs += @($Config['identityAttributes']) }
-            $userAttrs = $userAttrs | Select-Object -Unique
-            if ($userAttrs.Count -gt 0) {
-                $crawlerParams['CustomUserAttributes'] = $userAttrs
-            }
-            if ($Config['customGroupAttributes']) {
-                $crawlerParams['CustomGroupAttributes'] = @($Config['customGroupAttributes'])
-            }
-            if ($Config['aiNamePatterns']) {
-                $crawlerParams['AINamePatterns'] = @($Config['aiNamePatterns'])
-            }
-
-            # Identity filter
-            if ($Config['identityFilter'] -and $Config['identityFilter']['attribute']) {
-                $crawlerParams['IdentityFilter'] = $Config['identityFilter']
-            }
-
-            & "$appRoot/tools/crawlers/entra-id/Start-EntraIDCrawler.ps1" @crawlerParams
-
-            # ── Post-sync: build contexts from principal data ────────────
-            Update-JobProgress -Step 'Building contexts from principal data' -Pct 80
-            try {
-                & "$appRoot/setup/docker/Build-FGContexts.ps1"
-            } catch {
-                Write-Host "  Context build failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
-            }
-
-            # ── Post-sync: account-to-identity correlation ───────────────
-            Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
-            try {
-                if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) {
-                    Invoke-FGAccountCorrelation
-                } else {
-                    Write-Host "  Invoke-FGAccountCorrelation not available — skipping" -ForegroundColor Yellow
+                'accountCorrelation' {
+                    Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
+                    try {
+                        if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) {
+                            Invoke-FGAccountCorrelation
+                        } else {
+                            Write-Host "  Invoke-FGAccountCorrelation not available — skipping" -ForegroundColor Yellow
+                        }
+                    } catch {
+                        Write-Host "  Account correlation failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+                    }
                 }
-            } catch {
-                Write-Host "  Account correlation failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
-            }
-
-            Update-JobProgress -Step 'Complete' -Pct 100
-
-            # If this was a full-mode run (operator-requested re-sync), flip
-            # the source config back to delta so the next scheduled run uses
-            # the fast path. Failure here is non-fatal: next run will just
-            # also be full, which is slow but correct.
-            if ($syncMode -eq 'full' -and $Config['_scheduledByConfigId']) {
-                try {
-                    $cid = [int]$Config['_scheduledByConfigId']
-                    $headers = @{ 'Authorization' = "Bearer $ApiKey" }
-                    Invoke-RestMethod -Uri "$apiBaseUrl/crawlers/configs/$cid/mark-delta-mode" `
-                        -Method Post -Headers $headers -TimeoutSec 10 | Out-Null
-                    Write-Host "  Reset nextRunMode to 'delta' on config $cid" -ForegroundColor Gray
-                } catch {
-                    Write-Host "  (mark-delta-mode failed: $($_.Exception.Message))" -ForegroundColor DarkGray
+                default {
+                    Write-Host "  Unknown post-sync hook: '$hook' — skipping" -ForegroundColor Yellow
                 }
             }
-
-            Set-JobResult @{ status = 'Entra ID sync completed successfully' }
-        }
-        finally {
-            # Clean up temp config file (contains secrets)
-            if (Test-Path $tempConfig) { Remove-Item $tempConfig -Force }
         }
     }
 
-    'csv' {
-        Update-JobProgress -Step 'Preparing CSV import' -Pct 5
+    Update-JobProgress -Step 'Complete' -Pct 100
+    Set-JobResult @{ status = "$displayName completed successfully" }
 
-        $csvFolder = $Config['csvFolder']
-        if (-not $csvFolder) { $csvFolder = '/data/csv' }
-        $systemName = $Config['systemName']
-        if (-not $systemName) { $systemName = 'CSV Import' }
-        $systemType = $Config['systemType']
-        if (-not $systemType) { $systemType = 'CSV' }
-
-        if (-not (Test-Path $csvFolder)) {
-            throw "CSV folder not found: $csvFolder"
-        }
-
-        Update-JobProgress -Step 'Running CSV crawler' -Pct 10
-
-        & "$appRoot/tools/crawlers/csv/Start-CSVCrawler.ps1" `
-            -ApiBaseUrl $apiBaseUrl `
-            -ApiKey $ApiKey `
-            -CsvFolder $csvFolder `
-            -SystemName $systemName `
-            -SystemType $systemType `
-            -JobId $JobId
-
-        # Post-sync: contexts + account correlation
-        Update-JobProgress -Step 'Building contexts from principal data' -Pct 80
-        try { & "$appRoot/setup/docker/Build-FGContexts.ps1" } catch { Write-Host "  Context build failed: $($_.Exception.Message)" -ForegroundColor Yellow }
-
-        Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
-        try {
-            if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) { Invoke-FGAccountCorrelation }
-        } catch { Write-Host "  Account correlation failed: $($_.Exception.Message)" -ForegroundColor Yellow }
-
-        Update-JobProgress -Step 'Complete' -Pct 100
-        Set-JobResult @{ status = 'CSV import completed successfully' }
-    }
-
-    'omada' {
-        Update-JobProgress -Step 'Preparing Omada sync' -Pct 5
-
-        # Fail fast if required connection fields are absent — prevents a
-        # misleading "null authMethod" validation error deep in the crawler.
-        if (-not $Config['baseUrl']) {
-            throw "Omada config is missing 'baseUrl' — check the crawler configuration."
-        }
-        if (-not $Config['authMethod']) {
-            throw "Omada config is missing 'authMethod' — check the crawler configuration."
-        }
-
-        $tempConfig = "/tmp/omada-config-$JobId.json"
-        $omadaConfig = @{
-            baseUrl               = $Config['baseUrl']
-            apiVersion            = if ($Config['apiVersion']) { $Config['apiVersion'] } else { 'v14' }
-            authMethod            = $Config['authMethod']
-            username              = $Config['username']
-            password              = $Config['password']
-            clientId              = $Config['clientId']
-            clientSecret          = $Config['clientSecret']
-            tokenEndpoint         = $Config['tokenEndpoint']
-            apiToken              = $Config['apiToken']
-            cookieString          = $Config['cookieString']
-            sessionTimeoutMinutes = if ($Config['sessionTimeoutMinutes']) { $Config['sessionTimeoutMinutes'] } else { 30 }
-            pageSize              = if ($Config['pageSize']) { $Config['pageSize'] } else { 100 }
-            typeMappings              = $Config['typeMappings']
-            selectedObjects           = $Config['selectedObjects']
-            contextObjectTypes        = $Config['contextObjectTypes']
-            resourceCategoryMapping   = $Config['resourceCategoryMapping']
-        }
-        $omadaConfig | ConvertTo-Json -Depth 10 | Set-Content $tempConfig -Encoding UTF8
-
-        try {
-            Update-JobProgress -Step 'Running Omada crawler' -Pct 10
-
-            $syncMode = if ($Config['_syncMode'] -in @('full','delta')) { $Config['_syncMode'] } else { 'full' }
-
-            $crawlerParams = @{
-                ApiBaseUrl = $apiBaseUrl
-                ApiKey     = $ApiKey
-                ConfigFile = $tempConfig
-                JobId      = $JobId
-                SyncMode   = $syncMode
-            }
-
-            # Apply selectedObjects toggles
-            $objects = $Config['selectedObjects']
-            if ($objects) {
-                if ($objects.ContainsKey('contexts'))        { $crawlerParams['SyncContexts']       = [bool]$objects['contexts'] }
-                if ($objects.ContainsKey('identities'))      { $crawlerParams['SyncIdentities']     = [bool]$objects['identities'] }
-                if ($objects.ContainsKey('accounts'))        { $crawlerParams['SyncAccounts']        = [bool]$objects['accounts'] }
-                if ($objects.ContainsKey('contextMembers'))  { $crawlerParams['SyncContextMembers']  = [bool]$objects['contextMembers'] }
-                if ($objects.ContainsKey('resources'))       { $crawlerParams['SyncResources']       = [bool]$objects['resources'] }
-                if ($objects.ContainsKey('entitlements'))    { $crawlerParams['SyncEntitlements']    = [bool]$objects['entitlements'] }
-                if ($objects.ContainsKey('assignments'))     { $crawlerParams['SyncAssignments']     = [bool]$objects['assignments'] }
-                if ($objects.ContainsKey('cras'))            { $crawlerParams['SyncCRAs']            = [bool]$objects['cras'] }
-            }
-
-            & "$appRoot/tools/crawlers/omada/Start-OmadaCrawler.ps1" @crawlerParams
-
-            # Post-sync: account-to-identity correlation (cross-system — links Omada identities
-            # to the same Identity records as Entra/other crawler accounts for the same person)
-            Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
-            try {
-                if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) { Invoke-FGAccountCorrelation }
-            } catch { Write-Host "  Account correlation failed: $($_.Exception.Message)" -ForegroundColor Yellow }
-
-            Update-JobProgress -Step 'Complete' -Pct 100
-            Set-JobResult @{ status = 'Omada sync completed successfully' }
-        }
-        finally {
-            if (Test-Path $tempConfig) { Remove-Item $tempConfig -Force }
-        }
-    }
-
-    default {
-        throw "Unknown job type: $JobType"
-    }
-}
 } finally {
     if ($transcriptStarted) {
         try { Stop-Transcript | Out-Null } catch {}
