@@ -1,3 +1,4 @@
+- Dependabot now tracks Docker base image updates (worker PowerShell image, API Node.js image) alongside the existing GitHub Actions SHA-pinning
 - Extended CI PR checks to include the Omada PowerShell SDK and crawler in PSScriptAnalyzer linting
 - Extended Pester code coverage to the Omada SDK (`tools/powershell-sdk/omada`)
 - Pester test runner now scans the full `test/unit/` directory so new test files are picked up automatically without CI changes
