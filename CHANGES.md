@@ -1,5 +1,25 @@
 ## Changes in this PR
 
+- Rebuilt **Account Linking** (formerly the non-functional "Account Correlation"). It now actually runs: for each existing identity it finds orphan accounts that belong to that person — admin (`adm-…`), guest, and secondary accounts — and links them with a confidence score.
+- Account linking is deterministic and no longer needs an LLM. The matching dictionary (signals, account-type patterns, threshold) ships with sensible defaults and is editable in **Admin → Account Linking**.
+- Account linking can run on a schedule and on demand ("Run now"), with a run history showing how many accounts were linked, updated, or skipped.
+- Accounts that can't be linked to a person are now grouped into a generated **Orphaned Accounts** context (sub-grouped by type: admin / guest / service / shared) instead of being a hidden property.
+- Analyst decisions are preserved across runs: a confirmed/rejected/moved link is never overwritten, and a rejected account is never re-linked.
+- Account linking now matches a person's accounts even when their email convention differs (e.g. `r.euson@…` and `robin.euson@…`) by matching on the parsed name, attaching them at a lower, honest confidence the analyst can review. Role/company qualifiers in display names (e.g. `(OGD)`, `(ADM-azure)`) are ignored when matching.
+- Added an **Auto-link certainty** slider in Admin → Account Linking to choose the minimum confidence required before accounts are linked.
+- Ambiguous name-only matches (the same name across multiple identities) are left for manual review instead of being auto-linked to the wrong person.
+- Retired the LLM-based correlation ruleset wizard and its endpoints.
+- Identity relationship diagram: the identity fans out to **Linked Accounts** and **Contexts** only. Open Linked Accounts to see the individual accounts, then drill into an account to see that account's own access (groups, OAuth grants, etc.) — the same way every other entity graph works. An identity holds no access of its own; its accounts do.
+- Matrix: clicking a subject column that is an **identity** now opens the identity page (it used to always open a user account).
+- Matrix wizard: the context picker now only offers contexts that match what you're filtering — Identity rows → Identity contexts, User rows → User (Principal) contexts, and the resource side → Resource/System contexts.
+- Matrix (Identities view): each identity column now has an **expand** control that splits it into per-account sub-columns, so you can see each linked account's assignments side by side under the identity.
+- Identity page: the Relationships tab now lists the **linked accounts** with each account's own confidence, and lets you **Confirm** or **Remove** a linked account (Remove keeps account-linking from re-adding it; Undo reverts). Replaces the single overall confidence number / signals chip.
+- Removed the legacy "Verify Identity" action from the identity page (per-account confirm/remove replaces it). Fixed the analyst-decision endpoints, which previously referenced a non-existent column and never worked.
+- Identity page: the Attributes tab now also shows the identity's **extension attributes** (they were silently dropped before).
+- Matrix (Identities): the subject filter can now filter on identity **extension attributes**, not just the core columns.
+
+## Changes in this PR
+
 - Added Custom Crawlers guide and Crawler Architecture doc to the documentation site navigation
 - Fixed documentation site dark mode: admonition boxes (note, tip, warning, danger) now use dark surfaces with readable text instead of the light green/amber/red backgrounds that were unreadable against the slate page
 - Fixed inline code dark mode on the documentation site: `code` spans now render with a subtle dark lime background and lime-300 text instead of the light lime-50 background
