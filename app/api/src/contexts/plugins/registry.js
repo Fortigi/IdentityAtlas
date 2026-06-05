@@ -10,6 +10,7 @@ import managerHierarchy      from './manager-hierarchy.js';
 import adOuFromDn            from './ad-ou-from-dn.js';
 import { plugin as resourceCluster } from './resource-cluster/index.js';
 import departmentFromPrincipal from './department-from-principal.js';
+import orphanedAccounts       from './orphaned-accounts.js';
 
 /** @type {import('./types.js').ContextPlugin[]} */
 export const REGISTERED_PLUGINS = [
@@ -17,6 +18,7 @@ export const REGISTERED_PLUGINS = [
   adOuFromDn,
   resourceCluster,
   departmentFromPrincipal,
+  orphanedAccounts,
 ];
 
 export function getPlugin(name) {
