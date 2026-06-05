@@ -1,0 +1,1 @@
+- Identity relationship diagram: access (groups, OAuth grants, eligible, governed, owned) is now shown as a roll-up *across the identity's linked accounts* (labelled "· N accounts") rather than as if the identity held it directly. Expand a linked account to see that account's own access. Contexts remain directly on the identity.

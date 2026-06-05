@@ -237,14 +237,21 @@ async function fetchAccessPackageItems(apId, categoryKey, authFetch, extras = {}
 
 function identityRootNodes(core) {
   const agg = core.aggregateAssignments || {};
+  const accountCount = (core.members || []).length;
+  // An identity holds no access of its own — its accounts do. So the primary
+  // relationships are its Linked Accounts (expand one to see that account's own
+  // groups / OAuth / etc.) and any Contexts it belongs to directly. The access
+  // categories below are AGGREGATE roll-ups across all linked accounts, marked
+  // `aggregate` + labelled "· all accounts" so they don't read as direct.
+  const viaAccounts = ` · ${accountCount} account${accountCount === 1 ? '' : 's'}`;
   return [
-    { key: 'accounts',        label: 'Linked Accounts', count: (core.members || []).length, kind: 'category' },
+    { key: 'accounts',        label: 'Linked Accounts', count: accountCount, kind: 'category' },
     { key: 'contexts',        label: 'Contexts',        count: core.contextCount || 0, kind: 'category' },
-    { key: 'groups-direct',   label: 'Groups (Direct)', count: agg.Direct || 0, kind: 'category' },
-    { key: 'groups-governed', label: 'Governed',        count: agg.Governed || 0, kind: 'category' },
-    { key: 'groups-owner',    label: 'Owned',           count: agg.Owner || 0, kind: 'category' },
-    { key: 'groups-eligible', label: 'Eligible',        count: agg.Eligible || 0, kind: 'category' },
-    { key: 'oauth2-grants',   label: 'OAuth2 Grants',   count: agg.OAuth2Grant || 0, kind: 'category' },
+    { key: 'groups-direct',   label: `Groups (Direct)${viaAccounts}`, count: agg.Direct || 0, kind: 'category', aggregate: true },
+    { key: 'groups-governed', label: `Governed${viaAccounts}`,        count: agg.Governed || 0, kind: 'category', aggregate: true },
+    { key: 'groups-owner',    label: `Owned${viaAccounts}`,           count: agg.Owner || 0, kind: 'category', aggregate: true },
+    { key: 'groups-eligible', label: `Eligible${viaAccounts}`,        count: agg.Eligible || 0, kind: 'category', aggregate: true },
+    { key: 'oauth2-grants',   label: `OAuth2 Grants${viaAccounts}`,   count: agg.OAuth2Grant || 0, kind: 'category', aggregate: true },
   ];
 }
 
