@@ -567,7 +567,7 @@ async function runTimeline(res, { entityKind, id, sinceDays, limit, where }) {
   // tracked), but each review instance has real start/end dates — surface them
   // as "Access review started/ended" events so they show on the timeline.
   if (entityKind === 'access-package' || entityKind === 'resource') {
-    const reviewEvents = await reviewInstanceEvents(id, sinceDays);
+    const reviewEvents = await reviewInstanceEvents(id);
     if (reviewEvents.length) {
       built.events.push(...reviewEvents);
       built.changedCount += reviewEvents.length;
@@ -581,8 +581,10 @@ async function runTimeline(res, { entityKind, id, sinceDays, limit, where }) {
 
 // Synthesize "Access review started / ended" timeline events from a resource's
 // review instances (distinct reviewInstanceId in CertificationDecisions).
-async function reviewInstanceEvents(id, sinceDays) {
-  const cutoff = Date.now() - sinceDays * 86400000;
+// Reviews are sparse governance milestones, so — unlike attribute/relationship
+// events — these are NOT clipped to the selected window; the most recent review
+// should always be visible on the timeline.
+async function reviewInstanceEvents(id) {
   const out = [];
   try {
     const r = await db.query(`
@@ -594,11 +596,11 @@ async function reviewInstanceEvents(id, sinceDays) {
        WHERE "resourceId"::text = $1 AND "reviewInstanceId" IS NOT NULL`, [id]);
     const now = Date.now();
     for (const row of r.rows) {
-      if (row.st && new Date(row.st).getTime() > cutoff) {
+      if (row.st) {
         out.push({ at: row.st, operation: 'added', eventKind: 'review', summary: 'Access review started',
           counterpartyKind: null, counterpartyId: null, counterpartyLabel: null });
       }
-      if (row.en && new Date(row.en).getTime() <= now && new Date(row.en).getTime() > cutoff) {
+      if (row.en && new Date(row.en).getTime() <= now) {
         out.push({ at: row.en, operation: 'changed', eventKind: 'review',
           summary: `Access review ${row.status === 'Completed' ? 'completed' : 'ended'}`,
           counterpartyKind: null, counterpartyId: null, counterpartyLabel: null });
