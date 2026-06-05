@@ -40,18 +40,21 @@
 
 [CmdletBinding()]
 Param(
-    [Parameter(Mandatory = $true)]  [string]$ApiBaseUrl,
-    [Parameter(Mandatory = $true)]  [string]$ApiKey,
-    [Parameter(Mandatory = $true)]  [string]$CsvFolder,
-    [Parameter(Mandatory = $false)] [string]$SystemName = 'CSV Import',
-    [Parameter(Mandatory = $false)] [string]$SystemType = 'CSV',
-    [Parameter(Mandatory = $false)] [string]$Delimiter = ';',
-    [switch]$RefreshViews = $true,
-    [int]$JobId = 0
+    [Parameter(Mandatory)] [string]$ApiBaseUrl,
+    [Parameter(Mandatory)] [string]$ApiKey,
+    [Parameter(Mandatory)] [int]$JobId,
+    [Parameter(Mandatory)] [string]$ConfigPath
 )
 
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
+
+$RawConfig  = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
+$CsvFolder  = if ($RawConfig['csvFolder'])  { $RawConfig['csvFolder'] }  else { '/data/csv' }
+$SystemName = if ($RawConfig['systemName']) { $RawConfig['systemName'] } else { 'CSV Import' }
+$SystemType = if ($RawConfig['systemType']) { $RawConfig['systemType'] } else { 'CSV' }
+$Delimiter  = if ($RawConfig['delimiter'])  { $RawConfig['delimiter'] }  else { ';' }
+$RefreshViews = $true
 
 # ─── Helpers ─────────────────────────────────────────────────────
 
