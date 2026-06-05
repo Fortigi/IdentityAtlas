@@ -9,7 +9,7 @@ export default function ConfidenceBar({ confidence }) {
       </div>
     );
   }
-  const color = confidence >= 90 ? 'bg-green-500' : confidence >= 70 ? 'bg-blue-500' : confidence >= 50 ? 'bg-yellow-500' : 'bg-orange-500';
+  const color = confidence >= 90 ? 'bg-green-300' : confidence >= 70 ? 'bg-blue-300' : confidence >= 50 ? 'bg-yellow-300' : 'bg-orange-300';
   return (
     <div className="flex items-center gap-2" title={`${CONFIDENCE_TOOLTIP} ${confidence}%`}>
       <div className="w-20 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
