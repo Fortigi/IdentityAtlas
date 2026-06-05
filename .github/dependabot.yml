@@ -52,3 +52,19 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+      # vite and its ecosystem plugins must move together — each plugin
+      # declares a peer dep on a specific vite major range and breaks
+      # silently (or hard) when vite is bumped without them.
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+          - "@tailwindcss/vite"
+          - "vitest"
+      # eslint flat-config packages must all be on the same major
+      eslint:
+        patterns:
+          - "eslint"
+          - "@eslint/*"
+          - "eslint-plugin-*"
+          - "globals"
