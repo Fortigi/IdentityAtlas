@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Dependabot now tracks Docker base image updates (worker PowerShell image, API Node.js image) alongside the existing GitHub Actions SHA-pinning
+- Extended CI PR checks to include the Omada PowerShell SDK and crawler in PSScriptAnalyzer linting
+- Extended Pester code coverage to the Omada SDK (`tools/powershell-sdk/omada`)
+- Pester test runner now scans the full `test/unit/` directory so new test files are picked up automatically without CI changes
+- Removed stale `app/db` path reference from PSScriptAnalyzer and Pester coverage scopes
+- Upgraded PSScriptAnalyzer from Error-only to Warning + Error severity; expanded coverage to all production PowerShell roots (job dispatcher, module, CSV transforms)
+- Added eslint-plugin-security to the API build — catches unsafe regex, dynamic RegExp construction, and similar security anti-patterns on every pull request
+- Fixed: manager-hierarchy context plugin now uses the RE2 engine for admin-supplied exclude patterns, preventing ReDoS via a crafted regex (same fix already applied to the risk-scoring engine)
+- Fixed: `$input` variable in `New-OAuth2ScopeResourceId` (EntraID crawler) shadowed a PowerShell automatic variable — renamed to `$hashInput`
+- Fixed: `$matches` variable in `Get-FGAttributeMapping` shadowed a PowerShell automatic variable — renamed to `$regexMatches`
+
+## Changes in this PR
+
 - Added native Omada IGA crawler that syncs directly from the Omada OData 4.0 REST API — no manual CSV export or transform step required
 - Supports six authentication methods: Form/Cookie (on-premise), HTTP Basic Auth, OAuth2 Client Credentials (cloud), OAuth2 ROPC, API Token, and Cookie String (session cookie from browser DevTools)
 - Syncs systems, contexts (OrgUnits + configured types), identities, accounts/principals, resources (business roles and permissions), entitlements (CHILDROLES nesting), role assignments (Resourceassignment), and effective account assignments (CalculatedAssignments/CRA)
