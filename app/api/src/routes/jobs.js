@@ -51,7 +51,7 @@ try {
       _crawlerManifests[manifest.type] = manifest;
       _configValidators[manifest.type] = manifest.configSchema
         ? _ajv.compile(manifest.configSchema) : null;
-    } catch { /* skip malformed manifests — bad JSON or missing file */ }
+    } catch (e) { console.warn(`Crawler manifest skipped (${mPath}): ${e.message}`); }
   }
 } catch { /* crawlers directory not accessible — fall through to hardcoded list */ }
 
@@ -163,7 +163,7 @@ const ENTRA_OBJECT_TYPES = [
   { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
 ];
 
-const SECRET_FIELDS = ['clientSecret', 'password', 'apiToken', 'cookieString'];
+const SECRET_FIELDS = ['clientSecret', ...OTHER_SECRET_FIELDS];
 
 export function maskConfig(config) {
   if (!config) return null;

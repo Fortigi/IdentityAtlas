@@ -135,7 +135,6 @@ async function queueScheduledJob(configRow, scheduleIndex) {
   for (const f of OTHER_SECRET_FIELDS) {
     if (jobConfig[f]) { extraCreds[f] = jobConfig[f]; delete jobConfig[f]; }
   }
-  delete jobConfig.clientSecret;
 
   const inserted = await db.queryOne(
     `INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")

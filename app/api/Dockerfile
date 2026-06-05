@@ -22,9 +22,11 @@ WORKDIR /app/backend
 COPY app/api/package*.json ./
 RUN npm ci --omit=dev
 COPY app/api/src ./src
-# Copy crawler manifests (JSON only — no PS1 scripts) so the API can
-# auto-discover valid job types and their config schemas at startup.
+# Copy crawler manifests so the API can auto-discover valid job types and their
+# config schemas at startup. PS1 scripts are removed — the web container is
+# Node.js only; scripts belong in the worker image.
 COPY tools/crawlers /app/crawlers
+RUN find /app/crawlers -name "*.ps1" -delete
 # Copy the compiled frontend so Express can serve it as static files
 COPY --from=frontend-build /app/frontend/dist ../frontend/dist
 
