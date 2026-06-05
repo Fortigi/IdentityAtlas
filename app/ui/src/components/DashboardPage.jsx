@@ -15,13 +15,13 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { useIsDark } from '../contexts/ThemeContext';
 import { formatCompactNumber as formatNumber, formatRelativeTime } from '../utils/formatters';
+import { docsUrl } from '../utils/docsUrl';
 
 // Lazy-load Trends — keeps the dashboard's first paint cheap (chart code +
 // data hook are only needed when the user clicks the tab).
 const DashboardTrendsTab = lazy(() => import('./DashboardTrendsTab'));
 
 const GITHUB_BASE = 'https://github.com/Fortigi/IdentityAtlas';
-const DOCS_URL = 'https://fortigi.github.io/IdentityAtlas';
 const SUPPORT_EMAIL = 'support@identityatlas.io';
 
 function changesUrl(v) {
@@ -246,7 +246,7 @@ export default function DashboardPage({ onNavigate }) {
             <h3 className="text-sm font-bold text-gray-900 dark:text-white">Resources</h3>
           </div>
           <ul className="space-y-2.5 text-sm">
-            <li><a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Documentation</a></li>
+            <li><a href={docsUrl(version?.version)} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Documentation</a></li>
             <li><a href={GITHUB_BASE} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>GitHub repository</a></li>
             <li><a href={`${GITHUB_BASE}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>License</a></li>
             <li><a href={`${GITHUB_BASE}/releases`} target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-lime-700 hover:underline flex items-center gap-2"><span>→</span>Releases</a></li>
