@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Reworked the documentation site to look like the app: the bright solid-green header and tab bar are now a clean white shell with a dark title and the green logo as the accent (dark slate header in dark mode), with the active tab marked by a green underline and a soft grey search field — so the docs and the product feel like one product.
+
+## Changes in this PR
+
 - Removed the **Tags** column from the matrix — it no longer carried meaningful information now that tags are modelled as contexts. The matrix right-side metadata is now just member count and description.
 
 ## Changes in this PR
