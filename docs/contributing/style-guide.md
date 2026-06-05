@@ -29,6 +29,13 @@ Rationale: green is who we *are* (it echoes the logo); blue is what you *click*.
 - `utils/accessPackageStyles.js` — assignment-policy badges.
 - `utils/contextStyles.js` — context variant/target badges.
 
+### Saturation: match the fill to the shape
+The app reads as *soft* — badges are `bg-{color}-50/100`, the data-viz pastels in `AP_COLORS` sit around the 200 tier. Pick saturation by **how much area the colour covers**, not by hue:
+- **Solid fills** — progress/ratio bars, chips, swatches, graph nodes, large blocks → **soft pastel tier (200–300)**. A saturated 500/600-tier block reads as "hard" next to everything else.
+- **Thin marks** — chart lines, 1–2px borders, small icons, coloured **text** → keep the **saturated tier (500+ / 700 for text)**; they're too small to register otherwise.
+
+The same hue therefore often needs *two* tokens — don't reuse a chart-line colour as a bar fill. (This was the "hard governed/non-governed bar" and "bright entity-graph nodes" bug: `MatrixScopePanel` now splits `GOV_LINE` from `GOV_BAR`, and the `EntityGraph` node gradients end soft.)
+
 ---
 
 ## 2. Dark mode (hard rule)
