@@ -22,6 +22,15 @@ describe('EntityTimeline (horizontal)', () => {
     expect(html).not.toContain('indigo'); // interactive colour is blue
   });
 
+  it('renders access-review events', () => {
+    const reviewEvents = [
+      { at: '2026-06-04T10:00:00Z', operation: 'added', eventKind: 'review', summary: 'Access review started' },
+    ];
+    const html = renderToStaticMarkup(h(EntityTimeline, { events: reviewEvents, loading: false, sinceDays: 90 }));
+    expect(html).toContain('Access review started');
+    expect(html).toContain('1 rel'); // a review counts as a relationship-kind event
+  });
+
   it('shows an empty state when there are no events', () => {
     const html = renderToStaticMarkup(h(EntityTimeline, { events: [], loading: false, sinceDays: 90 }));
     expect(html).toContain('No changes recorded');

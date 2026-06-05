@@ -562,8 +562,52 @@ async function runTimeline(res, { entityKind, id, sinceDays, limit, where }) {
   `, [sinceDays, id, limit * 2]);
   const labels = await resolveTimelineLabels(r.rows);
   const built = buildEntityTimeline(entityKind, id, r.rows, labels);
+
+  // Access-review activity isn't in _history (CertificationDecisions isn't
+  // tracked), but each review instance has real start/end dates — surface them
+  // as "Access review started/ended" events so they show on the timeline.
+  if (entityKind === 'access-package' || entityKind === 'resource') {
+    const reviewEvents = await reviewInstanceEvents(id);
+    if (reviewEvents.length) {
+      built.events.push(...reviewEvents);
+      built.changedCount += reviewEvents.length;
+      built.events.sort((a, b) => new Date(b.at) - new Date(a.at));
+    }
+  }
+
   built.events = built.events.slice(0, limit);
   res.json({ sinceDays, ...built });
+}
+
+// Synthesize "Access review started / ended" timeline events from a resource's
+// review instances (distinct reviewInstanceId in CertificationDecisions).
+// Reviews are sparse governance milestones, so — unlike attribute/relationship
+// events — these are NOT clipped to the selected window; the most recent review
+// should always be visible on the timeline.
+async function reviewInstanceEvents(id) {
+  const out = [];
+  try {
+    const r = await db.query(`
+      SELECT DISTINCT "reviewInstanceId" AS ii,
+             "reviewInstanceStartDateTime" AS st,
+             "reviewInstanceEndDateTime"   AS en,
+             "reviewInstanceStatus"        AS status
+        FROM "CertificationDecisions"
+       WHERE "resourceId"::text = $1 AND "reviewInstanceId" IS NOT NULL`, [id]);
+    const now = Date.now();
+    for (const row of r.rows) {
+      if (row.st) {
+        out.push({ at: row.st, operation: 'added', eventKind: 'review', summary: 'Access review started',
+          counterpartyKind: null, counterpartyId: null, counterpartyLabel: null });
+      }
+      if (row.en && new Date(row.en).getTime() <= now) {
+        out.push({ at: row.en, operation: 'changed', eventKind: 'review',
+          summary: `Access review ${row.status === 'Completed' ? 'completed' : 'ended'}`,
+          counterpartyKind: null, counterpartyId: null, counterpartyLabel: null });
+      }
+    }
+  } catch { /* CertificationDecisions may not exist */ }
+  return out;
 }
 
 // Per-entity _history WHERE clauses ($2 = entity id).
