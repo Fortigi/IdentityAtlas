@@ -371,14 +371,10 @@ router.post('/ingest/refresh-views', async (req, res) => {
       const pool = await db.getPool();
       await pool.request().query(`
         UPDATE "Contexts" c
-           SET "directMemberCount" = COALESCE(d.cnt, 0),
-               "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
-          FROM (
-            SELECT "contextId", COUNT(*)::int AS cnt
-              FROM "ContextMembers"
-             GROUP BY "contextId"
-          ) d
-         WHERE c.id = d."contextId";
+           SET "directMemberCount" = (
+                 SELECT COUNT(*)::int FROM "ContextMembers" WHERE "contextId" = c.id
+               ),
+               "lastCalculatedAt"  = now() AT TIME ZONE 'utc';
 
         WITH RECURSIVE subtree AS (
           SELECT id AS root_id, id AS node_id FROM "Contexts"

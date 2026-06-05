@@ -9,7 +9,7 @@ import * as db from '../db/connection.js';
 import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
-import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, storeJobSecret } from '../secrets/crawlerSecrets.js';
+import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
 
 const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
 // Pre-resolve once so path-containment checks can use a stable absolute base.
@@ -140,13 +140,20 @@ export function maskConfig(config) {
 export function validateOmadaConfig(config) {
   if (!config?.baseUrl) return 'Omada jobs require baseUrl';
   const method = config?.authMethod;
-  if (method === 'FormCookie' || method === 'OAuth2ROPC') {
+  if (method === 'FormCookie') {
     if (!config.username || !config.password) {
-      return `Omada ${method} auth requires username and password`;
+      return 'Omada FormCookie auth requires username and password';
+    }
+  } else if (method === 'OAuth2ROPC') {
+    if (!config.tokenEndpoint || !config.clientId || !config.clientSecret) {
+      return 'Omada OAuth2ROPC auth requires tokenEndpoint, clientId and clientSecret';
+    }
+    if (!config.username || !config.password) {
+      return 'Omada OAuth2ROPC auth requires username and password';
     }
   } else if (method === 'OAuth2CC') {
-    if (!config.clientId || !config.clientSecret) {
-      return 'Omada OAuth2CC auth requires clientId and clientSecret';
+    if (!config.tokenEndpoint || !config.clientId || !config.clientSecret) {
+      return 'Omada OAuth2CC auth requires tokenEndpoint, clientId and clientSecret';
     }
   } else if (method === 'ApiToken') {
     if (!config.apiToken) return 'Omada ApiToken auth requires apiToken';
@@ -259,7 +266,7 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
 
     // Read existing config. The clientSecret lives in the vault, not here.
     const existing = await pool.request().input('id', id)
-      .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
+      .query(`SELECT config, "crawlerType" FROM "CrawlerConfigs" WHERE id = @id`);
     if (existing.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
 
     let mergedConfig = (typeof existing.recordset[0].config === "string" ? JSON.parse(existing.recordset[0].config) : existing.recordset[0].config) || {};
@@ -281,6 +288,12 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
       mergedConfig = { ...mergedConfig, ...incoming };
     }
     delete mergedConfig.clientSecret; // never persist plaintext in the JSON
+
+    const crawlerType = existing.recordset[0].crawlerType;
+    if (crawlerType === 'omada' && config) {
+      const omadaErr = validateOmadaConfig(mergedConfig);
+      if (omadaErr) return res.status(400).json({ error: omadaErr });
+    }
 
     const sets = ['config = @config', '"updatedAt" = now()'];
     const request = pool.request().input('id', id).input('config', JSON.stringify(mergedConfig));
@@ -831,14 +844,21 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     // then delta. Inline configs without a configId still accept an explicit
     // syncMode so API clients can control it.
     const effectiveSyncMode = explicitSyncMode || configNextRunMode || 'delta';
-    // Inline jobs may carry their own clientSecret — vault it under the job id
-    // and never persist plaintext in the job config. Config-based jobs reference
-    // the config's vaulted secret via _scheduledByConfigId (injected at claim).
+    // Strip all credential fields before storing — they are vaulted per-job and
+    // injected at claim time by injectJobSecret.  Config-based jobs reference the
+    // config's vaulted clientSecret via _scheduledByConfigId; inline jobs get both
+    // clientSecret and any Omada credentials vaulted under the job id.
     const inlineSecret = (!configId && resolvedConfig?.clientSecret) ? resolvedConfig.clientSecret : null;
     const configToStore = configId
       ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
       : (resolvedConfig ? { ...resolvedConfig, _syncMode: effectiveSyncMode } : null);
-    if (configToStore) delete configToStore.clientSecret;
+    const extraCreds = {};
+    if (configToStore) {
+      delete configToStore.clientSecret;
+      for (const f of OTHER_SECRET_FIELDS) {
+        if (configToStore[f]) { extraCreds[f] = configToStore[f]; delete configToStore[f]; }
+      }
+    }
     const configJson = configToStore ? JSON.stringify(configToStore) : null;
 
     const result = await pool.request()
@@ -848,7 +868,9 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
       .query(`INSERT INTO "CrawlerJobs" ("jobType", config, "createdBy")
               VALUES (@jobType, @config, @createdBy)
               RETURNING *`);
-    if (inlineSecret) await storeJobSecret(result.recordset[0].id, inlineSecret);
+    const newJobId = result.recordset[0].id;
+    if (inlineSecret) await storeJobSecret(newJobId, inlineSecret);
+    if (Object.keys(extraCreds).length) await storeJobCredentials(newJobId, extraCreds);
 
     // Update lastRunAt on the source config
     if (configId) {
@@ -1055,20 +1077,38 @@ router.get('/admin/status', gate, async (req, res) => {
 // and return the available EntitySets and Identity entity property names.
 // Used by the wizard to validate contextObjectTypes entries in real time.
 router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
-  const { configId } = req.body;
-  if (!configId) return res.status(400).json({ error: 'configId required' });
+  const { configId, config: inlineConfig } = req.body;
+
+  let c;
+  try {
+    if (configId != null) {
+      const id = parseInt(configId, 10);
+      if (isNaN(id)) return res.status(400).json({ error: 'configId must be a number' });
+      const pool = await db.getPool();
+      const cfg = await pool.request().input('id', id)
+        .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
+      if (!cfg.recordset.length) return res.status(404).json({ error: 'Config not found' });
+      const raw = cfg.recordset[0].config;
+      c = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } else if (inlineConfig && typeof inlineConfig === 'object') {
+      c = inlineConfig;
+    } else {
+      return res.status(400).json({ error: 'configId or config required' });
+    }
+  } catch (err) {
+    console.error('validate-metadata config lookup error:', err.message);
+    return res.status(500).json({ error: err.message || 'Failed to load config' });
+  }
 
   try {
-    const pool = await db.getPool();
-    const cfg = await pool.request().input('id', parseInt(configId, 10))
-      .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
-    if (!cfg.recordset.length) return res.status(404).json({ error: 'Config not found' });
 
     const rawBaseUrl = (c.baseUrl || '').trim();
     if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
 
     // Normalize to the OData service root the crawler uses.
     const u = new URL(rawBaseUrl.replace(/\/+$/, ''));
+    if (u.protocol !== 'https:' && u.protocol !== 'http:')
+      return res.status(400).json({ error: 'baseUrl must use http or https' });
     const p = u.pathname.replace(/\/+$/, '');
     if (!/\/odata\/dataobjects$/i.test(p)) u.pathname = '/odata/dataobjects';
     const baseUrl = u.origin + u.pathname;

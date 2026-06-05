@@ -1906,13 +1906,18 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
   const [metaError,   setMetaError]   = useState(null);
 
   const fetchMetadata = async () => {
-    if (!initialConfig?.id || metaEntitySets !== null) return;
+    if (metaEntitySets !== null) return;
     setMetaLoading(true); setMetaError(null);
     try {
+      const body = initialConfig?.id
+        ? { configId: initialConfig.id }
+        : { config: { baseUrl: baseUrl.trim(), authMethod, username: username.trim(), password: password.trim(),
+                      tokenEndpoint: tokenEndpoint.trim(), clientId: clientId.trim(), clientSecret: clientSecret.trim(),
+                      apiToken: apiToken.trim(), cookieString: cookieString.trim() } };
       const r = await authFetch('/api/admin/omada/validate-metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ configId: initialConfig.id }),
+        body: JSON.stringify(body),
       });
       if (r.ok) {
         const d = await r.json();
@@ -1972,14 +1977,14 @@ function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch })
 
   const canStep1 = displayName.trim() && baseUrl.trim();
   const canStep2 = (() => {
-    if (authMethod === 'FormCookie' || authMethod === 'OAuth2ROPC') {
+    if (authMethod === 'FormCookie') {
       return username.trim() && (password.trim() || isEdit);
     }
     if (authMethod === 'OAuth2CC') {
       return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit);
     }
     if (authMethod === 'OAuth2ROPC') {
-      return tokenEndpoint.trim() && clientId.trim() && username.trim() && (password.trim() || isEdit);
+      return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit) && username.trim() && (password.trim() || isEdit);
     }
     if (authMethod === 'ApiToken') return apiToken.trim() || isEdit;
     if (authMethod === 'CookieString') return cookieString.trim() || isEdit;
@@ -2377,7 +2382,7 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
               onRemove={() => setSchedules(schedules.filter((_, idx) => idx !== i))}
             />
           ))}
-          <button onClick={() => setSchedules([...schedules, { enabled: true, frequency: 'daily', hour: 2, minute: 0 }])}
+          <button onClick={() => setSchedules([...schedules, { enabled: true, syncMode: 'full', frequency: 'daily', hour: 2, minute: 0 }])}
             className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
             + Add Schedule
           </button>
