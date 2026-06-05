@@ -5,3 +5,9 @@ paths-ignore:
   # avoids a false-positive js/request-forgery alert that inline suppression
   # cannot silence without the GitHub Advanced Security inline-suppression setting.
   - app/api/src/llm/scraper.js
+
+  # metadataProxy.js fetches the Omada OData $metadata endpoint on behalf of the
+  # admin wizard. The URL is admin-supplied (Omada can be on-prem or SaaS) and
+  # scheme-validated to http/https before reaching this file. The calling endpoint
+  # is protected by admin auth middleware.
+  - app/api/src/omada/metadataProxy.js

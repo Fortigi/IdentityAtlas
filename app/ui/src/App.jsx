@@ -222,6 +222,25 @@ export default function App() {
   const onCacheData = useCallback((id, type, partialData) => {
     const key = `${type}:${id}`;
     detailCacheRef.current[key] = { ...detailCacheRef.current[key], ...partialData };
+    // When a detail page loads its entity data, update the tab label from the
+    // display name embedded in the payload. This fixes the case where a tab was
+    // opened via direct URL navigation and only had the UUID as a placeholder.
+    const displayName =
+      partialData?.identity?.displayName           ||   // identity detail: { identity: { displayName } }
+      partialData?.core?.attributes?.displayName   ||   // group/resource: { core: { attributes: { displayName } } }
+      partialData?.core?.displayName               ||   // user detail: { core: { displayName } }
+      partialData?.attributes?.displayName         ||   // direct attributes
+      partialData?.displayName;                         // flat shape
+    if (displayName) {
+      // Match by id only (not type) because some routes use different type keys:
+      // e.g. #group: opens ResourceDetailPage which calls onCacheData with type='resource'
+      // but the tab was created with type='group'.
+      setDetailTabs(prev => prev.map(t =>
+        t.id === id && t.displayName === id
+          ? { ...t, displayName }
+          : t
+      ));
+    }
   }, []);
 
   const openDetailTab = useCallback((type, id, displayName) => {
