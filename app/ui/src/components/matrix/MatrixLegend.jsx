@@ -2,22 +2,20 @@ import { useState } from 'react';
 import { TYPE_COLORS } from '../../utils/colors';
 
 // On-screen key for the matrix. The grid encodes everything as single colored
-// letters (D/I/E/O/G/A/R), AP-tinted backgrounds, a count bubble, and a gap
-// marker — none of which is explained anywhere in the app (the only legend used
-// to live inside the Excel export). This renders that key inline, reusing the
-// exact TYPE_COLORS swatches the cells use so it can never drift.
+// letters (D/I/E/O), AP-tinted backgrounds, a count bubble, and a gap marker —
+// none of which is explained anywhere in the app (the only legend used to live
+// inside the Excel export). This renders that key inline, reusing the exact
+// TYPE_COLORS swatches the cells use so it can never drift.
 
-// Human labels for each assignment/membership type, in display order. The two
-// "R" types share a letter, so they're disambiguated here.
+// The matrix shows only HOW access is held. Source-attribute types collapse
+// onto these in MatrixView (business role / OAuth2 grant / direct app role →
+// Direct; app role via group → Indirect), so the legend only lists the four
+// real badges. Whether access is governed is shown by the cell colour below.
 const TYPE_LABELS = [
   ['Direct', 'Direct membership'],
-  ['Indirect', 'Indirect (via a nested group)'],
-  ['Eligible', 'Eligible (PIM — can activate)'],
+  ['Indirect', 'Indirect (via a nested resource)'],
+  ['Eligible', 'Eligible — just-in-time access'],
   ['Owner', 'Owner of the resource'],
-  ['Governed', 'Governed (granted via a business role)'],
-  ['OAuth2Grant', 'OAuth2 delegated permission'],
-  ['AppRole', 'App role — assigned directly'],
-  ['AppRoleViaGroup', 'App role — via group membership'],
 ];
 
 function Badge({ type }) {

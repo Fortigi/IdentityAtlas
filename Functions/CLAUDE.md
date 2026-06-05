@@ -1,5 +1,40 @@
 # PowerShell Functions — Coding Guide
 
+### Style preset: Stroustrup
+- Opening brace on the same line as the statement
+- Closing brace on its own line
+- Blank line after every closing brace
+
+### Formatting rules
+- Whitespace around all operators (`=`, `-eq`, `+`, etc.)
+- Align property/value pairs in hashtables and `[PSCustomObject]`
+- No aliases — always use full cmdlet names (`ForEach-Object`, not `%`; `Where-Object`, not `?`)
+- Correct Pascal/camelCasing for cmdlets, parameters, and types as defined by PowerShell standards
+- Trim whitespace around pipe characters
+- No semicolons as line terminators — use newlines
+
+### Regions
+Structure scripts using `#region` / `#endregion` blocks with descriptive headings. Required regions for any non-trivial script:
+
+```powershell
+#region Parameters
+#endregion Parameters
+
+#region Configuration
+#endregion Configuration
+
+#region Functions
+#endregion Functions
+
+#region Main
+#endregion Main
+```
+
+Add additional regions as needed (e.g. `#region Authentication`, `#region Output`). Region names should be PascalCase nouns or noun phrases. Never nest regions more than one level deep.
+
+### PSScriptAnalyzer
+Scripts must pass PSScriptAnalyzer with no warnings or errors under default rules.
+
 ## File Organization
 
 All function files live under `Functions/`:
@@ -72,13 +107,13 @@ function Get-FGSQLResource {
     )
 
     Invoke-FGSQLCommand -ScriptBlock {
-        param($connection)
-        $cmd = $connection.CreateCommand()
-        $cmd.CommandText = "SELECT * FROM dbo.Resources WHERE Name = @Name"
-        $cmd.Parameters.AddWithValue("@Name", $Name)
-        $reader = $cmd.ExecuteReader()
+        param($Connection)
+        $Cmd = $Connection.CreateCommand()
+        $Cmd.CommandText = "SELECT * FROM dbo.Resources WHERE Name = @Name"
+        $Cmd.Parameters.AddWithValue("@Name", $Name)
+        $Reader = $Cmd.ExecuteReader()
         # Process results...
-        return $results
+        return $Results
     }
 }
 ```

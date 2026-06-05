@@ -4,8 +4,11 @@ import { TIER_STYLES } from '../utils/tierStyles';
 
 const TIER_ORDER = { Critical: 5, High: 4, Medium: 3, Low: 2, Minimal: 1, None: 0 };
 const TIER_DISPLAY = ['Critical', 'High', 'Medium', 'Low', 'Minimal'];
+// Soft (-400) tier fills so the distribution bar matches the app's gentle
+// palette while still reading as a severity ramp; thin marks/text elsewhere
+// keep the stronger tiers. See the UI Style Guide § saturation.
 const TIER_BAR_COLORS = {
-  Critical: '#ef4444', High: '#f97316', Medium: '#eab308', Low: '#3b82f6', Minimal: '#9ca3af', None: '#e5e7eb',
+  Critical: '#f87171', High: '#fb923c', Medium: '#facc15', Low: '#60a5fa', Minimal: '#9ca3af', None: '#e5e7eb',
 };
 
 function computeRisk(members) {

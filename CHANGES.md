@@ -1,5 +1,79 @@
 ## Changes in this PR
 
+- Added native Omada IGA crawler that syncs directly from the Omada OData 4.0 REST API — no manual CSV export or transform step required
+- Supports six authentication methods: Form/Cookie (on-premise), HTTP Basic Auth, OAuth2 Client Credentials (cloud), OAuth2 ROPC, API Token, and Cookie String (session cookie from browser DevTools)
+- Syncs systems, contexts (OrgUnits + configured types), identities, accounts/principals, resources (business roles and permissions), entitlements (CHILDROLES nesting), role assignments (Resourceassignment), and effective account assignments (CalculatedAssignments/CRA)
+- Each of Omada's connected target systems (SAP, AD, Salesforce, etc.) is registered as a separate Identity Atlas System; resources and assignments are linked to their correct system
+- Fetches OData `$metadata` at startup to discover available entity sets — phases that require missing sets are skipped with a warning
+- Context types are configurable (`contextObjectTypes`): each entry specifies entity set, contextType label, and an optional identity reference field for direct context membership
+- Resource category mapping is configurable (`resourceCategoryMapping`): maps Omada ROLECATEGORY to Identity Atlas resourceType
+- CRA (CalculatedAssignments) pages are streamed one-at-a-time to prevent OOM on large cloud datasets
+- Added step-by-step logging throughout the crawler — each fetch, build and ingest operation prints a `→` indicator in the job transcript
+- Base URL is normalised using `System.Uri` — both root URLs and explicit OData paths are accepted; the Builtin service URL is derived automatically
+- Fixed: `oisauthtoken=` prefix is auto-prepended to bare CookieString tokens for Omada Cloud
+- Fixed: `$metadata` fetch no longer sends JSON Accept headers (caused HTTP 500 on cloud); XML is accepted as returned
+- Added 42 Pester unit tests for the Omada SDK (auth methods, helper functions, URL normalisation, config forwarding)
+- Added data model reference documentation for the Omada crawler (`docs/architecture/omada-crawler-datamodel.md`)
+- Added PowerShell formatting style guide to `Functions/CLAUDE.md` (Stroustrup preset, region blocks, operator spacing)
+- Fixed: Omada crawler script path in job dispatcher now respects the `IA_APP_ROOT` environment variable instead of hardcoding `/app`
+- Fixed: CRA summary log line reported wrong record count (referenced a removed variable from before the streaming refactor)
+- Omada post-sync now calls account correlation (cross-system identity linking with Entra and other crawlers)
+
+## Changes in this PR
+
+- Added native Omada IGA crawler type to the API — validates config, masks secrets, dispatches jobs, and schedules automatic syncs
+- Added Omada crawler setup wizard to Admin → Crawlers — four-step flow with live `$metadata` validation for context entity sets and identity field names (case-sensitive auto-suggest), and a resource-category mapping editor
+- Added `POST /api/admin/omada/validate-metadata` endpoint for live wizard validation against the Omada OData `$metadata` document
+- Added Omada to the scheduler allowlist so crawls can be scheduled from the Admin UI
+- Extended `ingest/refresh-views` to recalculate `directMemberCount`/`totalMemberCount` on all Contexts after any full sync
+- Fixed: Identity detail page Contexts count was fetched but never passed to the graph shape function, causing the Contexts node to always display 0
+- Fixed: Context detail page member clicks now use `targetType` to open the correct detail kind (`identity`, `user`, `resource`) instead of always using `user`
+- Fixed: User detail `/contexts` endpoint and context count now query `ContextMembers` directly by Identity UUID via `IdentityMembers`, so Omada-synced context memberships appear on the identity detail page
+- Added migration 029: `extendedAttributes jsonb` column on `Identities` table for system-specific identity attributes
+- Added: Identities API `/contexts` endpoint and `contextCount` now query `ContextMembers` directly by Identity UUID so context memberships appear on identity detail pages for all crawlers
+- Fixed: `POST /api/admin/omada/validate-metadata` crashed with a reference error due to an undefined variable; `configId` now also rejects non-numeric values with a clear 400 error
+- Fixed: `POST /api/admin/omada/validate-metadata` now accepts an inline config object so the Omada wizard can validate `$metadata` when adding a new crawler (not only when editing an existing one)
+- Fixed: `validateOmadaConfig` now correctly requires `tokenEndpoint`, `clientId`, and `clientSecret` for OAuth2ROPC connections instead of only username and password
+- Fixed: Omada wizard Step 2 (`canStep2`) now correctly requires `tokenEndpoint`, `clientId`, and `clientSecret` for OAuth2ROPC before advancing to Step 3
+- Fixed: Omada wizard "Add Schedule" now sets `syncMode: 'full'` on new schedules, matching the fact that Omada does not support delta syncs
+- Fixed: Context `directMemberCount` is now reset to 0 after a full sync for contexts that lost all their members, not left with a stale non-zero count
+- Fixed: Omada credential fields (`password`, `apiToken`, `cookieString`) are now vaulted per-job and stripped from `CrawlerJobs.config` before storage, matching the existing behaviour for `clientSecret`; `injectJobSecret` retrieves and injects all credential fields at claim time
+- Fixed: Scheduler now validates the full Omada config (auth credentials, not just `baseUrl`) before queuing a scheduled run, matching the validation applied by the manual "Run Now" path
+- Fixed: `validateOmadaConfig` now correctly requires `tokenEndpoint` for OAuth2CC connections (in addition to `clientId` and `clientSecret`)
+- Fixed: `POST /api/admin/omada/validate-metadata` now rejects `baseUrl` values that use schemes other than `http` or `https` with a 400 error, preventing potential server-side request forgery
+- Fixed: Editing a crawler config via `PATCH /api/admin/crawler-configs/:id` now validates the merged config against Omada rules when the crawler type is `omada`, preventing invalid configs from being saved silently
+
+## Changes in this PR
+
+- Consolidated documentation navigation from 13 top-level tabs to 5 (Home, Guide, Concepts, Reference, Project) to prevent tab overflow on standard screen widths
+
+## Changes in this PR
+
+- Corrected the matrix "How to read this matrix" legend so it matches what the grid actually shows: only the four ways access is *held* — Direct, Indirect (via a nested resource), Eligible (just-in-time access), and Owner. Business-role, OAuth2, and app-role assignments already render as Direct (or Indirect for an app role inherited via a group), so they're no longer listed as separate badges; whether access is governed is shown by the cell colour.
+
+## Changes in this PR
+
+- Documented the colour-saturation rule in the UI Style Guide: solid fills (bars, chips, graph nodes) use soft pastel tiers while thin marks (chart lines, borders, icons, text) keep stronger colour — so future contributions stay consistent with the app's soft look.
+
+## Changes in this PR
+
+- Reworked the documentation site to look like the app: the bright solid-green header and tab bar are now a clean white shell with a dark title and the green logo as the accent (dark slate header in dark mode), with the active tab marked by a green underline and a soft grey search field — so the docs and the product feel like one product.
+
+## Changes in this PR
+
+- Removed the **Tags** column from the matrix — it no longer carried meaningful information now that tags are modelled as contexts. The matrix right-side metadata is now just member count and description.
+
+## Changes in this PR
+
+- Softened the colours of data visualisations so they match the app's gentle palette instead of looking harsh/bright: the entity relationship graph nodes, the correlation-confidence bar, the governance compliance bar, the risk-score bars, and the department risk-distribution bars now use soft pastel fills (their outlines, chart lines, and labels keep their stronger colour for legibility).
+
+## Changes in this PR
+
+- Unified the look of every step-by-step wizard (crawler setup, matrix filter, risk profile, account correlation) behind one shared stepper component — same blue active step, "✓" for completed steps, and chevron separators everywhere, instead of four slightly different hand-built versions.
+- Made interactive controls consistently **blue** across the app: the crawler wizard, Admin save/new buttons, and the risk-profile and correlation wizards previously used purple/indigo (and a few green) buttons, which now match the rest of the UI and the Style Guide.
+
+## Changes in this PR
+
 - Fixed the run-detail "Go there now →" link, which opened a broken/empty detail tab; it now correctly navigates to the Contexts page. Also cleaned up a dark-mode style glitch on that screen.
 
 ## Changes in this PR
