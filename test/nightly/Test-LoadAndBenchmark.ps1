@@ -100,14 +100,19 @@ try {
 
 # ─── 2. Ingest via CSV crawler ───────────────────────────────────
 Write-Host "  Step 2: Running CSV crawler..." -ForegroundColor Cyan
+# Write a temp config file — the CSV crawler now uses the standard -ConfigPath
+# interface (step-2 refactor). JobId 0 skips progress reporting (safe for direct
+# invocation outside the job queue).
+$tempConfig = Join-Path ([System.IO.Path]::GetTempPath()) "load-test-config-$([guid]::NewGuid()).json"
+@{ csvFolder = $dataFolder; systemName = 'Load-Test'; systemType = 'LoadTest' } |
+    ConvertTo-Json | Set-Content -Path $tempConfig -Encoding utf8
 try {
     $ingestStart = Get-Date
     & $crawlerScript `
         -ApiBaseUrl $ApiBaseUrl `
         -ApiKey $ApiKey `
-        -CsvFolder $dataFolder `
-        -SystemName 'Load-Test' `
-        -SystemType 'LoadTest' `
+        -JobId 0 `
+        -ConfigPath $tempConfig `
         -ErrorAction Stop
     $ingestDuration = ((Get-Date) - $ingestStart).TotalSeconds
     Report-Result 'LoadTest/CrawlerCompleted' $true "time=$([math]::Round($ingestDuration / 60, 1))min"
@@ -116,6 +121,8 @@ try {
     Write-Host "  Cannot continue — crawler failed." -ForegroundColor Red
     if (-not $WriteResult) { exit 1 }
     return
+} finally {
+    Remove-Item $tempConfig -ErrorAction SilentlyContinue
 }
 
 # ─── 3. Verify dashboard counts ─────────────────────────────────

@@ -1,0 +1,15 @@
+{
+  "type": "csv",
+  "displayName": "CSV Import",
+  "entryPoint": "Start-CSVCrawler.ps1",
+  "dependsOn": [],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "csvFolder":  { "type": "string" },
+      "systemName": { "type": "string" },
+      "systemType": { "type": "string" }
+    }
+  },
+  "postSyncHooks": ["buildContexts", "accountCorrelation"]
+}
