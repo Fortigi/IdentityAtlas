@@ -87,9 +87,11 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
 
   const rootExtras = useMemo(() => ({
     members,
+    aggregateAssignments: aggregate,
+    contextCount,
     contextId: identity?.contextId,
     recent: null,
-  }), [members, identity]);
+  }), [members, aggregate, contextCount, identity]);
 
   // Pack the identity core payload into the shape getRootNodes expects.
   const core = useMemo(() => (
