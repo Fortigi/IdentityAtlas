@@ -1,0 +1,1 @@
+- Warmed up the documentation site so it's less stark white and better matches the app: a green brand accent on the header, green ticks on section headings, the active left-nav item highlighted in soft green, the in-page table-of-contents active link in blue, and blue-accented blockquotes.
