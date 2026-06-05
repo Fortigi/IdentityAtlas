@@ -228,6 +228,7 @@ function rankAnthropicModel(id) {
   else if (lower.includes('sonnet')) family = 1;
   else if (lower.includes('haiku'))  family = 2;
   // Version number (claude-4, claude-3.7, etc.) — higher version = better
+  // eslint-disable-next-line security/detect-unsafe-regex -- static pattern; \d+ and [.-] are disjoint, no catastrophic backtracking
   const versionMatch = lower.match(/claude[- ]?(\d+(?:[.-]\d+)?)/);
   const version = versionMatch ? parseFloat(versionMatch[1].replace('-', '.')) : 0;
   // Date suffix (YYYYMMDD) — newer = better tiebreaker
