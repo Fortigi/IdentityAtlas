@@ -4,3 +4,5 @@
 - Matrix (Identities view): each identity column now has an **expand** control that splits it into per-account sub-columns, so you can see each linked account's assignments side by side under the identity.
 - Identity page: the Relationships tab now lists the **linked accounts** with each account's own confidence, and lets you **Confirm** or **Remove** a linked account (Remove keeps account-linking from re-adding it; Undo reverts). Replaces the single overall confidence number / signals chip.
 - Removed the legacy "Verify Identity" action from the identity page (per-account confirm/remove replaces it). Fixed the analyst-decision endpoints, which previously referenced a non-existent column and never worked.
+- Identity page: the Attributes tab now also shows the identity's **extension attributes** (they were silently dropped before).
+- Matrix (Identities): the subject filter can now filter on identity **extension attributes**, not just the core columns.

@@ -139,9 +139,11 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
 
   const cleaned = {};
   for (const [k, v] of Object.entries(identity)) {
+    if (k === 'extendedAttributes') continue; // expanded separately below
     if (!SYSTEM_COLS.has(k) && v != null && v !== '') cleaned[k] = v;
   }
-  const attributeEntries = buildAttributeEntries(cleaned, null, new Set());
+  // Surface the identity's extension attributes too (was previously dropped).
+  const attributeEntries = buildAttributeEntries(cleaned, identity.extendedAttributes, new Set());
   const hrAccount = members.find(m => m.isHrAuthoritative);
 
   const hasRisk = features.riskScoring && riskData && riskData.riskScore != null;
