@@ -71,55 +71,61 @@ extra_css:
 
 nav:
   - Home: index.md
-  - Quick Start: quickstart.md
+
+  - Guide:
+      - Quick Start: quickstart.md
+      - Concepts:
+          - Data Model: concepts/data-model.md
+          - Governance Model: concepts/governance-model.md
+          - Risk Scoring Model: concepts/risk-scoring-model.md
+      - Data Sources:
+          - Entra ID: sync/entra-id.md
+          - CSV Import: sync/csv-import.md
+          - CSV Schema Reference: architecture/csv-import-schema.md
+      - Using Identity Atlas:
+          - Role Mining UI: ui/overview.md
+          - Local Development: ui/local-dev.md
+
   - Concepts:
-      - Data Model: concepts/data-model.md
-      - Governance Model: concepts/governance-model.md
-      - Risk Scoring Model: concepts/risk-scoring-model.md
-  - Data Sources:
-      - Entra ID: sync/entra-id.md
-      - CSV Import: sync/csv-import.md
-      - CSV Schema Reference: architecture/csv-import-schema.md
-  - Using Identity Atlas:
-      - Role Mining UI: ui/overview.md
-      - Local Development: ui/local-dev.md
-  - Risk Scoring:
-      - Overview: risk-scoring/overview.md
-      - Classifiers: risk-scoring/classifiers.md
-      - AI Agents: risk-scoring/ai-agents.md
-      - Engine Design: risk-scoring/design.md
-      - Plugin Architecture: risk-scoring/plugin-architecture.md
-  - Architecture:
-      - Docker Setup: architecture/docker-setup.md
-      - Portable Windows Launcher: architecture/desktop-portable.md
-      - Release & Branching Strategy: architecture/branching-strategy.md
-      - Ingest API: architecture/ingest-api.md
-      - Audit History: architecture/audit-history.md
-      - Matrix Scope Statistics: architecture/matrix-scope-statistics.md
-      - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
-  - Operations:
-      - Scaling & Load Testing: architecture/scaling.md
-      - Demo Dataset: architecture/demo-dataset.md
-      - Nightly Review: operations/nightly-review.md
-      - Troubleshooting: reference/troubleshooting.md
-  - API Reference:
-      - Overview: api/index.md
-      - Matrix & Permissions: api/matrix.md
-      - Entity Detail: api/entities.md
-      - Governance & Business Roles: api/governance.md
-      - Risk Scores: api/risk-scores.md
+      - Risk Scoring:
+          - Overview: risk-scoring/overview.md
+          - Classifiers: risk-scoring/classifiers.md
+          - AI Agents: risk-scoring/ai-agents.md
+          - Engine Design: risk-scoring/design.md
+          - Plugin Architecture: risk-scoring/plugin-architecture.md
+      - Architecture:
+          - Docker Setup: architecture/docker-setup.md
+          - Portable Windows Launcher: architecture/desktop-portable.md
+          - Release & Branching Strategy: architecture/branching-strategy.md
+          - Ingest API: architecture/ingest-api.md
+          - Audit History: architecture/audit-history.md
+          - Matrix Scope Statistics: architecture/matrix-scope-statistics.md
+          - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
+      - Operations:
+          - Scaling & Load Testing: architecture/scaling.md
+          - Demo Dataset: architecture/demo-dataset.md
+          - Nightly Review: operations/nightly-review.md
+          - Troubleshooting: reference/troubleshooting.md
+
   - Reference:
+      - API:
+          - Overview: api/index.md
+          - Matrix & Permissions: api/matrix.md
+          - Entity Detail: api/entities.md
+          - Governance & Business Roles: api/governance.md
+          - Risk Scores: api/risk-scores.md
       - Configuration: reference/config.md
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - Software Bill of Materials: reference/sbom.md
-  - Contributing:
-      - UI Style Guide: contributing/style-guide.md
-  - Security:
-      - Assessment & Remediation: security/assessment.md
-  - About:
+
+  - Project:
       - About Identity Atlas: about.md
       - History: history.md
+      - Contributing:
+          - UI Style Guide: contributing/style-guide.md
+      - Security:
+          - Assessment & Remediation: security/assessment.md
 
 extra:
   version:
