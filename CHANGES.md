@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Consolidated documentation navigation from 13 top-level tabs to 5 (Home, Guide, Concepts, Reference, Project) to prevent tab overflow on standard screen widths
+
+## Changes in this PR
+
 - Corrected the matrix "How to read this matrix" legend so it matches what the grid actually shows: only the four ways access is *held* — Direct, Indirect (via a nested resource), Eligible (just-in-time access), and Owner. Business-role, OAuth2, and app-role assignments already render as Direct (or Indirect for an app role inherited via a group), so they're no longer listed as separate badges; whether access is governed is shown by the cell colour.
 
 ## Changes in this PR

@@ -1,1 +1,0 @@
-- Consolidated documentation navigation from 13 top-level tabs to 5 (Home, Guide, Concepts, Reference, Project) to prevent tab overflow on standard screen widths
