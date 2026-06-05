@@ -52,3 +52,24 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+      # vite and its React plugin + test runner must move together — each
+      # declares a peer dep on a specific vite major range.
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+          - "vitest"
+      # tailwindcss core and its plugins are always released together and
+      # must stay on the same version. Independent of vite — tailwindcss
+      # itself has no vite peer dep.
+      tailwindcss:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+      # eslint flat-config packages must all be on the same major
+      eslint:
+        patterns:
+          - "eslint"
+          - "@eslint/*"
+          - "eslint-plugin-*"
+          - "globals"
