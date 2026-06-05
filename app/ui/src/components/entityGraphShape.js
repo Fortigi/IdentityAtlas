@@ -236,21 +236,23 @@ async function fetchAccessPackageItems(apId, categoryKey, authFetch, extras = {}
 // ─── Identity ────────────────────────────────────────────────────────
 
 function identityRootNodes(core) {
-  const agg = core.aggregateAssignments || {};
+  // An identity holds no access of its own — its accounts do. So the identity's
+  // direct relationships are only its Linked Accounts and any Contexts it
+  // belongs to. The access categories (groups/oauth/etc.) hang off the Linked
+  // Accounts node (see fetchIdentityItems 'accounts'), as roll-ups across the
+  // accounts, with the per-account source shown in the list when you drill in.
   return [
-    { key: 'accounts',        label: 'Linked Accounts', count: (core.members || []).length, kind: 'category' },
-    { key: 'contexts',        label: 'Contexts',        count: core.contextCount || 0, kind: 'category' },
-    { key: 'groups-direct',   label: 'Groups (Direct)', count: agg.Direct || 0, kind: 'category' },
-    { key: 'groups-governed', label: 'Governed',        count: agg.Governed || 0, kind: 'category' },
-    { key: 'groups-owner',    label: 'Owned',           count: agg.Owner || 0, kind: 'category' },
-    { key: 'groups-eligible', label: 'Eligible',        count: agg.Eligible || 0, kind: 'category' },
-    { key: 'oauth2-grants',   label: 'OAuth2 Grants',   count: agg.OAuth2Grant || 0, kind: 'category' },
+    { key: 'accounts', label: 'Linked Accounts', count: (core.members || []).length, kind: 'category' },
+    { key: 'contexts', label: 'Contexts',        count: core.contextCount || 0, kind: 'category' },
   ];
 }
 
 async function fetchIdentityItems(identityId, categoryKey, authFetch, extras = {}) {
   const { members } = extras;
   if (categoryKey === 'accounts') {
+    // Keep it simple: Linked Accounts lists the individual accounts. Click an
+    // account to see that account's own relationships (groups/oauth/etc.) via
+    // the normal user graph — no special aggregate treatment on the identity.
     return (members || []).map(m => toItem({ id: m.principalId, displayName: m.displayName }, 'user'));
   }
   if (categoryKey === 'contexts') {
@@ -268,9 +270,19 @@ async function fetchIdentityItems(identityId, categoryKey, authFetch, extras = {
   if (typeMap[categoryKey]) {
     const rows = await authFetch(`/api/identities/${encodeURIComponent(identityId)}/assignments?type=${typeMap[categoryKey]}`)
       .then(r => r.ok ? r.json() : []);
-    return rows.map(r => toItem({
-      id: r.resourceId, displayName: r.resourceDisplayName,
-    }, r.resourceType === 'BusinessRole' ? 'access-package' : 'resource'));
+    // One row per (resource, account) — annotate each with the account it came
+    // through so the list can show "via <account>". Keep keys unique per pair.
+    return rows.map(r => {
+      const base = toItem({ id: r.resourceId, displayName: r.resourceDisplayName },
+        r.resourceType === 'BusinessRole' ? 'access-package' : 'resource');
+      return {
+        ...base,
+        key: `${base.key}:${r.principalId || ''}`,
+        via: r.principalDisplayName || r.userPrincipalName || null,
+        viaType: r.accountType || null,
+        viaPrimary: !!r.isPrimary,
+      };
+    });
   }
   return [];
 }
@@ -396,7 +408,7 @@ export function extrasFromCore(entityKind, core) {
     case 'access-package':
       return { catalogId: core.attributes?.catalogId, catalogName: core.attributes?.catalogName };
     case 'identity':
-      return { members: core.members };
+      return { members: core.members, aggregateAssignments: core.aggregateAssignments, contextCount: core.contextCount };
     case 'context':
       return { members: core.members, subContexts: core.subContexts };
     default:
