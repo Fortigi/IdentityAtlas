@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Published a **UX & Interface Assessment & Remediation** page in the docs (under Project → User Experience), a sanitized public summary of the June 2026 UX/GUI audit — findings by severity with status and links to the pull requests that fixed them, mirroring the existing security assessment page.
+
+## Changes in this PR
+
 - Dependabot now tracks Docker base image updates (worker PowerShell image, API Node.js image) alongside the existing GitHub Actions SHA-pinning
 - Extended CI PR checks to include the Omada PowerShell SDK and crawler in PSScriptAnalyzer linting
 - Extended Pester code coverage to the Omada SDK (`tools/powershell-sdk/omada`)
