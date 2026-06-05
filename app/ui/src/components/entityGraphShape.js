@@ -185,12 +185,11 @@ async function fetchResourceItems(resourceId, categoryKey, authFetch, _extras = 
 
 function accessPackageRootNodes(core) {
   const a = core.attributes || {};
+  // Governance metadata (policies / reviews / requests) is shown on the
+  // Attributes tab, not as graph nodes — the graph is for real relationships.
   return [
     { key: 'assignments', label: 'Assignments',      count: +core.assignmentCount || 0,    kind: 'category' },
     { key: 'resources',   label: 'Resources',        count: +core.groupCount || 0,         kind: 'category' },
-    { key: 'policies',    label: 'Policies',         count: +core.policyCount || 0,        kind: 'category' },
-    { key: 'reviews',     label: 'Reviews',          count: +core.reviewCount || 0,        kind: 'category' },
-    { key: 'requests',    label: 'Pending Requests', count: +core.pendingRequestCount || 0, kind: 'category' },
     { key: 'catalog',     label: 'Catalog',          count: a.catalogId ? 1 : 0,           kind: 'category' },
   ];
 }
