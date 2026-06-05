@@ -158,7 +158,7 @@ function createIngestHandler(entityType) {
       // Audit log (best effort)
       if (req.crawler) {
         db.query(
-          `INSERT INTO crawler_audit_log (crawler_id, "action", "endpoint", record_count, status_code, ip_address)
+          `INSERT INTO "CrawlerAuditLog" ("crawlerId", "action", "endpoint", "recordCount", "statusCode", "ipAddress")
            VALUES ($1, 'ingest', $2, $3, 201, $4)`,
           [req.crawler.id, req.originalUrl, body.records.length, (req.ip || '').slice(0, 45)]
         ).catch(() => {});
@@ -346,6 +346,57 @@ router.post('/ingest/refresh-views', async (req, res) => {
   }
   try {
     await refreshMatrixViews();
+
+    // Mark every system that has synced data with the current timestamp so the
+    // Systems page shows "Last sync: <date>" instead of "Never".
+    try {
+      await db.query(`
+        UPDATE "Systems" s
+           SET "lastSyncDateTime" = now() AT TIME ZONE 'utc'
+         WHERE s.id IN (
+           SELECT DISTINCT "systemId" FROM "Resources"  WHERE "systemId" IS NOT NULL
+           UNION
+           SELECT DISTINCT "systemId" FROM "Principals" WHERE "systemId" IS NOT NULL
+         )
+      `);
+    } catch (tsErr) {
+      console.warn('lastSyncDateTime update failed (non-fatal):', tsErr.message);
+    }
+
+    // Recalculate directMemberCount and totalMemberCount on all Contexts
+    // that have ContextMembers. The ingest engine doesn't trigger the
+    // per-context recalc helper (that's for manual analyst writes), so we
+    // do a bulk UPDATE here instead.
+    try {
+      const pool = await db.getPool();
+      await pool.request().query(`
+        UPDATE "Contexts" c
+           SET "directMemberCount" = (
+                 SELECT COUNT(*)::int FROM "ContextMembers" WHERE "contextId" = c.id
+               ),
+               "lastCalculatedAt"  = now() AT TIME ZONE 'utc';
+
+        WITH RECURSIVE subtree AS (
+          SELECT id AS root_id, id AS node_id FROM "Contexts"
+          UNION ALL
+          SELECT s.root_id, c.id
+            FROM "Contexts" c JOIN subtree s ON c."parentContextId" = s.node_id
+        ),
+        totals AS (
+          SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
+            FROM subtree s
+            LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
+           GROUP BY s.root_id
+        )
+        UPDATE "Contexts" c
+           SET "totalMemberCount" = t.cnt
+          FROM totals t
+         WHERE c.id = t.root_id;
+      `);
+    } catch (countErr) {
+      console.warn('Context member count refresh failed (non-fatal):', countErr.message);
+    }
+
     res.json({ message: 'Materialized views refreshed' });
   } catch (err) {
     console.error('refresh-views failed:', err.message);
