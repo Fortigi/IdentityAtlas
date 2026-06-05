@@ -112,7 +112,7 @@ jobs:
       - name: Build web image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
-          context: ./app
+          context: .
           file: ./app/api/Dockerfile
           push: false
           load: true
@@ -193,7 +193,7 @@ jobs:
         if: steps.config.outputs.channel == 'release'
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
-          context: ./app
+          context: .
           file: ./app/api/Dockerfile
           push: true
           tags: |
@@ -220,7 +220,7 @@ jobs:
         if: steps.config.outputs.channel == 'beta'
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
-          context: ./app
+          context: .
           file: ./app/api/Dockerfile
           push: true
           tags: |
@@ -247,7 +247,7 @@ jobs:
         if: steps.config.outputs.channel == 'main'
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
-          context: ./app
+          context: .
           file: ./app/api/Dockerfile
           push: true
           tags: |

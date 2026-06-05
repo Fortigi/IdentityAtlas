@@ -23,6 +23,7 @@
     "vitest": "^4.1.8"
   },
   "dependencies": {
+    "ajv": "^6.12.6",
     "cors": "^2.8.5",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",

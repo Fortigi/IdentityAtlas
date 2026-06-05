@@ -6,8 +6,10 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
-import { readdirSync, promises as fs } from 'fs';
+import { readdirSync, readFileSync, promises as fs } from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import Ajv from 'ajv';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
 import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
 import { fetchOmadaMetadata } from '../omada/metadataProxy.js';
@@ -27,7 +29,42 @@ const router = Router();
 const gate = requirePermission('admin.crawlers');
 const useSql = process.env.USE_SQL === 'true';
 
-const VALID_JOB_TYPES = ['demo', 'entra-id', 'csv', 'omada'];
+// ─── Crawler manifest registry ────────────────────────────────────────────────
+// In Docker: manifests are at /app/crawlers/ (COPY'd from tools/crawlers/).
+// In local dev: resolve relative to the repo root via IA_APP_ROOT or __dirname.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CRAWLER_MANIFESTS_DIR = process.env.CRAWLER_MANIFESTS_DIR ||
+  (process.env.IA_APP_ROOT
+    ? path.join(process.env.IA_APP_ROOT, 'crawlers')
+    : path.resolve(__dirname, '../../../../tools/crawlers'));
+
+const _ajv = new Ajv({ allErrors: true });
+const _crawlerManifests = {};   // type → manifest object
+const _configValidators = {};   // type → compiled ajv validator (or null)
+
+try {
+  for (const dir of readdirSync(CRAWLER_MANIFESTS_DIR, { withFileTypes: true })) {
+    if (!dir.isDirectory()) continue;
+    const mPath = path.join(CRAWLER_MANIFESTS_DIR, dir.name, 'crawler.json');
+    try {
+      const manifest = JSON.parse(readFileSync(mPath, 'utf8'));
+      _crawlerManifests[manifest.type] = manifest;
+      _configValidators[manifest.type] = manifest.configSchema
+        ? _ajv.compile(manifest.configSchema) : null;
+    } catch (e) { console.warn(`Crawler manifest skipped (${mPath}): ${e.message}`); }
+  }
+} catch { /* crawlers directory not accessible — fall through to hardcoded list */ }
+
+export const VALID_JOB_TYPES = Object.keys(_crawlerManifests).length > 0
+  ? Object.keys(_crawlerManifests)
+  : ['demo', 'entra-id', 'csv', 'omada'];  // fallback if manifests unavailable
+
+export function validateCrawlerConfig(type, config) {
+  const validate = _configValidators[type];
+  if (!validate) return null;
+  if (validate(config)) return null;
+  return _ajv.errorsText(validate.errors, { separator: '; ' });
+}
 const MAX_RECENT_JOBS = 50;
 const SECRET_MASK = '••••••••';
 
@@ -126,7 +163,7 @@ const ENTRA_OBJECT_TYPES = [
   { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
 ];
 
-const SECRET_FIELDS = ['clientSecret', 'password', 'apiToken', 'cookieString'];
+const SECRET_FIELDS = ['clientSecret', ...OTHER_SECRET_FIELDS];
 
 export function maskConfig(config) {
   if (!config) return null;
@@ -138,35 +175,6 @@ export function maskConfig(config) {
   return masked;
 }
 
-export function validateOmadaConfig(config) {
-  if (!config?.baseUrl) return 'Omada jobs require baseUrl';
-  const method = config?.authMethod;
-  if (method === 'FormCookie') {
-    if (!config.username || !config.password) {
-      return 'Omada FormCookie auth requires username and password';
-    }
-  } else if (method === 'OAuth2ROPC') {
-    if (!config.tokenEndpoint || !config.clientId || !config.clientSecret) {
-      return 'Omada OAuth2ROPC auth requires tokenEndpoint, clientId and clientSecret';
-    }
-    if (!config.username || !config.password) {
-      return 'Omada OAuth2ROPC auth requires username and password';
-    }
-  } else if (method === 'OAuth2CC') {
-    if (!config.tokenEndpoint || !config.clientId || !config.clientSecret) {
-      return 'Omada OAuth2CC auth requires tokenEndpoint, clientId and clientSecret';
-    }
-  } else if (method === 'ApiToken') {
-    if (!config.apiToken) return 'Omada ApiToken auth requires apiToken';
-  } else if (method === 'CookieString') {
-    if (!config.cookieString) return 'Omada CookieString auth requires cookieString';
-  } else if (method === 'BasicAuth') {
-    if (!config.username || !config.password) {
-      return 'Omada BasicAuth requires username and password';
-    }
-  }
-  return null;
-}
 
 // Like maskConfig, but also surfaces the mask when the clientSecret lives in the
 // vault (the normal case now) rather than in the stored config JSON.
@@ -291,9 +299,9 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
     delete mergedConfig.clientSecret; // never persist plaintext in the JSON
 
     const crawlerType = existing.recordset[0].crawlerType;
-    if (crawlerType === 'omada' && config) {
-      const omadaErr = validateOmadaConfig(mergedConfig);
-      if (omadaErr) return res.status(400).json({ error: omadaErr });
+    if (config) {
+      const configErr = validateCrawlerConfig(crawlerType, mergedConfig);
+      if (configErr) return res.status(400).json({ error: configErr });
     }
 
     const sets = ['config = @config', '"updatedAt" = now()'];
@@ -791,8 +799,8 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
       configNextRunMode = cfgResult.recordset[0].nextRunMode || 'delta';
     }
 
-    // Validate entra-id has credentials. The clientSecret lives in the vault for
-    // saved configs (config-based jobs) or is supplied inline for ad-hoc runs.
+    // Validate entra-id credentials: clientSecret may live in the vault rather
+    // than the config JSON, so we can't rely solely on the JSON Schema check.
     if (jobType === 'entra-id') {
       const hasSecret = configId ? await hasConfigSecret(configId) : !!resolvedConfig?.clientSecret;
       if (!resolvedConfig?.tenantId || !resolvedConfig?.clientId || !hasSecret) {
@@ -800,10 +808,9 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
       }
     }
 
-    if (jobType === 'omada') {
-      const omadaErr = validateOmadaConfig(resolvedConfig);
-      if (omadaErr) return res.status(400).json({ error: omadaErr });
-    }
+    // Validate config against the manifest's JSON Schema (all crawler types).
+    const configErr = validateCrawlerConfig(jobType, resolvedConfig);
+    if (configErr) return res.status(400).json({ error: configErr });
 
     // For CSV jobs, inject the per-config upload folder so the worker knows where
     // to read files from. The folder must already exist and contain at least one file.
