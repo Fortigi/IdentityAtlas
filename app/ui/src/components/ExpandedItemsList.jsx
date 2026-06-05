@@ -68,6 +68,13 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
                     ) : (
                       <span className="text-gray-900 dark:text-gray-100">{it.label}</span>
                     )}
+                    {it.via && (
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                        via {it.via}
+                        {it.viaType ? ` · ${it.viaType}` : ''}
+                        {it.viaPrimary ? ' · primary' : ''}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {typeLabel}
