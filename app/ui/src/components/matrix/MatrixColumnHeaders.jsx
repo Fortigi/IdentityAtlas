@@ -103,10 +103,9 @@ export default function MatrixColumnHeaders({
           );
         })}
 
-        {/* Right metadata column headers row 1 - empty placeholders (#, Description, Tags) */}
+        {/* Right metadata column headers row 1 - empty placeholders (#, Description) */}
         <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '40px' }} />
         <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '500px' }} />
-        <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800" style={{ minWidth: '120px' }} />
       </tr>
 
       {/* Row 2: User names */}
@@ -154,7 +153,7 @@ export default function MatrixColumnHeaders({
           </th>
         ))}
 
-        {/* Right metadata column headers row 2 — # | Description | Tags */}
+        {/* Right metadata column headers row 2 — # | Description */}
         <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none"
             onClick={onSortByCount}
             title="Sort by member count (descending)">
@@ -163,10 +162,6 @@ export default function MatrixColumnHeaders({
         <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 font-medium text-left"
             style={{ minWidth: '500px' }}>
           Description
-        </th>
-        <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-left text-gray-500 dark:text-gray-400"
-            style={{ minWidth: '120px' }}>
-          Tags
         </th>
       </tr>
     </thead>
