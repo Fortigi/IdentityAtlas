@@ -139,7 +139,7 @@ jobs:
       # ── Attempt 1: Investigate and fix ──────────────────────────────────────
       - name: "Attempt 1: Fix the issue"
         id: claude1
-        uses: anthropics/claude-code-action@70a6e5256e9e2366a1ed5c041904a982ba3a328f # v1
+        uses: anthropics/claude-code-action@41ea7642c1436fa0ee57aae58347904b71a5af27 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }} --allowedTools Bash,Read,Write,Edit,Glob,Grep,Agent"
@@ -310,7 +310,7 @@ jobs:
       - name: "Attempt 2: Fix CI failures"
         id: claude2
         if: steps.create-pr.outputs.pr_created == 'true' && steps.ci-check.outputs.ci_passed == 'false'
-        uses: anthropics/claude-code-action@70a6e5256e9e2366a1ed5c041904a982ba3a328f # v1
+        uses: anthropics/claude-code-action@41ea7642c1436fa0ee57aae58347904b71a5af27 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }} --allowedTools Bash,Read,Write,Edit,Glob,Grep,Agent"
