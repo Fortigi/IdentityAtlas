@@ -43,3 +43,12 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "build"
+    groups:
+      # react and react-dom must always be the same version — group them
+      # so Dependabot updates both in a single PR instead of independently.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"

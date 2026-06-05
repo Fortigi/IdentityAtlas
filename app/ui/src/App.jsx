@@ -104,7 +104,8 @@ const ALL_NAV_TABS = [
 ];
 
 export default function App() {
-  // Parse initial state from URL (runs once)
+  // Parse initial state from URL (runs once — empty deps intentional)
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const initial = useMemo(() => {
     const { page, params } = parseHash();
     if (page === 'matrix') return parseMatrixParams(params);
