@@ -3,19 +3,22 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement as h } from 'react';
 import UserTimeline from './UserTimeline';
 
+// Two changes at the same moment (a sync that changed an attribute and added
+// access) → one dot; its detail (selected by default) shows both.
 const events = [
   { at: '2026-05-03T10:00:00Z', operation: 'added', eventKind: 'assignment', summary: 'Added to Finance App (Direct)', counterpartyKind: 'resource', counterpartyId: 'res-1', counterpartyLabel: 'Finance App' },
-  { at: '2026-05-02T10:00:00Z', operation: 'changed', eventKind: 'attribute', summary: 'Department: Sales → Marketing', attribute: { field: 'department', from: 'Sales', to: 'Marketing' } },
+  { at: '2026-05-03T10:00:00Z', operation: 'changed', eventKind: 'attribute', summary: 'Department: Sales → Marketing', attribute: { field: 'department', from: 'Sales', to: 'Marketing' } },
 ];
 
-describe('UserTimeline', () => {
-  it('renders attribute diffs and relationship summaries', () => {
+describe('UserTimeline (horizontal)', () => {
+  it('shows the selected moment detail: attribute diff + relationship summary', () => {
     const html = renderToStaticMarkup(h(UserTimeline, { events, loading: false, sinceDays: 90 }));
     expect(html).toContain('Department'); // attribute field label
     expect(html).toContain('→'); // diff arrow
     expect(html).toContain('Finance App'); // relationship counterparty
     expect(html).toContain('Added'); // op badge
-    expect(html).not.toContain('indigo'); // interactive colour is blue, not legacy indigo
+    expect(html).toContain('1 attr · 1 rel'); // dot context label
+    expect(html).not.toContain('indigo'); // interactive colour is blue
   });
 
   it('shows an empty state when there are no events', () => {

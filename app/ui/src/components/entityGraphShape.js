@@ -35,15 +35,20 @@
 // for that entityKind. `kind: 'item'` suppresses the count badge in
 // the graph and renders an initial letter instead.
 
-const MAX_ITEMS_PER_FANOUT = 10;
+export const MAX_ITEMS_PER_FANOUT = 10;
 
-function capItems(items, extraCountKey) {
+// Cap a fanout for the GRAPH ring only (too many orbiting nodes is unreadable):
+// keep the first N-1 and append a non-clickable "+N more" marker. The list
+// below the graph (ExpandedItemsList) receives the FULL, uncapped list, so the
+// "+N more" in the graph is just a hint — the complete set is shown (and
+// clickable) in the list.
+export function capItems(items) {
   if (!items) return [];
   if (items.length <= MAX_ITEMS_PER_FANOUT) return items;
   const shown = items.slice(0, MAX_ITEMS_PER_FANOUT - 1);
   shown.push({
     key: '__overflow__',
-    label: `+${items.length - (MAX_ITEMS_PER_FANOUT - 1)} more`,
+    label: `+${items.length - (MAX_ITEMS_PER_FANOUT - 1)} more in the list below`,
     kind: 'item',
     overflow: true,
   });
@@ -336,7 +341,7 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
       entityId: evt.counterpartyId,
       recent: categoryKey === 'recently-added' ? 'added' : 'removed',
     }));
-    return capItems(items);
+    return items;
   }
 
   let items = [];
@@ -353,7 +358,9 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
   if (addedIds && addedIds.size > 0 && items.length > 0) {
     items = items.map(it => addedIds.has(it.entityId) ? { ...it, recent: 'added' } : it);
   }
-  return capItems(items);
+  // Return the FULL list — the graph ring is capped in useExpandableGraph; the
+  // list below shows everything.
+  return items;
 }
 
 // Fetch the core payload for any entity kind — used when drilling into a

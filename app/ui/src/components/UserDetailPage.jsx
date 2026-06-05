@@ -8,7 +8,6 @@ import { buildAttributeEntries } from '../utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
 import UserTimeline from './UserTimeline';
-import ConfidenceBar from './ConfidenceBar';
 import useExpandableGraph from '../hooks/useExpandableGraph';
 import useTimeline from '../hooks/useTimeline';
 import useFeatures from '../hooks/useFeatures';
@@ -225,15 +224,8 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               />
             ) : (
               <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
-                <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
+                <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse. The user's identity, manager, groups and access packages are all here — click through to drill in.</p>
               </div>
-            )}
-
-            {identityInfo && (
-              <IdentityMembershipSection
-                identityInfo={identityInfo}
-                onNavigateToIdentities={() => { window.location.hash = 'identities'; }}
-              />
             )}
           </div>
         )}
@@ -252,105 +244,6 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
           <RiskScoreSection attributes={attributes} entityType="user" entityId={userId} authFetch={authFetch} />
         )}
       </div>
-    </div>
-  );
-}
-
-// ─── Identity Membership banner ───────────────────────────────────────
-
-const ACCOUNT_TYPE_COLORS = {
-  Regular:  'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
-  Admin:    'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700',
-  Test:     'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700',
-  Service:  'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700',
-  Shared:   'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-700',
-  External: 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600',
-};
-
-function IdentityMembershipSection({ identityInfo, onNavigateToIdentities }) {
-  const [expanded, setExpanded] = useState(false);
-  const { identity, memberInfo, otherMembers = [] } = identityInfo;
-  const typeColor = ACCOUNT_TYPE_COLORS[memberInfo.accountType] || ACCOUNT_TYPE_COLORS.Regular;
-
-  return (
-    <div className="bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-700 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
-          <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
-          </svg>
-          Identity Membership
-        </h3>
-        <button onClick={onNavigateToIdentities} className="text-xs text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 hover:underline">
-          View all identities →
-        </button>
-      </div>
-
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{identity.displayName}</span>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${typeColor}`}>
-              {memberInfo.accountType}
-            </span>
-            {memberInfo.isPrimary && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700">Primary</span>
-            )}
-            {memberInfo.isHrAuthoritative && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700" title={`HR Score: ${memberInfo.hrScore}`}>HR Source</span>
-            )}
-            {memberInfo.analystOverride && (
-              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                memberInfo.analystOverride === 'confirmed' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-              }`}>{memberInfo.analystOverride}</span>
-            )}
-          </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {identity.accountCount} account{identity.accountCount !== 1 ? 's' : ''} · primary: {identity.primaryAccountUpn}
-          </div>
-          {/* Correlation confidence — the correlation result IS this identity
-              relationship, so its confidence belongs right here. */}
-          {identity.correlationConfidence != null && (
-            <div className="mt-2">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Correlation confidence</div>
-              <ConfidenceBar confidence={identity.correlationConfidence} />
-            </div>
-          )}
-          {memberInfo.correlationSignals && (
-            <div className="text-xs text-gray-600 dark:text-gray-500 mt-1">
-              Signals: {memberInfo.correlationSignals}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {otherMembers.length > 0 && (
-        <div className="mt-3">
-          <button onClick={() => setExpanded(v => !v)} className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1">
-            <span>{expanded ? '▼' : '▶'}</span>
-            {expanded ? 'Hide' : 'Show'} other accounts ({otherMembers.length})
-          </button>
-          {expanded && (
-            <div className="mt-2 space-y-1 border-t border-gray-100 dark:border-gray-700 pt-2">
-              {otherMembers.map(m => {
-                const tc = ACCOUNT_TYPE_COLORS[m.accountType] || ACCOUNT_TYPE_COLORS.Regular;
-                return (
-                  <div key={m.userId} className="flex items-center gap-2 text-xs">
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full font-medium border ${tc}`}>{m.accountType}</span>
-                    {m.isPrimary && <span className="text-blue-600 dark:text-blue-400 font-medium">Primary</span>}
-                    {m.isHrAuthoritative && <span className="text-emerald-700 dark:text-emerald-300 font-medium">HR</span>}
-                    <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-48">{m.displayName}</span>
-                    <span className="text-gray-600 dark:text-gray-500 truncate max-w-64">{m.userPrincipalName}</span>
-                    <span className={`ml-auto ${m.accountEnabled === 'True' || m.accountEnabled === true ? 'text-green-600 dark:text-green-400' : 'text-gray-500'}`}>
-                      {m.accountEnabled === 'True' || m.accountEnabled === true ? '●' : '○'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -1,3 +1,6 @@
 - Reorganised the user detail page into sub-tabs (like the Admin section) so it's no longer one long cramped scroll: **Attributes**, **Relationships**, **Timeline**, and **Risk** (the Risk tab appears only when risk scoring is enabled).
 - The **Relationships** tab shows the relationship graph (without the recent-added/removed nodes) plus the identity-membership panel, now with the account-correlation **confidence shown as a bar** alongside its signals.
 - Added a **Timeline** tab: a single chronological view of what changed for the user over time — both attribute updates (e.g. department or job-title changes, shown as before → after) and relationship changes (access granted/removed, manager changes, linked accounts) — with a 30-day / 90-day / 1-year / all range selector.
+- The relationship graph's "+N more" overflow now shows the **full** list of items below the graph (the list is scrollable and each row is clickable), instead of capping at 10.
+- Removed the separate identity-membership panel from the user page — the identity is reachable directly from the relationship graph.
+- Reworked the Timeline into a **horizontal** timeline: dots on a line from the initial load through later changes, each dot labelled with the kind and number of changes; click a dot to expand exactly what changed at that point.
