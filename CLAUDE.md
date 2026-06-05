@@ -21,7 +21,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 
 **Subdirectory coding guides (loaded contextually):**
 - `Functions/CLAUDE.md` — PowerShell SDK conventions (style, naming, Graph API patterns) — note: folder paths inside are v4-era; conventions still apply
-- `tools/crawlers/CLAUDE.md` — Crawler authoring guide: manifest schema, dependency system, OData base layer, standard interface
+- `tools/crawlers/CLAUDE.md` — Crawler dev quick-reference (rules, key files, tests); full architecture in `docs/architecture/crawler-architecture.md`
 - `app/api/CLAUDE.md` — Node.js API conventions, testing, migrations
 - `app/ui/CLAUDE.md` — React/UI conventions, dark mode, shared utilities
 
