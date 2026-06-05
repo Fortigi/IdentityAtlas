@@ -1,0 +1,18 @@
+- Added native Omada IGA crawler that syncs directly from the Omada OData 4.0 REST API — no manual CSV export or transform step required
+- Supports six authentication methods: Form/Cookie (on-premise), HTTP Basic Auth, OAuth2 Client Credentials (cloud), OAuth2 ROPC, API Token, and Cookie String (session cookie from browser DevTools)
+- Syncs systems, contexts (OrgUnits + configured types), identities, accounts/principals, resources (business roles and permissions), entitlements (CHILDROLES nesting), role assignments (Resourceassignment), and effective account assignments (CalculatedAssignments/CRA)
+- Each of Omada's connected target systems (SAP, AD, Salesforce, etc.) is registered as a separate Identity Atlas System; resources and assignments are linked to their correct system
+- Fetches OData `$metadata` at startup to discover available entity sets — phases that require missing sets are skipped with a warning
+- Context types are configurable (`contextObjectTypes`): each entry specifies entity set, contextType label, and an optional identity reference field for direct context membership
+- Resource category mapping is configurable (`resourceCategoryMapping`): maps Omada ROLECATEGORY to Identity Atlas resourceType
+- CRA (CalculatedAssignments) pages are streamed one-at-a-time to prevent OOM on large cloud datasets
+- Added step-by-step logging throughout the crawler — each fetch, build and ingest operation prints a `→` indicator in the job transcript
+- Base URL is normalised using `System.Uri` — both root URLs and explicit OData paths are accepted; the Builtin service URL is derived automatically
+- Fixed: `oisauthtoken=` prefix is auto-prepended to bare CookieString tokens for Omada Cloud
+- Fixed: `$metadata` fetch no longer sends JSON Accept headers (caused HTTP 500 on cloud); XML is accepted as returned
+- Added 42 Pester unit tests for the Omada SDK (auth methods, helper functions, URL normalisation, config forwarding)
+- Added data model reference documentation for the Omada crawler (`docs/architecture/omada-crawler-datamodel.md`)
+- Added PowerShell formatting style guide to `Functions/CLAUDE.md` (Stroustrup preset, region blocks, operator spacing)
+- Fixed: Omada crawler script path in job dispatcher now respects the `IA_APP_ROOT` environment variable instead of hardcoding `/app`
+- Fixed: CRA summary log line reported wrong record count (referenced a removed variable from before the streaming refactor)
+- Omada post-sync now calls account correlation (cross-system identity linking with Entra and other crawlers)

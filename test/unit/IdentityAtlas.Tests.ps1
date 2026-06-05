@@ -27,12 +27,14 @@ BeforeAll {
     $script:graphRoot   = Join-Path $script:repoRoot 'tools\powershell-sdk\graph'
     $script:helpersRoot = Join-Path $script:repoRoot 'tools\powershell-sdk\helpers'
     $script:riskRoot    = Join-Path $script:repoRoot 'tools\riskscoring'
+    $script:omadaRoot   = Join-Path $script:repoRoot 'tools\powershell-sdk\omada'
 
     Import-Module $script:modulePath -Force -ErrorAction Stop
 
     $script:allPs1Files = @(
         Get-ChildItem -Path $script:graphRoot   -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue
         Get-ChildItem -Path $script:helpersRoot -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $script:omadaRoot   -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue
         Get-ChildItem -Path $script:riskRoot    -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue
     )
 }
@@ -92,6 +94,19 @@ Describe 'Function Availability — Helpers (idempotent)' {
         'Get-FGServicePrincipalType',
         'Add-FGEntraCalculatedAttributes', 'Get-FGEntraPortalLink',
         'Test-FGDistinguishedName', 'Convert-FGDistinguishedNameToOUPath'
+    ) {
+        Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+    }
+}
+
+Describe 'Function Availability — Omada SDK' {
+    It 'exports <_>' -ForEach @(
+        'Connect-OmadaAPI',
+        'Get-OmadaEntitySets',
+        'Invoke-OmadaPagedRequest',
+        'Invoke-OmadaGetRequest',
+        'Get-OmadaRefValue',
+        'Get-OmadaRefUid'
     ) {
         Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
     }
@@ -413,14 +428,16 @@ Describe 'File Structure' {
         $script:riskRoot | Should -Exist
     }
 
-    It 'all .ps1 files follow Verb-FGNoun naming' {
-        $bad = $script:allPs1Files | Where-Object { $_.BaseName -notmatch '^[A-Z][a-z]+-FG[A-Z]' }
+    It 'all .ps1 files follow Verb-FGNoun or Verb-OmadaNoun naming' {
+        $bad = $script:allPs1Files | Where-Object { $_.BaseName -notmatch '^[A-Z][a-z]+-(FG|Omada)[A-Z]' }
+        $bad = $bad | Where-Object { $_.FullName -notmatch 'riskscoring' }
         $bad | Should -BeNullOrEmpty -Because "bad names: $($bad.BaseName -join ', ')"
     }
 
     It 'IdentityAtlas.psm1 dot-sources <_>' -ForEach @(
         "tools\powershell-sdk\graph",
         "tools\powershell-sdk\helpers",
+        "tools\powershell-sdk\omada",
         "tools\riskscoring"
     ) {
         $psm1 = Get-Content (Join-Path $script:repoRoot 'setup\IdentityAtlas.psm1') -Raw
@@ -437,6 +454,12 @@ Describe 'File Structure' {
 
     It 'setup/azure folder is gone (Docker-only)' {
         Join-Path $script:repoRoot 'setup\azure' | Should -Not -Exist
+    }
+    It 'tools/powershell-sdk/omada folder exists' {
+        $script:omadaRoot | Should -Exist
+    }
+    It 'tools/crawlers/omada/Start-OmadaCrawler.ps1 exists' {
+        Join-Path $script:repoRoot 'tools\crawlers\omada\Start-OmadaCrawler.ps1' | Should -Exist
     }
 }
 
