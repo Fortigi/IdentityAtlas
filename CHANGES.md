@@ -1,5 +1,17 @@
 ## Changes in this PR
 
+- Corrected the matrix "How to read this matrix" legend so it matches what the grid actually shows: only the four ways access is *held* — Direct, Indirect (via a nested resource), Eligible (just-in-time access), and Owner. Business-role, OAuth2, and app-role assignments already render as Direct (or Indirect for an app role inherited via a group), so they're no longer listed as separate badges; whether access is governed is shown by the cell colour.
+
+## Changes in this PR
+
+- Documented the colour-saturation rule in the UI Style Guide: solid fills (bars, chips, graph nodes) use soft pastel tiers while thin marks (chart lines, borders, icons, text) keep stronger colour — so future contributions stay consistent with the app's soft look.
+
+## Changes in this PR
+
+- Reworked the documentation site to look like the app: the bright solid-green header and tab bar are now a clean white shell with a dark title and the green logo as the accent (dark slate header in dark mode), with the active tab marked by a green underline and a soft grey search field — so the docs and the product feel like one product.
+
+## Changes in this PR
+
 - Removed the **Tags** column from the matrix — it no longer carried meaningful information now that tags are modelled as contexts. The matrix right-side metadata is now just member count and description.
 
 ## Changes in this PR
