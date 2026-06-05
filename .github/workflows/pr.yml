@@ -52,9 +52,7 @@ jobs:
           #   PSAvoidUsingWriteHost — Write-Host is the intentional logging mechanism
           #                           throughout the crawler / worker codebase
           $paths = @(
-            'tools/powershell-sdk/graph',
-            'tools/powershell-sdk/helpers',
-            'tools/powershell-sdk/omada',
+            (Get-ChildItem 'tools/powershell-sdk' -Directory | Select-Object -ExpandProperty FullName)
             'tools/riskscoring',
             'tools/crawlers',
             'tools/csv-templates/transforms',
@@ -143,9 +141,10 @@ jobs:
           $cfg.TestResult.OutputFormat = 'JUnitXml'
           $cfg.CodeCoverage.Enabled = $true
           $cfg.CodeCoverage.Path = @(
-            'tools/powershell-sdk/graph',
-            'tools/powershell-sdk/helpers',
-            'tools/powershell-sdk/omada',
+            (Get-ChildItem 'tools/powershell-sdk' -Directory | Select-Object -ExpandProperty FullName)
+            (Get-ChildItem 'tools/crawlers' -Directory |
+              Where-Object { Test-Path (Join-Path $_.FullName 'crawler.json') } |
+              Select-Object -ExpandProperty FullName)
             'tools/riskscoring'
           )
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'

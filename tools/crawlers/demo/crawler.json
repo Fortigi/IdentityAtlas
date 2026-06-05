@@ -1,0 +1,11 @@
+{
+  "type": "demo",
+  "displayName": "Demo Dataset",
+  "entryPoint": "Start-DemoCrawler.ps1",
+  "dependsOn": [],
+  "configSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "postSyncHooks": []
+}
