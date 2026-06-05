@@ -52,6 +52,23 @@ Migration files are numbered sequentially (`001_core_schema.sql`, `002_governanc
 | `routes/identities.js` | Identity correlation results |
 | `routes/riskScores.js` | Risk score reading + analyst override endpoints |
 | `routes/contexts.js` | Contexts CRUD, member management, plugin runner |
+| `routes/jobs.js` | Crawler config CRUD, job queuing, manifest-driven job type discovery |
 | `routes/perf.js` | Performance metrics API |
 | `middleware/auth.js` | Entra ID JWT validation (v1+v2 tokens) |
 | `middleware/perfMetrics.js` | Request timing + Server-Timing headers |
+
+## Crawler Job System
+
+Crawler types and their config schemas are auto-discovered from `tools/crawlers/*/crawler.json` manifests at startup. See `tools/crawlers/CLAUDE.md` for the manifest schema.
+
+**Key exports from `routes/jobs.js`:**
+- `VALID_JOB_TYPES` — array of valid job type strings, built from manifests (falls back to `['demo','entra-id','csv','omada']` if manifests are unreachable)
+- `validateCrawlerConfig(type, config)` — validates a config object against the crawler's `configSchema`; returns an error string or `null`
+- `maskConfig(config)` — redacts credential fields for safe logging/display
+
+**Manifest discovery path** (checked in order):
+1. `CRAWLER_MANIFESTS_DIR` env var (set to `/app/crawlers` in Docker, `bundled-scripts/tools/crawlers` in node-launcher)
+2. Relative to `src/routes/`: `../../../../tools/crawlers` (works in local dev)
+3. Hardcoded fallback list if directory is unreachable
+
+**`scheduler.js`** fires scheduled crawler jobs. It imports `VALID_JOB_TYPES` and `validateCrawlerConfig` from `routes/jobs.js` — do not duplicate that logic here.
