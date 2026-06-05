@@ -101,6 +101,7 @@ jobs:
         run: |
           $cfg = New-PesterConfiguration
           $cfg.Run.Path = 'test/unit'
+          $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
           $cfg.TestResult.Enabled = $true
           $cfg.TestResult.OutputPath = 'pester-results.xml'
