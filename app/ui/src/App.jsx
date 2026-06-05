@@ -104,12 +104,12 @@ const ALL_NAV_TABS = [
 ];
 
 export default function App() {
-  // Parse initial state from URL (runs once)
-  const initial = useMemo(() => {
+  // Parse initial state from URL (runs once on mount via useState lazy initializer)
+  const [initial] = useState(() => {
     const { page, params } = parseHash();
     if (page === 'matrix') return parseMatrixParams(params);
     return { filter: null, managed: 'all' };
-  }, []);
+  });
 
   // Wizard-driven matrix state: a single filter object + managed-state toggle
   const [matrixFilter, setMatrixFilter] = useState(initial.filter);
