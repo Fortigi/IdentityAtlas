@@ -2,3 +2,5 @@
 - Extended Pester code coverage to the Omada SDK (`tools/powershell-sdk/omada`)
 - Pester test runner now scans the full `test/unit/` directory so new test files are picked up automatically without CI changes
 - Removed stale `app/db` path reference from PSScriptAnalyzer and Pester coverage scopes
+- Upgraded PSScriptAnalyzer from Error-only to Warning + Error severity; expanded coverage to all production PowerShell roots (job dispatcher, module, CSV transforms)
+- Added eslint-plugin-security to the API build — catches unsafe regex, dynamic RegExp construction, and similar security anti-patterns on every pull request
