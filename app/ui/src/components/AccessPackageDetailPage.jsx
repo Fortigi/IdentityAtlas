@@ -95,12 +95,30 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   }
   if (!data) return null;
 
-  const { attributes, lastReviewDate, lastReviewedBy, assignmentType, category } = data;
+  const { attributes, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, assignmentType, category, policyCount, reviewCount, pendingRequestCount } = data;
   const attributeEntries = buildAttributeEntries(
     attributes,
     attributes.extendedAttributesParsed || (typeof attributes.extendedAttributes === 'object' ? attributes.extendedAttributes : null),
     HIDDEN_FIELDS,
   );
+
+  // Calculated / overview fields — the same values shown in the Business Roles
+  // list (Type, Review Status, Reviewed By …). Surfaced here so the data
+  // behind the overview is visible on the detail page itself.
+  const reviewStatusText = complianceStatus
+    ? complianceStatus + (daysOverdue ? ` — ${daysOverdue}d overdue` : '')
+    : null;
+  const overviewEntries = [
+    ['Type', assignmentType],
+    ['Review status', reviewStatusText],
+    ['Last review', lastReviewDate ? formatDate(lastReviewDate) : null],
+    ['Reviewed by', lastReviewedBy],
+    ['Catalog', attributes.catalogName],
+    ['Category', category?.name],
+    ['Policies', policyCount],
+    ['Access reviews', reviewCount],
+    ['Pending requests', pendingRequestCount],
+  ].filter(([, v]) => v != null && v !== '');
 
   const hasRisk = features.riskScoring && riskData && riskData.riskScore != null;
   const tabs = [
@@ -161,7 +179,10 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
 
       <div className="mt-4">
         {activeTab === 'attributes' && (
-          <AttributesTable entries={attributeEntries} />
+          <div className="space-y-4">
+            {overviewEntries.length > 0 && <AttributesTable title="Overview (calculated)" entries={overviewEntries} />}
+            <AttributesTable entries={attributeEntries} />
+          </div>
         )}
 
         {activeTab === 'relationships' && (
