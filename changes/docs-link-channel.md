@@ -1,1 +1,0 @@
-- The in-app "Documentation" and "CSV Schema Reference" links now point to the docs version that matches the running build — an **edge** build links to the edge docs, a release links to the stable docs — instead of always opening the default (stable) docs.
