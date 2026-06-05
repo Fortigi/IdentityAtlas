@@ -6,16 +6,17 @@
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 
-# Tools — PowerShell SDK (Graph API wrappers, idempotent helpers)
+# Tools — PowerShell SDK (Graph API wrappers, idempotent helpers, Omada client)
 $graph   = @( Get-ChildItem -Path (Join-Path $repoRoot 'tools\powershell-sdk\graph')   -Include *.ps1 -Recurse -ErrorAction SilentlyContinue )
 $helpers = @( Get-ChildItem -Path (Join-Path $repoRoot 'tools\powershell-sdk\helpers') -Include *.ps1 -Recurse -ErrorAction SilentlyContinue )
+$omada   = @( Get-ChildItem -Path (Join-Path $repoRoot 'tools\powershell-sdk\omada')   -Include *.ps1 -Recurse -ErrorAction SilentlyContinue )
 
 # Tools — Risk scoring and account correlation
 $riskScoring = @( Get-ChildItem -Path (Join-Path $repoRoot 'tools\riskscoring') -Include *.ps1 -Recurse -ErrorAction SilentlyContinue )
 $correlation = @( Get-ChildItem -Path (Join-Path $repoRoot 'tools\correlation') -Include *.ps1 -Recurse -ErrorAction SilentlyContinue )
 
 # Dot source all function files
-foreach ($import in @($graph + $helpers + $riskScoring + $correlation)) {
+foreach ($import in @($graph + $helpers + $omada + $riskScoring + $correlation)) {
     try {
         . $import.fullname
     }
