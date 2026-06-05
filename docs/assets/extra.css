@@ -120,10 +120,12 @@ body,
   margin-bottom: 0.5rem;
 }
 
-/* ── Header bar — white app-shell look (bg comes from --md-primary-* above) */
+/* ── Header bar — white app-shell look (bg comes from --md-primary-* above),
+   with a thin brand-green accent on top so it still reads as Identity Atlas. */
 .md-header {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   border-bottom: 1px solid var(--ia-gray-200);
+  border-top: 3px solid var(--ia-lime-600);
 }
 .md-header__title {
   font-weight: 600;
@@ -168,6 +170,44 @@ body,
 .md-header__button.md-logo svg {
   height: 2rem;
   width: auto;
+}
+
+/* ── Brand/interactive accents — warm up the white shell with green (brand)
+   structure + blue (interactive) cues, matching the app. ───────────── */
+
+/* Section headings get a green tick so the page has brand structure. */
+.md-typeset h2 {
+  border-left: 3px solid var(--ia-lime-500);
+  padding-left: 0.6rem;
+}
+
+/* Left nav: the active page reads as "where you are" in soft brand green. */
+.md-nav__item .md-nav__link--active {
+  background: var(--ia-lime-50);
+  border-radius: 0.375rem;
+  padding: 0.1rem 0.4rem;
+}
+[data-md-color-scheme=slate] .md-nav__item .md-nav__link--active {
+  background: rgba(101, 163, 13, 0.16);
+}
+
+/* Right-rail table-of-contents: active anchor in interactive blue. */
+.md-nav--secondary .md-nav__link--active {
+  color: var(--ia-blue-600);
+  font-weight: 600;
+}
+[data-md-color-scheme=slate] .md-nav--secondary .md-nav__link--active {
+  color: var(--ia-blue-400);
+}
+
+/* Blockquotes get a blue accent + faint surface so prose isn't all white. */
+.md-typeset blockquote {
+  border-left: 3px solid var(--ia-blue-400);
+  background: var(--ia-gray-50);
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+[data-md-color-scheme=slate] .md-typeset blockquote {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* ── Cards / admonitions — rounded-2xl + lime ring + soft gradient
