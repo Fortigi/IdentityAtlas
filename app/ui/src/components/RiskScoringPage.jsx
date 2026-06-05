@@ -56,7 +56,7 @@ function DistributionChart({ label, byTier, total }) {
 
 // ─── Entity Table ────────────────────────────────────────────────────
 //
-// Rows navigate to the full detail page (UserDetailPage / GroupDetailPage /
+// Rows navigate to the full detail page (UserDetailPage / ResourceDetailPage /
 // AccessPackageDetailPage / etc.) when clicked. The detail page shows the
 // same score breakdown this page used to show in a local modal, plus all the
 // entity's attributes, memberships, and history — which is what the user
