@@ -54,6 +54,7 @@ describe('postgres LIKE case-sensitivity audit', () => {
       // Match quoted or unquoted column, optional alias prefix, then `LIKE`
       // (but NOT `ILIKE`). Word boundary on LIKE so it's not matching inside
       // ILIKE / DISLIKE / etc.
+      // eslint-disable-next-line security/detect-non-literal-regexp -- col is an internal column name constant from test fixtures, not user input
       const pattern = new RegExp(
         // optional `alias.` then optional double-quoted column name
         `(?:[A-Za-z_]\\w*\\.)?(?:"${col}"|\\b${col}\\b)\\s+(?<!I)LIKE\\b`,

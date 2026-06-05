@@ -31,6 +31,7 @@ function Connect-OmadaAPI {
         Authenticate to Omada and store the session for subsequent calls.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessage('PSAvoidUsingUsernameAndPasswordParams', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessage('PSAvoidUsingPlainTextForPassword', '')]
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)] [string]$BaseUrl,
