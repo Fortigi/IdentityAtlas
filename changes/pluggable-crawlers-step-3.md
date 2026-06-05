@@ -1,3 +1,5 @@
 - API now auto-discovers valid crawler job types from `crawler.json` manifests — adding a new crawler automatically makes it available in the API without editing `jobs.js`
 - Crawler config validation replaced hardcoded per-crawler functions with JSON Schema validation (ajv) driven by each crawler's `configSchema` in its manifest
 - Docker web image build context changed to repo root so crawler manifests are included in the image; manifests live at `/app/crawlers/` in the container
+- Fixed scheduler import (`validateOmadaConfig` → `validateCrawlerConfig`) and replaced hardcoded crawler type allowlist with the manifest-driven `VALID_JOB_TYPES` list
+- Fixed crawler manifest discovery path for Docker (`CRAWLER_MANIFESTS_DIR=/app/crawlers`) and node-launcher (`bundled-scripts/tools/crawlers`)

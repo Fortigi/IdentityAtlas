@@ -29,7 +29,7 @@ import * as db from './db/connection.js';
 import { runScoring } from './riskscoring/engine.js';
 import { runLinking } from './accountlinking/engine.js';
 import { hasConfigSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
-import { validateCrawlerConfig } from './routes/jobs.js';
+import { validateCrawlerConfig, VALID_JOB_TYPES } from './routes/jobs.js';
 
 const TICK_INTERVAL_MS = 60_000;
 const FIRST_RUN_DELAY_MS = 45_000;
@@ -109,10 +109,8 @@ async function queueScheduledJob(configRow, scheduleIndex) {
   // claim time — never persisted in the job config.
   delete jobConfig.clientSecret;
 
-  // The jobType is derived from crawlerType. The CrawlerConfigs.crawlerType is
-  // the canonical source — 'entra-id', 'csv', or 'omada'.
   const jobType = configRow.crawlerType;
-  if (!['entra-id', 'csv', 'omada'].includes(jobType)) {
+  if (!VALID_JOB_TYPES.includes(jobType)) {
     console.warn(`Scheduler: unsupported crawlerType '${jobType}' for config ${configRow.id}`);
     return;
   }

@@ -55,7 +55,7 @@ try {
   }
 } catch { /* crawlers directory not accessible — fall through to hardcoded list */ }
 
-const VALID_JOB_TYPES = Object.keys(_crawlerManifests).length > 0
+export const VALID_JOB_TYPES = Object.keys(_crawlerManifests).length > 0
   ? Object.keys(_crawlerManifests)
   : ['demo', 'entra-id', 'csv', 'omada'];  // fallback if manifests unavailable
 
