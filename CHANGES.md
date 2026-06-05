@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed tags on identities: a tag created/assigned to an identity is now actually shown and can be (re)assigned. Previously identity tags were saved but never appeared because the tag compatibility view excluded identities.
+
+## Changes in this PR
+
 - Rebuilt **Account Linking** (formerly the non-functional "Account Correlation"). It now actually runs: for each existing identity it finds orphan accounts that belong to that person — admin (`adm-…`), guest, and secondary accounts — and links them with a confidence score.
 - Account linking is deterministic and no longer needs an LLM. The matching dictionary (signals, account-type patterns, threshold) ships with sensible defaults and is editable in **Admin → Account Linking**.
 - Account linking can run on a schedule and on demand ("Run now"), with a run history showing how many accounts were linked, updated, or skipped.
