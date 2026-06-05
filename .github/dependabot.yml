@@ -27,3 +27,19 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "build"
+
+  # Node.js API dependencies
+  - package-ecosystem: "npm"
+    directory: "/app/api"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+
+  # React UI dependencies
+  - package-ecosystem: "npm"
+    directory: "/app/ui"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
