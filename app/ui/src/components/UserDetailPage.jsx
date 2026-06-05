@@ -127,7 +127,9 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     { key: 'attributes', label: 'Attributes', count: attributeEntries.length },
     { key: 'relationships', label: 'Relationships' },
     { key: 'timeline', label: 'Timeline' },
-    features.riskScoring && { key: 'risk', label: 'Risk' },
+    // Only show Risk when scoring is enabled AND this user actually has a
+    // score — otherwise the tab would open onto an empty panel.
+    (features.riskScoring && attributes.riskScore != null) && { key: 'risk', label: 'Risk' },
   ];
 
   return (

@@ -4,3 +4,5 @@
 - The relationship graph's "+N more" overflow now shows the **full** list of items below the graph (the list is scrollable and each row is clickable), instead of capping at 10.
 - Removed the separate identity-membership panel from the user page — the identity is reachable directly from the relationship graph.
 - Reworked the Timeline into a **horizontal** timeline: dots on a line from the initial load through later changes, each dot labelled with the kind and number of changes; click a dot to expand exactly what changed at that point.
+- Each timeline dot now shows the number of changes that happened that day.
+- Fixed the Risk tab showing empty: the user detail page now includes the entity's risk score, and the Risk tab only appears when the user actually has a score.

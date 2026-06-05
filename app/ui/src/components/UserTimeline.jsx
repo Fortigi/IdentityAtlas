@@ -32,13 +32,15 @@ function summarize(moment) {
   return { attr, rel, created };
 }
 
-// Dot colour: created = emerald (the start), relationship-involving = amber
-// (access changed — the notable ones), attribute-only = blue.
-function dotColor(moment) {
+// Dot border colour by kind: created = emerald (the start), relationship-
+// involving = amber (access changed — the notable ones), attribute-only = blue.
+// The dot itself is white with a dark number inside (the change count), so the
+// number stays WCAG-readable regardless of the kind colour.
+function dotBorder(moment) {
   const { rel, created } = summarize(moment);
-  if (created) return 'bg-emerald-500 dark:bg-emerald-400';
-  if (rel > 0) return 'bg-amber-500 dark:bg-amber-400';
-  return 'bg-blue-500 dark:bg-blue-400';
+  if (created) return 'border-emerald-500 dark:border-emerald-400';
+  if (rel > 0) return 'border-amber-500 dark:border-amber-400';
+  return 'border-blue-500 dark:border-blue-400';
 }
 
 function contextLabel(moment) {
@@ -122,7 +124,7 @@ export default function UserTimeline({ events, loading, sinceDays, onSinceDaysCh
           {/* Horizontal axis of dots */}
           <div className="overflow-x-auto pb-1">
             <div className="relative flex gap-8 px-6 pt-3 min-w-max">
-              <div className="absolute left-6 right-6 top-[19px] h-0.5 bg-gray-200 dark:bg-gray-700" aria-hidden="true" />
+              <div className="absolute left-6 right-6 top-[24px] h-0.5 bg-gray-200 dark:bg-gray-700" aria-hidden="true" />
               {moments.map((m, i) => {
                 const isSel = i === selIdx;
                 return (
@@ -134,7 +136,12 @@ export default function UserTimeline({ events, loading, sinceDays, onSinceDaysCh
                     title={`${formatDateOnly(m.at)} — ${contextLabel(m)}`}
                     className="group relative z-10 flex w-20 shrink-0 flex-col items-center focus:outline-none"
                   >
-                    <span className={`w-4 h-4 rounded-full ring-2 ring-white dark:ring-gray-800 transition-transform ${dotColor(m)} ${isSel ? 'scale-125' : 'group-hover:scale-110'}`} />
+                    <span
+                      className={`flex items-center justify-center w-6 h-6 rounded-full bg-white dark:bg-gray-800 border-2 text-[10px] font-bold tabular-nums text-gray-800 dark:text-gray-100 transition-transform ${dotBorder(m)} ${isSel ? 'scale-110 ring-2 ring-blue-300 dark:ring-blue-700' : 'group-hover:scale-105'}`}
+                      title={`${m.events.length} change${m.events.length === 1 ? '' : 's'}`}
+                    >
+                      {m.events.length}
+                    </span>
                     <span className="mt-2 text-[10px] leading-tight text-center text-gray-500 dark:text-gray-400">{formatDateOnly(m.at)}</span>
                     <span className={`text-[10px] leading-tight text-center ${isSel ? 'text-gray-700 dark:text-gray-200 font-medium' : 'text-gray-500 dark:text-gray-500'}`}>
                       {contextLabel(m)}

@@ -18,6 +18,7 @@ describe('UserTimeline (horizontal)', () => {
     expect(html).toContain('Finance App'); // relationship counterparty
     expect(html).toContain('Added'); // op badge
     expect(html).toContain('1 attr · 1 rel'); // dot context label
+    expect(html).toContain('2 changes'); // dot shows the change count
     expect(html).not.toContain('indigo'); // interactive colour is blue
   });
 
