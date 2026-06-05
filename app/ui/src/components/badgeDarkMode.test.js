@@ -23,4 +23,11 @@ describe('status/account badge dark-mode coverage', () => {
       expect(src, tok).toContain(tok);
     }
   });
+
+  it('ContextTreeSelector select inputs and selected row carry dark: variants', () => {
+    const src = read('contexts/ContextTreeSelector.jsx');
+    for (const tok of ['dark:bg-gray-700', 'dark:border-gray-600', 'dark:text-gray-200', 'dark:bg-blue-900/30']) {
+      expect(src, tok).toContain(tok);
+    }
+  });
 });

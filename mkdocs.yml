@@ -82,6 +82,7 @@ nav:
           - Entra ID: sync/entra-id.md
           - CSV Import: sync/csv-import.md
           - CSV Schema Reference: architecture/csv-import-schema.md
+          - Custom Crawlers: sync/custom-crawlers.md
       - Using Identity Atlas:
           - Role Mining UI: ui/overview.md
           - Local Development: ui/local-dev.md
@@ -101,6 +102,7 @@ nav:
           - Audit History: architecture/audit-history.md
           - Matrix Scope Statistics: architecture/matrix-scope-statistics.md
           - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
+          - Crawler Architecture: architecture/crawler-architecture.md
       - Operations:
           - Scaling & Load Testing: architecture/scaling.md
           - Demo Dataset: architecture/demo-dataset.md

@@ -1,5 +1,16 @@
 ## Changes in this PR
 
+- Added Custom Crawlers guide and Crawler Architecture doc to the documentation site navigation
+- Fixed documentation site dark mode: admonition boxes (note, tip, warning, danger) now use dark surfaces with readable text instead of the light green/amber/red backgrounds that were unreadable against the slate page
+- Fixed inline code dark mode on the documentation site: `code` spans now render with a subtle dark lime background and lime-300 text instead of the light lime-50 background
+
+## Changes in this PR
+
+- Fixed dark mode contrast in the Contexts tab: selected tree item now shows the correct blue highlight instead of a light-blue-on-dark background; filter dropdowns are now themed correctly in dark mode
+- User detail page now color-codes the account type badge by principal type: Guest (amber), ServicePrincipal/Application (purple), ManagedIdentity (teal), Deleted (red), unknown (gray)
+
+## Changes in this PR
+
 - Restructured crawler architecture to be fully pluggable: each crawler now declares its identity and dependencies in a `crawler.json` manifest
 - Extracted the generic OData protocol layer (auth, pagination, retry) into `tools/crawlers/odata/` as a reusable base that any OData-based crawler can depend on
 - Renamed OData protocol functions from `*-OmadaAPI` / `Invoke-Omada*` to `*-ODataAPI` / `Invoke-OData*` to reflect their generic purpose
