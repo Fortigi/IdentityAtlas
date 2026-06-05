@@ -1,5 +1,29 @@
 ## Changes in this PR
 
+- Added native Omada IGA crawler type to the API — validates config, masks secrets, dispatches jobs, and schedules automatic syncs
+- Added Omada crawler setup wizard to Admin → Crawlers — four-step flow with live `$metadata` validation for context entity sets and identity field names (case-sensitive auto-suggest), and a resource-category mapping editor
+- Added `POST /api/admin/omada/validate-metadata` endpoint for live wizard validation against the Omada OData `$metadata` document
+- Added Omada to the scheduler allowlist so crawls can be scheduled from the Admin UI
+- Extended `ingest/refresh-views` to recalculate `directMemberCount`/`totalMemberCount` on all Contexts after any full sync
+- Fixed: Identity detail page Contexts count was fetched but never passed to the graph shape function, causing the Contexts node to always display 0
+- Fixed: Context detail page member clicks now use `targetType` to open the correct detail kind (`identity`, `user`, `resource`) instead of always using `user`
+- Fixed: User detail `/contexts` endpoint and context count now query `ContextMembers` directly by Identity UUID via `IdentityMembers`, so Omada-synced context memberships appear on the identity detail page
+- Added migration 029: `extendedAttributes jsonb` column on `Identities` table for system-specific identity attributes
+- Added: Identities API `/contexts` endpoint and `contextCount` now query `ContextMembers` directly by Identity UUID so context memberships appear on identity detail pages for all crawlers
+- Fixed: `POST /api/admin/omada/validate-metadata` crashed with a reference error due to an undefined variable; `configId` now also rejects non-numeric values with a clear 400 error
+- Fixed: `POST /api/admin/omada/validate-metadata` now accepts an inline config object so the Omada wizard can validate `$metadata` when adding a new crawler (not only when editing an existing one)
+- Fixed: `validateOmadaConfig` now correctly requires `tokenEndpoint`, `clientId`, and `clientSecret` for OAuth2ROPC connections instead of only username and password
+- Fixed: Omada wizard Step 2 (`canStep2`) now correctly requires `tokenEndpoint`, `clientId`, and `clientSecret` for OAuth2ROPC before advancing to Step 3
+- Fixed: Omada wizard "Add Schedule" now sets `syncMode: 'full'` on new schedules, matching the fact that Omada does not support delta syncs
+- Fixed: Context `directMemberCount` is now reset to 0 after a full sync for contexts that lost all their members, not left with a stale non-zero count
+- Fixed: Omada credential fields (`password`, `apiToken`, `cookieString`) are now vaulted per-job and stripped from `CrawlerJobs.config` before storage, matching the existing behaviour for `clientSecret`; `injectJobSecret` retrieves and injects all credential fields at claim time
+- Fixed: Scheduler now validates the full Omada config (auth credentials, not just `baseUrl`) before queuing a scheduled run, matching the validation applied by the manual "Run Now" path
+- Fixed: `validateOmadaConfig` now correctly requires `tokenEndpoint` for OAuth2CC connections (in addition to `clientId` and `clientSecret`)
+- Fixed: `POST /api/admin/omada/validate-metadata` now rejects `baseUrl` values that use schemes other than `http` or `https` with a 400 error, preventing potential server-side request forgery
+- Fixed: Editing a crawler config via `PATCH /api/admin/crawler-configs/:id` now validates the merged config against Omada rules when the crawler type is `omada`, preventing invalid configs from being saved silently
+
+## Changes in this PR
+
 - Consolidated documentation navigation from 13 top-level tabs to 5 (Home, Guide, Concepts, Reference, Project) to prevent tab overflow on standard screen widths
 
 ## Changes in this PR
