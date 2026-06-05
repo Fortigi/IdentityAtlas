@@ -6,9 +6,7 @@
 //
 // GET    /api/identities                    - Summary + paginated identity list
 // GET    /api/identities/:id                - Single identity with all linked accounts
-// PUT    /api/identities/:id/verify         - Mark identity as analyst-verified
-// DELETE /api/identities/:id/verify         - Remove analyst verification
-// PUT    /api/identities/:id/members/:userId/override - Analyst override on member link
+// PUT    /api/identities/:id/members/:userId/override - Analyst decision (confirm/reject) on a linked account
 // DELETE /api/identities/:id/members/:userId/override - Remove analyst override
 
 import { Router } from 'express';
@@ -54,7 +52,7 @@ router.get('/identities', async (req, res) => {
       return res.json({ available: false, data: [], total: 0, summary: null });
     }
 
-    const { search, minAccounts, confidence, verified, hrAnchored, orphanStatus, sort, limit, offset } = req.query;
+    const { search, minAccounts, confidence, hrAnchored, orphanStatus, sort, limit, offset } = req.query;
     const pageLimit = Math.min(parseInt(limit) || 50, 500);
     const pageOffset = parseInt(offset) || 0;
 
@@ -88,7 +86,6 @@ router.get('/identities', async (req, res) => {
           SUM(CASE WHEN "accountCount" > 1 THEN 1 ELSE 0 END) AS "multiAccountIdentities",
           SUM(CASE WHEN "accountCount" = 1 THEN 1 ELSE 0 END) AS "singleAccountIdentities",
           SUM("accountCount") AS "totalAccounts",
-          SUM(CASE WHEN "analystVerified" = TRUE THEN 1 ELSE 0 END) AS "verifiedCount",
           AVG(CAST("linkConfidence" AS FLOAT)) AS "avgConfidence",
           MAX("linkedAt") AS "lastLinkedAt"
           ${hasHrCols ? `, SUM(CASE WHEN "isHrAnchored" = true THEN 1 ELSE 0 END) AS "hrAnchoredCount",
@@ -125,12 +122,6 @@ router.get('/identities', async (req, res) => {
     if (confidence) {
       where += ' AND "linkConfidence" >= @confidence';
       inputs.confidence = parseInt(confidence);
-    }
-
-    if (verified === 'true') {
-      where += ' AND "analystVerified" = true';
-    } else if (verified === 'false') {
-      where += ' AND "analystVerified" = false';
     }
 
     if (hasHrCols) {
@@ -202,7 +193,7 @@ router.get('/identities', async (req, res) => {
           NULL AS "managerId", i.email AS mail,
           i."givenName", i.surname, i."employeeId", i."companyName", NULL AS "employeeType",
           i.city, i.country, i."officeLocation",
-          NULL AS "accountEnabled", i."linkedAt", i."analystVerified", i."analystNotes",
+          NULL AS "accountEnabled", i."linkedAt",
           (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
              FROM "GraphTagAssignments" ta
              INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" = 'identity'
@@ -499,53 +490,10 @@ router.get('/identities/:id/account-matrix', async (req, res) => {
   }
 });
 
-// PUT /api/identities/:id/verify — mark as analyst-verified
-router.put('/identities/:id/verify', async (req, res) => {
-  if (!useSql) return res.status(400).json({ error: 'SQL not configured' });
-
-  const identityId = req.params.id;
-  if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
-
-  const { notes } = req.body || {};
-  if (notes && notes.length > 2000) {
-    return res.status(400).json({ error: 'Notes must be 2000 characters or fewer' });
-  }
-
-  try {
-    const p = await db.getPool();
-    await timedRequest(p, 'identity-verify', res)
-      .input('id', identityId)
-      .input('notes', notes || null)
-      .query(`UPDATE "Identities" SET "analystVerified" = TRUE, "analystNotes" = @notes WHERE id = @id`);
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error verifying identity:', err.message);
-    res.status(500).json({ error: 'Failed to verify identity' });
-  }
-});
-
-// DELETE /api/identities/:id/verify — remove verification
-router.delete('/identities/:id/verify', async (req, res) => {
-  if (!useSql) return res.status(400).json({ error: 'SQL not configured' });
-
-  const identityId = req.params.id;
-  if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
-
-  try {
-    const p = await db.getPool();
-    await timedRequest(p, 'identity-unverify', res)
-      .input('id', identityId)
-      .query(`UPDATE "Identities" SET "analystVerified" = FALSE, "analystNotes" = NULL WHERE id = @id`);
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error removing identity verification:', err.message);
-    res.status(500).json({ error: 'Failed to remove verification' });
-  }
-});
-
-// PUT /api/identities/:id/members/:userId/override — analyst override on member
+// PUT /api/identities/:id/members/:userId/override — analyst decision on a
+// linked account. :userId is the account's principalId. action: confirmed
+// (lock the link) | rejected (unlink + keep account linking from re-adding it)
+// | moved. The linking engine respects these on re-run.
 router.put('/identities/:id/members/:userId/override', async (req, res) => {
   if (!useSql) return res.status(400).json({ error: 'SQL not configured' });
 
@@ -554,15 +502,9 @@ router.put('/identities/:id/members/:userId/override', async (req, res) => {
     return res.status(400).json({ error: 'Invalid ID format' });
   }
 
-  const { action, reason } = req.body || {};
+  const { action } = req.body || {};
   if (!action || !['confirmed', 'rejected', 'moved'].includes(action)) {
     return res.status(400).json({ error: 'Action must be one of: confirmed, rejected, moved' });
-  }
-  if (!reason || reason.trim().length < 3) {
-    return res.status(400).json({ error: 'Reason is required (min 3 characters)' });
-  }
-  if (reason.length > 500) {
-    return res.status(400).json({ error: 'Reason must be 500 characters or fewer' });
   }
 
   try {
@@ -571,14 +513,13 @@ router.put('/identities/:id/members/:userId/override', async (req, res) => {
       .input('identityId', identityId)
       .input('userId', userId)
       .input('action', action)
-      .input('reason', reason.trim())
       .query(`
         UPDATE "IdentityMembers"
-        SET "analystOverride" = @action, analystReason = @reason
-        WHERE "identityId" = @identityId AND "userId" = @userId
+        SET "analystOverride" = @action
+        WHERE "identityId" = @identityId AND "principalId" = @userId
       `);
 
-    res.json({ success: true, action, reason: reason.trim() });
+    res.json({ success: true, action });
   } catch (err) {
     console.error('Error setting member override:', err.message);
     res.status(500).json({ error: 'Failed to set member override' });
@@ -683,8 +624,8 @@ router.delete('/identities/:id/members/:userId/override', async (req, res) => {
       .input('userId', userId)
       .query(`
         UPDATE "IdentityMembers"
-        SET "analystOverride" = NULL, analystReason = NULL
-        WHERE "identityId" = @identityId AND "userId" = @userId
+        SET "analystOverride" = NULL
+        WHERE "identityId" = @identityId AND "principalId" = @userId
       `);
 
     res.json({ success: true });

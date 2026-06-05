@@ -2,3 +2,5 @@
 - Matrix: clicking a subject column that is an **identity** now opens the identity page (it used to always open a user account).
 - Matrix wizard: the context picker now only offers contexts that match what you're filtering — Identity rows → Identity contexts, User rows → User (Principal) contexts, and the resource side → Resource/System contexts.
 - Matrix (Identities view): each identity column now has an **expand** control that splits it into per-account sub-columns, so you can see each linked account's assignments side by side under the identity.
+- Identity page: the Relationships tab now lists the **linked accounts** with each account's own confidence, and lets you **Confirm** or **Remove** a linked account (Remove keeps account-linking from re-adding it; Undo reverts). Replaces the single overall confidence number / signals chip.
+- Removed the legacy "Verify Identity" action from the identity page (per-account confirm/remove replaces it). Fixed the analyst-decision endpoints, which previously referenced a non-existent column and never worked.

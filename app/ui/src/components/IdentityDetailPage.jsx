@@ -29,7 +29,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
   const [aggregate, setAggregate] = useState({});
   const [contextCount, setContextCount] = useState(0);
   const [riskData, setRiskData] = useState(null);
-  const [verifying, setVerifying] = useState(false);
+  const [busyMember, setBusyMember] = useState(null);
 
   const [activeTab, setActiveTab] = useState('attributes');
   const [timelineDays, setTimelineDays] = useState(90);
@@ -65,19 +65,22 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
-  // Verify/remove-verification is the only action kept on this page —
-  // per-member override lives in the dedicated correlation UI now.
-  const handleVerify = async () => {
-    setVerifying(true);
+  // Per-account analyst decision: confirm a link, reject (unlink) it, or undo a
+  // prior decision. The linking engine respects these on re-run.
+  const overrideMember = async (principalId, action) => {
+    setBusyMember(principalId);
     try {
-      const res = await authFetch(`/api/identities/${identityId}/verify`, {
-        method: identity.analystVerified ? 'DELETE' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: '' }),
-      });
+      const url = `/api/identities/${identityId}/members/${principalId}/override`;
+      const res = action === 'clear'
+        ? await authFetch(url, { method: 'DELETE' })
+        : await authFetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action }),
+          });
       if (res.ok) await fetchDetail();
-    } catch (err) { console.error('Failed to update verification:', err); }
-    finally { setVerifying(false); }
+    } catch (err) { console.error('Failed to update linked account:', err); }
+    finally { setBusyMember(null); }
   };
 
   const timeline = useTimeline('identity', identityId, authFetch, {
@@ -168,25 +171,11 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
                     </button>
                   )}
                   {hrAccount?.jobTitle && <span className="text-sm text-gray-500 dark:text-gray-400">{hrAccount.jobTitle}</span>}
-                  {identity.linkConfidence != null && <ConfidenceBar confidence={identity.linkConfidence} />}
-                  {identity.analystVerified && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700">
-                      Verified
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={handleVerify} disabled={verifying}
-              className={`text-xs px-3 py-1.5 rounded border ${
-                identity.analystVerified
-                  ? 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
-                  : 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/50'
-              }`}>
-              {identity.analystVerified ? 'Remove Verification' : 'Verify Identity'}
-            </button>
             <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1" title="Close">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -235,21 +224,59 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
               </div>
             )}
 
-            {/* Account linking is what attaches these accounts to one identity,
-                so its signals belong with the relationship view. */}
-            {identity.linkSignals && (
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  Account Linking Signals
-                  {identity.linkConfidence != null && <ConfidenceBar confidence={identity.linkConfidence} />}
-                </h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {identity.linkSignals.split(',').map(s => (
-                    <span key={s} className="inline-block bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded text-xs">{s.trim()}</span>
-                  ))}
-                </div>
+            {/* Linked accounts: the accounts account-linking attached to this
+                identity, each with the confidence we computed. Confirm to lock a
+                link, or Remove to unlink it (linking won't re-add a removed one). */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Linked Accounts</h3>
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {members.map(m => {
+                  const ov = m.analystOverride;
+                  const busy = busyMember === m.principalId;
+                  return (
+                    <div key={m.principalId} className="flex items-center justify-between gap-3 py-2">
+                      <div className="min-w-0">
+                        <button onClick={() => onOpenDetail?.('user', m.principalId, m.displayName)}
+                          className="text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline text-left truncate block max-w-full">
+                          {m.displayName}
+                        </button>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                          {m.accountType || 'Account'}
+                          {m.isPrimary ? ' · primary' : ''}
+                          {m.userPrincipalName ? ` · ${m.userPrincipalName}` : ''}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {m.linkConfidence != null && <ConfidenceBar confidence={m.linkConfidence} />}
+                        {ov && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                            ov === 'confirmed' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-700'
+                              : ov === 'rejected' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-700'
+                                : 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
+                          }`}>{ov}</span>
+                        )}
+                        {m.isPrimary ? (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">source</span>
+                        ) : ov ? (
+                          <button disabled={busy} onClick={() => overrideMember(m.principalId, 'clear')}
+                            className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">Undo</button>
+                        ) : (
+                          <>
+                            <button disabled={busy} onClick={() => overrideMember(m.principalId, 'confirmed')}
+                              className="text-xs px-2 py-1 rounded border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 disabled:opacity-50">Confirm</button>
+                            <button disabled={busy} onClick={() => overrideMember(m.principalId, 'rejected')}
+                              className="text-xs px-2 py-1 rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50">Remove</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {members.length === 0 && (
+                  <p className="text-xs text-gray-600 dark:text-gray-400 py-2">No linked accounts.</p>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
 
