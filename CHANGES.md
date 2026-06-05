@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Corrected the matrix "How to read this matrix" legend so it matches what the grid actually shows: only the four ways access is *held* — Direct, Indirect (via a nested resource), Eligible (just-in-time access), and Owner. Business-role, OAuth2, and app-role assignments already render as Direct (or Indirect for an app role inherited via a group), so they're no longer listed as separate badges; whether access is governed is shown by the cell colour.
+
+## Changes in this PR
+
 - Documented the colour-saturation rule in the UI Style Guide: solid fills (bars, chips, graph nodes) use soft pastel tiers while thin marks (chart lines, borders, icons, text) keep stronger colour — so future contributions stay consistent with the app's soft look.
 
 ## Changes in this PR
