@@ -596,7 +596,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
       <ConditionList
         title="Include"
         conditions={subject.include}
-        allowedTargets={['Principal', 'Identity']}
+        allowedTargets={rowType === 'identity' ? ['Identity'] : ['Principal']}
         contextMeta={contextMeta}
         columns={columns}
         onContextResolved={onContextResolved}
@@ -608,7 +608,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
       <ConditionList
         title="Exclude"
         conditions={subject.exclude}
-        allowedTargets={['Principal', 'Identity']}
+        allowedTargets={rowType === 'identity' ? ['Identity'] : ['Principal']}
         contextMeta={contextMeta}
         columns={columns}
         onContextResolved={onContextResolved}
