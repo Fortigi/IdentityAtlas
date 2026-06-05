@@ -232,7 +232,7 @@ jobs:
             /systems /users?limit=1 /resources?limit=1
             /permissions?userLimit=1 /sync-log /categories
             /tags /access-packages /risk-profiles
-            /admin/correlation-ruleset /admin/crawler-configs
+            /account-linking/config /admin/crawler-configs
             /version /openapi.json
           )
           for ep in "${ENDPOINTS[@]}"; do

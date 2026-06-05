@@ -166,7 +166,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
                     </button>
                   )}
                   {hrAccount?.jobTitle && <span className="text-sm text-gray-500 dark:text-gray-400">{hrAccount.jobTitle}</span>}
-                  {identity.correlationConfidence != null && <ConfidenceBar confidence={identity.correlationConfidence} />}
+                  {identity.linkConfidence != null && <ConfidenceBar confidence={identity.linkConfidence} />}
                   {identity.analystVerified && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700">
                       Verified
@@ -233,16 +233,16 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
               </div>
             )}
 
-            {/* Correlation is what links these accounts into one identity, so its
-                signals belong with the relationship view. */}
-            {identity.correlationSignals && (
+            {/* Account linking is what attaches these accounts to one identity,
+                so its signals belong with the relationship view. */}
+            {identity.linkSignals && (
               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  Correlation Signals
-                  {identity.correlationConfidence != null && <ConfidenceBar confidence={identity.correlationConfidence} />}
+                  Account Linking Signals
+                  {identity.linkConfidence != null && <ConfidenceBar confidence={identity.linkConfidence} />}
                 </h3>
                 <div className="flex flex-wrap gap-1.5">
-                  {identity.correlationSignals.split(',').map(s => (
+                  {identity.linkSignals.split(',').map(s => (
                     <span key={s} className="inline-block bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded text-xs">{s.trim()}</span>
                   ))}
                 </div>

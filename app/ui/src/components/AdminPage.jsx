@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { hasPermission } from '../auth/usePermissions';
 import ScheduleEditor from './ScheduleEditor';
@@ -9,7 +9,7 @@ const AuthSettingsPage = lazy(() => import('./AuthSettingsPage'));
 const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
 const RiskProfileWizard = lazy(() => import('./RiskProfileWizard'));
-const CorrelationWizard = lazy(() => import('./CorrelationWizard'));
+const AccountLinkingSettings = lazy(() => import('./AccountLinkingSettings'));
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -451,211 +451,6 @@ function ClassifiersSection() {
   return <Section title="Risk Classifiers" icon="🎯">{content()}</Section>;
 }
 
-// ── Correlation Ruleset section ───────────────────────────────────
-
-// ── New Correlation Ruleset launcher (opens the wizard) ───────────
-function NewCorrelationRulesetLauncher({ onRefresh }) {
-  const [open, setOpen] = useState(false);
-  const [bumpKey, setBumpKey] = useState(0);
-
-  const handleSaved = () => {
-    setBumpKey(k => k + 1);
-    onRefresh?.();
-  };
-
-  return (
-    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 flex items-center justify-between mb-4">
-      <div>
-        <div className="text-sm font-medium text-blue-900 dark:text-blue-200">Create a new account correlation ruleset</div>
-        <div className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
-          Generates correlation signals and account type rules to link accounts across systems.
-        </div>
-      </div>
-      <button onClick={() => setOpen(true)} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-        New Ruleset
-      </button>
-      {open && (
-        <Suspense fallback={null}>
-          <CorrelationWizard
-            key={bumpKey}
-            onClose={() => setOpen(false)}
-            onSaved={handleSaved}
-          />
-        </Suspense>
-      )}
-    </div>
-  );
-}
-
-function CorrelationSection() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('signals');
-  const { authFetch } = useAuth();
-
-  const loadData = () => {
-    setLoading(true);
-    authFetch('/api/admin/correlation-ruleset')
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => setData({ available: false }))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    loadData();
-  }, [authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const content = () => {
-    if (loading) return <p className="mt-4 text-sm text-gray-600 dark:text-gray-500">Loading...</p>;
-    if (!data?.available) {
-      return (
-        <div className="mt-4">
-          <NewCorrelationRulesetLauncher onRefresh={loadData} />
-          <NotConfigured message="No correlation ruleset saved yet. Click 'New Ruleset' above to create one via the wizard." />
-        </div>
-      );
-    }
-
-    const rs = data.ruleset || {};
-    const signals = rs.correlationSignals || rs.correlation_signals || [];
-    const accountTypeRules = rs.accountTypeRules || rs.account_type_rules || [];
-    const hrConfig = rs.hrSourceConfig || rs.hr_source_config || null;
-
-    return (
-      <div className="mt-4 space-y-3">
-        <NewCorrelationRulesetLauncher onRefresh={loadData} />
-
-        <div className="flex flex-wrap gap-2">
-          <MetaBadge label="Version" value={data.version} />
-          <MetaBadge label="Generated" value={fmt(data.generatedAt)} />
-          <MetaBadge label="Signals" value={signals.length} />
-          <MetaBadge label="Account type rules" value={accountTypeRules.length} />
-          {hrConfig?.enabled && <MetaBadge label="HR source" value="Enabled" />}
-        </div>
-
-        {/* Sub-tabs */}
-        <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mt-2">
-          {[
-            ['signals', `Correlation Signals (${signals.length})`],
-            ['accountTypes', `Account Types (${accountTypeRules.length})`],
-            ...(hrConfig ? [['hr', 'HR Source']] : []),
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === key
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {activeTab === 'signals' && (
-          signals.length === 0
-            ? <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">No correlation signals defined.</p>
-            : <div className="mt-2 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-gray-50 dark:bg-gray-700/50 text-left text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                      <th className="px-3 py-2 font-semibold">Signal</th>
-                      <th className="px-3 py-2 font-semibold">Type</th>
-                      <th className="px-3 py-2 font-semibold">Weight</th>
-                      <th className="px-3 py-2 font-semibold">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {signals.map((s, i) => (
-                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                        <td className="px-3 py-2 font-medium text-gray-800 dark:text-gray-200">{s.name || s.signal || '—'}</td>
-                        <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{s.type || s.matchType || '—'}</td>
-                        <td className="px-3 py-2 text-center">
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
-                            (s.weight || 0) >= 70 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
-                            (s.weight || 0) >= 40 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
-                            'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                          }`}>{s.weight ?? '—'}</span>
-                        </td>
-                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{s.description || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-        )}
-
-        {activeTab === 'accountTypes' && (
-          accountTypeRules.length === 0
-            ? <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">No account type rules defined.</p>
-            : <div className="mt-2 space-y-2">
-                {accountTypeRules.map((rule, i) => (
-                  <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm text-gray-800 dark:text-gray-200">{rule.accountType || rule.type || `Rule ${i + 1}`}</span>
-                      {rule.priority !== undefined && (
-                        <span className="text-xs text-gray-600 dark:text-gray-500">priority {rule.priority}</span>
-                      )}
-                    </div>
-                    {rule.patterns?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {rule.patterns.map((p, j) => (
-                          <code key={j} className="text-xs bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300">{p}</code>
-                        ))}
-                      </div>
-                    )}
-                    {rule.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{rule.description}</p>}
-                  </div>
-                ))}
-              </div>
-        )}
-
-        {activeTab === 'hr' && hrConfig && (
-          <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600 space-y-2">
-            <div className="flex flex-wrap gap-2">
-              <MetaBadge label="Enabled" value={hrConfig.enabled ? 'Yes' : 'No'} />
-              {hrConfig.sourceSystem && <MetaBadge label="Source" value={hrConfig.sourceSystem} />}
-            </div>
-            {hrConfig.indicators?.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Indicators</p>
-                <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-white dark:bg-gray-700/50 text-left text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                        <th className="px-3 py-2 font-semibold">Attribute</th>
-                        <th className="px-3 py-2 font-semibold">Value</th>
-                        <th className="px-3 py-2 font-semibold">Weight</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {hrConfig.indicators.map((ind, i) => (
-                        <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                          <td className="px-3 py-2 font-mono text-gray-700 dark:text-gray-300">{ind.attribute}</td>
-                          <td className="px-3 py-2 font-mono text-gray-700 dark:text-gray-300">{ind.value}</td>
-                          <td className="px-3 py-2 text-center">
-                            <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">{ind.weight ?? '—'}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <JsonViewer data={data.ruleset} />
-      </div>
-    );
-  };
-
-  return <Section title="Account Correlation Ruleset" icon="🔗">{content()}</Section>;
-}
 
 // ── Power Query workbook + read-API tokens ────────────────────────
 // Lets a tenant admin mint read-only API tokens (`fgr_…`) and download a
@@ -1359,9 +1154,9 @@ function DangerZoneSection({ onRefresh }) {
 const ADMIN_TABS = [
   { key: 'crawlers',     label: 'Crawlers',            description: 'Add, configure and run identity data crawlers',                                  requires: ['admin.crawlers'] },
   { key: 'data',         label: 'Data',                description: 'Export/import curated data and clean the database',                              requires: ['data.export.ui', 'admin.csv-import', 'admin.systems', 'admin.read-tokens', 'data.export.apikey'] },
-  { key: 'correlation',  label: 'Account Correlation', description: 'Rules for linking accounts to identities',                                       requires: ['admin.llm'] },
+  { key: 'account-linking', label: 'Account Linking',  description: 'Rules for linking orphan accounts to existing identities',                        requires: ['admin.crawlers'] },
   { key: 'risk-scoring', label: 'Risk Scoring',        description: 'Risk profile, classifiers and feature toggle',                                   requires: ['admin.llm', 'admin.crawlers'] },
-  { key: 'llm',          label: 'LLM Settings',        description: 'Configure the LLM provider used by risk scoring and account correlation',        requires: ['admin.llm'] },
+  { key: 'llm',          label: 'LLM Settings',        description: 'Configure the LLM provider used by risk scoring',                                requires: ['admin.llm'] },
   { key: 'performance',  label: 'Performance',         description: 'API and SQL performance metrics' },
 
   { key: 'auth',         label: 'Authentication',      description: 'Configure Entra ID single sign-on',                                              requires: ['admin.auth'] },
@@ -1948,7 +1743,11 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
           </>
         )}
 
-        {activeTab === 'correlation' && <CorrelationSection />}
+        {activeTab === 'account-linking' && (
+          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
+            <AccountLinkingSettings />
+          </Suspense>
+        )}
         {activeTab === 'risk-scoring' && <RiskScoringSection onRiskScoresRefresh={onRiskScoresRefresh} />}
         {activeTab === 'llm' && <LLMSettingsSection />}
 
