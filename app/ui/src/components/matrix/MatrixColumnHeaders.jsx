@@ -146,7 +146,7 @@ export default function MatrixColumnHeaders({
                 whiteSpace: 'nowrap',
                 margin: '0 auto',
               }}
-              onClick={() => onOpenDetail?.('user', user.id, user.displayName)}
+              onClick={() => onOpenDetail?.(user.memberType === 'Identity' ? 'identity' : 'user', user.id, user.displayName)}
             >
               {user.displayName}
             </div>

@@ -155,6 +155,7 @@ export default function MatrixView({
           jobTitle: d.jobTitle || '',
           department: d.department || '',
           upn: d.memberUPN || '',
+          memberType: d.memberType || '',
         });
       }
 

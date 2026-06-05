@@ -1,2 +1,4 @@
 - Identity relationship diagram: the identity now fans out to **Linked Accounts** and **Contexts** only. The access categories (groups, OAuth grants, eligible, governed, owned) hang off the Linked Accounts node as a roll-up across the accounts — reflecting that the accounts hold the access, not the identity. Expand a linked account to see that account's own access.
 - When you open an access category on an identity, each row now shows **which account** it came through (e.g. "via R.Euson · Admin").
+- Matrix: clicking a subject column that is an **identity** now opens the identity page (it used to always open a user account).
+- Matrix wizard: the context picker now only offers contexts relevant to the side you're filtering — Users/Identities contexts for the subject side, Resource/System contexts for the resource side.

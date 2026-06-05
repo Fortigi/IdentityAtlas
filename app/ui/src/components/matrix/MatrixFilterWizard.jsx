@@ -596,6 +596,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
       <ConditionList
         title="Include"
         conditions={subject.include}
+        allowedTargets={['Principal', 'Identity']}
         contextMeta={contextMeta}
         columns={columns}
         onContextResolved={onContextResolved}
@@ -607,6 +608,7 @@ function Step2Subject({ rowType, subject, contextMeta, columns, onContextResolve
       <ConditionList
         title="Exclude"
         conditions={subject.exclude}
+        allowedTargets={['Principal', 'Identity']}
         contextMeta={contextMeta}
         columns={columns}
         onContextResolved={onContextResolved}
@@ -630,6 +632,7 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
       <ConditionList
         title="Include"
         conditions={resource.include}
+        allowedTargets={['Resource', 'System']}
         contextMeta={contextMeta}
         columns={columns}
         onContextResolved={onContextResolved}
@@ -641,6 +644,7 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
       <ConditionList
         title="Exclude"
         conditions={resource.exclude}
+        allowedTargets={['Resource', 'System']}
         contextMeta={contextMeta}
         columns={columns}
         onContextResolved={onContextResolved}
@@ -655,7 +659,7 @@ function Step3Resource({ resource, contextMeta, columns, onContextResolved, onAd
 
 // ─── Condition list ────────────────────────────────────────────────
 
-function ConditionList({ title, conditions, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate, emptyHint }) {
+function ConditionList({ title, conditions, contextMeta, columns, onContextResolved, onAdd, onRemove, onUpdate, emptyHint, allowedTargets }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
 
@@ -697,6 +701,7 @@ function ConditionList({ title, conditions, contextMeta, columns, onContextResol
       <ContextPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
+        targetTypes={allowedTargets}
         onPick={(node) => {
           onAdd({ kind: 'context', contextId: node.id, includeChildren: true });
           if (node) onContextResolved(node);

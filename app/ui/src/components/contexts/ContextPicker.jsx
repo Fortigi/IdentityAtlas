@@ -31,6 +31,7 @@ export default function ContextPicker({
   onPick,
   value = null,
   targetType = null,
+  targetTypes = null,   // array — restrict to roots whose targetType is in this set
   excludeIds = null,
   title = 'Pick a context',
   subtitle,
@@ -92,13 +93,15 @@ export default function ContextPicker({
       return out;
     }
     let result = prune(trees);
-    if (targetType) {
-      // The DB enforces same targetType throughout a tree, so root-level
-      // filter is sufficient.
+    // The DB enforces same targetType throughout a tree, so a root-level filter
+    // is sufficient. `targetTypes` (a set) takes precedence over single `targetType`.
+    if (Array.isArray(targetTypes) && targetTypes.length) {
+      result = result.filter(r => targetTypes.includes(r.targetType));
+    } else if (targetType) {
       result = result.filter(r => r.targetType === targetType);
     }
     return result;
-  }, [trees, targetType, excludeSet]);
+  }, [trees, targetType, targetTypes, excludeSet]);
 
   // Apply search. In tree mode we keep the structure but only show paths
   // that contain matches. In list mode we filter the flat result.
