@@ -483,7 +483,7 @@ if (-not $SkipIntegration) {
                         'AssignmentRequests', 'CertificationDecisions', 'Crawlers', 'CrawlerAuditLog',
                         'CrawlerConfigs', 'CrawlerJobs', 'WorkerConfig', 'GraphSyncLog',
                         'GraphTags', 'GovernanceCategories', 'GraphRiskProfiles', 'GraphRiskClassifiers',
-                        'RiskScores', 'GraphResourceClusters', 'GraphCorrelationRulesets',
+                        'RiskScores', 'GraphResourceClusters', 'AccountLinkingConfig', 'AccountLinkingRuns',
                         # Added by migration 009 (history) and 010 (secrets + risk v2)
                         '_history', 'Secrets', 'RiskProfiles', 'RiskClassifiers', 'ScoringRuns')
     try {
@@ -670,7 +670,7 @@ if (-not $SkipIntegration) {
 
         $smokeEndpoints = @(
             '/auth-config', '/features', '/admin/status', '/admin/auth-settings',
-            '/admin/risk-profile', '/admin/classifiers', '/admin/correlation-ruleset',
+            '/admin/risk-profile', '/admin/classifiers', '/account-linking/config',
             '/admin/crawlers', '/admin/crawler-configs', '/admin/crawler-jobs',
             '/admin/container-stats', '/systems', '/users', '/resources',
             '/contexts', '/identities', '/access-package-groups', '/permissions',
