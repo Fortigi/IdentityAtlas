@@ -514,7 +514,7 @@ router.get('/risk-scores/identities', async (req, res) => {
     request.input('offset', offset);
     request.input('limit', limit);
     const result = await request.query(`
-      SELECT rs.*, i."displayName", i."accountCount", i."correlationConfidence", i.department,
+      SELECT rs.*, i."displayName", i."accountCount", i."linkConfidence", i.department,
              i."jobTitle", i.email
       FROM "RiskScores" rs
       INNER JOIN "Identities" i ON rs."entityId" = i.id AND ${TEMPORAL_FILTER}
