@@ -1,3 +1,4 @@
 - Identity relationship diagram: the identity fans out to **Linked Accounts** and **Contexts** only. Open Linked Accounts to see the individual accounts, then drill into an account to see that account's own access (groups, OAuth grants, etc.) — the same way every other entity graph works. An identity holds no access of its own; its accounts do.
 - Matrix: clicking a subject column that is an **identity** now opens the identity page (it used to always open a user account).
 - Matrix wizard: the context picker now only offers contexts that match what you're filtering — Identity rows → Identity contexts, User rows → User (Principal) contexts, and the resource side → Resource/System contexts.
+- Matrix (Identities view): each identity column now has an **expand** control that splits it into per-account sub-columns, so you can see each linked account's assignments side by side under the identity.

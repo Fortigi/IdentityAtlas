@@ -8,6 +8,9 @@ export default function MatrixColumnHeaders({
   onSortByCount,
   accessPackages = [],
   onOpenDetail,
+  expandedIdentities,
+  onToggleIdentity,
+  loadingIdentityCols,
 }) {
   const isDark = useIsDark();
 
@@ -123,35 +126,51 @@ export default function MatrixColumnHeaders({
           Type
         </th>
 
-        {users.map(user => (
-          <th
-            key={user.id}
-            className="border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-gray-100 dark:bg-gray-800"
-            style={{
-              height: '100px',
-              width: '24px',
-              minWidth: '24px',
-              verticalAlign: 'bottom',
-            }}
-            title={`${user.displayName}\n${user.jobTitle || ''}\n${user.department || ''}`}
-          >
-            <div
-              className="text-[10px] text-gray-700 dark:text-gray-300 font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-              style={{
-                writingMode: 'vertical-lr',
-                textOrientation: 'mixed',
-                transform: 'rotate(180deg)',
-                maxHeight: '95px',
-                overflow: 'hidden',
-                whiteSpace: 'nowrap',
-                margin: '0 auto',
-              }}
-              onClick={() => onOpenDetail?.(user.memberType === 'Identity' ? 'identity' : 'user', user.id, user.displayName)}
+        {users.map(user => {
+          const isIdentity = user.memberType === 'Identity';
+          const isAcct = !!user.isAccountCol;
+          const isExpanded = expandedIdentities?.has(user.id);
+          const isLoadingCol = loadingIdentityCols?.has(user.id);
+          return (
+            <th
+              key={user.id}
+              className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${
+                isAcct ? 'bg-blue-50 dark:bg-blue-900/20 border-l border-l-blue-200 dark:border-l-blue-800' : 'bg-gray-100 dark:bg-gray-800'
+              }`}
+              style={{ height: '100px', width: '24px', minWidth: '24px', verticalAlign: 'bottom' }}
+              title={`${user.displayName}${isAcct ? ` (account${user.accountType ? ' · ' + user.accountType : ''})` : ''}\n${user.jobTitle || ''}\n${user.department || ''}`}
             >
-              {user.displayName}
-            </div>
-          </th>
-        ))}
+              <div className="flex flex-col items-center justify-end h-full">
+                {isIdentity && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleIdentity?.(user.id); }}
+                    className="w-4 h-4 flex items-center justify-center text-[10px] leading-none text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
+                    title={isExpanded ? 'Collapse accounts' : 'Expand into linked accounts'}
+                  >
+                    {isLoadingCol ? '⋯' : (isExpanded ? '▾' : '▸')}
+                  </button>
+                )}
+                <div
+                  className={`text-[10px] font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 ${
+                    isAcct ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                  style={{
+                    writingMode: 'vertical-lr',
+                    textOrientation: 'mixed',
+                    transform: 'rotate(180deg)',
+                    maxHeight: isIdentity ? '78px' : '95px',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    margin: '0 auto',
+                  }}
+                  onClick={() => onOpenDetail?.(isIdentity ? 'identity' : 'user', user.id, user.displayName)}
+                >
+                  {isAcct && user.accountType ? `${user.displayName} · ${user.accountType}` : user.displayName}
+                </div>
+              </div>
+            </th>
+          );
+        })}
 
         {/* Right metadata column headers row 2 — # | Description */}
         <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none"

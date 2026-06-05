@@ -460,6 +460,45 @@ router.get('/identities/:id/assignments', async (req, res) => {
   }
 });
 
+// GET /api/identities/:id/account-matrix
+// Per-account data for the matrix "expand identity → accounts" column view:
+// the identity's linked accounts plus each account's (resource, membershipType)
+// rows from the SAME view the matrix uses, so account sub-columns render cells
+// identical to a principal-scoped matrix.
+router.get('/identities/:id/account-matrix', async (req, res) => {
+  if (!useSql) return res.json({ accounts: [], memberships: [] });
+  const identityId = req.params.id;
+  if (!UUID_RE.test(identityId)) return res.status(400).json({ error: 'Invalid identity ID' });
+  try {
+    const p = await db.getPool();
+    const accounts = (await timedRequest(p, 'identity-account-matrix-accounts', res)
+      .input('id', identityId)
+      .query(`
+        SELECT m."principalId" AS id,
+               COALESCE(pr."displayName", m."displayName") AS "displayName",
+               m."accountType" AS "accountType",
+               m."isPrimary"   AS "isPrimary"
+        FROM "IdentityMembers" m
+        LEFT JOIN "Principals" pr ON pr.id = m."principalId"
+        WHERE m."identityId" = @id
+        ORDER BY m."isPrimary" DESC NULLS LAST, "displayName"
+      `)).recordset;
+    const memberships = (await timedRequest(p, 'identity-account-matrix-memberships', res)
+      .input('id', identityId)
+      .query(`
+        SELECT vp."principalId"    AS "principalId",
+               vp."resourceId"     AS "resourceId",
+               vp."membershipType" AS "membershipType"
+        FROM "vw_ResourceUserPermissionAssignments" vp
+        WHERE vp."principalId" IN (SELECT "principalId" FROM "IdentityMembers" WHERE "identityId" = @id)
+      `)).recordset;
+    res.json({ accounts, memberships });
+  } catch (err) {
+    console.error('Error fetching identity account-matrix:', err.message);
+    res.status(500).json({ error: 'Failed to fetch account matrix' });
+  }
+});
+
 // PUT /api/identities/:id/verify — mark as analyst-verified
 router.put('/identities/:id/verify', async (req, res) => {
   if (!useSql) return res.status(400).json({ error: 'SQL not configured' });

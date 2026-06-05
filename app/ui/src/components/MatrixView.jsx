@@ -65,6 +65,38 @@ export default function MatrixView({
   const [nestedDataCache, setNestedDataCache] = useState(new Map());
   const [loadingNested, setLoadingNested] = useState(new Set());
 
+  // ─── Identity column expansion (show per-account sub-columns) ────
+  const [expandedIdentities, setExpandedIdentities] = useState(new Set());
+  const [accountMatrixCache, setAccountMatrixCache] = useState(new Map()); // identityId → { accounts, memberships: Map }
+  const [loadingIdentityCols, setLoadingIdentityCols] = useState(new Set());
+
+  const toggleIdentityColumn = useCallback(async (identityId) => {
+    if (expandedIdentities.has(identityId)) {
+      setExpandedIdentities(prev => { const n = new Set(prev); n.delete(identityId); return n; });
+      return;
+    }
+    if (!accountMatrixCache.has(identityId)) {
+      setLoadingIdentityCols(prev => new Set(prev).add(identityId));
+      try {
+        const res = await authFetch(`/api/identities/${encodeURIComponent(identityId)}/account-matrix`);
+        const data = await res.json();
+        const mm = new Map();
+        for (const m of (data.memberships || [])) {
+          const key = `${m.resourceId}|${m.principalId}`;
+          if (!mm.has(key)) mm.set(key, new Set());
+          mm.get(key).add(m.membershipType);
+        }
+        setAccountMatrixCache(prev => new Map(prev).set(identityId, { accounts: data.accounts || [], memberships: mm }));
+      } catch (err) {
+        console.error('Failed to load account matrix:', err);
+        setLoadingIdentityCols(prev => { const n = new Set(prev); n.delete(identityId); return n; });
+        return;
+      }
+      setLoadingIdentityCols(prev => { const n = new Set(prev); n.delete(identityId); return n; });
+    }
+    setExpandedIdentities(prev => new Set(prev).add(identityId));
+  }, [expandedIdentities, accountMatrixCache, authFetch]);
+
   // Fetch which groups have nested groups (once on mount)
   useEffect(() => {
     let cancelled = false;
@@ -609,14 +641,57 @@ export default function MatrixView({
   // what that view is meant to exclude. Kept for All / Governed / Gaps.
   const visibleAccessPackages = managedFilter === 'unmanaged' ? [] : accessPackages;
 
+  // Columns rendered = identity/principal subjects with per-account sub-columns
+  // spliced in after any expanded identity. Analytics above stay keyed on the
+  // identity-only `users`; only rendering uses these augmented sets.
+  const colUsers = useMemo(() => {
+    if (expandedIdentities.size === 0) return users;
+    const out = [];
+    for (const u of users) {
+      out.push(u);
+      if (u.memberType === 'Identity' && expandedIdentities.has(u.id)) {
+        const cache = accountMatrixCache.get(u.id);
+        for (const acc of (cache?.accounts || [])) {
+          out.push({
+            id: acc.id,
+            displayName: acc.displayName || acc.id,
+            jobTitle: u.jobTitle || '',     // inherit so the merged title header stays contiguous
+            department: u.department || '',
+            upn: '',
+            memberType: 'Principal',
+            isAccountCol: true,
+            parentId: u.id,
+            accountType: acc.accountType || null,
+            isPrimary: !!acc.isPrimary,
+          });
+        }
+      }
+    }
+    return out;
+  }, [users, expandedIdentities, accountMatrixCache]);
+
+  const colMemberships = useMemo(() => {
+    if (expandedIdentities.size === 0) return displayMemberships;
+    const merged = new Map(displayMemberships);
+    for (const id of expandedIdentities) {
+      const cache = accountMatrixCache.get(id);
+      if (!cache) continue;
+      for (const [k, v] of cache.memberships) merged.set(k, v);
+    }
+    return merged;
+  }, [displayMemberships, expandedIdentities, accountMatrixCache]);
+
   // Shared column headers element (used by both sortable and static table)
   const columnHeaders = (
     <MatrixColumnHeaders
-      users={users}
+      users={colUsers}
       infoColumnCount={infoColumnCount}
       onSortByCount={handleSortByCount}
       accessPackages={visibleAccessPackages}
       onOpenDetail={onOpenDetail}
+      expandedIdentities={expandedIdentities}
+      onToggleIdentity={toggleIdentityColumn}
+      loadingIdentityCols={loadingIdentityCols}
     />
   );
 
@@ -678,8 +753,8 @@ export default function MatrixView({
               groupIds={groupIds}
               onDragEnd={handleRowDragEnd}
               columnHeaders={columnHeaders}
-              users={users}
-              memberships={displayMemberships}
+              users={colUsers}
+              memberships={colMemberships}
               managedMap={managedMap}
               managedApMap={managedApMap}
               apIdToIndex={apIdToIndex}
@@ -700,9 +775,9 @@ export default function MatrixView({
                   <MatrixGroupRow
                     key={group.id}
                     group={group}
-                    users={users}
-                    totalUsers={users.length}
-                    memberships={displayMemberships}
+                    users={colUsers}
+                    totalUsers={colUsers.length}
+                    memberships={colMemberships}
                     managedMap={managedMap}
                     managedApMap={managedApMap}
                     apIdToIndex={apIdToIndex}
