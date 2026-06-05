@@ -13,6 +13,16 @@ import useTimeline from '../hooks/useTimeline';
 import useFeatures from '../hooks/useFeatures';
 import { getRootNodes } from './entityGraphShape';
 
+const ACCOUNT_TYPE_COLORS = {
+  Member:           'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+  Guest:            'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-700',
+  ServicePrincipal: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-700',
+  Application:      'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-700',
+  ManagedIdentity:  'bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-700',
+  Deleted:          'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-700',
+};
+const ACCOUNT_TYPE_COLORS_DEFAULT = 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+
 const HEADER_FIELDS = ['userPrincipalName', 'email', 'department', 'jobTitle', 'companyName'];
 const HIDDEN_FIELDS = new Set([
   'displayName', ...HEADER_FIELDS, ...RISK_FIELDS,
@@ -145,7 +155,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>
                 {attributes.principalType && (
-                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${ACCOUNT_TYPE_COLORS[attributes.principalType] || ACCOUNT_TYPE_COLORS_DEFAULT}`}>
                     {attributes.principalType}
                   </span>
                 )}
