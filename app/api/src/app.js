@@ -358,7 +358,7 @@ export function createApp() {
   // In production, serve the frontend build output
   const frontendDist = process.env.FRONTEND_DIST || join(__dirname, '../../frontend/dist');
   app.use(express.static(frontendDist));
-  app.get('*', publicLimiter, (req, res, next) => {
+  app.get('*path', publicLimiter, (req, res, next) => {
     // Only serve index.html for non-API routes (SPA fallback)
     if (req.path.startsWith('/api')) return next();
     res.sendFile(join(frontendDist, 'index.html'));
