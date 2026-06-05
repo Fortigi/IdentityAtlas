@@ -85,7 +85,7 @@ function EntityTable({ entities, entityType, onOpenDetail }) {
     identity: [
       { key: 'accountCount', label: 'Accounts', render: e => e.accountCount ?? '\u2014' },
       { key: 'department', label: 'Department', render: e => e.department || '\u2014' },
-      { key: 'correlationConfidence', label: 'Confidence', render: e => e.correlationConfidence != null ? `${Math.round(e.correlationConfidence * 100)}%` : '\u2014' },
+      { key: 'linkConfidence', label: 'Confidence', render: e => e.linkConfidence != null ? `${Math.round(e.linkConfidence * 100)}%` : '\u2014' },
     ],
   };
 
