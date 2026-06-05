@@ -124,6 +124,8 @@ nav:
       - History: history.md
       - Contributing:
           - UI Style Guide: contributing/style-guide.md
+      - User Experience:
+          - Assessment & Remediation: ux/assessment.md
       - Security:
           - Assessment & Remediation: security/assessment.md
 
