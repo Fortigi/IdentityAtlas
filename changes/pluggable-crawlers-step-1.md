@@ -8,3 +8,4 @@
 - Extracted demo dataset logic into its own crawler script (`tools/crawlers/demo/Start-DemoCrawler.ps1`)
 - Restored Pester code-quality coverage for `tools/crawlers/` (CmdletBinding, secrets, Dutch comments); the file move from `tools/powershell-sdk/omada/` had silently dropped that coverage
 - Added `[CmdletBinding()]` to `Get-OmadaRefValue`, `Get-OmadaRefUid`, and `Get-OmadaEntitySets` (detected by the restored coverage gate)
+- Added `tools/crawlers/CLAUDE.md`: crawler authoring guide covering the manifest schema, auto-discovery, dependency system, and OData base layer
