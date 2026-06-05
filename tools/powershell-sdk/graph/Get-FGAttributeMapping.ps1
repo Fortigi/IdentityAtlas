@@ -112,8 +112,8 @@ function Get-FGAttributeMapping {
                             # Matches all text between square brackets [...]
                             $sourceAttributes = @()
                             if ($attrMapping.source.expression) {
-                                $matches = [regex]::Matches($attrMapping.source.expression, '\[([^\]]+)\]')
-                                $sourceAttributes = $matches | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
+                                $regexMatches = [regex]::Matches($attrMapping.source.expression, '\[([^\]]+)\]')
+                                $sourceAttributes = $regexMatches | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
                             }
 
                             # Build the mapping object

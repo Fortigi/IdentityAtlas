@@ -1982,10 +1982,10 @@ if ($SyncOAuth2Grants) {
     # same ID whether generated here or server-side.
     function New-OAuth2ScopeResourceId {
         param([string]$ClientSpId, [string]$TargetApiSpId, [string]$Scope)
-        $input = "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
+        $hashInput = "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
         $md5 = [System.Security.Cryptography.MD5]::Create()
         try {
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($input)
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($hashInput)
             $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
         } finally {
             $md5.Dispose()
