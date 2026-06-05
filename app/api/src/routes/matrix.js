@@ -78,26 +78,45 @@ async function getIdentityColumnValues() {
   if (identityValuesCache && (now - identityValuesCacheTime) < IDENTITY_CACHE_TTL) {
     return identityValuesCache;
   }
+  const grouped = {};
+
+  // Distinct values for real, filterable columns.
   const cols = await getIdentityColumns();
   const filterable = cols.filter(c => FILTERABLE_TYPES.has(c.type) && SAFE_IDENT_RE.test(c.rawName));
-  if (filterable.length === 0) {
-    identityValuesCache = {};
-    identityValuesCacheTime = now;
-    return identityValuesCache;
+  if (filterable.length > 0) {
+    const parts = filterable.map(c =>
+      `SELECT '${c.name}' AS col, val FROM (
+         SELECT DISTINCT "${c.rawName}"::text AS val FROM "Identities"
+          WHERE "${c.rawName}" IS NOT NULL AND "${c.rawName}"::text <> ''
+          LIMIT 500
+       ) t`
+    );
+    const r = await db.query(parts.join('\nUNION ALL\n') + '\nORDER BY col, val');
+    for (const row of r.rows) {
+      if (!grouped[row.col]) grouped[row.col] = [];
+      grouped[row.col].push(row.val);
+    }
   }
-  const parts = filterable.map(c =>
-    `SELECT '${c.name}' AS col, val FROM (
-       SELECT DISTINCT "${c.rawName}"::text AS val FROM "Identities"
-        WHERE "${c.rawName}" IS NOT NULL AND "${c.rawName}"::text <> ''
-        LIMIT 500
-     ) t`
-  );
-  const r = await db.query(parts.join('\nUNION ALL\n') + '\nORDER BY col, val');
-  const grouped = {};
-  for (const row of r.rows) {
-    if (!grouped[row.col]) grouped[row.col] = [];
-    grouped[row.col].push(row.val);
-  }
+
+  // Extension-attribute keys + distinct values, surfaced as ext.<key> so they
+  // can be picked and filtered just like Principal/Resource ext attributes.
+  try {
+    const ext = await db.query(`
+      SELECT col, val FROM (
+        SELECT DISTINCT 'ext.' || e.key AS col, e.value AS val
+          FROM "Identities" i, LATERAL jsonb_each_text(i."extendedAttributes") e
+         WHERE i."extendedAttributes" IS NOT NULL
+           AND e.value IS NOT NULL AND e.value <> ''
+      ) t
+      ORDER BY col, val
+      LIMIT 5000
+    `);
+    for (const row of ext.rows) {
+      if (!grouped[row.col]) grouped[row.col] = [];
+      if (grouped[row.col].length < 500) grouped[row.col].push(row.val);
+    }
+  } catch { /* extendedAttributes column may be absent on older schemas */ }
+
   identityValuesCache = grouped;
   identityValuesCacheTime = now;
   return identityValuesCache;
