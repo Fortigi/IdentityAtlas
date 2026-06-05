@@ -95,7 +95,7 @@ router.get('/user/:id', async (req, res) => {
                        "riskStructuralScore", "riskPropagatedScore", "riskExplanation",
                        "riskClassifierMatches", "riskOverride", "riskOverrideReason", "riskScoredAt"
                   FROM "RiskScores"
-                 WHERE "entityId" = @id AND "entityType" = 'Principal'
+                 WHERE "entityId"::text = @id AND "entityType" = 'Principal'
                  LIMIT 1`);
       if (rs.recordset.length > 0) Object.assign(attributes, cleanRow(rs.recordset[0]));
     } catch { /* RiskScores may not exist on older deployments */ }
