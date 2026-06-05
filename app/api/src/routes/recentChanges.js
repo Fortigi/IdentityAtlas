@@ -80,9 +80,9 @@ function formatHistoryValue(val) {
   return String(val);
 }
 
-// Diff two Principal snapshots → [{ field, from, to }] for changed scalar
-// fields, mirroring computeHistoryDiffs' skip rules.
-export function diffPrincipalRow(prev, next) {
+// Diff two row snapshots → [{ field, from, to }] for changed scalar fields,
+// mirroring computeHistoryDiffs' skip rules. Generic across entity tables.
+export function diffRow(prev, next) {
   const before = prev || {};
   const after = next || {};
   const changes = [];
@@ -100,85 +100,143 @@ function humanizeField(key) {
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
 }
 
+const ATTR_TABLES = new Set(['Principals', 'Resources', 'Identities', 'Contexts']);
+
 // Build the merged, time-sorted timeline from raw _history rows (newest-first)
-// for a user. `labels` provides synchronous lookups resolved by the caller:
+// for ANY entity (user / resource / access-package / identity). `entityId` is
+// used to detect which side of a join we're viewing (e.g. on a resource page a
+// ResourceAssignment's counterparty is the principal; on a user page it's the
+// resource). `labels` provides synchronous lookups resolved by the caller:
 //   { resource(id) -> {displayName,resourceType}, principal(id) -> name,
 //     identity(id) -> name }
-export function buildUserTimeline(rows, labels = {}) {
+export function buildEntityTimeline(entityKind, entityId, rows, labels = {}) {
   const resource = labels.resource || (() => null);
   const principal = labels.principal || (() => null);
   const identity = labels.identity || (() => null);
   const events = [];
   let addedCount = 0, removedCount = 0, changedCount = 0;
 
+  const pushAttr = (row, c) => {
+    changedCount++;
+    events.push({
+      at: row.changedAt, operation: 'changed', eventKind: 'attribute',
+      summary: `${humanizeField(c.field)}: ${c.from} → ${c.to}`,
+      counterpartyKind: null, counterpartyId: null, counterpartyLabel: null, attribute: c,
+    });
+  };
+
   for (const row of rows) {
     const data = row.rowData || {};
     const prev = row.prevData || {};
-    if (row.tableName === 'ResourceAssignments') {
-      const resId = data.resourceId || prev.resourceId;
-      const info = resource(resId);
-      const resName = info?.displayName || resId;
-      const kind = resourceCounterpartyKind(info?.resourceType);
-      const assignType = data.assignmentType || prev.assignmentType;
-      if (row.operation === 'I') {
-        addedCount++;
-        events.push(toEvent(row, `Added to ${resName}${assignType ? ` (${assignType})` : ''}`,
-          { kind, id: resId, label: resName, eventKind: 'assignment' }));
-      } else if (row.operation === 'D') {
-        removedCount++;
-        events.push(toEvent(row, `Removed from ${resName}${assignType ? ` (${assignType})` : ''}`,
-          { kind, id: resId, label: resName, eventKind: 'assignment' }));
-      }
-    } else if (row.tableName === 'IdentityMembers') {
-      const identId = data.identityId || prev.identityId;
-      const label = identity(identId) || identId;
-      if (row.operation === 'I') {
-        addedCount++;
-        events.push(toEvent(row, `Linked to identity ${label}`,
-          { kind: 'identity', id: identId, label, eventKind: 'identity-member' }));
-      } else if (row.operation === 'D') {
-        removedCount++;
-        events.push(toEvent(row, `Unlinked from identity ${label}`,
-          { kind: 'identity', id: identId, label, eventKind: 'identity-member' }));
-      }
-    } else if (row.tableName === 'Principals') {
-      // Manager change → its own relationship event (skipped by the attr diff).
-      const before = prev.managerId || null;
-      const after = data.managerId || null;
-      if (row.operation === 'U' && before !== after) {
-        const newLabel = principal(after) || after || '(none)';
-        changedCount++;
-        events.push(toEvent(row, after ? `Manager changed to ${newLabel}` : 'Manager removed',
-          { kind: after ? 'user' : null, id: after, label: newLabel, eventKind: 'manager' }));
+    const t = row.tableName;
+
+    if (ATTR_TABLES.has(t)) {
+      // Manager change (Principals only) → its own relationship event.
+      if (t === 'Principals' && row.operation === 'U') {
+        const before = prev.managerId || null, after = data.managerId || null;
+        if (before !== after) {
+          const lbl = principal(after) || after || '(none)';
+          changedCount++;
+          events.push(toEvent(row, after ? `Manager changed to ${lbl}` : 'Manager removed',
+            { kind: after ? 'user' : null, id: after, label: lbl, eventKind: 'manager' }));
+        }
       }
       if (row.operation === 'U') {
-        for (const c of diffPrincipalRow(prev, data)) {
-          changedCount++;
-          events.push({
-            at: row.changedAt,
-            operation: 'changed',
-            eventKind: 'attribute',
-            summary: `${humanizeField(c.field)}: ${c.from} → ${c.to}`,
-            counterpartyKind: null,
-            counterpartyId: null,
-            counterpartyLabel: null,
-            attribute: c,
-          });
-        }
+        for (const c of diffRow(prev, data)) pushAttr(row, c);
       } else if (row.operation === 'I') {
-        addedCount++;
-        events.push(toEvent(row, 'Account created', { eventKind: 'attribute' }));
+        addedCount++; events.push(toEvent(row, 'Created', { eventKind: 'attribute' }));
       } else if (row.operation === 'D') {
-        removedCount++;
-        events.push(toEvent(row, 'Account removed', { eventKind: 'attribute' }));
+        removedCount++; events.push(toEvent(row, 'Deleted', { eventKind: 'attribute' }));
       }
+      continue;
+    }
+
+    if (t === 'ResourceAssignments') {
+      const princId = data.principalId || prev.principalId;
+      const resId = data.resourceId || prev.resourceId;
+      const assignType = data.assignmentType || prev.assignmentType;
+      const suffix = assignType ? ` (${assignType})` : '';
+      if (princId === entityId) {
+        // We're the principal — counterparty is the resource.
+        const info = resource(resId); const name = info?.displayName || resId;
+        const kind = resourceCounterpartyKind(info?.resourceType);
+        if (row.operation === 'I') { addedCount++; events.push(toEvent(row, `Added to ${name}${suffix}`, { kind, id: resId, label: name, eventKind: 'assignment' })); }
+        else if (row.operation === 'D') { removedCount++; events.push(toEvent(row, `Removed from ${name}${suffix}`, { kind, id: resId, label: name, eventKind: 'assignment' })); }
+      } else {
+        // We're the resource — counterparty is the principal.
+        const name = principal(princId) || princId;
+        if (row.operation === 'I') { addedCount++; events.push(toEvent(row, `${name} granted${suffix}`, { kind: 'user', id: princId, label: name, eventKind: 'assignment' })); }
+        else if (row.operation === 'D') { removedCount++; events.push(toEvent(row, `${name} removed${suffix}`, { kind: 'user', id: princId, label: name, eventKind: 'assignment' })); }
+      }
+      continue;
+    }
+
+    if (t === 'ResourceRelationships') {
+      const childId = data.childResourceId || prev.childResourceId;
+      const parentId = data.parentResourceId || prev.parentResourceId;
+      const relType = data.relationshipType || prev.relationshipType;
+      const usIsChild = childId === entityId;
+      const otherId = usIsChild ? parentId : childId;
+      const info = resource(otherId); const name = info?.displayName || otherId;
+      const verb = usIsChild
+        ? (row.operation === 'I' ? 'Added to' : 'Removed from')
+        : (row.operation === 'I' ? 'Now contains' : 'No longer contains');
+      if (row.operation === 'I') addedCount++; else if (row.operation === 'D') removedCount++;
+      events.push(toEvent(row, `${verb} ${name}${relType ? ` (${relType})` : ''}`,
+        { kind: resourceCounterpartyKind(info?.resourceType), id: otherId, label: name, eventKind: 'relationship' }));
+      continue;
+    }
+
+    if (t === 'IdentityMembers') {
+      const identId = data.identityId || prev.identityId;
+      const princId = data.principalId || prev.principalId;
+      if (identId === entityId) {
+        // We're the identity — counterparty is the linked account (principal).
+        const name = principal(princId) || princId;
+        if (row.operation === 'I') { addedCount++; events.push(toEvent(row, `Account ${name} linked`, { kind: 'user', id: princId, label: name, eventKind: 'identity-member' })); }
+        else if (row.operation === 'D') { removedCount++; events.push(toEvent(row, `Account ${name} unlinked`, { kind: 'user', id: princId, label: name, eventKind: 'identity-member' })); }
+      } else {
+        // We're the principal — counterparty is the identity.
+        const name = identity(identId) || identId;
+        if (row.operation === 'I') { addedCount++; events.push(toEvent(row, `Linked to identity ${name}`, { kind: 'identity', id: identId, label: name, eventKind: 'identity-member' })); }
+        else if (row.operation === 'D') { removedCount++; events.push(toEvent(row, `Unlinked from identity ${name}`, { kind: 'identity', id: identId, label: name, eventKind: 'identity-member' })); }
+      }
+      continue;
     }
   }
 
-  // Attribute fan-out preserves row order; re-sort the whole stream by time so
-  // attribute + relationship events from different rows interleave correctly.
   events.sort((a, b) => new Date(b.at) - new Date(a.at));
   return { events, addedCount, removedCount, changedCount };
+}
+
+// Batch-resolve counterparty labels referenced by a set of history rows
+// (avoids per-row N+1). Over-fetches across all three kinds — cheap and simple.
+async function resolveTimelineLabels(rows) {
+  const resIds = new Set(), princIds = new Set(), identIds = new Set();
+  const add = (set, ...vals) => vals.forEach(v => v && set.add(v));
+  for (const row of rows) {
+    const d = row.rowData || {}, p = row.prevData || {};
+    switch (row.tableName) {
+      case 'ResourceAssignments': add(resIds, d.resourceId, p.resourceId); add(princIds, d.principalId, p.principalId); break;
+      case 'ResourceRelationships': add(resIds, d.childResourceId, p.childResourceId, d.parentResourceId, p.parentResourceId); break;
+      case 'IdentityMembers': add(identIds, d.identityId, p.identityId); add(princIds, d.principalId, p.principalId); break;
+      case 'Principals': add(princIds, d.managerId, p.managerId); break;
+      default: break;
+    }
+  }
+  const [resRows, princRows, identRows] = await Promise.all([
+    resIds.size ? db.query(`SELECT id, "displayName", "resourceType" FROM "Resources" WHERE id = ANY($1)`, [[...resIds]]) : { rows: [] },
+    princIds.size ? db.query(`SELECT id, "displayName" FROM "Principals" WHERE id = ANY($1)`, [[...princIds]]) : { rows: [] },
+    identIds.size ? db.query(`SELECT id, "displayName" FROM "Identities" WHERE id = ANY($1)`, [[...identIds]]) : { rows: [] },
+  ]);
+  const resMap = new Map(resRows.rows.map(x => [x.id, { displayName: x.displayName, resourceType: x.resourceType }]));
+  const princMap = new Map(princRows.rows.map(x => [x.id, x.displayName]));
+  const identMap = new Map(identRows.rows.map(x => [x.id, x.displayName]));
+  return {
+    resource: id => resMap.get(id) || null,
+    principal: id => princMap.get(id) || null,
+    identity: id => identMap.get(id) || null,
+  };
 }
 
 // Map a raw history row's jsonb snapshot into an event. The caller
@@ -485,63 +543,67 @@ router.get('/identities/:id/recent-changes', async (req, res) => {
   }
 });
 
-// ─── /api/user/:id/timeline ──────────────────────────────────────────
-// Unified, date-ranged history for the user-detail Timeline tab: attribute
-// updates + relationship changes (assignments, identity links, manager) in
-// one stream. Wider window than recent-changes; auth-only like its siblings.
+// ─── Timeline endpoints ──────────────────────────────────────────────
+// Unified, date-ranged history for the entity-detail Timeline tab: attribute
+// updates + relationship changes in one stream, for user / resource /
+// access-package / identity. Wider window than recent-changes; auth-only like
+// its siblings.
 //
 // Retention note: `_history` is unbounded (migration 009 defers retention),
 // so the window (sinceDays) and LIMIT bound the work; the
 // ("tableName","rowId","changedAt") / ("changedAt") indexes cover the WHERE.
-router.get('/user/:id/timeline', async (req, res) => {
-  if (!useSql) return res.json({ sinceDays: 0, events: [], addedCount: 0, removedCount: 0, changedCount: 0 });
-  const userId = req.params.id;
-  if (!UUID_RE.test(userId)) return res.status(400).json({ error: 'Invalid user id' });
+async function runTimeline(res, { entityKind, id, sinceDays, limit, where }) {
+  const r = await db.query(`
+    SELECT "tableName", operation, "changedAt", "rowData", "prevData"
+      FROM "_history"
+     WHERE "changedAt" > now() - ($1::int || ' days')::interval AND (${where})
+     ORDER BY "changedAt" DESC
+     LIMIT $3
+  `, [sinceDays, id, limit * 2]);
+  const labels = await resolveTimelineLabels(r.rows);
+  const built = buildEntityTimeline(entityKind, id, r.rows, labels);
+  built.events = built.events.slice(0, limit);
+  res.json({ sinceDays, ...built });
+}
 
-  const sinceDays = clampTimelineDays(req.query.sinceDays);
-  const limit = clampLimit(req.query.limit);
-  try {
-    const r = await db.query(`
-      SELECT "tableName", operation, "changedAt", "rowData", "prevData"
-        FROM "_history"
-       WHERE "changedAt" > now() - ($1::int || ' days')::interval
-         AND (
-           ("tableName" = 'ResourceAssignments' AND "rowData"->>'principalId' = $2)
-           OR ("tableName" = 'IdentityMembers'   AND "rowData"->>'principalId' = $2)
-           OR ("tableName" = 'Principals'        AND "rowId" = $2)
-         )
-       ORDER BY "changedAt" DESC
-       LIMIT $3
-    `, [sinceDays, userId, limit * 2]);
+// Per-entity _history WHERE clauses ($2 = entity id).
+const TIMELINE_WHERE = {
+  user: `("tableName" = 'ResourceAssignments' AND "rowData"->>'principalId' = $2)
+      OR ("tableName" = 'IdentityMembers'   AND "rowData"->>'principalId' = $2)
+      OR ("tableName" = 'Principals'         AND "rowId" = $2)`,
+  resource: `("tableName" = 'ResourceAssignments' AND "rowData"->>'resourceId' = $2)
+      OR ("tableName" = 'ResourceRelationships' AND ("rowData"->>'childResourceId' = $2 OR "rowData"->>'parentResourceId' = $2))
+      OR ("tableName" = 'Resources' AND "rowId" = $2)`,
+  'access-package': `("tableName" = 'ResourceAssignments' AND "rowData"->>'resourceId' = $2 AND COALESCE("rowData"->>'assignmentType','') = 'Governed')
+      OR ("tableName" = 'ResourceRelationships' AND "rowData"->>'parentResourceId' = $2 AND COALESCE("rowData"->>'relationshipType','') = 'Contains')
+      OR ("tableName" = 'Resources' AND "rowId" = $2)`,
+  identity: `("tableName" = 'IdentityMembers' AND "rowData"->>'identityId' = $2)
+      OR ("tableName" = 'Identities' AND "rowId" = $2)`,
+  // ContextMembers isn't history-tracked (it's owned by its parent context),
+  // so a context timeline reflects the context row's own changes.
+  context: `("tableName" = 'Contexts' AND "rowId" = $2)`,
+};
 
-    // Batch-resolve counterparty labels (avoid per-row N+1).
-    const resIds = new Set(), princIds = new Set(), identIds = new Set();
-    for (const row of r.rows) {
-      const d = row.rowData || {}, p = row.prevData || {};
-      if (row.tableName === 'ResourceAssignments') { if (d.resourceId || p.resourceId) resIds.add(d.resourceId || p.resourceId); }
-      else if (row.tableName === 'IdentityMembers') { if (d.identityId || p.identityId) identIds.add(d.identityId || p.identityId); }
-      else if (row.tableName === 'Principals' && row.operation === 'U') { if (d.managerId) princIds.add(d.managerId); }
+function timelineHandler(entityKind) {
+  return async (req, res) => {
+    if (!useSql) return res.json({ sinceDays: 0, events: [], addedCount: 0, removedCount: 0, changedCount: 0 });
+    const id = req.params.id;
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid id' });
+    const sinceDays = clampTimelineDays(req.query.sinceDays);
+    const limit = clampLimit(req.query.limit);
+    try {
+      await runTimeline(res, { entityKind, id, sinceDays, limit, where: TIMELINE_WHERE[entityKind] });
+    } catch (err) {
+      console.error(`${entityKind} timeline failed:`, err.message);
+      res.status(500).json({ error: 'Failed to load timeline' });
     }
-    const [resRows, princRows, identRows] = await Promise.all([
-      resIds.size ? db.query(`SELECT id, "displayName", "resourceType" FROM "Resources" WHERE id = ANY($1)`, [[...resIds]]) : { rows: [] },
-      princIds.size ? db.query(`SELECT id, "displayName" FROM "Principals" WHERE id = ANY($1)`, [[...princIds]]) : { rows: [] },
-      identIds.size ? db.query(`SELECT id, "displayName" FROM "Identities" WHERE id = ANY($1)`, [[...identIds]]) : { rows: [] },
-    ]);
-    const resMap = new Map(resRows.rows.map(x => [x.id, { displayName: x.displayName, resourceType: x.resourceType }]));
-    const princMap = new Map(princRows.rows.map(x => [x.id, x.displayName]));
-    const identMap = new Map(identRows.rows.map(x => [x.id, x.displayName]));
+  };
+}
 
-    const built = buildUserTimeline(r.rows, {
-      resource: id => resMap.get(id) || null,
-      principal: id => princMap.get(id) || null,
-      identity: id => identMap.get(id) || null,
-    });
-    built.events = built.events.slice(0, limit);
-    res.json({ sinceDays, ...built });
-  } catch (err) {
-    console.error('user timeline failed:', err.message);
-    res.status(500).json({ error: 'Failed to load timeline' });
-  }
-});
+router.get('/user/:id/timeline', timelineHandler('user'));
+router.get('/resources/:id/timeline', timelineHandler('resource'));
+router.get('/access-package/:id/timeline', timelineHandler('access-package'));
+router.get('/identities/:id/timeline', timelineHandler('identity'));
+router.get('/contexts/:id/timeline', timelineHandler('context'));
 
 export default router;

@@ -603,6 +603,38 @@ router.get('/access-package/:id', async (req, res) => {
       lastReviewedBy = r.recordset[0]?.reviewedByDisplayName || null;
     } catch { /* table may not exist */ }
 
+    // 5c. Compliance status of the latest review instance — the same calculated
+    //     "Review Status" the Business Roles list shows. Mirrors the
+    //     LAST_REVIEW_CTE logic in governance.js, scoped to one resource.
+    let complianceStatus = null;
+    let daysOverdue = 0;
+    try {
+      const r = await db.query(`
+        WITH li AS (
+          SELECT "reviewInstanceId", "reviewInstanceEndDateTime"
+            FROM "CertificationDecisions"
+           WHERE "resourceId"::text = $1
+           ORDER BY "reviewInstanceEndDateTime" DESC NULLS LAST
+           LIMIT 1
+        )
+        SELECT li."reviewInstanceEndDateTime" AS deadline,
+               SUM(CASE WHEN d.decision = 'NotReviewed' THEN 1 ELSE 0 END)::int AS "notReviewed",
+               SUM(CASE WHEN d.decision <> 'NotReviewed' AND d."reviewedDateTime"::date > li."reviewInstanceEndDateTime"::date THEN 1 ELSE 0 END)::int AS late
+          FROM li JOIN "CertificationDecisions" d
+            ON d."resourceId"::text = $1 AND d."reviewInstanceId" = li."reviewInstanceId"
+         GROUP BY li."reviewInstanceEndDateTime"`, [apId]);
+      const row = r.rows[0];
+      if (row) {
+        const deadline = row.deadline ? new Date(row.deadline) : null;
+        const overdue = deadline && deadline < new Date();
+        if (row.notReviewed === 0 && row.late === 0) complianceStatus = 'Compliant';
+        else if (row.notReviewed > 0 && !overdue) complianceStatus = 'In Progress';
+        else if (row.notReviewed > 0 && overdue) complianceStatus = 'Missed';
+        else complianceStatus = 'Reviewed Late';
+        if (deadline && overdue) daysOverdue = Math.floor((Date.now() - deadline.getTime()) / 86400000);
+      }
+    } catch { /* CertificationDecisions may not exist */ }
+
     // 6. Policy summary — auto-assigned vs request-based vs auto-removal
     let policyCount = 0;
     let autoAddPolicyCount = 0;
@@ -660,7 +692,7 @@ router.get('/access-package/:id', async (req, res) => {
     let historyCount = 0;
     try { historyCount = await countHistory('Resources', apId); } catch { /* _history may not exist */ }
 
-    res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, historyCount, hasHistory: historyCount > 0, policyCount, autoAddPolicyCount, assignmentType, category });
+    res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, historyCount, hasHistory: historyCount > 0, policyCount, autoAddPolicyCount, assignmentType, category });
   } catch (err) {
     console.error('Error fetching access package detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch access package details' });
@@ -847,6 +879,8 @@ router.get('/access-package/:id/policies', async (req, res) => {
       SELECT id, "displayName", description, "allowedTargetScope",
              COALESCE("hasAutoAddRule", CAST(0 AS BOOLEAN)) AS "hasAutoAddRule",
              COALESCE("hasAutoRemoveRule", CAST(0 AS BOOLEAN)) AS "hasAutoRemoveRule",
+             COALESCE("hasAccessReview", CAST(0 AS BOOLEAN)) AS "hasAccessReview",
+             "reviewSettings",
              JSON_VALUE("automaticRequestSettings", '$.filter.rule') AS "autoAssignmentFilter",
              "createdDateTime", "modifiedDateTime"
       FROM "AssignmentPolicies"

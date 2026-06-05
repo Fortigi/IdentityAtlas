@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { formatDate, formatDateOnly, friendlyLabel } from '../utils/formatters';
 import { OP_STYLES, KIND_TO_TAB, renderSummaryWithLink } from './RecentChangesSection';
 
-// ─── UserTimeline ────────────────────────────────────────────────────
+// ─── EntityTimeline ────────────────────────────────────────────────────
 // Horizontal timeline for the user-detail Timeline tab. Each "moment" (a
 // distinct point in time from the _history audit) is a dot on a line,
 // oldest on the left (e.g. the initial load) → newest on the right. A dot
@@ -61,7 +61,7 @@ function AttributeDiff({ attribute }) {
   );
 }
 
-export default function UserTimeline({ events, loading, sinceDays, onSinceDaysChange, onOpenDetail }) {
+export default function EntityTimeline({ events, loading, sinceDays, onSinceDaysChange, onOpenDetail }) {
   // Group events into one dot per DAY, oldest → newest (left → right). A day's
   // dot bundles everything that changed that day; clicking it lists them all.
   const moments = useMemo(() => {

@@ -1,15 +1,15 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
-import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
-import { CollapsibleSection } from './DetailSection';
 import EntityGraph from './EntityGraph';
-import EntityDetailLayout, { AttributesTable } from './EntityDetailLayout';
+import { AttributesTable } from './EntityDetailLayout';
 import { buildAttributeEntries } from '../utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
-import RecentChangesSection from './RecentChangesSection';
+import TabBar from './TabBar';
+import EntityTimeline from './EntityTimeline';
 import useExpandableGraph from '../hooks/useExpandableGraph';
-import useRecentChanges from '../hooks/useRecentChanges';
+import useTimeline from '../hooks/useTimeline';
+import useFeatures from '../hooks/useFeatures';
 import { getRootNodes } from './entityGraphShape';
 
 const RESOURCE_TYPE_COLORS = {
@@ -34,14 +34,14 @@ function parseExtendedAttributes(val) {
 
 export default function ResourceDetailPage({ resourceId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
+  const features = useFeatures();
 
   const [data, setData] = useState(cachedData?.core || null);
   const [loading, setLoading] = useState(!cachedData?.core);
   const [error, setError] = useState(null);
 
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [history, setHistory] = useState(cachedData?.history || null);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('attributes');
+  const [timelineDays, setTimelineDays] = useState(90);
 
   useEffect(() => {
     if (cachedData?.core) return;
@@ -67,38 +67,15 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
     return () => { cancelled = true; };
   }, [resourceId, authFetch, cachedData?.core, onCacheData]);
 
-  const loadHistory = useCallback(() => {
-    if (history) return;
-    setHistoryLoading(true);
-    authFetch(`/api/resources/${encodeURIComponent(resourceId)}/history`)
-      .then(r => {
-        if (!r.ok) return authFetch(`/api/group/${encodeURIComponent(resourceId)}/history`).then(r2 => {
-          if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
-          return r2.json();
-        });
-        return r.json();
-      })
-      .then(d => {
-        setHistory(d);
-        onCacheData?.(resourceId, 'resource', { history: d });
-      })
-      .catch(() => setHistory([]))
-      .finally(() => setHistoryLoading(false));
-  }, [resourceId, authFetch, history, onCacheData]);
-
-  const toggleHistory = useCallback(() => {
-    setHistoryOpen(prev => {
-      if (!prev) loadHistory();
-      return !prev;
-    });
-  }, [loadHistory]);
-
-  const recent = useRecentChanges('resource', resourceId, authFetch);
+  const timeline = useTimeline('resource', resourceId, authFetch, {
+    sinceDays: timelineDays,
+    enabled: activeTab === 'timeline',
+  });
 
   const rootExtras = useMemo(() => ({
     contextId: data?.attributes?.contextId,
-    recent,
-  }), [data, recent]);
+    recent: null,
+  }), [data]);
 
   const rootNodes = useMemo(() => (
     data ? getRootNodes('resource', data, rootExtras) : []
@@ -125,18 +102,23 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
   }
   if (!data) return null;
 
-  const { attributes, tags, historyCount } = data;
+  const { attributes, tags } = data;
   const resourceType = attributes.resourceType || attributes.groupTypeCalculated || '';
   const typeBadgeClass = RESOURCE_TYPE_COLORS[resourceType] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
   const extAttrs = parseExtendedAttributes(attributes.extendedAttributes);
-  const resolvedHistoryCount = history ? history.length : historyCount;
   const attributeEntries = buildAttributeEntries(attributes, extAttrs, HIDDEN_FIELDS);
-  const historyDiffs = history ? computeHistoryDiffs(history) : [];
+
+  const tabs = [
+    { key: 'attributes', label: 'Attributes', count: attributeEntries.length },
+    { key: 'relationships', label: 'Relationships' },
+    { key: 'timeline', label: 'Timeline' },
+    (features.riskScoring && attributes.riskScore != null) && { key: 'risk', label: 'Risk' },
+  ];
 
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center justify-center text-lg font-bold">R</div>
@@ -177,9 +159,14 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
         </button>
       </div>
 
-      <EntityDetailLayout
-        left={<AttributesTable entries={attributeEntries} />}
-        right={
+      <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+
+      <div className="mt-4">
+        {activeTab === 'attributes' && (
+          <AttributesTable entries={attributeEntries} />
+        )}
+
+        {activeTab === 'relationships' && (
           <div className="space-y-4">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
               <EntityGraph
@@ -211,61 +198,22 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
               </div>
             )}
           </div>
-        }
-      >
-        <RiskScoreSection attributes={attributes} entityType="group" entityId={resourceId} authFetch={authFetch} />
+        )}
 
-        <RecentChangesSection
-          events={recent.events}
-          addedCount={recent.addedCount}
-          removedCount={recent.removedCount}
-          sinceDays={recent.sinceDays}
-          loading={recent.loading}
-          onOpenDetail={onOpenDetail}
-        />
+        {activeTab === 'timeline' && (
+          <EntityTimeline
+            events={timeline.events}
+            loading={timeline.loading}
+            sinceDays={timelineDays}
+            onSinceDaysChange={setTimelineDays}
+            onOpenDetail={onOpenDetail}
+          />
+        )}
 
-        <CollapsibleSection
-          title="Version History"
-          count={resolvedHistoryCount}
-          countLabel={resolvedHistoryCount === 1 ? 'version' : 'versions'}
-          open={historyOpen}
-          onToggle={toggleHistory}
-          loading={historyLoading}
-        >
-          {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-500 italic p-4">No changes recorded</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-4 py-2 font-medium w-44">Date</th>
-                  <th className="px-4 py-2 font-medium">Changes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyDiffs.map((diff, i) => (
-                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs align-top whitespace-nowrap">{formatDate(diff.date)}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-col gap-1">
-                        {diff.changes.map((c, j) => (
-                          <div key={j} className="text-xs">
-                            <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(c.field)}</span>
-                            <span className="text-gray-600 dark:text-gray-500 mx-1">:</span>
-                            <span className="text-red-500 dark:text-red-400 line-through mr-1">{c.from}</span>
-                            <span className="text-gray-600 dark:text-gray-500 mr-1">&rarr;</span>
-                            <span className="text-green-600 dark:text-green-400">{c.to}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CollapsibleSection>
-      </EntityDetailLayout>
+        {activeTab === 'risk' && (
+          <RiskScoreSection attributes={attributes} entityType="group" entityId={resourceId} authFetch={authFetch} />
+        )}
+      </div>
     </div>
   );
 }
