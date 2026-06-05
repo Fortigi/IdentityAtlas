@@ -281,6 +281,62 @@ body,
   background-color: #dc2626;
 }
 
+/* ── Dark mode admonition overrides ────────────────────────────────
+   Without these, the light green/amber/red backgrounds from the rules
+   above survive into dark mode, leaving dark body text on a light
+   surface — unreadable against the slate page. ─────────────────── */
+
+/* Default (note/tip/info) — subtle dark lime surface */
+[data-md-color-scheme=slate] .md-typeset .admonition,
+[data-md-color-scheme=slate] .md-typeset details {
+  border-color: rgba(101, 163, 13, 0.35);
+  background: rgba(101, 163, 13, 0.06);
+}
+[data-md-color-scheme=slate] .md-typeset .admonition > .admonition-title,
+[data-md-color-scheme=slate] .md-typeset details > summary {
+  background-color: rgba(101, 163, 13, 0.12);
+  border-bottom-color: rgba(101, 163, 13, 0.2);
+  color: var(--ia-lime-300);
+}
+[data-md-color-scheme=slate] .md-typeset .admonition > .admonition-title::before,
+[data-md-color-scheme=slate] .md-typeset details > summary::before {
+  background-color: var(--ia-lime-300);
+}
+
+/* Warning / caution — dark amber surface */
+[data-md-color-scheme=slate] .md-typeset .admonition.warning,
+[data-md-color-scheme=slate] .md-typeset .admonition.caution {
+  border-color: rgba(217, 119, 6, 0.4);
+  background: rgba(217, 119, 6, 0.07);
+}
+[data-md-color-scheme=slate] .md-typeset .admonition.warning > .admonition-title,
+[data-md-color-scheme=slate] .md-typeset .admonition.caution > .admonition-title {
+  background-color: rgba(217, 119, 6, 0.14);
+  border-bottom-color: rgba(217, 119, 6, 0.2);
+  color: #fcd34d;
+}
+[data-md-color-scheme=slate] .md-typeset .admonition.warning > .admonition-title::before,
+[data-md-color-scheme=slate] .md-typeset .admonition.caution > .admonition-title::before {
+  background-color: #fcd34d;
+}
+
+/* Danger / error — dark red surface */
+[data-md-color-scheme=slate] .md-typeset .admonition.danger,
+[data-md-color-scheme=slate] .md-typeset .admonition.error {
+  border-color: rgba(220, 38, 38, 0.4);
+  background: rgba(220, 38, 38, 0.07);
+}
+[data-md-color-scheme=slate] .md-typeset .admonition.danger > .admonition-title,
+[data-md-color-scheme=slate] .md-typeset .admonition.error > .admonition-title {
+  background-color: rgba(220, 38, 38, 0.14);
+  border-bottom-color: rgba(220, 38, 38, 0.2);
+  color: #fca5a5;
+}
+[data-md-color-scheme=slate] .md-typeset .admonition.danger > .admonition-title::before,
+[data-md-color-scheme=slate] .md-typeset .admonition.error > .admonition-title::before {
+  background-color: #fca5a5;
+}
+
 /* ── Code blocks — subtle ring like the UI ─────────────────────── */
 .md-typeset pre > code,
 .md-typeset .highlight pre {
@@ -298,6 +354,11 @@ body,
   border: 1px solid var(--ia-lime-100);
   padding: 0.1rem 0.35rem;
   font-size: 0.85em;
+}
+[data-md-color-scheme=slate] .md-typeset :not(pre) > code {
+  background-color: rgba(101, 163, 13, 0.12);
+  color: var(--ia-lime-300);
+  border-color: rgba(101, 163, 13, 0.25);
 }
 
 /* ── Tables — clean borders + lime header row ──────────────────── */
