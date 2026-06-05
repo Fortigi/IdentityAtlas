@@ -1,0 +1,1 @@
+- Fixed tags on identities: a tag created/assigned to an identity is now actually shown and can be (re)assigned. Previously identity tags were saved but never appeared because the tag compatibility view excluded identities.
