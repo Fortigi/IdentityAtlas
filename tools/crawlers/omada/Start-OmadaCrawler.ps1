@@ -74,21 +74,8 @@
 Param(
     [Parameter(Mandatory)] [string]$ApiBaseUrl,
     [Parameter(Mandatory)] [string]$ApiKey,
-    [Parameter(Mandatory)] [string]$ConfigFile,
-
-    [switch]$SyncContexts        = $True,
-    [switch]$SyncIdentities      = $True,
-    [switch]$SyncAccounts        = $True,
-    [switch]$SyncContextMembers  = $True,
-    [switch]$SyncResources       = $True,
-    [switch]$SyncEntitlements    = $True,
-    [switch]$SyncAssignments     = $True,
-    [switch]$RefreshViews        = $True,
-
-    [ValidateSet('full','delta')]
-    [string]$SyncMode = 'full',
-
-    [int]$JobId = 0
+    [Parameter(Mandatory)] [int]$JobId,
+    [Parameter(Mandatory)] [string]$ConfigPath
 )
 
 #endregion Parameters
@@ -97,6 +84,34 @@ Param(
 
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
+
+# Read full job config and derive crawler variables
+$RawConfig = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
+$ConfigFile = $ConfigPath  # OData functions read auth from the config file directly
+
+# Sync toggles — defaults then apply selectedObjects overrides
+$SyncContexts       = $true
+$SyncIdentities     = $true
+$SyncAccounts       = $true
+$SyncContextMembers = $true
+$SyncResources      = $true
+$SyncEntitlements   = $true
+$SyncAssignments    = $true
+$SyncCRAs           = $true
+$RefreshViews       = $true
+$SyncMode = if ($RawConfig['_syncMode'] -in @('full','delta')) { $RawConfig['_syncMode'] } else { 'full' }
+
+$objects = $RawConfig['selectedObjects']
+if ($objects) {
+    if ($objects.ContainsKey('contexts'))       { $SyncContexts       = [bool]$objects['contexts'] }
+    if ($objects.ContainsKey('identities'))     { $SyncIdentities     = [bool]$objects['identities'] }
+    if ($objects.ContainsKey('accounts'))       { $SyncAccounts       = [bool]$objects['accounts'] }
+    if ($objects.ContainsKey('contextMembers')) { $SyncContextMembers = [bool]$objects['contextMembers'] }
+    if ($objects.ContainsKey('resources'))      { $SyncResources      = [bool]$objects['resources'] }
+    if ($objects.ContainsKey('entitlements'))   { $SyncEntitlements   = [bool]$objects['entitlements'] }
+    if ($objects.ContainsKey('assignments'))    { $SyncAssignments    = [bool]$objects['assignments'] }
+    if ($objects.ContainsKey('cras'))           { $SyncCRAs           = [bool]$objects['cras'] }
+}
 
 # ─── Load config ─────────────────────────────────────────────────
 if (-not (Test-Path $ConfigFile)) { throw "Config file not found: $ConfigFile" }
