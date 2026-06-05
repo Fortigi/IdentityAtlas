@@ -89,15 +89,16 @@ router.get('/user/:id', async (req, res) => {
     //     not on the Principal row. Merge the risk fields onto attributes so
     //     the detail page's Risk tab can render them.
     try {
-      const rs = await timedRequest(pool, 'user-risk-score', res)
-        .input('id', userId)
-        .query(`SELECT "riskScore", "riskTier", "riskDirectScore", "riskMembershipScore",
-                       "riskStructuralScore", "riskPropagatedScore", "riskExplanation",
-                       "riskClassifierMatches", "riskOverride", "riskOverrideReason", "riskScoredAt"
-                  FROM "RiskScores"
-                 WHERE "entityId"::text = @id AND "entityType" = 'Principal'
-                 LIMIT 1`);
-      if (rs.recordset.length > 0) Object.assign(attributes, cleanRow(rs.recordset[0]));
+      const rs = await db.query(
+        `SELECT "riskScore", "riskTier", "riskDirectScore", "riskMembershipScore",
+                "riskStructuralScore", "riskPropagatedScore", "riskExplanation",
+                "riskClassifierMatches", "riskOverride", "riskOverrideReason", "riskScoredAt"
+           FROM "RiskScores"
+          WHERE "entityId"::text = $1 AND "entityType" = 'Principal'
+          LIMIT 1`,
+        [userId]
+      );
+      if (rs.rows.length > 0) Object.assign(attributes, cleanRow(rs.rows[0]));
     } catch { /* RiskScores may not exist on older deployments */ }
 
     // 2. Tags
