@@ -77,6 +77,10 @@
          <lastmod>2026-06-05</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/crawler-architecture/</loc>
+         <lastmod>2026-06-05</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/csv-import-schema/</loc>
          <lastmod>2026-06-05</lastmod>
     </url>
@@ -198,6 +202,10 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/csv-import/</loc>
+         <lastmod>2026-06-05</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/sync/custom-crawlers/</loc>
          <lastmod>2026-06-05</lastmod>
     </url>
     <url>
