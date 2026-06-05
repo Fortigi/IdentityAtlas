@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthGate';
+import Stepper from './Stepper';
 
 const STEPS = [
   { key: 'sources',   label: 'Sources' },
@@ -176,22 +177,8 @@ export default function CorrelationWizard({ onClose, onSaved }) {
     <Modal onClose={onClose} title="Account Correlation Wizard">
       <div className="flex flex-col h-[80vh]">
         {/* Progress bar */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700 px-6 py-3 bg-gray-50 dark:bg-gray-700/50">
-          {STEPS.map((s, i) => {
-            const done = i < stepIdx;
-            const active = i === stepIdx;
-            return (
-              <div key={s.key} className="flex-1 flex items-center">
-                <div className={`flex items-center gap-2 ${active ? 'font-semibold text-indigo-700 dark:text-indigo-400' : done ? 'text-gray-700 dark:text-gray-300' : 'text-gray-600 dark:text-gray-500'}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${active ? 'bg-indigo-600 text-white' : done ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600'}`}>
-                    {done ? '✓' : i + 1}
-                  </div>
-                  <span className="text-sm">{s.label}</span>
-                </div>
-                {i < STEPS.length - 1 && <div className={`flex-1 h-px ml-3 ${done ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-600'}`} />}
-              </div>
-            );
-          })}
+        <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-3 bg-gray-50 dark:bg-gray-700/50">
+          <Stepper steps={STEPS.map((s, i) => ({ n: i + 1, label: s.label }))} current={stepIdx + 1} />
         </div>
 
         {/* Step content */}
@@ -250,7 +237,7 @@ export default function CorrelationWizard({ onClose, onSaved }) {
               <button
                 onClick={handleGenerate}
                 disabled={!domain || generating}
-                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
               >
                 {generating ? `Generating… (${elapsedSec}s)` : 'Generate Ruleset'}
               </button>
@@ -259,7 +246,7 @@ export default function CorrelationWizard({ onClose, onSaved }) {
               <button
                 onClick={() => setStepIdx(2)}
                 disabled={!ruleset}
-                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
               >
                 Continue to Save
               </button>
@@ -421,7 +408,7 @@ function GenerateStep({ ruleset, transcript, chatInput, setChatInput, onRefine, 
           <button
             onClick={onRefine}
             disabled={!chatInput.trim() || refining}
-            className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600"
           >
             {refining ? `${elapsedSec}s…` : 'Send'}
           </button>
