@@ -13,7 +13,7 @@ import useExpandableGraph from '../hooks/useExpandableGraph';
 import useTimeline from '../hooks/useTimeline';
 import useFeatures from '../hooks/useFeatures';
 import { getRootNodes } from './entityGraphShape';
-import { ASSIGNMENT_TYPE_STYLES } from '../utils/accessPackageStyles';
+import { ASSIGNMENT_TYPE_STYLES, COMPLIANCE_STYLES } from '../utils/accessPackageStyles';
 
 const HEADER_FIELDS = ['catalogName', 'catalogId', 'description'];
 const HIDDEN_FIELDS = new Set([
@@ -95,30 +95,12 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   }
   if (!data) return null;
 
-  const { attributes, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, assignmentType, category, policyCount, reviewCount, pendingRequestCount } = data;
+  const { attributes, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, assignmentType, category } = data;
   const attributeEntries = buildAttributeEntries(
     attributes,
     attributes.extendedAttributesParsed || (typeof attributes.extendedAttributes === 'object' ? attributes.extendedAttributes : null),
     HIDDEN_FIELDS,
   );
-
-  // Calculated / overview fields — the same values shown in the Business Roles
-  // list (Type, Review Status, Reviewed By …). Surfaced here so the data
-  // behind the overview is visible on the detail page itself.
-  const reviewStatusText = complianceStatus
-    ? complianceStatus + (daysOverdue ? ` — ${daysOverdue}d overdue` : '')
-    : null;
-  const overviewEntries = [
-    ['Type', assignmentType],
-    ['Review status', reviewStatusText],
-    ['Last review', lastReviewDate ? formatDate(lastReviewDate) : null],
-    ['Reviewed by', lastReviewedBy],
-    ['Catalog', attributes.catalogName],
-    ['Category', category?.name],
-    ['Policies', policyCount],
-    ['Access reviews', reviewCount],
-    ['Pending requests', pendingRequestCount],
-  ].filter(([, v]) => v != null && v !== '');
 
   const hasRisk = features.riskScoring && riskData && riskData.riskScore != null;
   const tabs = [
@@ -180,8 +162,19 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       <div className="mt-4">
         {activeTab === 'attributes' && (
           <div className="space-y-4">
-            {overviewEntries.length > 0 && <AttributesTable title="Overview (calculated)" entries={overviewEntries} />}
+            <OverviewPanel
+              assignmentType={assignmentType}
+              complianceStatus={complianceStatus}
+              daysOverdue={daysOverdue}
+              lastReviewDate={lastReviewDate}
+              lastReviewedBy={lastReviewedBy}
+              category={category}
+            />
             <AttributesTable entries={attributeEntries} />
+            {/* Governance records (policies, access reviews, requests) live at
+                the bottom of Attributes — they describe this role, not a graph
+                relationship. */}
+            <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} />
           </div>
         )}
 
@@ -216,10 +209,6 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
                 <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
               </div>
             )}
-
-            {/* Governance references — the records behind the review-status /
-                type overview: policies, access reviews, pending requests. */}
-            <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} />
           </div>
         )}
 
@@ -235,6 +224,51 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
 
         {activeTab === 'risk' && riskData && (
           <RiskScoreSection attributes={riskData} entityType="business-roles" entityId={accessPackageId} authFetch={authFetch} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Overview — the list's calculated fields, with the same badges/colours ──
+function OverviewRow({ label, children }) {
+  return (
+    <div className="flex items-baseline gap-3 py-1.5 border-b border-gray-50 dark:border-gray-700/50 last:border-b-0">
+      <span className="text-xs text-gray-500 dark:text-gray-400 w-32 shrink-0">{label}</span>
+      <span className="text-sm text-gray-900 dark:text-gray-100">{children}</span>
+    </div>
+  );
+}
+
+const BADGE = 'inline-block px-2 py-0.5 rounded-full text-xs font-medium border';
+const NEUTRAL = 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
+
+function OverviewPanel({ assignmentType, complianceStatus, daysOverdue, lastReviewDate, lastReviewedBy, category }) {
+  if (!(assignmentType || complianceStatus || lastReviewDate || lastReviewedBy || category)) return null;
+  return (
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Overview</h3>
+      </div>
+      <div className="px-4 py-2">
+        {assignmentType && (
+          <OverviewRow label="Type">
+            <span className={`${BADGE} ${ASSIGNMENT_TYPE_STYLES[assignmentType] || NEUTRAL}`}>{assignmentType}</span>
+          </OverviewRow>
+        )}
+        {complianceStatus && (
+          <OverviewRow label="Review status">
+            <span className={`${BADGE} ${COMPLIANCE_STYLES[complianceStatus] || NEUTRAL}`}>
+              {complianceStatus}{daysOverdue ? ` (${daysOverdue}d ago)` : ''}
+            </span>
+          </OverviewRow>
+        )}
+        {lastReviewDate && <OverviewRow label="Review date">{formatDate(lastReviewDate)}</OverviewRow>}
+        {lastReviewedBy && <OverviewRow label="Reviewed by">{lastReviewedBy}</OverviewRow>}
+        {category && (
+          <OverviewRow label="Category">
+            <span className={BADGE} style={{ backgroundColor: category.color + '20', borderColor: category.color, color: category.color }}>{category.name}</span>
+          </OverviewRow>
         )}
       </div>
     </div>
