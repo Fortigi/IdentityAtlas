@@ -27,6 +27,7 @@
 
 import * as db from './db/connection.js';
 import { runScoring } from './riskscoring/engine.js';
+import { runLinking } from './accountlinking/engine.js';
 import { hasConfigSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
 import { validateOmadaConfig } from './routes/jobs.js';
 
@@ -190,6 +191,32 @@ async function queueScheduledScoringRun(classifierRow, scheduleIndex) {
   console.log(`Scheduler: queued risk scoring run for classifier ${classifierRow.id} (${classifierRow.displayName})`);
 }
 
+async function queueScheduledLinkingRun(configRow) {
+  // Skip if a run already started in the last 55 minutes for this config.
+  const recent = await db.queryOne(
+    `SELECT 1 FROM "AccountLinkingRuns"
+      WHERE "configId" = $1
+        AND "startedAt" > now() - interval '55 minutes'
+      LIMIT 1`,
+    [configRow.id]
+  );
+  if (recent) return; // Skip duplicate
+
+  const run = await db.queryOne(
+    `INSERT INTO "AccountLinkingRuns" ("configId", status, step, pct, "triggeredBy")
+     VALUES ($1, 'pending', 'Queued', 0, 'scheduler')
+     RETURNING *`,
+    [configRow.id]
+  );
+
+  // Same fire-and-forget pattern as scheduled scoring runs.
+  runLinking(run.id, configRow.id).catch(err => {
+    console.error(`Scheduled account-linking run ${run.id} crashed:`, err);
+  });
+
+  console.log(`Scheduler: queued account-linking run for config ${configRow.id}`);
+}
+
 // Write today's row in DashboardSnapshots if it's missing. Cheap idempotent
 // check — runs every scheduler tick (60s), the COUNTs only fire once per
 // UTC day (after the first successful insert ON CONFLICT does nothing).
@@ -275,7 +302,16 @@ async function tick() {
           AND jsonb_array_length(schedules) > 0`
     );
 
-    if (crawlerRows.rows.length === 0 && classifierRows.rows.length === 0) return;
+    // Load active account-linking configs that have at least one schedule.
+    const linkingRows = await db.query(
+      `SELECT id, schedules
+         FROM "AccountLinkingConfig"
+        WHERE "isActive" = TRUE
+          AND schedules IS NOT NULL
+          AND jsonb_array_length(schedules) > 0`
+    );
+
+    if (crawlerRows.rows.length === 0 && classifierRows.rows.length === 0 && linkingRows.rows.length === 0) return;
 
     const now = new Date();
     const minuteKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}T${now.getUTCHours()}:${now.getUTCMinutes()}`;
@@ -326,6 +362,28 @@ async function tick() {
           lastFired.set(key, minuteKey);
         } catch (err) {
           console.error(`Scheduler: failed to queue scoring run for classifier ${classifierRow.id}: ${err.message}`);
+        }
+      }
+    }
+
+    // Process account-linking schedules
+    for (const linkingRow of linkingRows.rows) {
+      const schedules = Array.isArray(linkingRow.schedules)
+        ? linkingRow.schedules
+        : (typeof linkingRow.schedules === 'string' ? JSON.parse(linkingRow.schedules) : []);
+
+      for (let i = 0; i < schedules.length; i++) {
+        const s = schedules[i];
+        if (!scheduleMatches(s, now)) continue;
+
+        const key = `linking:${linkingRow.id}:${i}`;
+        if (lastFired.get(key) === minuteKey) continue; // already fired this minute
+
+        try {
+          await queueScheduledLinkingRun(linkingRow);
+          lastFired.set(key, minuteKey);
+        } catch (err) {
+          console.error(`Scheduler: failed to queue account-linking run for config ${linkingRow.id}: ${err.message}`);
         }
       }
     }

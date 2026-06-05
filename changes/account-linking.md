@@ -1,0 +1,6 @@
+- Rebuilt **Account Linking** (formerly the non-functional "Account Correlation"). It now actually runs: for each existing identity it finds orphan accounts that belong to that person — admin (`adm-…`), guest, and secondary accounts — and links them with a confidence score.
+- Account linking is deterministic and no longer needs an LLM. The matching dictionary (signals, account-type patterns, threshold) ships with sensible defaults and is editable in **Admin → Account Linking**.
+- Account linking can run on a schedule and on demand ("Run now"), with a run history showing how many accounts were linked, updated, or skipped.
+- Accounts that can't be linked to a person are now grouped into a generated **Orphaned Accounts** context (sub-grouped by type: admin / guest / service / shared) instead of being a hidden property.
+- Analyst decisions are preserved across runs: a confirmed/rejected/moved link is never overwritten, and a rejected account is never re-linked.
+- Retired the LLM-based correlation ruleset wizard and its endpoints.

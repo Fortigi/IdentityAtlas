@@ -89,8 +89,8 @@ router.get('/identities', async (req, res) => {
           SUM(CASE WHEN "accountCount" = 1 THEN 1 ELSE 0 END) AS "singleAccountIdentities",
           SUM("accountCount") AS "totalAccounts",
           SUM(CASE WHEN "analystVerified" = TRUE THEN 1 ELSE 0 END) AS "verifiedCount",
-          AVG(CAST("correlationConfidence" AS FLOAT)) AS "avgConfidence",
-          MAX("correlatedAt") AS "lastCorrelatedAt"
+          AVG(CAST("linkConfidence" AS FLOAT)) AS "avgConfidence",
+          MAX("linkedAt") AS "lastLinkedAt"
           ${hasHrCols ? `, SUM(CASE WHEN "isHrAnchored" = true THEN 1 ELSE 0 END) AS "hrAnchoredCount",
           SUM(CASE WHEN "orphanStatus" IS NOT NULL THEN 1 ELSE 0 END) AS "orphanCount"` : ''}
         FROM "Identities"
@@ -123,7 +123,7 @@ router.get('/identities', async (req, res) => {
     }
 
     if (confidence) {
-      where += ' AND "correlationConfidence" >= @confidence';
+      where += ' AND "linkConfidence" >= @confidence';
       inputs.confidence = parseInt(confidence);
     }
 
@@ -177,10 +177,10 @@ router.get('/identities', async (req, res) => {
     // Sort
     const ALLOWED_SORTS = {
       'accountCount': '"accountCount" DESC',
-      'confidence': '"correlationConfidence" DESC',
+      'confidence': '"linkConfidence" DESC',
       'displayName': '"displayName" ASC',
       'department': 'department ASC',
-      'correlatedAt': '"correlatedAt" DESC',
+      'linkedAt': '"linkedAt" DESC',
     };
     const orderBy = ALLOWED_SORTS[sort] || '"displayName" ASC';
 
@@ -198,11 +198,11 @@ router.get('/identities', async (req, res) => {
       dataReq.query(`
         SELECT i.id, i."displayName", i."primaryPrincipalId" AS "primaryAccountId", i.email AS "primaryAccountUpn",
           i."accountCount", NULL AS "accountTypes",
-          i."correlationConfidence", NULL AS "correlationSignals", i.department, i."jobTitle",
+          i."linkConfidence", NULL AS "linkSignals", i.department, i."jobTitle",
           NULL AS "managerId", i.email AS mail,
           i."givenName", i.surname, i."employeeId", i."companyName", NULL AS "employeeType",
           i.city, i.country, i."officeLocation",
-          NULL AS "accountEnabled", i."correlatedAt", i."analystVerified", i."analystNotes",
+          NULL AS "accountEnabled", i."linkedAt", i."analystVerified", i."analystNotes",
           (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
              FROM "GraphTagAssignments" ta
              INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" = 'identity'
@@ -269,7 +269,7 @@ router.get('/identities/:id', async (req, res) => {
         .query(`
           SELECT m."identityId", m."principalId", m."isPrimary", m."isHrAuthoritative",
                  m."accountType", m."accountTypePattern", m."accountEnabled",
-                 m."correlationSignals", m."signalConfidence", m."hrScore",
+                 m."linkSignals", m."linkConfidence", m."hrScore",
                  m."hrIndicators", m."analystOverride",
                  COALESCE(m."displayName", u."displayName") AS "displayName",
                  u.email AS "userPrincipalName",
@@ -568,9 +568,9 @@ router.get('/identities/by-user/:userId', async (req, res) => {
       .query(`
         SELECT i.id AS "identityId", i."displayName" AS "identityDisplayName", i."accountCount",
           i.email AS "primaryAccountUpn", i."primaryPrincipalId" AS "primaryAccountId",
-          i."correlationConfidence", i."isHrAnchored",
-          m."accountType", m."isPrimary", m."isHrAuthoritative", m."hrScore", m."signalConfidence",
-          m."correlationSignals", m."analystOverride"
+          i."linkConfidence", i."isHrAnchored",
+          m."accountType", m."isPrimary", m."isHrAuthoritative", m."hrScore", m."linkConfidence" AS "memberLinkConfidence",
+          m."linkSignals", m."analystOverride"
         FROM "IdentityMembers" m
         JOIN "Identities" i ON i.id = m."identityId"
         WHERE m."principalId" = @userId
@@ -587,7 +587,7 @@ router.get('/identities/by-user/:userId', async (req, res) => {
       accountCount: row.accountCount,
       primaryAccountUpn: row.primaryAccountUpn,
       primaryAccountId: row.primaryAccountId,
-      correlationConfidence: row.correlationConfidence,
+      linkConfidence: row.linkConfidence,
       isHrAnchored: row.isHrAnchored,
     };
     const memberInfo = {
@@ -595,8 +595,8 @@ router.get('/identities/by-user/:userId', async (req, res) => {
       isPrimary: row.isPrimary,
       isHrAuthoritative: row.isHrAuthoritative,
       hrScore: row.hrScore,
-      signalConfidence: row.signalConfidence,
-      correlationSignals: row.correlationSignals,
+      linkConfidence: row.memberLinkConfidence,
+      linkSignals: row.linkSignals,
       analystOverride: row.analystOverride,
     };
 
