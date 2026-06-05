@@ -19,7 +19,7 @@ const RANGES = [
   { days: 1095, label: 'All' },
 ];
 
-const REL_KINDS = new Set(['assignment', 'relationship', 'identity-member', 'manager']);
+const REL_KINDS = new Set(['assignment', 'relationship', 'identity-member', 'manager', 'review']);
 
 function summarize(moment) {
   let attr = 0, rel = 0, created = false;
