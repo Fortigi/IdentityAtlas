@@ -125,6 +125,7 @@ export default function useExpandableGraph({ rootEntityKind, rootEntityId, rootE
   // The list below mirrors the deepest *category* step — that's the
   // level where the user last asked "show me the list of things".
   // Depth 0 with no path means nothing is selected yet.
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const [activeListItems, activeListLabel, activeListKind] = useMemo(() => {
     for (let i = path.length - 1; i >= 0; i--) {
       if (path[i].kind === 'category') {
