@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed dark mode contrast in the Contexts tab: selected tree item now shows the correct blue highlight instead of a light-blue-on-dark background; filter dropdowns are now themed correctly in dark mode
+- User detail page now color-codes the account type badge by principal type: Guest (amber), ServicePrincipal/Application (purple), ManagedIdentity (teal), Deleted (red), unknown (gray)
+
+## Changes in this PR
+
 - Restructured crawler architecture to be fully pluggable: each crawler now declares its identity and dependencies in a `crawler.json` manifest
 - Extracted the generic OData protocol layer (auth, pagination, retry) into `tools/crawlers/odata/` as a reusable base that any OData-based crawler can depend on
 - Renamed OData protocol functions from `*-OmadaAPI` / `Invoke-Omada*` to `*-ODataAPI` / `Invoke-OData*` to reflect their generic purpose
