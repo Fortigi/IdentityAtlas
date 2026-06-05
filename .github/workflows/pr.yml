@@ -73,6 +73,7 @@ jobs:
             'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
             'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
             'PSAvoidUsingInvokeExpression'             # scheduler crontab is image-baked, not dynamic user input
+            'PSReviewUnusedParameter'                  # some parameters are kept for dispatcher API compatibility
           )
           $results = @()
           foreach ($p in $paths) {
