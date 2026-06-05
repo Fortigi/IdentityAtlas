@@ -1,14 +1,16 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import ConfidenceBar from './ConfidenceBar';
 import EntityGraph from './EntityGraph';
-import EntityDetailLayout, { AttributesTable } from './EntityDetailLayout';
+import { AttributesTable } from './EntityDetailLayout';
 import { buildAttributeEntries } from '../utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
-import RecentChangesSection from './RecentChangesSection';
+import TabBar from './TabBar';
+import EntityTimeline from './EntityTimeline';
 import useExpandableGraph from '../hooks/useExpandableGraph';
-import useRecentChanges from '../hooks/useRecentChanges';
+import useTimeline from '../hooks/useTimeline';
+import useFeatures from '../hooks/useFeatures';
 import { getRootNodes } from './entityGraphShape';
 
 const SYSTEM_COLS = new Set([
@@ -19,6 +21,7 @@ const SYSTEM_COLS = new Set([
 
 export default function IdentityDetailPage({ identityId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
+  const features = useFeatures();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [identity, setIdentity] = useState(null);
@@ -27,6 +30,9 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
   const [contextCount, setContextCount] = useState(0);
   const [riskData, setRiskData] = useState(null);
   const [verifying, setVerifying] = useState(false);
+
+  const [activeTab, setActiveTab] = useState('attributes');
+  const [timelineDays, setTimelineDays] = useState(90);
 
   useEffect(() => {
     (async () => {
@@ -74,13 +80,16 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
     finally { setVerifying(false); }
   };
 
-  const recent = useRecentChanges('identity', identityId, authFetch);
+  const timeline = useTimeline('identity', identityId, authFetch, {
+    sinceDays: timelineDays,
+    enabled: activeTab === 'timeline',
+  });
 
   const rootExtras = useMemo(() => ({
     members,
     contextId: identity?.contextId,
-    recent,
-  }), [members, identity, recent]);
+    recent: null,
+  }), [members, identity]);
 
   // Pack the identity core payload into the shape getRootNodes expects.
   const core = useMemo(() => (
@@ -130,10 +139,18 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
   const attributeEntries = buildAttributeEntries(cleaned, null, new Set());
   const hrAccount = members.find(m => m.isHrAuthoritative);
 
+  const hasRisk = features.riskScoring && riskData && riskData.riskScore != null;
+  const tabs = [
+    { key: 'attributes', label: 'Attributes', count: attributeEntries.length },
+    { key: 'relationships', label: 'Relationships' },
+    { key: 'timeline', label: 'Timeline' },
+    hasRisk && { key: 'risk', label: 'Risk' },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 mb-4">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3">
@@ -177,9 +194,14 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
         </div>
       </div>
 
-      <EntityDetailLayout
-        left={<AttributesTable entries={attributeEntries} />}
-        right={
+      <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+
+      <div className="mt-4">
+        {activeTab === 'attributes' && (
+          <AttributesTable entries={attributeEntries} />
+        )}
+
+        {activeTab === 'relationships' && (
           <div className="space-y-4">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
               <EntityGraph
@@ -210,31 +232,39 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
                 <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
               </div>
             )}
-          </div>
-        }
-      >
-        {riskData && <RiskScoreSection attributes={riskData} entityType="identities" entityId={identityId} authFetch={authFetch} />}
 
-        <RecentChangesSection
-          events={recent.events}
-          addedCount={recent.addedCount}
-          removedCount={recent.removedCount}
-          sinceDays={recent.sinceDays}
-          loading={recent.loading}
-          onOpenDetail={onOpenDetail}
-        />
-
-        {identity.correlationSignals && (
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Correlation Signals</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {identity.correlationSignals.split(',').map(s => (
-                <span key={s} className="inline-block bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs">{s.trim()}</span>
-              ))}
-            </div>
+            {/* Correlation is what links these accounts into one identity, so its
+                signals belong with the relationship view. */}
+            {identity.correlationSignals && (
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-2">
+                  Correlation Signals
+                  {identity.correlationConfidence != null && <ConfidenceBar confidence={identity.correlationConfidence} />}
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {identity.correlationSignals.split(',').map(s => (
+                    <span key={s} className="inline-block bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded text-xs">{s.trim()}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
-      </EntityDetailLayout>
+
+        {activeTab === 'timeline' && (
+          <EntityTimeline
+            events={timeline.events}
+            loading={timeline.loading}
+            sinceDays={timelineDays}
+            onSinceDaysChange={setTimelineDays}
+            onOpenDetail={onOpenDetail}
+          />
+        )}
+
+        {activeTab === 'risk' && riskData && (
+          <RiskScoreSection attributes={riskData} entityType="identities" entityId={identityId} authFetch={authFetch} />
+        )}
+      </div>
     </div>
   );
 }

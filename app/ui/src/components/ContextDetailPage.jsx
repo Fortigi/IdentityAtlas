@@ -3,6 +3,10 @@ import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import ManualContextEditor from './contexts/ManualContextEditor';
 import ContextMemberPicker from './contexts/ContextMemberPicker';
+import TabBar from './TabBar';
+import EntityTimeline from './EntityTimeline';
+import useTimeline from '../hooks/useTimeline';
+import useFeatures from '../hooks/useFeatures';
 import { variantMeta, targetTypeMeta } from '../utils/contextStyles';
 
 // ─── Context Detail Page ──────────────────────────────────────────────────────
@@ -33,9 +37,12 @@ function cleanAttributes(attrs) {
 
 export default function ContextDetailPage({ contextId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
+  const features = useFeatures();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [activeTab, setActiveTab] = useState('relationships');
+  const [timelineDays, setTimelineDays] = useState(90);
 
   // Paginated members
   const [memberPage, setMemberPage] = useState(0);
@@ -104,6 +111,11 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
   // Reset page when search / scope changes
   useEffect(() => { setMemberPage(0); }, [memberSearch, includeDescendants]);
 
+  const timeline = useTimeline('context', contextId, authFetch, {
+    sinceDays: timelineDays,
+    enabled: activeTab === 'timeline',
+  });
+
   // ─── Render ────────────────────────────────────────────────────────
 
   if (loading) {
@@ -159,14 +171,26 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
     }
   }
 
+  const hasRisk = features.riskScoring && riskData && riskData.riskScore != null;
+  const tabs = [
+    { key: 'attributes', label: 'Attributes' },
+    { key: 'relationships', label: 'Relationships', count: memberTotal },
+    { key: 'timeline', label: 'Timeline' },
+    hasRisk && { key: 'risk', label: 'Risk' },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto space-y-4">
       {/* Header */}
       <ContextHeader attrs={detail.attributes} onClose={onClose} />
       {detail.attributes.description && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{detail.attributes.description}</div>
       )}
 
+      <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+
+      <div className="mt-4 space-y-4">
+      {activeTab === 'attributes' && (<>
       {/* Manual-context inline editor */}
       {isManual && (
         <ManualContextEditor
@@ -188,9 +212,25 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
         />
       )}
 
-      {/* Risk Score */}
-      {riskData && <RiskScoreSection attributes={riskData} entityType="contexts" entityId={contextId} authFetch={authFetch} />}
+      {Object.keys(attrs).length > 0 && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Attributes</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+            {Object.entries(attrs).map(([key, value]) => (
+              <div key={key} className="flex items-baseline gap-2 py-1">
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium min-w-[140px]">{key}</span>
+                <span className="text-sm text-gray-900 dark:text-white break-all">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {Object.keys(attrs).length === 0 && !isManual && !isGenerated && (
+        <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center text-sm text-gray-600 dark:text-gray-500">No additional attributes.</div>
+      )}
+      </>)}
 
+      {activeTab === 'relationships' && (<>
       {/* Sub-contexts */}
       {subContexts.length > 0 && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
@@ -212,21 +252,6 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                   <span className="text-xs text-gray-600 dark:text-gray-500">{sc.memberCount} members</span>
                 )}
               </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Attributes JSON (non-header fields) */}
-      {Object.keys(attrs).length > 0 && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Attributes</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
-            {Object.entries(attrs).map(([key, value]) => (
-              <div key={key} className="flex items-baseline gap-2 py-1">
-                <span className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 font-medium min-w-[140px]">{key}</span>
-                <span className="text-sm text-gray-900 dark:text-white break-all">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
-              </div>
             ))}
           </div>
         </div>
@@ -369,6 +394,22 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
             )}
           </>
         )}
+      </div>
+      </>)}
+
+      {activeTab === 'timeline' && (
+        <EntityTimeline
+          events={timeline.events}
+          loading={timeline.loading}
+          sinceDays={timelineDays}
+          onSinceDaysChange={setTimelineDays}
+          onOpenDetail={onOpenDetail}
+        />
+      )}
+
+      {activeTab === 'risk' && riskData && (
+        <RiskScoreSection attributes={riskData} entityType="contexts" entityId={contextId} authFetch={authFetch} />
+      )}
       </div>
     </div>
   );

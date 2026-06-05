@@ -1,15 +1,16 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
-import { formatDate, computeHistoryDiffs, friendlyLabel } from '../utils/formatters';
-import { CollapsibleSection } from './DetailSection';
+import { formatDate } from '../utils/formatters';
 import EntityGraph from './EntityGraph';
-import EntityDetailLayout, { AttributesTable } from './EntityDetailLayout';
+import { AttributesTable } from './EntityDetailLayout';
 import { buildAttributeEntries } from '../utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
-import RecentChangesSection from './RecentChangesSection';
+import TabBar from './TabBar';
+import EntityTimeline from './EntityTimeline';
 import useExpandableGraph from '../hooks/useExpandableGraph';
-import useRecentChanges from '../hooks/useRecentChanges';
+import useTimeline from '../hooks/useTimeline';
+import useFeatures from '../hooks/useFeatures';
 import { getRootNodes } from './entityGraphShape';
 import { ASSIGNMENT_TYPE_STYLES } from '../utils/accessPackageStyles';
 
@@ -20,15 +21,15 @@ const HIDDEN_FIELDS = new Set([
 
 export default function AccessPackageDetailPage({ accessPackageId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
+  const features = useFeatures();
 
   const [data, setData] = useState(cachedData?.core || null);
   const [loading, setLoading] = useState(!cachedData?.core);
   const [error, setError] = useState(null);
-
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [history, setHistory] = useState(cachedData?.history || null);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [riskData, setRiskData] = useState(null);
+
+  const [activeTab, setActiveTab] = useState('attributes');
+  const [timelineDays, setTimelineDays] = useState(90);
 
   useEffect(() => {
     (async () => {
@@ -57,30 +58,16 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     return () => { cancelled = true; };
   }, [accessPackageId, authFetch, cachedData?.core, onCacheData]);
 
-  const loadHistory = useCallback(() => {
-    if (history) return;
-    setHistoryLoading(true);
-    authFetch(`/api/access-package/${encodeURIComponent(accessPackageId)}/history`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => {
-        setHistory(d);
-        onCacheData?.(accessPackageId, 'access-package', { history: d });
-      })
-      .catch(() => setHistory([]))
-      .finally(() => setHistoryLoading(false));
-  }, [accessPackageId, authFetch, history, onCacheData]);
-
-  const toggleHistory = useCallback(() => {
-    setHistoryOpen(prev => { if (!prev) loadHistory(); return !prev; });
-  }, [loadHistory]);
-
-  const recent = useRecentChanges('access-package', accessPackageId, authFetch);
+  const timeline = useTimeline('access-package', accessPackageId, authFetch, {
+    sinceDays: timelineDays,
+    enabled: activeTab === 'timeline',
+  });
 
   const rootExtras = useMemo(() => ({
     catalogId: data?.attributes?.catalogId,
     catalogName: data?.attributes?.catalogName,
-    recent,
-  }), [data, recent]);
+    recent: null,
+  }), [data]);
 
   const rootNodes = useMemo(() => (
     data ? getRootNodes('access-package', data, rootExtras) : []
@@ -107,23 +94,28 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   }
   if (!data) return null;
 
-  const { attributes, historyCount, lastReviewDate, lastReviewedBy, assignmentType, category } = data;
-
-  const resolvedHistoryCount = history ? history.length : historyCount;
+  const { attributes, lastReviewDate, lastReviewedBy, assignmentType, category } = data;
   const attributeEntries = buildAttributeEntries(
     attributes,
     attributes.extendedAttributesParsed || (typeof attributes.extendedAttributes === 'object' ? attributes.extendedAttributes : null),
     HIDDEN_FIELDS,
   );
-  const historyDiffs = history ? computeHistoryDiffs(history) : [];
+
+  const hasRisk = features.riskScoring && riskData && riskData.riskScore != null;
+  const tabs = [
+    { key: 'attributes', label: 'Attributes', count: attributeEntries.length },
+    { key: 'relationships', label: 'Relationships' },
+    { key: 'timeline', label: 'Timeline' },
+    hasRisk && { key: 'risk', label: 'Risk' },
+  ];
 
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-lg font-bold">AP</div>
+            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex items-center justify-center text-lg font-bold">BR</div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>
@@ -164,9 +156,14 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
         </button>
       </div>
 
-      <EntityDetailLayout
-        left={<AttributesTable entries={attributeEntries} />}
-        right={
+      <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+
+      <div className="mt-4">
+        {activeTab === 'attributes' && (
+          <AttributesTable entries={attributeEntries} />
+        )}
+
+        {activeTab === 'relationships' && (
           <div className="space-y-4">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
               <EntityGraph
@@ -198,61 +195,22 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
               </div>
             )}
           </div>
-        }
-      >
-        {riskData && <RiskScoreSection attributes={riskData} entityType="business-roles" entityId={accessPackageId} authFetch={authFetch} />}
+        )}
 
-        <RecentChangesSection
-          events={recent.events}
-          addedCount={recent.addedCount}
-          removedCount={recent.removedCount}
-          sinceDays={recent.sinceDays}
-          loading={recent.loading}
-          onOpenDetail={onOpenDetail}
-        />
+        {activeTab === 'timeline' && (
+          <EntityTimeline
+            events={timeline.events}
+            loading={timeline.loading}
+            sinceDays={timelineDays}
+            onSinceDaysChange={setTimelineDays}
+            onOpenDetail={onOpenDetail}
+          />
+        )}
 
-        <CollapsibleSection
-          title="Version History"
-          count={resolvedHistoryCount}
-          countLabel={resolvedHistoryCount === 1 ? 'version' : 'versions'}
-          open={historyOpen}
-          onToggle={toggleHistory}
-          loading={historyLoading}
-        >
-          {historyDiffs.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-500 italic p-4">No changes recorded</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-4 py-2 font-medium w-44">Date</th>
-                  <th className="px-4 py-2 font-medium">Changes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyDiffs.map((diff, i) => (
-                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs align-top whitespace-nowrap">{formatDate(diff.date)}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-col gap-1">
-                        {diff.changes.map((c, j) => (
-                          <div key={j} className="text-xs">
-                            <span className="font-medium text-gray-700 dark:text-gray-300">{friendlyLabel(c.field)}</span>
-                            <span className="text-gray-600 dark:text-gray-500 mx-1">:</span>
-                            <span className="text-red-500 dark:text-red-400 line-through mr-1">{c.from}</span>
-                            <span className="text-gray-600 dark:text-gray-500 mr-1">&rarr;</span>
-                            <span className="text-green-600 dark:text-green-400">{c.to}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CollapsibleSection>
-      </EntityDetailLayout>
+        {activeTab === 'risk' && riskData && (
+          <RiskScoreSection attributes={riskData} entityType="business-roles" entityId={accessPackageId} authFetch={authFetch} />
+        )}
+      </div>
     </div>
   );
 }

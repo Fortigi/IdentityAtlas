@@ -1,0 +1,5 @@
+- Rolled the new sub-tab detail layout out to all the main entity pages — **Resource**, **Business Role (Access Package)**, **Identity**, and **Context** now have the same Attributes / Relationships / Timeline / Risk tabs as the user page (Risk shown only where the entity is actually scored).
+- Each of these pages now has a **Timeline** showing attribute updates and relationship changes over time (e.g. who was granted/removed from a resource, members linked to an identity), grouped by day.
+- The **Identity** page shows correlation confidence and signals on the Relationships tab (correlation is what links the accounts).
+- Removed the duplicate **Group** detail page — group links already open the Resource page, so there is now one consistent page per object.
+- The **Department** view keeps its purpose-built hierarchy/risk-distribution layout, since a department is a computed grouping rather than a stored entity (no per-entity attributes, history, or single risk score).
