@@ -368,6 +368,13 @@ switch ($JobType) {
 
             & "$appRoot/tools/crawlers/omada/Start-OmadaCrawler.ps1" @crawlerParams
 
+            # Post-sync: account-to-identity correlation (cross-system — links Omada identities
+            # to the same Identity records as Entra/other crawler accounts for the same person)
+            Update-JobProgress -Step 'Linking accounts to identities' -Pct 90
+            try {
+                if (Get-Command Invoke-FGAccountCorrelation -ErrorAction SilentlyContinue) { Invoke-FGAccountCorrelation }
+            } catch { Write-Host "  Account correlation failed: $($_.Exception.Message)" -ForegroundColor Yellow }
+
             Update-JobProgress -Step 'Complete' -Pct 100
             Set-JobResult @{ status = 'Omada sync completed successfully' }
         }

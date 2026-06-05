@@ -15,3 +15,4 @@
 - Added PowerShell formatting style guide to `Functions/CLAUDE.md` (Stroustrup preset, region blocks, operator spacing)
 - Fixed: Omada crawler script path in job dispatcher now respects the `IA_APP_ROOT` environment variable instead of hardcoding `/app`
 - Fixed: CRA summary log line reported wrong record count (referenced a removed variable from before the streaming refactor)
+- Omada post-sync now calls account correlation (cross-system identity linking with Entra and other crawlers)
