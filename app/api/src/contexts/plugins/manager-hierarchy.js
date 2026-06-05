@@ -10,6 +10,7 @@
 // plugin dependency-free so it works the minute Principals are synced.
 
 import * as db from '../../db/connection.js';
+import RE2 from 're2';
 
 /** @type {import('./types.js').ContextPlugin} */
 export default {
@@ -50,8 +51,11 @@ export default {
 
     // Compile exclude patterns up front so we fail the run — not every row —
     // on a malformed regex.
+    // RE2 guarantees linear-time matching — an admin-supplied pattern cannot
+    // cause catastrophic backtracking and hang the event loop (same fix as
+    // riskscoring/engine.js). RE2 also rejects lookaround and backreferences.
     const excludeRegexes = (params.excludeNamePatterns || []).map((src, i) => {
-      try { return new RegExp(src, 'i'); }
+      try { return new RE2(src, 'i'); }
       catch (e) { throw new Error(`excludeNamePatterns[${i}] is not a valid regex: ${e.message}`); }
     });
     const matchesExclude = (name) => !!name && excludeRegexes.some(re => re.test(name));

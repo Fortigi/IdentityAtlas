@@ -25,6 +25,7 @@
 // containing whitespace, CR/LF, commas, or path/userinfo characters (the shapes
 // header smuggling injects) is rejected rather than baked into the workbook.
 
+// eslint-disable-next-line security/detect-unsafe-regex -- static pattern, disjoint character class, no backtracking ambiguity
 const HOST_RE = /^[a-zA-Z0-9.-]+(:\d{1,5})?$/;
 
 export function resolveExportBaseUrl(req, env = process.env) {
