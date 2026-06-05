@@ -5,3 +5,5 @@
 - Upgraded PSScriptAnalyzer from Error-only to Warning + Error severity; expanded coverage to all production PowerShell roots (job dispatcher, module, CSV transforms)
 - Added eslint-plugin-security to the API build — catches unsafe regex, dynamic RegExp construction, and similar security anti-patterns on every pull request
 - Fixed: manager-hierarchy context plugin now uses the RE2 engine for admin-supplied exclude patterns, preventing ReDoS via a crafted regex (same fix already applied to the risk-scoring engine)
+- Fixed: `$input` variable in `New-OAuth2ScopeResourceId` (EntraID crawler) shadowed a PowerShell automatic variable — renamed to `$hashInput`
+- Fixed: `$matches` variable in `Get-FGAttributeMapping` shadowed a PowerShell automatic variable — renamed to `$regexMatches`
