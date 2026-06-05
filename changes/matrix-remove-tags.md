@@ -1,0 +1,1 @@
+- Removed the **Tags** column from the matrix — it no longer carried meaningful information now that tags are modelled as contexts. The matrix right-side metadata is now just member count and description.
