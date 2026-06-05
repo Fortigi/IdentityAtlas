@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/reference/permissions/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/ux/assessment/">
       
       
-        <link rel="prev" href="../config/">
+        <link rel="prev" href="../../contributing/style-guide/">
       
       
-        <link rel="next" href="../sql-views/">
+        <link rel="next" href="../../security/assessment/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Permissions & Roles - Identity Atlas</title>
+        <title>Assessment & Remediation - Identity Atlas</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#permissions-role-mapping" class="md-skip">
+        <a href="#ux-interface-assessment-remediation" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Permissions & Roles
+              Assessment & Remediation
             
           </span>
         </div>
@@ -293,8 +293,6 @@
   
   
   
-    
-  
   
     
     
@@ -302,12 +300,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -327,10 +323,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../about/" class="md-tabs__link">
           
   
@@ -1578,7 +1576,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../troubleshooting/" class="md-nav__link">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
         
   
   
@@ -1618,31 +1616,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -1660,7 +1655,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1684,13 +1679,10 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
@@ -1699,7 +1691,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_1" >
         
           
-          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
             
   
   
@@ -1883,7 +1875,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../config/" class="md-nav__link">
+      <a href="../../reference/config/" class="md-nav__link">
         
   
   
@@ -1908,37 +1900,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Permissions & Roles
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../reference/permissions/" class="md-nav__link">
         
   
   
@@ -1954,170 +1919,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#how-authorization-works" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How authorization works
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#permission-catalog" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Permission catalog
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Permission catalog">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#read" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Read
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#export" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Export
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#write" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Write
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#admin" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Admin
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#seed-default-role-mapping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Seed (default) role mapping
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Seed (default) role mapping">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#no-role-users-fail-closed" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        No-role users fail closed
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#getting-the-first-admin-in-bootstrap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting the first admin in (bootstrap)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ui-gating" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI gating
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deployment-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deployment notes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#testing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Testing
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2130,7 +1931,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../sql-views/" class="md-nav__link">
+      <a href="../../reference/sql-views/" class="md-nav__link">
         
   
   
@@ -2158,7 +1959,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../sbom/" class="md-nav__link">
+      <a href="../../reference/sbom/" class="md-nav__link">
         
   
   
@@ -2190,28 +1991,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -2229,7 +2033,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2309,10 +2113,13 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
@@ -2321,7 +2128,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3" >
         
           
-          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
             
   
   
@@ -2390,28 +2197,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
         
           
+          
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_4" >
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
             
   
   
@@ -2429,7 +2239,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2444,10 +2254,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../ux/assessment/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2463,6 +2300,131 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#result-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Result at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#findings-remediation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Findings &amp; remediation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Findings &amp; remediation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#critical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-low" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium &amp; Low
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supporting-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supporting work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strengths-confirmed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strengths (confirmed)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remediation-roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remediation roadmap
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2489,10 +2451,13 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
@@ -2501,7 +2466,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_5" >
         
           
-          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
             
   
   
@@ -2600,10 +2565,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#how-authorization-works" class="md-nav__link">
+  <a href="#scope" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How authorization works
+        Scope
       
     </span>
   </a>
@@ -2611,22 +2576,33 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#permission-catalog" class="md-nav__link">
+  <a href="#result-at-a-glance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Permission catalog
+        Result at a glance
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Permission catalog">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#findings-remediation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Findings &amp; remediation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Findings &amp; remediation">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#read" class="md-nav__link">
+  <a href="#critical" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Read
+        Critical
       
     </span>
   </a>
@@ -2634,10 +2610,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#export" class="md-nav__link">
+  <a href="#high" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Export
+        High
       
     </span>
   </a>
@@ -2645,21 +2621,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#write" class="md-nav__link">
+  <a href="#medium-low" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Write
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#admin" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Admin
+        Medium &amp; Low
       
     </span>
   </a>
@@ -2672,49 +2637,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#seed-default-role-mapping" class="md-nav__link">
+  <a href="#supporting-work" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Seed (default) role mapping
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Seed (default) role mapping">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#no-role-users-fail-closed" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        No-role users fail closed
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#getting-the-first-admin-in-bootstrap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting the first admin in (bootstrap)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ui-gating" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI gating
+        Supporting work
       
     </span>
   </a>
@@ -2722,10 +2648,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#deployment-notes" class="md-nav__link">
+  <a href="#strengths-confirmed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deployment notes
+        Strengths (confirmed)
       
     </span>
   </a>
@@ -2733,10 +2659,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#testing" class="md-nav__link">
+  <a href="#remediation-roadmap" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Testing
+        Remediation roadmap
       
     </span>
   </a>
@@ -2785,16 +2711,11 @@
   
     
     
-      
-  
-  
-    
-    
       <li class="md-path__item">
-        <a href="../../api/" class="md-path__link">
+        <a href="../../about/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Reference
+    Project
   </span>
 
         </a>
@@ -2802,6 +2723,21 @@
     
   
 
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="./" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    User Experience
+  </span>
+
+        </a>
+      </li>
     
   
 
@@ -2819,208 +2755,300 @@
   
 
 
-<h1 id="permissions-role-mapping">Permissions &amp; Role Mapping<a class="headerlink" href="#permissions-role-mapping" title="Permanent link">&para;</a></h1>
-<p>Identity Atlas authorizes every API request against a <strong>fixed catalog of permissions</strong>. Customers map their Entra ID <strong>app roles</strong> to those permissions, so "who can do what" is configurable without code changes.</p>
-<p>This page is the reference for the permission model. The catalog below is kept in sync with the code by a test (<code>app/api/src/auth/docsCoverage.test.js</code>) — if a permission is added to the catalog without being documented here, CI fails.</p>
-<h2 id="how-authorization-works">How authorization works<a class="headerlink" href="#how-authorization-works" title="Permanent link">&para;</a></h2>
-<ol>
-<li><strong>Authentication</strong> — when <code>AUTH_ENABLED=true</code>, every <code>/api/*</code> request must carry a valid Entra ID bearer token (or a read/crawler API key). When <code>AUTH_ENABLED=false</code> (the default for local/laptop use) the API runs in <strong>open mode</strong>: all gates are no-ops and a banner warns that anyone with the URL has full access. Open mode is a supported deployment for evaluation and single-user local runs — <strong>do not</strong> use it on a network without a trusted boundary.</li>
-<li><strong>Role → permission resolution</strong> — the token's <code>roles</code> claim is resolved to a set of permissions via the configured mapping (Admin → Authentication → Roles &amp; Permissions), falling back to the built-in seed mapping.</li>
-<li><strong>Per-route enforcement</strong> — each protected route declares the permission(s) it needs via <code>requirePermission(...)</code>. The gate is attached to the <strong>individual route</strong>, not the <code>/api</code> mount, so one router's permission never affects another's endpoints.</li>
-<li><strong>Wildcard</strong> — a role mapped to <code>*</code> is granted every permission (including ones added in future releases). The seed <code>Admin</code> role uses <code>*</code>.</li>
-</ol>
-<div class="admonition note">
-<p class="admonition-title">Read &amp; crawler API keys</p>
-<ul>
-<li><strong>Read API keys (<code>fgr_…</code>)</strong> are accepted only on <code>GET</code> requests to non-admin endpoints and resolve to <code>data.read</code>. They're used by the generated Excel/Power Query workbook.</li>
-<li><strong>Crawler API keys (<code>fgc_…</code>)</strong> authenticate the worker on <code>/api/crawlers/*</code> and <code>/api/ingest/*</code> only, with their own per-crawler scope (<code>systemIds</code>) and permissions (<code>ingest</code>, <code>refreshViews</code>, <code>admin</code>). They are separate from the user-facing permission catalog below.</li>
-</ul>
+<h1 id="ux-interface-assessment-remediation">UX &amp; Interface Assessment &amp; Remediation<a class="headerlink" href="#ux-interface-assessment-remediation" title="Permanent link">&para;</a></h1>
+<p>Identity Atlas underwent an independent <strong>UX / GUI audit</strong> in June 2026, conducted pentest-style: a read-only, evidence-cited review of the entire React UI (~70 components) across <strong>twelve specialist passes</strong> — six by <em>lens</em> and six by <em>region</em> — walking every screen, wizard step, and sub-page.</p>
+<p>This page is a <strong>public, sanitized summary</strong>: it records what was assessed, the findings by severity and status, and the pull requests that remediated them. Internal file/line evidence and the full twelve-pass transcripts are deliberately omitted. The full audit is kept with the project maintainers.</p>
+<div class="admonition info">
+<p class="admonition-title">Why we publish this</p>
+<p>We hold our own interface to the same standard as our security posture. The audit was deliberately self-critical; every Critical and High finding is tracked openly below, and the foundational fixes (an enforced Style Guide, a design-system lint gate, an accessibility baseline) have been merged to <code>main</code>. Remaining items are listed honestly as in progress or planned.</p>
 </div>
-<h2 id="permission-catalog">Permission catalog<a class="headerlink" href="#permission-catalog" title="Permanent link">&para;</a></h2>
-<p>Permissions are grouped into <strong>Read</strong>, <strong>Export</strong>, <strong>Write</strong>, and <strong>Admin</strong>.</p>
-<h3 id="read">Read<a class="headerlink" href="#read" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Permission</th>
-<th>Label</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>data.read</code></td>
-<td>Read all data</td>
-<td>Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route <code>requirePermission('data.read')</code> gate. <code>fgr_</code> read tokens are granted it implicitly.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="export">Export<a class="headerlink" href="#export" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Permission</th>
-<th>Label</th>
-<th>Gated endpoint (representative)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>data.export.ui</code></td>
-<td>Export to Excel/CSV</td>
-<td><code>GET /api/admin/export/curated</code>, <code>POST /api/admin/data-export/workbook</code></td>
-</tr>
-<tr>
-<td><code>data.export.apikey</code></td>
-<td>Generate read-only API keys</td>
-<td><code>POST /api/admin/read-tokens</code> (mint your own <code>fgr_</code> token)</td>
-</tr>
-</tbody>
-</table>
-<h3 id="write">Write<a class="headerlink" href="#write" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Permission</th>
-<th>Label</th>
-<th>Gated endpoint (representative)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>data.write.tags</code></td>
-<td>Manage tags</td>
-<td><code>POST/PATCH/DELETE /api/tags…</code></td>
-</tr>
-<tr>
-<td><code>data.write.categories</code></td>
-<td>Manage categories</td>
-<td><code>POST/PATCH/DELETE /api/categories…</code></td>
-</tr>
-<tr>
-<td><code>data.write.risk</code></td>
-<td>Risk score overrides</td>
-<td><code>PUT/DELETE /api/risk-scores/:type/:id/override</code></td>
-</tr>
-<tr>
-<td><code>data.write.certifications</code></td>
-<td>Certification decisions</td>
-<td><strong>Reserved</strong> — no interactive endpoint yet. Certification decisions are currently ingested via the crawler (<code>POST /api/ingest/governance/certifications</code>). When an approve/revoke endpoint is added it will be gated by this permission.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="admin">Admin<a class="headerlink" href="#admin" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Permission</th>
-<th>Label</th>
-<th>Gated endpoint (representative)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>admin.crawlers</code></td>
-<td>Crawler configuration</td>
-<td><code>GET/POST/PATCH/DELETE /api/admin/crawlers…</code>, crawler jobs, trigger risk-scoring runs</td>
-</tr>
-<tr>
-<td><code>admin.systems</code></td>
-<td>Systems configuration</td>
-<td><code>PUT /api/systems/:id</code>, owners, clean-database, history-retention</td>
-</tr>
-<tr>
-<td><code>admin.llm</code></td>
-<td>LLM configuration</td>
-<td><code>/api/admin/llm/*</code>, risk profiles/classifiers, correlation rulesets</td>
-</tr>
-<tr>
-<td><code>admin.context-plugins</code></td>
-<td>Context plugins</td>
-<td><code>/api/context-plugins…</code> (run/configure clustering, manager-hierarchy, etc.)</td>
-</tr>
-<tr>
-<td><code>admin.csv-import</code></td>
-<td>CSV import</td>
-<td><code>/api/admin/crawler-configs/:id/csv-files</code>, custom-connector ingest</td>
-</tr>
-<tr>
-<td><code>admin.read-tokens</code></td>
-<td>Manage read API keys</td>
-<td><code>GET/DELETE /api/admin/read-tokens</code> (list/revoke tokens minted by others)</td>
-</tr>
-<tr>
-<td><code>admin.feature-flags</code></td>
-<td>Feature flags</td>
-<td><code>POST /api/admin/features/toggle</code></td>
-</tr>
-<tr>
-<td><code>admin.auth</code></td>
-<td>Authentication &amp; roles</td>
-<td><code>GET/PUT/DELETE /api/admin/roles</code> — edits this very mapping. A self-lockout guard prevents a save that would strip your own <code>admin.auth</code>.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="seed-default-role-mapping">Seed (default) role mapping<a class="headerlink" href="#seed-default-role-mapping" title="Permanent link">&para;</a></h2>
-<p>A fresh install ships with this mapping (customisable in the Admin UI):</p>
-<table>
-<thead>
-<tr>
-<th>Role</th>
-<th>Permissions</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>Admin</code></td>
-<td><code>*</code> (all permissions)</td>
-</tr>
-<tr>
-<td><code>RoleMiner</code></td>
-<td><code>data.read</code>, <code>data.export.ui</code>, <code>data.export.apikey</code></td>
-</tr>
-<tr>
-<td><code>Servicedesk</code></td>
-<td><code>data.read</code></td>
-</tr>
-</tbody>
-</table>
-<h3 id="no-role-users-fail-closed">No-role users fail closed<a class="headerlink" href="#no-role-users-fail-closed" title="Permanent link">&para;</a></h3>
-<p>A signed-in user whose roles resolve to <strong>no</strong> permissions is <strong>denied</strong> every permission gate — they can authenticate but cannot perform any admin or write action. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw). Note that read endpoints are not permission-gated, so a roleless user can still <em>read</em> data; set <code>AUTH_REQUIRED_ROLES</code> to keep roleless users from signing in at all.</p>
-<h3 id="getting-the-first-admin-in-bootstrap">Getting the first admin in (bootstrap)<a class="headerlink" href="#getting-the-first-admin-in-bootstrap" title="Permanent link">&para;</a></h3>
-<p>Because there's no fallback, you must grant access explicitly:</p>
-<ol>
-<li>In Entra ID, assign your user to an <strong>app role</strong> that the mapping maps to permissions — the seed maps the <strong><code>Admin</code></strong> role to <code>*</code> (full access).</li>
-<li>Then enable auth (<code>AUTH_ENABLED=true</code>) and sign in.</li>
-</ol>
-<p><strong>Locked yourself out?</strong> If you enabled auth before assigning yourself a role, no one can reach the admin UI. Recover from the host shell with the auth CLI — disable auth, assign the role in Entra, then re-enable:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 1. Disable auth (recovery path), then restart:</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>node<span class="w"> </span>src/cli/auth-config.js<span class="w"> </span>disable
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>restart<span class="w"> </span>web
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># 2. Assign your user the Admin app role in Entra ID.</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># 3. Re-enable auth and restart:</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>web<span class="w"> </span>node<span class="w"> </span>src/cli/auth-config.js<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--tenant<span class="w"> </span>&lt;tenant-guid&gt;<span class="w"> </span>--client<span class="w"> </span>&lt;client-guid&gt;
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>docker<span class="w"> </span>compose<span class="w"> </span>restart<span class="w"> </span>web
-</code></pre></div>
-<h2 id="ui-gating">UI gating<a class="headerlink" href="#ui-gating" title="Permanent link">&para;</a></h2>
-<p>The SPA calls <code>GET /api/auth-me</code> after sign-in to learn its own permissions and hides controls the user can't use (the <strong>Admin</strong> tab, its sub-tabs, and export buttons). The server remains the source of truth — hidden controls are also enforced server-side, so hiding is a UX nicety, not a security boundary.</p>
-<h2 id="deployment-notes">Deployment notes<a class="headerlink" href="#deployment-notes" title="Permanent link">&para;</a></h2>
+<hr />
+<h2 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Open mode (<code>AUTH_ENABLED=false</code>)</strong> — supported for local/evaluation use; all permission gates are bypassed.</li>
-<li><strong>Azure App Service</strong> — <code>AUTH_ENABLED=true</code> is set from first boot; the Authentication admin sub-tab is hidden (managed platform).</li>
-<li>Tenant/client IDs are configured via <code>AUTH_TENANT_ID</code> / <code>AUTH_CLIENT_ID</code>; the role→permission mapping is edited live in Admin → Authentication.</li>
-<li><strong>Token audience</strong> — the API accepts only access tokens whose audience is <code>api://&lt;client-id&gt;</code> (its exposed API scope). ID tokens are rejected. This is why the setup walkthrough has you "Expose an API" with the default <code>api://&lt;client-id&gt;</code> Application ID URI.</li>
+<li><strong>The entire React UI</strong> (<code>app/ui/src</code>, ~70 components): the dashboard, the matrix (the core analytical surface), all entity-detail variants, the crawler-configuration wizards, the Admin sub-pages, risk scoring, account correlation, contexts, and the application shell.</li>
+<li><strong>Six lenses:</strong> information architecture &amp; navigation, colour &amp; brand, component consistency, user-flow consistency, help &amp; terminology, and accessibility.</li>
+<li><strong>Six regions:</strong> crawler config, Admin, entity-detail pages, the matrix end-to-end, risk/correlation/contexts, and the dashboard + list pages + shell.</li>
 </ul>
-<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
-<p>Enforcement is verified by:</p>
+<p><strong>Method:</strong> manual, read-only review with every finding cited to <code>file:line</code>, deduped and rated by severity. No files were modified during the audit itself.</p>
+<hr />
+<h2 id="result-at-a-glance">Result at a glance<a class="headerlink" href="#result-at-a-glance" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Found</th>
+<th>Remediated / in progress</th>
+<th>Open</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Critical</td>
+<td>4</td>
+<td>3</td>
+<td>1</td>
+</tr>
+<tr>
+<td>High</td>
+<td>21</td>
+<td>9</td>
+<td>12</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>~35</td>
+<td>several</td>
+<td>most</td>
+</tr>
+<tr>
+<td>Low / Informational</td>
+<td>~30</td>
+<td>several</td>
+<td>most</td>
+</tr>
+</tbody>
+</table>
+<p>The audit's headline: a <strong>strong foundation with a missing middle</strong> — a healthy design-<em>token</em> layer and one genuinely excellent flow (the matrix filter wizard), but no shared <em>component</em> layer, no terminology/help system, and uneven dark-mode and accessibility coverage, so the same control had drifted across colours and patterns. The remediation programme therefore prioritised <strong>foundations</strong> (a written Style Guide, CI enforcement, an accessibility baseline) alongside the highest-impact individual fixes.</p>
+<hr />
+<h2 id="findings-remediation">Findings &amp; remediation<a class="headerlink" href="#findings-remediation" title="Permanent link">&para;</a></h2>
+<p>Status legend: ✅ <strong>Fixed</strong> (merged) · 🟨 <strong>Partially addressed</strong> · 🔧 <strong>Remediation planned</strong>.</p>
+<h3 id="critical">Critical<a class="headerlink" href="#critical" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Finding</th>
+<th>Status</th>
+<th>PR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C-01</td>
+<td>The matrix had no on-screen legend — its core surface (coloured single letters) was undecipherable without external docs</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/226">#226</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/250">#250</a></td>
+</tr>
+<tr>
+<td>C-02</td>
+<td>Identity Correlation is a dead-end flow: a ruleset can be saved but not run from the UI, and the review loop is half-built</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C-03</td>
+<td>The matrix "governed" concept had multiple definitions that could contradict across the panel and the two grids</td>
+<td>🟨 Partially addressed — panel + main grid unified on business-role coverage; rotated view pending</td>
+<td>—</td>
+</tr>
+<tr>
+<td>C-04</td>
+<td>Accessibility: the app was substantially keyboard- and screen-reader-inoperable (focus, reduced-motion, real controls, labels)</td>
+<td>🟨 Partially addressed — global focus-visible, skip link &amp; reduced-motion baseline merged; modal focus-trap and a full real-controls sweep remain</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/229">#229</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/236">#236</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="high">High<a class="headerlink" href="#high" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Finding</th>
+<th>Status</th>
+<th>PR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H-01</td>
+<td>No shared component layer — primitives quarantined; the same action rendered in several colours/styles</td>
+<td>🟨 Partially addressed — shared <code>Stepper</code>, unified interactive colour to blue, softened data-viz</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/241">#241</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/242">#242</a></td>
+</tr>
+<tr>
+<td>H-02</td>
+<td>Detail pages are "two products in one" (shared-layout vs bespoke; a stale duplicate Group page)</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-03</td>
+<td>Entire Contexts tab broken in dark mode</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/227">#227</a></td>
+</tr>
+<tr>
+<td>H-04</td>
+<td>Several regions light-mode only (crawler job-detail modal, compliance &amp; account-type badges)</td>
+<td>🟨 Partially addressed — badges fixed; job-detail modal pending</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/232">#232</a></td>
+</tr>
+<tr>
+<td>H-05</td>
+<td>Botched automated dark-mode pass left doubled/contradictory classes</td>
+<td>🟨 Partially addressed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/233">#233</a></td>
+</tr>
+<tr>
+<td>H-06</td>
+<td>Roles &amp; Permissions is buried inside Authentication; the described self-lockout guard isn't implemented</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-07</td>
+<td>Risk Scoring can't be created/run from its own page; dead cluster code</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-08</td>
+<td>Admin → Data tab gating mismatch (sections render regardless of the entry permission)</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-09</td>
+<td>Matrix "Apply vs Save" is a trap (overlapping verbs; a scolding "Not saved" badge)</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-10</td>
+<td>Rotated matrix is a silent reduced mode while still showing the controls it drops</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-11</td>
+<td>Core concepts never defined on screen (matrix, subjects, governed, gaps)</td>
+<td>🟨 Partially addressed — matrix legend + Style Guide glossary</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/226">#226</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/237">#237</a></td>
+</tr>
+<tr>
+<td>H-12</td>
+<td>List pages dead-end new users; Systems cited a stale CLI command</td>
+<td>🟨 Partially addressed — Systems onboarding fixed; remaining list pages pending</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/230">#230</a></td>
+</tr>
+<tr>
+<td>H-13</td>
+<td>Optional tabs (Risk Scores, Identities) hidden by default even when enabled</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-14</td>
+<td>List-page sort silently sorts only the current page over server pagination</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-15</td>
+<td>Dashboard backend error masqueraded as an "empty database" onboarding state</td>
+<td>✅ Fixed</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/235">#235</a></td>
+</tr>
+<tr>
+<td>H-16</td>
+<td>Almost no contextual help / doc links; no in-app glossary</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-17</td>
+<td>Terminology drift leaked internal jargon (SOLL/IST, "Org Unit", "Access Package") into the UI</td>
+<td>✅ Fixed — strings corrected + a CI rule blocks regressions</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/228">#228</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/243">#243</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/238">#238</a></td>
+</tr>
+<tr>
+<td>H-18</td>
+<td>CSV import validates only the filename, not headers; loose name-matching can mis-map</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-19</td>
+<td>One-time API key trivially lost; Copy reports success even when the clipboard fails</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-20</td>
+<td>Crawler "audit log" fetches data but renders nothing</td>
+<td>🔧 Planned</td>
+<td>—</td>
+</tr>
+<tr>
+<td>H-21</td>
+<td>~11 native <code>confirm()</code>/<code>alert()</code>/<code>prompt()</code> for important actions — unstyled, no dark mode, untestable</td>
+<td>🟨 Partially addressed — a CI rule blocks new ones; the existing backlog is being migrated</td>
+<td><a href="https://github.com/Fortigi/IdentityAtlas/pull/238">#238</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="medium-low">Medium &amp; Low<a class="headerlink" href="#medium-low" title="Permanent link">&para;</a></h3>
+<p>Around 35 Medium and 30 Low/Informational items were recorded — inconsistent sub-navigation, no breadcrumbs, ad-hoc empty/loading states, tag-pill contrast risks, the orphaned brand colour and button-colour drift, ad-hoc type sizes, and assorted polish. Several have already been resolved as part of the foundational work below (terminology, the brand/colour decision, the matrix Tags column, a null-guard crash); the remainder are tracked internally and scheduled alongside the High items. Technical detail is withheld here pending remediation.</p>
+<hr />
+<h2 id="supporting-work">Supporting work<a class="headerlink" href="#supporting-work" title="Permanent link">&para;</a></h2>
+<p>Beyond the per-finding fixes, the remediation programme added the <strong>foundations the audit said were missing</strong>:</p>
 <ul>
-<li><strong><code>app/api/src/auth/permissionMatrix.test.js</code></strong> — for every gated permission, asserts the representative endpoint is reachable <strong>with</strong> the permission and returns <code>403</code> <strong>without</strong> it; plus a completeness guard that fails if any catalog permission is unclassified.</li>
-<li><strong><code>app/api/src/middleware/requirePermission.test.js</code></strong> — unit tests for the gate decision logic.</li>
-<li><strong><code>app/ui/e2e/permission-gating.spec.js</code></strong> — confirms the UI shows/hides the Admin tab and sub-tabs per permission.</li>
-<li><strong><code>app/api/src/auth/docsCoverage.test.js</code></strong> — fails if a catalog permission is missing from this page.</li>
+<li><strong>A written, enforced UI Style Guide</strong> — codifies the two-role colour system (green = brand, blue = interactive), dark-mode and accessibility rules, the data-viz saturation rule, component conventions, and a terminology glossary (<a href="https://github.com/Fortigi/IdentityAtlas/pull/237">#237</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/245">#245</a>).</li>
+<li><strong>A CI "design-system lint" gate</strong> — blocks native dialogs and legacy jargon in new code, on top of the existing contrast rule (<a href="https://github.com/Fortigi/IdentityAtlas/pull/238">#238</a>).</li>
+<li><strong>A visual-consistency sweep</strong> — a shared stepper, one interactive colour, softened data-visualisation fills, and the removal of the stale matrix Tags column (<a href="https://github.com/Fortigi/IdentityAtlas/pull/241">#241</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/242">#242</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/243">#243</a>).</li>
+<li><strong>Documentation that matches the product</strong> — the docs site now mirrors the app's shell and brand (<a href="https://github.com/Fortigi/IdentityAtlas/pull/239">#239</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/244">#244</a>).</li>
 </ul>
+<hr />
+<h2 id="strengths-confirmed">Strengths (confirmed)<a class="headerlink" href="#strengths-confirmed" title="Permanent link">&para;</a></h2>
+<p>The audit confirmed real strengths, preserved throughout remediation:</p>
+<ul>
+<li><strong>A genuine design-token layer</strong> — centralised colour palettes and tier/badge style maps.</li>
+<li><strong>One excellent flow</strong> — the matrix filter wizard with live preview counts.</li>
+<li><strong>A WCAG contrast lint rule</strong> already in place, now joined by the broader design-system gate.</li>
+<li><strong>Dark-mode intent</strong> throughout, now being completed region by region.</li>
+</ul>
+<hr />
+<h2 id="remediation-roadmap">Remediation roadmap<a class="headerlink" href="#remediation-roadmap" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Theme</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P0</strong></td>
+<td>Legibility &amp; trust — matrix legend &amp; "how to read", dashboard error ≠ empty</td>
+<td>✅ Complete</td>
+</tr>
+<tr>
+<td><strong>P1</strong></td>
+<td>Design-system foundation — Style Guide, CI lint, accessibility baseline, interactive-colour unification</td>
+<td>🟨 In progress</td>
+</tr>
+<tr>
+<td><strong>P2</strong></td>
+<td>Dark mode &amp; brand — complete dark mode region by region; finish the colour decision</td>
+<td>🟨 In progress</td>
+</tr>
+<tr>
+<td><strong>P3</strong></td>
+<td>IA &amp; onboarding — unify the detail-page family, promote Roles &amp; Permissions, guiding empty states, surface optional tabs</td>
+<td>🔧 Scheduled</td>
+</tr>
+<tr>
+<td><strong>P4</strong></td>
+<td>Help &amp; governance — per-page doc links + glossary, finish/fence half-built features</td>
+<td>🔧 Scheduled</td>
+</tr>
+</tbody>
+</table>
+<p>A follow-up re-audit is recommended once the P2–P3 items are remediated.</p>
+<hr />
+<p><em>This page is a sanitized public summary. The full audit, with per-finding file/line evidence across the twelve specialist passes, is kept with the project maintainers. No files or deployments were modified during the audit itself — it was a read-only inspection.</em></p>
 
 
 
