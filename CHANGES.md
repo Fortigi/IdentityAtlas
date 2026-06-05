@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The in-app "Documentation" and "CSV Schema Reference" links now point to the docs version that matches the running build — an **edge** build links to the edge docs, a release links to the stable docs — instead of always opening the default (stable) docs.
+
+## Changes in this PR
+
 - Business Role detail page: the Attributes tab now opens with an **Overview** panel showing Type, Review status, Review date, Reviewed by and Category using the same badges and colours as the Business Roles list; the governance records (policies, access reviews grouped by review instance, pending requests) now sit at the bottom of the Attributes tab; and the Relationships tab is back to just the relationship graph.
 - The Business Role **Timeline** now shows access-review activity ("Access review started" / "ended").
 
