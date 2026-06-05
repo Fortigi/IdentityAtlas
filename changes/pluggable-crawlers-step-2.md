@@ -5,3 +5,4 @@
 - Moved Entra ID selectedObjects mapping and mark-delta-mode reset from the dispatcher into the Entra ID crawler
 - Moved Omada selectedObjects mapping from the dispatcher into the Omada crawler
 - Added `Dispatcher.Tests.ps1` with Pester unit tests covering registry building, DFS ordering, cycle detection, and live manifest validation
+- Updated `Omada.Tests.ps1` file-structure assertions to match the new generic dispatcher: dispatcher now verified via `Get-CrawlerRegistry` usage; `contextObjectTypes` and `resourceCategoryMapping` now verified in `Start-OmadaCrawler.ps1` where they live
