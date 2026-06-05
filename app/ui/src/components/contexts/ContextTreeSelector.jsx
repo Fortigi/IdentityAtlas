@@ -59,21 +59,21 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
         {onNewTree && (
           <button
             onClick={onNewTree}
-            className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300"
+            className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300"
           >+ New</button>
         )}
       </div>
 
       <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 space-y-2 text-xs">
         <div className="flex gap-2">
-          <select value={filterTarget} onChange={e => setFilterTarget(e.target.value)} className="flex-1 border rounded px-1 py-0.5">
+          <select value={filterTarget} onChange={e => setFilterTarget(e.target.value)} className="flex-1 border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
             <option value="">All targets</option>
             <option value="Identity">Identity</option>
             <option value="Resource">Resource</option>
             <option value="Principal">Principal</option>
             <option value="System">System</option>
           </select>
-          <select value={filterVariant} onChange={e => setFilterVariant(e.target.value)} className="flex-1 border rounded px-1 py-0.5">
+          <select value={filterVariant} onChange={e => setFilterVariant(e.target.value)} className="flex-1 border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
             <option value="">All variants</option>
             <option value="synced">Synced</option>
             <option value="generated">Generated</option>
@@ -81,7 +81,7 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
           </select>
         </div>
         {systems.length > 0 && (
-          <select value={filterSystem} onChange={e => setFilterSystem(e.target.value)} className="w-full border rounded px-1 py-0.5">
+          <select value={filterSystem} onChange={e => setFilterSystem(e.target.value)} className="w-full border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
             <option value="">All systems</option>
             {systems.map(([id, name]) => <option key={id} value={String(id)}>{name}</option>)}
           </select>
@@ -89,15 +89,15 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
       </div>
 
       <div className="flex-1 overflow-auto">
-        {loading && <div className="p-3 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading…</div>}
+        {loading && <div className="p-3 text-xs text-gray-500 dark:text-gray-400">Loading…</div>}
         {!loading && filtered.length === 0 && (
-          <div className="p-3 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">
+          <div className="p-3 text-xs text-gray-500 dark:text-gray-400">
             No trees match the current filters. Contexts arrive from a crawler (synced), from a plugin run (generated), or from the "+ New" button (manual).
           </div>
         )}
         {groups.map(([group, items]) => (
           <div key={group} className="mb-2">
-            <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50 border-y border-gray-100 dark:border-gray-700">
+            <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-y border-gray-100 dark:border-gray-700">
               {group} <span className="text-gray-600 dark:text-gray-500">· {items.length}</span>
             </div>
             <ul>
@@ -109,7 +109,7 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
                   <li key={n.id}>
                     <button
                       onClick={() => onSelectRoot(n.id)}
-                      className={`w-full text-left px-3 py-2 text-xs border-l-4 ${v.borderClass} hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 ${selected ? 'bg-blue-50' : ''}`}
+                      className={`w-full text-left px-3 py-2 text-xs border-l-4 ${v.borderClass} hover:bg-gray-50 dark:hover:bg-gray-700/50 ${selected ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex-1 min-w-0">
