@@ -1,0 +1,1 @@
+- Published a **UX & Interface Assessment & Remediation** page in the docs (under Project → User Experience), a sanitized public summary of the June 2026 UX/GUI audit — findings by severity with status and links to the pull requests that fixed them, mirroring the existing security assessment page.
