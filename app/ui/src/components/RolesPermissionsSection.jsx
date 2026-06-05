@@ -205,7 +205,7 @@ export default function RolesPermissionsSection() {
         </div>
         <div className="shrink-0 text-xs">
           {data.isCustom ? (
-            <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">Custom mapping</span>
+            <span className="px-2 py-1 rounded bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">Custom mapping</span>
           ) : (
             <span className="px-2 py-1 rounded bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200">Default mapping</span>
           )}
@@ -305,7 +305,7 @@ export default function RolesPermissionsSection() {
           type="button"
           onClick={handleSave}
           disabled={!dirty || saving}
-          className="px-4 py-2 text-sm font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? 'Saving…' : 'Save changes'}
         </button>
