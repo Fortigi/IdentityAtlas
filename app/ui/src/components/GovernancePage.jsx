@@ -206,16 +206,16 @@ export default function GovernancePage() {
       {totalAPs > 0 && (
         <div>
           <div className="flex rounded-full h-4 overflow-hidden bg-gray-100 dark:bg-gray-700">
-            <div className="bg-green-500" style={{ width: `${(compliant / totalAPs * 100)}%` }} title={`${compliant} compliant`} />
-            <div className="bg-red-400" style={{ width: `${(overdue / totalAPs * 100)}%` }} title={`${overdue} overdue`} />
-            <div className="bg-orange-400" style={{ width: `${(reviewedLate / totalAPs * 100)}%` }} title={`${reviewedLate} reviewed late`} />
-            <div className="bg-blue-400" style={{ width: `${(inProgress / totalAPs * 100)}%` }} title={`${inProgress} in progress`} />
+            <div className="bg-green-300" style={{ width: `${(compliant / totalAPs * 100)}%` }} title={`${compliant} compliant`} />
+            <div className="bg-red-300" style={{ width: `${(overdue / totalAPs * 100)}%` }} title={`${overdue} overdue`} />
+            <div className="bg-orange-300" style={{ width: `${(reviewedLate / totalAPs * 100)}%` }} title={`${reviewedLate} reviewed late`} />
+            <div className="bg-blue-300" style={{ width: `${(inProgress / totalAPs * 100)}%` }} title={`${inProgress} in progress`} />
           </div>
           <div className="flex gap-4 text-xs text-gray-500 dark:text-gray-400 mt-1">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />Compliant</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />Overdue</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />Reviewed Late</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />In Progress</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-300 inline-block" />Compliant</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-300 inline-block" />Overdue</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-300 inline-block" />Reviewed Late</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-300 inline-block" />In Progress</span>
           </div>
         </div>
       )}

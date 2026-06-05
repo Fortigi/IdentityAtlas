@@ -303,7 +303,14 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                   <tr
                     key={m.id}
                     className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 cursor-pointer"
-                    onClick={() => onOpenDetail('user', m.id, m.displayName)}
+                    onClick={() => {
+                      const tt = detail.attributes.targetType;
+                      const kind = tt === 'Identity' ? 'identity'
+                                 : tt === 'Resource' ? 'group'
+                                 : tt === 'System'   ? 'system'
+                                 : 'user';
+                      onOpenDetail(kind, m.id, m.displayName);
+                    }}
                   >
                     <td className="py-1.5 text-blue-600 dark:text-blue-400 hover:underline">{m.displayName}</td>
                     <td className="py-1.5 text-gray-600 dark:text-gray-400 dark:text-gray-500">{m.email || '-'}</td>

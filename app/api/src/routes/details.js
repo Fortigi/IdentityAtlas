@@ -156,7 +156,11 @@ router.get('/user/:id', async (req, res) => {
     try {
       const r = await timedRequest(pool, 'user-context-count', res)
         .input('id', userId)
-        .query(`SELECT COUNT(*)::int AS cnt FROM "ContextMembers" WHERE "memberId"::text = @id`);
+        .query(`SELECT COUNT(DISTINCT cm."contextId")::int AS cnt
+                  FROM "IdentityMembers" im
+                  JOIN "ContextMembers" cm ON cm."memberId"::text = im."identityId"::text
+                                          AND cm."memberType" = 'Identity'
+                 WHERE im."principalId"::text = @id`);
       contextCount = r.recordset[0].cnt;
     } catch { /* ContextMembers may not exist on older deployments */ }
 
@@ -189,11 +193,13 @@ router.get('/user/:id/contexts', async (req, res) => {
     const pool = await db.getPool();
     const r = await timedRequest(pool, 'user-contexts', res)
       .input('id', req.params.id)
-      .query(`SELECT c.id, c."displayName", c."contextType", c."targetType", c.variant
-                FROM "ContextMembers" cm
+      .query(`SELECT DISTINCT ON (c.id) c.id, c."displayName", c."contextType", c."targetType", c.variant
+                FROM "IdentityMembers" im
+                JOIN "ContextMembers" cm ON cm."memberId"::text = im."identityId"::text
+                                        AND cm."memberType" = 'Identity'
                 JOIN "Contexts" c ON c.id = cm."contextId"
-               WHERE cm."memberId"::text = @id
-               ORDER BY c."contextType", c."displayName"`);
+               WHERE im."principalId"::text = @id
+               ORDER BY c.id, c."contextType", c."displayName"`);
     res.json(r.recordset);
   } catch (err) {
     console.error('Error fetching user contexts:', err.message);

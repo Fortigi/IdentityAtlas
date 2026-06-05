@@ -218,7 +218,7 @@ export default function MatrixGroupRow({
         );
       })}
 
-      {/* Right-side metadata: # | Description | Tags */}
+      {/* Right-side metadata: # | Description */}
       <td className="border-l-2 border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 text-center"
           style={{ minWidth: '40px' }}>
         {memberCount}
@@ -226,21 +226,6 @@ export default function MatrixGroupRow({
       <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-500 max-w-[500px]"
           title={group.description}>
         <div className="truncate">{group.description}</div>
-      </td>
-      <td className="border-b border-gray-200 dark:border-gray-700 px-1 py-0.5"
-          style={{ minWidth: '120px', maxWidth: '180px' }}>
-        <div className="flex flex-wrap gap-0.5">
-          {(group.tags || []).map(t => (
-            <span
-              key={t.id}
-              className="inline-block px-1 py-0 rounded-full text-[9px] font-medium border leading-tight"
-              style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}
-              title={t.name}
-            >
-              {t.name}
-            </span>
-          ))}
-        </div>
       </td>
     </tr>
   );
