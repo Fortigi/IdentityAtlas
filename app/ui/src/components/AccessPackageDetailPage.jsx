@@ -8,6 +8,7 @@ import { buildAttributeEntries } from '../utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
+import AccessPackageGovernance from './AccessPackageGovernance';
 import useExpandableGraph from '../hooks/useExpandableGraph';
 import useTimeline from '../hooks/useTimeline';
 import useFeatures from '../hooks/useFeatures';
@@ -194,6 +195,10 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
                 <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
               </div>
             )}
+
+            {/* Governance references — the records behind the review-status /
+                type overview: policies, access reviews, pending requests. */}
+            <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} />
           </div>
         )}
 

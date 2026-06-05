@@ -3,3 +3,4 @@
 - The **Identity** page shows correlation confidence and signals on the Relationships tab (correlation is what links the accounts).
 - Removed the duplicate **Group** detail page — group links already open the Resource page, so there is now one consistent page per object.
 - The **Department** view keeps its purpose-built hierarchy/risk-distribution layout, since a department is a computed grouping rather than a stored entity (no per-entity attributes, history, or single risk score).
+- Business Role pages now surface the **governance records behind the overview** — assignment policies, access reviews (who reviewed, when, and the decision), and pending requests — as references on the Relationships tab, so the data driving the Review Status / Type columns is visible.
