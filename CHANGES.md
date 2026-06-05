@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Warmed up the documentation site so it's less stark white and better matches the app: a green brand accent on the header, green ticks on section headings, the active left-nav item highlighted in soft green, the in-page table-of-contents active link in blue, and blue-accented blockquotes.
+
+## Changes in this PR
+
 - The in-app "Documentation" and "CSV Schema Reference" links now point to the docs version that matches the running build — an **edge** build links to the edge docs, a release links to the stable docs — instead of always opening the default (stable) docs.
 
 ## Changes in this PR
