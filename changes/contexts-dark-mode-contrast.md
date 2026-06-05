@@ -1,2 +1,0 @@
-- Fixed dark mode contrast in the Contexts tab: selected tree item now shows the correct blue highlight instead of a light-blue-on-dark background; filter dropdowns are now themed correctly in dark mode
-- User detail page now color-codes the account type badge by principal type: Guest (amber), ServicePrincipal/Application (purple), ManagedIdentity (teal), Deleted (red), unknown (gray)
