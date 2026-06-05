@@ -1,5 +1,35 @@
 ## Changes in this PR
 
+- Restructured crawler architecture to be fully pluggable: each crawler now declares its identity and dependencies in a `crawler.json` manifest
+- Extracted the generic OData protocol layer (auth, pagination, retry) into `tools/crawlers/odata/` as a reusable base that any OData-based crawler can depend on
+- Renamed OData protocol functions from `*-OmadaAPI` / `Invoke-Omada*` to `*-ODataAPI` / `Invoke-OData*` to reflect their generic purpose
+- Added crawler manifests for all existing crawlers: `entra-id`, `csv`, `omada`, `odata`, and `demo`
+- Moved Omada-specific helpers (`Get-OmadaRefValue`, `Get-OmadaRefUid`, `Get-OmadaEntitySets`) into the Omada crawler folder
+- Module loader (`IdentityAtlas.psm1`) now auto-discovers shared SDK directories — adding a new shared SDK no longer requires editing the module
+- PR workflow code coverage paths now auto-discover all crawler and SDK directories — no manual updates needed when adding new crawlers
+- Extracted demo dataset logic into its own crawler script (`tools/crawlers/demo/Start-DemoCrawler.ps1`)
+- Restored Pester code-quality coverage for `tools/crawlers/` (CmdletBinding, secrets, Dutch comments); the file move from `tools/powershell-sdk/omada/` had silently dropped that coverage
+- Added `[CmdletBinding()]` to `Get-OmadaRefValue`, `Get-OmadaRefUid`, and `Get-OmadaEntitySets` (detected by the restored coverage gate)
+- Added `tools/crawlers/CLAUDE.md`: crawler authoring guide covering the manifest schema, auto-discovery, dependency system, and OData base layer
+
+## Changes in this PR
+
+- Fixed tags on identities: a tag created/assigned to an identity is now actually shown and can be (re)assigned. Previously identity tags were saved but never appeared because the tag compatibility view excluded identities.
+
+## Changes in this PR
+
+- Rebuilt **Account Linking** (formerly the non-functional "Account Correlation"). It now actually runs: for each existing identity it finds orphan accounts that belong to that person — admin (`adm-…`), guest, and secondary accounts — and links them with a confidence score.
+- Account linking is deterministic and no longer needs an LLM. The matching dictionary (signals, account-type patterns, threshold) ships with sensible defaults and is editable in **Admin → Account Linking**.
+- Account linking can run on a schedule and on demand ("Run now"), with a run history showing how many accounts were linked, updated, or skipped.
+- Accounts that can't be linked to a person are now grouped into a generated **Orphaned Accounts** context (sub-grouped by type: admin / guest / service / shared) instead of being a hidden property.
+- Analyst decisions are preserved across runs: a confirmed/rejected/moved link is never overwritten, and a rejected account is never re-linked.
+- Account linking now matches a person's accounts even when their email convention differs (e.g. `r.euson@…` and `robin.euson@…`) by matching on the parsed name, attaching them at a lower, honest confidence the analyst can review. Role/company qualifiers in display names (e.g. `(OGD)`, `(ADM-azure)`) are ignored when matching.
+- Added an **Auto-link certainty** slider in Admin → Account Linking to choose the minimum confidence required before accounts are linked.
+- Ambiguous name-only matches (the same name across multiple identities) are left for manual review instead of being auto-linked to the wrong person.
+- Retired the LLM-based correlation ruleset wizard and its endpoints.
+
+## Changes in this PR
+
 - Warmed up the documentation site so it's less stark white and better matches the app: a green brand accent on the header, green ticks on section headings, the active left-nav item highlighted in soft green, the in-page table-of-contents active link in blue, and blue-accented blockquotes.
 
 ## Changes in this PR
