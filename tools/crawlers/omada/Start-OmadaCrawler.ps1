@@ -402,7 +402,7 @@ Write-Host "Builtin URL: $BuiltinBaseUrl" -ForegroundColor Gray
 
 # Discover available entity sets from OData $metadata (diagnostic — non-blocking)
 Update-CrawlerProgress -Step 'Checking Omada API' -Pct 3
-$AvailableEntitySets = @(Get-OmadaEntitySets)
+$AvailableEntitySets = @(Get-ODataEntitySets)
 if ($AvailableEntitySets.Count -gt 0) {
     Write-Host "  Entity sets: $($AvailableEntitySets -join ', ')" -ForegroundColor Gray
 } else {

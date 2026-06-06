@@ -10,3 +10,4 @@
 - Moved CSV, Entra ID, and Custom Connector integration tests to be colocated with their crawlers so they are auto-discovered by the CI topology-aware runner — no separate hardcoded CI steps needed
 - Added `maxRetries` config option to the Omada crawler so operators can tune OData retry behaviour per deployment
 - Fixed Omada integration test asserting resource count via `GET /api/resources`, which excludes BusinessRole resources — mock data now uses `Permission` category (maps to generic Resource type) so the assertion passes
+- Moved `Get-OmadaEntitySets` → `Get-ODataEntitySets` into the shared OData library (`Invoke-ODataAuth.ps1`) — OData `$metadata` discovery is not Omada-specific; also adds `Update-ODataSessionIfExpired` call before the fetch (matching all other OData library functions) and a new integration test

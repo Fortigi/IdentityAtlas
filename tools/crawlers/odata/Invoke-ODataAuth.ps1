@@ -165,6 +165,52 @@ function Invoke-ODataCookieStringAuth {
     # No LastAuthAt — CookieString has no auto re-auth capability
 }
 
+function Get-ODataEntitySets {
+    <#
+    .SYNOPSIS
+        Fetch the OData $metadata document and return available entity set names.
+        Returns an empty array when the session is not established or the fetch fails.
+    .DESCRIPTION
+        Non-blocking diagnostic: callers use the result to skip entity sets that are
+        absent from the server's schema. Failure (metadata unavailable or the server
+        does not expose $metadata) is treated as "attempt all phases."
+    #>
+    [CmdletBinding()]
+    param()
+    if ($null -eq $script:ODataSession) { return @() }
+
+    # Build URI via string concat — NOT interpolation — to keep the literal '$metadata' intact
+    $metaUri = $script:ODataSession.BaseUrl.TrimEnd('/') + '/$metadata'
+    $reqParams = @{ Uri = $metaUri; Method = 'Get'; ErrorAction = 'Stop' }
+    switch ($script:ODataSession.AuthMethod) {
+        { $_ -in 'OAuth2CC','OAuth2ROPC','ApiToken' } {
+            $reqParams['Headers'] = @{ Authorization = "Bearer $($script:ODataSession.AccessToken)" }
+        }
+        'CookieString' {
+            # $metadata returns XML — do NOT send Accept: application/json or Content-Type
+            # here; those headers cause a 500 on cloud instances when the server tries to
+            # serialize the metadata as JSON (which it does not support on this endpoint).
+            $reqParams['Headers'] = @{ Cookie = $script:ODataSession.CookieHeader }
+        }
+        'FormCookie' {
+            $reqParams['WebSession'] = $script:ODataSession.WebSession
+        }
+        'BasicAuth' {
+            $reqParams['Headers'] = @{ Authorization = $script:ODataSession.BasicAuthHeader }
+        }
+    }
+    try {
+        Update-ODataSessionIfExpired
+        $content = (Invoke-WebRequest @reqParams).Content
+        return @([regex]::Matches($content, 'EntitySet\s+Name="([^"]+)"') |
+                 ForEach-Object { $_.Groups[1].Value } |
+                 Where-Object { $_ })
+    } catch {
+        Write-Host "  Warning: OData metadata fetch failed — $($_.Exception.Message)" -ForegroundColor Yellow
+        return @()
+    }
+}
+
 function Update-ODataSessionIfExpired {
     <#
     .SYNOPSIS

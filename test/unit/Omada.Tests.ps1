@@ -91,7 +91,7 @@ Describe 'OData — function availability' {
         'Connect-ODataAPI',
         'Invoke-ODataPagedRequest',
         'Invoke-ODataGetRequest',
-        'Get-OmadaEntitySets',
+        'Get-ODataEntitySets',
         'Get-OmadaRefValue',
         'Get-OmadaRefUid'
     ) {

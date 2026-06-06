@@ -101,7 +101,7 @@ Describe 'Function Availability — Helpers (idempotent)' {
 
 Describe 'Function Availability — Omada helpers' {
     It 'exports <_>' -ForEach @(
-        'Get-OmadaEntitySets',
+        'Get-ODataEntitySets',
         'Get-OmadaRefValue',
         'Get-OmadaRefUid'
     ) {
