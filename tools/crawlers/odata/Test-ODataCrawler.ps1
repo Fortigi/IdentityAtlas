@@ -55,7 +55,7 @@ $crawlerDir = Split-Path $PSScriptRoot -Parent | Join-Path -ChildPath 'odata'
 . (Join-Path $crawlerDir 'Invoke-ODataPagedRequest.ps1')
 
 # ── Load mock server helper ───────────────────────────────────────────────────
-. (Join-Path (Split-Path $crawlerDir -Parent) 'shared\Start-MockODataServer.ps1')
+. (Join-Path (Split-Path $crawlerDir -Parent) 'shared' 'Start-MockODataServer.ps1')
 
 # ── Mock entity data ──────────────────────────────────────────────────────────
 $mockEntity = @{ UId = 'test-entity-1'; DisplayName = 'Test Entity'; Name = 'Test' }
@@ -65,8 +65,7 @@ function Test-AuthMethod {
     param(
         [string]$Method,
         [hashtable]$ConnectParams,
-        [string]$BaseUrl,
-        [string]$OAuthTokenEndpoint = ''
+        [switch]$OAuthTokenEndpoint
     )
     $mock = $null
     try {
@@ -100,8 +99,8 @@ Test-AuthMethod -Method 'BasicAuth'    -ConnectParams @{ Username = 'testuser'; 
 Test-AuthMethod -Method 'ApiToken'     -ConnectParams @{ ApiToken = 'mock-api-token-12345' }
 Test-AuthMethod -Method 'CookieString' -ConnectParams @{ CookieString = 'oisauthtoken=mock-cookie-value' }
 Test-AuthMethod -Method 'FormCookie'   -ConnectParams @{ Username = 'testuser'; Password = 'testpass' }
-Test-AuthMethod -Method 'OAuth2CC'     -ConnectParams @{ ClientId = 'mock-client'; ClientSecret = 'mock-secret' } -OAuthTokenEndpoint $true
-Test-AuthMethod -Method 'OAuth2ROPC'   -ConnectParams @{ ClientId = 'mock-client'; ClientSecret = 'mock-secret'; Username = 'testuser'; Password = 'testpass' } -OAuthTokenEndpoint $true
+Test-AuthMethod -Method 'OAuth2CC'     -ConnectParams @{ ClientId = 'mock-client'; ClientSecret = 'mock-secret' } -OAuthTokenEndpoint
+Test-AuthMethod -Method 'OAuth2ROPC'   -ConnectParams @{ ClientId = 'mock-client'; ClientSecret = 'mock-secret'; Username = 'testuser'; Password = 'testpass' } -OAuthTokenEndpoint
 
 # ── Test @odata.nextLink pagination ──────────────────────────────────────────
 Write-Host "`n  Pagination tests:" -ForegroundColor Gray

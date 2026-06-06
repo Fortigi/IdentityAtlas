@@ -45,7 +45,7 @@ Test scripts MUST `throw` or call `exit 1` on failure. The CI runner uses `try/c
 Import the mock OData server for crawlers that have no live CI endpoint:
 
 ```powershell
-. (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared\Start-MockODataServer.ps1')
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared' 'Start-MockODataServer.ps1')
 $mock = Start-MockODataServer -EntitySets @{ Users = @(...) }
 # ... test code ...
 Stop-MockODataServer -Mock $mock
