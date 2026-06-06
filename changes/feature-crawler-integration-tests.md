@@ -1,0 +1,4 @@
+- Added integration tests for the OData crawler library — all 6 auth methods (BasicAuth, ApiToken, CookieString, FormCookie, OAuth2CC, OAuth2ROPC), `@odata.nextLink` pagination, and 401 error handling, all running against a local mock server
+- Added end-to-end integration test for the Omada IGA crawler — runs a full job against a mock OData server and verifies that identities, accounts, resources, and assignments land in the database
+- Added dynamic CI test discovery: `Test-*.ps1` files colocated in each `tools/crawlers/<type>/` directory are automatically discovered and run in topological dependency order (dependency crawlers first, dependents after), with same-level tests running in parallel — no YAML changes needed when adding a new crawler with a test
+- Added shared mock OData HTTP server (`tools/crawlers/shared/Start-MockODataServer.ps1`) for crawler integration tests that have no live CI endpoint
