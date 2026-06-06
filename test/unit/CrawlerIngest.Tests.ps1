@@ -58,6 +58,17 @@ Describe 'ConvertTo-JsonArray' {
         $result = ConvertTo-JsonArray -Items 'hello'
         $result.Count | Should -Be 1
     }
+
+    It 'does not double-wrap a List[object] (param is [object[]])' {
+        $list = [System.Collections.Generic.List[object]]::new()
+        $list.Add(@{ id = 1 })
+        $list.Add(@{ id = 2 })
+        $result = ConvertTo-JsonArray -Items $list
+        $result.Count | Should -Be 2
+        $json = @{ r = $result } | ConvertTo-Json -Depth 5 -Compress
+        $json | Should -Match '"r":\['
+        $json | Should -Not -Match '"r":\[\['  # must NOT be a double-wrapped array
+    }
 }
 
 Describe 'Update-CrawlerProgress — scope and no-op' {

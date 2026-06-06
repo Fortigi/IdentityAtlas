@@ -107,7 +107,7 @@ function Update-CrawlerProgress {
 # stops the pipeline from re-unwrapping the list back into individual items.
 function ConvertTo-JsonArray {
     [CmdletBinding()]
-    param([object]$Items)
+    param([object[]]$Items)
     $list = [System.Collections.Generic.List[object]]::new()
     if ($null -ne $Items) {
         foreach ($it in @($Items)) { [void]$list.Add($it) }

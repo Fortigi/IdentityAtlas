@@ -182,27 +182,29 @@ function Get-ODataEntitySets {
     # Build URI via string concat — NOT interpolation — to keep the literal '$metadata' intact
     $metaUri = $script:ODataSession.BaseUrl.TrimEnd('/') + '/$metadata'
     $reqParams = @{ Uri = $metaUri; Method = 'Get'; ErrorAction = 'Stop' }
-    switch ($script:ODataSession.AuthMethod) {
-        { $_ -in 'OAuth2CC','OAuth2ROPC','ApiToken' } {
-            $reqParams['Headers'] = @{ Authorization = "Bearer $($script:ODataSession.AccessToken)" }
-        }
-        'CookieString' {
-            # $metadata returns XML — do NOT send Accept: application/json or Content-Type
-            # here; those headers cause a 500 on cloud instances when the server tries to
-            # serialize the metadata as JSON (which it does not support on this endpoint).
-            $reqParams['Headers'] = @{ Cookie = $script:ODataSession.CookieHeader }
-        }
-        'FormCookie' {
-            $reqParams['WebSession'] = $script:ODataSession.WebSession
-        }
-        'BasicAuth' {
-            $reqParams['Headers'] = @{ Authorization = $script:ODataSession.BasicAuthHeader }
-        }
-    }
     try {
+        # Refresh token BEFORE building auth headers — the refreshed token must be used
         Update-ODataSessionIfExpired
+        switch ($script:ODataSession.AuthMethod) {
+            { $_ -in 'OAuth2CC','OAuth2ROPC','ApiToken' } {
+                $reqParams['Headers'] = @{ Authorization = "Bearer $($script:ODataSession.AccessToken)" }
+            }
+            'CookieString' {
+                # $metadata returns XML — do NOT send Accept: application/json or Content-Type
+                # here; those headers cause a 500 on cloud instances when the server tries to
+                # serialize the metadata as JSON (which it does not support on this endpoint).
+                $reqParams['Headers'] = @{ Cookie = $script:ODataSession.CookieHeader }
+            }
+            'FormCookie' {
+                $reqParams['WebSession'] = $script:ODataSession.WebSession
+            }
+            'BasicAuth' {
+                $reqParams['Headers'] = @{ Authorization = $script:ODataSession.BasicAuthHeader }
+            }
+        }
         $content = (Invoke-WebRequest @reqParams).Content
-        return @([regex]::Matches($content, 'EntitySet\s+Name="([^"]+)"') |
+        # Use a regex that tolerates any attribute ordering in the XML tag
+        return @([regex]::Matches($content, '<EntitySet\b[^>]*\bName="([^"]+)"') |
                  ForEach-Object { $_.Groups[1].Value } |
                  Where-Object { $_ })
     } catch {
