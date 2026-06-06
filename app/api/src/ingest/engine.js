@@ -208,6 +208,15 @@ export async function scopedDelete(client, tableName, keyColumns, tempName, syst
     where += ` AND t."${key}" = $${params.length}`;
   }
 
+  // A crawler full-sync only owns the links IT created. Account linking and
+  // analyst decisions own a separate set of IdentityMembers, distinguished by a
+  // confidence score (linkConfidence) or an analyst decision (analystOverride).
+  // Exclude those from the reconcile delete so a crawl never wipes account
+  // linking's links or an analyst's confirm/remove. (Columns only exist on
+  // IdentityMembers, so this is a no-op for every other table.)
+  if (tableColumnNames.has('linkConfidence'))  where += ` AND t."linkConfidence" IS NULL`;
+  if (tableColumnNames.has('analystOverride')) where += ` AND t."analystOverride" IS NULL`;
+
   const notExistsJoin = keyColumns.map(k => `t."${k}" = src."${k}"`).join(' AND ');
   const sql = `
     DELETE FROM "${tableName}" t

@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Identity page → Linked Accounts: accounts linked by the crawler/source data (no confidence score) now show "Linked from source" instead of Confirm/Remove. Confirm/Remove apply only to account-linking's scored links, so source links can't be accidentally changed here.
+
+## Changes in this PR
+
+- Account linking now survives crawls. A crawler's full sync used to remove any account-to-identity link it didn't create — wiping the links account linking had found. The crawler now only reconciles its own links and leaves links that carry a confidence score (added by account linking) or an analyst confirm/remove decision untouched. Account linking stays independent of the crawler.
+
+## Changes in this PR
+
 - Rebuilt **Account Linking** (formerly the non-functional "Account Correlation"). It now actually runs: for each existing identity it finds orphan accounts that belong to that person — admin (`adm-…`), guest, and secondary accounts — and links them with a confidence score.
 - Account linking is deterministic and no longer needs an LLM. The matching dictionary (signals, account-type patterns, threshold) ships with sensible defaults and is editable in **Admin → Account Linking**.
 - Account linking can run on a schedule and on demand ("Run now"), with a run history showing how many accounts were linked, updated, or skipped.
