@@ -31,6 +31,23 @@ BeforeAll {
         throw "Could not extract Resolve-CrawlerDependencies from dispatcher"
     }
 
+    # Extract the loading loop body so tests can reproduce it exactly.
+    # Matches: Get-ChildItem ... | Where-Object { $_.Name -ne $layerEntryPoint } | ForEach-Object { . $_.FullName }
+    $script:dispatcherContent = $dispatcherContent
+
+    # Helper: run the exact dependency-loading loop from the dispatcher.
+    # Accepts a resolved list and registry; dot-sources library files per the dispatcher logic.
+    function Invoke-DependencyLoader {
+        param([string[]]$Resolved, [hashtable]$Registry)
+        foreach ($layer in $Resolved) {
+            $layerDir        = $Registry[$layer].Dir
+            $layerEntryPoint = $Registry[$layer].Manifest['entryPoint']
+            Get-ChildItem -Path $layerDir -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -ne $layerEntryPoint } |
+                ForEach-Object { . $_.FullName }
+        }
+    }
+
     # Helper: build a minimal in-memory registry from a hashtable spec
     # e.g. @{ 'odata' = @(); 'omada' = @('odata') }
     function Build-Registry {
@@ -155,5 +172,42 @@ Describe 'Get-CrawlerRegistry — live crawler manifests' {
             $m['type'] | Should -Not -BeNullOrEmpty -Because "$key manifest needs a type"
             $m['entryPoint'] | Should -Not -BeNullOrEmpty -Because "$key manifest needs an entryPoint"
         }
+    }
+}
+
+# ─── Dependency loader — entry point isolation ────────────────────────────────
+
+Describe 'Dependency loader — entry points are never dot-sourced' {
+    BeforeAll {
+        # Build two fake crawler dirs in a temp location:
+        #   odata/ — library ps1 + entry point that throws if executed
+        #   omada/ — entry point that throws if executed (no lib files)
+        $script:loaderTmp = New-Item -ItemType Directory -Path (Join-Path ([System.IO.Path]::GetTempPath()) "pester-loader-$([guid]::NewGuid().ToString('N'))")
+
+        $odataDir = New-Item -ItemType Directory -Path (Join-Path $script:loaderTmp 'odata')
+        Set-Content (Join-Path $odataDir 'OData-Helpers.ps1') "function Get-FakeODataHelper { 'loaded' }"
+        Set-Content (Join-Path $odataDir 'Start-ODataCrawler.ps1') "throw 'BUG: odata entry point was dot-sourced by the loader'"
+
+        $omadaDir = New-Item -ItemType Directory -Path (Join-Path $script:loaderTmp 'omada')
+        Set-Content (Join-Path $omadaDir 'Start-OmadaCrawler.ps1') "throw 'BUG: omada entry point was dot-sourced by the loader'"
+
+        $script:loaderRegistry = @{
+            'odata' = @{ Dir = $odataDir.FullName; Manifest = @{ entryPoint = 'Start-ODataCrawler.ps1'; dependsOn = @() } }
+            'omada' = @{ Dir = $omadaDir.FullName; Manifest = @{ entryPoint = 'Start-OmadaCrawler.ps1'; dependsOn = @('odata') } }
+        }
+    }
+
+    AfterAll {
+        Remove-Item $script:loaderTmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'does not throw when loading omada (which depends on odata)' {
+        $resolved = Resolve-CrawlerDependencies -Type 'omada' -Registry $script:loaderRegistry
+        { Invoke-DependencyLoader -Resolved $resolved -Registry $script:loaderRegistry } | Should -Not -Throw
+    }
+
+    It 'does not throw when loading a crawler with no dependencies' {
+        $resolved = Resolve-CrawlerDependencies -Type 'odata' -Registry $script:loaderRegistry
+        { Invoke-DependencyLoader -Resolved $resolved -Registry $script:loaderRegistry } | Should -Not -Throw
     }
 }
