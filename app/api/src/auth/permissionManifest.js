@@ -24,6 +24,7 @@ export const GATED_ENDPOINTS = {
   'data.write.tags':       { method: 'POST', path: '/api/tags', body: { name: 'matrix-test' } },
   'data.write.categories': { method: 'POST', path: '/api/categories', body: { name: 'matrix-test' } },
   'data.write.risk':       { method: 'PUT',  path: '/api/risk-scores/identity/1/override', body: { decision: 'accept' } },
+  'data.write.identity':   { method: 'PUT',  path: '/api/identities/00000000-0000-0000-0000-000000000000/members/00000000-0000-0000-0000-000000000000/override', body: { action: 'confirmed' } },
   'admin.crawlers':        { method: 'GET',  path: '/api/admin/crawlers' },
   'admin.systems':         { method: 'PUT',  path: '/api/systems/1', body: {} },
   'admin.llm':             { method: 'GET',  path: '/api/admin/llm/config' },

@@ -183,32 +183,6 @@ test.describe('Identities Page', () => {
     await expect(page.locator('nav')).toBeVisible();
   });
 
-  // ── Verified badge ─────────────────────────────────────────────────
-
-  test('Verified badge is visible for verified identities', async ({ page }) => {
-    await page.waitForTimeout(1000);
-    // Just check the component doesn't crash — badge presence depends on data
-    // May or may not be present depending on mock data
-    expect(true).toBe(true);
-  });
-
-  // ── Analyst verification workflow ──────────────────────────────────
-
-  test('Verify button is present in detail panel when an identity is selected', async ({ page }) => {
-    await page.waitForTimeout(1000);
-    const notAvailable = await page.getByText(/not.*available|Invoke-FGAccountCorrelation/i).count();
-    if (notAvailable > 0) { test.skip(); return; }
-
-    const rows = page.locator('table tbody tr');
-    if (await rows.count() === 0) { test.skip(); return; }
-
-    await rows.first().click();
-    await page.waitForTimeout(500);
-
-    // Presence of a Verify button depends on whether a panel opened and data loaded
-    expect(true).toBe(true);
-  });
-
   // ── Override controls ──────────────────────────────────────────────
 
   test('override action controls render without errors', async ({ page }) => {

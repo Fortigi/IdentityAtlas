@@ -195,7 +195,19 @@ Displays recent sync operations from the `GraphSyncLog` table:
 
 ### Identities *(optional)*
 
-Account correlation results — real persons linked across multiple accounts and systems. Requires `Invoke-FGAccountCorrelation` to have been run.
+Real persons linked across multiple accounts and systems. Accounts are attached either by a crawler's IdentityFilter or by **Account Linking** (see below), which runs on a schedule or on demand from the Admin area — no manual script step is required. Each linked account shows its `accountType` and link confidence, and an analyst can confirm or reject a link per account.
+
+---
+
+### Account Linking *(Admin sub-tab)*
+
+Available under Admin > Account Linking. Configures the deterministic, dictionary-based engine that attaches orphan accounts (admin / guest / secondary) to existing identities — **no LLM**.
+
+- **Editable dictionary** — weighted match signals (employeeId / email / email-prefix / graded name) and regex account-type rules.
+- **Certainty slider** — the `linkThreshold`; raise it to require stronger evidence before an account is auto-linked.
+- **Schedules + Run now** — schedule recurring runs or trigger one immediately; each run's progress and counts are shown.
+
+Editing the config and starting runs requires the `admin.crawlers` permission. See [Account Linking](../architecture/account-linking.md).
 
 ---
 
