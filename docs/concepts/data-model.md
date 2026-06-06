@@ -65,12 +65,18 @@ erDiagram
         guid primaryPrincipalId FK
         guid managerIdentityId FK
         bool isHrAnchored
-        int correlationConfidence
-        bool analystVerified
+        int linkConfidence
+        json linkSignals
+        timestamp linkedAt
     }
     IdentityMembers {
         guid identityId FK
         guid principalId FK
+        int linkConfidence
+        json linkSignals
+        timestamp linkedAt
+        string accountType
+        string analystOverride
     }
     Systems {
         int id PK
@@ -159,7 +165,7 @@ erDiagram
 
 ### Identities
 
-Real persons aggregated across multiple accounts and source systems. An Identity is the result of account correlation: one human may have an Entra ID user, a service account, and a privileged admin account — all linked to one Identity record.
+Real persons aggregated across multiple accounts and source systems. An Identity is the result of account linking: one human may have an Entra ID user, a service account, and a privileged admin account — all linked to one Identity record. Links come from a crawler's IdentityFilter (authoritative, score-less) or from the deterministic [Account Linking](../architecture/account-linking.md) engine (orphan accounts attached with a confidence score).
 
 Identities carry the `contextId` because organizational context (department, team) belongs to the *person*, not to their individual accounts.
 
@@ -171,7 +177,10 @@ Identities carry the `contextId` because organizational context (department, tea
 
 Key columns: `displayName`, `email`, `employeeId`, `department`, `jobTitle`, `contextId`, `primaryPrincipalId`, `managerIdentityId`.
 
-Identity correlation columns: `isHrAnchored`, `hrAccountId`, `accountCount`, `accountTypes` (JSONB), `correlationSignals` (JSONB), `correlationConfidence`, `correlatedAt`, `orphanStatus`, `analystVerified`, `analystNotes`.
+Account-linking columns: `isHrAnchored`, `hrAccountId`, `accountCount`, `linkSignals` (JSONB), `linkConfidence`, `linkedAt`. These were renamed from `correlationSignals` / `correlationConfidence` / `correlatedAt` in migration `030_account_linking.sql`.
+
+!!! note "`orphanStatus` is retired"
+    Orphan-ness is no longer modelled as a property on the identity/account. The deterministic [Account Linking](../architecture/account-linking.md) run emits a generated **"Orphaned Accounts"** Context (via the `orphaned-accounts` plugin) containing every Principal not linked to any Identity, sub-grouped by detected account type. The `Identities.orphanStatus` column remains in the schema for backward compatibility but is no longer the source of truth.
 
 ---
 
@@ -184,6 +193,8 @@ The join table between Identities and Principals. One identity links to one or m
 | Primary Key | Composite: `identityId` + `principalId` |
 | Audit history | No |
 | Created by | Migration `001_core_schema.sql` |
+
+Per-account link columns (renamed in migration `030_account_linking.sql`): `linkConfidence`, `linkSignals`, `accountType`, `accountTypePattern`, plus `analystOverride` (`confirmed` / `rejected` / `moved`). Crawler-sourced links carry no `linkConfidence` (NULL); Account Linking writes scored links and honours `analystOverride` on every re-run.
 
 ---
 
@@ -221,6 +232,9 @@ Each entity has a single `contextId` column. If an entity needs to participate i
 Key columns: `displayName`, `contextType`, `systemId`, `parentContextId` (self-referencing for hierarchy).
 
 **contextType values:** `Department`, `Division`, `CostCenter`, `Team`, `Office`, `Project`, `Location`, `OrgUnit`, `AdministrativeUnit`, `Classification`, or any custom string.
+
+!!! note "Tags can target Identities"
+    Tags are stored as manual Contexts (`contextType='Tag'`). As of migration `031_tags_identity_targettype.sql`, tags support `targetType='Identity'` in addition to `Principal` and `Resource`, so an analyst can tag an identity directly. The `GraphTags` backward-compat view surfaces `targetType='Identity'` rows as `entityType='identity'`.
 
 ---
 

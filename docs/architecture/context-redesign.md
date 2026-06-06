@@ -200,6 +200,7 @@ The runner reconciles the plugin output with existing `Contexts` rows where `sou
 | `app-grouping-by-pattern` | Resource | `Resources.displayName` regex | One bucket per `{name, regex}` pair; first-match wins; optional fallback bucket. |
 | `resource-cluster` | Resource | `Resources.displayName` tokenised + indexed | Deterministic, non-LLM. See [`resource-cluster-algorithm.md`](resource-cluster-algorithm.md). Replaces the former stem-based Risk-Scoring clusters. |
 | `business-process-llm` | Resource | LLM seeded with a process description | Registered with parameter shape; run loop still a stub. |
+| `orphaned-accounts` | Principal | Principals with no `IdentityMembers` row | Buckets unlinked accounts by detected account type. Refreshed automatically at the end of every Account Linking run — see [Account Linking](account-linking.md). |
 
 ### 4.3 Where plugins run
 

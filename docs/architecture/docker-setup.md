@@ -356,7 +356,7 @@ The worker container runs PowerShell 7 with the Identity Atlas module pre-loaded
 
 1. **Job queue polling** — picks up queued jobs from CrawlerJobs every 30 seconds
 2. **Scheduled crawlers** — reads CrawlerConfigs schedules every minute and queues jobs at the right time
-3. **Legacy crontab** — reads `setup/docker/crontab` for manually configured jobs (risk scoring, account correlation)
+3. **Legacy crontab** — reads `setup/docker/crontab` for manually configured jobs (e.g. risk scoring)
 
 ### Run Ad-Hoc Commands
 
@@ -370,7 +370,7 @@ docker compose exec worker pwsh -Command "Import-Module /app/setup/IdentityAtlas
 
 ### Legacy Crontab (for non-crawler jobs)
 
-Edit `setup/docker/crontab` for jobs that aren't configured via the UI (risk scoring, account correlation):
+Edit `setup/docker/crontab` for jobs that aren't configured via the UI (e.g. risk scoring). Account Linking is **not** a crontab job — it is scheduled via `AccountLinkingConfig.schedules` and run by the web container's scheduler; see [Account Linking](account-linking.md).
 
 ```cron
 # Risk scoring nightly at 03:00

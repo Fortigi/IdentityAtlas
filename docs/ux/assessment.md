@@ -41,7 +41,7 @@ Status legend: ✅ **Fixed** (merged) · 🟨 **Partially addressed** · 🔧 **
 | ID | Finding | Status | PR |
 |---|---|---|---|
 | C-01 | The matrix had no on-screen legend — its core surface (coloured single letters) was undecipherable without external docs | ✅ Fixed | [#226](https://github.com/Fortigi/IdentityAtlas/pull/226), [#250](https://github.com/Fortigi/IdentityAtlas/pull/250) |
-| C-02 | Identity Correlation is a dead-end flow: a ruleset can be saved but not run from the UI, and the review loop is half-built | 🔧 Planned | — |
+| C-02 | Identity Correlation is a dead-end flow: a ruleset can be saved but not run from the UI, and the review loop is half-built | ✅ Resolved by rebuild — the LLM correlation flow was removed and replaced by deterministic [Account Linking](../architecture/account-linking.md): an editable dictionary + certainty slider under Admin → Account Linking, runs triggered on a schedule or on demand from the UI, and a per-account confirm/reject review loop on the identity detail page | — |
 | C-03 | The matrix "governed" concept had multiple definitions that could contradict across the panel and the two grids | 🟨 Partially addressed — panel + main grid unified on business-role coverage; rotated view pending | — |
 | C-04 | Accessibility: the app was substantially keyboard- and screen-reader-inoperable (focus, reduced-motion, real controls, labels) | 🟨 Partially addressed — global focus-visible, skip link & reduced-motion baseline merged; modal focus-trap and a full real-controls sweep remain | [#229](https://github.com/Fortigi/IdentityAtlas/pull/229), [#236](https://github.com/Fortigi/IdentityAtlas/pull/236) |
 
