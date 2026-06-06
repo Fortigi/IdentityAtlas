@@ -1,10 +1,14 @@
 /* ─────────────────────────────────────────────────────────────────
    Identity Atlas — docs site theme
-   Matches the Identity Atlas React UI (Tailwind lime + gray palette).
+   Mirrors the Identity Atlas UI Style Guide's two-role colour system:
+     • GREEN (lime) = brand / identity — header, tabs, logo, decorative
+       chrome (cards, table headers, section labels).
+     • BLUE          = interactive — anything you click: links, the active
+       nav item, accent/hover states.
    Loaded by mkdocs-material via `extra_css` in mkdocs.yml.
    ───────────────────────────────────────────────────────────────── */
 
-/* ── Tailwind lime palette as CSS vars ──────────────────────────── */
+/* ── Palette as CSS vars — lime (brand) + blue (interactive) ────── */
 :root {
   --ia-lime-50:  #f7fee7;
   --ia-lime-100: #ecfccb;
@@ -14,6 +18,12 @@
   --ia-lime-600: #65a30d;
   --ia-lime-700: #4d7c0f;
   --ia-lime-800: #3f6212;
+
+  /* Interactive role — Tailwind blue, matching the UI's action colour */
+  --ia-blue-400: #60a5fa;
+  --ia-blue-500: #3b82f6;
+  --ia-blue-600: #2563eb;
+  --ia-blue-700: #1d4ed8;
 
   --ia-gray-50:  #fafafa;
   --ia-gray-100: #f5f5f5;
@@ -29,27 +39,39 @@
 /* mkdocs-material emits `data-md-color-primary=custom` when
    `primary: custom` is set in mkdocs.yml. */
 [data-md-color-primary=custom] {
-  --md-primary-fg-color:               var(--ia-lime-700);
-  --md-primary-fg-color--light:        var(--ia-lime-600);
-  --md-primary-fg-color--dark:         var(--ia-lime-800);
-  --md-primary-bg-color:               #ffffff;
-  --md-primary-bg-color--light:        #ffffffcc;
-  --md-typeset-a-color:                var(--ia-lime-700);
+  /* The app shell has a WHITE top bar (logo + dark title), not a solid
+     colour band — mirror that: primary (header/tabs bg) = white, header
+     foreground (title/icons) = dark. Green is a brand ACCENT, not the
+     whole header. Links (interactive) stay blue. */
+  --md-primary-fg-color:               #ffffff;
+  --md-primary-fg-color--light:        var(--ia-gray-100);
+  --md-primary-fg-color--dark:         var(--ia-gray-200);
+  --md-primary-bg-color:               var(--ia-gray-900);
+  --md-primary-bg-color--light:        var(--ia-gray-700);
+  --md-typeset-a-color:                var(--ia-blue-600);
 }
 
 [data-md-color-accent=custom] {
-  --md-accent-fg-color:                var(--ia-lime-600);
-  --md-accent-fg-color--transparent:   rgba(101, 163, 13, 0.1);
+  /* Accent = interactive hover/active → blue. */
+  --md-accent-fg-color:                var(--ia-blue-600);
+  --md-accent-fg-color--transparent:   rgba(37, 99, 235, 0.1);
   --md-accent-bg-color:                #ffffff;
   --md-accent-bg-color--light:         #ffffffcc;
 }
 
-/* Dark (slate) scheme — slightly lighter lime so contrast stays readable */
+/* Dark (slate) scheme — dark header (matches the app's dark shell), light
+   header text, lighter blue links for contrast. */
 [data-md-color-scheme=slate][data-md-color-primary=custom] {
-  --md-primary-fg-color:               var(--ia-lime-600);
-  --md-primary-fg-color--light:        var(--ia-lime-500);
-  --md-primary-fg-color--dark:         var(--ia-lime-700);
-  --md-typeset-a-color:                var(--ia-lime-300);
+  --md-primary-fg-color:               #1e293b;
+  --md-primary-fg-color--light:        #334155;
+  --md-primary-fg-color--dark:         #0f172a;
+  --md-primary-bg-color:               #f1f5f9;
+  --md-primary-bg-color--light:        #cbd5e1;
+  --md-typeset-a-color:                var(--ia-blue-400);
+}
+[data-md-color-scheme=slate][data-md-color-accent=custom] {
+  --md-accent-fg-color:                var(--ia-blue-400);
+  --md-accent-fg-color--transparent:   rgba(96, 165, 250, 0.12);
 }
 
 /* ── Page background: soft off-white like the UI ───────────────── */
@@ -98,30 +120,49 @@ body,
   margin-bottom: 0.5rem;
 }
 
-/* ── Header bar ────────────────────────────────────────────────── */
+/* ── Header bar — white app-shell look (bg comes from --md-primary-* above),
+   with a thin brand-green accent on top so it still reads as Identity Atlas. */
 .md-header {
-  background-color: var(--ia-lime-700);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--ia-gray-200);
+  border-top: 3px solid var(--ia-lime-600);
 }
 .md-header__title {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
+[data-md-color-scheme=slate] .md-header {
+  border-bottom-color: #334155;
+}
 
-/* Tabs row — same lime so it reads as one unit */
+/* Tabs row — white bar with a green (brand) underline on the active tab,
+   matching the app's tab strip. */
 .md-tabs {
-  background-color: var(--ia-lime-700);
+  border-bottom: 1px solid var(--ia-gray-200);
 }
 .md-tabs__link {
-  opacity: 0.8;
+  opacity: 1;
+  color: var(--ia-gray-600);
   font-weight: 500;
 }
 .md-tabs__link:hover,
 .md-tabs__link--active {
-  opacity: 1;
+  color: var(--ia-lime-700);
 }
 .md-tabs__link--active {
-  border-bottom: 2px solid #ffffff;
+  font-weight: 600;
+  border-bottom: 2px solid var(--ia-lime-700);
+}
+[data-md-color-scheme=slate] .md-tabs {
+  border-bottom-color: #334155;
+}
+[data-md-color-scheme=slate] .md-tabs__link {
+  color: #cbd5e1;
+}
+[data-md-color-scheme=slate] .md-tabs__link:hover,
+[data-md-color-scheme=slate] .md-tabs__link--active {
+  color: var(--ia-lime-300);
+  border-bottom-color: var(--ia-lime-300);
 }
 
 /* ── Logo: don't let mkdocs squish it too much ─────────────────── */
@@ -129,6 +170,44 @@ body,
 .md-header__button.md-logo svg {
   height: 2rem;
   width: auto;
+}
+
+/* ── Brand/interactive accents — warm up the white shell with green (brand)
+   structure + blue (interactive) cues, matching the app. ───────────── */
+
+/* Section headings get a green tick so the page has brand structure. */
+.md-typeset h2 {
+  border-left: 3px solid var(--ia-lime-500);
+  padding-left: 0.6rem;
+}
+
+/* Left nav: the active page reads as "where you are" in soft brand green. */
+.md-nav__item .md-nav__link--active {
+  background: var(--ia-lime-50);
+  border-radius: 0.375rem;
+  padding: 0.1rem 0.4rem;
+}
+[data-md-color-scheme=slate] .md-nav__item .md-nav__link--active {
+  background: rgba(101, 163, 13, 0.16);
+}
+
+/* Right-rail table-of-contents: active anchor in interactive blue. */
+.md-nav--secondary .md-nav__link--active {
+  color: var(--ia-blue-600);
+  font-weight: 600;
+}
+[data-md-color-scheme=slate] .md-nav--secondary .md-nav__link--active {
+  color: var(--ia-blue-400);
+}
+
+/* Blockquotes get a blue accent + faint surface so prose isn't all white. */
+.md-typeset blockquote {
+  border-left: 3px solid var(--ia-blue-400);
+  background: var(--ia-gray-50);
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+[data-md-color-scheme=slate] .md-typeset blockquote {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* ── Cards / admonitions — rounded-2xl + lime ring + soft gradient
@@ -202,6 +281,62 @@ body,
   background-color: #dc2626;
 }
 
+/* ── Dark mode admonition overrides ────────────────────────────────
+   Without these, the light green/amber/red backgrounds from the rules
+   above survive into dark mode, leaving dark body text on a light
+   surface — unreadable against the slate page. ─────────────────── */
+
+/* Default (note/tip/info) — subtle dark lime surface */
+[data-md-color-scheme=slate] .md-typeset .admonition,
+[data-md-color-scheme=slate] .md-typeset details {
+  border-color: rgba(101, 163, 13, 0.35);
+  background: rgba(101, 163, 13, 0.06);
+}
+[data-md-color-scheme=slate] .md-typeset .admonition > .admonition-title,
+[data-md-color-scheme=slate] .md-typeset details > summary {
+  background-color: rgba(101, 163, 13, 0.12);
+  border-bottom-color: rgba(101, 163, 13, 0.2);
+  color: var(--ia-lime-300);
+}
+[data-md-color-scheme=slate] .md-typeset .admonition > .admonition-title::before,
+[data-md-color-scheme=slate] .md-typeset details > summary::before {
+  background-color: var(--ia-lime-300);
+}
+
+/* Warning / caution — dark amber surface */
+[data-md-color-scheme=slate] .md-typeset .admonition.warning,
+[data-md-color-scheme=slate] .md-typeset .admonition.caution {
+  border-color: rgba(217, 119, 6, 0.4);
+  background: rgba(217, 119, 6, 0.07);
+}
+[data-md-color-scheme=slate] .md-typeset .admonition.warning > .admonition-title,
+[data-md-color-scheme=slate] .md-typeset .admonition.caution > .admonition-title {
+  background-color: rgba(217, 119, 6, 0.14);
+  border-bottom-color: rgba(217, 119, 6, 0.2);
+  color: #fcd34d;
+}
+[data-md-color-scheme=slate] .md-typeset .admonition.warning > .admonition-title::before,
+[data-md-color-scheme=slate] .md-typeset .admonition.caution > .admonition-title::before {
+  background-color: #fcd34d;
+}
+
+/* Danger / error — dark red surface */
+[data-md-color-scheme=slate] .md-typeset .admonition.danger,
+[data-md-color-scheme=slate] .md-typeset .admonition.error {
+  border-color: rgba(220, 38, 38, 0.4);
+  background: rgba(220, 38, 38, 0.07);
+}
+[data-md-color-scheme=slate] .md-typeset .admonition.danger > .admonition-title,
+[data-md-color-scheme=slate] .md-typeset .admonition.error > .admonition-title {
+  background-color: rgba(220, 38, 38, 0.14);
+  border-bottom-color: rgba(220, 38, 38, 0.2);
+  color: #fca5a5;
+}
+[data-md-color-scheme=slate] .md-typeset .admonition.danger > .admonition-title::before,
+[data-md-color-scheme=slate] .md-typeset .admonition.error > .admonition-title::before {
+  background-color: #fca5a5;
+}
+
 /* ── Code blocks — subtle ring like the UI ─────────────────────── */
 .md-typeset pre > code,
 .md-typeset .highlight pre {
@@ -219,6 +354,11 @@ body,
   border: 1px solid var(--ia-lime-100);
   padding: 0.1rem 0.35rem;
   font-size: 0.85em;
+}
+[data-md-color-scheme=slate] .md-typeset :not(pre) > code {
+  background-color: rgba(101, 163, 13, 0.12);
+  color: var(--ia-lime-300);
+  border-color: rgba(101, 163, 13, 0.25);
 }
 
 /* ── Tables — clean borders + lime header row ──────────────────── */
@@ -263,31 +403,49 @@ body,
   color: #cbd5e1;
 }
 
-/* ── Links — lime-700 with underline on hover (matches the UI) ─── */
+/* ── Links — interactive, so blue with underline on hover ──────── */
 .md-typeset a {
-  color: var(--ia-lime-700);
+  color: var(--ia-blue-600);
   text-decoration: none;
 }
 .md-typeset a:hover {
-  color: var(--ia-lime-800);
+  color: var(--ia-blue-700);
   text-decoration: underline;
 }
+[data-md-color-scheme=slate] .md-typeset a {
+  color: var(--ia-blue-400);
+}
+[data-md-color-scheme=slate] .md-typeset a:hover {
+  color: var(--ia-blue-500);
+}
 
-/* ── Navigation side rail — active item in lime ────────────────── */
+/* ── Navigation side rail — active/hover item is interactive → blue */
 .md-nav__item .md-nav__link--active {
-  color: var(--ia-lime-700);
+  color: var(--ia-blue-600);
   font-weight: 600;
 }
 .md-nav__item .md-nav__link:hover {
-  color: var(--ia-lime-700);
+  color: var(--ia-blue-600);
+}
+[data-md-color-scheme=slate] .md-nav__item .md-nav__link--active,
+[data-md-color-scheme=slate] .md-nav__item .md-nav__link:hover {
+  color: var(--ia-blue-400);
 }
 
-/* ── Search bar ────────────────────────────────────────────────── */
+/* ── Search bar — soft grey field on the white header (like the app) ── */
 .md-search__input {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: var(--ia-gray-100);
+  color: var(--ia-gray-900);
 }
 .md-search__input::placeholder {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ia-gray-500);
+}
+[data-md-color-scheme=slate] .md-search__input {
+  background-color: #334155;
+  color: #f1f5f9;
+}
+[data-md-color-scheme=slate] .md-search__input::placeholder {
+  color: #94a3b8;
 }
 
 /* ── Footer — softer on light background ───────────────────────── */

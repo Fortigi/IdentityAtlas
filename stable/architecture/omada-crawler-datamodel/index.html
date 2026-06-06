@@ -1,0 +1,4074 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Universal authorization intelligence — sync, analyze, and govern permissions from any identity system">
+      
+      
+      
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/omada-crawler-datamodel/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Omada IGA Crawler — Data Model Reference - Identity Atlas</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#omada-iga-crawler-data-model-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Identity Atlas" class="md-header__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Identity Atlas
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Omada IGA Crawler — Data Model Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../quickstart/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../risk-scoring/overview/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../about/" class="md-tabs__link">
+          
+  
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Identity Atlas" class="md-nav__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Identity Atlas
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/governance-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/risk-scoring-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Sources
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data Sources
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/entra-id/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entra ID
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-crawlers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Crawlers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Using Identity Atlas
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Risk Scoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../branching-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release & Branching Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling & Load Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Dataset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix & Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Experience
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Experience
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ux/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Security
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication Methods
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#url-and-service-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL and Service Root
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#odata-endpoints-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OData Endpoints Used
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configurable-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configurable Settings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configurable Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#contextobjecttypes-array" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        contextObjectTypes (array)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resourcecategorymapping-array" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resourceCategoryMapping (array)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#typemappings-object-overrides-defaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        typeMappings (object, overrides defaults)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sync-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync Phases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sync Phases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-0-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 0: Systems
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-contexts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Contexts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-identities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Identities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-accounts-principals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Accounts (Principals)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-identitymembers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: IdentityMembers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-context-members" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: Context Members
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-6-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6: Resources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-7-entitlements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 7: Entitlements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-8-assignments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 8: Assignments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 8: Assignments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#source-a-resourceassignment-rolepermission-assignments-iga-governed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source A — Resourceassignment (role/permission assignments, IGA-governed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#source-b-calculatedassignments-account-provisioning-all-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source B — CalculatedAssignments (account provisioning, all systems)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entity-relationship-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entity Relationship Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shared-state-variables-inter-phase-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared State Variables (inter-phase dependencies)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-sync-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-Sync Hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-environments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test Environments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Test Environments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#on-premise-masterdemo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On-Premise (masterdemo)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cloud-yourtenantomadacloud" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cloud (yourtenant.omada.cloud)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="omada-iga-crawler-data-model-reference">Omada IGA Crawler — Data Model Reference<a class="headerlink" href="#omada-iga-crawler-data-model-reference" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Last updated:</strong> 2026-06-04<br />
+<strong>Tested against:</strong> Omada Identity v15.0 on-premise (OData 4.0) and Omada Cloud (omada.cloud)</p>
+</blockquote>
+<hr />
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>The Omada IGA crawler pulls data directly from Omada's OData 4.0 REST API (<code>/odata/dataobjects</code> and <code>/odata/builtin</code>) and pushes it into Identity Atlas via the Ingest API.</p>
+<p><strong>Key characteristics:</strong>
+- Always performs a <strong>full sync</strong> (Omada has no delta API; <code>SyncMode</code> is accepted for dispatcher compatibility but ignored)
+- Registers every Omada connected system as a separate Identity Atlas <strong>System</strong>
+- Uses configurable type mappings, context object types, and resource category mapping
+- Supports on-premise and Omada Cloud deployments</p>
+<hr />
+<h2 id="authentication-methods">Authentication Methods<a class="headerlink" href="#authentication-methods" title="Permanent link">&para;</a></h2>
+<p>Configure <code>authMethod</code> in the crawler config. All methods work for both on-premise and cloud.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Required fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BasicAuth</code></td>
+<td><code>username</code>, <code>password</code></td>
+<td>HTTP Basic Auth — most common for on-premise</td>
+</tr>
+<tr>
+<td><code>FormCookie</code></td>
+<td><code>username</code>, <code>password</code></td>
+<td>POST to <code>/api/authenticate</code>, capture session cookie</td>
+</tr>
+<tr>
+<td><code>OAuth2CC</code></td>
+<td><code>clientId</code>, <code>clientSecret</code>, <code>tokenEndpoint</code></td>
+<td>OAuth2 client credentials (app registration)</td>
+</tr>
+<tr>
+<td><code>OAuth2ROPC</code></td>
+<td><code>username</code>, <code>password</code>, <code>clientId</code>, <code>clientSecret</code>, <code>tokenEndpoint</code></td>
+<td>OAuth2 resource owner password credentials</td>
+</tr>
+<tr>
+<td><code>ApiToken</code></td>
+<td><code>apiToken</code></td>
+<td>Static Bearer token (no refresh)</td>
+</tr>
+<tr>
+<td><code>CookieString</code></td>
+<td><code>cookieString</code></td>
+<td>Pre-built cookie string — use for Omada Cloud when only browser/PS session cookies are available</td>
+</tr>
+</tbody>
+</table>
+<p><strong>CookieString (cloud):</strong> Paste the <code>oisauthtoken</code> value from your browser DevTools or from OmadaWeb.PS. A bare token value is automatically prefixed with <code>oisauthtoken=</code>. A valid <code>name=value</code> cookie string is sent as-is. Multi-cookie strings (<code>ASP.NET_SessionId=x; Auth=y</code>) are also supported unchanged.</p>
+<hr />
+<h2 id="url-and-service-root">URL and Service Root<a class="headerlink" href="#url-and-service-root" title="Permanent link">&para;</a></h2>
+<p>Configure <code>baseUrl</code> as either:
+- The OData service root: <code>https://tenant.omada.cloud/odata/dataobjects</code> (explicit)
+- The server root: <code>https://tenant.omada.cloud/</code> (auto-appended with <code>/odata/dataobjects</code>)</p>
+<p>The crawler uses <code>System.Uri</code> to normalise the URL and derives the Builtin service URL automatically:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>DataObjects: https://tenant.omada.cloud/odata/dataobjects
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Builtin:     https://tenant.omada.cloud/odata/builtin
+</code></pre></div>
+<p>The <code>$metadata</code> endpoint (used for entity-set discovery) is fetched at startup as a non-blocking diagnostic. If it fails (e.g. HTTP 500 on some cloud instances), all phases still attempt to run.</p>
+<hr />
+<h2 id="odata-endpoints-used">OData Endpoints Used<a class="headerlink" href="#odata-endpoints-used" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Base URL</th>
+<th>Entity sets used</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DataObjects</td>
+<td><code>{baseUrl}</code></td>
+<td>System, Orgunit, Identity, User, Resource, Resourceassignment, Contextassignment, Employment, Usergroup, Country, Job_titles, + configured context types</td>
+</tr>
+<tr>
+<td>Builtin</td>
+<td><code>{builtinBaseUrl}</code> (derived from DataObjects URL)</td>
+<td>CalculatedAssignments</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Pagination:</strong> <code>$top=N&amp;$skip=M</code> offset paging. Stops on <strong>empty page</strong> (not short page — Builtin returns variable-size pages). Default page size: 100 (Builtin CRA: 1000). CRA pages are streamed one-at-a-time to avoid OOM on large datasets.</p>
+<hr />
+<h2 id="configurable-settings">Configurable Settings<a class="headerlink" href="#configurable-settings" title="Permanent link">&para;</a></h2>
+<h3 id="contextobjecttypes-array"><code>contextObjectTypes</code> (array)<a class="headerlink" href="#contextobjecttypes-array" title="Permanent link">&para;</a></h3>
+<p>Which Omada entity sets to sync as Identity Atlas Contexts. Each entry:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>entitySet</code></td>
+<td>Yes</td>
+<td>Omada entity set name (case-sensitive, from <code>$metadata</code>)</td>
+</tr>
+<tr>
+<td><code>contextType</code></td>
+<td>No</td>
+<td>Identity Atlas contextType label (defaults to entitySet)</td>
+</tr>
+<tr>
+<td><code>identityField</code></td>
+<td>No</td>
+<td>Field on Identity entity that references this context type, used to create ContextMembers automatically</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Default:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">[{</span><span class="w"> </span><span class="nt">&quot;entitySet&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Orgunit&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;contextType&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OrgUnit&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;identityField&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OUREF&quot;</span><span class="w"> </span><span class="p">}]</span>
+</code></pre></div></p>
+<p><strong>Well-known identity→context field mappings</strong> (implicit fallback):</p>
+<table>
+<thead>
+<tr>
+<th>Identity field</th>
+<th>Context entity set</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OUREF</td>
+<td>Orgunit</td>
+</tr>
+<tr>
+<td>COUNTRY</td>
+<td>Country</td>
+</tr>
+<tr>
+<td>BUILDING</td>
+<td>Building</td>
+</tr>
+<tr>
+<td>BUSINESSUNIT</td>
+<td>Businessunit</td>
+</tr>
+<tr>
+<td>COSTCENTER</td>
+<td>Costcenter</td>
+</tr>
+<tr>
+<td>DIVISION</td>
+<td>Division</td>
+</tr>
+<tr>
+<td>JOBTITLE_REF</td>
+<td>Job_titles</td>
+</tr>
+<tr>
+<td>LOCATION</td>
+<td>Location</td>
+</tr>
+<tr>
+<td>SUBAREA</td>
+<td>Subarea</td>
+</tr>
+</tbody>
+</table>
+<h3 id="resourcecategorymapping-array"><code>resourceCategoryMapping</code> (array)<a class="headerlink" href="#resourcecategorymapping-array" title="Permanent link">&para;</a></h3>
+<p>Maps Omada <code>ROLECATEGORY</code> to Identity Atlas <code>resourceType</code>. First matching entry wins; leave <code>category</code> blank for the default/catch-all (must be last).</p>
+<p><strong>Default:</strong></p>
+<table>
+<thead>
+<tr>
+<th>ROLECATEGORY</th>
+<th>Identity Atlas resourceType</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Role</td>
+<td>BusinessRole</td>
+</tr>
+<tr>
+<td>Permission</td>
+<td>Resource</td>
+</tr>
+<tr>
+<td><em>(blank = default)</em></td>
+<td>Resource</td>
+</tr>
+</tbody>
+</table>
+<h3 id="typemappings-object-overrides-defaults"><code>typeMappings</code> (object, overrides defaults)<a class="headerlink" href="#typemappings-object-overrides-defaults" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Maps</th>
+<th>Default examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>identityTypeToIdentityAtlas</code></td>
+<td>IDENTITYTYPE.Value → principalType</td>
+<td>Employee→User, Contractor→ExternalUser, Machine→ServicePrincipal</td>
+</tr>
+<tr>
+<td><code>contextTypeToIdentityAtlas</code></td>
+<td>OUTYPE.Value → contextType</td>
+<td>OrgUnit→OrgUnit, Department→Department</td>
+</tr>
+<tr>
+<td><code>identityTypesForIdentityTable</code></td>
+<td>Which IDENTITYTYPE values go into Identities table</td>
+<td>[Employee, Primary, Person]</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="sync-phases">Sync Phases<a class="headerlink" href="#sync-phases" title="Permanent link">&para;</a></h2>
+<h3 id="phase-0-systems">Phase 0: Systems<a class="headerlink" href="#phase-0-systems" title="Permanent link">&para;</a></h3>
+<p>Every <code>System</code> entity in Omada is registered as a separate Identity Atlas System. This drives per-system scoping of resources and assignments.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OData source</strong></td>
+<td><code>/System?$filter=Deleted eq false</code></td>
+</tr>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/systems</code> (full sync)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Mapping:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Omada field</th>
+<th>Identity Atlas field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UId</td>
+<td>tenantId</td>
+</tr>
+<tr>
+<td>DisplayName</td>
+<td>displayName</td>
+</tr>
+<tr>
+<td><em>(constant)</em></td>
+<td>systemType = <code>'Omada'</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>Omada Identity</code> system (main IGA platform) → used as <code>systemId</code> for Contexts, Identities, Principals.</p>
+<hr />
+<h3 id="phase-1-contexts">Phase 1: Contexts<a class="headerlink" href="#phase-1-contexts" title="Permanent link">&para;</a></h3>
+<p>Syncs every configured <code>contextObjectType</code>. Orgunit uses topological sort (parents before children via <code>PARENTOU</code>); all other types are flat.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OData source</strong></td>
+<td><code>/{entitySet}?$filter=Deleted eq false</code> (per configured type)</td>
+</tr>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/contexts</code> (full sync, scoped by <code>{ variant:'synced', contextType }</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Mapping:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Omada field</th>
+<th>Identity Atlas field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UId</td>
+<td>id, externalId</td>
+</tr>
+<tr>
+<td>NAME or DisplayName</td>
+<td>displayName</td>
+</tr>
+<tr>
+<td>OUTYPE.Value (mapped)</td>
+<td>contextType (Orgunit only; others use config value)</td>
+</tr>
+<tr>
+<td>PARENTOU.UId</td>
+<td>parentContextId (Orgunit only)</td>
+</tr>
+<tr>
+<td><em>(constant)</em></td>
+<td>variant = <code>'synced'</code>, targetType = <code>'Identity'</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="phase-2-identities">Phase 2: Identities<a class="headerlink" href="#phase-2-identities" title="Permanent link">&para;</a></h3>
+<p>Only <strong>person-type</strong> identities (IDENTITYTYPE in <code>identityTypesForIdentityTable</code>) are stored in the Identities table.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OData source</strong></td>
+<td><code>/Identity?$filter=Deleted eq false</code></td>
+</tr>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/identities</code> (full sync)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Column mapping:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Omada field</th>
+<th>Identities column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UId</td>
+<td>id, externalId</td>
+</tr>
+<tr>
+<td>FIRSTNAME + LASTNAME</td>
+<td>displayName, givenName, surname</td>
+</tr>
+<tr>
+<td>EMAIL</td>
+<td>email</td>
+</tr>
+<tr>
+<td>EMPLOYEEID</td>
+<td>employeeId</td>
+</tr>
+<tr>
+<td>JOBTITLE</td>
+<td>jobTitle</td>
+</tr>
+<tr>
+<td>COMPANY.DisplayName</td>
+<td>companyName</td>
+</tr>
+<tr>
+<td>CITY</td>
+<td>city</td>
+</tr>
+<tr>
+<td>COUNTRY.DisplayName</td>
+<td>country</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>extendedAttributes</code> JSON:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>identityType</td>
+<td>IDENTITYTYPE.Value</td>
+</tr>
+<tr>
+<td>identityCategory</td>
+<td>IDENTITYCATEGORY.Value</td>
+</tr>
+<tr>
+<td>identityStatus</td>
+<td>IDENTITYSTATUS.Value</td>
+</tr>
+<tr>
+<td>identityId</td>
+<td>IDENTITYID</td>
+</tr>
+<tr>
+<td>oisId</td>
+<td>OISID</td>
+</tr>
+<tr>
+<td>email2</td>
+<td>EMAIL2</td>
+</tr>
+<tr>
+<td>zipCode</td>
+<td>ZIPCODE</td>
+</tr>
+<tr>
+<td>validFrom / validTo</td>
+<td>VALIDFROM / VALIDTO</td>
+</tr>
+<tr>
+<td>riskScore</td>
+<td>RISKSCORE</td>
+</tr>
+<tr>
+<td>riskLevel</td>
+<td>RISKLEVEL.DisplayName</td>
+</tr>
+<tr>
+<td>manager</td>
+<td>MANAGER[].DisplayName (joined <code>'; '</code>)</td>
+</tr>
+<tr>
+<td>identityOwner</td>
+<td>IDENTITYOWNER.DisplayName</td>
+</tr>
+<tr>
+<td>explicitOwners</td>
+<td>EXPLICITOWNER[].DisplayName (joined <code>'; '</code>)</td>
+</tr>
+<tr>
+<td>ouRefId / ouRefName</td>
+<td>OUREF.UId / .DisplayName</td>
+</tr>
+<tr>
+<td>countryId / countryName</td>
+<td>COUNTRY.UId / .DisplayName</td>
+</tr>
+<tr>
+<td>locationId</td>
+<td>LOCATION.UId</td>
+</tr>
+<tr>
+<td>buildingId</td>
+<td>BUILDING.UId</td>
+</tr>
+<tr>
+<td>businessUnitId</td>
+<td>BUSINESSUNIT.UId</td>
+</tr>
+<tr>
+<td>costCenterId</td>
+<td>COSTCENTER.UId</td>
+</tr>
+<tr>
+<td>divisionId</td>
+<td>DIVISION.UId</td>
+</tr>
+<tr>
+<td>subAreaId</td>
+<td>SUBAREA.UId</td>
+</tr>
+<tr>
+<td>jobTitleRefId / jobTitleRef</td>
+<td>JOBTITLE_REF.UId / .DisplayName</td>
+</tr>
+<tr>
+<td>company</td>
+<td>COMPANY.DisplayName</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="phase-3-accounts-principals">Phase 3: Accounts (Principals)<a class="headerlink" href="#phase-3-accounts-principals" title="Permanent link">&para;</a></h3>
+<p>Omada <code>User</code> entities (accounts) become Identity Atlas Principals. <code>principalType</code> is resolved from the linked Identity's IDENTITYTYPE.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OData source</strong></td>
+<td><code>/User?$filter=Deleted eq false</code></td>
+</tr>
+<tr>
+<td><strong>Join key</strong></td>
+<td>User.IDENTITYREF.IDENTITYID = Identity.IDENTITYID</td>
+</tr>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/principals</code> (full sync, batched per principalType)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Mapping:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Omada field</th>
+<th>Principals column / extendedAttributes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UId</td>
+<td>id, externalId</td>
+</tr>
+<tr>
+<td>FIRSTNAME + LASTNAME</td>
+<td>displayName</td>
+</tr>
+<tr>
+<td>EMAIL</td>
+<td>email</td>
+</tr>
+<tr>
+<td>JOBTITLE</td>
+<td>jobTitle</td>
+</tr>
+<tr>
+<td><em>(from linked Identity)</em></td>
+<td>principalType (mapped via typeMappings)</td>
+</tr>
+<tr>
+<td><em>(constant)</em></td>
+<td>accountEnabled = true</td>
+</tr>
+<tr>
+<td>UserName</td>
+<td>extendedAttributes.userName</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="phase-4-identitymembers">Phase 4: IdentityMembers<a class="headerlink" href="#phase-4-identitymembers" title="Permanent link">&para;</a></h3>
+<p>Links each Omada User account to its Identity. Only person-type identities (FK guard).</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/identity-members</code> (full sync)</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Target field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Identity.UId</td>
+<td>identityId</td>
+</tr>
+<tr>
+<td>User.UId</td>
+<td>principalId</td>
+</tr>
+<tr>
+<td><em>(constant)</em></td>
+<td>accountType = <code>'Primary'</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="phase-5-context-members">Phase 5: Context Members<a class="headerlink" href="#phase-5-context-members" title="Permanent link">&para;</a></h3>
+<p>Three sources combined, deduplicated on <code>(contextId, memberId)</code>. Stored with <code>memberType='Identity'</code> and <code>memberId=Identity.UId</code> so the context detail page query (<code>WHERE memberType = context.targetType</code>) finds members correctly.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/context-members</code> (full sync, deduped)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Source 1 — Contextassignment entity:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>CA_IDENTITY.UId → memberId
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>CA_CONTEXT.UId  → contextId
+</code></pre></div></p>
+<p><strong>Source 2 — Direct Identity reference fields</strong> (OUREF, COUNTRY, JOBTITLE_REF, …):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Identity.UId                  → memberId
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>identity.{identityField}.UId  → contextId  (only if UId in $SyncedContextIds)
+</code></pre></div></p>
+<p><strong>Source 3 — Employment entity</strong> (IDENTITYREF → OUREF, if entity set available):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>IDENTITYREF.UId → memberId
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>OUREF.UId       → contextId
+</code></pre></div></p>
+<p>All records: <code>memberType='Identity'</code>, <code>addedBy='sync'</code>. FK guard: memberId must be in Identities table.</p>
+<hr />
+<h3 id="phase-6-resources">Phase 6: Resources<a class="headerlink" href="#phase-6-resources" title="Permanent link">&para;</a></h3>
+<p>Resources grouped by their connected system (<code>SYSTEMREF</code>) for correct per-system scoped-delete.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OData source</strong></td>
+<td><code>/Resource?$filter=Deleted eq false</code></td>
+</tr>
+<tr>
+<td><strong>Pre-fetch</strong></td>
+<td><code>/Usergroup</code> (for USERGROUPREF name lookup)</td>
+</tr>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/resources</code> (full sync, per-system batches)</td>
+</tr>
+<tr>
+<td><strong>Type mapping</strong></td>
+<td>ROLECATEGORY.Value → resourceType via <code>resourceCategoryMapping</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Column mapping:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Omada field</th>
+<th>Resources column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UId</td>
+<td>id, externalId</td>
+</tr>
+<tr>
+<td>NAME or DisplayName</td>
+<td>displayName</td>
+</tr>
+<tr>
+<td>DESCRIPTION</td>
+<td>description</td>
+</tr>
+<tr>
+<td>ROLECATEGORY (mapped)</td>
+<td>resourceType</td>
+</tr>
+<tr>
+<td>RESOURCESTATUS</td>
+<td>enabled (false if Inactive/Disabled/Deleted)</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>extendedAttributes</code> JSON:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>resourceCategory</td>
+<td>ROLECATEGORY.Value</td>
+</tr>
+<tr>
+<td>resourceType</td>
+<td>ROLETYPEREF.DisplayName</td>
+</tr>
+<tr>
+<td>roleFolder</td>
+<td>ROLEFOLDER.DisplayName</td>
+</tr>
+<tr>
+<td>skipProvisioning</td>
+<td>SKIPPROVISIONING (bool)</td>
+</tr>
+<tr>
+<td>userGroupName</td>
+<td>USERGROUPREF → Usergroup.DisplayName lookup</td>
+</tr>
+<tr>
+<td>explicitOwner</td>
+<td>EXPLICITOWNER[].DisplayName (joined <code>'; '</code>)</td>
+</tr>
+<tr>
+<td>manualOwner</td>
+<td>MANUALOWNER[].DisplayName (joined <code>'; '</code>)</td>
+</tr>
+<tr>
+<td>omadaSystem</td>
+<td>SYSTEMREF.DisplayName</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="phase-7-entitlements">Phase 7: Entitlements<a class="headerlink" href="#phase-7-entitlements" title="Permanent link">&para;</a></h3>
+<p>Role nesting extracted from <code>Resource.CHILDROLES</code> — no separate endpoint exists.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Source</strong></td>
+<td><code>$AllResources</code> (pre-fetched in Phase 6), <code>Resource.CHILDROLES</code> collection</td>
+</tr>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/resource-relationships</code> (full sync, scope <code>{relationshipType:'Contains'}</code>)</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>parentResourceId</td>
+<td>Resource.UId</td>
+</tr>
+<tr>
+<td>childResourceId</td>
+<td>CHILDROLES[n].UId</td>
+</tr>
+<tr>
+<td>relationshipType</td>
+<td><code>'Contains'</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="phase-8-assignments">Phase 8: Assignments<a class="headerlink" href="#phase-8-assignments" title="Permanent link">&para;</a></h3>
+<p>Two sources combined for comprehensive coverage:</p>
+<h4 id="source-a-resourceassignment-rolepermission-assignments-iga-governed">Source A — Resourceassignment (role/permission assignments, IGA-governed)<a class="headerlink" href="#source-a-resourceassignment-rolepermission-assignments-iga-governed" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OData source</strong></td>
+<td><code>/Resourceassignment?$filter=Deleted eq false</code></td>
+</tr>
+<tr>
+<td><strong>Filter</strong></td>
+<td>ROLEASSNSTATUS.Value in <code>['Active', 'Pending']</code></td>
+</tr>
+<tr>
+<td><strong>Fan-out</strong></td>
+<td>Each identity assignment → one record per linked User account (via <code>$IdentityUidToUserUids</code>)</td>
+</tr>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/resource-assignments</code> (full sync, per-system, <code>assignmentType='Governed'</code>)</td>
+</tr>
+<tr>
+<td><strong>Deduplication</strong></td>
+<td>YES — on <code>principalId|resourceId</code> per system</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Omada field</th>
+<th>ResourceAssignments column / extendedAttributes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ROLEREF.UId</td>
+<td>resourceId</td>
+</tr>
+<tr>
+<td><em>(fanned via Identity.UId)</em></td>
+<td>principalId (User.UId)</td>
+</tr>
+<tr>
+<td><em>(constant)</em></td>
+<td>assignmentType = <code>'Governed'</code></td>
+</tr>
+<tr>
+<td>VALIDFROM / VALIDTO</td>
+<td>extendedAttributes.validFrom / validTo</td>
+</tr>
+</tbody>
+</table>
+<h4 id="source-b-calculatedassignments-account-provisioning-all-systems">Source B — CalculatedAssignments (account provisioning, all systems)<a class="headerlink" href="#source-b-calculatedassignments-account-provisioning-all-systems" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OData source</strong></td>
+<td><code>/odata/builtin/CalculatedAssignments?$filter=Status eq true&amp;$expand=Identity,Resource,System,ResourceType</code></td>
+</tr>
+<tr>
+<td><strong>Page size</strong></td>
+<td>1000 (server default; stops on empty page)</td>
+</tr>
+<tr>
+<td><strong>IA destination</strong></td>
+<td><code>ingest/principals</code> (delta) + <code>ingest/identity-members</code> (delta) + <code>ingest/resource-assignments</code> (full sync, per-system)</td>
+</tr>
+</tbody>
+</table>
+<p>Two sub-tracks based on which Omada system the account belongs to:</p>
+<p><strong>Omada Identity accounts</strong> (AccountName → <code>$UserNameToUid</code> lookup):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>principalId  = existing User.UId
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>assignmentType = Governed (IsManaged=true) or Direct (IsManaged=false)
+</code></pre></div></p>
+<p><strong>Connected-system accounts</strong> (Salesforce, AD, etc. — AccountKey as new Principal id):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>New Principal:
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  AccountKey       → id
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>  AccountName      → externalId
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>  FIRSTNAME/LASTNAME → displayName
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>  EMAIL            → email
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  (constant)       → principalType = &#39;User&#39;
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>  Status           → accountEnabled
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>New IdentityMember:
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>  Identity.UId     → identityId  (FK guard: person types only)
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>  AccountKey       → principalId
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>  ResourceType.DisplayName → accountType
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>ResourceAssignment:
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>  Resource.UId     → resourceId
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>  AccountKey       → principalId
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>  IsManaged=true   → assignmentType = &#39;Governed&#39;
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>  IsManaged=false  → assignmentType = &#39;Direct&#39;
+</code></pre></div></p>
+<p><strong><code>extendedAttributes</code> on CRA assignments:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>validFrom / validTo</td>
+<td>ValidFrom / ValidTo</td>
+</tr>
+<tr>
+<td>status</td>
+<td><code>'Enabled'</code> (Status=true) or <code>'Disabled'</code></td>
+</tr>
+<tr>
+<td>reasons</td>
+<td>Reasons[].Description (joined <code>'; '</code>)</td>
+</tr>
+<tr>
+<td>accountType</td>
+<td>ResourceType.DisplayName</td>
+</tr>
+<tr>
+<td>accountName</td>
+<td>AccountName</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="entity-relationship-summary">Entity Relationship Summary<a class="headerlink" href="#entity-relationship-summary" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Systems (58 connected systems, 1 per Omada System entity)
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  └─ Resources       (grouped by systemId)
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>  └─ Principals      (grouped by systemId — Omada accounts + CRA-derived accounts)
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>  └─ ResourceAssignments (grouped by systemId)
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>Identities (person-type identities only: Employee, Primary, Person)
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>  └─ IdentityMembers → Principals (Omada User accounts)
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>  └─ IdentityMembers → Principals (connected-system accounts, from CRA)
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>  └─ ContextMembers  → Contexts (memberType=&#39;Identity&#39;)
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>Contexts (OrgUnit hierarchy + configured flat types e.g. JOB_TITLES)
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>  └─ ContextMembers  (from Contextassignment + direct refs + Employment)
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>Resources → ResourceRelationships (Contains, from CHILDROLES)
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>Principals → ResourceAssignments → Resources
+</code></pre></div>
+<hr />
+<h2 id="shared-state-variables-inter-phase-dependencies">Shared State Variables (inter-phase dependencies)<a class="headerlink" href="#shared-state-variables-inter-phase-dependencies" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Built in phase</th>
+<th>Used in phases</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$AllOmadaSystems</code></td>
+<td>Systems</td>
+<td>Contexts, Resources, Assignments (label lookups)</td>
+</tr>
+<tr>
+<td><code>$OmadaSystemMap</code> (UId→systemId)</td>
+<td>Systems</td>
+<td>Resources, Assignments</td>
+</tr>
+<tr>
+<td><code>$OmadaIdentitySystemUId</code></td>
+<td>Systems</td>
+<td>Assignments (distinguishes Omada vs connected-system accounts)</td>
+</tr>
+<tr>
+<td><code>$SyncedContextIds</code></td>
+<td>Contexts</td>
+<td>ContextMembers (filter out unknown CA_CONTEXT refs)</td>
+</tr>
+<tr>
+<td><code>$AllIdentities</code></td>
+<td>Identities</td>
+<td>Accounts (principalType lookup), ContextMembers (direct refs)</td>
+</tr>
+<tr>
+<td><code>$IdentityLookup</code> (IDENTITYID→{uid,type})</td>
+<td>Identities</td>
+<td>Accounts</td>
+</tr>
+<tr>
+<td><code>$IdentityUidInIdentitiesTable</code></td>
+<td>Identities</td>
+<td>ContextMembers, Assignments (FK guard)</td>
+</tr>
+<tr>
+<td><code>$AllAccounts</code></td>
+<td>Accounts</td>
+<td>IdentityMembers, ContextMembers, Assignments</td>
+</tr>
+<tr>
+<td><code>$UserNameToUid</code> (UserName→UId)</td>
+<td>Accounts</td>
+<td>Assignments (CRA Omada-account lookup)</td>
+</tr>
+<tr>
+<td><code>$IdentityUidToUserUids</code> (IdentityUId→[UserUIds])</td>
+<td>Accounts</td>
+<td>ContextMembers, Assignments (fan-out)</td>
+</tr>
+<tr>
+<td><code>$UserGroupMap</code> (UId→DisplayName)</td>
+<td>Resources (pre-fetch)</td>
+<td>Resources</td>
+</tr>
+<tr>
+<td><code>$AllResources</code></td>
+<td>Resources</td>
+<td>Entitlements</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ingest HTTP 429 / 5xx</td>
+<td>Retry with exponential backoff: 2s, 4s, 8s, 16s, 32s (max 5 retries)</td>
+</tr>
+<tr>
+<td>Ingest HTTP 409 (job cancelled)</td>
+<td>Throw immediately — aborts crawl</td>
+</tr>
+<tr>
+<td>Ingest HTTP 4xx (non-429)</td>
+<td>Throw immediately</td>
+</tr>
+<tr>
+<td>OData entity set not in <code>$metadata</code></td>
+<td>Skip with yellow warning; continue</td>
+</tr>
+<tr>
+<td>CRA endpoint HTTP 404/400/501</td>
+<td>Skip gracefully (module not installed)</td>
+</tr>
+<tr>
+<td>Build-FGContexts 404</td>
+<td>Not called for Omada (Omada syncs its own contexts directly)</td>
+</tr>
+<tr>
+<td><code>JOBTITLE_REF</code> contextId not in <code>$SyncedContextIds</code></td>
+<td>Skip ContextMember silently</td>
+</tr>
+<tr>
+<td>Identity not in <code>$IdentityUidInIdentitiesTable</code></td>
+<td>Skip IdentityMember / ContextMember (FK guard)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="post-sync-hooks">Post-Sync Hooks<a class="headerlink" href="#post-sync-hooks" title="Permanent link">&para;</a></h2>
+<p>After all phases complete:</p>
+<ol>
+<li><strong>Phase results</strong> → <code>POST /api/crawlers/jobs/:id/phases</code> (per-phase timing + status)</li>
+<li><strong>View refresh</strong> → <code>POST /api/ingest/refresh-views</code> — refreshes <code>vw_ResourceUserPermissionAssignments</code> materialized view, recalculates <code>directMemberCount</code>/<code>totalMemberCount</code> on all Contexts, updates <code>lastSyncDateTime</code> on all Systems that have synced data</li>
+</ol>
+<hr />
+<h2 id="test-environments">Test Environments<a class="headerlink" href="#test-environments" title="Permanent link">&para;</a></h2>
+<h3 id="on-premise-masterdemo">On-Premise (masterdemo)<a class="headerlink" href="#on-premise-masterdemo" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hostname</td>
+<td><code>omada-server.example.com</code> (→ <code>masterdemo.example.com</code> → <code>192.0.2.28</code>)</td>
+</tr>
+<tr>
+<td>Auth method</td>
+<td>BasicAuth (<code>DOMAIN\demouser</code>)</td>
+</tr>
+<tr>
+<td>API version</td>
+<td>v15.0</td>
+</tr>
+<tr>
+<td>Entity sets</td>
+<td>25 (DataObjects) + CalculatedAssignments (Builtin)</td>
+</tr>
+<tr>
+<td>Systems</td>
+<td>58 connected systems</td>
+</tr>
+<tr>
+<td>Identities</td>
+<td>332 (321 person-type)</td>
+</tr>
+<tr>
+<td>Contexts</td>
+<td>322 OrgUnits + 28 Job Titles</td>
+</tr>
+<tr>
+<td>Resources</td>
+<td>13,220 across all systems</td>
+</tr>
+<tr>
+<td>CRA records</td>
+<td>~37,961 active (Status=true)</td>
+</tr>
+</tbody>
+</table>
+<p>DNS: AD DNS at <code>192.0.2.25</code>/<code>192.0.2.28</code> resolves <code>example.com</code> zone. Persisted via <code>extra_hosts</code> in <code>docker-compose.yml</code>.</p>
+<h3 id="cloud-yourtenantomadacloud">Cloud (yourtenant.omada.cloud)<a class="headerlink" href="#cloud-yourtenantomadacloud" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Base URL</td>
+<td><code>https://yourtenant.omada.cloud/</code> (auto-normalised to <code>/odata/dataobjects</code>)</td>
+</tr>
+<tr>
+<td>Auth method</td>
+<td>CookieString (<code>oisauthtoken=&lt;token&gt;</code>)</td>
+</tr>
+<tr>
+<td>Entity sets</td>
+<td>18 available (subset of on-premise; <code>$metadata</code> may return 500 — gracefully skipped)</td>
+</tr>
+<tr>
+<td>Systems</td>
+<td>41 connected systems</td>
+</tr>
+<tr>
+<td>Identities</td>
+<td>4,279</td>
+</tr>
+<tr>
+<td>Contexts</td>
+<td>403 OrgUnits + 277 Job Titles</td>
+</tr>
+<tr>
+<td>Resources</td>
+<td>30,355+ across all systems</td>
+</tr>
+<tr>
+<td>CRA records</td>
+<td>12,421+ active</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Cloud notes:</strong> The <code>$metadata</code> endpoint on cloud may return HTTP 500 — this is handled gracefully (all phases still run). CookieString auth sends the cookie in a <code>Cookie</code> request header (not via WebSession), which is required for cloud HTTPS URLs where WebSession cookie-domain matching is unreliable.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Created by <a href="https://www.fortigi.nl">Maatschap Fortigi</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/wimvdheijkant/" target="_blank" rel="noopener" title="Wim van den Heijkant" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.fortigi.nl" target="_blank" rel="noopener" title="Fortigi" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M351.9 280H161c2.9 64.5 17.2 123.9 37.5 167.4 11.4 24.5 23.7 41.8 35.1 52.4 11.2 10.5 18.9 12.2 22.9 12.2s11.7-1.7 22.9-12.2c11.4-10.6 23.7-28 35.1-52.4 20.3-43.5 34.6-102.9 37.5-167.4zm-191-48h190.9c-2.8-64.5-17.1-123.9-37.4-167.4-11.4-24.4-23.7-41.8-35.1-52.4C268.1 1.7 260.4 0 256.4 0s-11.7 1.7-22.9 12.2c-11.4 10.6-23.7 28-35.1 52.4-20.3 43.5-34.6 102.9-37.5 167.4m-48 0c3.5-85.6 25.6-165.1 57.9-217.3C78.7 47.3 10.9 131.2 1.5 232zM1.5 280c9.4 100.8 77.2 184.7 169.3 217.3-32.3-52.2-54.4-131.7-57.9-217.3zm398.4 0c-3.5 85.6-25.6 165.1-57.9 217.3 92.1-32.7 159.9-116.5 169.3-217.3zm111.4-48C501.9 131.2 434.1 47.3 342 14.7c32.3 52.2 54.4 131.7 57.9 217.3z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
