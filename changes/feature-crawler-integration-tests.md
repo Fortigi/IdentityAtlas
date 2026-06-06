@@ -3,3 +3,4 @@
 - Added dynamic CI test discovery: `Test-*.ps1` files colocated in each `tools/crawlers/<type>/` directory are automatically discovered and run in topological dependency order (dependency crawlers first, dependents after), with same-level tests running in parallel — no YAML changes needed when adding a new crawler with a test
 - Added shared mock OData HTTP server (`tools/crawlers/shared/Start-MockODataServer.ps1`) for crawler integration tests that have no live CI endpoint
 - Fixed PR Hygiene CI check recognizing `Test-*.ps1` (crawler integration tests) and `Start-Mock*.ps1` (mock server test infrastructure) as test files alongside the existing `*.Tests.ps1` Pester convention
+- Fixed Docker image build failure caused by `re2` having no prebuilt binary for Node 26 — pinned base image to Node 22 LTS where prebuilt binaries are available
