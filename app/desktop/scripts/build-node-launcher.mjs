@@ -84,6 +84,7 @@ run(
   ` --outfile="${BUNDLE_OUT}"` +
   ` --external:@electric-sql/pglite` +
   ` --external:pg-native` +
+  ` --external:re2` +
   ` "--banner:js=${CJS_BANNER}"`,
   { cwd: API_ROOT }
 );
