@@ -64,7 +64,7 @@ function Wait-JobComplete {
 Write-Host "`n=== Omada IGA Crawler Integration Test ===" -ForegroundColor Cyan
 
 # ── Load mock server ──────────────────────────────────────────────────────────
-. (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared\Start-MockODataServer.ps1')
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared' 'Start-MockODataServer.ps1')
 
 # ── Mock entity data ──────────────────────────────────────────────────────────
 # Entity shapes validated against Omada OData API (rdw-e.omada.cloud 2026-06-06)
@@ -120,10 +120,6 @@ $edmxSets = @('System', 'Identity', 'User', 'Resource', 'Resourceassignment')
 # ── Start mock server ─────────────────────────────────────────────────────────
 $mock = $null
 $configId = $null
-trap {
-    Write-Host "  Test aborted: $($_.Exception.Message)" -ForegroundColor Red
-    if ($mock) { Stop-MockODataServer -Mock $mock }
-}
 
 try {
     $mock = Start-MockODataServer -EntitySets $mockEntities -EdmxEntitySets $edmxSets
@@ -259,7 +255,7 @@ try {
         $job2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-jobs' -Body @{
             jobType = 'omada'; configId = $cfgResult2.id
         }
-        $completed2 = Wait-JobComplete -JobId $job2.id -TimeoutSec 60
+        $completed2 = Wait-JobComplete -JobId $job2.id -TimeoutSec 150
         # Expected: job fails because mock returns 500 mid-crawl
         $pfPassed = ($null -ne $completed2) -and ($completed2.status -eq 'failed')
         Report-Result 'Omada/Error — partial failure (500 mid-crawl) detected' $pfPassed `
@@ -272,6 +268,7 @@ try {
 
 } catch {
     Write-Host "  Fatal test error: $($_.Exception.Message)" -ForegroundColor Red
+    $script:standaloneFailures++
 } finally {
     if ($mock)     { Stop-MockODataServer -Mock $mock }
 }

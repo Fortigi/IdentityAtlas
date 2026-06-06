@@ -376,6 +376,7 @@ jobs:
           $depths = @{}
           function Get-Depth([string]$T) {
             if ($depths.ContainsKey($T)) { return $depths[$T] }
+            if (-not $registry.ContainsKey($T)) { throw "Crawler type '$T' referenced in dependsOn but not found in registry" }
             $deps = $registry[$T].Manifest['dependsOn'] ?? @()
             $d = if ($deps.Count -gt 0) { ($deps | ForEach-Object { Get-Depth $_ } | Measure-Object -Max).Maximum + 1 } else { 0 }
             $depths[$T] = $d; return $d
@@ -393,8 +394,8 @@ jobs:
               Write-Host "Starting: $($testFile.Name) (depth $depth)" -ForegroundColor Cyan
               $jobs += Start-Job -ScriptBlock {
                 param($path, $url, $key)
-                try { & $path -ApiBaseUrl $url -ApiKey $key }
-                catch { Write-Error $_.Exception.Message; exit 1 }
+                & pwsh -NoProfile -File $path -ApiBaseUrl $url -ApiKey $key
+                if ($LASTEXITCODE -ne 0) { throw "Test script exited with code $LASTEXITCODE" }
               } -ArgumentList $testFile.FullName, $apiBase, $apiKey
             }
             if ($jobs.Count -eq 0) { continue }
