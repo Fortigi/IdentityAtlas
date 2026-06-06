@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed crawlers with dependencies (e.g. Omada IGA) failing immediately with "missing mandatory parameters: ApiBaseUrl ApiKey JobId ConfigPath" — the dependency layer's entry point was being dot-sourced instead of skipped
+- Fixed syntax error in Omada crawler (spurious `}` inside `foreach` loop for CRA principal ingestion) that caused "Try statement missing Catch/Finally" parse failure
+
+## Changes in this PR
+
 - Securised the identity account-link decisions: confirming, rejecting, or clearing a linked account now requires the new "Identity link decisions" (`data.write.identity`) permission, so read-only users can no longer change what Account Linking will (re-)link. Previously any signed-in user could.
 - Added unit tests covering identity graph fan-out, the orphaned-accounts context, account-linking analyst-decision preservation, context-picker target-type filtering, and the identity override permission gate.
 - Documented Account Linking: the deterministic, dictionary-based replacement for the retired Account Correlation feature (editable signals + account-type rules, certainty slider, scheduled and on-demand runs, and an "Orphaned Accounts" context for unlinked accounts).
