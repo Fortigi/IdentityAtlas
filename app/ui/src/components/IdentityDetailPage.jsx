@@ -235,6 +235,10 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
                 {members.map(m => {
                   const ov = m.analystOverride;
                   const busy = busyMember === m.principalId;
+                  // A link with no confidence score came from the crawler / source
+                  // data — it's authoritative and not analyst-managed here. Only
+                  // account-linking's scored links get Confirm / Remove.
+                  const isSource = m.linkConfidence == null;
                   return (
                     <div key={m.principalId} className="flex items-center justify-between gap-3 py-2">
                       <div className="min-w-0">
@@ -249,25 +253,29 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {m.linkConfidence != null && <ConfidenceBar confidence={m.linkConfidence} />}
-                        {ov && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                            ov === 'confirmed' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-700'
-                              : ov === 'rejected' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-700'
-                                : 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
-                          }`}>{ov}</span>
-                        )}
-                        {m.isPrimary ? (
-                          <span className="text-xs text-gray-500 dark:text-gray-400">source</span>
-                        ) : ov ? (
-                          <button disabled={busy} onClick={() => overrideMember(m.principalId, 'clear')}
-                            className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">Undo</button>
+                        {isSource ? (
+                          <span className="text-xs text-gray-500 dark:text-gray-400 italic">Linked from source</span>
                         ) : (
                           <>
-                            <button disabled={busy} onClick={() => overrideMember(m.principalId, 'confirmed')}
-                              className="text-xs px-2 py-1 rounded border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 disabled:opacity-50">Confirm</button>
-                            <button disabled={busy} onClick={() => overrideMember(m.principalId, 'rejected')}
-                              className="text-xs px-2 py-1 rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50">Remove</button>
+                            {m.linkConfidence != null && <ConfidenceBar confidence={m.linkConfidence} />}
+                            {ov && (
+                              <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                                ov === 'confirmed' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-700'
+                                  : ov === 'rejected' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-700'
+                                    : 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
+                              }`}>{ov}</span>
+                            )}
+                            {ov ? (
+                              <button disabled={busy} onClick={() => overrideMember(m.principalId, 'clear')}
+                                className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">Undo</button>
+                            ) : (
+                              <>
+                                <button disabled={busy} onClick={() => overrideMember(m.principalId, 'confirmed')}
+                                  className="text-xs px-2 py-1 rounded border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 disabled:opacity-50">Confirm</button>
+                                <button disabled={busy} onClick={() => overrideMember(m.principalId, 'rejected')}
+                                  className="text-xs px-2 py-1 rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50">Remove</button>
+                              </>
+                            )}
                           </>
                         )}
                       </div>
