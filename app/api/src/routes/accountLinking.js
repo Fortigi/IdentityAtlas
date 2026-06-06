@@ -66,7 +66,7 @@ router.put('/account-linking/config', gate, async (req, res) => {
     });
   } catch (err) {
     console.error('save account-linking config failed:', err.message);
-    res.status(500).json({ error: 'Failed to save config', message: err.message });
+    res.status(500).json({ error: 'Failed to save config' });
   }
 });
 
@@ -93,7 +93,7 @@ router.post('/account-linking/runs', gate, async (req, res) => {
     res.status(202).json(run);
   } catch (err) {
     console.error('start account-linking run failed:', err.message);
-    res.status(500).json({ error: 'Failed to start run', message: err.message });
+    res.status(500).json({ error: 'Failed to start run' });
   }
 });
 

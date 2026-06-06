@@ -103,6 +103,7 @@ nav:
           - Matrix Scope Statistics: architecture/matrix-scope-statistics.md
           - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
           - Crawler Architecture: architecture/crawler-architecture.md
+          - Account Linking: architecture/account-linking.md
       - Operations:
           - Scaling & Load Testing: architecture/scaling.md
           - Demo Dataset: architecture/demo-dataset.md

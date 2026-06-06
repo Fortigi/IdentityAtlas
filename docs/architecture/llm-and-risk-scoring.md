@@ -189,7 +189,7 @@ postgres in the docker stack).
 - **Local LLM** (Ollama / Llama / Mistral container). Easy add later — the provider abstraction is the right substrate. Quality on a no-GPU CPU box: Qwen 2.5 14B or Mistral Small 22B will be acceptable for the structured-JSON tasks but noticeably worse than Claude/GPT-4 on industry-specific nuance.
 - **News-feed-driven re-scoring** (M&A events, security incidents). The classifier system is the right substrate for this — Phase 3 would add scheduled news-source ingestion that produces "candidate adjustments" for the operator to approve.
 - **RAG over a long-term wiki/ISMS index**. Current approach is scrape-on-create. RAG (e.g. with `pgvector`) is the right answer once you have hundreds of internal docs.
-- **Account correlation wizard**. Same wizard shape, different prompts and engine. Will reuse the components added here.
+- **LLM account correlation**. Account correlation was *not* built as an LLM wizard — it shipped as the deterministic, dictionary-based [Account Linking](account-linking.md) engine instead (no prompts, no model calls). The earlier "same wizard shape, different prompts" idea was dropped.
 - **Layers 2/3/4 of the scoring engine**. Membership analysis (PIM eligibility, owner concentration), structural hygiene (orphan groups, never-signed-in users), and cross-entity propagation. The formula stays the same shape, so adding these is additive rather than a rewrite.
 
 ## Operational notes

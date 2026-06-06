@@ -25,6 +25,19 @@ import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
 const INDENT_PX = 22;
 const CONNECTOR = 'rgb(203 213 225)';
 
+// Decide whether a root context should be shown given the target-type filters.
+// `targetTypes` (a non-empty array) takes precedence over single `targetType`.
+// When neither is supplied, nothing is filtered out.
+export function matchesTargetTypes(ctx, { targetTypes = null, targetType = null } = {}) {
+  if (Array.isArray(targetTypes) && targetTypes.length) {
+    return targetTypes.includes(ctx.targetType);
+  }
+  if (targetType) {
+    return ctx.targetType === targetType;
+  }
+  return true;
+}
+
 export default function ContextPicker({
   open,
   onClose,
@@ -95,11 +108,7 @@ export default function ContextPicker({
     let result = prune(trees);
     // The DB enforces same targetType throughout a tree, so a root-level filter
     // is sufficient. `targetTypes` (a set) takes precedence over single `targetType`.
-    if (Array.isArray(targetTypes) && targetTypes.length) {
-      result = result.filter(r => targetTypes.includes(r.targetType));
-    } else if (targetType) {
-      result = result.filter(r => r.targetType === targetType);
-    }
+    result = result.filter(r => matchesTargetTypes(r, { targetTypes, targetType }));
     return result;
   }, [trees, targetType, targetTypes, excludeSet]);
 

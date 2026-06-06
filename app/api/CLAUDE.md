@@ -49,7 +49,8 @@ Migration files are numbered sequentially (`001_core_schema.sql`, `002_governanc
 | `routes/details.js` | User/group/resource detail endpoints with history |
 | `routes/resources.js` | Resource CRUD, filtering, column discovery |
 | `routes/systems.js` | Systems CRUD, owners, statistics |
-| `routes/identities.js` | Identity correlation results |
+| `routes/identities.js` | Identities + linked accounts; per-account analyst override management (confirm/reject/clear) |
+| `routes/accountLinking.js` | Account-linking config + run endpoints |
 | `routes/riskScores.js` | Risk score reading + analyst override endpoints |
 | `routes/contexts.js` | Contexts CRUD, member management, plugin runner |
 | `routes/jobs.js` | Crawler config CRUD, job queuing, manifest-driven job type discovery |

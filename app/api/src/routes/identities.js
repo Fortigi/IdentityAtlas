@@ -1,8 +1,9 @@
-// ─── Account Correlation / Identities API Routes ─────────────────────────
+// ─── Identities API Routes ───────────────────────────────────────────────
 //
-// Reads pre-computed identity correlations from SQL.
-// Identities are computed by Invoke-FGAccountCorrelation (PowerShell).
-// This route reads identity data and manages analyst overrides.
+// Reads identities and their linked accounts from SQL. Identities come from
+// the crawler's IdentityFilter (source-linked) and from Account Linking, which
+// attaches orphan accounts with a confidence score (see accountlinking/engine.js).
+// This route reads identity data and manages per-account analyst overrides.
 //
 // GET    /api/identities                    - Summary + paginated identity list
 // GET    /api/identities/:id                - Single identity with all linked accounts
@@ -11,9 +12,15 @@
 
 import { Router } from 'express';
 import { timedRequest } from '../perf/sqlTimer.js';
+import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+
+// Analyst decisions on a linked account are a write action — gate them like
+// risk-score overrides (riskScores.js uses data.write.risk). Reads stay open
+// to anyone who can sign in (data.read).
+const writeIdentity = requirePermission('data.write.identity');
 
 let db = null;
 if (useSql) {
@@ -494,7 +501,7 @@ router.get('/identities/:id/account-matrix', async (req, res) => {
 // linked account. :userId is the account's principalId. action: confirmed
 // (lock the link) | rejected (unlink + keep account linking from re-adding it)
 // | moved. The linking engine respects these on re-run.
-router.put('/identities/:id/members/:userId/override', async (req, res) => {
+router.put('/identities/:id/members/:userId/override', writeIdentity, async (req, res) => {
   if (!useSql) return res.status(400).json({ error: 'SQL not configured' });
 
   const { id: identityId, userId } = req.params;
@@ -609,7 +616,7 @@ router.get('/identities/by-user/:userId', async (req, res) => {
 });
 
 // DELETE /api/identities/:id/members/:userId/override — remove analyst override
-router.delete('/identities/:id/members/:userId/override', async (req, res) => {
+router.delete('/identities/:id/members/:userId/override', writeIdentity, async (req, res) => {
   if (!useSql) return res.status(400).json({ error: 'SQL not configured' });
 
   const { id: identityId, userId } = req.params;

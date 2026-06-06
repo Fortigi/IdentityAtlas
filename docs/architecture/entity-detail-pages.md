@@ -46,9 +46,15 @@ Each entity kind has a first ring of relationship categories:
 | **User** | Manager · Direct Reports · Context · Groups (Direct) · Groups (Indirect) · Groups Owned · Eligible · Access Packages · OAuth2 Grants · Identity |
 | **Resource** | Direct Members · Governed · Owners · Eligible · Business Roles · Member Of · Context |
 | **Access Package** | Assignments · Resources · Policies · Reviews · Pending Requests · Catalog |
-| **Identity** | Linked Accounts · Context · Groups (Direct) · Governed · Owned · Eligible · OAuth2 Grants |
+| **Identity** | Linked Accounts · Contexts |
 
 All nodes share the dashboard's lime/green palette. Node radius scales with count on a log curve so a 3-member group and a 30,000-member group both stay readable.
+
+#### Identity → accounts → access
+
+An **identity holds no access of its own — its accounts do.** So the identity's first ring is deliberately small: just **Linked Accounts** (the correlated person's accounts, including ones attached by [Account Linking](account-linking.md)) and any **Contexts** it belongs to directly (context membership can sit on the identity itself).
+
+The access categories — Groups (Direct), Governed, Owned, Eligible, OAuth2 Grants — do **not** hang off the identity. You reach them by drilling into a **linked account**: clicking an account under Linked Accounts fans out *that account's* own relationship categories via the normal user graph. When the identity-level assignment endpoints are used (`/api/identities/:id/assignments?type=…`), each item is annotated with the account it came through ("via &lt;account&gt;") so a roll-up across accounts still shows provenance.
 
 ### Recent-change nodes
 
