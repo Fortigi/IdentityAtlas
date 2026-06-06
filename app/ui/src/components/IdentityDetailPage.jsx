@@ -5,6 +5,7 @@ import ConfidenceBar from './ConfidenceBar';
 import EntityGraph from './EntityGraph';
 import { AttributesTable } from './EntityDetailLayout';
 import { buildAttributeEntries } from '../utils/attributeEntries';
+import { isSourceLinkedMember } from '../utils/linkedMembers';
 import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
@@ -238,7 +239,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
                   // A link with no confidence score came from the crawler / source
                   // data — it's authoritative and not analyst-managed here. Only
                   // account-linking's scored links get Confirm / Remove.
-                  const isSource = m.linkConfidence == null;
+                  const isSource = isSourceLinkedMember(m);
                   return (
                     <div key={m.principalId} className="flex items-center justify-between gap-3 py-2">
                       <div className="min-w-0">
