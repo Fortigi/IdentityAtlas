@@ -145,12 +145,16 @@ try {
     }
 
     # ─── Load dependencies + crawler code ─────────────────────────────────────
+    # Entry points (Start-*.ps1) are excluded from dot-sourcing across all layers;
+    # they are invoked explicitly via & for the main crawler only.
+    # This prevents mandatory-param failures when dot-sourcing dependency layers
+    # whose entry points (e.g. Start-ODataCrawler.ps1) have required parameters.
     $resolved = Resolve-CrawlerDependencies -Type $JobType -Registry $registry
     foreach ($layer in $resolved) {
         $layerDir        = $registry[$layer].Dir
         $layerEntryPoint = $registry[$layer].Manifest['entryPoint']
         Get-ChildItem -Path $layerDir -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $layer -ne $JobType -or $_.Name -ne $layerEntryPoint } |
+            Where-Object { $_.Name -ne $layerEntryPoint } |
             ForEach-Object { . $_.FullName }
     }
 

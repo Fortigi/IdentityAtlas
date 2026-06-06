@@ -2,7 +2,7 @@
   "type": "omada",
   "displayName": "Omada IGA",
   "entryPoint": "Start-OmadaCrawler.ps1",
-  "dependsOn": ["odata"],
+  "dependsOn": [],
   "configSchema": {
     "type": "object",
     "required": ["baseUrl", "authMethod"],

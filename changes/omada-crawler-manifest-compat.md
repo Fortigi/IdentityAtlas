@@ -1,0 +1,3 @@
+- Fixed: Omada crawler no longer fails to start due to parameter mismatch — the entry point now uses `-ConfigPath` to match the manifest-driven dispatcher convention
+- Fixed: Omada `crawler.json` no longer declares `dependsOn: ["odata"]`; the Omada SDK (in `tools/powershell-sdk/omada/`) is already loaded by the module and does not need the generic OData crawler library
+- Fixed: Dispatcher dependency loader now correctly excludes each layer's own entry point (`Start-*.ps1`) from dot-sourcing — previously, only the main crawler's entry point was excluded, causing `Start-ODataCrawler.ps1` to be dot-sourced with missing mandatory parameters when `omada` depended on `odata`

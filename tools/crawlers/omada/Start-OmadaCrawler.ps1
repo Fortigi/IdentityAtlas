@@ -28,7 +28,7 @@
 .PARAMETER ApiKey
     Identity Atlas crawler API key (fgc_...)
 
-.PARAMETER ConfigFile
+.PARAMETER ConfigPath
     Path to JSON config file written by Invoke-CrawlerJob.ps1.
 
 .PARAMETER SyncContexts
@@ -65,7 +65,7 @@
     Job ID for live progress reporting to the UI. 0 = standalone (no reporting).
 
 .EXAMPLE
-    .\Start-OmadaCrawler.ps1 -ApiBaseUrl http://localhost:3001/api -ApiKey fgc_... -ConfigFile .\omada.json
+    .\Start-OmadaCrawler.ps1 -ApiBaseUrl http://localhost:3001/api -ApiKey fgc_... -ConfigPath .\omada.json
 #>
 
 #region Parameters
@@ -74,8 +74,21 @@
 Param(
     [Parameter(Mandatory)] [string]$ApiBaseUrl,
     [Parameter(Mandatory)] [string]$ApiKey,
-    [Parameter(Mandatory)] [int]$JobId,
-    [Parameter(Mandatory)] [string]$ConfigPath
+    [Parameter(Mandatory)] [string]$ConfigPath,
+
+    [switch]$SyncContexts        = $True,
+    [switch]$SyncIdentities      = $True,
+    [switch]$SyncAccounts        = $True,
+    [switch]$SyncContextMembers  = $True,
+    [switch]$SyncResources       = $True,
+    [switch]$SyncEntitlements    = $True,
+    [switch]$SyncAssignments     = $True,
+    [switch]$RefreshViews        = $True,
+
+    [ValidateSet('full','delta')]
+    [string]$SyncMode = 'full',
+
+    [int]$JobId = 0
 )
 
 #endregion Parameters
@@ -85,37 +98,9 @@ Param(
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
-# Read full job config and derive crawler variables
-$RawConfig = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
-$ConfigFile = $ConfigPath  # OData functions read auth from the config file directly
-
-# Sync toggles — defaults then apply selectedObjects overrides
-$SyncContexts       = $true
-$SyncIdentities     = $true
-$SyncAccounts       = $true
-$SyncContextMembers = $true
-$SyncResources      = $true
-$SyncEntitlements   = $true
-$SyncAssignments    = $true
-$SyncCRAs           = $true
-$RefreshViews       = $true
-$SyncMode = if ($RawConfig['_syncMode'] -in @('full','delta')) { $RawConfig['_syncMode'] } else { 'full' }
-
-$objects = $RawConfig['selectedObjects']
-if ($objects) {
-    if ($objects.ContainsKey('contexts'))       { $SyncContexts       = [bool]$objects['contexts'] }
-    if ($objects.ContainsKey('identities'))     { $SyncIdentities     = [bool]$objects['identities'] }
-    if ($objects.ContainsKey('accounts'))       { $SyncAccounts       = [bool]$objects['accounts'] }
-    if ($objects.ContainsKey('contextMembers')) { $SyncContextMembers = [bool]$objects['contextMembers'] }
-    if ($objects.ContainsKey('resources'))      { $SyncResources      = [bool]$objects['resources'] }
-    if ($objects.ContainsKey('entitlements'))   { $SyncEntitlements   = [bool]$objects['entitlements'] }
-    if ($objects.ContainsKey('assignments'))    { $SyncAssignments    = [bool]$objects['assignments'] }
-    if ($objects.ContainsKey('cras'))           { $SyncCRAs           = [bool]$objects['cras'] }
-}
-
 # ─── Load config ─────────────────────────────────────────────────
-if (-not (Test-Path $ConfigFile)) { throw "Config file not found: $ConfigFile" }
-$Cfg = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+if (-not (Test-Path $ConfigPath)) { throw "Config file not found: $ConfigPath" }
+$Cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 
 # ── Normalise base URL via System.Uri ─────────────────────────────
 # Accepts both:
@@ -394,7 +379,7 @@ if ($Cfg.clientSecret)  { $AuthParams['ClientSecret']  = $Cfg.clientSecret }
 if ($Cfg.tokenEndpoint) { $AuthParams['TokenEndpoint'] = $Cfg.tokenEndpoint }
 if ($Cfg.apiToken)      { $AuthParams['ApiToken']      = $Cfg.apiToken }
 if ($Cfg.cookieString)  { $AuthParams['CookieString']  = $Cfg.cookieString }
-Connect-ODataAPI @authParams
+Connect-OmadaAPI @authParams
 
 # Derive the Builtin OData service URL from the DataObjects base URL
 Write-Host "Builtin URL: $BuiltinBaseUrl" -ForegroundColor Gray
@@ -421,7 +406,7 @@ $OmadaSystemMap  = @{}  # Omada System.UId → Identity Atlas system.id
 $SystemId        = 0    # ID for the main Omada IGA system (used for Contexts/Identities)
 try {
     Write-Step 'Fetching connected systems from Omada...'
-    $AllOmadaSystems = Invoke-ODataPagedRequest -Path '/System' `
+    $AllOmadaSystems = Invoke-OmadaPagedRequest -Path '/System' `
         -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize 100
     Write-Host "  $($AllOmadaSystems.Count) connected systems in Omada" -ForegroundColor Gray
 
@@ -505,7 +490,7 @@ if ($SyncContexts) {
                 continue
             }
             Write-Step "Fetching $EntitySet entities from Omada..."
-            $Items = Invoke-ODataPagedRequest -Path "/$EntitySet" `
+            $Items = Invoke-OmadaPagedRequest -Path "/$EntitySet" `
                 -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
             Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
 
@@ -590,7 +575,7 @@ if ($SyncIdentities) {
             throw "Identity entity set not found in OData metadata"
         }
         Write-Step 'Fetching identities from Omada...'
-        $AllIdentities = Invoke-ODataPagedRequest -Path '/Identity' `
+        $AllIdentities = Invoke-OmadaPagedRequest -Path '/Identity' `
             -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($AllIdentities.Count) identity records from Omada" -ForegroundColor Gray
 
@@ -700,7 +685,7 @@ if ($SyncAccounts) {
             throw "User entity set not found in OData metadata"
         }
         Write-Step 'Fetching user accounts from Omada...'
-        $AllAccounts = Invoke-ODataPagedRequest -Path '/User' `
+        $AllAccounts = Invoke-OmadaPagedRequest -Path '/User' `
             -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($AllAccounts.Count) account records from Omada" -ForegroundColor Gray
 
@@ -820,7 +805,7 @@ if ($SyncContextMembers) {
             throw "Contextassignment entity set not found in OData metadata"
         }
         Write-Step 'Fetching context assignments from Omada...'
-        $Items = Invoke-ODataPagedRequest -Path '/Contextassignment' `
+        $Items = Invoke-OmadaPagedRequest -Path '/Contextassignment' `
             -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($Items.Count) context assignment records from Omada" -ForegroundColor Gray
 
@@ -876,7 +861,7 @@ if ($SyncContextMembers) {
         if (Test-EntitySetAvailable 'Employment') {
             try {
                 Write-Step 'Fetching employment records from Omada...'
-                $EmpItems = Invoke-ODataPagedRequest -Path '/Employment' `
+                $EmpItems = Invoke-OmadaPagedRequest -Path '/Employment' `
                     -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
                 foreach ($Emp in $EmpItems) {
                     $IdentUid   = Get-OmadaRefUid -Ref $Emp.IDENTITYREF
@@ -931,7 +916,7 @@ if ($SyncResources) {
         # Pre-fetch Usergroups for USERGROUPREF name lookup
         if ($UserGroupMap.Count -eq 0 -and (Test-EntitySetAvailable 'Usergroup')) {
             try {
-                $Ugs = Invoke-ODataPagedRequest -Path '/Usergroup' `
+                $Ugs = Invoke-OmadaPagedRequest -Path '/Usergroup' `
                     -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
                 foreach ($Ug in $Ugs) { $UserGroupMap[[string]$Ug.UId] = $Ug.DisplayName }
                 Write-Host "  Loaded $($UserGroupMap.Count) usergroups for USERGROUPREF lookup" -ForegroundColor Gray
@@ -941,7 +926,7 @@ if ($SyncResources) {
         }
 
         Write-Step 'Fetching resources from Omada (this may take a few minutes)...'
-        $AllResources = Invoke-ODataPagedRequest -Path '/Resource' `
+        $AllResources = Invoke-OmadaPagedRequest -Path '/Resource' `
             -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($AllResources.Count) resource records from Omada" -ForegroundColor Gray
 
@@ -1079,7 +1064,7 @@ if ($SyncAssignments) {
     try {
         # ── Source 1: Resourceassignment (role/permission assignments) ─────────
         Write-Step 'Fetching role assignments from Omada...'
-        $RaItems = Invoke-ODataPagedRequest -Path '/Resourceassignment' `
+        $RaItems = Invoke-OmadaPagedRequest -Path '/Resourceassignment' `
             -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
         Write-Host "  $($RaItems.Count) Resourceassignment records from Omada" -ForegroundColor Gray
 
@@ -1143,7 +1128,7 @@ if ($SyncAssignments) {
 
         do {
             Write-Step "Fetching CRA page (skip=$CaSkip, total so far: $CaTotalCount)..."
-            $CaPage = Invoke-ODataGetRequest -Path '/CalculatedAssignments' `
+            $CaPage = Invoke-OmadaGetRequest -Path '/CalculatedAssignments' `
                 -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource,System,ResourceType'
                                 '$top' = $CaPageSize; '$skip' = $CaSkip } `
                 -MaxRetries 5 -OverrideBaseUrl $BuiltinBaseUrl
@@ -1244,6 +1229,7 @@ if ($SyncAssignments) {
             $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
             $Seen  = [System.Collections.Generic.HashSet[string]]::new()
             $Dedup = @($CaPrincipalsBySys[$Key] | Where-Object { $Seen.Add($_.id) })
+        Write-Host "  CRA: $CaTotalCount records → $TotalCaPrincipals connected-system accounts, $($CaIdentityMembers.Count) identity-member links" -ForegroundColor Green
                 Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SysId `
                     -SyncMode 'delta' -Records $Dedup | Out-Null
                 $TotalCaPrincipals += $Dedup.Count
