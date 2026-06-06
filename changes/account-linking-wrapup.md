@@ -1,6 +1,0 @@
-- Securised the identity account-link decisions: confirming, rejecting, or clearing a linked account now requires the new "Identity link decisions" (`data.write.identity`) permission, so read-only users can no longer change what Account Linking will (re-)link. Previously any signed-in user could.
-- Added unit tests covering identity graph fan-out, the orphaned-accounts context, account-linking analyst-decision preservation, context-picker target-type filtering, and the identity override permission gate.
-- Documented Account Linking: the deterministic, dictionary-based replacement for the retired Account Correlation feature (editable signals + account-type rules, certainty slider, scheduled and on-demand runs, and an "Orphaned Accounts" context for unlinked accounts).
-- Corrected the identity entity-graph documentation to the identity → accounts → access model (access hangs off each linked account, not the identity).
-- Documented matrix Identity rows, expanding an identity column into per-account sub-columns, the row-type-aware context picker, and identity attribute filtering.
-- Refreshed the API, configuration, data-model, risk-scoring, crawler, deployment, history, and UX docs to use the new Account Linking names, endpoints, and renamed database columns.
