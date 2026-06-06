@@ -1,0 +1,1 @@
+- Fixed portable Windows ZIP build (cut-beta / cut-release / cut-hotfix) failing when the `re2` native addon is a dependency — marked `re2` as external in the esbuild bundle
