@@ -56,8 +56,9 @@ $SystemType = if ($RawConfig['systemType']) { $RawConfig['systemType'] } else { 
 $Delimiter  = if ($RawConfig['delimiter'])  { $RawConfig['delimiter'] }  else { ';' }
 $RefreshViews = $true
 
-# ─── Helpers ─────────────────────────────────────────────────────
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
+
+# ─── Helpers ─────────────────────────────────────────────────────
 
 function Send-IngestBatch {
     param([string]$Endpoint, [int]$SystemId, [string]$SyncMode = 'full', [hashtable]$Scope = @{}, $Records, [int]$BatchSize = 10000)
