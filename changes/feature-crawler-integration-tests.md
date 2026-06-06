@@ -11,3 +11,4 @@
 - Added `maxRetries` config option to the Omada crawler so operators can tune OData retry behaviour per deployment
 - Fixed Omada integration test asserting resource count via `GET /api/resources`, which excludes BusinessRole resources — mock data now uses `Permission` category (maps to generic Resource type) so the assertion passes
 - Moved `Get-OmadaEntitySets` → `Get-ODataEntitySets` into the shared OData library (`Invoke-ODataAuth.ps1`) — OData `$metadata` discovery is not Omada-specific; also adds `Update-ODataSessionIfExpired` call before the fetch (matching all other OData library functions) and a new integration test
+- Extracted `Invoke-IngestAPI`, `Update-CrawlerProgress`, and `ConvertTo-JsonArray` from all three crawlers (Entra ID, Omada, CSV) into `tools/crawlers/shared/Invoke-CrawlerIngest.ps1`; fixed a bug where the CSV crawler silently ignored HTTP 409 (job terminated) on progress updates instead of aborting the crawl

@@ -57,36 +57,7 @@ $Delimiter  = if ($RawConfig['delimiter'])  { $RawConfig['delimiter'] }  else { 
 $RefreshViews = $true
 
 # ─── Helpers ─────────────────────────────────────────────────────
-
-function Invoke-IngestAPI {
-    param([string]$Endpoint, [hashtable]$Body)
-    $headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
-    $json = $Body | ConvertTo-Json -Depth 20 -Compress
-    $uri = "$ApiBaseUrl/$Endpoint"
-    $maxAttempts = 5; $attempt = 0
-    while ($true) {
-        $attempt++
-        try {
-            $response = Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $json -TimeoutSec 300
-            if ($attempt -gt 1) { Write-Host "  Recovered on attempt $attempt" -ForegroundColor Green }
-            return $response
-        } catch {
-            $statusCode = try { $_.Exception.Response.StatusCode.value__ } catch { $null }
-            $isTransient = (-not $statusCode) -or ($statusCode -ge 500) -or ($statusCode -eq 429)
-            if ($isTransient -and $attempt -lt $maxAttempts) {
-                $delay = [Math]::Pow(2, $attempt)
-                Write-Host "  Transient ($statusCode) on $Endpoint — retry $attempt in ${delay}s" -ForegroundColor Yellow
-                Start-Sleep -Seconds $delay
-                continue
-            }
-            $responseBody = $null
-            try { $stream = $_.Exception.Response.GetResponseStream(); if ($stream) { $reader = [System.IO.StreamReader]::new($stream); $responseBody = $reader.ReadToEnd(); $reader.Close() } } catch {}
-            Write-Host "  ERROR: $Endpoint → $statusCode after $attempt attempt(s)" -ForegroundColor Red
-            if ($responseBody) { Write-Host "  $responseBody" -ForegroundColor Yellow }
-            throw
-        }
-    }
-}
+. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 
 function Send-IngestBatch {
     param([string]$Endpoint, [int]$SystemId, [string]$SyncMode = 'full', [hashtable]$Scope = @{}, $Records, [int]$BatchSize = 10000)
@@ -179,19 +150,6 @@ function Read-CsvFast {
     } finally { $reader.Dispose() }
     Write-Host "  $FileName`: $($rows.Count) rows (fast path)" -ForegroundColor Gray
     return @{ rows = $rows; colIdx = $colIdx }
-}
-
-function Update-CrawlerProgress {
-    param([string]$Step, [int]$Pct = -1, [string]$Detail)
-    if (-not $JobId -or $JobId -le 0) { return }
-    $body = @{ jobId = $JobId }
-    if ($PSBoundParameters.ContainsKey('Step'))   { $body['step']   = $Step }
-    if ($Pct -ge 0)                                { $body['pct']    = $Pct }
-    if ($PSBoundParameters.ContainsKey('Detail')) { $body['detail'] = $Detail }
-    try {
-        $h = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
-        Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/job-progress" -Method Post -Headers $h -Body ($body | ConvertTo-Json -Compress) -TimeoutSec 10 | Out-Null
-    } catch { }
 }
 
 function Assert-Columns {
