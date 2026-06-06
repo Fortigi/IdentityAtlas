@@ -150,7 +150,7 @@ try {
         $layerDir        = $registry[$layer].Dir
         $layerEntryPoint = $registry[$layer].Manifest['entryPoint']
         Get-ChildItem -Path $layerDir -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $layer -ne $JobType -or $_.Name -ne $layerEntryPoint } |
+            Where-Object { $_.Name -ne $layerEntryPoint } |
             ForEach-Object { . $_.FullName }
     }
 
