@@ -49,11 +49,13 @@ async function loadEngine(db) {
   return import('./engine.js');
 }
 
-// The IdentityMembers UPDATE/INSERT statements issued through db.query.
+// The UPDATE/INSERT statements that TARGET IdentityMembers. Matches the write
+// target specifically — the per-identity aggregate UPDATE "Identities" mentions
+// IdentityMembers only inside a COUNT(*) subquery and must not be counted here.
 function memberWrites(db) {
   return db.query.mock.calls
     .map(c => c[0])
-    .filter(sql => /IdentityMembers/.test(sql) && /(UPDATE|INSERT)/.test(sql));
+    .filter(sql => /UPDATE\s+"IdentityMembers"/.test(sql) || /INSERT\s+INTO\s+"IdentityMembers"/.test(sql));
 }
 
 // True once the run reached its 'completed' status update.
