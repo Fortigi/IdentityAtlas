@@ -265,7 +265,9 @@ jobs:
             -e '\.(test|spec)\.(js|jsx)$' \
             -e '^app/ui/e2e/' \
             -e '^test/' \
-            -e '\.Tests\.ps1$' || true)
+            -e '\.Tests\.ps1$' \
+            -e '/Test-[^/]+\.ps1$' \
+            -e '/Start-Mock[^/]+\.ps1$' || true)
 
           # Changelog fragment (the project mandates one per branch).
           FRAGMENT=$(echo "${CHANGED}" | grep -E '^changes/.*\.md$' || true)
@@ -274,7 +276,7 @@ jobs:
           if [ -n "${CODE}" ]; then
             if [ -z "${TESTS}" ]; then
               echo "::error::Source code changed but no test files were added or modified."
-              echo "Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), or *.Tests.ps1 (PowerShell)."
+              echo "Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), *.Tests.ps1 (Pester unit), or Test-*.ps1 (crawler integration)."
               FAIL=1
             fi
             if [ -z "${FRAGMENT}" ]; then
