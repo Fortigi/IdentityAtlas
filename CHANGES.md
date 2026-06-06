@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed portable Windows ZIP build (cut-beta / cut-release / cut-hotfix) failing when the `re2` native addon is a dependency — marked `re2` as external in the esbuild bundle
+
+## Changes in this PR
+
 - Fixed crawlers with dependencies (e.g. Omada IGA) failing immediately with "missing mandatory parameters: ApiBaseUrl ApiKey JobId ConfigPath" — the dependency layer's entry point was being dot-sourced instead of skipped
 - Fixed syntax error in Omada crawler (spurious `}` inside `foreach` loop for CRA principal ingestion) that caused "Try statement missing Catch/Finally" parse failure
 
