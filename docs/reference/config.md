@@ -51,7 +51,7 @@ When using the in-browser wizard, these permissions are validated automatically 
 
 ## Section: LLM
 
-Configures the AI provider used by `New-FGRiskProfile`, `New-FGRiskClassifiers`, and `New-FGCorrelationRuleset`. Only anonymized structural data is sent to the LLM — no user names, emails, or identity data.
+Configures the AI provider used by `New-FGRiskProfile` and `New-FGRiskClassifiers`. Only anonymized structural data is sent to the LLM — no user names, emails, or identity data. (Account Linking does **not** use the LLM — it is deterministic.)
 
 | Key | Type | Description |
 |---|---|---|
@@ -74,13 +74,19 @@ Risk scoring can also be toggled at runtime in the UI: **Admin → Risk Scoring*
 
 ---
 
-## Section: AccountCorrelation
+## Account Linking
 
-| Key | Type | Description |
-|---|---|---|
-| `Enabled` | bool | Whether account correlation is active. |
+Account Linking is configured entirely in the UI — **Admin → Account Linking** — not via a config file. It is deterministic and dictionary-based; **there is no LLM**.
 
-The correlation ruleset is generated once with `New-FGCorrelationRuleset` (optionally with an LLM), saved to SQL with `Save-FGCorrelationRuleset`, and then re-applied every time a crawler completes via the post-sync `Invoke-FGAccountCorrelation` step. No file-based scheduling is needed.
+The active configuration lives in the `AccountLinkingConfig` SQL table:
+
+| Field | Description |
+|---|---|
+| `rules` | The editable dictionary: weighted `signals`, regex `accountTypeRules`, the `linkThreshold` (the certainty slider), and `onlyLinkTypes`. |
+| `schedules` | Array of schedules; the server-side scheduler queues a run when one matches the current minute. |
+| `isActive` | Whether linking is active. |
+
+Runs can also be triggered on demand from the same Admin page; each run records its progress in `AccountLinkingRuns`. Editing config and starting runs requires the `admin.crawlers` permission. See [Account Linking](../architecture/account-linking.md) for the engine and dictionary.
 
 ---
 

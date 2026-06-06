@@ -39,15 +39,16 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | `data.write.tags` | Manage tags | `POST/PATCH/DELETE /api/tags…` |
 | `data.write.categories` | Manage categories | `POST/PATCH/DELETE /api/categories…` |
 | `data.write.risk` | Risk score overrides | `PUT/DELETE /api/risk-scores/:type/:id/override` |
+| `data.write.identity` | Identity link decisions | `PUT/DELETE /api/identities/:id/members/:userId/override` (confirm / reject / clear an account-linking decision) |
 | `data.write.certifications` | Certification decisions | **Reserved** — no interactive endpoint yet. Certification decisions are currently ingested via the crawler (`POST /api/ingest/governance/certifications`). When an approve/revoke endpoint is added it will be gated by this permission. |
 
 ### Admin
 
 | Permission | Label | Gated endpoint (representative) |
 |---|---|---|
-| `admin.crawlers` | Crawler configuration | `GET/POST/PATCH/DELETE /api/admin/crawlers…`, crawler jobs, trigger risk-scoring runs |
+| `admin.crawlers` | Crawler configuration | `GET/POST/PATCH/DELETE /api/admin/crawlers…`, crawler jobs, trigger risk-scoring runs, account-linking config + runs (`PUT /api/account-linking/config`, `POST /api/account-linking/runs`) |
 | `admin.systems` | Systems configuration | `PUT /api/systems/:id`, owners, clean-database, history-retention |
-| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers, correlation rulesets |
+| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers |
 | `admin.context-plugins` | Context plugins | `/api/context-plugins…` (run/configure clustering, manager-hierarchy, etc.) |
 | `admin.csv-import` | CSV import | `/api/admin/crawler-configs/:id/csv-files`, custom-connector ingest |
 | `admin.read-tokens` | Manage read API keys | `GET/DELETE /api/admin/read-tokens` (list/revoke tokens minted by others) |

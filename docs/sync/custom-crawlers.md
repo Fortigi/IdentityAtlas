@@ -26,7 +26,7 @@ Restart the worker container after adding the folder. The new crawler appears in
   "displayName": "My Source System",
   "entryPoint": "Start-MySourceCrawler.ps1",
   "dependsOn": [],
-  "postSyncHooks": ["buildContexts", "accountCorrelation"],
+  "postSyncHooks": ["buildContexts"],
   "configSchema": {
     "type": "object",
     "required": ["apiUrl", "apiKey"],
@@ -45,7 +45,7 @@ Restart the worker container after adding the folder. The new crawler appears in
 | `entryPoint` | ✅ | Entry point filename, relative to the crawler folder. |
 | `dependsOn` | — | Other crawler types whose library files are dot-sourced before this one runs. |
 | `configSchema` | — | [JSON Schema](https://json-schema.org/) object. The UI renders a form from it; the API validates configs against it before queueing. |
-| `postSyncHooks` | — | `"buildContexts"` derives org-unit contexts; `"accountCorrelation"` links accounts across systems. Most user-syncing crawlers should include both. |
+| `postSyncHooks` | — | `"buildContexts"` derives org-unit contexts after a sync. Most user-syncing crawlers should include it. The historical `"accountCorrelation"` hook is now a **no-op** — account-to-identity matching moved to the scheduler-driven [Account Linking](../architecture/account-linking.md) engine — so new crawlers should omit it. |
 
 ---
 
@@ -135,7 +135,7 @@ If your source exposes an OData 4.0 API, declare `"dependsOn": ["odata"]` in the
   "displayName": "My OData Source",
   "entryPoint": "Start-MyODataCrawler.ps1",
   "dependsOn": ["odata"],
-  "postSyncHooks": ["buildContexts", "accountCorrelation"],
+  "postSyncHooks": ["buildContexts"],
   "configSchema": {
     "type": "object",
     "required": ["baseUrl", "authMethod"],

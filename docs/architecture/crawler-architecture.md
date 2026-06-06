@@ -56,7 +56,7 @@ The Node.js API (`app/api/src/routes/jobs.js`) reads the same manifests independ
 | Hook | What it does |
 |---|---|
 | `buildContexts` | Derives org-unit context membership from synced principal data |
-| `accountCorrelation` | Links accounts across systems to shared Identity records |
+| `accountCorrelation` | **Legacy / no-op.** Account-to-identity matching is no longer done in a post-sync hook — it is the deterministic [Account Linking](account-linking.md) engine in the web container, which runs on a schedule (`AccountLinkingConfig.schedules`) and on demand from Admin. The hook still resolves but skips: the old `Invoke-FGAccountCorrelation` function no longer ships, so the dispatcher logs "not available — skipping". New crawlers can omit it. |
 
 ---
 

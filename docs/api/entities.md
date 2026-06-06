@@ -488,34 +488,49 @@ Contexts represent organizational and structural groupings (departments, divisio
 
 ---
 
-## Identity Correlation
+## Identities
+
+Identities are real persons aggregated from multiple accounts. Accounts are
+attached either by a crawler's IdentityFilter (authoritative, score-less) or by
+[Account Linking](../architecture/account-linking.md) (orphan accounts attached
+with a `linkConfidence`).
 
 ### GET /api/identities
 
-Paginated list of correlated identities — real persons aggregated from multiple accounts across systems.
+Summary + paginated identity list.
 
 **Query Parameters**
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `search` | string | | Search by display name |
-| `limit` | int | 100 | Page size. Maximum: 500. |
+| `search` | string | | Search by display name, email, job title, or employee ID |
+| `minAccounts` | int | | Only identities with at least this many linked accounts |
+| `confidence` | int | | Only identities whose `linkConfidence` is ≥ this value |
+| `sort` | string | `displayName` | One of `accountCount`, `confidence`, `displayName`, `department`, `linkedAt` |
+| `limit` | int | 50 | Page size. Maximum: 500. |
 | `offset` | int | 0 | Pagination offset. |
 
 **Response**
 
 ```json
 {
+  "available": true,
+  "summary": {
+    "totalIdentities": 1280,
+    "multiAccountIdentities": 412,
+    "totalAccounts": 1860,
+    "avgConfidence": 78.4,
+    "lastLinkedAt": "2026-06-05T02:00:00Z",
+    "accountTypeDistribution": [{ "accountType": "Admin", "cnt": 240 }]
+  },
   "data": [
     {
-      "identityId": "iid-001",
+      "id": "uuid",
       "displayName": "Jane Doe",
-      "accounts": [
-        { "principalId": "uuid", "systemDisplayName": "EntraID", "principalType": "User" },
-        { "principalId": "uuid", "systemDisplayName": "GitHub", "principalType": "ServicePrincipal" }
-      ],
-      "verifiedAt": null,
-      "verifiedBy": null
+      "accountCount": 2,
+      "linkConfidence": 90,
+      "linkedAt": "2026-06-05T02:00:00Z",
+      "department": "Finance"
     }
   ],
   "total": 1280
@@ -526,20 +541,85 @@ Paginated list of correlated identities — real persons aggregated from multipl
 
 ---
 
-### PUT /api/identities/:id/verify
+### GET /api/identities/:id
 
-Analyst verification that the correlation result is correct (or mark it as incorrect for manual remediation).
+A single identity with all of its linked accounts, per-account `accountType`,
+`linkConfidence`, `linkSignals`, `analystOverride`, aggregate assignment counts
+across accounts, and context count.
+
+---
+
+### PUT /api/identities/:id/members/:userId/override
+
+Record an analyst decision on a **linked account**. `:userId` is the account's
+`principalId`. The Account Linking engine respects these on every re-run.
+
+**Permission:** `data.write.identity`
+
+**Request Body**
+
+```json
+{ "action": "confirmed" }
+```
+
+`action` must be one of:
+
+| Action | Effect |
+|---|---|
+| `confirmed` | Lock the link — never overwritten by a re-run. |
+| `rejected` | Unlink, and keep Account Linking from re-adding this account to any identity. |
+| `moved` | Mark that the analyst moved the account to a different identity. |
+
+---
+
+### DELETE /api/identities/:id/members/:userId/override
+
+Clear a previously-set analyst override so Account Linking can manage the link
+again.
+
+**Permission:** `data.write.identity`
+
+---
+
+## Account Linking
+
+Deterministic, dictionary-based correlation of orphan accounts to identities —
+no LLM. See [Account Linking](../architecture/account-linking.md) for the engine
+and dictionary. Config writes and run starts require the `admin.crawlers`
+permission; reads are open to any signed-in user.
+
+### GET /api/account-linking/config
+
+Returns the active config (`rules` dictionary + `schedules`), or the shipped
+defaults (`"defaults": true`) when none has been saved.
+
+### PUT /api/account-linking/config
+
+Upsert the single config row. **Permission:** `admin.crawlers`
 
 **Request Body**
 
 ```json
 {
-  "verified": true,
-  "notes": "Confirmed — same person, separate admin account"
+  "rules": { "signals": [], "accountTypeRules": [], "linkThreshold": 50, "onlyLinkTypes": ["Admin","Guest","Secondary"] },
+  "schedules": [{ "frequency": "daily", "minute": 0, "enabled": true }],
+  "isActive": true
 }
 ```
 
-`notes` is capped at 2000 characters.
+### POST /api/account-linking/runs
+
+Start a run. Returns `202` + the new `AccountLinkingRuns` row; the engine runs
+in the background. **Permission:** `admin.crawlers`
+
+### GET /api/account-linking/runs
+
+The 50 most recent runs, newest first.
+
+### GET /api/account-linking/runs/:id
+
+Single-run status (for the polling UI): `status`, `step`, `pct`,
+`linksCreated`, `linksUpdated`, `skippedAnalystOverride`, `orphansRemaining`.
 
 ---
 

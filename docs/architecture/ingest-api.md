@@ -55,11 +55,11 @@ graph TB
 
     subgraph Analytics["Analytics Engines"]
         direction TB
-        CR[Correlation RuleSet] --> CE[Correlation Engine]
+        CR[Linking Dictionary] --> CE[Account Linking Engine]
         RP[Risk Profile] --> CL[Classifiers]
         CL --> HE[Heuristics Engine]
         CE <-->|shared data| HE
-        CE --> CS[Correlation Scores]
+        CE --> CS[Link Confidence]
         HE --> RS[Risk Scores]
     end
 
@@ -76,7 +76,7 @@ The architecture has four layers:
 
 2. **Ingest API** — Receives data via REST endpoints. Handles validation, bulk merge, scoped delete detection, and audit history recording. Authenticates crawlers via self-contained API keys.
 
-3. **Analytics Engines** — Account Correlation and Risk Scoring run independently against the database. The Correlation Engine uses rulesets to link principals to identities. The Heuristics Engine uses risk profiles and classifiers to compute risk scores.
+3. **Analytics Engines** — [Account Linking](account-linking.md) and Risk Scoring run independently against the database. The Account Linking engine is deterministic: it uses an editable dictionary (weighted signals + regex account-type rules + a confidence threshold) to attach orphan accounts to identities with a `linkConfidence` — no LLM. The Heuristics Engine uses risk profiles and classifiers to compute risk scores.
 
 4. **Read API + Web UI** — The existing Express read routes and React frontend remain unchanged.
 

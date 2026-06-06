@@ -21,6 +21,8 @@ export const PERMISSIONS = Object.freeze({
     description: 'Create, edit, delete categories and assign them to access packages.' },
   'data.write.risk':           { label: 'Risk score overrides',    group: 'Write',
     description: 'Override analyst-decidable risk scores on identities and resources.' },
+  'data.write.identity':       { label: 'Identity link decisions',  group: 'Write',
+    description: 'Confirm, reject, or clear account-linking decisions on an identity\'s linked accounts.' },
   'data.write.certifications': { label: 'Certification decisions', group: 'Write',
     description: 'Approve, revoke, or comment on certification decisions.' },
 
