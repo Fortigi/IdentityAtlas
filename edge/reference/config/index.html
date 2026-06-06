@@ -1481,6 +1481,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2032,10 +2060,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#section-accountcorrelation" class="md-nav__link">
+  <a href="#account-linking" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Section: AccountCorrelation
+        Account Linking
       
     </span>
   </a>
@@ -2600,10 +2628,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#section-accountcorrelation" class="md-nav__link">
+  <a href="#account-linking" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Section: AccountCorrelation
+        Account Linking
       
     </span>
   </a>
@@ -2795,7 +2823,7 @@
 <p>When using the in-browser wizard, these permissions are validated automatically — the wizard shows a green/red checklist of which ones are granted.</p>
 <hr />
 <h2 id="section-llm">Section: LLM<a class="headerlink" href="#section-llm" title="Permanent link">&para;</a></h2>
-<p>Configures the AI provider used by <code>New-FGRiskProfile</code>, <code>New-FGRiskClassifiers</code>, and <code>New-FGCorrelationRuleset</code>. Only anonymized structural data is sent to the LLM — no user names, emails, or identity data.</p>
+<p>Configures the AI provider used by <code>New-FGRiskProfile</code> and <code>New-FGRiskClassifiers</code>. Only anonymized structural data is sent to the LLM — no user names, emails, or identity data. (Account Linking does <strong>not</strong> use the LLM — it is deterministic.)</p>
 <table>
 <thead>
 <tr>
@@ -2848,24 +2876,32 @@
 </table>
 <p>Risk scoring can also be toggled at runtime in the UI: <strong>Admin → Risk Scoring</strong> → toggle switch. The toggle persists in the <code>WorkerConfig</code> SQL table and overrides the env var / config setting.</p>
 <hr />
-<h2 id="section-accountcorrelation">Section: AccountCorrelation<a class="headerlink" href="#section-accountcorrelation" title="Permanent link">&para;</a></h2>
+<h2 id="account-linking">Account Linking<a class="headerlink" href="#account-linking" title="Permanent link">&para;</a></h2>
+<p>Account Linking is configured entirely in the UI — <strong>Admin → Account Linking</strong> — not via a config file. It is deterministic and dictionary-based; <strong>there is no LLM</strong>.</p>
+<p>The active configuration lives in the <code>AccountLinkingConfig</code> SQL table:</p>
 <table>
 <thead>
 <tr>
-<th>Key</th>
-<th>Type</th>
+<th>Field</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>Enabled</code></td>
-<td>bool</td>
-<td>Whether account correlation is active.</td>
+<td><code>rules</code></td>
+<td>The editable dictionary: weighted <code>signals</code>, regex <code>accountTypeRules</code>, the <code>linkThreshold</code> (the certainty slider), and <code>onlyLinkTypes</code>.</td>
+</tr>
+<tr>
+<td><code>schedules</code></td>
+<td>Array of schedules; the server-side scheduler queues a run when one matches the current minute.</td>
+</tr>
+<tr>
+<td><code>isActive</code></td>
+<td>Whether linking is active.</td>
 </tr>
 </tbody>
 </table>
-<p>The correlation ruleset is generated once with <code>New-FGCorrelationRuleset</code> (optionally with an LLM), saved to SQL with <code>Save-FGCorrelationRuleset</code>, and then re-applied every time a crawler completes via the post-sync <code>Invoke-FGAccountCorrelation</code> step. No file-based scheduling is needed.</p>
+<p>Runs can also be triggered on demand from the same Admin page; each run records its progress in <code>AccountLinkingRuns</code>. Editing config and starting runs requires the <code>admin.crawlers</code> permission. See <a href="../../architecture/account-linking/">Account Linking</a> for the engine and dictionary.</p>
 <hr />
 <h2 id="where-settings-actually-live">Where settings actually live<a class="headerlink" href="#where-settings-actually-live" title="Permanent link">&para;</a></h2>
 <table>

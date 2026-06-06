@@ -1169,6 +1169,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#account-linking-admin-sub-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Account Linking (Admin sub-tab)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#org-chart-optional" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1812,6 +1823,34 @@
     
   
     Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
   
 
     
@@ -3019,6 +3058,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#account-linking-admin-sub-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Account Linking (Admin sub-tab)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#org-chart-optional" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3434,7 +3484,16 @@
 <p><strong>Classifier Matches:</strong> Expand any entity to see exactly which regex patterns triggered its score.</p>
 <hr />
 <h3 id="identities-optional">Identities <em>(optional)</em><a class="headerlink" href="#identities-optional" title="Permanent link">&para;</a></h3>
-<p>Account correlation results — real persons linked across multiple accounts and systems. Requires <code>Invoke-FGAccountCorrelation</code> to have been run.</p>
+<p>Real persons linked across multiple accounts and systems. Accounts are attached either by a crawler's IdentityFilter or by <strong>Account Linking</strong> (see below), which runs on a schedule or on demand from the Admin area — no manual script step is required. Each linked account shows its <code>accountType</code> and link confidence, and an analyst can confirm or reject a link per account.</p>
+<hr />
+<h3 id="account-linking-admin-sub-tab">Account Linking <em>(Admin sub-tab)</em><a class="headerlink" href="#account-linking-admin-sub-tab" title="Permanent link">&para;</a></h3>
+<p>Available under Admin &gt; Account Linking. Configures the deterministic, dictionary-based engine that attaches orphan accounts (admin / guest / secondary) to existing identities — <strong>no LLM</strong>.</p>
+<ul>
+<li><strong>Editable dictionary</strong> — weighted match signals (employeeId / email / email-prefix / graded name) and regex account-type rules.</li>
+<li><strong>Certainty slider</strong> — the <code>linkThreshold</code>; raise it to require stronger evidence before an account is auto-linked.</li>
+<li><strong>Schedules + Run now</strong> — schedule recurring runs or trigger one immediately; each run's progress and counts are shown.</li>
+</ul>
+<p>Editing the config and starting runs requires the <code>admin.crawlers</code> permission. See <a href="../../architecture/account-linking/">Account Linking</a>.</p>
 <hr />
 <h3 id="org-chart-optional">Org Chart <em>(optional)</em><a class="headerlink" href="#org-chart-optional" title="Permanent link">&para;</a></h3>
 <p>Manager hierarchy visualization with risk propagation.</p>

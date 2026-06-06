@@ -1473,6 +1473,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2482,6 +2510,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Root ring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#identity-accounts-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity → accounts → access
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -2697,11 +2742,14 @@ kinds consistent.</p>
 </tr>
 <tr>
 <td><strong>Identity</strong></td>
-<td>Linked Accounts · Context · Groups (Direct) · Governed · Owned · Eligible · OAuth2 Grants</td>
+<td>Linked Accounts · Contexts</td>
 </tr>
 </tbody>
 </table>
 <p>All nodes share the dashboard's lime/green palette. Node radius scales with count on a log curve so a 3-member group and a 30,000-member group both stay readable.</p>
+<h4 id="identity-accounts-access">Identity → accounts → access<a class="headerlink" href="#identity-accounts-access" title="Permanent link">&para;</a></h4>
+<p>An <strong>identity holds no access of its own — its accounts do.</strong> So the identity's first ring is deliberately small: just <strong>Linked Accounts</strong> (the correlated person's accounts, including ones attached by <a href="../account-linking/">Account Linking</a>) and any <strong>Contexts</strong> it belongs to directly (context membership can sit on the identity itself).</p>
+<p>The access categories — Groups (Direct), Governed, Owned, Eligible, OAuth2 Grants — do <strong>not</strong> hang off the identity. You reach them by drilling into a <strong>linked account</strong>: clicking an account under Linked Accounts fans out <em>that account's</em> own relationship categories via the normal user graph. When the identity-level assignment endpoints are used (<code>/api/identities/:id/assignments?type=…</code>), each item is annotated with the account it came through ("via &lt;account&gt;") so a roll-up across accounts still shows provenance.</p>
 <h3 id="recent-change-nodes">Recent-change nodes<a class="headerlink" href="#recent-change-nodes" title="Permanent link">&para;</a></h3>
 <p>If the entity's <code>/recent-changes</code> endpoint returns non-zero counts, two pseudo-categories are prepended to the root ring:</p>
 <ul>

@@ -1481,6 +1481,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2959,6 +2987,11 @@
 <td><code>PUT/DELETE /api/risk-scores/:type/:id/override</code></td>
 </tr>
 <tr>
+<td><code>data.write.identity</code></td>
+<td>Identity link decisions</td>
+<td><code>PUT/DELETE /api/identities/:id/members/:userId/override</code> (confirm / reject / clear an account-linking decision)</td>
+</tr>
+<tr>
 <td><code>data.write.certifications</code></td>
 <td>Certification decisions</td>
 <td><strong>Reserved</strong> — no interactive endpoint yet. Certification decisions are currently ingested via the crawler (<code>POST /api/ingest/governance/certifications</code>). When an approve/revoke endpoint is added it will be gated by this permission.</td>
@@ -2978,7 +3011,7 @@
 <tr>
 <td><code>admin.crawlers</code></td>
 <td>Crawler configuration</td>
-<td><code>GET/POST/PATCH/DELETE /api/admin/crawlers…</code>, crawler jobs, trigger risk-scoring runs</td>
+<td><code>GET/POST/PATCH/DELETE /api/admin/crawlers…</code>, crawler jobs, trigger risk-scoring runs, account-linking config + runs (<code>PUT /api/account-linking/config</code>, <code>POST /api/account-linking/runs</code>)</td>
 </tr>
 <tr>
 <td><code>admin.systems</code></td>
@@ -2988,7 +3021,7 @@
 <tr>
 <td><code>admin.llm</code></td>
 <td>LLM configuration</td>
-<td><code>/api/admin/llm/*</code>, risk profiles/classifiers, correlation rulesets</td>
+<td><code>/api/admin/llm/*</code>, risk profiles/classifiers</td>
 </tr>
 <tr>
 <td><code>admin.context-plugins</code></td>

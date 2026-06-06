@@ -1725,6 +1725,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3265,7 +3293,7 @@ postgres in the docker stack).</p>
 <li><strong>Local LLM</strong> (Ollama / Llama / Mistral container). Easy add later — the provider abstraction is the right substrate. Quality on a no-GPU CPU box: Qwen 2.5 14B or Mistral Small 22B will be acceptable for the structured-JSON tasks but noticeably worse than Claude/GPT-4 on industry-specific nuance.</li>
 <li><strong>News-feed-driven re-scoring</strong> (M&amp;A events, security incidents). The classifier system is the right substrate for this — Phase 3 would add scheduled news-source ingestion that produces "candidate adjustments" for the operator to approve.</li>
 <li><strong>RAG over a long-term wiki/ISMS index</strong>. Current approach is scrape-on-create. RAG (e.g. with <code>pgvector</code>) is the right answer once you have hundreds of internal docs.</li>
-<li><strong>Account correlation wizard</strong>. Same wizard shape, different prompts and engine. Will reuse the components added here.</li>
+<li><strong>LLM account correlation</strong>. Account correlation was <em>not</em> built as an LLM wizard — it shipped as the deterministic, dictionary-based <a href="../account-linking/">Account Linking</a> engine instead (no prompts, no model calls). The earlier "same wizard shape, different prompts" idea was dropped.</li>
 <li><strong>Layers 2/3/4 of the scoring engine</strong>. Membership analysis (PIM eligibility, owner concentration), structural hygiene (orphan groups, never-signed-in users), and cross-entity propagation. The formula stays the same shape, so adding these is additive rather than a rewrite.</li>
 </ul>
 <h2 id="operational-notes">Operational notes<a class="headerlink" href="#operational-notes" title="Permanent link">&para;</a></h2>

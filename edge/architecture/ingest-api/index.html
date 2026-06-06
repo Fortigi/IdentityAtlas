@@ -1797,6 +1797,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3201,11 +3229,11 @@
 
     subgraph Analytics["Analytics Engines"]
         direction TB
-        CR[Correlation RuleSet] --&gt; CE[Correlation Engine]
+        CR[Linking Dictionary] --&gt; CE[Account Linking Engine]
         RP[Risk Profile] --&gt; CL[Classifiers]
         CL --&gt; HE[Heuristics Engine]
         CE &lt;--&gt;|shared data| HE
-        CE --&gt; CS[Correlation Scores]
+        CE --&gt; CS[Link Confidence]
         HE --&gt; RS[Risk Scores]
     end
 
@@ -3223,7 +3251,7 @@
 <p><strong>Ingest API</strong> — Receives data via REST endpoints. Handles validation, bulk merge, scoped delete detection, and audit history recording. Authenticates crawlers via self-contained API keys.</p>
 </li>
 <li>
-<p><strong>Analytics Engines</strong> — Account Correlation and Risk Scoring run independently against the database. The Correlation Engine uses rulesets to link principals to identities. The Heuristics Engine uses risk profiles and classifiers to compute risk scores.</p>
+<p><strong>Analytics Engines</strong> — <a href="../account-linking/">Account Linking</a> and Risk Scoring run independently against the database. The Account Linking engine is deterministic: it uses an editable dictionary (weighted signals + regex account-type rules + a confidence threshold) to attach orphan accounts to identities with a <code>linkConfidence</code> — no LLM. The Heuristics Engine uses risk profiles and classifiers to compute risk scores.</p>
 </li>
 <li>
 <p><strong>Read API + Web UI</strong> — The existing Express read routes and React frontend remain unchanged.</p>

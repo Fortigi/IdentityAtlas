@@ -16,7 +16,7 @@
         <link rel="prev" href="../llm-and-risk-scoring/">
       
       
-        <link rel="next" href="../scaling/">
+        <link rel="next" href="../account-linking/">
       
       
         
@@ -1648,6 +1648,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2927,7 +2955,7 @@
 </tr>
 <tr>
 <td><code>accountCorrelation</code></td>
-<td>Links accounts across systems to shared Identity records</td>
+<td><strong>Legacy / no-op.</strong> Account-to-identity matching is no longer done in a post-sync hook — it is the deterministic <a href="../account-linking/">Account Linking</a> engine in the web container, which runs on a schedule (<code>AccountLinkingConfig.schedules</code>) and on demand from Admin. The hook still resolves but skips: the old <code>Invoke-FGAccountCorrelation</code> function no longer ships, so the dispatcher logs "not available — skipping". New crawlers can omit it.</td>
 </tr>
 </tbody>
 </table>

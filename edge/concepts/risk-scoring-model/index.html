@@ -750,10 +750,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#graphcorrelationrulesets" class="md-nav__link">
+  <a href="#accountlinkingconfig-accountlinkingruns" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GraphCorrelationRulesets
+        AccountLinkingConfig + AccountLinkingRuns
       
     </span>
   </a>
@@ -1652,6 +1652,34 @@
     
   
     Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
   
 
     
@@ -2710,10 +2738,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#graphcorrelationrulesets" class="md-nav__link">
+  <a href="#accountlinkingconfig-accountlinkingruns" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GraphCorrelationRulesets
+        AccountLinkingConfig + AccountLinkingRuns
       
     </span>
   </a>
@@ -2856,7 +2884,11 @@
 
 
 <h1 id="risk-scoring-data-model">Risk Scoring Data Model<a class="headerlink" href="#risk-scoring-data-model" title="Permanent link">&para;</a></h1>
-<p>Identity Atlas stores risk intelligence in a set of dedicated SQL tables that sit alongside the core data model. These tables hold the inputs that drive scoring (org context, classifier patterns, correlation rules) and the outputs (per-entity scores, clusters, overrides).</p>
+<p>Identity Atlas stores risk intelligence in a set of dedicated SQL tables that sit alongside the core data model. These tables hold the inputs that drive scoring (org context, classifier patterns) and the outputs (per-entity scores, clusters, overrides).</p>
+<div class="admonition note">
+<p class="admonition-title">Account correlation moved out of risk scoring</p>
+<p>The old <code>GraphCorrelationRulesets</code> table was dropped in migration <code>030_account_linking.sql</code> and replaced by <code>AccountLinkingConfig</code> + <code>AccountLinkingRuns</code>. Linking accounts to identities is now the deterministic, dictionary-based <a href="../../architecture/account-linking/">Account Linking</a> engine — separate from risk scoring, and no longer driven by <code>New-FGCorrelationRuleset</code> / <code>Save-FGCorrelationRuleset</code>.</p>
+</div>
 <p>These tables are created by migration <code>004_risk_scoring.sql</code> when the web container starts.</p>
 <hr />
 <h2 id="conceptual-overview">Conceptual Overview<a class="headerlink" href="#conceptual-overview" title="Permanent link">&para;</a></h2>
@@ -2866,8 +2898,8 @@
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  └─ org context from LLM                   └─ score per entity (all types)
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>GraphRiskClassifiers                           directScore
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  └─ regex patterns from LLM                  membershipScore
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>GraphCorrelationRulesets                       structuralScore
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  └─ cross-system match rules                 propagatedScore
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                                               structuralScore
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                                               propagatedScore
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                                              overrideAdjustment
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>                                         GraphResourceClusters
@@ -2875,7 +2907,7 @@
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                                         GraphResourceClusterMembers
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                                           └─ which resources belong to each cluster
 </code></pre></div>
-<p>Scoring reads the <strong>inputs</strong> and writes the <strong>outputs</strong>. The inputs change only when you call <code>New-FGRiskProfile</code> / <code>New-FGRiskClassifiers</code> / <code>New-FGCorrelationRuleset</code>. The outputs are overwritten on every <code>Invoke-FGRiskScoring</code> run (with analyst overrides preserved).</p>
+<p>Scoring reads the <strong>inputs</strong> and writes the <strong>outputs</strong>. The inputs change only when you regenerate the risk profile / classifiers. The outputs are overwritten on every scoring run (with analyst overrides preserved). Account linking is a separate engine — see <a href="../../architecture/account-linking/">Account Linking</a>.</p>
 <hr />
 <h2 id="entity-relationship-diagram">Entity Relationship Diagram<a class="headerlink" href="#entity-relationship-diagram" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>erDiagram
@@ -2909,10 +2941,6 @@
         string customer
         datetime generatedAt
         string llmProvider
-        string classifierJson
-    }
-    GraphCorrelationRulesets {
-        string id PK
         string classifierJson
     }
     GraphResourceClusters {
@@ -3138,31 +3166,27 @@
 </table>
 <p>When no custom classifiers are found in SQL, <code>Invoke-FGRiskScoring</code> falls back to a set of built-in universal classifiers that work for any organization.</p>
 <hr />
-<h3 id="graphcorrelationrulesets">GraphCorrelationRulesets<a class="headerlink" href="#graphcorrelationrulesets" title="Permanent link">&para;</a></h3>
-<p>Stores the account correlation rules generated by <code>New-FGCorrelationRuleset</code>. These rules define how principals from different source systems are matched to the same real person (Identity).</p>
+<h3 id="accountlinkingconfig-accountlinkingruns">AccountLinkingConfig + AccountLinkingRuns<a class="headerlink" href="#accountlinkingconfig-accountlinkingruns" title="Permanent link">&para;</a></h3>
+<p><code>GraphCorrelationRulesets</code> was <strong>dropped</strong> in migration <code>030_account_linking.sql</code>. Account-to-identity matching now lives in two purpose-built tables and is independent of risk scoring:</p>
 <table>
 <thead>
 <tr>
-<th>Property</th>
-<th>Value</th>
+<th>Table</th>
+<th>Role</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Primary Key</td>
-<td><code>id</code></td>
+<td><code>AccountLinkingConfig</code></td>
+<td>The editable dictionary (<code>rules</code>) + <code>schedules</code>. Single active row, edited via Admin → Account Linking.</td>
 </tr>
 <tr>
-<td>Audit history</td>
-<td>No</td>
-</tr>
-<tr>
-<td>Created by</td>
-<td><code>Save-FGCorrelationRuleset</code> (called by <code>New-FGCorrelationRuleset</code>)</td>
+<td><code>AccountLinkingRuns</code></td>
+<td>One row per run with progress and result counts.</td>
 </tr>
 </tbody>
 </table>
-<p>Key columns: <code>classifierJson</code> (full ruleset as JSON with match strategies, confidence weights, and tie-breaking rules).</p>
+<p>The engine is deterministic — no LLM and no <code>New-FGCorrelationRuleset</code> / <code>Save-FGCorrelationRuleset</code> step. See <a href="../../architecture/account-linking/">Account Linking</a>.</p>
 <hr />
 <h3 id="graphresourceclusters">GraphResourceClusters<a class="headerlink" href="#graphresourceclusters" title="Permanent link">&para;</a></h3>
 <p>Groups of related resources identified by <code>Save-FGResourceClusters</code>. A cluster aggregates resources that share a classifier match or a common display name stem. Each cluster has an aggregate risk score and an optional analyst-assigned owner for remediation accountability.</p>
@@ -3274,7 +3298,7 @@
 <hr />
 <h2 id="score-history">Score History<a class="headerlink" href="#score-history" title="Permanent link">&para;</a></h2>
 <p><code>RiskScores</code> is overwritten by each scoring run. Analyst overrides (<code>riskOverride</code>, <code>riskOverrideReason</code>) are preserved across re-scoring runs.</p>
-<p>The other risk tables (<code>GraphRiskProfiles</code>, <code>GraphRiskClassifiers</code>, <code>GraphCorrelationRulesets</code>, <code>GraphResourceClusters</code>, <code>GraphResourceClusterMembers</code>) are also overwritten in place when regenerated.</p>
+<p>The other risk tables (<code>GraphRiskProfiles</code>, <code>GraphRiskClassifiers</code>, <code>GraphResourceClusters</code>, <code>GraphResourceClusterMembers</code>) are also overwritten in place when regenerated. (Account-to-identity matching is no longer a risk table — see <code>AccountLinkingConfig</code> / <code>AccountLinkingRuns</code> above.)</p>
 
 
 

@@ -1897,6 +1897,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3794,7 +3822,7 @@ write goes through the API.</p>
 <ol>
 <li><strong>Job queue polling</strong> — picks up queued jobs from CrawlerJobs every 30 seconds</li>
 <li><strong>Scheduled crawlers</strong> — reads CrawlerConfigs schedules every minute and queues jobs at the right time</li>
-<li><strong>Legacy crontab</strong> — reads <code>setup/docker/crontab</code> for manually configured jobs (risk scoring, account correlation)</li>
+<li><strong>Legacy crontab</strong> — reads <code>setup/docker/crontab</code> for manually configured jobs (e.g. risk scoring)</li>
 </ol>
 <h3 id="run-ad-hoc-commands">Run Ad-Hoc Commands<a class="headerlink" href="#run-ad-hoc-commands" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c"># Open an interactive PowerShell session in the worker</span>
@@ -3804,7 +3832,7 @@ write goes through the API.</p>
 <a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">docker</span> <span class="n">compose</span> <span class="n">exec</span> <span class="n">worker</span> <span class="n">pwsh</span> <span class="n">-Command</span> <span class="s2">&quot;Import-Module /app/setup/IdentityAtlas.psd1; Get-Command *FG*&quot;</span>
 </code></pre></div>
 <h3 id="legacy-crontab-for-non-crawler-jobs">Legacy Crontab (for non-crawler jobs)<a class="headerlink" href="#legacy-crontab-for-non-crawler-jobs" title="Permanent link">&para;</a></h3>
-<p>Edit <code>setup/docker/crontab</code> for jobs that aren't configured via the UI (risk scoring, account correlation):</p>
+<p>Edit <code>setup/docker/crontab</code> for jobs that aren't configured via the UI (e.g. risk scoring). Account Linking is <strong>not</strong> a crontab job — it is scheduled via <code>AccountLinkingConfig.schedules</code> and run by the web container's scheduler; see <a href="../account-linking/">Account Linking</a>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a># Risk scoring nightly at 03:00
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>0 3 * * * /usr/bin/pwsh -Command &quot;Import-Module /app/setup/IdentityAtlas.psd1; Invoke-FGRiskScoring&quot;
 </code></pre></div>
