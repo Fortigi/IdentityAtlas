@@ -1,0 +1,1 @@
+- Identity page → Linked Accounts: accounts linked by the crawler/source data (no confidence score) now show "Linked from source" instead of Confirm/Remove. Confirm/Remove apply only to account-linking's scored links, so source links can't be accidentally changed here.
