@@ -355,7 +355,7 @@ jobs:
             $d = if ($deps.Count -gt 0) { ($deps | ForEach-Object { Get-Depth $_ } | Measure-Object -Max).Maximum + 1 } else { 0 }
             $depths[$T] = $d; return $d
           }
-          foreach ($type in $registry.Keys) { Get-Depth $type }
+          foreach ($type in $registry.Keys) { $null = Get-Depth $type }
           $maxDepth = ($depths.Values | Measure-Object -Max).Maximum
 
           $totalFailed = 0
