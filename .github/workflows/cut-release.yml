@@ -116,8 +116,36 @@ jobs:
             [ -n "$PREV_TAG" ] && printf '\n**Full Changelog:** https://github.com/${{ github.repository }}/compare/%s...%s\n' \
               "$PREV_TAG" "$TAG"
           } > release-notes.md
-          echo "--- release-notes.md preview ---"
+          echo "--- release-notes.md raw preview ---"
           cat release-notes.md
+
+      - name: Synthesize release notes with Claude
+        uses: anthropics/claude-code-action@41ea7642c1436fa0ee57aae58347904b71a5af27 # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--allowedTools Read,Write"
+          prompt: |
+            Read `release-notes.md`. It contains a flat list of raw changelog bullets for
+            Identity Atlas ${{ github.event.inputs.version }}, collected from merged PRs
+            since the previous release.
+
+            Rewrite it as polished GitHub release notes following these rules:
+
+            1. Keep the "Full Changelog" link at the bottom unchanged.
+            2. Group bullets under `###` headings by theme (e.g. "Account Linking",
+               "Omada IGA crawler", "Security fixes", "Bug fixes", "UI & accessibility").
+               Don't create a heading for a single bullet — fold it under the closest
+               related heading or a generic "Improvements" section.
+            3. Drop bullets that fix something introduced in this same release. If one
+               bullet adds feature X and another fixes a bug in X, the fix is internal —
+               users upgrading from the previous release never saw X break.
+            4. Drop CI, tooling, and pure-implementation bullets with no user-visible
+               effect (workflow fixes, CmdletBinding additions, dependency bumps, etc.).
+            5. Merge bullets that describe the same change in different words.
+            6. Rewrite in user-facing language — focus on the effect for the user, not
+               the implementation detail.
+
+            Overwrite `release-notes.md` with the result.
 
       - name: Create GitHub release with portable ZIP
         env:

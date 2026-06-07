@@ -1,0 +1,1 @@
+- Release notes generated at cut time are now synthesized by Claude: bullets are grouped by theme, self-fixes (bugs in features introduced in the same release) are dropped, and CI/tooling-only changes are filtered out — eliminating the need to manually rewrite release notes after each cut.
