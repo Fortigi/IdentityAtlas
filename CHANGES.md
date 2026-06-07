@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Release notes generated at cut time are now synthesized by Claude: bullets are grouped by theme, self-fixes (bugs in features introduced in the same release) are dropped, and CI/tooling-only changes are filtered out — eliminating the need to manually rewrite release notes after each cut.
+
+## Changes in this PR
+
 - Added integration tests for the OData crawler library — all 6 auth methods (BasicAuth, ApiToken, CookieString, FormCookie, OAuth2CC, OAuth2ROPC), `@odata.nextLink` pagination, and 401 error handling, all running against a local mock server
 - Added end-to-end integration test for the Omada IGA crawler — runs a full job against a mock OData server and verifies that identities, accounts, resources, and assignments land in the database
 - Added dynamic CI test discovery: `Test-*.ps1` files colocated in each `tools/crawlers/<type>/` directory are automatically discovered and run in topological dependency order (dependency crawlers first, dependents after), with same-level tests running in parallel — no YAML changes needed when adding a new crawler with a test
