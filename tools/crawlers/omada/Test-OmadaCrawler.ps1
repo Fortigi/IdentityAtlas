@@ -148,8 +148,8 @@ try {
     $configName = "omada-integration-test-$runTag"
     try {
         $cfgResult = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{
-            jobType     = 'omada'
-            name        = $configName
+            crawlerType = 'omada'
+            displayName = $configName
             config      = $config
         }
         $configId = $cfgResult.id
@@ -250,7 +250,7 @@ try {
         $config2['baseUrl'] = "http://localhost:$($mock2.Port)/odata/dataobjects"
 
         $cfgResult2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{
-            jobType = 'omada'; name = "omada-partial-fail-$runTag"; config = $config2
+            crawlerType = 'omada'; displayName = "omada-partial-fail-$runTag"; config = $config2
         }
         $job2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-jobs' -Body @{
             jobType = 'omada'; configId = $cfgResult2.id
