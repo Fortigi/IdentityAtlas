@@ -8,3 +8,5 @@
 - Fixed crawler dispatcher dot-sourcing `Test-*.ps1` files as library code — integration test files have mandatory parameters and are not library files; the dispatcher now skips them
 - Fixed Omada integration test: mock OData server now binds to all interfaces so the Docker worker container can reach it via `host.docker.internal`
 - Moved CSV, Entra ID, and Custom Connector integration tests to be colocated with their crawlers so they are auto-discovered by the CI topology-aware runner — no separate hardcoded CI steps needed
+- Added `maxRetries` config option to the Omada crawler so operators can tune OData retry behaviour per deployment
+- Fixed Omada integration test asserting resource count via `GET /api/resources`, which excludes BusinessRole resources — mock data now uses `Permission` category (maps to generic Resource type) so the assertion passes
