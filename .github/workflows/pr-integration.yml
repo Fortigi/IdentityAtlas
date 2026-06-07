@@ -439,6 +439,9 @@ jobs:
     # backend, interactive browser) and need adaptation for the Docker CI
     # environment (accessibility violations, visual regression baselines,
     # optional tabs hidden by default). Filed as follow-up work.
+    # Escape hatch: apply the 'skip-heavy-tests' label to skip on PRs that
+    # only change test infrastructure and don't need E2E validation.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-heavy-tests') }}
     continue-on-error: true
 
     steps:
@@ -540,7 +543,9 @@ jobs:
     name: Load & Soak Tests
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    continue-on-error: true
+    # Escape hatch: apply the 'skip-heavy-tests' label to skip on PRs that
+    # only change test infrastructure and don't need soak validation.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-heavy-tests') }}
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -647,7 +652,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           for job in integration e2e load-soak; do
             result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('${job}', d.get('$job', {})).get('result','unknown'))")
-            if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
+            if [ "$result" = "success" ]; then icon="✅"; elif [ "$result" = "skipped" ]; then icon="⏭️"; else icon="❌"; fi
             echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
           done
 
