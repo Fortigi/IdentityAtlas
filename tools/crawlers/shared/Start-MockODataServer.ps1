@@ -101,7 +101,7 @@ $entitySetEntries
 "@
 
         $listener = [System.Net.HttpListener]::new()
-        $listener.Prefixes.Add("http://localhost:$Port/")
+        $listener.Prefixes.Add("http://+:$Port/")
         try { $listener.Start() }
         catch {
             Write-Output "MOCK_ERROR: Failed to start listener on port $Port — $($_.Exception.Message)"
