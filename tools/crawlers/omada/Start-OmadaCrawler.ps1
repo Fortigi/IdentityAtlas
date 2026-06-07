@@ -281,51 +281,8 @@ function Write-Phase {
     $Script:phases.Add($Phase)
 }
 
-# ─── Progress reporting ───────────────────────────────────────────
-function Update-CrawlerProgress {
-    param([string]$Step, [int]$Pct = -1, [string]$Detail = '')
-    if (-not $JobId -or $JobId -le 0) { return }
-    $Body = @{ jobId = $JobId }
-    if ($PSBoundParameters.ContainsKey('Step'))   { $Body['step']   = $Step }
-    if ($Pct -ge 0)                                { $Body['pct']    = $Pct }
-    if ($PSBoundParameters.ContainsKey('Detail')) { $Body['detail'] = $Detail }
-    try {
-        Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/job-progress" -Method Post -TimeoutSec 10 `
-            -Headers @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' } `
-            -Body ($Body | ConvertTo-Json -Compress) | Out-Null
-    } catch {
-        $Sc = $Null; try { $Sc = $_.Exception.Response.StatusCode.value__ } catch {}
-        if ($Sc -eq 409) { throw "Job $JobId terminated server-side (HTTP 409) — aborting crawl" }
-        # Transient errors are non-fatal for progress reporting
-    }
-}
-
-# ─── Ingest API helpers ───────────────────────────────────────────
-function Invoke-IngestAPI {
-    param([string]$Endpoint, [hashtable]$Body)
-    $Delays = @(2, 4, 8, 16, 32)
-    $Uri    = "$ApiBaseUrl/$Endpoint"
-    $Headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
-    for ($I = 0; $I -le $Delays.Count; $I++) {
-        try {
-            return Invoke-RestMethod -Uri $Uri -Method Post -Headers $Headers `
-                -Body ($Body | ConvertTo-Json -Depth 20 -Compress) -TimeoutSec 300
-        } catch {
-            $Sc = $Null; try { $Sc = $_.Exception.Response.StatusCode.value__ } catch {}
-            if ($Sc -eq 409) { throw "Job $JobId terminated server-side (HTTP 409)" }
-            $IsTransient = ($Null -eq $Sc) -or ($Sc -eq 429) -or ($Sc -ge 500 -and $Sc -le 504)
-            if (-not $IsTransient -or $I -ge $Delays.Count) { throw }
-            Write-Host "    Ingest retry in $($Delays[$I])s (HTTP $Sc)..." -ForegroundColor Yellow
-            Start-Sleep -Seconds $Delays[$I]
-        }
-    }
-}
-
-function ConvertTo-JsonArray {
-    param([array]$Items)
-    if (-not $Items -or $Items.Count -eq 0) { return @() }
-    return ,$Items
-}
+# ─── Ingest + progress helpers ───────────────────────────────────
+. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 
 function Send-IngestBatch {
     param(
@@ -402,7 +359,7 @@ Write-Host "Builtin URL: $BuiltinBaseUrl" -ForegroundColor Gray
 
 # Discover available entity sets from OData $metadata (diagnostic — non-blocking)
 Update-CrawlerProgress -Step 'Checking Omada API' -Pct 3
-$AvailableEntitySets = @(Get-OmadaEntitySets)
+$AvailableEntitySets = @(Get-ODataEntitySets)
 if ($AvailableEntitySets.Count -gt 0) {
     Write-Host "  Entity sets: $($AvailableEntitySets -join ', ')" -ForegroundColor Gray
 } else {

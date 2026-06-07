@@ -77,10 +77,22 @@ Set secrets in GitHub Actions → Settings → Secrets and variables → Actions
 | `setup/docker/Invoke-CrawlerJob.ps1` | Manifest-driven dispatcher; reads registry, resolves deps via DFS, runs entry point |
 | `app/api/src/routes/jobs.js` | Node.js side; reads same manifests for `VALID_JOB_TYPES` and `configSchema` validation |
 | `tools/crawlers/shared/Start-MockODataServer.ps1` | Reusable mock HTTP server for integration tests |
+| `tools/crawlers/shared/Invoke-CrawlerIngest.ps1` | Shared ingest helpers (`Invoke-IngestAPI`, `Update-CrawlerProgress`, `ConvertTo-JsonArray`) — dot-source from each crawler entry point |
+
+## Shared ingest helpers
+
+All crawler entry points must dot-source the shared helpers at the top of their script body (after `$ApiBaseUrl`, `$ApiKey`, `$JobId` are set):
+
+```powershell
+. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
+```
+
+The helpers read `$ApiBaseUrl`, `$ApiKey`, and `$JobId` from the caller's scope at call time. `Update-CrawlerProgress` throws on HTTP 409 (job terminated server-side) so the dispatcher can abort the crawl cleanly.
 
 ## Tests
 
 - `test/unit/Dispatcher.Tests.ps1` — registry building, DFS ordering, cycle detection, live manifest validation
 - `test/unit/Omada.Tests.ps1` — OData auth, `Get-OmadaRef*` helpers, file structure assertions
+- `test/unit/CrawlerIngest.Tests.ps1` — shared ingest helpers: scope-capture, 409 abort, JSON array guarantees
 - `tools/crawlers/odata/Test-ODataCrawler.ps1` — OData library integration test (all 6 auth methods)
 - `tools/crawlers/omada/Test-OmadaCrawler.ps1` — Omada IGA end-to-end integration test

@@ -101,7 +101,7 @@ Describe 'Function Availability — Helpers (idempotent)' {
 
 Describe 'Function Availability — Omada helpers' {
     It 'exports <_>' -ForEach @(
-        'Get-OmadaEntitySets',
+        'Get-ODataEntitySets',
         'Get-OmadaRefValue',
         'Get-OmadaRefUid'
     ) {
@@ -487,6 +487,21 @@ Describe 'Code Quality' {
             $patterns | Where-Object { $c -match $_ }
         }
         $found | Should -BeNullOrEmpty -Because "secrets found in: $($found.Name -join ', ')"
+    }
+
+    It 'crawler files do not redefine shared ingest helpers' {
+        # Invoke-IngestAPI, Update-CrawlerProgress, ConvertTo-JsonArray belong in
+        # tools/crawlers/shared/Invoke-CrawlerIngest.ps1 — crawlers must dot-source
+        # that file instead of duplicating the functions.
+        $sharedFile = Join-Path $script:crawlersRoot 'shared\Invoke-CrawlerIngest.ps1'
+        $sharedFunctions = @('Invoke-IngestAPI', 'Update-CrawlerProgress', 'ConvertTo-JsonArray')
+        $pattern = 'function\s+(' + ($sharedFunctions -join '|') + ')\b'
+        $violations = Get-ChildItem $script:crawlersRoot -Filter '*.ps1' -Recurse |
+            Where-Object { $_.FullName -ne $sharedFile } |
+            Where-Object { (Get-Content $_.FullName -Raw) -match "(?m)^$pattern" }
+        $violations | Should -BeNullOrEmpty -Because (
+            "these functions belong in Invoke-CrawlerIngest.ps1 — duplicated in: $($violations.Name -join ', ')"
+        )
     }
 }
 
