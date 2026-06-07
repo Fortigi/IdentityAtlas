@@ -132,6 +132,7 @@ $BuiltinBaseUrl = $_host + ($_path -replace '(?i)/dataobjects$', '/builtin')
 
 $ApiVersion            = if ($Cfg.apiVersion) { $Cfg.apiVersion } else { 'v14' }
 $PageSize              = if ($Cfg.pageSize)   { [int]$Cfg.pageSize } else { 100 }
+$MaxODataRetries       = if ($null -ne $Cfg.maxRetries) { [int]$Cfg.maxRetries } else { 5 }
 $SessionTimeoutMinutes = if ($Cfg.sessionTimeoutMinutes) { [int]$Cfg.sessionTimeoutMinutes } else { 30 }
 
 # contextObjectTypes: list of Omada entity sets to sync as Identity Atlas Contexts.
@@ -422,7 +423,7 @@ $SystemId        = 0    # ID for the main Omada IGA system (used for Contexts/Id
 try {
     Write-Step 'Fetching connected systems from Omada...'
     $AllOmadaSystems = Invoke-ODataPagedRequest -Path '/System' `
-        -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize 100
+        -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize 100 -MaxRetries $MaxODataRetries
     Write-Host "  $($AllOmadaSystems.Count) connected systems in Omada" -ForegroundColor Gray
 
     $SysRecords = @($AllOmadaSystems | ForEach-Object {
@@ -506,7 +507,7 @@ if ($SyncContexts) {
             }
             Write-Step "Fetching $EntitySet entities from Omada..."
             $Items = Invoke-ODataPagedRequest -Path "/$EntitySet" `
-                -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
+                -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
             Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
 
             if ($EntitySet -eq 'Orgunit') {
@@ -591,7 +592,7 @@ if ($SyncIdentities) {
         }
         Write-Step 'Fetching identities from Omada...'
         $AllIdentities = Invoke-ODataPagedRequest -Path '/Identity' `
-            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
         Write-Host "  $($AllIdentities.Count) identity records from Omada" -ForegroundColor Gray
 
         # Build lookup: Identity.IDENTITYID (string) → { uid, identityType }
@@ -701,7 +702,7 @@ if ($SyncAccounts) {
         }
         Write-Step 'Fetching user accounts from Omada...'
         $AllAccounts = Invoke-ODataPagedRequest -Path '/User' `
-            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
         Write-Host "  $($AllAccounts.Count) account records from Omada" -ForegroundColor Gray
 
         Write-Step "Building $($AllAccounts.Count) account records..."
@@ -821,7 +822,7 @@ if ($SyncContextMembers) {
         }
         Write-Step 'Fetching context assignments from Omada...'
         $Items = Invoke-ODataPagedRequest -Path '/Contextassignment' `
-            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
         Write-Host "  $($Items.Count) context assignment records from Omada" -ForegroundColor Gray
 
         # ContextMembers use memberType='Identity' and memberId=Identity.UId so the
@@ -877,7 +878,7 @@ if ($SyncContextMembers) {
             try {
                 Write-Step 'Fetching employment records from Omada...'
                 $EmpItems = Invoke-ODataPagedRequest -Path '/Employment' `
-                    -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
+                    -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
                 foreach ($Emp in $EmpItems) {
                     $IdentUid   = Get-OmadaRefUid -Ref $Emp.IDENTITYREF
                     $ContextUid = Get-OmadaRefUid -Ref $Emp.OUREF
@@ -932,7 +933,7 @@ if ($SyncResources) {
         if ($UserGroupMap.Count -eq 0 -and (Test-EntitySetAvailable 'Usergroup')) {
             try {
                 $Ugs = Invoke-ODataPagedRequest -Path '/Usergroup' `
-                    -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
+                    -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
                 foreach ($Ug in $Ugs) { $UserGroupMap[[string]$Ug.UId] = $Ug.DisplayName }
                 Write-Host "  Loaded $($UserGroupMap.Count) usergroups for USERGROUPREF lookup" -ForegroundColor Gray
             } catch {
@@ -942,7 +943,7 @@ if ($SyncResources) {
 
         Write-Step 'Fetching resources from Omada (this may take a few minutes)...'
         $AllResources = Invoke-ODataPagedRequest -Path '/Resource' `
-            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize
+            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
         Write-Host "  $($AllResources.Count) resource records from Omada" -ForegroundColor Gray
 
         Write-Step "Building resource records from $($AllResources.Count) Omada resources..."
@@ -1080,7 +1081,7 @@ if ($SyncAssignments) {
         # ── Source 1: Resourceassignment (role/permission assignments) ─────────
         Write-Step 'Fetching role assignments from Omada...'
         $RaItems = Invoke-ODataPagedRequest -Path '/Resourceassignment' `
-            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
         Write-Host "  $($RaItems.Count) Resourceassignment records from Omada" -ForegroundColor Gray
 
         # Group by system for per-system full-sync batches
@@ -1146,7 +1147,7 @@ if ($SyncAssignments) {
             $CaPage = Invoke-ODataGetRequest -Path '/CalculatedAssignments' `
                 -QueryParams @{ '$filter' = 'Status eq true'; '$expand' = 'Identity,Resource,System,ResourceType'
                                 '$top' = $CaPageSize; '$skip' = $CaSkip } `
-                -MaxRetries 5 -OverrideBaseUrl $BuiltinBaseUrl
+                -MaxRetries $MaxODataRetries -OverrideBaseUrl $BuiltinBaseUrl
             $CaTotalCount += $CaPage.Count
             $CaSkip += $CaPage.Count  # advance by actual received (variable page size)
 

@@ -1,0 +1,302 @@
+<#
+.SYNOPSIS
+    End-to-end integration test for the Omada IGA crawler.
+
+.DESCRIPTION
+    Starts a mock OData HTTP server, runs a full Omada crawler job via the
+    Identity Atlas dispatch pipeline, and verifies that data landed in the
+    database.
+
+    Entity shape confirmed against Omada OData API (rdw-e.omada.cloud, 2026-06-06).
+
+    Requires the full Identity Atlas Docker stack to be running (postgres + web API).
+
+.PARAMETER ApiBaseUrl
+    Identity Atlas API base URL. Default: http://localhost:3001/api
+
+.PARAMETER ApiKey
+    Identity Atlas crawler API key (used for ingest endpoints).
+
+.PARAMETER WriteResult
+    Optional ScriptBlock callback { param($Name, $Passed, $Detail) } for nightly runner integration.
+#>
+
+[CmdletBinding()]
+Param(
+    [Parameter(Mandatory)] [string]$ApiBaseUrl,
+    [Parameter(Mandatory)] [string]$ApiKey,
+    [scriptblock]$WriteResult
+)
+
+$ErrorActionPreference = 'Continue'
+$ApiBaseUrl            = $ApiBaseUrl.TrimEnd('/')
+$standaloneFailures    = 0
+
+function Report-Result {
+    param([string]$Name, [bool]$Passed, [string]$Detail = '')
+    $color  = if ($Passed) { 'Green' } else { 'Red' }
+    $status = if ($Passed) { 'PASS' } else { 'FAIL' }
+    Write-Host "    $status  $Name  $Detail" -ForegroundColor $color
+    if ($WriteResult) { & $WriteResult $Name $Passed $Detail }
+    elseif (-not $Passed) { $script:standaloneFailures++ }
+}
+
+function Invoke-AtlasApi {
+    param([string]$Method, [string]$Path, [hashtable]$Body = @{})
+    $headers = @{ Authorization = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
+    $params  = @{ Uri = "$ApiBaseUrl$Path"; Method = $Method; Headers = $headers; ErrorAction = 'Stop' }
+    if ($Body.Count -gt 0) { $params['Body'] = ($Body | ConvertTo-Json -Depth 20 -Compress) }
+    return Invoke-RestMethod @params
+}
+
+function Wait-JobComplete {
+    param([int]$JobId, [int]$TimeoutSec = 120)
+    $deadline = [datetime]::UtcNow.AddSeconds($TimeoutSec)
+    while ([datetime]::UtcNow -lt $deadline) {
+        Start-Sleep -Seconds 3
+        $j = Invoke-RestMethod -Uri "$ApiBaseUrl/admin/crawler-jobs/$JobId" `
+            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction SilentlyContinue
+        if ($j.status -in @('completed', 'failed')) { return $j }
+    }
+    return $null
+}
+
+Write-Host "`n=== Omada IGA Crawler Integration Test ===" -ForegroundColor Cyan
+
+# ── Load mock server ──────────────────────────────────────────────────────────
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared' 'Start-MockODataServer.ps1')
+
+# ── Mock entity data ──────────────────────────────────────────────────────────
+# Entity shapes validated against Omada OData API (rdw-e.omada.cloud 2026-06-06)
+$identityUid  = 'bbbbbbbb-bbbb-0001-0000-bbbbbbbbbbbb'
+$userUid      = 'cccccccc-cccc-0001-0000-cccccccccccc'
+$resourceUid  = 'dddddddd-dddd-0001-0000-dddddddddddd'
+$assignmentUid = 'eeeeeeee-eeee-0001-0000-eeeeeeeeeeee'
+
+$mockEntities = @{
+    'System' = @()   # empty — crawler falls back to default system registration
+
+    'Identity' = @(@{
+        UId          = $identityUid
+        IDENTITYID   = 'TEST-IDENT-001'
+        IDENTITYTYPE = @{ Value = 'Employee' }
+        FIRSTNAME    = 'Integration'
+        LASTNAME     = 'TestUser'
+        EMAIL        = 'integration.testuser@example.com'
+        Deleted      = $false
+    })
+
+    'User' = @(@{
+        UId          = $userUid
+        FIRSTNAME    = 'Integration'
+        LASTNAME     = 'TestUser'
+        EMAIL        = 'integration.testuser@example.com'
+        UserName     = 'integration.testuser'
+        Inactive     = $false
+        Deleted      = $false
+        IDENTITYREF  = @{ IDENTITYID = 'TEST-IDENT-001'; UId = $identityUid }
+    })
+
+    'Resource' = @(@{
+        UId            = $resourceUid
+        NAME           = 'Integration Test Role'
+        DisplayName    = 'Integration Test Role'
+        ROLECATEGORY   = @{ Value = 'Permission' }
+        RESOURCESTATUS = @{ Value = 'Active' }
+        Deleted        = $false
+    })
+
+    'Resourceassignment' = @(@{
+        UId            = $assignmentUid
+        IDENTITYREF    = @{ UId = $identityUid; IDENTITYID = 'TEST-IDENT-001' }
+        ROLEREF        = @{ UId = $resourceUid; DisplayName = 'Integration Test Role' }
+        ROLEASSNSTATUS = @{ Value = 'Active' }
+        Deleted        = $false
+    })
+}
+
+$edmxSets = @('System', 'Identity', 'User', 'Resource', 'Resourceassignment')
+
+# ── Start mock server ─────────────────────────────────────────────────────────
+$mock = $null
+$configId = $null
+
+try {
+    $mock = Start-MockODataServer -EntitySets $mockEntities -EdmxEntitySets $edmxSets
+    Write-Host "  Mock OData server started on port $($mock.Port)" -ForegroundColor Gray
+
+    # ── Register Omada crawler config ─────────────────────────────────────────
+    $runTag = [guid]::NewGuid().ToString('N').Substring(0, 8)
+    $config = @{
+        baseUrl    = "http://host.docker.internal:$($mock.Port)/odata/dataobjects"
+        authMethod = 'BasicAuth'
+        username   = 'testuser'
+        password   = 'testpass'
+        # Minimize scope: only the phases needed for the core assertions
+        selectedObjects = @{
+            contexts       = $false
+            identities     = $true
+            accounts       = $true
+            contextMembers = $false
+            resources      = $true
+            entitlements   = $false
+            assignments    = $true
+            cras           = $false
+        }
+    }
+
+    $configName = "omada-integration-test-$runTag"
+    try {
+        $cfgResult = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{
+            crawlerType = 'omada'
+            displayName = $configName
+            config      = $config
+        }
+        $configId = $cfgResult.id
+        Write-Host "  Crawler config registered: $configId" -ForegroundColor Gray
+    } catch {
+        Report-Result 'Omada/Setup — register crawler config' $false $_.Exception.Message
+        throw
+    }
+
+    # ── Dispatch crawler job ──────────────────────────────────────────────────
+    $job = $null
+    try {
+        $job = Invoke-AtlasApi -Method POST -Path '/admin/crawler-jobs' -Body @{
+            jobType  = 'omada'
+            configId = $configId
+        }
+        Write-Host "  Job queued: $($job.id)" -ForegroundColor Gray
+    } catch {
+        Report-Result 'Omada/Setup — queue crawler job' $false $_.Exception.Message
+        throw
+    }
+
+    # ── Wait for completion ───────────────────────────────────────────────────
+    $completed = Wait-JobComplete -JobId $job.id -TimeoutSec 120
+    if ($null -eq $completed) {
+        Report-Result 'Omada/Job — completed within 120s' $false '(timed out)'
+        throw 'Job timed out'
+    }
+
+    $passed = $completed.status -eq 'completed'
+    Report-Result 'Omada/Job — completed successfully' $passed "(status: $($completed.status))"
+
+    if (-not $passed) {
+        Write-Host "  Job log: $ApiBaseUrl/admin/crawler-jobs/$($job.id)/log" -ForegroundColor Yellow
+        throw "Job failed with status: $($completed.status)"
+    }
+
+    # ── Assert: system registered ─────────────────────────────────────────────
+    try {
+        $systems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" `
+            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $systemCount = if ($systems -is [array]) { $systems.Count }
+                       elseif ($systems.data) { $systems.data.Count }
+                       else { $systems.Count ?? 0 }
+        Report-Result 'Omada/Data — system registered' ($systemCount -ge 1) `
+            "($systemCount system(s) in database)"
+    } catch {
+        Report-Result 'Omada/Data — system registered' $false $_.Exception.Message
+    }
+
+    # ── Assert: principal ingested ────────────────────────────────────────────
+    try {
+        $users = Invoke-RestMethod -Uri "$ApiBaseUrl/users?limit=100" `
+            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $userCount = if ($users.users) { $users.users.Count }
+                     elseif ($users.data) { $users.data.Count }
+                     elseif ($users -is [array]) { $users.Count }
+                     else { 0 }
+        Report-Result 'Omada/Data — principal ingested' ($userCount -ge 1) `
+            "($userCount user(s) in database)"
+    } catch {
+        Report-Result 'Omada/Data — principal ingested' $false $_.Exception.Message
+    }
+
+    # ── Assert: resource ingested ─────────────────────────────────────────────
+    try {
+        $resources = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?limit=10" `
+            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $resourceCount = if ($resources.data) { $resources.data.Count }
+                         elseif ($resources -is [array]) { $resources.Count }
+                         else { 0 }
+        Report-Result 'Omada/Data — resource ingested' ($resourceCount -ge 1) `
+            "($resourceCount resource(s) in database)"
+    } catch {
+        Report-Result 'Omada/Data — resource ingested' $false $_.Exception.Message
+    }
+
+    # ── Assert: sync log entry created ───────────────────────────────────────
+    try {
+        $syncLog = Invoke-RestMethod -Uri "$ApiBaseUrl/sync-log" `
+            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $syncEntries = if ($syncLog -is [array]) { $syncLog.Count }
+                       elseif ($syncLog.data) { $syncLog.data.Count }
+                       else { 0 }
+        Report-Result 'Omada/Data — sync log entry created' ($syncEntries -ge 1) `
+            "($syncEntries sync log entries)"
+    } catch {
+        Report-Result 'Omada/Data — sync log entry created' $false $_.Exception.Message
+    }
+
+    # ── Test: partial failure (mock returns 500 mid-crawl) ────────────────────
+    # Reuse the same mock — switch it to error-after-1-request mode via /_control.
+    # Use maxRetries=0 in the config so the crawler fails immediately on 500 without
+    # waiting through 5 retry delays (62s per phase) — keeps the test under 60s.
+    # Only enable identities so a single phase fails fast and the job is marked 'failed'.
+    Write-Host "`n  Partial failure test:" -ForegroundColor Gray
+    try {
+        Invoke-RestMethod -Uri "http://localhost:$($mock.Port)/_control" -Method POST `
+            -ContentType 'application/json' -Body '{"errorAfterN":1,"resetCount":true}' | Out-Null
+
+        $pfConfig = @{
+            baseUrl    = "http://host.docker.internal:$($mock.Port)/odata/dataobjects"
+            authMethod = 'BasicAuth'
+            username   = 'testuser'
+            password   = 'testpass'
+            maxRetries = 0
+            selectedObjects = @{
+                contexts = $false; identities = $true; accounts = $false
+                contextMembers = $false; resources = $false; entitlements = $false
+                assignments = $false; cras = $false
+            }
+        }
+        $cfgResult2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{
+            crawlerType = 'omada'; displayName = "omada-partial-fail-$runTag"; config = $pfConfig
+        }
+        $job2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-jobs' -Body @{
+            jobType = 'omada'; configId = $cfgResult2.id
+        }
+        $completed2 = Wait-JobComplete -JobId $job2.id -TimeoutSec 60
+        $pfPassed = ($null -ne $completed2) -and ($completed2.status -eq 'failed')
+        Report-Result 'Omada/Error — partial failure (500 mid-crawl) detected' $pfPassed `
+            "(status: $($completed2.status))"
+    } catch {
+        Report-Result 'Omada/Error — partial failure setup' $false $_.Exception.Message
+    } finally {
+        # Reset mock to normal state for any tests that might follow
+        try {
+            Invoke-RestMethod -Uri "http://localhost:$($mock.Port)/_control" -Method POST `
+                -ContentType 'application/json' -Body '{"reset":true}' | Out-Null
+        } catch {}
+    }
+
+} catch {
+    Write-Host "  Fatal test error: $($_.Exception.Message)" -ForegroundColor Red
+    $script:standaloneFailures++
+} finally {
+    if ($mock)     { Stop-MockODataServer -Mock $mock }
+}
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+Write-Host ''
+if (-not $WriteResult) {
+    if ($standaloneFailures -gt 0) {
+        Write-Host "Omada integration tests: $standaloneFailures FAILED" -ForegroundColor Red
+        exit 1
+    } else {
+        Write-Host 'Omada integration tests: all passed' -ForegroundColor Green
+        exit 0
+    }
+}
