@@ -833,7 +833,8 @@ if (-not $SkipIntegration) {
 
         # ── Phase 4f7: Custom Connector round-trip ─────────────────────
         Write-Phase "Phase 4f7: Custom Connector Round-Trip"
-        $customConnScript = Join-Path $PSScriptRoot 'Test-CustomConnector.ps1'
+        $customConnScript = Join-Path $PSScriptRoot '..' '..' 'tools' 'crawlers' 'custom-connector' 'Test-CustomConnectorCrawler.ps1'
+        $customConnScript = [System.IO.Path]::GetFullPath($customConnScript)
         if (Test-Path $customConnScript) {
             $ccRunnerResults = $script:results
             $ccFailedRef = @{ Count = 0 }

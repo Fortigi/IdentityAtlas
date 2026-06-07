@@ -101,7 +101,10 @@ $entitySetEntries
 "@
 
         $listener = [System.Net.HttpListener]::new()
-        $listener.Prefixes.Add("http://+:$Port/")
+        # http://+:Port/ allows Docker containers to reach the host via host.docker.internal,
+        # but requires URL ACL registration on Windows. Fall back to localhost on Windows.
+        $prefix = if ($IsLinux) { "http://+:$Port/" } else { "http://localhost:$Port/" }
+        $listener.Prefixes.Add($prefix)
         try { $listener.Start() }
         catch {
             Write-Output "MOCK_ERROR: Failed to start listener on port $Port — $($_.Exception.Message)"

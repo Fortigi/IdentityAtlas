@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Nightly test step: Custom Connector registration + ingest round-trip.
+    Integration test for the Custom Connector registration and ingest round-trip.
 
 .DESCRIPTION
     Verifies the full custom connector flow:
@@ -12,18 +12,28 @@
       6. Clean up: the crawler persists (no delete API) but the test data
          is ephemeral — it'll be wiped on the next clean-database cycle.
 
-    Designed to be called from Run-NightlyLocal.ps1 with a WriteResult callback.
+    Supports both colocated CI discovery (called with -ApiBaseUrl/-ApiKey) and
+    standalone use from Run-NightlyLocal.ps1 (called with -WriteResult callback).
 
 .PARAMETER ApiBaseUrl
     Default: http://localhost:3001/api
 
+.PARAMETER ApiKey
+    Not used by this test (it registers its own connector and gets its own key),
+    but declared to satisfy the colocated test parameter contract.
+
 .PARAMETER WriteResult
     Callback signature: { param($Name, $Passed, $Detail) ... }
+
+.EXAMPLE
+    pwsh -File tools/crawlers/custom-connector/Test-CustomConnectorCrawler.ps1 `
+        -ApiBaseUrl http://localhost:3001/api
 #>
 
 [CmdletBinding()]
 Param(
     [string]$ApiBaseUrl = 'http://localhost:3001/api',
+    [string]$ApiKey = '',
     [scriptblock]$WriteResult
 )
 
@@ -44,7 +54,7 @@ function Report-Result {
 
 Write-Host "`n=== Custom Connector Round-Trip ===" -ForegroundColor Cyan
 
-$apiKey = $null
+$connectorKey = $null
 $systemId = $null
 
 # ─── 1. Register a custom crawler ────────────────────────────────
@@ -52,14 +62,14 @@ try {
     $r = Invoke-RestMethod -Uri "$ApiBaseUrl/admin/crawlers" -Method Post `
         -ContentType 'application/json' -TimeoutSec 30 `
         -Body (@{ displayName = 'Nightly-Test-Connector'; description = 'Automated test — safe to delete' } | ConvertTo-Json)
-    $apiKey = $r.apiKey
-    $ok = $null -ne $apiKey -and $apiKey.StartsWith('fgc_')
-    Report-Result 'CustomConnector/Register' $ok "id=$($r.id) keyPrefix=$($apiKey.Substring(0,8))..."
+    $connectorKey = $r.apiKey
+    $ok = $null -ne $connectorKey -and $connectorKey.StartsWith('fgc_')
+    Report-Result 'CustomConnector/Register' $ok "id=$($r.id) keyPrefix=$($connectorKey.Substring(0,8))..."
 } catch {
     Report-Result 'CustomConnector/Register' $false $_.Exception.Message
 }
 
-if (-not $apiKey) {
+if (-not $connectorKey) {
     Report-Result 'CustomConnector/Whoami' $false 'skipped: no API key from registration'
     Report-Result 'CustomConnector/IngestSystem' $false 'skipped: no API key'
     Report-Result 'CustomConnector/IngestUser' $false 'skipped: no API key'
@@ -68,7 +78,7 @@ if (-not $apiKey) {
     return
 }
 
-$headers = @{ 'Authorization' = "Bearer $apiKey"; 'Content-Type' = 'application/json' }
+$headers = @{ 'Authorization' = "Bearer $connectorKey"; 'Content-Type' = 'application/json' }
 
 # ─── 2. Authenticate via whoami ──────────────────────────────────
 try {

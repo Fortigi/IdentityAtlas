@@ -302,13 +302,6 @@ jobs:
             -H "Content-Type: application/json" -d '{}' || true
           pwsh -Command "& test/nightly/Test-MatrixScopeStats.ps1 -ApiBaseUrl http://localhost:3001/api -ApiKey '${{ steps.apikey.outputs.key }}' -ExpectHistoryDepth; if (\$LASTEXITCODE -ne 0) { exit 1 }"
 
-      - name: 'Test: Custom connector'
-        shell: pwsh
-        run: |
-          & test/nightly/Test-CustomConnector.ps1 `
-            -ApiBaseUrl http://localhost:3001/api
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-
       - name: 'Test: Secrets vault'
         shell: pwsh
         run: |
