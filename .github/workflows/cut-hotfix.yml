@@ -81,8 +81,11 @@ jobs:
 
       - name: Generate release notes
         run: |
-          # Hotfix branches from a release tag, so compare against last stable.
-          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -v beta | grep -v rc | grep -v alpha | grep -v "^${TAG}$" | head -1)
+          # Compare against the previous tag in the same major.minor series
+          # (e.g. v5.7.2 when cutting v5.7.3), not the globally latest stable.
+          BASE_MINOR=$(echo "${{ github.event.inputs.version }}" | cut -d. -f1,2)
+          PREV_TAG=$(git tag --list "v${BASE_MINOR}.*" --sort=-version:refname \
+            | grep -v beta | grep -v rc | grep -v alpha | grep -v "^${TAG}$" | head -1)
 
           # Primary source: unmerged changes/*.md fragments on this hotfix branch.
           # bump-version hasn't run yet so fragments aren't in CHANGES.md.
