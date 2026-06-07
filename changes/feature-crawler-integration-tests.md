@@ -5,3 +5,4 @@
 - Fixed PR Hygiene CI check recognizing `Test-*.ps1` (crawler integration tests) and `Start-Mock*.ps1` (mock server test infrastructure) as test files alongside the existing `*.Tests.ps1` Pester convention
 - Fixed Docker image build failure caused by `re2` having no prebuilt binary for Node 26 — pinned base image to Node 22 LTS where prebuilt binaries are available
 - Fixed Omada integration test sending wrong field names (`jobType`/`name`) to the crawler-configs API which expects `crawlerType`/`displayName` — caused 400 Bad Request and test failure in CI
+- Fixed crawler dispatcher dot-sourcing `Test-*.ps1` files as library code — integration test files have mandatory parameters and are not library files; the dispatcher now skips them
