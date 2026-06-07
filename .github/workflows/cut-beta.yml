@@ -85,17 +85,13 @@ jobs:
           # Latest release of any kind (beta, rc, stable) — excludes the tag just created
           PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -v "^${TAG}$" | head -1)
 
-          # Slice the CHANGES.md entries that are new since PREV_TAG
+          # Slice CHANGES.md to only the lines prepended since PREV_TAG.
+          # bump-version.yml always prepends — old content is the last N lines.
           if [ -n "$PREV_TAG" ]; then
-            FIRST_OLD=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | head -1)
-            if [ -n "$FIRST_OLD" ]; then
-              CUTLINE=$(grep -Fn "${FIRST_OLD}" CHANGES.md | head -1 | cut -d: -f1)
-              [ -n "$CUTLINE" ] \
-                && NEW_MD=$(head -n $((CUTLINE - 1)) CHANGES.md) \
-                || NEW_MD=$(cat CHANGES.md)
-            else
-              NEW_MD=$(cat CHANGES.md)
-            fi
+            OLD_LINES=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | wc -l)
+            TOTAL_LINES=$(wc -l < CHANGES.md)
+            NEW_LINES=$((TOTAL_LINES - OLD_LINES))
+            [ "$NEW_LINES" -gt 0 ] && NEW_MD=$(head -n "$NEW_LINES" CHANGES.md) || NEW_MD=""
           else
             NEW_MD=$(cat CHANGES.md)
           fi
