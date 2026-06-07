@@ -128,7 +128,7 @@ try {
     # ── Register Omada crawler config ─────────────────────────────────────────
     $runTag = [guid]::NewGuid().ToString('N').Substring(0, 8)
     $config = @{
-        baseUrl    = "http://localhost:$($mock.Port)/odata/dataobjects"
+        baseUrl    = "http://host.docker.internal:$($mock.Port)/odata/dataobjects"
         authMethod = 'BasicAuth'
         username   = 'testuser'
         password   = 'testpass'
@@ -247,7 +247,7 @@ try {
         # Start a second mock that returns 500 after the first data request
         $mock2 = Start-MockODataServer -EntitySets $mockEntities -EdmxEntitySets $edmxSets -ErrorAfterN 1
         $config2 = $config.Clone()
-        $config2['baseUrl'] = "http://localhost:$($mock2.Port)/odata/dataobjects"
+        $config2['baseUrl'] = "http://host.docker.internal:$($mock2.Port)/odata/dataobjects"
 
         $cfgResult2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{
             crawlerType = 'omada'; displayName = "omada-partial-fail-$runTag"; config = $config2
