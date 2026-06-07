@@ -241,29 +241,30 @@ try {
     }
 
     # ── Test: partial failure (mock returns 500 mid-crawl) ────────────────────
+    # Reuse the same mock — switch it to error-after-1-request mode via /_control
     Write-Host "`n  Partial failure test:" -ForegroundColor Gray
-    $mock2 = $null
     try {
-        # Start a second mock that returns 500 after the first data request
-        $mock2 = Start-MockODataServer -EntitySets $mockEntities -EdmxEntitySets $edmxSets -ErrorAfterN 1
-        $config2 = $config.Clone()
-        $config2['baseUrl'] = "http://host.docker.internal:$($mock2.Port)/odata/dataobjects"
+        Invoke-RestMethod -Uri "http://localhost:$($mock.Port)/_control" -Method POST `
+            -ContentType 'application/json' -Body '{"errorAfterN":1,"resetCount":true}' | Out-Null
 
         $cfgResult2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{
-            crawlerType = 'omada'; displayName = "omada-partial-fail-$runTag"; config = $config2
+            crawlerType = 'omada'; displayName = "omada-partial-fail-$runTag"; config = $config
         }
         $job2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-jobs' -Body @{
             jobType = 'omada'; configId = $cfgResult2.id
         }
         $completed2 = Wait-JobComplete -JobId $job2.id -TimeoutSec 150
-        # Expected: job fails because mock returns 500 mid-crawl
         $pfPassed = ($null -ne $completed2) -and ($completed2.status -eq 'failed')
         Report-Result 'Omada/Error — partial failure (500 mid-crawl) detected' $pfPassed `
             "(status: $($completed2.status))"
     } catch {
         Report-Result 'Omada/Error — partial failure setup' $false $_.Exception.Message
     } finally {
-        if ($mock2) { Stop-MockODataServer -Mock $mock2 }
+        # Reset mock to normal state for any tests that might follow
+        try {
+            Invoke-RestMethod -Uri "http://localhost:$($mock.Port)/_control" -Method POST `
+                -ContentType 'application/json' -Body '{"reset":true}' | Out-Null
+        } catch {}
     }
 
 } catch {

@@ -3,31 +3,40 @@
     Reusable mock OData HTTP server for crawler integration tests.
 
 .DESCRIPTION
-    Starts a System.Net.HttpListener background job that serves configurable
-    OData-shaped JSON responses. Call Start-MockODataServer to get a mock handle,
-    and Stop-MockODataServer when done.
+    Starts a TcpListener background job that serves configurable OData-shaped
+    JSON responses. A single mock instance runs for the lifetime of a test file
+    and can be reconfigured mid-test via the /_control endpoint.
 
-    IMPORTANT: Designed for ubuntu-latest GitHub Actions runners only.
-    System.Net.HttpListener on Windows requires URL ACL registration (netsh).
-    All CI steps use runs-on: ubuntu-latest — this is safe there.
+    Using TcpListener (not HttpListener) means no URL ACL registration is needed
+    on Windows and the Host header is not validated, so Docker containers can
+    reach the mock via host.docker.internal without admin privileges.
 
-    Mock validated against Omada OData API shape as of 2026-06-06
-    (cloud endpoint rdw-e.omada.cloud).
+    Lifecycle:
+        $mock = Start-MockODataServer -EntitySets @{ ... }
+        # run tests — reconfigure mid-test via /_control if needed
+        Stop-MockODataServer -Mock $mock
+
+    Control endpoint (POST /_control, body is JSON):
+        {"alwaysReturnStatus": 401}   — all data GETs return that status
+        {"errorAfterN": 2}            — return 500 after N successful data GETs
+        {"resetCount": true}          — reset the data-request counter to 0
+        {"reset": true}               — reset all state to normal
 
 .EXAMPLE
     . tools/crawlers/shared/Start-MockODataServer.ps1
     $mock = Start-MockODataServer -EntitySets @{
-        Identity = @( @{ UId='id1'; IDENTITYID='I1'; IDENTITYTYPE=@{Value='Employee'} } )
+        Users = @( @{ UId='u1'; DisplayName='Alice' } )
     }
-    Write-Host "Mock running on port $($mock.Port)"
+    # ... tests ...
+    # switch mock to always return 401:
+    Invoke-RestMethod "http://localhost:$($mock.Port)/_control" -Method POST `
+        -ContentType 'application/json' -Body '{"alwaysReturnStatus":401}'
+    # ... error-path tests ...
     Stop-MockODataServer -Mock $mock
 #>
 
 function Get-FreePort {
-    [CmdletBinding()]
-    param()
-    # Bind to port 0 — OS assigns a free port. Close immediately and return the port.
-    # There is a tiny race window, but on CI machines this is safe in practice.
+    [CmdletBinding()] param()
     $tcp = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
     $tcp.Start()
     $port = ([System.Net.IPEndPoint]$tcp.LocalEndpoint).Port
@@ -38,21 +47,14 @@ function Get-FreePort {
 function Start-MockODataServer {
     <#
     .SYNOPSIS
-        Start a background HTTP server that serves mock OData responses.
+        Start a background TCP-based HTTP server that serves mock OData responses.
 
     .PARAMETER EntitySets
         Hashtable mapping entity set names to arrays of entity objects.
-        E.g. @{ Identity = @(@{ UId='…' }); User = @(@{ UId='…' }) }
 
     .PARAMETER EdmxEntitySets
-        List of entity set names to include in $metadata EDMX.
+        Entity set names to include in the $metadata EDMX response.
         Defaults to keys of EntitySets plus 'System'.
-
-    .PARAMETER AlwaysReturnStatus
-        If set, all data GET requests return this HTTP status code (e.g. 401).
-
-    .PARAMETER ErrorAfterN
-        Return HTTP 500 for data GET requests after N successful ones.
 
     .OUTPUTS
         [PSCustomObject] with Job (background job handle) and Port (int).
@@ -60,30 +62,24 @@ function Start-MockODataServer {
     [CmdletBinding()]
     param(
         [hashtable]$EntitySets = @{},
-        [string[]]$EdmxEntitySets = @(),
-        [int]$AlwaysReturnStatus = 0,
-        [int]$ErrorAfterN = 0
+        [string[]]$EdmxEntitySets = @()
     )
 
     $port = Get-FreePort
 
-    # Resolve EDMX entity sets: caller-specified or keys of EntitySets + System
     if ($EdmxEntitySets.Count -eq 0) {
         $EdmxEntitySets = @('System') + @($EntitySets.Keys)
     }
 
-    # Serialize entity data for cross-process transfer
-    $entitySetsJson  = $EntitySets  | ConvertTo-Json -Depth 20 -Compress
-    $edmxSetsJson    = $EdmxEntitySets | ConvertTo-Json -Compress
+    $entitySetsJson = $EntitySets     | ConvertTo-Json -Depth 20 -Compress
+    $edmxSetsJson   = $EdmxEntitySets | ConvertTo-Json -Compress
 
     $serverScript = {
-        param([int]$Port, [string]$EntitySetsJson, [string]$EdmxSetsJson,
-              [int]$AlwaysReturnStatus, [int]$ErrorAfterN)
+        param([int]$Port, [string]$EntitySetsJson, [string]$EdmxSetsJson)
 
-        $entitySets   = $EntitySetsJson | ConvertFrom-Json -AsHashtable
-        $edmxSets     = $EdmxSetsJson   | ConvertFrom-Json
+        $entitySets = $EntitySetsJson | ConvertFrom-Json -AsHashtable
+        $edmxSets   = $EdmxSetsJson   | ConvertFrom-Json
 
-        # Build EDMX body from entity set names
         $entitySetEntries = ($edmxSets | ForEach-Object {
             "        <EntitySet Name=""$_"" EntityType=""Model.$_""/>"
         }) -join "`n"
@@ -100,114 +96,147 @@ $entitySetEntries
 </edmx:Edmx>
 "@
 
-        $listener = [System.Net.HttpListener]::new()
-        # http://+:Port/ allows Docker containers to reach the host via host.docker.internal,
-        # but requires URL ACL registration on Windows. Fall back to localhost on Windows.
-        $prefix = if ($IsLinux) { "http://+:$Port/" } else { "http://localhost:$Port/" }
-        $listener.Prefixes.Add($prefix)
-        try { $listener.Start() }
-        catch {
-            Write-Output "MOCK_ERROR: Failed to start listener on port $Port — $($_.Exception.Message)"
-            return
+        # Mutable state — updated via POST /_control
+        $ctrl = @{ AlwaysReturnStatus = 0; ErrorAfterN = 0; DataRequestCount = 0 }
+
+        function Send-Response {
+            param($Stream, [int]$Status = 200, [string]$ContentType = 'application/json; charset=utf-8', [string]$Body = '')
+            $statusText = @{ 200='OK'; 400='Bad Request'; 401='Unauthorized'; 404='Not Found'; 405='Method Not Allowed'; 500='Internal Server Error' }[$Status] ?? 'Unknown'
+            $bodyBytes   = [System.Text.Encoding]::UTF8.GetBytes($Body)
+            $headerStr   = "HTTP/1.1 $Status $statusText`r`nContent-Type: $ContentType`r`nContent-Length: $($bodyBytes.Length)`r`nConnection: close`r`n`r`n"
+            $headerBytes = [System.Text.Encoding]::UTF8.GetBytes($headerStr)
+            try {
+                $Stream.Write($headerBytes, 0, $headerBytes.Length)
+                if ($bodyBytes.Length -gt 0) { $Stream.Write($bodyBytes, 0, $bodyBytes.Length) }
+                $Stream.Flush()
+            } catch {}
         }
 
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
+        try { $listener.Start() }
+        catch {
+            Write-Output "MOCK_ERROR: Failed to start on port $Port — $($_.Exception.Message)"
+            return
+        }
         Write-Output "MOCK_STARTED: port=$Port"
 
-        $dataRequestCount = 0
-
         try {
-            while ($listener.IsListening) {
-                # Non-blocking wait: check every 2 s so Stop-Job terminates cleanly
-                $ar = $listener.BeginGetContext($null, $null)
-                if (-not $ar.AsyncWaitHandle.WaitOne(2000)) { continue }
+            while ($true) {
+                if (-not $listener.Pending()) { Start-Sleep -Milliseconds 100; continue }
 
-                $ctx = $null
-                try { $ctx = $listener.EndGetContext($ar) }
-                catch { continue }
+                $client = $listener.AcceptTcpClient()
+                try {
+                    $stream = $client.GetStream()
+                    $stream.ReadTimeout = 2000
 
-                $req = $ctx.Request
-                $res = $ctx.Response
-                $path   = $req.Url.AbsolutePath
-                $method = $req.HttpMethod
-                $query  = $req.Url.Query
+                    # Read raw HTTP request
+                    $buf = [byte[]]::new(65536)
+                    $n = 0
+                    try { $n = $stream.Read($buf, 0, $buf.Length) } catch {}
+                    if ($n -eq 0) { continue }
+                    $raw = [System.Text.Encoding]::UTF8.GetString($buf, 0, $n)
 
-                Write-Output "REQUEST: $method $path$query Auth=[$($req.Headers['Authorization'])] Cookie=[$($req.Headers['Cookie'])] ApiToken=[$($req.Headers['X-Api-Token'])]"
+                    # Parse request line and headers
+                    $lines     = $raw -split "`r`n"
+                    $reqParts  = ($lines[0] -split ' ', 3)
+                    $method    = $reqParts[0]
+                    $fullPath  = if ($reqParts.Count -gt 1) { $reqParts[1] } else { '/' }
+                    $path      = ($fullPath -split '\?')[0]
+                    $query     = if ($fullPath -match '\?(.+)$') { $Matches[1] } else { '' }
 
-                $statusCode   = 200
-                $contentType  = 'application/json; charset=utf-8'
-                $responseBody = ''
+                    $authHeader     = ($lines | Where-Object { $_ -match '^Authorization:'  } | Select-Object -First 1) -replace '^Authorization:\s*',  ''
+                    $cookieHeader   = ($lines | Where-Object { $_ -match '^Cookie:'         } | Select-Object -First 1) -replace '^Cookie:\s*',          ''
+                    $apiTokenHeader = ($lines | Where-Object { $_ -match '^X-Api-Token:'    } | Select-Object -First 1) -replace '^X-Api-Token:\s*',     ''
+                    $reqBody        = if ($raw -match "\r\n\r\n([\s\S]+)$") { $Matches[1].Trim() } else { '' }
 
-                if ($path -eq '/api/authenticate' -and $method -eq 'POST') {
-                    # FormCookie auth endpoint
-                    $res.Headers.Add('Set-Cookie', 'session=mock-session-token; Path=/')
-                    $responseBody = '{"success":true}'
+                    Write-Output "REQUEST: $method $path$(if($query){'?'+$query}) Auth=[$authHeader] Cookie=[$cookieHeader] ApiToken=[$apiTokenHeader]"
 
-                } elseif ($path -match '/token' -and $method -eq 'POST') {
-                    # OAuth2 token endpoint (CC or ROPC)
-                    $responseBody = '{"access_token":"mock-bearer-token-' + [guid]::NewGuid().ToString('N').Substring(0,8) + '","token_type":"Bearer","expires_in":3600}'
+                    # ── /_control — reconfigure mock at runtime ───────────────
+                    if ($path -eq '/_control' -and $method -eq 'POST') {
+                        try {
+                            $c = $reqBody | ConvertFrom-Json -AsHashtable
+                            if ($c.ContainsKey('alwaysReturnStatus')) { $ctrl.AlwaysReturnStatus = [int]$c.alwaysReturnStatus }
+                            if ($c.ContainsKey('errorAfterN'))        { $ctrl.ErrorAfterN        = [int]$c.errorAfterN }
+                            if ($c['resetCount']) { $ctrl.DataRequestCount   = 0 }
+                            if ($c['reset'])      { $ctrl.AlwaysReturnStatus = 0; $ctrl.ErrorAfterN = 0; $ctrl.DataRequestCount = 0 }
+                            Send-Response $stream -Body '{"ok":true}'
+                        } catch {
+                            Send-Response $stream -Status 400 -Body "{""error"":""$($_.Exception.Message)""}"
+                        }
+                        continue
+                    }
 
-                } elseif ($path -match '\$metadata' -and $method -eq 'GET') {
-                    # OData metadata document
-                    $contentType  = 'application/xml; charset=utf-8'
-                    $responseBody = $edmxBody
+                    # ── FormCookie auth endpoint ──────────────────────────────
+                    if ($path -eq '/api/authenticate' -and $method -eq 'POST') {
+                        $headerExtra = "Set-Cookie: session=mock-session-token; Path=/`r`n"
+                        $body = '{"success":true}'
+                        $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+                        $hdr = "HTTP/1.1 200 OK`r`nContent-Type: application/json; charset=utf-8`r`n${headerExtra}Content-Length: $($bodyBytes.Length)`r`nConnection: close`r`n`r`n"
+                        $hdrBytes = [System.Text.Encoding]::UTF8.GetBytes($hdr)
+                        try { $stream.Write($hdrBytes, 0, $hdrBytes.Length); $stream.Write($bodyBytes, 0, $bodyBytes.Length); $stream.Flush() } catch {}
+                        continue
+                    }
 
-                } elseif ($method -eq 'GET') {
-                    # Data request
-                    if ($AlwaysReturnStatus -gt 0) {
-                        $statusCode   = $AlwaysReturnStatus
-                        $responseBody = "{`"error`":`"HTTP $AlwaysReturnStatus from mock`"}"
-                    } elseif ($ErrorAfterN -gt 0 -and $dataRequestCount -ge $ErrorAfterN) {
-                        $statusCode   = 500
-                        $responseBody = '{"error":"Mock server error-after-N triggered"}'
-                    } else {
-                        $dataRequestCount++
+                    # ── OAuth2 token endpoint ─────────────────────────────────
+                    if ($path -match '/token' -and $method -eq 'POST') {
+                        $token = 'mock-bearer-token-' + [guid]::NewGuid().ToString('N').Substring(0,8)
+                        Send-Response $stream -Body "{""access_token"":""$token"",""token_type"":""Bearer"",""expires_in"":3600}"
+                        continue
+                    }
 
-                        # Extract entity set name: last path segment, strip query
-                        $entityName = ($path.Split('/')[-1] -split '\?')[0]
+                    # ── OData $metadata ───────────────────────────────────────
+                    if ($path -match '\$metadata' -and $method -eq 'GET') {
+                        Send-Response $stream -ContentType 'application/xml; charset=utf-8' -Body $edmxBody
+                        continue
+                    }
 
-                        # Handle @odata.nextLink pagination test
-                        # If query contains page=2, return final page without nextLink
-                        if ($query -match 'page=2') {
-                            $extraEntity = @{ UId = 'page2-entity'; DisplayName = 'Page 2 Entity' }
-                            $json = @{ value = @($extraEntity) } | ConvertTo-Json -Depth 10 -Compress
-                            $responseBody = $json
-                        } elseif ($entitySets.ContainsKey($entityName)) {
-                            $entities = @($entitySets[$entityName])
-                            # For $skip pagination: slice the entity set based on $skip and $top params
-                            $skip = 0; $top = $entities.Count
-                            if ($query -match '\$skip=(\d+)') { $skip = [int]$Matches[1] }
-                            if ($query -match '\$top=(\d+)')  { $top  = [int]$Matches[1] }
-                            $slice = @($entities | Select-Object -Skip $skip -First $top)
-                            $json = @{ value = $slice } | ConvertTo-Json -Depth 10 -Compress
-                            $responseBody = $json
-                        } else {
-                            # Unknown entity set or Pagination test path '/Paginated'
-                            if ($entityName -eq 'Paginated' -and $query -notmatch 'page=2') {
-                                # First page: return 1 item + nextLink
-                                $nextLink = "http://localhost:$Port/odata/v4/Paginated?page=2"
+                    # ── Data GET ──────────────────────────────────────────────
+                    if ($method -eq 'GET') {
+                        if ($ctrl.AlwaysReturnStatus -gt 0) {
+                            Send-Response $stream -Status $ctrl.AlwaysReturnStatus -Body "{""error"":""HTTP $($ctrl.AlwaysReturnStatus) from mock""}"
+                            continue
+                        }
+                        if ($ctrl.ErrorAfterN -gt 0 -and $ctrl.DataRequestCount -ge $ctrl.ErrorAfterN) {
+                            Send-Response $stream -Status 500 -Body '{"error":"Mock error-after-N triggered"}'
+                            continue
+                        }
+                        $ctrl.DataRequestCount++
+
+                        $entityName = ($path.Split('/')[-1])
+
+                        # @odata.nextLink pagination test path
+                        if ($entityName -eq 'Paginated') {
+                            if ($query -match 'page=2') {
+                                $json = @{ value = @(@{ UId = 'page2-entity'; DisplayName = 'Page 2 Entity' }) } | ConvertTo-Json -Depth 5 -Compress
+                            } else {
                                 $json = @{
                                     value = @(@{ UId = 'page1-entity'; DisplayName = 'Page 1 Entity' })
-                                    '@odata.nextLink' = $nextLink
-                                } | ConvertTo-Json -Depth 10 -Compress
-                                $responseBody = $json
-                            } else {
-                                $responseBody = '{"value":[]}'
+                                    '@odata.nextLink' = "http://localhost:$Port/odata/v4/Paginated?page=2"
+                                } | ConvertTo-Json -Depth 5 -Compress
                             }
+                            Send-Response $stream -Body $json
+                            continue
                         }
-                    }
-                } else {
-                    $statusCode   = 405
-                    $responseBody = '{"error":"Method not allowed"}'
-                }
 
-                $res.StatusCode  = $statusCode
-                $res.ContentType = $contentType
-                $bytes = [System.Text.Encoding]::UTF8.GetBytes($responseBody)
-                $res.ContentLength64 = $bytes.Length
-                try {
-                    $res.OutputStream.Write($bytes, 0, $bytes.Length)
-                } catch {}
-                try { $res.OutputStream.Close() } catch {}
+                        if ($entitySets.ContainsKey($entityName)) {
+                            $entities = @($entitySets[$entityName])
+                            $skip = 0; $top = $entities.Count
+                            if ($query -match '(?i)\$skip=(\d+)') { $skip = [int]$Matches[1] }
+                            if ($query -match '(?i)\$top=(\d+)')  { $top  = [int]$Matches[1] }
+                            $slice = @($entities | Select-Object -Skip $skip -First $top)
+                            $json = @{ value = $slice } | ConvertTo-Json -Depth 10 -Compress
+                            Send-Response $stream -Body $json
+                        } else {
+                            Send-Response $stream -Body '{"value":[]}'
+                        }
+                        continue
+                    }
+
+                    Send-Response $stream -Status 405 -Body '{"error":"Method not allowed"}'
+
+                } finally {
+                    try { $client.Close() } catch {}
+                }
             }
         } finally {
             try { $listener.Stop() } catch {}
@@ -215,10 +244,9 @@ $entitySetEntries
         }
     }
 
-    $job = Start-Job -ScriptBlock $serverScript `
-        -ArgumentList $port, $entitySetsJson, $edmxSetsJson, $AlwaysReturnStatus, $ErrorAfterN
+    $job = Start-Job -ScriptBlock $serverScript -ArgumentList $port, $entitySetsJson, $edmxSetsJson
 
-    # Poll until started (max 4 s)
+    # Wait up to 4s for startup confirmation
     $started = $false
     for ($i = 0; $i -lt 20; $i++) {
         Start-Sleep -Milliseconds 200
@@ -239,25 +267,14 @@ $entitySetEntries
 
 function Stop-MockODataServer {
     <#
-    .SYNOPSIS
-        Stop a mock OData server started by Start-MockODataServer.
-    .PARAMETER Mock
-        The PSCustomObject returned by Start-MockODataServer.
-    #>
+    .SYNOPSIS Stop a mock OData server started by Start-MockODataServer. #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][PSCustomObject]$Mock)
 
-    try { Stop-Job   -Job $Mock.Job -ErrorAction SilentlyContinue } catch {}
-
-    # Flush job output to host so CI log shows server-side request log
+    try { Stop-Job -Job $Mock.Job -ErrorAction SilentlyContinue } catch {}
     try {
         $output = Receive-Job -Job $Mock.Job -Keep 2>&1
-        if ($output) {
-            foreach ($line in $output) {
-                Write-Host "  [mock] $line" -ForegroundColor DarkGray
-            }
-        }
+        if ($output) { foreach ($line in $output) { Write-Host "  [mock] $line" -ForegroundColor DarkGray } }
     } catch {}
-
     try { Remove-Job -Job $Mock.Job -Force -ErrorAction SilentlyContinue } catch {}
 }
