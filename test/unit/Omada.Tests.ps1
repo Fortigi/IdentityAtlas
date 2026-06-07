@@ -18,7 +18,7 @@ BeforeAll {
     Get-ChildItem (Join-Path $script:repoRoot 'tools\crawlers\odata') -Filter '*.ps1' |
         Where-Object { $_.Name -notlike 'Start-*' } |
         ForEach-Object { . $_.FullName }
-    # Load Omada-specific helpers (Get-OmadaRefValue, Get-OmadaRefUid, Get-OmadaEntitySets)
+    # Load Omada-specific helpers (Get-OmadaRefValue, Get-OmadaRefUid)
     . (Join-Path $script:repoRoot 'tools\crawlers\omada\Get-OmadaHelpers.ps1')
 }
 
@@ -91,7 +91,7 @@ Describe 'OData — function availability' {
         'Connect-ODataAPI',
         'Invoke-ODataPagedRequest',
         'Invoke-ODataGetRequest',
-        'Get-OmadaEntitySets',
+        'Get-ODataEntitySets',
         'Get-OmadaRefValue',
         'Get-OmadaRefUid'
     ) {

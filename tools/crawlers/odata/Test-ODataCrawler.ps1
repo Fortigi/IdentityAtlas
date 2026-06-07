@@ -3,12 +3,12 @@
     Integration tests for the OData crawler library functions.
 
 .DESCRIPTION
-    Tests Connect-ODataAPI, Invoke-ODataGetRequest, and Invoke-ODataPagedRequest
-    against a single shared mock HTTP server. The mock runs for the lifetime of
-    the test and is reconfigured mid-run via its /_control endpoint.
+    Tests Connect-ODataAPI, Invoke-ODataGetRequest, Invoke-ODataPagedRequest, and Get-ODataEntitySets
+    against a single shared mock HTTP server. The mock runs for the lifetime of the test and is
+    reconfigured mid-run via its /_control endpoint.
 
     Covers all 6 auth methods, @odata.nextLink pagination, $skip pagination,
-    and 401 error handling.
+    401 error handling, and $metadata entity set discovery.
 
 .PARAMETER ApiBaseUrl
     Not used by this test; accepted for CI discovery convention.
@@ -128,6 +128,24 @@ try {
 
 } finally {
     Stop-MockODataServer -Mock $mock
+}
+
+# ── Test Get-ODataEntitySets — $metadata discovery ───────────────────────────
+$mock = $null
+try {
+    $mock = Start-MockODataServer -EntitySets @{ Users = @(); Roles = @() }
+    Connect-ODataAPI -BaseUrl "http://localhost:$($mock.Port)/odata/v4" `
+        -AuthMethod BasicAuth -Username testuser -Password testpass
+    try {
+        $sets = Get-ODataEntitySets
+        $passed = $sets -contains 'Users' -and $sets -contains 'Roles'
+        Report-Result 'OData/EntitySets — $metadata discovery' $passed `
+            "($($sets.Count) entity sets: $($sets -join ', '))"
+    } catch {
+        Report-Result 'OData/EntitySets — $metadata discovery' $false $_.Exception.Message
+    }
+} finally {
+    if ($mock) { Stop-MockODataServer -Mock $mock }
 }
 
 # ── Summary ───────────────────────────────────────────────────────────────────
