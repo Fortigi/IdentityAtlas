@@ -7,3 +7,4 @@
 - Fixed Omada integration test sending wrong field names (`jobType`/`name`) to the crawler-configs API which expects `crawlerType`/`displayName` — caused 400 Bad Request and test failure in CI
 - Fixed crawler dispatcher dot-sourcing `Test-*.ps1` files as library code — integration test files have mandatory parameters and are not library files; the dispatcher now skips them
 - Fixed Omada integration test: mock OData server now binds to all interfaces so the Docker worker container can reach it via `host.docker.internal`
+- Moved CSV and Entra ID integration tests to be colocated with their crawlers (`tools/crawlers/csv/Test-CSVCrawler.ps1`, `tools/crawlers/entra-id/Test-EntraIdCrawler.ps1`) so they are auto-discovered by the CI topology-aware runner — no separate hardcoded CI steps needed

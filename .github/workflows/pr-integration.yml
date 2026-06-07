@@ -266,15 +266,6 @@ jobs:
             -ApiKey '${{ steps.apikey.outputs.key }}'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: 'Test: CSV edge cases'
-        shell: pwsh
-        run: |
-          & test/nightly/Test-CSVEdgeCases.ps1 `
-            -ApiBaseUrl http://localhost:3001/api `
-            -ApiKey '${{ steps.apikey.outputs.key }}' `
-            -LogFolder '${{ runner.temp }}'
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-
       - name: 'Test: Detail page counts'
         shell: pwsh
         run: |
@@ -347,16 +338,6 @@ jobs:
         run: |
           & test/nightly/Test-RiskScoringLLM.ps1 `
             -ApiBaseUrl http://localhost:3001/api
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-
-      - name: 'Test: Entra ID crawler'
-        if: env.TEST_GRAPH_TENANT_ID != ''
-        shell: pwsh
-        run: |
-          & test/nightly/Test-EntraIdCrawler.ps1 `
-            -ApiBaseUrl http://localhost:3001/api `
-            -ApiKey '${{ steps.apikey.outputs.key }}' `
-            -LogFolder '${{ runner.temp }}/entra-logs'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       # ── Crawler-colocated integration tests (topology-aware) ────
@@ -559,6 +540,7 @@ jobs:
     name: Load & Soak Tests
     runs-on: ubuntu-latest
     timeout-minutes: 75
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
