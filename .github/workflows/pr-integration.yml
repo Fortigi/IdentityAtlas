@@ -266,15 +266,6 @@ jobs:
             -ApiKey '${{ steps.apikey.outputs.key }}'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: 'Test: CSV edge cases'
-        shell: pwsh
-        run: |
-          & test/nightly/Test-CSVEdgeCases.ps1 `
-            -ApiBaseUrl http://localhost:3001/api `
-            -ApiKey '${{ steps.apikey.outputs.key }}' `
-            -LogFolder '${{ runner.temp }}'
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-
       - name: 'Test: Detail page counts'
         shell: pwsh
         run: |
@@ -311,13 +302,6 @@ jobs:
             -H "Content-Type: application/json" -d '{}' || true
           pwsh -Command "& test/nightly/Test-MatrixScopeStats.ps1 -ApiBaseUrl http://localhost:3001/api -ApiKey '${{ steps.apikey.outputs.key }}' -ExpectHistoryDepth; if (\$LASTEXITCODE -ne 0) { exit 1 }"
 
-      - name: 'Test: Custom connector'
-        shell: pwsh
-        run: |
-          & test/nightly/Test-CustomConnector.ps1 `
-            -ApiBaseUrl http://localhost:3001/api
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-
       - name: 'Test: Secrets vault'
         shell: pwsh
         run: |
@@ -349,15 +333,60 @@ jobs:
             -ApiBaseUrl http://localhost:3001/api
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: 'Test: Entra ID crawler'
-        if: env.TEST_GRAPH_TENANT_ID != ''
+      # ── Crawler-colocated integration tests (topology-aware) ────
+      # Discovers all Test-*.ps1 files in tools/crawlers/<type>/ and runs them
+      # in topological dependency order (dependency crawlers first, dependents after).
+      # Same level runs in parallel. Adding a new crawler with a Test-*.ps1 file
+      # automatically adds it here — no YAML changes needed.
+      - name: 'Test: Crawler-colocated integration tests'
         shell: pwsh
         run: |
-          & test/nightly/Test-EntraIdCrawler.ps1 `
-            -ApiBaseUrl http://localhost:3001/api `
-            -ApiKey '${{ steps.apikey.outputs.key }}' `
-            -LogFolder '${{ runner.temp }}/entra-logs'
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Import-Module ./setup/IdentityAtlas.psd1 -Force -ErrorAction Stop
+          $registry  = Get-CrawlerRegistry
+          $apiBase   = 'http://localhost:3001/api'
+          $apiKey    = '${{ steps.apikey.outputs.key }}'
+
+          # Compute dependency depth for each crawler type
+          $depths = @{}
+          function Get-Depth([string]$T) {
+            if ($depths.ContainsKey($T)) { return $depths[$T] }
+            if (-not $registry.ContainsKey($T)) { throw "Crawler type '$T' referenced in dependsOn but not found in registry" }
+            $deps = $registry[$T].Manifest['dependsOn'] ?? @()
+            $d = if ($deps.Count -gt 0) { ($deps | ForEach-Object { Get-Depth $_ } | Measure-Object -Max).Maximum + 1 } else { 0 }
+            $depths[$T] = $d; return $d
+          }
+          foreach ($type in $registry.Keys) { $null = Get-Depth $type }
+          $maxDepth = ($depths.Values | Measure-Object -Max).Maximum
+
+          $totalFailed = 0
+          for ($depth = 0; $depth -le $maxDepth; $depth++) {
+            $typesAtDepth = @($depths.GetEnumerator() | Where-Object Value -eq $depth | Select-Object -ExpandProperty Key)
+            $jobs = @()
+            foreach ($type in $typesAtDepth) {
+              $testFile = Get-ChildItem "tools/crawlers/$type/Test-*.ps1" -ErrorAction SilentlyContinue | Select-Object -First 1
+              if (-not $testFile) { continue }
+              Write-Host "Starting: $($testFile.Name) (depth $depth)" -ForegroundColor Cyan
+              $jobs += Start-Job -ScriptBlock {
+                param($path, $url, $key)
+                & pwsh -NoProfile -File $path -ApiBaseUrl $url -ApiKey $key
+                if ($LASTEXITCODE -ne 0) { throw "Test script exited with code $LASTEXITCODE" }
+              } -ArgumentList $testFile.FullName, $apiBase, $apiKey
+            }
+            if ($jobs.Count -eq 0) { continue }
+            $jobs | Wait-Job | ForEach-Object {
+              Receive-Job -Job $_ -Keep
+              $failed = $_.State -ne 'Completed' -or ($_.ChildJobs[0].State -ne 'Completed')
+              if ($failed) {
+                Write-Host "FAILED: $($_.Name)" -ForegroundColor Red
+                $totalFailed++
+              }
+              Remove-Job $_ -Force -ErrorAction SilentlyContinue
+            }
+          }
+          if ($totalFailed -gt 0) {
+            Write-Host "$totalFailed crawler test file(s) failed" -ForegroundColor Red
+            exit 1
+          }
 
       # ── API benchmark (informational, non-blocking) ─────────────
       - name: 'Test: API benchmark'
@@ -403,6 +432,9 @@ jobs:
     # backend, interactive browser) and need adaptation for the Docker CI
     # environment (accessibility violations, visual regression baselines,
     # optional tabs hidden by default). Filed as follow-up work.
+    # Escape hatch: apply the 'skip-e2e' label to skip on PRs that only
+    # change test infrastructure and don't need Playwright validation.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-e2e') }}
     continue-on-error: true
 
     steps:
@@ -504,6 +536,9 @@ jobs:
     name: Load & Soak Tests
     runs-on: ubuntu-latest
     timeout-minutes: 75
+    # Escape hatch: apply the 'skip-load-soak' label to skip on PRs that
+    # only change test infrastructure and don't need soak validation.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-load-soak') }}
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -610,7 +645,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           for job in integration e2e load-soak; do
             result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('${job}', d.get('$job', {})).get('result','unknown'))")
-            if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
+            if [ "$result" = "success" ]; then icon="✅"; elif [ "$result" = "skipped" ]; then icon="⏭️"; else icon="❌"; fi
             echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
           done
 

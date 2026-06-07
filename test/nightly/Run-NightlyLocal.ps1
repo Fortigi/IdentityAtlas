@@ -726,7 +726,8 @@ if (-not $SkipIntegration) {
 
         # ── Phase 4f3: CSV edge case tests ────────────────────────────
         Write-Phase "Phase 4f3: CSV Edge Case Tests"
-        $csvEdgeScript = Join-Path $PSScriptRoot 'Test-CSVEdgeCases.ps1'
+        $csvEdgeScript = Join-Path $PSScriptRoot '..' '..' 'tools' 'crawlers' 'csv' 'Test-CSVCrawler.ps1'
+        $csvEdgeScript = [System.IO.Path]::GetFullPath($csvEdgeScript)
         if (Test-Path $csvEdgeScript) {
             try {
                 $csvResults = $script:results
@@ -832,7 +833,8 @@ if (-not $SkipIntegration) {
 
         # ── Phase 4f7: Custom Connector round-trip ─────────────────────
         Write-Phase "Phase 4f7: Custom Connector Round-Trip"
-        $customConnScript = Join-Path $PSScriptRoot 'Test-CustomConnector.ps1'
+        $customConnScript = Join-Path $PSScriptRoot '..' '..' 'tools' 'crawlers' 'custom-connector' 'Test-CustomConnectorCrawler.ps1'
+        $customConnScript = [System.IO.Path]::GetFullPath($customConnScript)
         if (Test-Path $customConnScript) {
             $ccRunnerResults = $script:results
             $ccFailedRef = @{ Count = 0 }
@@ -877,7 +879,8 @@ if (-not $SkipIntegration) {
             Remove-Item Env:MSYS_NO_PATHCONV -ErrorAction SilentlyContinue
         } catch { }
 
-        $entraTestScript = Join-Path $PSScriptRoot 'Test-EntraIdCrawler.ps1'
+        $entraTestScript = Join-Path $PSScriptRoot '..' '..' 'tools' 'crawlers' 'entra-id' 'Test-EntraIdCrawler.ps1'
+        $entraTestScript = [System.IO.Path]::GetFullPath($entraTestScript)
         if ((Test-Path $entraTestScript) -and $workerKey) {
             # We can't pass our Write-Result function directly — it uses
             # $script:results which only resolves in the runner's scope. Build
