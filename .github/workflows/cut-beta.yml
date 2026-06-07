@@ -82,16 +82,8 @@ jobs:
 
       - name: Generate release notes
         run: |
-          # Find the previous tag to diff against:
-          #   1. Previous pre-release of this same base version (e.g. beta.1 when cutting beta.2)
-          #   2. Fall back to last stable release if this is the first pre-release for this version
-          BASE_VERSION=$(echo "${{ github.event.inputs.version }}" | sed -E 's/-(beta|rc|alpha)\.[0-9]+//')
-          PREV_TAG=$(git tag --list "v${BASE_VERSION}-*" --sort=-version:refname \
-            | grep -v "^${TAG}$" | head -1)
-          if [ -z "$PREV_TAG" ]; then
-            PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
-              | grep -v beta | grep -v rc | grep -v alpha | head -1)
-          fi
+          # Latest release of any kind (beta, rc, stable) — excludes the tag just created
+          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -v "^${TAG}$" | head -1)
 
           # Slice the CHANGES.md entries that are new since PREV_TAG
           if [ -n "$PREV_TAG" ]; then
