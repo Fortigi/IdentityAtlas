@@ -38,7 +38,7 @@
 Param(
     [string]$ApiBaseUrl = 'http://localhost:3001/api',
     [string]$ApiKey,
-    [string]$LogFolder = $env:TEMP,
+    [string]$LogFolder = [System.IO.Path]::GetTempPath(),
     [scriptblock]$WriteResult
 )
 

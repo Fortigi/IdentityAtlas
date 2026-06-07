@@ -71,7 +71,7 @@
 Param(
     [string]$ApiBaseUrl = 'http://localhost:3001/api',
     [Parameter(Mandatory)] [string]$ApiKey,
-    [string]$LogFolder = $env:TEMP,
+    [string]$LogFolder = [System.IO.Path]::GetTempPath(),
     [scriptblock]$WriteResult,
     [int]$PerJobTimeoutSeconds = 600,
     [string[]]$Scenarios,
