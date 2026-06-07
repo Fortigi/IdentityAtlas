@@ -150,7 +150,7 @@ try {
         $layerDir        = $registry[$layer].Dir
         $layerEntryPoint = $registry[$layer].Manifest['entryPoint']
         Get-ChildItem -Path $layerDir -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -ne $layerEntryPoint } |
+            Where-Object { $_.Name -ne $layerEntryPoint -and $_.Name -notlike 'Test-*.ps1' } |
             ForEach-Object { . $_.FullName }
     }
 

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Nightly test step: validate CSV ingest edge cases.
+    Integration test for the CSV ingest edge cases.
 
 .DESCRIPTION
     Creates malformed or unusual payloads and POSTs them to the ingest API to
@@ -13,7 +13,8 @@
     complex. Instead, each test exercises the ingest API endpoint directly
     with crafted payloads, validating the API's validation and error handling.
 
-    Designed to be called from Run-NightlyLocal.ps1 with a `WriteResult` callback.
+    Supports both colocated CI discovery (called with -ApiBaseUrl/-ApiKey) and
+    standalone use from Run-NightlyLocal.ps1 (called with -WriteResult callback).
 
 .PARAMETER ApiBaseUrl
     Default: http://localhost:3001/api
@@ -23,17 +24,21 @@
 
 .PARAMETER LogFolder
     Folder where temporary CSV files are created. A csv-edge-cases subfolder
-    will be created automatically.
+    will be created automatically. Default: $env:TEMP
 
 .PARAMETER WriteResult
     Callback signature: { param($Name, $Passed, $Detail) ... }
+
+.EXAMPLE
+    pwsh -File tools/crawlers/csv/Test-CSVCrawler.ps1 `
+        -ApiBaseUrl http://localhost:3001/api -ApiKey fgc_abc...
 #>
 
 [CmdletBinding()]
 Param(
     [string]$ApiBaseUrl = 'http://localhost:3001/api',
     [string]$ApiKey,
-    [string]$LogFolder = $env:TEMP,
+    [string]$LogFolder = [System.IO.Path]::GetTempPath(),
     [scriptblock]$WriteResult
 )
 

@@ -181,6 +181,14 @@ Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/principals" -Method Post -Headers $he
 
 ---
 
+## Integration Testing
+
+Every crawler should include a `Test-<Type>Crawler.ps1` file alongside its `crawler.json`. The PR integration CI discovers and runs all such files automatically — no YAML changes needed.
+
+See `tools/crawlers/CLAUDE.md` for the parameter contract, shared mock server usage, and examples (`Test-ODataCrawler.ps1`, `Test-OmadaCrawler.ps1`).
+
+---
+
 ## See Also
 
 - [`docs/architecture/crawler-architecture.md`](../architecture/crawler-architecture.md) — how the registry, DFS dependency loading, and dispatch work internally

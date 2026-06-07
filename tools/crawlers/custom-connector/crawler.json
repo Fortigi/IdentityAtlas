@@ -1,0 +1,11 @@
+{
+  "type": "custom-connector",
+  "displayName": "Custom Connector",
+  "entryPoint": "Start-CustomConnector.ps1",
+  "dependsOn": [],
+  "configSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "postSyncHooks": []
+}
