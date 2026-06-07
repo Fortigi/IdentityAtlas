@@ -101,7 +101,7 @@ $mockEntities = @{
         UId            = $resourceUid
         NAME           = 'Integration Test Role'
         DisplayName    = 'Integration Test Role'
-        ROLECATEGORY   = @{ Value = 'Role' }
+        ROLECATEGORY   = @{ Value = 'Permission' }
         RESOURCESTATUS = @{ Value = 'Active' }
         Deleted        = $false
     })
@@ -241,19 +241,34 @@ try {
     }
 
     # ── Test: partial failure (mock returns 500 mid-crawl) ────────────────────
-    # Reuse the same mock — switch it to error-after-1-request mode via /_control
+    # Reuse the same mock — switch it to error-after-1-request mode via /_control.
+    # Use maxRetries=0 in the config so the crawler fails immediately on 500 without
+    # waiting through 5 retry delays (62s per phase) — keeps the test under 60s.
+    # Only enable identities so a single phase fails fast and the job is marked 'failed'.
     Write-Host "`n  Partial failure test:" -ForegroundColor Gray
     try {
         Invoke-RestMethod -Uri "http://localhost:$($mock.Port)/_control" -Method POST `
             -ContentType 'application/json' -Body '{"errorAfterN":1,"resetCount":true}' | Out-Null
 
+        $pfConfig = @{
+            baseUrl    = "http://host.docker.internal:$($mock.Port)/odata/dataobjects"
+            authMethod = 'BasicAuth'
+            username   = 'testuser'
+            password   = 'testpass'
+            maxRetries = 0
+            selectedObjects = @{
+                contexts = $false; identities = $true; accounts = $false
+                contextMembers = $false; resources = $false; entitlements = $false
+                assignments = $false; cras = $false
+            }
+        }
         $cfgResult2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' -Body @{
-            crawlerType = 'omada'; displayName = "omada-partial-fail-$runTag"; config = $config
+            crawlerType = 'omada'; displayName = "omada-partial-fail-$runTag"; config = $pfConfig
         }
         $job2 = Invoke-AtlasApi -Method POST -Path '/admin/crawler-jobs' -Body @{
             jobType = 'omada'; configId = $cfgResult2.id
         }
-        $completed2 = Wait-JobComplete -JobId $job2.id -TimeoutSec 150
+        $completed2 = Wait-JobComplete -JobId $job2.id -TimeoutSec 60
         $pfPassed = ($null -ne $completed2) -and ($completed2.status -eq 'failed')
         Report-Result 'Omada/Error — partial failure (500 mid-crawl) detected' $pfPassed `
             "(status: $($completed2.status))"
