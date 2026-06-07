@@ -439,9 +439,9 @@ jobs:
     # backend, interactive browser) and need adaptation for the Docker CI
     # environment (accessibility violations, visual regression baselines,
     # optional tabs hidden by default). Filed as follow-up work.
-    # Escape hatch: apply the 'skip-heavy-tests' label to skip on PRs that
-    # only change test infrastructure and don't need E2E validation.
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-heavy-tests') }}
+    # Escape hatch: apply the 'skip-e2e' label to skip on PRs that only
+    # change test infrastructure and don't need Playwright validation.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-e2e') }}
     continue-on-error: true
 
     steps:
@@ -543,9 +543,9 @@ jobs:
     name: Load & Soak Tests
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    # Escape hatch: apply the 'skip-heavy-tests' label to skip on PRs that
+    # Escape hatch: apply the 'skip-load-soak' label to skip on PRs that
     # only change test infrastructure and don't need soak validation.
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-heavy-tests') }}
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-load-soak') }}
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
