@@ -1,8 +1,6 @@
 <#
 .SYNOPSIS
-    Nightly test step: exercise the Entra ID crawler end-to-end against a real
-    tenant. Designed to be called from Run-NightlyLocal.ps1 but also runnable
-    standalone for ad-hoc verification.
+    Integration test for the Entra ID crawler — exercises it end-to-end against a real tenant.
 
 .DESCRIPTION
     Runs a series of scenarios that hit different code paths through the crawler:
@@ -39,10 +37,9 @@
 
 .PARAMETER ApiKey
     Crawler API key for the built-in worker (issued by /api/admin/crawlers).
-    The parent runner extracts this earlier in the pipeline.
 
 .PARAMETER LogFolder
-    Where to write per-scenario logs. Created if missing.
+    Where to write per-scenario logs. Created if missing. Default: $env:TEMP
 
 .PARAMETER WriteResult
     ScriptBlock signature: { param($Name, $Passed, $Detail) ... }
@@ -65,7 +62,7 @@
     doesn't fill up with test entries.
 
 .EXAMPLE
-    pwsh -File test\nightly\Test-EntraIdCrawler.ps1 `
+    pwsh -File tools/crawlers/entra-id/Test-EntraIdCrawler.ps1 `
         -ApiBaseUrl http://localhost:3001/api -ApiKey fgc_abc... `
         -LogFolder C:\tmp\entra-test
 #>
@@ -74,7 +71,7 @@
 Param(
     [string]$ApiBaseUrl = 'http://localhost:3001/api',
     [Parameter(Mandatory)] [string]$ApiKey,
-    [Parameter(Mandatory)] [string]$LogFolder,
+    [string]$LogFolder = [System.IO.Path]::GetTempPath(),
     [scriptblock]$WriteResult,
     [int]$PerJobTimeoutSeconds = 600,
     [string[]]$Scenarios,
@@ -139,8 +136,9 @@ function Get-TestGraphCreds {
         return @{ tenantId = $envTenant; clientId = $envClient; clientSecret = $envSecret; source = 'env vars' }
     }
 
-    # 2. Fall back to the gitignored secrets file.
-    $secretsPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'test.secrets.json'
+    # 2. Fall back to the gitignored secrets file at test/test.secrets.json
+    $secretsPath = Join-Path $PSScriptRoot '..' '..' '..' 'test' 'test.secrets.json'
+    $secretsPath = [System.IO.Path]::GetFullPath($secretsPath)
     if (Test-Path $secretsPath) {
         try {
             $j = Get-Content $secretsPath -Raw | ConvertFrom-Json

@@ -35,6 +35,8 @@ services:
       WEB_API_URL: "http://web:3001/api"
     volumes:
       - job_data:/data/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       web: { condition: service_started }
     restart: "no"
