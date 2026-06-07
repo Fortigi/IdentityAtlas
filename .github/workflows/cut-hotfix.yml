@@ -81,33 +81,55 @@ jobs:
 
       - name: Generate release notes
         run: |
+          # Hotfix branches from a release tag, so compare against last stable.
           PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -v beta | grep -v rc | grep -v alpha | grep -v "^${TAG}$" | head -1)
 
-          if [ -n "$PREV_TAG" ]; then
-            FIRST_OLD=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | head -1)
-            if [ -n "$FIRST_OLD" ]; then
-              CUTLINE=$(grep -Fn "${FIRST_OLD}" CHANGES.md | head -1 | cut -d: -f1)
-              [ -n "$CUTLINE" ] \
-                && NEW_MD=$(head -n $((CUTLINE - 1)) CHANGES.md) \
-                || NEW_MD=$(cat CHANGES.md)
-            else
-              NEW_MD=$(cat CHANGES.md)
-            fi
-          else
-            NEW_MD=$(cat CHANGES.md)
-          fi
-
-          BULLETS=$(printf '%s\n' "$NEW_MD" \
+          # Primary source: unmerged changes/*.md fragments on this hotfix branch.
+          # bump-version hasn't run yet so fragments aren't in CHANGES.md.
+          FRAG_BULLETS=$(find changes/ -name '*.md' -not -name 'TEMPLATE*' 2>/dev/null \
+            | sort | xargs cat 2>/dev/null \
             | grep -v '^## Changes in this PR$' \
             | awk 'BEGIN{blank=1} /^[[:space:]]*$/{if(!blank){print ""; blank=1}; next} {blank=0; print}')
+
+          # Fallback: slice CHANGES.md by line count (prepend model).
+          if [ -z "$FRAG_BULLETS" ] && [ -n "$PREV_TAG" ]; then
+            OLD_LINES=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | wc -l)
+            TOTAL_LINES=$(wc -l < CHANGES.md)
+            NEW_LINES=$((TOTAL_LINES - OLD_LINES))
+            [ "$NEW_LINES" -gt 0 ] && FRAG_BULLETS=$(head -n "$NEW_LINES" CHANGES.md \
+              | grep -v '^## Changes in this PR$' \
+              | awk 'BEGIN{blank=1} /^[[:space:]]*$/{if(!blank){print ""; blank=1}; next} {blank=0; print}')
+          fi
 
           {
             printf '## Changes'
             [ -n "$PREV_TAG" ] && printf ' since %s' "$PREV_TAG"
-            printf '\n\n%s\n' "$BULLETS"
+            printf '\n\n%s\n' "$FRAG_BULLETS"
             [ -n "$PREV_TAG" ] && printf '\n**Full Changelog:** https://github.com/${{ github.repository }}/compare/%s...%s\n' \
               "$PREV_TAG" "$TAG"
           } > release-notes.md
+          echo "--- release-notes.md raw preview ---"
+          cat release-notes.md
+
+      - name: Synthesize release notes with Claude
+        uses: anthropics/claude-code-action@41ea7642c1436fa0ee57aae58347904b71a5af27 # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--allowedTools Read,Write"
+          prompt: |
+            Read `release-notes.md`. It contains raw changelog bullets for
+            Identity Atlas hotfix ${{ github.event.inputs.version }}.
+
+            Rewrite it as polished GitHub release notes following these rules:
+
+            1. Keep the "Full Changelog" link at the bottom unchanged.
+            2. Group bullets under `###` headings by theme if there are enough to
+               warrant it; otherwise a flat list under "## Bug fixes" is fine.
+            3. Drop CI, tooling, and pure-implementation bullets with no
+               user-visible effect.
+            4. Rewrite in user-facing language — focus on the effect for the user.
+
+            Overwrite `release-notes.md` with the result.
 
       - name: Create GitHub release with portable ZIP
         env:
