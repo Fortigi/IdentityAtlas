@@ -4,3 +4,4 @@
 - Added shared mock OData HTTP server (`tools/crawlers/shared/Start-MockODataServer.ps1`) for crawler integration tests that have no live CI endpoint
 - Fixed PR Hygiene CI check recognizing `Test-*.ps1` (crawler integration tests) and `Start-Mock*.ps1` (mock server test infrastructure) as test files alongside the existing `*.Tests.ps1` Pester convention
 - Fixed Docker image build failure caused by `re2` having no prebuilt binary for Node 26 — pinned base image to Node 22 LTS where prebuilt binaries are available
+- Fixed Omada integration test sending wrong field names (`jobType`/`name`) to the crawler-configs API which expects `crawlerType`/`displayName` — caused 400 Bad Request and test failure in CI
