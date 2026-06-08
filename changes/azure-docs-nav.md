@@ -1,1 +1,0 @@
-- Added the Azure Deployment walkthrough and Azure Deployment reference to the documentation site navigation (under Operations) so they're discoverable instead of only reachable by direct URL.

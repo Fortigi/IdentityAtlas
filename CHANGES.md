@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added the Azure Deployment walkthrough and Azure Deployment reference to the documentation site navigation (under Operations) so they're discoverable instead of only reachable by direct URL.
+
+## Changes in this PR
+
 - Fixed Cut Beta, Cut Release, and Cut Hotfix workflows failing at the "Synthesize release notes with Claude" step — added `id-token: write` permission required by `claude-code-action` when using OAuth token authentication
 
 ## Changes in this PR
