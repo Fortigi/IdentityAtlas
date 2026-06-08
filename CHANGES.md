@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed Cut Beta, Cut Release, and Cut Hotfix workflows failing at the "Synthesize release notes with Claude" step — added `id-token: write` permission required by `claude-code-action` when using OAuth token authentication
+
+## Changes in this PR
+
 - Moved `Get-OmadaEntitySets` → `Get-ODataEntitySets` into the shared OData library (`Invoke-ODataAuth.ps1`) — OData `$metadata` discovery is not Omada-specific; also adds `Update-ODataSessionIfExpired` call before the fetch (matching all other OData library functions) and a new integration test
 - Extracted `Invoke-IngestAPI`, `Update-CrawlerProgress`, and `ConvertTo-JsonArray` from all three crawlers (Entra ID, Omada, CSV) into `tools/crawlers/shared/Invoke-CrawlerIngest.ps1`; fixed a bug where the CSV crawler silently ignored HTTP 409 (job terminated) on progress updates instead of aborting the crawl; added unit tests covering scope-capture, the 409 abort path, and JSON array serialisation guarantees
 
