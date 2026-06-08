@@ -943,6 +943,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#integration-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1721,6 +1732,62 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -2721,6 +2788,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#integration-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3029,6 +3107,10 @@
 <blockquote>
 <p><strong>Note:</strong> Never run the <code>odata</code> type as a job — its entry point throws by design. Use it only as a <code>dependsOn</code> base.</p>
 </blockquote>
+<hr />
+<h2 id="integration-testing">Integration Testing<a class="headerlink" href="#integration-testing" title="Permanent link">&para;</a></h2>
+<p>Every crawler should include a <code>Test-&lt;Type&gt;Crawler.ps1</code> file alongside its <code>crawler.json</code>. The PR integration CI discovers and runs all such files automatically — no YAML changes needed.</p>
+<p>See <code>tools/crawlers/CLAUDE.md</code> for the parameter contract, shared mock server usage, and examples (<code>Test-ODataCrawler.ps1</code>, <code>Test-OmadaCrawler.ps1</code>).</p>
 <hr />
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
