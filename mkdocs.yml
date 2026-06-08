@@ -105,6 +105,8 @@ nav:
           - Crawler Architecture: architecture/crawler-architecture.md
           - Account Linking: architecture/account-linking.md
       - Operations:
+          - Azure Deployment: architecture/azure-deployment-walkthrough.md
+          - Azure Deployment Reference: architecture/azure-deployment.md
           - Scaling & Load Testing: architecture/scaling.md
           - Demo Dataset: architecture/demo-dataset.md
           - Nightly Review: operations/nightly-review.md
