@@ -272,7 +272,11 @@ router.patch('/contexts/:id', writeContexts, async (req, res) => {
 
   const ctx = await db.queryOne(`SELECT variant, "targetType" FROM "Contexts" WHERE id = $1`, [req.params.id]);
   if (!ctx) return res.status(404).json({ error: 'Context not found' });
-  if (ctx.variant !== 'manual') return res.status(400).json({ error: 'Only manual contexts can be edited' });
+  // Manual and generated (plugin) contexts can be renamed / re-parented by the
+  // analyst. Only synced contexts (mirrored from a source system) are locked.
+  // NOTE: re-running the generating plugin reconciles by externalId and will
+  // overwrite an edited name/parent on a generated context.
+  if (ctx.variant === 'synced') return res.status(400).json({ error: 'Synced contexts are read-only (managed by their source system)' });
 
   const body = req.body || {};
   const sets = [];
