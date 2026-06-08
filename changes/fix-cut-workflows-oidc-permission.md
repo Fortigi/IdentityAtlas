@@ -1,0 +1,1 @@
+- Fixed Cut Beta, Cut Release, and Cut Hotfix workflows failing at the "Synthesize release notes with Claude" step — added `id-token: write` permission required by `claude-code-action` when using OAuth token authentication
