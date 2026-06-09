@@ -197,20 +197,34 @@ try {
         Report-Result 'Omada/Data — system registered' $false $_.Exception.Message
     }
 
-    # ── Assert: principal ingested (scoped to this run's system) ─────────────
+    # ── Assert: principal ingested (scoped to this run via unique test email) ──
+    # Search by the mock user's email — unique across CI runs (no real user would
+    # have 'integration.testuser@example.com'), so this can't be satisfied by
+    # Entra ID or demo data from earlier CI steps.
     try {
-        $principalCount = [int]($thisSystem?.principalCount ?? 0)
+        $usersResp = Invoke-RestMethod -Uri "$ApiBaseUrl/users?search=integration.testuser&limit=5" `
+            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $principalCount = if ($usersResp.users)           { $usersResp.users.Count }
+                          elseif ($usersResp.data)        { $usersResp.data.Count }
+                          elseif ($usersResp -is [array]) { $usersResp.Count }
+                          else { 0 }
         Report-Result 'Omada/Data — principal ingested' ($principalCount -ge 1) `
-            "($principalCount principal(s) in this system)"
+            "($principalCount user(s) matching 'integration.testuser')"
     } catch {
         Report-Result 'Omada/Data — principal ingested' $false $_.Exception.Message
     }
 
-    # ── Assert: resource ingested (scoped to this run's system) ──────────────
+    # ── Assert: resource ingested (scoped to this run's system via systemId) ───
+    # Resources support ?systemId= filtering — use the system we found by port.
     try {
-        $resourceCount = [int]($thisSystem?.resourceCount ?? 0)
+        $systemId = if ($thisSystem) { $thisSystem.id } else { 0 }
+        $resResp  = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?systemId=$systemId&limit=10" `
+            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $resourceCount = if ($resResp.data)           { $resResp.data.Count }
+                         elseif ($resResp -is [array]) { $resResp.Count }
+                         else { 0 }
         Report-Result 'Omada/Data — resource ingested' ($resourceCount -ge 1) `
-            "($resourceCount resource(s) in this system)"
+            "($resourceCount resource(s) in system $systemId)"
     } catch {
         Report-Result 'Omada/Data — resource ingested' $false $_.Exception.Message
     }
