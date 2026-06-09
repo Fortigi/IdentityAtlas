@@ -11,6 +11,9 @@
         . (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared' 'Test-Helpers.ps1')
 #>
 
+[CmdletBinding()]
+param()
+
 function Report-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color  = if ($Passed) { 'Green' } else { 'Red' }
