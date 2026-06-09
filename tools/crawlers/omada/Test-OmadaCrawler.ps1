@@ -197,6 +197,12 @@ try {
         Report-Result 'Omada/Data — system registered' $false $_.Exception.Message
     }
 
+    # Diagnostic: log the systems API's own principalCount/resourceCount so we can
+    # compare against the direct-query values below and detect discrepancies.
+    if ($thisSystem) {
+        Write-Host "  [diag] systems API: principalCount=$($thisSystem.principalCount) resourceCount=$($thisSystem.resourceCount) systemId=$($thisSystem.id)" -ForegroundColor DarkGray
+    }
+
     # ── Assert: principal ingested (scoped to this run via unique test email) ──
     # Search by the mock user's email — unique across CI runs (no real user would
     # have 'integration.testuser@example.com'), so this can't be satisfied by
