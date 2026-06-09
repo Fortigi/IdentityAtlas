@@ -266,7 +266,7 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
         {editable && !renaming && !dragging && (
           <button
             onClick={() => { setAddingChild(true); setExpanded(node.id, true); }}
-            className="w-5 h-5 flex items-center justify-center text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded shrink-0"
+            className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-400 opacity-0 group-hover:opacity-100 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded shrink-0"
             title="Add a child context"
           >
             +
