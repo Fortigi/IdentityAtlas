@@ -2,3 +2,6 @@
 - Edited generated contexts are highlighted with an amber "✎ Edited" marker so it's clear at a glance which nodes you've changed by hand.
 - Your renames and re-parenting on generated contexts are now preserved when the plugin re-runs (previously a re-run reset them).
 - Member counts (direct and total) update immediately after re-parenting, adding, or moving a node, so the numbers on every context stay correct.
+- The tree keeps your expanded/collapsed nodes after a drag-drop move instead of collapsing back to the top.
+- The "Run plugin" dialog no longer closes when you click outside it, so a stray click can't discard what you were setting up.
+- When a plugin asks for a list of attributes (e.g. how to name org-tree nodes), you now pick them from a dropdown of real attributes with a "+ Add attribute" button, instead of editing raw JSON.

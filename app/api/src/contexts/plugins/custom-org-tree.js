@@ -39,6 +39,9 @@ export default {
         type: 'array',
         items: { type: 'string' },
         default: ['department'],
+        // UI hint: render a dropdown of real Principal attributes with a "+" to
+        // add more, instead of a raw-JSON textarea. (See RunPluginModal.)
+        'x-attributeSource': 'principal',
         description:
           'Principal attribute(s) used to name each manager node. One field → "<value> (<manager>)"; ' +
           'several → joined with nameSeparator. Unknown field names are ignored. ' +

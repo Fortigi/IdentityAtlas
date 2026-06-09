@@ -22,6 +22,7 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
   const [selected, setSelected] = useState(null);   // plugin object
   const [params, setParams] = useState({});         // form values
   const [systems, setSystems] = useState([]);
+  const [principalAttrs, setPrincipalAttrs] = useState([]); // attribute names for the name-field picker
 
   const [dryRunning, setDryRunning] = useState(false);
   const [dryResult, setDryResult] = useState(null);
@@ -35,9 +36,10 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
     (async () => {
       setPluginsLoading(true); setPluginsError(null);
       try {
-        const [pr, sr] = await Promise.all([
+        const [pr, sr, cr] = await Promise.all([
           authFetch('/api/context-plugins'),
           authFetch('/api/systems'),
+          authFetch('/api/matrix/columns?entity=Principal&schema=true'),
         ]);
         if (!pr.ok) throw new Error(`plugins HTTP ${pr.status}`);
         const pbody = await pr.json();
@@ -45,6 +47,11 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
         if (sr.ok) {
           const sbody = await sr.json();
           setSystems(sbody.data || sbody || []);
+        }
+        if (cr.ok) {
+          const cols = await cr.json();
+          // Endpoint returns [{ column, type, values }] — we only need names.
+          setPrincipalAttrs(Array.isArray(cols) ? cols.map(c => c.column).filter(Boolean) : []);
         }
       } catch (err) {
         setPluginsError(err.message || 'Failed to load plugins');
@@ -131,6 +138,7 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
       subtitle={selected ? selected.displayName : 'Pick an algorithm to generate a context tree.'}
       onClose={onClose}
       width={620}
+      dismissOnBackdrop={false}
     >
       {pluginsLoading && <div className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading plugins…</div>}
       {pluginsError && <ErrorBox message={pluginsError} />}
@@ -151,6 +159,7 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
               values={params}
               onChange={setParams}
               systems={systems}
+              principalAttrs={principalAttrs}
             />
           </div>
 
@@ -233,7 +242,7 @@ function groupByTargetType(plugins) {
 // Handles only what the current plugin registry uses: a flat object with
 // string / integer properties, optional defaults, required list. scopeSystemId
 // gets a system-picker instead of a number input for ergonomics.
-function JsonSchemaForm({ schema, values, onChange, systems }) {
+function JsonSchemaForm({ schema, values, onChange, systems, principalAttrs = [] }) {
   if (!schema?.properties) {
     return <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">This plugin takes no parameters.</p>;
   }
@@ -275,6 +284,20 @@ function JsonSchemaForm({ schema, values, onChange, systems }) {
         </Field>
       );
     }
+    // Array of attribute names → friendly dropdown list with add/remove,
+    // populated from the real Principal columns. Marked in the schema with
+    // "x-attributeSource": "principal".
+    if (spec.type === 'array' && spec['x-attributeSource'] === 'principal') {
+      return (
+        <Field key={name} label={label} help={help}>
+          <AttributeListField
+            value={Array.isArray(values[name]) ? values[name] : []}
+            options={principalAttrs}
+            onChange={val => setField(name, val)}
+          />
+        </Field>
+      );
+    }
     if (spec.type === 'array' || spec.type === 'object') {
       // Paste JSON. The form stores the *parsed* value; invalid JSON is
       // surfaced inline and the Run button will stay disabled via the
@@ -302,6 +325,70 @@ function JsonSchemaForm({ schema, values, onChange, systems }) {
       </Field>
     );
   });
+}
+
+// A list of attribute dropdowns with a "+" to add more and an "×" to remove —
+// the friendly alternative to hand-editing a JSON array of attribute names.
+// Always renders at least one row. Each row is a <select> of the available
+// Principal attributes; an "(other…)" escape hatch lets you type a name the
+// schema-discovery didn't surface (e.g. an extendedAttributes key).
+function AttributeListField({ value, options, onChange }) {
+  const rows = value.length > 0 ? value : [''];
+  const OTHER = '__other__';
+
+  function update(i, v) {
+    const next = rows.slice();
+    next[i] = v;
+    onChange(next.filter(x => x !== '' && x !== OTHER));
+  }
+  function addRow() { onChange([...rows.filter(Boolean), '']); }
+  function removeRow(i) {
+    const next = rows.slice();
+    next.splice(i, 1);
+    onChange(next.filter(Boolean));
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {rows.map((val, i) => {
+        const isKnown = val === '' || options.includes(val);
+        return (
+          <div key={i} className="flex items-center gap-1.5">
+            <select
+              value={isKnown ? val : OTHER}
+              onChange={e => update(i, e.target.value === OTHER ? '' : e.target.value)}
+              className="flex-1 border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+            >
+              <option value="">(select an attribute…)</option>
+              {options.map(o => <option key={o} value={o}>{o}</option>)}
+              <option value={OTHER}>(other — type a name)</option>
+            </select>
+            {!isKnown && (
+              <input
+                value={val}
+                onChange={e => update(i, e.target.value)}
+                placeholder="attribute name"
+                className="flex-1 border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+              />
+            )}
+            {rows.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeRow(i)}
+                className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-red-600 dark:hover:text-red-400 rounded shrink-0"
+                title="Remove"
+              >×</button>
+            )}
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={addRow}
+        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+      >+ Add attribute</button>
+    </div>
+  );
 }
 
 function JsonField({ label, help, spec, value, onChange }) {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   useDraggable, useDroppable, closestCenter,
@@ -54,6 +54,43 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
 
   const editable = typeof onReparent === 'function';
 
+  // Expand/collapse state lives here (keyed by node id) instead of in each
+  // TreeNode's local state, so it SURVIVES a refetch — e.g. after a drag-drop
+  // re-parent the tree reloads, but every node you'd expanded stays expanded.
+  // New nodes default to expanded when shallow (depth < 2); we remember which
+  // ids we've already defaulted so a node you deliberately collapsed doesn't
+  // spring back open on the next reload.
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const seededRef = useRef(new Set());
+  useEffect(() => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      const walk = (list, depth) => {
+        for (const n of list) {
+          if (!seededRef.current.has(n.id)) {
+            seededRef.current.add(n.id);
+            if (depth < 2) next.add(n.id);
+          }
+          if (n.children?.length) walk(n.children, depth + 1);
+        }
+      };
+      walk(nodes, 0);
+      return next;
+    });
+  }, [nodes]);
+
+  const isExpanded = (id) => expandedIds.has(id);
+  const toggleExpanded = (id) => setExpandedIds(prev => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const setExpanded = (id, v) => setExpandedIds(prev => {
+    const n = new Set(prev);
+    if (v) n.add(id); else n.delete(id);
+    return n;
+  });
+
   function handleDragEnd(evt) {
     const { active, over } = evt;
     setActiveId(null);
@@ -79,6 +116,9 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
             editable={editable}
             forbidden={forbidden}
             dragging={!!activeId}
+            isExpanded={isExpanded}
+            toggleExpanded={toggleExpanded}
+            setExpanded={setExpanded}
           />
         ))}
       </ul>
@@ -103,8 +143,8 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
   );
 }
 
-function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, editable, forbidden, dragging }) {
-  const [expanded, setExpanded] = useState(depth < 2);
+function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, editable, forbidden, dragging, isExpanded, toggleExpanded, setExpanded }) {
+  const expanded = isExpanded(node.id);
   const [renaming, setRenaming] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
   const hasChildren = node.children && node.children.length > 0;
@@ -150,7 +190,7 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
         {hasChildren ? (
           <button
             aria-expanded={expanded}
-            onClick={() => setExpanded(prev => !prev)}
+            onClick={() => toggleExpanded(node.id)}
             className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded shrink-0"
             title={expanded ? 'Collapse' : 'Expand'}
           >
@@ -209,7 +249,7 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
         {/* Add-child affordance — appears on hover, hidden while dragging. */}
         {editable && !renaming && !dragging && (
           <button
-            onClick={() => { setAddingChild(true); setExpanded(true); }}
+            onClick={() => { setAddingChild(true); setExpanded(node.id, true); }}
             className="w-5 h-5 flex items-center justify-center text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded shrink-0"
             title="Add a child context"
           >
@@ -240,6 +280,9 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
               onOpenDetail={onOpenDetail}
               onRename={onRename}
               onAddChild={onAddChild}
+              isExpanded={isExpanded}
+              toggleExpanded={toggleExpanded}
+              setExpanded={setExpanded}
               editable={editable}
               forbidden={forbidden}
               dragging={dragging}
