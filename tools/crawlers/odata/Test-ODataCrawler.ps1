@@ -109,6 +109,28 @@ try {
     }
     Set-MockControl @{ reset = $true }
 
+    # ── OAuth2 proactive token refresh ────────────────────────────────────────
+    # Mock issues a token with expires_in=0, so the library's session clock sees
+    # it as already expired. No waiting needed: Update-ODataSessionIfExpired runs
+    # before every request and refreshes when UtcNow >= ExpiresAt - 2min.
+    # With ExpiresAt = UtcNow+0s that condition is immediately true, triggering a
+    # silent re-fetch before the GET. The request must still succeed.
+    Write-Host "`n  Token refresh test:" -ForegroundColor Gray
+    Set-MockControl @{ tokenExpiresIn = 0 }
+    try {
+        Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod OAuth2CC `
+            -ClientId 'mock-client' -ClientSecret 'mock-secret' `
+            -TokenEndpoint "http://localhost:$($mock.Port)/oauth/token"
+        $result = Invoke-ODataGetRequest -Path '/TestEntities'
+        $passed = $null -ne $result -and $result.Count -gt 0
+        Report-Result 'OData/TokenRefresh — OAuth2CC proactive refresh on expired token' $passed `
+            "($($result.Count) entities returned after auto-refresh)"
+    } catch {
+        Report-Result 'OData/TokenRefresh — OAuth2CC proactive refresh on expired token' $false $_.Exception.Message
+    } finally {
+        Set-MockControl @{ reset = $true }   # restore default token TTL for remaining tests
+    }
+
     # ── $skip pagination (Invoke-ODataPagedRequest) ───────────────────────────
     try {
         Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod BasicAuth -Username testuser -Password testpass
