@@ -187,42 +187,36 @@ try {
         throw "Job failed with status: $($completed.status)"
     }
 
-    # ── Assert: system registered ─────────────────────────────────────────────
+    # ── Assert: system registered + counts scoped to this run ────────────────
+    # The systems endpoint returns resourceCount/principalCount inline, so a
+    # single call both verifies the system exists AND avoids asserting against
+    # the full database (prior CI steps may have loaded other systems/users).
+    # We identify our system by the mock port which is OS-assigned and unique.
+    $thisSystem = $null
     try {
         $systems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" `
             -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
-        $systemCount = if ($systems -is [array]) { $systems.Count }
-                       elseif ($systems.data) { $systems.data.Count }
-                       else { $systems.Count ?? 0 }
-        Report-Result 'Omada/Data — system registered' ($systemCount -ge 1) `
-            "($systemCount system(s) in database)"
+        $thisSystem = @($systems) | Where-Object { $_.displayName -like "*:$($mock.Port)/*" } | Select-Object -First 1
+        Report-Result 'Omada/Data — system registered' ($null -ne $thisSystem) `
+            "$(if ($thisSystem) { "($($thisSystem.displayName))" } else { '(not found — port $($mock.Port) not in any system displayName)' })"
     } catch {
         Report-Result 'Omada/Data — system registered' $false $_.Exception.Message
     }
 
-    # ── Assert: principal ingested ────────────────────────────────────────────
+    # ── Assert: principal ingested (scoped to this run's system) ─────────────
     try {
-        $users = Invoke-RestMethod -Uri "$ApiBaseUrl/users?limit=100" `
-            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
-        $userCount = if ($users.users) { $users.users.Count }
-                     elseif ($users.data) { $users.data.Count }
-                     elseif ($users -is [array]) { $users.Count }
-                     else { 0 }
-        Report-Result 'Omada/Data — principal ingested' ($userCount -ge 1) `
-            "($userCount user(s) in database)"
+        $principalCount = [int]($thisSystem?.principalCount ?? 0)
+        Report-Result 'Omada/Data — principal ingested' ($principalCount -ge 1) `
+            "($principalCount principal(s) in this system)"
     } catch {
         Report-Result 'Omada/Data — principal ingested' $false $_.Exception.Message
     }
 
-    # ── Assert: resource ingested ─────────────────────────────────────────────
+    # ── Assert: resource ingested (scoped to this run's system) ──────────────
     try {
-        $resources = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?limit=10" `
-            -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
-        $resourceCount = if ($resources.data) { $resources.data.Count }
-                         elseif ($resources -is [array]) { $resources.Count }
-                         else { 0 }
+        $resourceCount = [int]($thisSystem?.resourceCount ?? 0)
         Report-Result 'Omada/Data — resource ingested' ($resourceCount -ge 1) `
-            "($resourceCount resource(s) in database)"
+            "($resourceCount resource(s) in this system)"
     } catch {
         Report-Result 'Omada/Data — resource ingested' $false $_.Exception.Message
     }
