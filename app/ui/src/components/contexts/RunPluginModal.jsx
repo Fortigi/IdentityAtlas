@@ -22,7 +22,7 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
   const [selected, setSelected] = useState(null);   // plugin object
   const [params, setParams] = useState({});         // form values
   const [systems, setSystems] = useState([]);
-  const [principalAttrs, setPrincipalAttrs] = useState([]); // attribute names for the name-field picker
+  const [principalAttrs, setPrincipalAttrs] = useState({ columns: [], extended: [] }); // for the name-field picker
 
   const [dryRunning, setDryRunning] = useState(false);
   const [dryResult, setDryResult] = useState(null);
@@ -39,7 +39,7 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
         const [pr, sr, cr] = await Promise.all([
           authFetch('/api/context-plugins'),
           authFetch('/api/systems'),
-          authFetch('/api/matrix/columns?entity=Principal&schema=true'),
+          authFetch('/api/context-plugins/principal-attributes'),
         ]);
         if (!pr.ok) throw new Error(`plugins HTTP ${pr.status}`);
         const pbody = await pr.json();
@@ -49,9 +49,9 @@ export default function RunPluginModal({ open, onClose, onRunStarted }) {
           setSystems(sbody.data || sbody || []);
         }
         if (cr.ok) {
-          const cols = await cr.json();
-          // Endpoint returns [{ column, type, values }] — we only need names.
-          setPrincipalAttrs(Array.isArray(cols) ? cols.map(c => c.column).filter(Boolean) : []);
+          const ab = await cr.json();
+          // { columns: [...real cols...], extended: [...extendedAttributes keys...] }
+          setPrincipalAttrs({ columns: ab.columns || [], extended: ab.extended || [] });
         }
       } catch (err) {
         setPluginsError(err.message || 'Failed to load plugins');
@@ -329,10 +329,13 @@ function JsonSchemaForm({ schema, values, onChange, systems, principalAttrs = []
 
 // A list of attribute dropdowns with a "+" to add more and an "×" to remove —
 // the friendly alternative to hand-editing a JSON array of attribute names.
-// Always renders at least one row. Each row is a <select> of the available
-// Principal attributes; an "(other…)" escape hatch lets you type a name the
-// schema-discovery didn't surface (e.g. an extendedAttributes key).
+// Always renders at least one row. The <select> groups real Principal columns
+// and extendedAttributes keys under separate headings; an "(other…)" escape
+// hatch lets you type a name discovery didn't surface.
 function AttributeListField({ value, options, onChange }) {
+  const columns = options?.columns || [];
+  const extended = options?.extended || [];
+  const known = new Set([...columns, ...extended]);
   const rows = value.length > 0 ? value : [''];
   const OTHER = '__other__';
 
@@ -351,7 +354,7 @@ function AttributeListField({ value, options, onChange }) {
   return (
     <div className="space-y-1.5">
       {rows.map((val, i) => {
-        const isKnown = val === '' || options.includes(val);
+        const isKnown = val === '' || known.has(val);
         return (
           <div key={i} className="flex items-center gap-1.5">
             <select
@@ -360,7 +363,16 @@ function AttributeListField({ value, options, onChange }) {
               className="flex-1 border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
             >
               <option value="">(select an attribute…)</option>
-              {options.map(o => <option key={o} value={o}>{o}</option>)}
+              {columns.length > 0 && (
+                <optgroup label="Attributes">
+                  {columns.map(o => <option key={o} value={o}>{o}</option>)}
+                </optgroup>
+              )}
+              {extended.length > 0 && (
+                <optgroup label="Extended attributes">
+                  {extended.map(o => <option key={o} value={o}>{o}</option>)}
+                </optgroup>
+              )}
               <option value={OTHER}>(other — type a name)</option>
             </select>
             {!isKnown && (

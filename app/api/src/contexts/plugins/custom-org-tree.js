@@ -43,9 +43,10 @@ export default {
         // add more, instead of a raw-JSON textarea. (See RunPluginModal.)
         'x-attributeSource': 'principal',
         description:
-          'Principal attribute(s) used to name each manager node. One field → "<value> (<manager>)"; ' +
-          'several → joined with nameSeparator. Unknown field names are ignored. ' +
-          'Examples: ["jobTitle"], ["department","companyName"].',
+          'Principal attribute(s) used to name each manager node — a real column ' +
+          '(department, jobTitle, companyName…) or an extendedAttributes key ' +
+          '(sfDepartmentName, extensionAttribute1…). One field → "<value> (<manager>)"; ' +
+          'several → joined with nameSeparator. Unknown field names are ignored.',
       },
       nameSeparator: {
         type: 'string',
@@ -73,13 +74,28 @@ export default {
     const separator = typeof params.nameSeparator === 'string' ? params.nameSeparator : ' · ';
     const includeManagerName = params.includeManagerName !== false;
 
-    // Validate requested name fields against the REAL Principal columns — this
-    // both prevents SQL injection (the field names go straight into the SELECT)
-    // and silently drops typo'd fields. Fall back to department, else nothing.
+    // Resolve each requested name field to either a REAL Principal column or a
+    // key inside the extendedAttributes JSON (e.g. sfDepartmentName). Both are
+    // validated against a whitelist — real columns from the schema, extended
+    // keys from the keys actually present for this system — so a field name
+    // never reaches SQL unchecked. Unknown fields are dropped; fall back to
+    // department. Each resolved field gets a positional output alias (f0, f1…).
     const validCols = new Set((await getPrincipalColumns()).map((c) => c.name));
-    let nameFields = (Array.isArray(params.nameFields) ? params.nameFields : [])
-      .filter((f) => typeof f === 'string' && validCols.has(f));
-    if (nameFields.length === 0 && validCols.has('department')) nameFields = ['department'];
+    const validExtKeys = new Set((await db.query(
+      `SELECT DISTINCT jsonb_object_keys("extendedAttributes") AS k
+         FROM "Principals" WHERE "systemId" = $1 AND "extendedAttributes" IS NOT NULL`,
+      [scopeSystemId]
+    )).rows.map((r) => r.k));
+
+    const requested = (Array.isArray(params.nameFields) ? params.nameFields : [])
+      .filter((f) => typeof f === 'string');
+    const resolved = []; // { name, real }
+    for (const f of requested) {
+      if (validCols.has(f)) resolved.push({ name: f, real: true });
+      else if (validExtKeys.has(f)) resolved.push({ name: f, real: false });
+    }
+    if (resolved.length === 0 && validCols.has('department')) resolved.push({ name: 'department', real: true });
+    const nameFieldLabels = resolved.map((r) => r.name);
 
     const excludeRegexes = (params.excludeNamePatterns || []).map((src, i) => {
       try { return new RE2(src, 'i'); }
@@ -87,12 +103,23 @@ export default {
     });
     const matchesExclude = (name) => !!name && excludeRegexes.some((re) => re.test(name));
 
-    const fieldCols = nameFields.map((f) => `"${f}"`).join(', ');
+    // Build the SELECT: real columns inline (whitelisted), extended keys via a
+    // parameterized ->> with a safe positional alias.
+    const selectParts = ['id', '"displayName"', '"managerId"'];
+    const queryParams = [scopeSystemId];
+    resolved.forEach((r, i) => {
+      if (r.real) {
+        selectParts.push(`"${r.name}" AS "f${i}"`);
+      } else {
+        queryParams.push(r.name);
+        selectParts.push(`"extendedAttributes" ->> $${queryParams.length} AS "f${i}"`);
+      }
+    });
     const rows = (await db.query(`
-      SELECT id, "displayName", "managerId"${fieldCols ? ', ' + fieldCols : ''}
+      SELECT ${selectParts.join(', ')}
         FROM "Principals"
        WHERE "systemId" = $1
-    `, [scopeSystemId])).rows;
+    `, queryParams)).rows;
 
     if (rows.length === 0) {
       ctx.log?.(`No principals in system ${scopeSystemId} — nothing to do.`);
@@ -111,10 +138,13 @@ export default {
     }
     if (excludedCount > 0) ctx.log?.(`Excluded ${excludedCount} manager node(s) via excludeNamePatterns.`);
 
-    // Build a node name from the configured fields (+ optional manager name).
+    // Build a node name from the resolved fields (read via their f0/f1… alias)
+    // plus the optional manager name.
     const nameFor = (mgr) => {
       const mgrName = mgr?.displayName || 'Unknown';
-      const parts = nameFields.map((f) => (mgr?.[f] == null ? '' : String(mgr[f]).trim())).filter(Boolean);
+      const parts = resolved
+        .map((_, i) => (mgr?.[`f${i}`] == null ? '' : String(mgr[`f${i}`]).trim()))
+        .filter(Boolean);
       const label = parts.join(separator);
       if (label && includeManagerName) return `${label} (${mgrName})`;
       if (label) return label;
@@ -125,7 +155,7 @@ export default {
       externalId: 'root',
       displayName: rootName,
       contextType: 'OrgTree',
-      description: `Custom org tree for system ${scopeSystemId} (custom-org-tree plugin). Named by: ${nameFields.join(', ') || 'manager name'}.`,
+      description: `Custom org tree for system ${scopeSystemId} (custom-org-tree plugin). Named by: ${nameFieldLabels.join(', ') || 'manager name'}.`,
     }];
 
     for (const managerId of managerIds) {
@@ -148,7 +178,7 @@ export default {
       }
     }
 
-    ctx.log?.(`Built ${contexts.length} contexts, ${members.length} member rows. Named by [${nameFields.join(', ') || 'manager name'}].`);
+    ctx.log?.(`Built ${contexts.length} contexts, ${members.length} member rows. Named by [${nameFieldLabels.join(', ') || 'manager name'}].`);
     return { contexts, members };
   },
 };

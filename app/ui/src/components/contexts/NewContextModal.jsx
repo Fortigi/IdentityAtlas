@@ -38,7 +38,7 @@ export default function NewContextModal({ open, onClose, onCreated, onRunStarted
   }
 
   return (
-    <Modal title="New context tree" subtitle="Where should this tree come from?" onClose={close} width={600}>
+    <Modal title="New context tree" subtitle="Where should this tree come from?" onClose={close} width={600} dismissOnBackdrop={false}>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card
           title="Import"

@@ -148,7 +148,11 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
                   {editError}
                 </div>
               )}
-              {subtreeLoading ? (
+              {/* Only show the loading placeholder on the FIRST load (no nodes
+                  yet). On a refetch after an edit we keep the tree mounted so it
+                  doesn't unmount-and-remount — that would reset every node's
+                  expand/collapse state and collapse the tree on each drag-drop. */}
+              {subtreeLoading && nodes.length === 0 ? (
                 <div className="p-4 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading subtree…</div>
               ) : viewMode === 'tree' ? (
                 <ContextTreeView
