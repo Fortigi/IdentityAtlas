@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { useMatrixRowOrder } from '../hooks/useMatrixRowOrder';
 import MatrixToolbar from './matrix/MatrixToolbar';
@@ -700,8 +700,41 @@ export default function MatrixView({
 
   const filterIsApplied = filter !== null && filter !== undefined;
 
+  // Cap the grid's height to the remaining viewport so ONLY the grid scrolls,
+  // never the page too. A fixed max-h-[calc(100vh-280px)] guesses the chrome
+  // height; the real chrome (auth banner + scope stats + "How to read") is
+  // taller, so the grid sat too low and the page got a second scrollbar.
+  // Measure the grid's real document-top instead and re-measure on any layout
+  // change (header content loads late, panels toggle).
+  const rootRef = useRef(null);
+  const [gridMaxH, setGridMaxH] = useState(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      // Reserve room for the app footer (below <main>) + main's bottom padding.
+      const footer = document.querySelector('footer');
+      const below = (footer ? footer.getBoundingClientRect().height : 0) + 28;
+      // clientHeight = real layout height; document-relative top (rect.top is
+      // viewport-relative, so a scrolled page would read too small and cap the
+      // grid too tall — a self-sustaining overflow). scrollY corrects that.
+      const vh = document.documentElement.clientHeight;
+      const gridTop = el.getBoundingClientRect().top + window.scrollY;
+      setGridMaxH(Math.max(240, vh - gridTop - below));
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure); // body: anything above the grid shifts it down
+      ro.observe(document.body);
+    }
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
+  }, [filterIsApplied, users.length]);
+
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={rootRef} className="flex flex-col gap-3">
       {filterIsApplied && (
         <MatrixFilterSummary
           filter={filter}
@@ -734,7 +767,7 @@ export default function MatrixView({
           No assignments match the current filter. Adjust the subjects or resources to widen the view.
         </div>
       ) : (
-        <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto max-h-[calc(100vh-280px)]">
+        <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
           {refreshing && (
             <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 z-10 flex items-center justify-center">
               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 shadow-sm flex items-center gap-2">

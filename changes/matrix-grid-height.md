@@ -1,0 +1,1 @@
+- Fixed the matrix still showing a second (page) scrollbar next to the grid's own. The grid now measures the actual space left below the page chrome (auth banner, scope statistics, "How to read") and caps its height to fit, instead of a fixed estimate that was too tall — so only the grid scrolls, never the page.
