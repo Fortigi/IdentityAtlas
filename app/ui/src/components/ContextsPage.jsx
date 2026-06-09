@@ -32,11 +32,42 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
     onOpenDetail?.('context', id, name);
   }
 
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState(null);
+
   // Refresh both the subtree (structure + recomputed member counts) and the
   // roots list (root-level totals shown in the left selector) after any edit.
   async function refreshAfterEdit() {
     await reloadSubtree();
     reloadRoots();
+  }
+
+  // Sync = re-run the generating plugin onto this tree so out-of-date
+  // references update (e.g. a user who changed manager moves to the new node),
+  // keeping all analyst edits. We poll the queued run, then refresh the view.
+  async function syncTree(rootId) {
+    setSyncing(true); setSyncMsg(null); setEditError(null);
+    try {
+      const r = await authFetch(`/api/contexts/${rootId}/sync`, { method: 'POST' });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+      const runId = body.runId;
+      const deadline = Date.now() + 120000;
+      let status = 'queued';
+      while (runId && Date.now() < deadline) {
+        await new Promise(res => setTimeout(res, 2000));
+        const pr = await authFetch(`/api/context-plugins/runs/${runId}`);
+        if (pr.ok) { status = (await pr.json()).status; if (status === 'succeeded' || status === 'failed') break; }
+      }
+      if (status === 'failed') throw new Error('Sync run failed — see the run log.');
+      await refreshAfterEdit();
+      setSyncMsg('Synced');
+      setTimeout(() => setSyncMsg(null), 2500);
+    } catch (e) {
+      setEditError(e.message || 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
   }
 
   // Drag-drop re-parent: make `childId` a child of `newParentId`. The API
@@ -142,6 +173,9 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
                 onChangeViewMode={setViewMode}
                 onDeleteTree={deleteTree}
                 deleteError={deleteError}
+                onSyncTree={syncTree}
+                syncing={syncing}
+                syncMsg={syncMsg}
               />
               {editError && (
                 <div className="mx-4 mt-3 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">
@@ -197,13 +231,15 @@ function findNodeById(nodes, id) {
   return null;
 }
 
-function SelectedRootHeader({ root, viewMode, onChangeViewMode, onDeleteTree, deleteError }) {
+function SelectedRootHeader({ root, viewMode, onChangeViewMode, onDeleteTree, deleteError, onSyncTree, syncing, syncMsg }) {
   const v = variantMeta(root.variant);
   const t = targetTypeMeta(root.targetType);
   const [confirming, setConfirming] = useState(false);
   // Synced trees come from a crawler — deleting them via the API would
   // let them re-appear on the next sync, so the API blocks it.
   const canDelete = root.variant !== 'synced';
+  // Sync re-runs the generating plugin onto this tree, so only generated trees.
+  const canSync = root.variant === 'generated';
   return (
     <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-col gap-2">
       <div className="flex items-center justify-between gap-4">
@@ -230,6 +266,18 @@ function SelectedRootHeader({ root, viewMode, onChangeViewMode, onDeleteTree, de
         </div>
 
         <div className="flex items-center gap-3">
+          {canSync && (
+            <button
+              onClick={() => onSyncTree?.(root.id)}
+              disabled={syncing}
+              className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:opacity-50"
+              title="Re-run the plugin to update memberships (e.g. manager changes) — your renames, moves and manual additions are kept"
+            >
+              <span className={syncing ? 'inline-block animate-spin' : ''} aria-hidden="true">↻</span>
+              {syncing ? 'Syncing…' : 'Sync'}
+            </button>
+          )}
+          {syncMsg && <span className="text-[11px] text-green-700 dark:text-green-400">{syncMsg}</span>}
           {canDelete && !confirming && (
             <button
               onClick={() => setConfirming(true)}

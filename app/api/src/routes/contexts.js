@@ -20,6 +20,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import * as db from '../db/connection.js';
 import { recalcMemberCountsForChain } from '../contexts/memberCounts.js';
+import { enqueueRun } from '../contexts/plugins/runner.js';
 import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
@@ -348,6 +349,62 @@ router.patch('/contexts/:id', writeContexts, async (req, res) => {
   } catch (err) {
     console.error('PATCH /contexts/:id failed:', err.message);
     res.status(500).json({ error: 'Failed to update context' });
+  }
+});
+
+// ─── POST /api/contexts/:id/sync ─────────────────────────────────────
+// Re-run the generating plugin onto THIS tree (its own instance key + the
+// parameters of the run that last wrote it), so out-of-date references update —
+// e.g. a user who changed manager moves to the new node — WITHOUT discarding
+// analyst edits. The runner preserves analyst renames / re-parenting and keeps
+// analyst-added members and manual children; only algorithm-owned membership is
+// recomputed. Returns the queued runId.
+router.post('/contexts/:id/sync', writeContexts, async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+
+  try {
+    const ctx = await db.queryOne(`
+      SELECT c.id, c.variant, c."sourceAlgorithmId", c."scopeSystemId",
+             c."sourceInstanceKey", c."sourceRunId", a.name AS "algorithmName"
+        FROM "Contexts" c
+        LEFT JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id
+       WHERE c.id = $1
+    `, [req.params.id]);
+    if (!ctx) return res.status(404).json({ error: 'Context not found' });
+    if (ctx.variant !== 'generated' || !ctx.algorithmName) {
+      return res.status(400).json({ error: 'Only generated (plugin) trees can be synced' });
+    }
+
+    // Replay the parameters from the run that last wrote this tree so node
+    // naming etc. stay identical; fall back to just the scope if unavailable.
+    let params = {};
+    if (ctx.sourceRunId) {
+      const run = await db.queryOne(`SELECT parameters FROM "ContextAlgorithmRuns" WHERE id = $1`, [ctx.sourceRunId]);
+      if (run?.parameters) params = { ...run.parameters };
+    }
+    if (ctx.scopeSystemId != null) params.scopeSystemId = ctx.scopeSystemId;
+
+    // Make sure the whole tree carries an instance key (legacy trees predate
+    // them), then refresh that exact instance in place.
+    let instanceKey = ctx.sourceInstanceKey;
+    if (!instanceKey) {
+      instanceKey = randomUUID();
+      await db.query(`
+        UPDATE "Contexts" SET "sourceInstanceKey" = $1
+         WHERE "sourceAlgorithmId" = $2
+           AND ($3::int IS NULL OR "scopeSystemId" = $3)
+           AND "sourceInstanceKey" IS NULL
+      `, [instanceKey, ctx.sourceAlgorithmId, ctx.scopeSystemId]);
+    }
+    params.instanceKey = instanceKey;
+
+    const triggeredBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'sync';
+    const runId = await enqueueRun(ctx.algorithmName, params, triggeredBy);
+    res.status(202).json({ runId, instanceKey });
+  } catch (err) {
+    console.error('POST /contexts/:id/sync failed:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to sync tree' });
   }
 });
 

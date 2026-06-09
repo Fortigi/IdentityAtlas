@@ -8,3 +8,4 @@
 - Creating a new context tree is now a single guided wizard with steps (Source → Pick plugin → Configure → Preview & run), matching the new-crawler and new-matrix wizards, with a live preview before anything is written.
 - Running a plugin now creates a separate, independent tree each time, so you can build several trees from the same plugin (e.g. one named by department and one by job title). The Preview & run step also lets you instead "Refresh an existing tree", which re-runs onto that tree and keeps your renames and re-parenting.
 - In the tree, a single click opens a context and a double click renames it inline (the click no longer races the double-click).
+- Generated trees now have a "Sync" button next to "Delete tree": it re-runs the plugin to update out-of-date memberships (for example, a user who changed manager moves to their new org unit) while keeping all your manual changes — renames, re-parenting, manual child contexts, and manually added members.
