@@ -155,8 +155,9 @@ try {
     try {
         $result = Invoke-ODataGetRequest -Path '/Empty'
         $passed = $null -ne $result -and $result -is [array] -and $result.Count -eq 0
-        Report-Result 'OData/EdgeCase — empty value array returns empty array (not null/throw)' $passed `
-            "(type: $($result.GetType().Name), count: $($result.Count))"
+        $detail = if ($null -eq $result) { '(null — function returned $null for empty collection)' }
+                  else { "(type: $($result.GetType().Name), count: $($result.Count))" }
+        Report-Result 'OData/EdgeCase — empty value array returns empty array (not null/throw)' $passed $detail
     } catch {
         Report-Result 'OData/EdgeCase — empty value array returns empty array (not null/throw)' $false $_.Exception.Message
     }
