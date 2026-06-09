@@ -116,8 +116,8 @@ try {
     # With ExpiresAt = UtcNow+0s that condition is immediately true, triggering a
     # silent re-fetch before the GET. The request must still succeed.
     Write-Host "`n  Token refresh test:" -ForegroundColor Gray
-    Set-MockControl @{ tokenExpiresIn = 0 }
     try {
+        Set-MockControl @{ tokenExpiresIn = 0 }
         Connect-ODataAPI -BaseUrl $baseUrl -AuthMethod OAuth2CC `
             -ClientId 'mock-client' -ClientSecret 'mock-secret' `
             -TokenEndpoint "http://localhost:$($mock.Port)/oauth/token"

@@ -113,6 +113,7 @@ $edmxSets = @('System', 'Identity', 'User', 'Resource', 'Resourceassignment')
 # ── Start mock server ─────────────────────────────────────────────────────────
 $mock = $null
 $configId = $null
+$cfgResult2 = $null
 
 try {
     $mock = Start-MockODataServer -EntitySets $mockEntities -EdmxEntitySets $edmxSets
