@@ -408,7 +408,7 @@ export default function App() {
   return (
     <ThemeContext.Provider value={{ isDark, mode }}>
     <ErrorBoundary>
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Skip link — first focusable element, visible only when focused */}
       <a
         href="#main-content"
