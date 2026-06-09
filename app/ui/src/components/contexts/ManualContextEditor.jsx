@@ -145,7 +145,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Edit context</h3>
         <span className="text-[10px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded px-1.5 py-0.5">
-          {isGenerated ? 'Generated — re-running the plugin resets edits' : 'Manual — analyst-owned'}
+          {isGenerated ? 'Generated — your name / parent edits are kept when the plugin re-runs' : 'Manual — analyst-owned'}
         </span>
       </div>
 

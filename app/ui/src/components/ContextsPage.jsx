@@ -24,11 +24,69 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
     return roots[0]?.id || null;
   }, [roots, selectedRootId]);
 
-  const { nodes, loading: subtreeLoading } = useContextSubtree(effectiveRootId);
+  const { nodes, loading: subtreeLoading, reload: reloadSubtree } = useContextSubtree(effectiveRootId);
   const selectedRoot = roots.find(r => r.id === effectiveRootId);
+  const [editError, setEditError] = useState(null);
 
   function open(id, name) {
     onOpenDetail?.('context', id, name);
+  }
+
+  // Refresh both the subtree (structure + recomputed member counts) and the
+  // roots list (root-level totals shown in the left selector) after any edit.
+  async function refreshAfterEdit() {
+    await reloadSubtree();
+    reloadRoots();
+  }
+
+  // Drag-drop re-parent: make `childId` a child of `newParentId`. The API
+  // validates targetType + cycles and recomputes counts on both branches.
+  async function reparent(childId, newParentId) {
+    setEditError(null);
+    try {
+      const r = await authFetch(`/api/contexts/${childId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentContextId: newParentId }),
+      });
+      if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.error || `HTTP ${r.status}`); }
+      await refreshAfterEdit();
+    } catch (e) { setEditError(e.message || 'Move failed'); }
+  }
+
+  // Inline rename from the tree.
+  async function rename(id, displayName) {
+    setEditError(null);
+    try {
+      const r = await authFetch(`/api/contexts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName }),
+      });
+      if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.error || `HTTP ${r.status}`); }
+      await refreshAfterEdit();
+    } catch (e) { setEditError(e.message || 'Rename failed'); }
+  }
+
+  // Create a new manual child under `parentId`, inheriting the parent's
+  // targetType (required to sit in the same tree) and contextType.
+  async function addChild(parentId, displayName) {
+    setEditError(null);
+    const parent = findNodeById(nodes, parentId) || selectedRoot;
+    try {
+      const r = await authFetch('/api/contexts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName,
+          targetType: parent?.targetType || selectedRoot?.targetType,
+          contextType: parent?.contextType || selectedRoot?.contextType || 'Manual',
+          parentContextId: parentId,
+        }),
+      });
+      if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.error || `HTTP ${r.status}`); }
+      await refreshAfterEdit();
+    } catch (e) { setEditError(e.message || 'Add child failed'); }
   }
 
   // Delete an entire tree (root + all descendants via ON DELETE CASCADE).
@@ -85,10 +143,21 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
                 onDeleteTree={deleteTree}
                 deleteError={deleteError}
               />
+              {editError && (
+                <div className="mx-4 mt-3 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">
+                  {editError}
+                </div>
+              )}
               {subtreeLoading ? (
                 <div className="p-4 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading subtree…</div>
               ) : viewMode === 'tree' ? (
-                <ContextTreeView nodes={nodes} onOpenDetail={open} />
+                <ContextTreeView
+                  nodes={nodes}
+                  onOpenDetail={open}
+                  onReparent={reparent}
+                  onRename={rename}
+                  onAddChild={addChild}
+                />
               ) : (
                 <ContextListView nodes={nodes} onOpenDetail={open} />
               )}
@@ -111,6 +180,17 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
       />
     </div>
   );
+}
+
+// Find a node by id in the nested subtree (used to inherit targetType /
+// contextType when adding a child to a deep node).
+function findNodeById(nodes, id) {
+  for (const n of nodes || []) {
+    if (n.id === id) return n;
+    const hit = findNodeById(n.children, id);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 function SelectedRootHeader({ root, viewMode, onChangeViewMode, onDeleteTree, deleteError }) {

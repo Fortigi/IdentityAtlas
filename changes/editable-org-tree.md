@@ -1,0 +1,4 @@
+- Context trees (e.g. the manager / org tree) can now be curated after the plugin generates them: drag a node onto another node to re-parent it, double-click a node to rename it, and use the "+" on a node to add a manual child — all directly in the Contexts tree.
+- Edited generated contexts are highlighted with an amber "✎ Edited" marker so it's clear at a glance which nodes you've changed by hand.
+- Your renames and re-parenting on generated contexts are now preserved when the plugin re-runs (previously a re-run reset them).
+- Member counts (direct and total) update immediately after re-parenting, adding, or moving a node, so the numbers on every context stay correct.

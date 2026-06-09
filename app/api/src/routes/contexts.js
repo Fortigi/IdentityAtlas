@@ -65,6 +65,7 @@ router.get('/contexts', async (req, res) => {
       SELECT c.id, c.variant, c."targetType", c."contextType", c."displayName",
              c.description, c."scopeSystemId", c."sourceAlgorithmId", c."ownerUserId",
              c."createdByUser", c."externalId", c."directMemberCount", c."totalMemberCount",
+             c."userRenamed", c."userReparented",
              c."lastCalculatedAt", c."createdAt", c."updatedAt",
              s."displayName" AS "scopeSystemName",
              a.name AS "sourceAlgorithmName",
@@ -101,7 +102,7 @@ router.get('/contexts/tree', async (req, res) => {
         )
         SELECT id, variant, "targetType", "contextType", "displayName", description,
                "parentContextId", "scopeSystemId", "sourceAlgorithmId", "ownerUserId",
-               "directMemberCount", "totalMemberCount"
+               "directMemberCount", "totalMemberCount", "userRenamed", "userReparented"
           FROM descendants
          ORDER BY "displayName"
       `, [rootParam])).rows;
@@ -109,7 +110,7 @@ router.get('/contexts/tree', async (req, res) => {
       rows = (await db.query(`
         SELECT id, variant, "targetType", "contextType", "displayName", description,
                "parentContextId", "scopeSystemId", "sourceAlgorithmId", "ownerUserId",
-               "directMemberCount", "totalMemberCount"
+               "directMemberCount", "totalMemberCount", "userRenamed", "userReparented"
           FROM "Contexts"
          ORDER BY "contextType", "displayName"
       `)).rows;
@@ -270,26 +271,42 @@ router.patch('/contexts/:id', writeContexts, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
-  const ctx = await db.queryOne(`SELECT variant, "targetType" FROM "Contexts" WHERE id = $1`, [req.params.id]);
+  const ctx = await db.queryOne(`SELECT variant, "targetType", "displayName", "parentContextId" FROM "Contexts" WHERE id = $1`, [req.params.id]);
   if (!ctx) return res.status(404).json({ error: 'Context not found' });
   // Manual and generated (plugin) contexts can be renamed / re-parented by the
   // analyst. Only synced contexts (mirrored from a source system) are locked.
-  // NOTE: re-running the generating plugin reconciles by externalId and will
-  // overwrite an edited name/parent on a generated context.
+  // For generated contexts we record per-field "userRenamed"/"userReparented"
+  // flags so (a) the UI can mark the node as analyst-curated and (b) the plugin
+  // runner keeps the edit instead of overwriting it on the next run.
   if (ctx.variant === 'synced') return res.status(400).json({ error: 'Synced contexts are read-only (managed by their source system)' });
+  const isGenerated = ctx.variant === 'generated';
 
   const body = req.body || {};
   const sets = [];
   const params = [];
   const push = (col, val) => { params.push(val); sets.push(`"${col}" = $${params.length}`); };
 
-  if (typeof body.displayName === 'string')              push('displayName', body.displayName.slice(0, 500));
+  if (typeof body.displayName === 'string') {
+    const name = body.displayName.slice(0, 500);
+    push('displayName', name);
+    // Mark a generated node as analyst-renamed once its name actually diverges.
+    if (isGenerated && name !== (ctx.displayName || '')) push('userRenamed', true);
+  }
   if (typeof body.description === 'string' || body.description === null) push('description', body.description);
   if (typeof body.ownerUserId === 'string' || body.ownerUserId === null) push('ownerUserId', body.ownerUserId);
   if (body.extendedAttributes !== undefined)             push('extendedAttributes', body.extendedAttributes);
 
+  // Track a parent change so we can recompute member counts on both the old and
+  // new ancestor chains afterwards (a moved subtree leaves one branch and joins
+  // another — both branches' totalMemberCount roll-ups go stale otherwise).
+  let parentChanged = false;
+  const oldParentId = ctx.parentContextId || null;
+  let newParentId = oldParentId;
+
   if (body.parentContextId !== undefined) {
     if (body.parentContextId === null) {
+      newParentId = null;
+      parentChanged = oldParentId !== null;
       push('parentContextId', null);
     } else {
       if (!UUID_RE.test(body.parentContextId)) return res.status(400).json({ error: 'Invalid parentContextId' });
@@ -305,8 +322,11 @@ router.patch('/contexts/:id', writeContexts, async (req, res) => {
         if (up.parentContextId === req.params.id) return res.status(400).json({ error: 'Proposed parent would create a cycle' });
         p = up.parentContextId;
       }
+      newParentId = body.parentContextId;
+      parentChanged = oldParentId !== newParentId;
       push('parentContextId', body.parentContextId);
     }
+    if (isGenerated && parentChanged) push('userReparented', true);
   }
 
   if (sets.length === 0) return res.status(400).json({ error: 'No updatable fields supplied' });
@@ -314,6 +334,15 @@ router.patch('/contexts/:id', writeContexts, async (req, res) => {
   params.push(req.params.id);
   try {
     await db.query(`UPDATE "Contexts" SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+
+    // A reparent moves this node's whole subtree between two branches. Refresh
+    // totalMemberCount on every ancestor of both the old and the new parent so
+    // the counts the analyst sees in the tree stay correct.
+    if (parentChanged) {
+      if (oldParentId) await recalcMemberCountsForChain(oldParentId);
+      if (newParentId) await recalcMemberCountsForChain(newParentId);
+    }
+
     const row = await db.queryOne(`SELECT * FROM "Contexts" WHERE id = $1`, [req.params.id]);
     res.json(row);
   } catch (err) {

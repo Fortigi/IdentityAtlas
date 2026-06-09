@@ -144,10 +144,13 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
     // 1) Pre-load existing contexts for (algorithmId, scopeSystemId) so we
     //    can tell insert / update / delete apart.
     const existingRows = (await client.query(`
-      SELECT id, "externalId" FROM "Contexts"
+      SELECT id, "externalId", "userReparented" FROM "Contexts"
        WHERE "sourceAlgorithmId" = $1 AND ($2::int IS NULL OR "scopeSystemId" = $2)
     `, [algorithmId, scopeSystemId])).rows;
     const existingByExternalId = new Map(existingRows.map(r => [r.externalId, r.id]));
+    // Ids the analyst has manually re-parented — the runner must not move them
+    // back. (Renames are preserved by the UPDATE's CASE on "userRenamed".)
+    const reparentedIds = new Set(existingRows.filter(r => r.userReparented).map(r => r.id));
 
     // 2) Build a map externalId -> new parentContextId once we know our own
     //    generated ids. We need two passes because parents may appear after
@@ -175,12 +178,16 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
       const existed  = existingByExternalId.has(node.externalId);
 
       if (existed) {
+        // Preserve analyst curation: keep the renamed displayName when
+        // "userRenamed", and don't reset the parent to NULL when
+        // "userReparented" (the 3b pass also skips those nodes). Un-edited
+        // nodes are refreshed from the plugin output as before.
         await client.query(`
           UPDATE "Contexts"
-             SET "displayName"         = $2,
+             SET "displayName"         = CASE WHEN "userRenamed"    THEN "displayName"     ELSE $2 END,
                  description           = $3,
                  "contextType"         = $4,
-                 "parentContextId"     = NULL,
+                 "parentContextId"     = CASE WHEN "userReparented" THEN "parentContextId" ELSE NULL END,
                  "extendedAttributes"  = $5,
                  "sourceRunId"         = $6
            WHERE id = $1
@@ -202,6 +209,7 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
     for (const node of result.contexts) {
       if (!node.externalId || !node.parentExternalId) continue;
       const id = newByExternalId.get(node.externalId);
+      if (reparentedIds.has(id)) continue; // analyst moved this node — keep their placement
       const parentId = newByExternalId.get(node.parentExternalId);
       if (!parentId) continue; // parent wasn't in the output — leave NULL
       await client.query(
