@@ -135,7 +135,9 @@ function Invoke-ODataGetRequest {
         $nextUri = $resp.'@odata.nextLink'
     }
 
-    return $collected
+    # Return as a typed array wrapped in the comma operator so PowerShell does
+    # not enumerate an empty collection into $null in the caller's scope.
+    return , [object[]]$collected
 }
 
 #endregion Functions

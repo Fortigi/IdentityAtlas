@@ -97,7 +97,7 @@ $entitySetEntries
 "@
 
         # Mutable state — updated via POST /_control
-        $ctrl = @{ AlwaysReturnStatus = 0; ErrorAfterN = 0; DataRequestCount = 0 }
+        $ctrl = @{ AlwaysReturnStatus = 0; ErrorAfterN = 0; DataRequestCount = 0; TokenExpiresIn = 3600 }
 
         function Send-Response {
             param($Stream, [int]$Status = 200, [string]$ContentType = 'application/json; charset=utf-8', [string]$Body = '')
@@ -157,8 +157,9 @@ $entitySetEntries
                             $c = $reqBody | ConvertFrom-Json -AsHashtable
                             if ($c.ContainsKey('alwaysReturnStatus')) { $ctrl.AlwaysReturnStatus = [int]$c.alwaysReturnStatus }
                             if ($c.ContainsKey('errorAfterN'))        { $ctrl.ErrorAfterN        = [int]$c.errorAfterN }
+                            if ($c.ContainsKey('tokenExpiresIn'))     { $ctrl.TokenExpiresIn     = [int]$c.tokenExpiresIn }
                             if ($c['resetCount']) { $ctrl.DataRequestCount   = 0 }
-                            if ($c['reset'])      { $ctrl.AlwaysReturnStatus = 0; $ctrl.ErrorAfterN = 0; $ctrl.DataRequestCount = 0 }
+                            if ($c['reset'])      { $ctrl.AlwaysReturnStatus = 0; $ctrl.ErrorAfterN = 0; $ctrl.DataRequestCount = 0; $ctrl.TokenExpiresIn = 3600 }
                             Send-Response $stream -Body '{"ok":true}'
                         } catch {
                             Send-Response $stream -Status 400 -Body "{""error"":""$($_.Exception.Message)""}"
@@ -180,7 +181,7 @@ $entitySetEntries
                     # ── OAuth2 token endpoint ─────────────────────────────────
                     if ($path -match '/token' -and $method -eq 'POST') {
                         $token = 'mock-bearer-token-' + [guid]::NewGuid().ToString('N').Substring(0,8)
-                        Send-Response $stream -Body "{""access_token"":""$token"",""token_type"":""Bearer"",""expires_in"":3600}"
+                        Send-Response $stream -Body "{""access_token"":""$token"",""token_type"":""Bearer"",""expires_in"":$($ctrl.TokenExpiresIn)}"
                         continue
                     }
 
@@ -246,10 +247,12 @@ $entitySetEntries
 
     $job = Start-Job -ScriptBlock $serverScript -ArgumentList $port, $entitySetsJson, $edmxSetsJson
 
-    # Wait up to 4s for startup confirmation
+    # Poll for startup confirmation: 20 × 200 ms = 4 s maximum wait
+    $startupPollMs    = 200
+    $startupMaxPolls  = 20
     $started = $false
-    for ($i = 0; $i -lt 20; $i++) {
-        Start-Sleep -Milliseconds 200
+    for ($i = 0; $i -lt $startupMaxPolls; $i++) {
+        Start-Sleep -Milliseconds $startupPollMs
         $out = Receive-Job -Job $job -Keep 2>&1
         if ($out -match 'MOCK_STARTED') { $started = $true; break }
         if ($out -match 'MOCK_ERROR')   { break }
