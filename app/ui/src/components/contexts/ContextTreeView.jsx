@@ -147,6 +147,22 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
   const expanded = isExpanded(node.id);
   const [renaming, setRenaming] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
+  // Single click opens the detail; double click renames. We delay the open so a
+  // double-click can cancel it — otherwise the first click navigates away before
+  // the rename can fire.
+  const clickTimerRef = useRef(null);
+  const openDetail = () => onOpenDetail(node.id, node.displayName);
+  const handleClick = () => {
+    if (!editable) { openDetail(); return; }
+    if (clickTimerRef.current) return;
+    clickTimerRef.current = setTimeout(() => { clickTimerRef.current = null; openDetail(); }, 220);
+  };
+  const handleDoubleClick = (e) => {
+    if (!editable) return;
+    e.preventDefault();
+    if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
+    setRenaming(true);
+  };
   const hasChildren = node.children && node.children.length > 0;
   const v = variantMeta(node.variant);
   const t = targetTypeMeta(node.targetType);
@@ -211,9 +227,9 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
             ref={dragRef}
             {...listeners}
             {...attributes}
-            onClick={() => onOpenDetail(node.id, node.displayName)}
-            onDoubleClick={(e) => { if (editable) { e.preventDefault(); setRenaming(true); } }}
-            title={canDrag ? 'Drag onto another node to re-parent · double-click to rename' : undefined}
+            onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
+            title={canDrag ? 'Click to open · double-click to rename · drag onto another node to re-parent' : undefined}
             className={[
               'flex items-center gap-2 min-w-0 px-3 py-1.5 rounded-full border bg-white dark:bg-gray-800 text-left shrink max-w-full transition-shadow',
               'hover:bg-slate-50 dark:bg-gray-700/50 hover:border-slate-300 dark:border-gray-500 hover:shadow-sm',

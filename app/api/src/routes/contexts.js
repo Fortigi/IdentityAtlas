@@ -65,7 +65,7 @@ router.get('/contexts', async (req, res) => {
       SELECT c.id, c.variant, c."targetType", c."contextType", c."displayName",
              c.description, c."scopeSystemId", c."sourceAlgorithmId", c."ownerUserId",
              c."createdByUser", c."externalId", c."directMemberCount", c."totalMemberCount",
-             c."userRenamed", c."userReparented",
+             c."userRenamed", c."userReparented", c."sourceInstanceKey",
              c."lastCalculatedAt", c."createdAt", c."updatedAt",
              s."displayName" AS "scopeSystemName",
              a.name AS "sourceAlgorithmName",

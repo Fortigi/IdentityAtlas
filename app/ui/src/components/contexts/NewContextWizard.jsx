@@ -34,6 +34,10 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
   const [dryResult, setDryResult] = useState(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
+  // Target: a brand-new tree, or refresh an existing one (keeps analyst edits).
+  const [genRoots, setGenRoots] = useState([]);   // existing generated root contexts
+  const [mode, setMode] = useState('new');         // 'new' | 'refresh'
+  const [refreshKey, setRefreshKey] = useState(''); // sourceInstanceKey to refresh
 
   // Manual path state
   const [mTargetType, setMTargetType] = useState('Identity');
@@ -49,14 +53,16 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
     (async () => {
       setLoading(true); setLoadError(null);
       try {
-        const [pr, sr, cr] = await Promise.all([
+        const [pr, sr, cr, gr] = await Promise.all([
           authFetch('/api/context-plugins'),
           authFetch('/api/systems'),
           authFetch('/api/context-plugins/principal-attributes'),
+          authFetch('/api/contexts?variant=generated'),
         ]);
         if (pr.ok) setPlugins((await pr.json()).data || []);
         if (sr.ok) { const b = await sr.json(); setSystems(b.data || b || []); }
         if (cr.ok) { const ab = await cr.json(); setPrincipalAttrs({ columns: ab.columns || [], extended: ab.extended || [] }); }
+        if (gr.ok) { const g = await gr.json(); setGenRoots(g.data || []); }
       } catch (e) {
         setLoadError(e.message || 'Failed to load');
       } finally {
@@ -73,7 +79,11 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
     setError(null); setRunning(false); setDryRunning(false);
     setMTargetType('Identity'); setMContextType(''); setMDisplayName('');
     setMDescription(''); setMScopeSystemId(''); setCreating(false);
+    setMode('new'); setRefreshKey('');
   }, [open]);
+
+  // When a plugin is (re)selected, default back to creating a new tree.
+  useEffect(() => { setMode('new'); setRefreshKey(''); }, [selected]);
 
   // Seed plugin params with the schema defaults when a plugin is selected.
   useEffect(() => {
@@ -97,6 +107,19 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
   }, [selected, params]);
 
   const manualValid = !!mDisplayName.trim() && !!mContextType.trim();
+
+  // Existing trees from this same plugin + system that a run could refresh in
+  // place (only instance-keyed trees — legacy NULL-key trees aren't offered).
+  const refreshTargets = useMemo(() => {
+    if (!selected) return [];
+    const sys = params.scopeSystemId !== undefined && params.scopeSystemId !== ''
+      ? parseInt(params.scopeSystemId, 10) : null;
+    return genRoots.filter(r =>
+      r.sourceAlgorithmName === selected.name &&
+      (sys == null || r.scopeSystemId === sys) &&
+      !!r.sourceInstanceKey
+    );
+  }, [genRoots, selected, params.scopeSystemId]);
 
   // Auto-preview when arriving at the plugin's final step.
   useEffect(() => {
@@ -152,9 +175,13 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
     if (!selected) return;
     setRunning(true); setError(null);
     try {
+      // New tree → no instanceKey (the runner mints a fresh one). Refresh →
+      // send the chosen tree's key so the runner reconciles onto it.
+      const body = { ...params };
+      if (mode === 'refresh' && refreshKey) body.instanceKey = refreshKey;
       const r = await authFetch(`/api/context-plugins/${selected.name}/run`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
+        body: JSON.stringify(body),
       });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
@@ -223,7 +250,14 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
         </div>
       )}
       {source === 'plugin' && step === 4 && (
-        <PreviewStep dryRunning={dryRunning} dryResult={dryResult} onRedo={dryRun} />
+        <div className="space-y-3">
+          <TargetChooser
+            mode={mode} setMode={setMode}
+            refreshKey={refreshKey} setRefreshKey={setRefreshKey}
+            targets={refreshTargets}
+          />
+          <PreviewStep dryRunning={dryRunning} dryResult={dryResult} onRedo={dryRun} />
+        </div>
       )}
 
       {source === 'manual' && step === 2 && (
@@ -247,7 +281,9 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
         <div className="flex items-center gap-2">
           {step > 1 && <SecondaryButton onClick={back}>Back</SecondaryButton>}
           {source === 'plugin' && step === 4 ? (
-            <PrimaryButton onClick={run} disabled={running || dryRunning}>{running ? 'Starting…' : 'Run'}</PrimaryButton>
+            <PrimaryButton onClick={run} disabled={running || dryRunning || (mode === 'refresh' && !refreshKey)}>
+              {running ? 'Starting…' : mode === 'refresh' ? 'Refresh tree' : 'Create tree'}
+            </PrimaryButton>
           ) : source === 'manual' && step === 2 ? (
             <PrimaryButton onClick={createManual} disabled={!manualValid || creating}>{creating ? 'Creating…' : 'Create'}</PrimaryButton>
           ) : (
@@ -362,6 +398,45 @@ function groupByTargetType(plugins) {
     map.get(p.targetType).push(p);
   }
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+// ─── Step 4 — target (new vs refresh) ─────────────────────────────────────────
+function TargetChooser({ mode, setMode, refreshKey, setRefreshKey, targets }) {
+  return (
+    <div className="border border-gray-200 dark:border-gray-700 rounded p-3">
+      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Target</div>
+      <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+        <input type="radio" checked={mode === 'new'} onChange={() => setMode('new')} className="mt-0.5" />
+        <span>
+          Create a new tree
+          <span className="block text-[11px] text-gray-500 dark:text-gray-400">Each run produces an independent tree.</span>
+        </span>
+      </label>
+      <label className={`flex items-start gap-2 text-sm mt-2 ${targets.length ? 'text-gray-700 dark:text-gray-300 cursor-pointer' : 'text-gray-400 dark:text-gray-600'}`}>
+        <input type="radio" checked={mode === 'refresh'} disabled={!targets.length} onChange={() => setMode('refresh')} className="mt-0.5" />
+        <span className="flex-1">
+          Refresh an existing tree
+          <span className="block text-[11px] text-gray-500 dark:text-gray-400">
+            {targets.length ? 'Re-runs onto the chosen tree and keeps your renames / re-parenting.' : 'No existing tree from this plugin + system yet.'}
+          </span>
+          {mode === 'refresh' && targets.length > 0 && (
+            <select
+              value={refreshKey}
+              onChange={e => setRefreshKey(e.target.value)}
+              className="mt-1 w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+            >
+              <option value="">(select a tree…)</option>
+              {targets.map(t => (
+                <option key={t.id} value={t.sourceInstanceKey}>
+                  {t.displayName} · {t.totalMemberCount ?? 0} members
+                </option>
+              ))}
+            </select>
+          )}
+        </span>
+      </label>
+    </div>
+  );
 }
 
 // ─── Step 4 — Preview & run ───────────────────────────────────────────────────
