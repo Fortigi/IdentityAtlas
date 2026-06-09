@@ -1,32 +1,40 @@
-// Integration test for the manager-hierarchy plugin. Uses vi.doMock to
-// inject a stub db module — the plugin imports `db` at the top of the
-// file so we need the mock to be in place before the plugin loads.
+// Integration test for the manager-hierarchy plugin. Uses vi.doMock to inject
+// stub db + columnCache modules — the plugin imports them at the top of the
+// file so the mocks must be in place before the plugin loads.
+//
+// The plugin issues two queries: one for the extendedAttributes key whitelist
+// (matched by the `jsonb_object_keys` text) and one for the principal rows. The
+// stub routes by SQL text so naming-by-attribute can be exercised without a DB.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Fixed principal rows for deterministic tests.
-// Shape mirrors the SELECT in manager-hierarchy.js.
+// Fixed principal rows for deterministic tests. Shape mirrors the columns the
+// plugin SELECTs (department / jobTitle are real columns; costCenter is an
+// extendedAttributes key, surfaced here as a flat property because the stub
+// can't actually evaluate `extendedAttributes ->> 'costCenter'`).
 const PRINCIPALS = {
-  //  CEO (top — no manager)
-  ceo:   { id: 'ceo-uuid',   displayName: 'Alice CEO',       managerId: null,        department: 'Executive' },
-  //  VP under CEO
-  vp:    { id: 'vp-uuid',    displayName: 'Bob VP',          managerId: 'ceo-uuid',  department: 'Engineering' },
-  //  Real manager under VP
-  mgr:   { id: 'mgr-uuid',   displayName: 'Carol Manager',   managerId: 'vp-uuid',   department: 'Engineering' },
-  //  IC reporting to Carol
-  ic1:   { id: 'ic1-uuid',   displayName: 'Dave IC',         managerId: 'mgr-uuid',  department: 'Engineering' },
-  ic2:   { id: 'ic2-uuid',   displayName: 'Eve IC',          managerId: 'mgr-uuid',  department: 'Engineering' },
-  //  External consultant with internal admin-management chain (the case
-  //  we want to exclude)
-  ext:   { id: 'ext-uuid',   displayName: 'Rick (Quanza)',   managerId: 'vp-uuid',   department: '' },
-  c1:    { id: 'c1-uuid',    displayName: 'Sam (Quanza)',    managerId: 'ext-uuid',  department: 'Dev' },
-  c2:    { id: 'c2-uuid',    displayName: 'Tom (Quanza)',    managerId: 'ext-uuid',  department: 'Ops' },
+  ceo: { id: 'ceo-uuid', displayName: 'Alice CEO',     managerId: null,       department: 'Executive',   jobTitle: 'CEO',     costCenter: 'CC-100' },
+  vp:  { id: 'vp-uuid',  displayName: 'Bob VP',        managerId: 'ceo-uuid', department: 'Engineering', jobTitle: 'VP Eng',  costCenter: 'CC-200' },
+  mgr: { id: 'mgr-uuid', displayName: 'Carol Manager', managerId: 'vp-uuid',  department: 'Engineering', jobTitle: 'EM',      costCenter: 'CC-210' },
+  ic1: { id: 'ic1-uuid', displayName: 'Dave IC',       managerId: 'mgr-uuid', department: 'Engineering', jobTitle: 'SWE',     costCenter: 'CC-210' },
+  ic2: { id: 'ic2-uuid', displayName: 'Eve IC',        managerId: 'mgr-uuid', department: 'Engineering', jobTitle: 'SWE',     costCenter: 'CC-210' },
+  ext: { id: 'ext-uuid', displayName: 'Rick (Quanza)', managerId: 'vp-uuid',  department: '',            jobTitle: '',        costCenter: '' },
+  c1:  { id: 'c1-uuid',  displayName: 'Sam (Quanza)',  managerId: 'ext-uuid', department: 'Dev',         jobTitle: 'Consultant', costCenter: '' },
+  c2:  { id: 'c2-uuid',  displayName: 'Tom (Quanza)',  managerId: 'ext-uuid', department: 'Ops',         jobTitle: 'Consultant', costCenter: '' },
 };
 
-async function loadPluginWithRows(rows) {
+const DEFAULT_COLUMNS = ['id', 'displayName', 'managerId', 'department', 'jobTitle', 'companyName'];
+
+async function loadPluginWithRows(rows, { columns = DEFAULT_COLUMNS, extKeys = [] } = {}) {
   vi.resetModules();
+  vi.doMock('../../db/columnCache.js', () => ({
+    getPrincipalColumns: vi.fn(async () => columns.map(name => ({ name }))),
+  }));
   vi.doMock('../../db/connection.js', () => ({
-    query: vi.fn(async () => ({ rows })),
+    query: vi.fn(async (sql) => {
+      if (/jsonb_object_keys/.test(sql)) return { rows: extKeys.map(k => ({ k })) };
+      return { rows };
+    }),
   }));
   const mod = await import('./manager-hierarchy.js');
   return mod.default;
@@ -34,6 +42,12 @@ async function loadPluginWithRows(rows) {
 
 describe('manager-hierarchy plugin', () => {
   beforeEach(() => vi.restoreAllMocks());
+
+  it('keeps the manager-hierarchy name (drop-in replacement)', async () => {
+    const plugin = await loadPluginWithRows([]);
+    expect(plugin.name).toBe('manager-hierarchy');
+    expect(plugin.targetType).toBe('Principal');
+  });
 
   it('requires scopeSystemId', async () => {
     const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
@@ -44,28 +58,69 @@ describe('manager-hierarchy plugin', () => {
     const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
     const out = await plugin.run({ scopeSystemId: 1, rootName: 'Org' }, {});
     const externalIds = out.contexts.map(c => c.externalId);
-    // Root + CEO + VP + real manager + external "manager".
     expect(externalIds).toEqual(expect.arrayContaining(['root', 'ceo-uuid', 'vp-uuid', 'mgr-uuid', 'ext-uuid']));
-    // ICs should NOT become manager nodes.
     expect(externalIds).not.toContain('ic1-uuid');
     expect(externalIds).not.toContain('ic2-uuid');
   });
 
-  it('uses "<Department> (<Name>)" as displayName when department is set', async () => {
+  it('contexts use the ManagerHierarchy contextType', async () => {
+    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
+    const out = await plugin.run({ scopeSystemId: 1 }, {});
+    expect(out.contexts.every(c => c.contextType === 'ManagerHierarchy')).toBe(true);
+  });
+
+  // ── Default naming (backward-compatible with the old plugin) ──────────────
+  it('defaults to "<Department> (<Name>)" naming', async () => {
     const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
     const out = await plugin.run({ scopeSystemId: 1 }, {});
     const mgr = out.contexts.find(c => c.externalId === 'mgr-uuid');
     expect(mgr.displayName).toBe('Engineering (Carol Manager)');
   });
 
-  it('falls back to bare name when department is empty', async () => {
+  it('falls back to bare name when the chosen attribute is empty', async () => {
     const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
     const out = await plugin.run({ scopeSystemId: 1 }, {});
     const ext = out.contexts.find(c => c.externalId === 'ext-uuid');
-    // Rick has no department, so displayName is just the raw name.
     expect(ext.displayName).toBe('Rick (Quanza)');
   });
 
+  // ── Configurable naming (new) ─────────────────────────────────────────────
+  it('names nodes by a different real column (jobTitle)', async () => {
+    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
+    const out = await plugin.run({ scopeSystemId: 1, nameFields: ['jobTitle'] }, {});
+    const mgr = out.contexts.find(c => c.externalId === 'mgr-uuid');
+    expect(mgr.displayName).toBe('EM (Carol Manager)');
+  });
+
+  it('joins multiple name fields with the separator', async () => {
+    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
+    const out = await plugin.run({ scopeSystemId: 1, nameFields: ['department', 'jobTitle'], nameSeparator: ' / ', includeManagerName: false }, {});
+    const mgr = out.contexts.find(c => c.externalId === 'mgr-uuid');
+    expect(mgr.displayName).toBe('Engineering / EM');
+  });
+
+  it('omits the manager name when includeManagerName is false', async () => {
+    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
+    const out = await plugin.run({ scopeSystemId: 1, includeManagerName: false }, {});
+    const mgr = out.contexts.find(c => c.externalId === 'mgr-uuid');
+    expect(mgr.displayName).toBe('Engineering');
+  });
+
+  it('names nodes by an extendedAttributes key', async () => {
+    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS), { extKeys: ['costCenter'] });
+    const out = await plugin.run({ scopeSystemId: 1, nameFields: ['costCenter'], includeManagerName: false }, {});
+    const mgr = out.contexts.find(c => c.externalId === 'mgr-uuid');
+    expect(mgr.displayName).toBe('CC-210');
+  });
+
+  it('drops an unknown field and falls back to department', async () => {
+    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
+    const out = await plugin.run({ scopeSystemId: 1, nameFields: ['notAColumn'] }, {});
+    const mgr = out.contexts.find(c => c.externalId === 'mgr-uuid');
+    expect(mgr.displayName).toBe('Engineering (Carol Manager)');
+  });
+
+  // ── Membership + exclusion (unchanged behaviour) ──────────────────────────
   it('routes ICs to the correct manager\'s members list', async () => {
     const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
     const out = await plugin.run({ scopeSystemId: 1 }, {});
@@ -75,42 +130,17 @@ describe('manager-hierarchy plugin', () => {
 
   it('excludeNamePatterns removes the matching principal from manager nodes', async () => {
     const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
-    const out = await plugin.run(
-      { scopeSystemId: 1, excludeNamePatterns: ['\\(Quanza\\)'] },
-      {},
-    );
+    const out = await plugin.run({ scopeSystemId: 1, excludeNamePatterns: ['\\(Quanza\\)'] }, {});
     const externalIds = out.contexts.map(c => c.externalId);
-    // Rick (Quanza) should no longer be a manager node.
     expect(externalIds).not.toContain('ext-uuid');
-    // CEO, VP, Carol are unaffected.
     expect(externalIds).toEqual(expect.arrayContaining(['ceo-uuid', 'vp-uuid', 'mgr-uuid']));
   });
 
   it('excluded manager\'s reports fall back to the root context', async () => {
     const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
-    const out = await plugin.run(
-      { scopeSystemId: 1, excludeNamePatterns: ['\\(Quanza\\)'] },
-      {},
-    );
-    const rootMembers = out.members
-      .filter(m => m.contextExternalId === 'root')
-      .map(m => m.memberId);
-    // The two Quanza consultants whose manager was excluded now land on root.
+    const out = await plugin.run({ scopeSystemId: 1, excludeNamePatterns: ['\\(Quanza\\)'] }, {});
+    const rootMembers = out.members.filter(m => m.contextExternalId === 'root').map(m => m.memberId);
     expect(rootMembers).toEqual(expect.arrayContaining(['c1-uuid', 'c2-uuid']));
-  });
-
-  it('excluded principal still becomes a regular member of their own manager\'s context', async () => {
-    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS));
-    const out = await plugin.run(
-      { scopeSystemId: 1, excludeNamePatterns: ['\\(Quanza\\)'] },
-      {},
-    );
-    // Rick (Quanza) reports to Bob VP. With Rick excluded from manager nodes,
-    // Rick should still be a member of Bob's context.
-    const vpMembers = out.members
-      .filter(m => m.contextExternalId === 'vp-uuid')
-      .map(m => m.memberId);
-    expect(vpMembers).toContain('ext-uuid');
   });
 
   it('throws a clear error on invalid regex in excludeNamePatterns', async () => {

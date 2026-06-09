@@ -7,7 +7,6 @@
 // of new plugins without manual DB writes.
 
 import managerHierarchy      from './manager-hierarchy.js';
-import customOrgTree         from './custom-org-tree.js';
 import adOuFromDn            from './ad-ou-from-dn.js';
 import { plugin as resourceCluster } from './resource-cluster/index.js';
 import departmentFromPrincipal from './department-from-principal.js';
@@ -16,7 +15,6 @@ import orphanedAccounts       from './orphaned-accounts.js';
 /** @type {import('./types.js').ContextPlugin[]} */
 export const REGISTERED_PLUGINS = [
   managerHierarchy,
-  customOrgTree,
   adOuFromDn,
   resourceCluster,
   departmentFromPrincipal,
