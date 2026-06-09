@@ -30,14 +30,7 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures    = 0
 
-function Report-Result {
-    param([string]$Name, [bool]$Passed, [string]$Detail = '')
-    $color  = if ($Passed) { 'Green' } else { 'Red' }
-    $status = if ($Passed) { 'PASS' } else { 'FAIL' }
-    Write-Host "    $status  $Name  $Detail" -ForegroundColor $color
-    if ($WriteResult) { & $WriteResult $Name $Passed $Detail }
-    elseif (-not $Passed) { $script:standaloneFailures++ }
-}
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared' 'Test-Helpers.ps1')
 
 Write-Host "`n=== OData Crawler Library Tests ===" -ForegroundColor Cyan
 
@@ -128,6 +121,25 @@ try {
 
 } finally {
     Stop-MockODataServer -Mock $mock
+}
+
+# ── Test empty entity-set response ───────────────────────────────────────────
+# Regression: early versions threw or returned $null on {"value":[]}.
+$mock = $null
+try {
+    $mock = Start-MockODataServer -EntitySets @{ Empty = @() }
+    Connect-ODataAPI -BaseUrl "http://localhost:$($mock.Port)/odata/v4" `
+        -AuthMethod BasicAuth -Username testuser -Password testpass
+    try {
+        $result = Invoke-ODataGetRequest -Path '/Empty'
+        $passed = $null -ne $result -and $result -is [array] -and $result.Count -eq 0
+        Report-Result 'OData/EdgeCase — empty value array returns empty array (not null/throw)' $passed `
+            "(type: $($result.GetType().Name), count: $($result.Count))"
+    } catch {
+        Report-Result 'OData/EdgeCase — empty value array returns empty array (not null/throw)' $false $_.Exception.Message
+    }
+} finally {
+    if ($mock) { Stop-MockODataServer -Mock $mock }
 }
 
 # ── Test Get-ODataEntitySets — $metadata discovery ───────────────────────────

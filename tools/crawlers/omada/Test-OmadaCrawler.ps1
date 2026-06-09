@@ -32,14 +32,7 @@ $ErrorActionPreference = 'Continue'
 $ApiBaseUrl            = $ApiBaseUrl.TrimEnd('/')
 $standaloneFailures    = 0
 
-function Report-Result {
-    param([string]$Name, [bool]$Passed, [string]$Detail = '')
-    $color  = if ($Passed) { 'Green' } else { 'Red' }
-    $status = if ($Passed) { 'PASS' } else { 'FAIL' }
-    Write-Host "    $status  $Name  $Detail" -ForegroundColor $color
-    if ($WriteResult) { & $WriteResult $Name $Passed $Detail }
-    elseif (-not $Passed) { $script:standaloneFailures++ }
-}
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared' 'Test-Helpers.ps1')
 
 function Invoke-AtlasApi {
     param([string]$Method, [string]$Path, [hashtable]$Body = @{})
@@ -280,7 +273,12 @@ try {
     Write-Host "  Fatal test error: $($_.Exception.Message)" -ForegroundColor Red
     $script:standaloneFailures++
 } finally {
-    if ($mock)     { Stop-MockODataServer -Mock $mock }
+    # Delete crawler configs so CI runs don't accumulate stale entries.
+    foreach ($id in @($configId, $(if ($null -ne $cfgResult2) { $cfgResult2.id }))) {
+        if (-not $id) { continue }
+        try { Invoke-AtlasApi -Method DELETE -Path "/admin/crawler-configs/$id" | Out-Null } catch {}
+    }
+    if ($mock) { Stop-MockODataServer -Mock $mock }
 }
 
 # ── Summary ───────────────────────────────────────────────────────────────────

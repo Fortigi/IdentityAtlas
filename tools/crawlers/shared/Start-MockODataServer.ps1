@@ -246,10 +246,12 @@ $entitySetEntries
 
     $job = Start-Job -ScriptBlock $serverScript -ArgumentList $port, $entitySetsJson, $edmxSetsJson
 
-    # Wait up to 4s for startup confirmation
+    # Poll for startup confirmation: 20 × 200 ms = 4 s maximum wait
+    $startupPollMs    = 200
+    $startupMaxPolls  = 20
     $started = $false
-    for ($i = 0; $i -lt 20; $i++) {
-        Start-Sleep -Milliseconds 200
+    for ($i = 0; $i -lt $startupMaxPolls; $i++) {
+        Start-Sleep -Milliseconds $startupPollMs
         $out = Receive-Job -Job $job -Keep 2>&1
         if ($out -match 'MOCK_STARTED') { $started = $true; break }
         if ($out -match 'MOCK_ERROR')   { break }
