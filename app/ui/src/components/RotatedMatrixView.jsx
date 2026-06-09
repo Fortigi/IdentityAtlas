@@ -13,7 +13,7 @@
 // Everything else (filter chip, share link, Excel export hook, basic
 // per-cell membership-type badges) works the same as the default view.
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useLayoutEffect, useRef } from 'react';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixCell from './matrix/MatrixCell';
@@ -59,6 +59,33 @@ export default function RotatedMatrixView({
   hasData,
 }) {
   const filterIsApplied = filter !== null && filter !== undefined;
+
+  // Cap the grid to the remaining viewport so only the grid scrolls, not the
+  // page too (mirrors MatrixView). Measure the grid's real document-top rather
+  // than guessing the chrome height with a fixed max-h.
+  const rootRef = useRef(null);
+  const gridRef = useRef(null);
+  const [gridMaxH, setGridMaxH] = useState(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = gridRef.current;
+      if (!el) return;
+      const footer = document.querySelector('footer');
+      const below = (footer ? footer.getBoundingClientRect().height : 0) + 28;
+      const vh = document.documentElement.clientHeight;
+      const gridTop = el.getBoundingClientRect().top + window.scrollY;
+      setGridMaxH(Math.max(240, vh - gridTop - below));
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure);
+      ro.observe(document.body);
+    }
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
+  }, [filterIsApplied]);
 
   // Same client-side managed-state toggle as MatrixView.
   const filteredData = useMemo(() => {
@@ -141,7 +168,7 @@ export default function RotatedMatrixView({
   }, []);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={rootRef} className="flex flex-col gap-3">
       {filterIsApplied && (
         <MatrixFilterSummary
           filter={filter}
@@ -176,7 +203,7 @@ export default function RotatedMatrixView({
           No assignments match the current matrix. Adjust the subjects or resources to widen the view.
         </div>
       ) : (
-        <div className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto max-h-[calc(100vh-280px)]">
+        <div ref={gridRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
           {refreshing && (
             <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 z-10 flex items-center justify-center">
               <span className="text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 shadow-sm">Updating…</span>
