@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed a persistent second (page) scrollbar that sat next to the matrix grid's own scrollbar. The "authentication disabled" banner was rendered outside the app's full-height column, making every page taller than the viewport by the banner's height; it now lives inside that column so the page no longer scrolls behind the matrix.
+
+## Changes in this PR
+
 - Added the Azure Deployment walkthrough and Azure Deployment reference to the documentation site navigation (under Operations) so they're discoverable instead of only reachable by direct URL.
 
 ## Changes in this PR
