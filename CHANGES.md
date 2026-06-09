@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the matrix still showing a second (page) scrollbar next to the grid's own. The grid now measures the actual space left below the page chrome (auth banner, scope statistics, "How to read") and caps its height to fit, instead of a fixed estimate that was too tall — so only the grid scrolls, never the page.
+
+## Changes in this PR
+
 - Fixed Omada crawler integration test assertions that compared against the full database — prior CI steps loading demo data could make the assertions pass even if the Omada crawler ingested nothing. Assertions now scope to the system created by the current test run using the mock server's OS-assigned port.
 - Extracted shared `Report-Result` helper to `tools/crawlers/shared/Test-Helpers.ps1`; removed the copy-pasted duplicate from both test files.
 - Omada crawler integration test now deletes the crawler configs it registers (both the main config and the partial-failure config) in a `finally` block so CI runs don't accumulate stale entries.
