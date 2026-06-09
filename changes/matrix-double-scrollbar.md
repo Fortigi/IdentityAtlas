@@ -1,1 +1,0 @@
-- Fixed a persistent second (page) scrollbar that sat next to the matrix grid's own scrollbar. The "authentication disabled" banner was rendered outside the app's full-height column, making every page taller than the viewport by the banner's height; it now lives inside that column so the page no longer scrolls behind the matrix.
