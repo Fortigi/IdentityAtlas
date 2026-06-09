@@ -7,7 +7,7 @@ import { useContextRoots, useContextSubtree } from '../hooks/useContextTrees';
 import ContextTreeSelector from './contexts/ContextTreeSelector';
 import ContextTreeView from './contexts/ContextTreeView';
 import ContextListView from './contexts/ContextListView';
-import NewContextModal from './contexts/NewContextModal';
+import NewContextWizard from './contexts/NewContextWizard';
 import { variantMeta, targetTypeMeta } from '../utils/contextStyles';
 
 export default function ContextsPage({ onOpenDetail, onNavigate }) {
@@ -170,7 +170,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
         </div>
       </div>
 
-      <NewContextModal
+      <NewContextWizard
         open={newModalOpen}
         onClose={() => setNewModalOpen(false)}
         onCreated={(created) => {
