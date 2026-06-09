@@ -32,14 +32,7 @@ $ErrorActionPreference = 'Continue'
 $ApiBaseUrl            = $ApiBaseUrl.TrimEnd('/')
 $standaloneFailures    = 0
 
-function Report-Result {
-    param([string]$Name, [bool]$Passed, [string]$Detail = '')
-    $color  = if ($Passed) { 'Green' } else { 'Red' }
-    $status = if ($Passed) { 'PASS' } else { 'FAIL' }
-    Write-Host "    $status  $Name  $Detail" -ForegroundColor $color
-    if ($WriteResult) { & $WriteResult $Name $Passed $Detail }
-    elseif (-not $Passed) { $script:standaloneFailures++ }
-}
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared' 'Test-Helpers.ps1')
 
 function Invoke-AtlasApi {
     param([string]$Method, [string]$Path, [hashtable]$Body = @{})
@@ -120,6 +113,7 @@ $edmxSets = @('System', 'Identity', 'User', 'Resource', 'Resourceassignment')
 # ── Start mock server ─────────────────────────────────────────────────────────
 $mock = $null
 $configId = $null
+$cfgResult2 = $null
 
 try {
     $mock = Start-MockODataServer -EntitySets $mockEntities -EdmxEntitySets $edmxSets
@@ -187,42 +181,56 @@ try {
         throw "Job failed with status: $($completed.status)"
     }
 
-    # ── Assert: system registered ─────────────────────────────────────────────
+    # ── Assert: system registered + counts scoped to this run ────────────────
+    # The systems endpoint returns resourceCount/principalCount inline, so a
+    # single call both verifies the system exists AND avoids asserting against
+    # the full database (prior CI steps may have loaded other systems/users).
+    # We identify our system by the mock port which is OS-assigned and unique.
+    $thisSystem = $null
     try {
         $systems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" `
             -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
-        $systemCount = if ($systems -is [array]) { $systems.Count }
-                       elseif ($systems.data) { $systems.data.Count }
-                       else { $systems.Count ?? 0 }
-        Report-Result 'Omada/Data — system registered' ($systemCount -ge 1) `
-            "($systemCount system(s) in database)"
+        $thisSystem = @($systems) | Where-Object { $_.displayName -like "*:$($mock.Port)/*" } | Select-Object -First 1
+        Report-Result 'Omada/Data — system registered' ($null -ne $thisSystem) `
+            "$(if ($thisSystem) { "($($thisSystem.displayName))" } else { '(not found — port $($mock.Port) not in any system displayName)' })"
     } catch {
         Report-Result 'Omada/Data — system registered' $false $_.Exception.Message
     }
 
-    # ── Assert: principal ingested ────────────────────────────────────────────
+    # Diagnostic: log the systems API's own principalCount/resourceCount so we can
+    # compare against the direct-query values below and detect discrepancies.
+    if ($thisSystem) {
+        Write-Host "  [diag] systems API: principalCount=$($thisSystem.principalCount) resourceCount=$($thisSystem.resourceCount) systemId=$($thisSystem.id)" -ForegroundColor DarkGray
+    }
+
+    # ── Assert: principal ingested (scoped to this run via unique test email) ──
+    # Search by the mock user's email — unique across CI runs (no real user would
+    # have 'integration.testuser@example.com'), so this can't be satisfied by
+    # Entra ID or demo data from earlier CI steps.
     try {
-        $users = Invoke-RestMethod -Uri "$ApiBaseUrl/users?limit=100" `
+        $usersResp = Invoke-RestMethod -Uri "$ApiBaseUrl/users?search=integration.testuser&limit=5" `
             -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
-        $userCount = if ($users.users) { $users.users.Count }
-                     elseif ($users.data) { $users.data.Count }
-                     elseif ($users -is [array]) { $users.Count }
-                     else { 0 }
-        Report-Result 'Omada/Data — principal ingested' ($userCount -ge 1) `
-            "($userCount user(s) in database)"
+        $principalCount = if ($usersResp.users)           { $usersResp.users.Count }
+                          elseif ($usersResp.data)        { $usersResp.data.Count }
+                          elseif ($usersResp -is [array]) { $usersResp.Count }
+                          else { 0 }
+        Report-Result 'Omada/Data — principal ingested' ($principalCount -ge 1) `
+            "($principalCount user(s) matching 'integration.testuser')"
     } catch {
         Report-Result 'Omada/Data — principal ingested' $false $_.Exception.Message
     }
 
-    # ── Assert: resource ingested ─────────────────────────────────────────────
+    # ── Assert: resource ingested (scoped to this run's system via systemId) ───
+    # Resources support ?systemId= filtering — use the system we found by port.
     try {
-        $resources = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?limit=10" `
+        $systemId = if ($thisSystem) { $thisSystem.id } else { 0 }
+        $resResp  = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?systemId=$systemId&limit=10" `
             -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
-        $resourceCount = if ($resources.data) { $resources.data.Count }
-                         elseif ($resources -is [array]) { $resources.Count }
+        $resourceCount = if ($resResp.data)           { $resResp.data.Count }
+                         elseif ($resResp -is [array]) { $resResp.Count }
                          else { 0 }
         Report-Result 'Omada/Data — resource ingested' ($resourceCount -ge 1) `
-            "($resourceCount resource(s) in database)"
+            "($resourceCount resource(s) in system $systemId)"
     } catch {
         Report-Result 'Omada/Data — resource ingested' $false $_.Exception.Message
     }
@@ -286,7 +294,12 @@ try {
     Write-Host "  Fatal test error: $($_.Exception.Message)" -ForegroundColor Red
     $script:standaloneFailures++
 } finally {
-    if ($mock)     { Stop-MockODataServer -Mock $mock }
+    # Delete crawler configs so CI runs don't accumulate stale entries.
+    foreach ($id in @($configId, $(if ($null -ne $cfgResult2) { $cfgResult2.id }))) {
+        if (-not $id) { continue }
+        try { Invoke-AtlasApi -Method DELETE -Path "/admin/crawler-configs/$id" | Out-Null } catch {}
+    }
+    if ($mock) { Stop-MockODataServer -Mock $mock }
 }
 
 # ── Summary ───────────────────────────────────────────────────────────────────
