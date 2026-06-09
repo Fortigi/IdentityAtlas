@@ -183,9 +183,9 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
-      onRunStarted?.(body.runId);
+      const payload = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(payload.error || `HTTP ${r.status}`);
+      onRunStarted?.(payload.runId);
       onClose();
     } catch (err) {
       setError(err.message || 'Run failed');
@@ -412,7 +412,7 @@ function TargetChooser({ mode, setMode, refreshKey, setRefreshKey, targets }) {
           <span className="block text-[11px] text-gray-500 dark:text-gray-400">Each run produces an independent tree.</span>
         </span>
       </label>
-      <label className={`flex items-start gap-2 text-sm mt-2 ${targets.length ? 'text-gray-700 dark:text-gray-300 cursor-pointer' : 'text-gray-400 dark:text-gray-600'}`}>
+      <label className={`flex items-start gap-2 text-sm mt-2 ${targets.length ? 'text-gray-700 dark:text-gray-300 cursor-pointer' : 'text-gray-500 dark:text-gray-600'}`}>
         <input type="radio" checked={mode === 'refresh'} disabled={!targets.length} onChange={() => setMode('refresh')} className="mt-0.5" />
         <span className="flex-1">
           Refresh an existing tree
