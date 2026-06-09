@@ -1,1 +1,0 @@
-- Fixed Omada crawler integration test assertions that compared against the full database — prior CI steps loading demo data could make the assertions pass even if the Omada crawler ingested nothing. Assertions now scope to the system created by the current test run using the mock server's OS-assigned port.

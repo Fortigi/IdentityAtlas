@@ -1,5 +1,0 @@
-- Extracted shared `Report-Result` helper to `tools/crawlers/shared/Test-Helpers.ps1`; removed the copy-pasted duplicate from both test files.
-- Omada crawler integration test now deletes the crawler configs it registers (both the main config and the partial-failure config) in a `finally` block so CI runs don't accumulate stale entries.
-- Added edge-case test to the OData library suite verifying that an empty `{"value":[]}` response returns an empty array rather than `$null` or throwing.
-- Replaced bare integer literals in `Start-MockODataServer.ps1` startup poll loop with named variables (`$startupPollMs`, `$startupMaxPolls`).
-- Added OAuth2 token refresh test: mock now supports configurable `expires_in` via `/_control`; test verifies the library transparently re-fetches a token when the existing one is immediately expired (no waiting — the library's proactive clock check triggers on the next request).
