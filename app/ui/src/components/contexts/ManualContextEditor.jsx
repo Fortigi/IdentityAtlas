@@ -27,6 +27,8 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [childName, setChildName] = useState('');
+  const [addingChild, setAddingChild] = useState(false);
 
   // Reset when a different context opens in this tab.
   useEffect(() => {
@@ -94,6 +96,34 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
     }
   }
 
+  // Create a new manual child context directly under this one. Inherits this
+  // context's targetType + contextType so it sits naturally in the tree.
+  async function addChild() {
+    const name = childName.trim();
+    if (!name) return;
+    setAddingChild(true); setError(null);
+    try {
+      const r = await authFetch('/api/contexts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: name,
+          contextType: attrs.contextType || 'Manual',
+          targetType: attrs.targetType,
+          parentContextId: contextId,
+        }),
+      });
+      const payload = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(payload.error || `HTTP ${r.status}`);
+      setChildName('');
+      onUpdated?.(payload); // refresh detail → the new sub-context appears
+    } catch (err) {
+      setError(err.message || 'Add child failed');
+    } finally {
+      setAddingChild(false);
+    }
+  }
+
   async function doDelete() {
     setDeleting(true); setError(null);
     try {
@@ -109,12 +139,13 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
     }
   }
 
+  const isGenerated = attrs.variant === 'generated';
   return (
     <div className="bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 rounded-lg p-6">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Edit manual context</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Edit context</h3>
         <span className="text-[10px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded px-1.5 py-0.5">
-          Manual — analyst-owned
+          {isGenerated ? 'Generated — your name / parent edits are kept when the plugin re-runs' : 'Manual — analyst-owned'}
         </span>
       </div>
 
@@ -165,6 +196,25 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
             )}
           </div>
         </Field>
+      </div>
+
+      {/* Add a manual child context directly under this node */}
+      <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Add child context</label>
+        <div className="flex items-center gap-2">
+          <input
+            value={childName}
+            onChange={e => setChildName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addChild(); }}
+            placeholder="New child name…"
+            className="flex-1 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
+          />
+          <button
+            onClick={addChild}
+            disabled={!childName.trim() || addingChild}
+            className="px-3 py-1 text-xs rounded bg-blue-600 dark:bg-blue-700 text-white disabled:opacity-50 hover:bg-blue-700 dark:hover:bg-blue-600 whitespace-nowrap"
+          >{addingChild ? 'Adding…' : 'Add child'}</button>
+        </div>
       </div>
 
       {error && <div className="mt-3 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">{error}</div>}

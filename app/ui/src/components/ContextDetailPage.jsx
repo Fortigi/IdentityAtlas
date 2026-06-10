@@ -191,8 +191,9 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
 
       <div className="mt-4 space-y-4">
       {activeTab === 'attributes' && (<>
-      {/* Manual-context inline editor */}
-      {isManual && (
+      {/* Inline editor — manual and generated (plugin) contexts are editable;
+          synced contexts are read-only. */}
+      {(isManual || isGenerated) && (
         <ManualContextEditor
           contextId={contextId}
           attrs={detail.attributes}
