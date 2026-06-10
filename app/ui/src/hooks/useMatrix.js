@@ -33,6 +33,9 @@ export function useMatrix(filter) {
     assignmentCount: 0,
   });
   const [managedByPackages, setManagedByPackages] = useState([]);
+  // Roll-up payload (null when not in roll-up mode):
+  //   { attribute, resources:[…], groupValues:[…], counts:[{resourceId,groupValue,directCount}] }
+  const [rollup, setRollup] = useState(null);
   const [loading, setLoading]       = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError]           = useState(null);
@@ -120,6 +123,7 @@ export function useMatrix(filter) {
     if (!hasConditions) {
       setData([]);
       setManagedByPackages([]);
+      setRollup(null);
       setCounts({ subjectCount: 0, subjectTotal: 0, resourceCount: 0, resourceTotal: 0, assignmentCount: 0 });
       setLoading(false);
       setRefreshing(false);
@@ -147,9 +151,21 @@ export function useMatrix(filter) {
         }
         const body = await res.json();
         if (cancelled) return;
-        setData(body.data || []);
+        if (body.rollup) {
+          setRollup({
+            attribute:   body.rollup,
+            resources:   body.resources   || [],
+            groupValues: body.groupValues || [],
+            counts:      body.counts      || [],
+          });
+          setData([]);
+          setManagedByPackages([]);
+        } else {
+          setRollup(null);
+          setData(body.data || []);
+          setManagedByPackages(body.managedByPackages || []);
+        }
         setRowType(body.rowType || 'principal');
-        setManagedByPackages(body.managedByPackages || []);
         setCounts({
           subjectCount:    body.subjectCount    || 0,
           subjectTotal:    body.subjectTotal    || 0,
@@ -185,6 +201,7 @@ export function useMatrix(filter) {
 
   return {
     data,
+    rollup,
     rowType,
     counts,
     totalUsers: counts.subjectTotal,

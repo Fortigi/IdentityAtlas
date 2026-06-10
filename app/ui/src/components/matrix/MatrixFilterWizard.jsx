@@ -36,7 +36,26 @@ const EMPTY_FILTER = {
   orientation: 'rows-as-resources',
   subject:  { include: [], exclude: [] },
   resource: { include: [], exclude: [] },
+  // Roll-up: aggregate the subject (column) axis by this attribute. null = off.
+  rollup: null,
+  // Subject-axis sort order — 1..3 attributes, applied client-side. Default
+  // groups columns by department.
+  sortAttributes: [{ attribute: 'department', dir: 'asc' }],
 };
+
+const DEFAULT_SORT = [{ attribute: 'department', dir: 'asc' }];
+
+// Pull selectable attribute names out of a /matrix/columns response. Excludes
+// the display-name column (every value is unique, useless to group/sort by).
+// When realOnly, drops ext.* keys (the flat matrix payload can't sort by them).
+function attributeOptions(columns, { realOnly = false } = {}) {
+  if (!Array.isArray(columns)) return [];
+  return columns
+    .map(c => c.column)
+    .filter(Boolean)
+    .filter(name => name !== 'displayName')
+    .filter(name => !realOnly || !name.startsWith('ext.'));
+}
 
 function filterHasAnyCondition(f) {
   if (!f) return false;
@@ -234,7 +253,8 @@ export default function MatrixFilterWizard({
   // ─── Apply / Cancel ────────────────────────────────────────────
 
   const handleApply = () => {
-    if (preview.assignmentCount > BLOCK_ASSIGNMENTS) {
+    // Roll-up returns an aggregated (small) payload, so the size guard doesn't apply.
+    if (!filter.rollup && preview.assignmentCount > BLOCK_ASSIGNMENTS) {
       setError(`Matrix too large (${preview.assignmentCount.toLocaleString()} assignments). Add filters to reduce below ${BLOCK_ASSIGNMENTS.toLocaleString()}.`);
       return;
     }
@@ -289,11 +309,20 @@ export default function MatrixFilterWizard({
         include: Array.isArray(f.resource?.include) ? f.resource.include : [],
         exclude: Array.isArray(f.resource?.exclude) ? f.resource.exclude : [],
       },
+      rollup: typeof f.rollup === 'string' && f.rollup ? f.rollup : null,
+      sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
+        ? f.sortAttributes.slice(0, 3) : DEFAULT_SORT,
     });
     setStep(3);
   };
 
   if (!open) return null;
+
+  // Roll-up and Sort only apply to the default orientation (subjects on the
+  // column axis). The rotated view has a simpler render path.
+  const rollupSortApplicable = filter.orientation === 'rows-as-resources';
+  const lastStep = rollupSortApplicable ? 5 : 3;
+  const subjectColumns = filter.rowType === 'identity' ? identityColumns : principalColumns;
 
   // ─── Render ─────────────────────────────────────────────────────
 
@@ -311,7 +340,7 @@ export default function MatrixFilterWizard({
           onLoad={handleLoadSaved}
           onDelete={handleDeleteSaved}
         />
-        <StepIndicator step={step} onJump={setStep} />
+        <StepIndicator step={step} onJump={setStep} rollupSortApplicable={rollupSortApplicable} />
       </div>
 
       {/* Step content */}
@@ -320,7 +349,12 @@ export default function MatrixFilterWizard({
           rowType={filter.rowType}
           orientation={filter.orientation}
           onRowTypeChange={setRowType}
-          onOrientationChange={(o) => setFilter(prev => ({ ...prev, orientation: o }))}
+          onOrientationChange={(o) => {
+            setFilter(prev => ({ ...prev, orientation: o }));
+            // Roll-up/Sort steps vanish on the rotated orientation — pull the
+            // user back to a still-visible step.
+            if (o === 'rows-as-subjects' && step > 3) setStep(3);
+          }}
         />
       )}
       {step === 2 && (
@@ -346,11 +380,27 @@ export default function MatrixFilterWizard({
           onUpdate={(side, idx, patch) => updateCondition('resource', side, idx, patch)}
         />
       )}
+      {step === 4 && rollupSortApplicable && (
+        <Step4Rollup
+          rollup={filter.rollup}
+          columns={subjectColumns}
+          rowType={filter.rowType}
+          onChange={(rollup) => setFilter(prev => ({ ...prev, rollup }))}
+        />
+      )}
+      {step === 5 && rollupSortApplicable && (
+        <Step5Sort
+          sortAttributes={filter.sortAttributes}
+          columns={subjectColumns}
+          disabled={!!filter.rollup}
+          onChange={(sortAttributes) => setFilter(prev => ({ ...prev, sortAttributes }))}
+        />
+      )}
 
       <ErrorBox message={error} />
 
       {/* Live summary */}
-      <LiveSummary preview={preview} loading={previewLoading} rowType={filter.rowType} />
+      <LiveSummary preview={preview} loading={previewLoading} rowType={filter.rowType} rollup={filter.rollup} />
 
       {/* Footer buttons */}
       <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
@@ -362,9 +412,9 @@ export default function MatrixFilterWizard({
         <div className="flex items-center gap-2">
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
           {step > 1 && <SecondaryButton onClick={() => setStep(s => s - 1)}>Back</SecondaryButton>}
-          {step < 3 && <PrimaryButton onClick={() => setStep(s => s + 1)}>Next</PrimaryButton>}
-          {step === 3 && (
-            <PrimaryButton onClick={handleApply} disabled={preview.assignmentCount > BLOCK_ASSIGNMENTS}>
+          {step < lastStep && <PrimaryButton onClick={() => setStep(s => s + 1)}>Next</PrimaryButton>}
+          {step === lastStep && (
+            <PrimaryButton onClick={handleApply} disabled={!filter.rollup && preview.assignmentCount > BLOCK_ASSIGNMENTS}>
               Apply
             </PrimaryButton>
           )}
@@ -388,13 +438,128 @@ export default function MatrixFilterWizard({
 
 // ─── Step indicator ────────────────────────────────────────────────
 
-function StepIndicator({ step, onJump }) {
+function StepIndicator({ step, onJump, rollupSortApplicable }) {
   const steps = [
     { n: 1, label: 'Setup' },
     { n: 2, label: 'Subjects' },
     { n: 3, label: 'Resources' },
+    { n: 4, label: 'Roll-up', shown: rollupSortApplicable },
+    { n: 5, label: 'Sort',    shown: rollupSortApplicable },
   ];
   return <Stepper steps={steps} current={step} onStepClick={onJump} allowAll />;
+}
+
+// ─── Step 4 — Roll-up ───────────────────────────────────────────────
+function Step4Rollup({ rollup, columns, rowType, onChange }) {
+  const options = attributeOptions(columns);
+  const enabled = !!rollup;
+  const subjectWord = rowType === 'identity' ? 'identities' : 'users';
+
+  function enable(on) {
+    if (!on) { onChange(null); return; }
+    // Default to department when available, else the first option.
+    const def = options.includes('department') ? 'department' : (options[0] || null);
+    onChange(def);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Roll-up (optional)</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Aggregate the {subjectWord} columns by an attribute. Each cell then shows the
+          <span className="font-medium"> count of distinct {subjectWord} with a Direct assignment</span> to that
+          resource (Indirect and Owner are ignored). Click a column in the matrix to expand it into the
+          individual {subjectWord}.
+        </p>
+      </div>
+      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+        <input type="checkbox" checked={enabled} onChange={e => enable(e.target.checked)} />
+        <span>Aggregate columns by an attribute</span>
+      </label>
+      {enabled && (
+        <div className="pl-6">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Group by</label>
+          <select
+            value={rollup}
+            onChange={e => onChange(e.target.value)}
+            className="w-full max-w-xs border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+          >
+            {options.length === 0 && <option value="">(no attributes available)</option>}
+            {options.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Step 5 — Sort ──────────────────────────────────────────────────
+function Step5Sort({ sortAttributes, columns, disabled, onChange }) {
+  // Sort reads the flat matrix payload, which only carries real columns — so
+  // ext.* keys aren't offered here (roll-up may still use them).
+  const options = attributeOptions(columns, { realOnly: true });
+  const rows = sortAttributes.length ? sortAttributes : DEFAULT_SORT;
+
+  const update = (i, patch) => onChange(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+  const remove = (i) => onChange(rows.filter((_, idx) => idx !== i));
+  const add = () => {
+    const used = new Set(rows.map(r => r.attribute));
+    const next = options.find(o => !used.has(o)) || options[0];
+    if (next) onChange([...rows, { attribute: next, dir: 'asc' }]);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Sort columns</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Order the columns by up to three attributes (e.g. Department, then Job Title). The chosen
+          attributes appear as grouped header rows above the column names.
+        </p>
+      </div>
+      {disabled ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+          Sorting doesn’t apply in roll-up mode — columns are the roll-up groups, ordered alphabetically.
+        </p>
+      ) : (
+        <>
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-[11px] text-gray-500 dark:text-gray-400 w-12">{i === 0 ? 'Sort by' : 'then by'}</span>
+              <select
+                value={r.attribute}
+                onChange={e => update(i, { attribute: e.target.value })}
+                className="flex-1 max-w-xs border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+              >
+                {!options.includes(r.attribute) && <option value={r.attribute}>{r.attribute}</option>}
+                {options.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <button
+                type="button"
+                onClick={() => update(i, { dir: r.dir === 'asc' ? 'desc' : 'asc' })}
+                className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                title="Toggle ascending / descending"
+              >{r.dir === 'asc' ? 'A→Z' : 'Z→A'}</button>
+              {rows.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-red-600 dark:hover:text-red-400 rounded shrink-0"
+                  title="Remove"
+                >×</button>
+              )}
+            </div>
+          ))}
+          {rows.length < 3 && options.length > rows.length && (
+            <button type="button" onClick={add} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline">
+              + Add attribute
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 // ─── Saved-filter dropdown ─────────────────────────────────────────
@@ -449,7 +614,7 @@ function SavedFilterDropdown({ savedFilters, onLoad, onDelete }) {
 
 // ─── Live summary footer ───────────────────────────────────────────
 
-function LiveSummary({ preview, loading, rowType }) {
+function LiveSummary({ preview, loading, rowType, rollup }) {
   const subjectLabel = rowType === 'identity' ? 'identities' : 'users';
   const subjectPct = preview.subjectTotal > 0
     ? Math.round((preview.subjectCount / preview.subjectTotal) * 100)
@@ -458,8 +623,10 @@ function LiveSummary({ preview, loading, rowType }) {
     ? Math.round((preview.resourceCount / preview.resourceTotal) * 100)
     : 0;
 
-  const tooLarge = preview.assignmentCount > BLOCK_ASSIGNMENTS;
-  const large    = !tooLarge && preview.assignmentCount > WARN_ASSIGNMENTS;
+  // In roll-up mode the payload is aggregated, so the assignment-count size
+  // limit doesn't apply — never flag it as "too large".
+  const tooLarge = !rollup && preview.assignmentCount > BLOCK_ASSIGNMENTS;
+  const large    = !rollup && !tooLarge && preview.assignmentCount > WARN_ASSIGNMENTS;
 
   const countClass = tooLarge
     ? 'font-semibold text-red-700 dark:text-red-400'
@@ -488,6 +655,7 @@ function LiveSummary({ preview, loading, rowType }) {
         {' '}assignments
         {tooLarge && <span className="ml-1 text-red-700 dark:text-red-400">— too large to load, add filters to reduce below {BLOCK_ASSIGNMENTS.toLocaleString()}</span>}
         {large    && <span className="ml-1 text-amber-700 dark:text-amber-400">— large, consider narrowing</span>}
+        {rollup   && <span className="ml-1 text-blue-700 dark:text-blue-400">— roll-up mode: aggregated, size limit not applied</span>}
       </div>
       {loading && (
         <div className="ml-auto text-[10px] text-gray-600 dark:text-gray-400">updating…</div>
