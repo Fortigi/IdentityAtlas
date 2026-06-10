@@ -1,0 +1,2 @@
+- Fixed portable node-launcher failing to start due to missing `re2` native addon; the correct Windows prebuilt matching the bundled Node version is now fetched at build time
+- Standardised Node.js to v24 (Active LTS) across Docker images and CI workflows
