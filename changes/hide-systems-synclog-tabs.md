@@ -1,1 +1,0 @@
-- The Systems and Sync Log tabs are now hidden by default. Enable either of them per user from Settings → Visible Tabs when you need them.
