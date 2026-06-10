@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Aligned Node.js to v24 (Active LTS) across all components: Docker images, portable Windows launcher, and all GitHub Actions workflows and release flows
+
+## Changes in this PR
+
 - The Systems and Sync Log tabs are now hidden by default. Enable either of them per user from Settings → Visible Tabs when you need them.
 
 ## Changes in this PR
