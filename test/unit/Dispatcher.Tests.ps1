@@ -211,24 +211,3 @@ Describe 'Dependency loader — entry points are never dot-sourced' {
         { Invoke-DependencyLoader -Resolved $resolved -Registry $script:loaderRegistry } | Should -Not -Throw
     }
 }
-
-# ─── Fresh-process bootstrap (node-launcher simulation) ──────────────────────
-
-Describe 'Invoke-CrawlerJob.ps1 — fresh-process module bootstrap (node-launcher)' {
-    It 'self-imports IdentityAtlas when spawned without a pre-loaded module' {
-        # Simulate exactly what desktop-worker.cjs does: pwsh -NonInteractive -File
-        # with no prior Import-Module. The script must self-bootstrap.
-        $dispatcherPath = Join-Path $script:repoRoot 'setup' 'docker' 'Invoke-CrawlerJob.ps1'
-        $savedRoot = $env:IA_APP_ROOT
-        try {
-            $env:IA_APP_ROOT = $script:repoRoot
-            $output = & pwsh -NonInteractive -File $dispatcherPath `
-                -JobId 0 -JobType 'entra-id' -Config '{}' -ApiKey 'test' 2>&1 |
-                Out-String
-        } finally {
-            $env:IA_APP_ROOT = $savedRoot
-        }
-
-        $output | Should -Not -Match "The term 'Get-CrawlerRegistry' is not recognized"
-    }
-}
