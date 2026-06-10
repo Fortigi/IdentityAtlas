@@ -6,6 +6,7 @@ import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
+import { makeUserComparator } from './matrix/sortUsers';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
 
 // Inline arrayMove so MatrixView doesn't depend on @dnd-kit
@@ -168,6 +169,13 @@ export default function MatrixView({
       : data.filter(d => !isGoverned(d));
   }, [data, managedFilter, coveredPairSet]);
 
+  // Subject-axis sort order (default: department). Drives both the user sort
+  // and the merged attribute header rows.
+  const sortAttrs = useMemo(
+    () => (filter?.sortAttributes?.length ? filter.sortAttributes : [{ attribute: 'department', dir: 'asc' }]),
+    [filter],
+  );
+
   // Build matrix data structures
   // Owner memberships are split into separate synthetic rows (id: "groupId__owner",
   // realGroupId: original groupId, displayName suffixed with "(Owner)").
@@ -181,14 +189,20 @@ export default function MatrixView({
     filteredData.forEach(d => {
       // Users
       if (d.memberId && !userMap.has(d.memberId)) {
-        userMap.set(d.memberId, {
+        const u = {
           id: d.memberId,
           displayName: d.memberDisplayName || d.memberId,
           jobTitle: d.jobTitle || '',
           department: d.department || '',
           upn: d.memberUPN || '',
           memberType: d.memberType || '',
-        });
+        };
+        // Copy any additional sort attributes straight off the flat row so the
+        // multi-key sort + merged headers can read them.
+        for (const sa of sortAttrs) {
+          if (u[sa.attribute] === undefined) u[sa.attribute] = d[sa.attribute] ?? '';
+        }
+        userMap.set(d.memberId, u);
       }
 
       // Always create the base group/resource entry
@@ -242,12 +256,9 @@ export default function MatrixView({
       }
     });
 
-    // Sort users by job title then name
-    const users = [...userMap.values()].sort((a, b) => {
-      const titleCmp = (a.jobTitle || '').localeCompare(b.jobTitle || '');
-      if (titleCmp !== 0) return titleCmp;
-      return (a.displayName || '').localeCompare(b.displayName || '');
-    });
+    // Sort users by the configured sort attributes (default department), with
+    // displayName as the final tiebreak.
+    const users = [...userMap.values()].sort(makeUserComparator(sortAttrs));
 
     // Compute member counts per group (for default sort and % column)
     // Per-type counts enable priority sorting: Direct > Eligible > Owner > Indirect
@@ -291,7 +302,7 @@ export default function MatrixView({
       });
 
     return { users, groups, memberships: membershipMap, managedMap: managed };
-  }, [filteredData, groupTagMap]);
+  }, [filteredData, groupTagMap, sortAttrs]);
 
   // Build managed-by-AP map: cellKey (lowercase) -> accessPackageId[] (lowercase)
   // All keys and values normalized to lowercase for case-insensitive matching
@@ -652,7 +663,7 @@ export default function MatrixView({
       if (u.memberType === 'Identity' && expandedIdentities.has(u.id)) {
         const cache = accountMatrixCache.get(u.id);
         for (const acc of (cache?.accounts || [])) {
-          out.push({
+          const accCol = {
             id: acc.id,
             displayName: acc.displayName || acc.id,
             jobTitle: u.jobTitle || '',     // inherit so the merged title header stays contiguous
@@ -663,12 +674,18 @@ export default function MatrixView({
             parentId: u.id,
             accountType: acc.accountType || null,
             isPrimary: !!acc.isPrimary,
-          });
+          };
+          // Inherit every sort attribute from the parent identity so the merged
+          // attribute header rows stay contiguous across an expanded identity.
+          for (const sa of sortAttrs) {
+            if (accCol[sa.attribute] === undefined) accCol[sa.attribute] = u[sa.attribute] ?? '';
+          }
+          out.push(accCol);
         }
       }
     }
     return out;
-  }, [users, expandedIdentities, accountMatrixCache]);
+  }, [users, expandedIdentities, accountMatrixCache, sortAttrs]);
 
   const colMemberships = useMemo(() => {
     if (expandedIdentities.size === 0) return displayMemberships;
@@ -688,6 +705,7 @@ export default function MatrixView({
       infoColumnCount={infoColumnCount}
       onSortByCount={handleSortByCount}
       accessPackages={visibleAccessPackages}
+      sortAttributes={sortAttrs}
       onOpenDetail={onOpenDetail}
       expandedIdentities={expandedIdentities}
       onToggleIdentity={toggleIdentityColumn}
