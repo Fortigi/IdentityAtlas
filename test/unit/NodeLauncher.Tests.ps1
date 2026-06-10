@@ -35,10 +35,12 @@ BeforeDiscovery {
             $content = Get-Content $_.FullName -Raw
             $label   = $_.FullName.Substring($root.Length).TrimStart([char]'/', [char]'\')
 
-            # Pattern 1: "$appRoot/path/to/file"
+            # Pattern 1: "$appRoot/path/to/file" — scripts only; data files may be generated at runtime
             [regex]::Matches($content, $pat1) | ForEach-Object {
                 $rel = $_.Groups[1].Value -replace '[/\\]', [System.IO.Path]::DirectorySeparatorChar
-                $refs.Add(@{ File = $label; Path = $rel; Root = $root })
+                if ($rel -match '\.(ps1|psd1|psm1)$') {
+                    $refs.Add(@{ File = $label; Path = $rel; Root = $root })
+                }
             }
 
             # Pattern 2: Join-Path $appRoot 'seg1' 'seg2' (literal segments only)
