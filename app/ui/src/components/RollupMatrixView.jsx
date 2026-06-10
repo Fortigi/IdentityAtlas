@@ -168,7 +168,7 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
                     const n = countMap.get(`${r.resourceId}|${col.group}`) || 0;
                     return (
                       <td key={col.key} className="border-b border-r border-gray-100 dark:border-gray-700 text-center px-1 py-0.5" style={{ minWidth: '40px' }}>
-                        {n > 0 ? <span className="inline-block text-[11px] font-semibold text-gray-800 dark:text-gray-200">{n}</span> : <span className="text-gray-300 dark:text-gray-700">·</span>}
+                        {n > 0 ? <span className="inline-block text-[11px] font-semibold text-gray-800 dark:text-gray-200">{n}</span> : <span className="text-gray-500 dark:text-gray-700">·</span>}
                       </td>
                     );
                   }
