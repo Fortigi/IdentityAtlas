@@ -15,10 +15,14 @@
 //
 // Requires: node 18+, PowerShell 7+ on PATH (for Invoke-WebRequest + Compress-Archive)
 
-import { execSync, execFileSync }       from 'child_process';
-import { cpSync, mkdirSync, existsSync, rmSync, copyFileSync } from 'fs';
-import { join, resolve, dirname }      from 'path';
-import { fileURLToPath }               from 'url';
+import { execSync, execFileSync }                                   from 'child_process';
+import { cpSync, mkdirSync, existsSync, rmSync, copyFileSync,
+         createReadStream, createWriteStream, readFileSync,
+         unlinkSync }                                               from 'fs';
+import { createBrotliDecompress }                                  from 'zlib';
+import { pipeline }                                                from 'stream/promises';
+import { join, resolve, dirname }                                  from 'path';
+import { fileURLToPath }                                           from 'url';
 
 const __dirname   = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT   = resolve(__dirname, '..', '..', '..');
@@ -29,9 +33,12 @@ const STAGE_DIR   = join(DIST_DIR, 'stage');
 const ZIP_PATH    = join(DIST_DIR, 'IdentityAtlas-portable.zip');
 
 const NODE_VERSION   = '24.16.0';
+// Node modules ABI for the bundled node.exe — must match NODE_VERSION.
+// Update both NODE_VERSION, NODE_ABI, and NODE_SHA256 together when bumping Node.js.
+// ABI reference: https://nodejs.org/en/download/releases (modules column)
+const NODE_ABI       = '137'; // Node 24
 const NODE_URL       = `https://nodejs.org/dist/v${NODE_VERSION}/win-x64/node.exe`;
 // SHA-256 from https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt (win-x64/node.exe)
-// Update both NODE_VERSION and NODE_SHA256 together when bumping Node.js.
 const NODE_SHA256    = 'b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3';
 
 const SKIP_UI   = process.argv.includes('--skip-ui-build');
@@ -97,12 +104,30 @@ cpSync(
   { recursive: true }
 );
 
-// ── Step 5/8 — copy PGlite ───────────────────────────────────────────────────
+// ── Step 5/8 — copy PGlite and native addons ─────────────────────────────────
 console.log('\n[6/8] Copying @electric-sql/pglite...');
 const PGLITE_SRC  = join(DESKTOP_DIR, 'node_modules', '@electric-sql', 'pglite');
 const PGLITE_DEST = join(STAGE_DIR, 'node_modules', '@electric-sql', 'pglite');
 mkdirSync(join(STAGE_DIR, 'node_modules', '@electric-sql'), { recursive: true });
 cpSync(PGLITE_SRC, PGLITE_DEST, { recursive: true });
+
+// re2 is a native addon (marked --external in esbuild).
+// Copy the package, then replace the binary with the prebuilt for the target
+// Node ABI — the host Node may differ from the bundled node.exe.
+const RE2_SRC  = join(API_ROOT, 'node_modules', 're2');
+const RE2_DEST = join(STAGE_DIR, 'node_modules', 're2');
+cpSync(RE2_SRC, RE2_DEST, { recursive: true });
+
+const RE2_VERSION   = JSON.parse(readFileSync(join(RE2_SRC, 'package.json'), 'utf8')).version;
+const RE2_BR_URL    = `https://github.com/uhop/node-re2/releases/download/${RE2_VERSION}/win32-x64-${NODE_ABI}.br`;
+const RE2_DEST_DIR  = join(RE2_DEST, 'build', 'Release');
+const RE2_BR_PATH   = join(RE2_DEST_DIR, 're2.node.br');
+const RE2_NODE_PATH = join(RE2_DEST_DIR, 're2.node');
+mkdirSync(RE2_DEST_DIR, { recursive: true });
+console.log(`  Fetching re2 prebuilt win32-x64-${NODE_ABI} (re2@${RE2_VERSION})...`);
+pwsh(`Invoke-WebRequest -Uri '${RE2_BR_URL}' -OutFile '${RE2_BR_PATH.replace(/\\/g, '\\\\')}' -UseBasicParsing`);
+await pipeline(createReadStream(RE2_BR_PATH), createBrotliDecompress(), createWriteStream(RE2_NODE_PATH));
+unlinkSync(RE2_BR_PATH);
 
 // ── Step 6/8 — copy launcher files ───────────────────────────────────────────
 console.log('\n[7/8] Copying launcher files...');
