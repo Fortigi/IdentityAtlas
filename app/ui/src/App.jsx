@@ -11,6 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 const DashboardPage = lazy(() => import('./components/DashboardPage'));
 const MatrixView = lazy(() => import('./components/MatrixView'));
 const RotatedMatrixView = lazy(() => import('./components/RotatedMatrixView'));
+const RollupMatrixView = lazy(() => import('./components/RollupMatrixView'));
 const MatrixFilterWizard = lazy(() => import('./components/matrix/MatrixFilterWizard'));
 const SyncLogPage = lazy(() => import('./components/SyncLogPage'));
 const UsersPage = lazy(() => import('./components/UsersPage'));
@@ -104,7 +105,7 @@ export default function App() {
   const [managedFilter, setManagedFilter] = useState(initial.managed);
   const [wizardOpen, setWizardOpen] = useState(false);
 
-  const { data, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
+  const { data, rollup, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
   const [page, navigate] = useHashRoute();
   const [moduleVersion, setModuleVersion] = useState(null);
@@ -597,7 +598,15 @@ export default function App() {
             </div>
           ) : (
             <>
-              {matrixFilter?.orientation === 'rows-as-subjects' ? (
+              {rollup ? (
+                <RollupMatrixView
+                  rollup={rollup}
+                  filter={matrixFilter}
+                  refreshing={refreshing}
+                  onOpenDetail={openDetailTab}
+                  onAdjustFilter={() => setWizardOpen(true)}
+                />
+              ) : matrixFilter?.orientation === 'rows-as-subjects' ? (
                 <RotatedMatrixView
                   data={data}
                   filter={matrixFilter}
