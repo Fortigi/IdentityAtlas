@@ -9,6 +9,8 @@ import MatrixCell from './matrix/MatrixCell';
 // to expand it into the underlying subjects (a normal per-subject query scoped
 // to that attribute value), shown with their real D/I/O badges.
 
+const MAX_ROWS = 300; // this view isn't virtualized — cap rendered resource rows
+
 export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDetail, onAdjustFilter }) {
   const { authFetch } = useAuth();
   const { attribute, resources, groupValues, counts } = rollup;
@@ -21,13 +23,16 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
     return m;
   }, [counts]);
 
-  // Resources ordered by total direct assignments (busiest first).
+  // Resources ordered by total direct assignments (busiest first), capped so the
+  // un-virtualized table stays responsive on an unscoped roll-up.
   const orderedResources = useMemo(() => {
     const total = (rid) => groupValues.reduce((s, g) => s + (countMap.get(`${rid}|${g}`) || 0), 0);
     return [...resources]
       .map(r => ({ ...r, _total: total(r.resourceId) }))
       .sort((a, b) => b._total - a._total || (a.resourceDisplayName || '').localeCompare(b.resourceDisplayName || ''));
   }, [resources, groupValues, countMap]);
+  const shownResources = orderedResources.slice(0, MAX_ROWS);
+  const truncated = orderedResources.length - shownResources.length;
 
   // ── Drill-down: expand a group into its individual subjects ──
   const [expanded, setExpanded] = useState(() => new Set());
@@ -151,7 +156,7 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
             </tr>
           </thead>
           <tbody>
-            {orderedResources.map(r => (
+            {shownResources.map(r => (
               <tr key={r.resourceId} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                 <td className="sticky left-0 z-10 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-700 px-2 py-1 text-gray-800 dark:text-gray-200" style={{ minWidth: '280px' }}>
                   <button className="text-left hover:text-blue-600 dark:hover:text-blue-400 truncate max-w-[260px] block" onClick={() => onOpenDetail?.('resource', r.resourceId, r.resourceDisplayName)} title={r.resourceDisplayName}>
@@ -174,6 +179,11 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
             ))}
             {orderedResources.length === 0 && (
               <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">No assignments match the current filter.</td></tr>
+            )}
+            {truncated > 0 && (
+              <tr><td colSpan={columns.length + 1} className="px-3 py-2 text-center text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
+                Showing the top {MAX_ROWS} of {orderedResources.length} resources by Direct assignments — add resource filters to narrow.
+              </td></tr>
             )}
           </tbody>
         </table>
