@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed portable node-launcher failing to start due to missing `re2` native addon; the correct Windows prebuilt matching the bundled Node version is now fetched at build time
+- Standardised Node.js to v24 (Active LTS) across Docker images and CI workflows
+
+## Changes in this PR
+
 - Context trees (e.g. the manager / org tree) can now be curated after the plugin generates them: drag a node onto another node to re-parent it, double-click a node to rename it, and use the "+" on a node to add a manual child — all directly in the Contexts tree.
 - Edited generated contexts are highlighted with an amber "✎ Edited" marker so it's clear at a glance which nodes you've changed by hand.
 - Your renames and re-parenting on generated contexts are now preserved when the plugin re-runs (previously a re-run reset them).
