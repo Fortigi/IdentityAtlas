@@ -6,7 +6,7 @@
 #   docker build -t fortigraph-frontend .
 #   docker run -p 5173:5173 -v $(pwd)/src:/app/src fortigraph-frontend
 
-FROM node:20-slim
+FROM node:24-slim
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
