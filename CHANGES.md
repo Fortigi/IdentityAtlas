@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed repeated "SIGINT received, shutting down..." loop when pressing Ctrl+C multiple times in the portable node-launcher
+- Fixed process hanging indefinitely after Ctrl+C due to keep-alive browser connections blocking shutdown
+
+## Changes in this PR
+
 - Fixed portable node-launcher failing to start due to missing `re2` native addon; the correct Windows prebuilt matching the bundled Node version is now fetched at build time
 - Standardised Node.js to v24 (Active LTS) across Docker images and CI workflows
 
