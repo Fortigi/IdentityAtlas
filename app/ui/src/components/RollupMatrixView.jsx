@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { friendlyLabel } from '../utils/formatters';
 import MatrixCell from './matrix/MatrixCell';
+import MatrixScopePanel from './matrix/MatrixScopePanel';
 
 // Roll-up matrix: the subject (column) axis is aggregated by an attribute (e.g.
 // department). Rows are resources; each cell is the count of distinct subjects
@@ -98,6 +99,9 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
 
   return (
     <div className="flex flex-col h-full">
+      {/* Scope Statistics — governed % etc., same as the per-subject matrix. */}
+      {filter && <MatrixScopePanel filter={filter} />}
+
       <div className="flex items-center justify-between gap-3 px-1 py-2 text-xs">
         <div className="text-gray-600 dark:text-gray-300">
           Roll-up by <span className="font-semibold">{friendlyLabel(attribute)}</span> — each cell is the count of distinct {subjectWord} with a
