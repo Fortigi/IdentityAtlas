@@ -3,9 +3,15 @@
 // stays consistent and we don't duplicate the overlay / close-on-backdrop-click
 // logic five times.
 
-export function Modal({ title, subtitle, onClose, children, width = 480 }) {
+// dismissOnBackdrop — when false, clicking the dark overlay does NOT close the
+// modal (only the ✕ / explicit Cancel do). Use it for multi-step forms where an
+// accidental outside click would discard half-entered input.
+export function Modal({ title, subtitle, onClose, children, width = 480, dismissOnBackdrop = true }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/70" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/70"
+      onClick={dismissOnBackdrop ? onClose : undefined}
+    >
       <div
         className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-5 max-w-full max-h-[90vh] overflow-auto"
         style={{ width }}

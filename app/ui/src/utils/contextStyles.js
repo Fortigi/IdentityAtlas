@@ -27,3 +27,24 @@ export function variantMeta(variant) {
 export function targetTypeMeta(t) {
   return TARGET_TYPE_META[t] || { label: t || 'Unknown', badgeClass: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600' };
 }
+
+// "Edited" treatment for a generated context an analyst has curated (renamed
+// and/or re-parented). Generated nodes are normally emerald; once touched we
+// tint them amber — the same hue as manual contexts — so "analyst has changed
+// this" reads consistently across the tab. Returns null when there's nothing
+// to mark (synced/manual nodes, or untouched generated nodes).
+export function editedMeta(node) {
+  if (!node || node.variant !== 'generated') return null;
+  const renamed = !!node.userRenamed;
+  const reparented = !!node.userReparented;
+  if (!renamed && !reparented) return null;
+  const parts = [];
+  if (renamed) parts.push('renamed');
+  if (reparented) parts.push('moved');
+  return {
+    label: 'Edited',
+    title: `Analyst-curated (${parts.join(' + ')}) — kept when the plugin re-runs`,
+    ringClass: 'ring-1 ring-amber-400 dark:ring-amber-500',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700',
+  };
+}
