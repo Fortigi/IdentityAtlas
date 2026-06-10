@@ -4,6 +4,7 @@ import { useAuth } from './auth/AuthGate';
 import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
 import { ThemeContext } from './contexts/ThemeContext';
+import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy-load page components (route-based code splitting)
@@ -90,20 +91,6 @@ function useHashRoute() {
   return [page, navigate];
 }
 
-const ALL_NAV_TABS = [
-  { key: 'dashboard',        label: 'Dashboard' },
-  { key: 'matrix',           label: 'Matrix' },
-  { key: 'users',            label: 'Users' },
-  { key: 'resources',        label: 'Resources' },
-  { key: 'systems',          label: 'Systems' },
-  { key: 'access-packages',  label: 'Business Roles' },
-  { key: 'sync-log',         label: 'Sync Log' },
-  { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring',        optional: true },
-  { key: 'identities',       label: 'Identities',   feature: 'accountLinking', optional: true },
-  { key: 'contexts',         label: 'Contexts' },
-  { key: 'admin',            label: 'Admin' },
-];
-
 export default function App() {
   // Parse initial state from URL (runs once — empty deps intentional)
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -135,21 +122,13 @@ export default function App() {
   // page inside Admin further self-gates by admin.auth.
   const canSeeAdmin = useCanSeeAdminTab();
 
-  const navTabs = useMemo(() =>
-    ALL_NAV_TABS.filter(tab => {
-      if (tab.feature && !features[tab.feature]) return false;
-      if (tab.optional && visibleTabs && !visibleTabs.includes(tab.key)) return false;
-      if (tab.key === 'admin' && !canSeeAdmin) return false;
-      return true;
-    }),
+  const navTabs = useMemo(
+    () => computeNavTabs({ features, visibleTabs, canSeeAdmin }),
     [features, visibleTabs, canSeeAdmin]
   );
 
   // Available optional tabs (respecting feature flags)
-  const optionalTabs = useMemo(() =>
-    ALL_NAV_TABS.filter(tab => tab.optional && (!tab.feature || features[tab.feature])),
-    [features]
-  );
+  const optionalTabs = useMemo(() => availableOptionalTabs(features), [features]);
 
   // The Dashboard page handles the no-data case with its own "Configure a
   // crawler" CTA. In v5 the default landing page is the Dashboard — the old
