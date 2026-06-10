@@ -1,0 +1,2 @@
+- Fixed repeated "SIGINT received, shutting down..." loop when pressing Ctrl+C multiple times in the portable node-launcher
+- Fixed process hanging indefinitely after Ctrl+C due to keep-alive browser connections blocking shutdown
