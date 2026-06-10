@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- The matrix wizard has a new **Roll-up** step: aggregate the columns by an attribute (e.g. department). Columns become the attribute's values and each cell shows the count of distinct users/identities with a Direct assignment to that resource. Click a column to expand it into the individual users with their normal D/I/O badges. Roll-up returns an aggregated (small) result, so the "matrix too large" limit no longer applies in this mode.
+- The matrix wizard has a new **Sort** step: order the columns by up to three attributes (default Department, then e.g. Job Title). The chosen attributes appear as grouped header rows above the column names.
+- The Scope Statistics banner (subjects, resources, governed %) now also shows above the roll-up view.
+
+## Changes in this PR
+
 - Aligned Node.js to v24 (Active LTS) across all components: Docker images, portable Windows launcher, and all GitHub Actions workflows and release flows
 
 ## Changes in this PR
