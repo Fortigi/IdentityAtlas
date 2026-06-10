@@ -33,6 +33,7 @@ import {
   getPrincipalColumnValues,
   getResourceColumnValues,
 } from '../db/columnCache.js';
+import { resolveAttrExpr } from '../matrix/attrExpr.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -132,7 +133,25 @@ function parseFilter(body) {
     rowType,
     subject:  normaliseBlock(f.subject),
     resource: normaliseBlock(f.resource),
+    // Roll-up: aggregate the subject axis by this attribute (real column or
+    // ext.<key>). null = off. Validated against real columns in the handler.
+    rollup: typeof f.rollup === 'string' && f.rollup ? f.rollup : null,
+    // Subject-axis sort order — client-side only, but normalised here so the
+    // shape is consistent across endpoints. Max 3 attributes.
+    sortAttributes: normaliseSortAttributes(f.sortAttributes),
   };
+}
+
+export function normaliseSortAttributes(arr) {
+  const DEFAULT = [{ attribute: 'department', dir: 'asc' }];
+  if (!Array.isArray(arr)) return DEFAULT;
+  const out = [];
+  for (const a of arr) {
+    if (!a || typeof a.attribute !== 'string' || !a.attribute) continue;
+    out.push({ attribute: a.attribute, dir: a.dir === 'desc' ? 'desc' : 'asc' });
+    if (out.length === 3) break;
+  }
+  return out.length ? out : DEFAULT;
 }
 
 function normaliseBlock(b) {
@@ -218,6 +237,52 @@ function subjectScopeClauses(rowType, subjectSql) {
     where: clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '',
     baseWhere: baseWhere ? ` WHERE ${baseWhere}` : '',
   };
+}
+
+// Subject/resource scope counts shared by /matrix/data (flat + roll-up paths).
+async function scopeCounts(p, res, rowType, built) {
+  const subj = subjectScopeClauses(rowType, built.subjectSql);
+  const [subjectCount, subjectTotal, resourceCount, resourceTotal] = await Promise.all([
+    runCount(p, 'matrix-data-subject-count', res,
+      `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`, built.bindings),
+    runCount(p, 'matrix-data-subject-total', res,
+      `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.baseWhere}`, {}),
+    runCount(p, 'matrix-data-resource-count', res,
+      `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceSql ? ` WHERE id IN ${built.resourceSql}` : ''}`, built.bindings),
+    runCount(p, 'matrix-data-resource-total', res,
+      `SELECT COUNT(*)::int AS c FROM "Resources"`, {}),
+  ]);
+  return { subjectCount, subjectTotal, resourceCount, resourceTotal };
+}
+
+// Pure builder for the roll-up aggregation: count DISTINCT subjects with a
+// Direct assignment, grouped by (resource, attribute value). Direct only —
+// Indirect/Owner/Eligible are intentionally ignored. Exported for unit tests.
+export function buildRollupSql({ attrExpr, subjectJoin, subjectIdExpr, subjectIdForFilter, subjectSql, resourceSql }) {
+  const where = [
+    `(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`,
+    `p."membershipType" = 'Direct'`,
+  ];
+  if (subjectSql)  where.push(`${subjectIdForFilter} IN ${subjectSql}`);
+  if (resourceSql) where.push(`p."resourceId" IN ${resourceSql}`);
+  const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
+  return `
+    SELECT p."resourceId"                        AS "resourceId",
+           r."displayName"                       AS "resourceDisplayName",
+           r."resourceType",
+           r."description"                       AS "resourceDescription",
+           r."systemId",
+           sys."displayName"                     AS "systemName",
+           ${grp}                                AS "groupValue",
+           COUNT(DISTINCT ${subjectIdExpr})::int AS "directCount"
+      FROM "vw_ResourceUserPermissionAssignments" p
+      ${subjectJoin}
+      LEFT JOIN "Resources" r ON p."resourceId" = r.id
+      LEFT JOIN "Systems" sys ON r."systemId" = sys.id
+     WHERE ${where.join(' AND ')}
+     GROUP BY p."resourceId", r."displayName", r."resourceType", r."description",
+              r."systemId", sys."displayName", ${grp}
+  `;
 }
 
 // ─── POST /api/matrix/preview ───────────────────────────────────────
@@ -462,17 +527,9 @@ router.post('/matrix/scope-breakdown', async (req, res) => {
   // Resolve + validate the grouping attribute (real principal column or ext.*).
   const rawAttr = typeof req.query.attribute === 'string' && req.query.attribute
     ? req.query.attribute : 'department';
-  let attrExpr;
-  if (rawAttr.startsWith('ext.')) {
-    const key = rawAttr.slice(4);
-    if (!SAFE_IDENT_RE.test(key)) return res.status(400).json({ error: 'invalid attribute' });
-    attrExpr = `u."extendedAttributes"->>'${key}'`;
-  } else {
-    if (!SAFE_IDENT_RE.test(rawAttr)) return res.status(400).json({ error: 'invalid attribute' });
-    const cols = await getPrincipalColumns();
-    if (!cols.some(c => c.name === rawAttr)) return res.status(400).json({ error: 'unknown attribute' });
-    attrExpr = `u."${rawAttr}"`;
-  }
+  const resolved = resolveAttrExpr(rawAttr, 'u', await getPrincipalColumns());
+  if (resolved.error) return res.status(400).json({ error: resolved.error });
+  const attrExpr = resolved.attrExpr;
 
   try {
     const built = await buildSubqueries(filter);
@@ -576,6 +633,56 @@ router.post('/matrix/data', async (req, res) => {
 
     const subjectIdForFilter = rowType === 'identity' ? 'i.id' : 'p."principalId"';
 
+    // ─── Roll-up aggregation branch ───
+    // Columns become distinct values of `filter.rollup`; each cell is the count
+    // of distinct subjects with a Direct assignment. Compact payload, so the
+    // wizard's 25k "too large" guard doesn't apply.
+    if (filter.rollup) {
+      const subjCols = rowType === 'identity' ? built.identityCols : built.principalCols;
+      const resolved = resolveAttrExpr(filter.rollup, subjectAlias, subjCols);
+      if (resolved.error) return res.status(400).json({ error: resolved.error });
+
+      const rollupReq = timedRequest(p, `matrix-rollup[${rowType}]`, res);
+      for (const [k, v] of Object.entries(built.bindings)) rollupReq.input(k, v);
+      const rollupResult = await rollupReq.query(buildRollupSql({
+        attrExpr: resolved.attrExpr,
+        subjectJoin,
+        subjectIdExpr: memberIdExpr,
+        subjectIdForFilter,
+        subjectSql: built.subjectSql,
+        resourceSql: built.resourceSql,
+      }));
+
+      const counts = await scopeCounts(p, res, rowType, built);
+      const resMap = new Map();
+      const groupSet = new Set();
+      for (const row of rollupResult.recordset) {
+        if (!resMap.has(row.resourceId)) {
+          resMap.set(row.resourceId, {
+            resourceId: row.resourceId,
+            resourceDisplayName: row.resourceDisplayName,
+            resourceType: row.resourceType,
+            resourceDescription: row.resourceDescription,
+            systemId: row.systemId,
+            systemName: row.systemName,
+          });
+        }
+        groupSet.add(row.groupValue);
+      }
+      return res.json({
+        rollup: filter.rollup,
+        rowType,
+        resources: [...resMap.values()],
+        groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
+        counts: rollupResult.recordset.map(r => ({
+          resourceId: r.resourceId, groupValue: r.groupValue, directCount: r.directCount,
+        })),
+        ...counts,
+        totalUsers: counts.subjectTotal,
+        warnings: built.warnings,
+      });
+    }
+
     const where = [`(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`];
     if (built.subjectSql)  where.push(`${subjectIdForFilter} IN ${built.subjectSql}`);
     if (built.resourceSql) where.push(`p."resourceId" IN ${built.resourceSql}`);
@@ -614,21 +721,7 @@ router.post('/matrix/data', async (req, res) => {
     `;
     const result = await dataReq.query(dataSql);
 
-    const subj = subjectScopeClauses(rowType, built.subjectSql);
-    const [subjectCount, subjectTotal, resourceCount, resourceTotal] = await Promise.all([
-      runCount(p, 'matrix-data-subject-count', res,
-        `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`,
-        built.bindings),
-      runCount(p, 'matrix-data-subject-total', res,
-        `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.baseWhere}`,
-        {}),
-      runCount(p, 'matrix-data-resource-count', res,
-        `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceSql ? ` WHERE id IN ${built.resourceSql}` : ''}`,
-        built.bindings),
-      runCount(p, 'matrix-data-resource-total', res,
-        `SELECT COUNT(*)::int AS c FROM "Resources"`,
-        {}),
-    ]);
+    const { subjectCount, subjectTotal, resourceCount, resourceTotal } = await scopeCounts(p, res, rowType, built);
 
     // AP mapping — keyed by memberId (principal or identity depending on
     // rowType) so the existing frontend renders SOLL columns correctly.
