@@ -1,1 +1,0 @@
-- Aligned Node.js to v24 (Active LTS) across all components: Docker images, portable Windows launcher, and all GitHub Actions workflows and release flows
