@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The Systems and Sync Log tabs are now hidden by default. Enable either of them per user from Settings → Visible Tabs when you need them.
+
+## Changes in this PR
+
 - Fixed repeated "SIGINT received, shutting down..." loop when pressing Ctrl+C multiple times in the portable node-launcher
 - Fixed process hanging indefinitely after Ctrl+C due to keep-alive browser connections blocking shutdown
 
