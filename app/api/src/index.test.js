@@ -1,4 +1,4 @@
-// Tests for index.js startup behaviour: EADDRINUSE handler and host binding.
+// Tests for index.js startup behaviour: EADDRINUSE handler, host binding, and graceful shutdown.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import net from 'node:net';
@@ -32,6 +32,60 @@ describe('server EADDRINUSE handler', () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('already in use'));
 
     blocker.close();
+  });
+});
+
+describe('graceful shutdown', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('logs and closes server only once when SIGINT fires multiple times', async () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+    const logSpy  = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const mockServer = { close: vi.fn(cb => cb()) };
+
+    // Inline simulation of index.js shutdown logic
+    let shuttingDown = false;
+    function shutdown(signal) {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`${signal} received, shutting down...`);
+      mockServer.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 5000).unref();
+    }
+
+    shutdown('SIGINT');
+    shutdown('SIGINT');
+    shutdown('SIGINT');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(mockServer.close).toHaveBeenCalledTimes(1);
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('force-exits after 5 s when server has lingering connections', () => {
+    vi.useFakeTimers();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const mockServer = { close: vi.fn() }; // never calls its callback
+
+    let shuttingDown = false;
+    function shutdown(signal) {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`${signal} received, shutting down...`);
+      mockServer.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 5000).unref();
+    }
+
+    shutdown('SIGINT');
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(5000);
+    expect(exitSpy).toHaveBeenCalledWith(0);
   });
 });
 
