@@ -72,8 +72,14 @@ server.on('error', (err) => {
   throw err;
 });
 
-// Graceful shutdown: close SQL pool before exiting
+// Graceful shutdown: close SQL pool before exiting.
+// Guard flag prevents re-entrant calls (multiple Ctrl+C presses each add a
+// server 'close' listener, causing MaxListenersExceededWarning and the loop
+// of repeated "SIGINT received" messages).
+let shuttingDown = false;
 async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`${signal} received, shutting down...`);
   server.close(async () => {
     if (process.env.USE_SQL === 'true') {
@@ -82,6 +88,9 @@ async function shutdown(signal) {
     }
     process.exit(0);
   });
+  // Force exit after 5 s — keep-alive browser connections would otherwise
+  // prevent server.close() from firing indefinitely.
+  setTimeout(() => process.exit(0), 5000).unref();
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
