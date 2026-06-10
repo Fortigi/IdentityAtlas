@@ -6,12 +6,7 @@ import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
-import { makeUserComparator } from './matrix/sortUsers';
-
-// Sort-attribute names come from the user's filter, so guard against writing to
-// dangerous property names (prototype pollution) when copying them onto subjects.
-const UNSAFE_PROP_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-const isSafeKey = (k) => typeof k === 'string' && !UNSAFE_PROP_KEYS.has(k);
+import { makeUserComparator, buildSortKeys } from './matrix/sortUsers';
 import MatrixGroupRow from './matrix/MatrixGroupRow';
 
 // Inline arrayMove so MatrixView doesn't depend on @dnd-kit
@@ -202,13 +197,10 @@ export default function MatrixView({
           upn: d.memberUPN || '',
           memberType: d.memberType || '',
         };
-        // Copy any additional sort attributes straight off the flat row so the
-        // multi-key sort + merged headers can read them.
-        for (const sa of sortAttrs) {
-          const key = sa.attribute;
-          if (!isSafeKey(key)) continue;
-          if (u[key] === undefined) u[key] = d[key] ?? '';
-        }
+        // Precompute the sort values (attribute order) for multi-key sort +
+        // merged headers. Stored under a static `sortKeys` key — the user-derived
+        // attribute names are only read, never used as a write target.
+        u.sortKeys = buildSortKeys(d, sortAttrs);
         userMap.set(d.memberId, u);
       }
 
@@ -682,13 +674,9 @@ export default function MatrixView({
             accountType: acc.accountType || null,
             isPrimary: !!acc.isPrimary,
           };
-          // Inherit every sort attribute from the parent identity so the merged
-          // attribute header rows stay contiguous across an expanded identity.
-          for (const sa of sortAttrs) {
-            const key = sa.attribute;
-            if (!isSafeKey(key)) continue;
-            if (accCol[key] === undefined) accCol[key] = u[key] ?? '';
-          }
+          // Inherit the parent identity's sort values so the merged attribute
+          // header rows stay contiguous across an expanded identity.
+          accCol.sortKeys = [...(u.sortKeys || [])];
           out.push(accCol);
         }
       }

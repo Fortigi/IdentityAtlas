@@ -17,12 +17,12 @@ export default function MatrixColumnHeaders({
   const isDark = useIsDark();
 
   // One merged header row per sort attribute (default: department), each
-  // grouping consecutive columns that share the same value. The user columns
-  // are already sorted by these attributes upstream in MatrixView.
+  // grouping consecutive columns that share the same value (read from each
+  // user's precomputed sortKeys[index]). Columns are pre-sorted in MatrixView.
   const attrs = (Array.isArray(sortAttributes) && sortAttributes.length)
     ? sortAttributes.map(s => s.attribute)
-    : ['jobTitle'];
-  const attrRows = attrs.map(attribute => ({ attribute, spans: computeAttributeSpans(users, attribute) }));
+    : ['department'];
+  const attrRows = attrs.map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
   const headerRowCount = attrRows.length;
 
   return (
