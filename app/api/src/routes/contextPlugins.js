@@ -11,6 +11,7 @@ import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
 import { REGISTERED_PLUGINS, getPlugin } from '../contexts/plugins/registry.js';
 import { enqueueRun, dryRun, getRun, listRuns } from '../contexts/plugins/runner.js';
+import { getPrincipalColumns } from '../db/columnCache.js';
 
 const router = Router();
 const gate = requirePermission('admin.context-plugins');
@@ -46,6 +47,35 @@ router.get('/context-plugins', gate, async (req, res) => {
   } catch (err) {
     console.error('GET /context-plugins failed:', err.message);
     res.status(500).json({ error: 'Failed to load plugins' });
+  }
+});
+
+// GET /api/context-plugins/principal-attributes
+// Attributes available to name org-tree nodes: real Principal columns plus the
+// distinct keys found in the extendedAttributes JSON (e.g. sfDepartmentName,
+// extensionAttribute1). Optional ?scopeSystemId narrows the extended keys to
+// one system. Used by the Run-plugin attribute picker.
+router.get('/context-plugins/principal-attributes', gate, async (req, res) => {
+  if (!useSql) return res.json({ columns: [], extended: [] });
+  try {
+    const HIDE = new Set(['id', 'systemId', 'extendedAttributes', 'externalId', 'riskScore', 'riskTier']);
+    const columns = (await getPrincipalColumns()).map(c => c.name).filter(n => !HIDE.has(n));
+
+    const sys = parseInt(req.query.scopeSystemId, 10);
+    const params = [];
+    let where = `"extendedAttributes" IS NOT NULL`;
+    if (Number.isFinite(sys)) { params.push(sys); where += ` AND "systemId" = $1`; }
+    const extended = (await db.query(`
+      SELECT DISTINCT jsonb_object_keys("extendedAttributes") AS k
+        FROM "Principals"
+       WHERE ${where}
+       ORDER BY k
+    `, params)).rows.map(r => r.k);
+
+    res.json({ columns, extended });
+  } catch (err) {
+    console.error('GET /context-plugins/principal-attributes failed:', err.message);
+    res.json({ columns: [], extended: [] });
   }
 });
 

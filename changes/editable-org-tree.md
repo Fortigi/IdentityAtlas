@@ -1,0 +1,12 @@
+- Context trees (e.g. the manager / org tree) can now be curated after the plugin generates them: drag a node onto another node to re-parent it, double-click a node to rename it, and use the "+" on a node to add a manual child — all directly in the Contexts tree.
+- Edited generated contexts are highlighted with an amber "✎ Edited" marker so it's clear at a glance which nodes you've changed by hand.
+- Your renames and re-parenting on generated contexts are now preserved when the plugin re-runs (previously a re-run reset them).
+- Member counts (direct and total) update immediately after re-parenting, adding, or moving a node, so the numbers on every context stay correct.
+- The tree keeps your expanded/collapsed nodes after a drag-drop move instead of collapsing back to the top.
+- The "Run plugin" dialog no longer closes when you click outside it, so a stray click can't discard what you were setting up.
+- The "Manager Hierarchy" plugin can now name each node from configurable Principal attributes — any real attribute (Department, Job Title, Company…) or an extended attribute (e.g. a SuccessFactors department or an extension attribute), on its own or several joined together, with or without the manager's name. The default is unchanged ("<Department> (<Manager>)").
+- When a plugin asks for a list of attributes (e.g. how to name org-tree nodes), you now pick them from a dropdown — grouped into the entity's own attributes and its extended attributes — with a "+ Add attribute" button, instead of editing raw JSON.
+- Creating a new context tree is now a single guided wizard with steps (Source → Pick plugin → Configure → Preview & run), matching the new-crawler and new-matrix wizards, with a live preview before anything is written.
+- Running a plugin now creates a separate, independent tree each time, so you can build several trees from the same plugin (e.g. one named by department and one by job title). The Preview & run step also lets you instead "Refresh an existing tree", which re-runs onto that tree and keeps your renames and re-parenting.
+- In the tree, a single click opens a context and a double click renames it inline (the click no longer races the double-click).
+- Generated trees now have a "Sync" button next to "Delete tree": it re-runs the plugin to update out-of-date memberships (for example, a user who changed manager moves to their new org unit) while keeping all your manual changes — renames, re-parenting, manual child contexts, and manually added members.

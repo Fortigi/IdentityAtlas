@@ -35,6 +35,12 @@ export async function enqueueRun(pluginName, params, triggeredBy) {
 
   const runId = randomUUID();
   const scopeSystemId = params.scopeSystemId ? parseInt(params.scopeSystemId, 10) : null;
+  // Each run targets a tree "instance". A caller that passes an existing
+  // instanceKey refreshes that tree in place (keeping analyst edits); with no
+  // key we mint a fresh one, so the run produces a brand-new, independent tree.
+  const instanceKey = (typeof params.instanceKey === 'string' && params.instanceKey.trim())
+    ? params.instanceKey.trim()
+    : randomUUID();
 
   await db.query(`
     INSERT INTO "ContextAlgorithmRuns"
@@ -44,7 +50,7 @@ export async function enqueueRun(pluginName, params, triggeredBy) {
 
   // Fire-and-forget async execution. The run row is the only persisted state.
   setImmediate(() => {
-    executeRun(runId, plugin, algoRow.id, params).catch(err => {
+    executeRun(runId, plugin, algoRow.id, params, instanceKey).catch(err => {
       console.error(`[context-plugin] ${pluginName} run ${runId} crashed:`, err);
     });
   });
@@ -106,12 +112,12 @@ function validateParams(plugin, params) {
   }
 }
 
-async function executeRun(runId, plugin, algorithmId, params) {
+async function executeRun(runId, plugin, algorithmId, params, instanceKey) {
   await db.query(`UPDATE "ContextAlgorithmRuns" SET status = 'running' WHERE id = $1`, [runId]);
 
   try {
     const result = await plugin.run(params, { db, runId, log: (msg) => console.log(`[context-plugin ${runId}] ${msg}`) });
-    const counts = await reconcile(plugin, algorithmId, runId, params, result);
+    const counts = await reconcile(plugin, algorithmId, runId, params, result, instanceKey);
 
     await db.query(`
       UPDATE "ContextAlgorithmRuns"
@@ -136,18 +142,24 @@ async function executeRun(runId, plugin, algorithmId, params) {
   }
 }
 
-async function reconcile(plugin, algorithmId, runId, params, result) {
+async function reconcile(plugin, algorithmId, runId, params, result, instanceKey = '') {
   const scopeSystemId = params.scopeSystemId ? parseInt(params.scopeSystemId, 10) : null;
   const counts = { contextsCreated: 0, contextsUpdated: 0, contextsRemoved: 0, membersAdded: 0, membersRemoved: 0 };
 
   await db.tx(async (client) => {
-    // 1) Pre-load existing contexts for (algorithmId, scopeSystemId) so we
-    //    can tell insert / update / delete apart.
+    // 1) Pre-load existing contexts for this (algorithm, scope, instance) so we
+    //    can tell insert / update / delete apart. Scoping by instance is what
+    //    lets several trees from the same plugin coexist on one system — a run
+    //    only ever touches its own tree.
     const existingRows = (await client.query(`
-      SELECT id, "externalId" FROM "Contexts"
+      SELECT id, "externalId", "userReparented" FROM "Contexts"
        WHERE "sourceAlgorithmId" = $1 AND ($2::int IS NULL OR "scopeSystemId" = $2)
-    `, [algorithmId, scopeSystemId])).rows;
+         AND COALESCE("sourceInstanceKey", '') = $3
+    `, [algorithmId, scopeSystemId, instanceKey])).rows;
     const existingByExternalId = new Map(existingRows.map(r => [r.externalId, r.id]));
+    // Ids the analyst has manually re-parented — the runner must not move them
+    // back. (Renames are preserved by the UPDATE's CASE on "userRenamed".)
+    const reparentedIds = new Set(existingRows.filter(r => r.userReparented).map(r => r.id));
 
     // 2) Build a map externalId -> new parentContextId once we know our own
     //    generated ids. We need two passes because parents may appear after
@@ -175,12 +187,16 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
       const existed  = existingByExternalId.has(node.externalId);
 
       if (existed) {
+        // Preserve analyst curation: keep the renamed displayName when
+        // "userRenamed", and don't reset the parent to NULL when
+        // "userReparented" (the 3b pass also skips those nodes). Un-edited
+        // nodes are refreshed from the plugin output as before.
         await client.query(`
           UPDATE "Contexts"
-             SET "displayName"         = $2,
+             SET "displayName"         = CASE WHEN "userRenamed"    THEN "displayName"     ELSE $2 END,
                  description           = $3,
                  "contextType"         = $4,
-                 "parentContextId"     = NULL,
+                 "parentContextId"     = CASE WHEN "userReparented" THEN "parentContextId" ELSE NULL END,
                  "extendedAttributes"  = $5,
                  "sourceRunId"         = $6
            WHERE id = $1
@@ -190,10 +206,10 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
         await client.query(`
           INSERT INTO "Contexts"
             (id, variant, "targetType", "contextType", "displayName", description,
-             "parentContextId", "scopeSystemId", "sourceAlgorithmId", "sourceRunId", "externalId", "extendedAttributes")
-          VALUES ($1, 'generated', $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10)
+             "parentContextId", "scopeSystemId", "sourceAlgorithmId", "sourceRunId", "externalId", "extendedAttributes", "sourceInstanceKey")
+          VALUES ($1, 'generated', $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11)
         `, [id, plugin.targetType, node.contextType || plugin.name, node.displayName, node.description || null,
-            scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null]);
+            scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null, instanceKey]);
         counts.contextsCreated++;
       }
     }
@@ -202,6 +218,7 @@ async function reconcile(plugin, algorithmId, runId, params, result) {
     for (const node of result.contexts) {
       if (!node.externalId || !node.parentExternalId) continue;
       const id = newByExternalId.get(node.externalId);
+      if (reparentedIds.has(id)) continue; // analyst moved this node — keep their placement
       const parentId = newByExternalId.get(node.parentExternalId);
       if (!parentId) continue; // parent wasn't in the output — leave NULL
       await client.query(
