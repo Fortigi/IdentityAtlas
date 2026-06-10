@@ -7,6 +7,11 @@ import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixColumnHeaders from './matrix/MatrixColumnHeaders';
 import { makeUserComparator } from './matrix/sortUsers';
+
+// Sort-attribute names come from the user's filter, so guard against writing to
+// dangerous property names (prototype pollution) when copying them onto subjects.
+const UNSAFE_PROP_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const isSafeKey = (k) => typeof k === 'string' && !UNSAFE_PROP_KEYS.has(k);
 import MatrixGroupRow from './matrix/MatrixGroupRow';
 
 // Inline arrayMove so MatrixView doesn't depend on @dnd-kit
@@ -200,7 +205,9 @@ export default function MatrixView({
         // Copy any additional sort attributes straight off the flat row so the
         // multi-key sort + merged headers can read them.
         for (const sa of sortAttrs) {
-          if (u[sa.attribute] === undefined) u[sa.attribute] = d[sa.attribute] ?? '';
+          const key = sa.attribute;
+          if (!isSafeKey(key)) continue;
+          if (u[key] === undefined) u[key] = d[key] ?? '';
         }
         userMap.set(d.memberId, u);
       }
@@ -678,7 +685,9 @@ export default function MatrixView({
           // Inherit every sort attribute from the parent identity so the merged
           // attribute header rows stay contiguous across an expanded identity.
           for (const sa of sortAttrs) {
-            if (accCol[sa.attribute] === undefined) accCol[sa.attribute] = u[sa.attribute] ?? '';
+            const key = sa.attribute;
+            if (!isSafeKey(key)) continue;
+            if (accCol[key] === undefined) accCol[key] = u[key] ?? '';
           }
           out.push(accCol);
         }
