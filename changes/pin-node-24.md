@@ -1,1 +1,0 @@
-- Pinned Docker base image to Node 24-slim; Dependabot will no longer propose upgrades to Node 26+
