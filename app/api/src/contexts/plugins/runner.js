@@ -246,6 +246,14 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
       `, [producedContextIds]);
       counts.membersRemoved = del.rowCount || 0;
 
+      // Preserve analyst curation: a member the analyst has manually placed
+      // (added or moved) becomes authoritative — the algorithm must NOT also
+      // place them, or a "move" would reappear as a duplicate after a re-run.
+      const analystHeld = new Set((await client.query(`
+        SELECT DISTINCT "memberId" FROM "ContextMembers"
+         WHERE "memberType" = $1 AND "addedBy" = 'analyst'
+      `, [plugin.targetType])).rows.map(r => r.memberId));
+
       // Insert in batches to avoid absurd parameter counts on huge runs.
       let insertedNow = 0;
       const BATCH = 500;
@@ -257,6 +265,7 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
         for (const m of slice) {
           const ctxId = newByExternalId.get(m.contextExternalId);
           if (!ctxId) continue; // dangling reference — skip silently
+          if (analystHeld.has(m.memberId)) continue; // analyst owns this member's placement
           params.push(ctxId, plugin.targetType, m.memberId);
           values.push(`($${placeholderIdx + 1}, $${placeholderIdx + 2}, $${placeholderIdx + 3}, 'algorithm')`);
           placeholderIdx += 3;
