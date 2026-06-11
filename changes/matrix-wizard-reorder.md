@@ -6,3 +6,4 @@
 - Roll-up now has a new "Content" step that chooses what the grid shows: business roles only (roles go on the rows, each cell counting the in-scope subjects in that group who hold the role — and the resource filter step is skipped), resources and business roles (the combined view), or resources only. 
 - Fixed a crash ("friendlyLabel is not defined") when advancing to the roll-up Content step.
 - The roll-up Content step now offers a "Cell value" choice: show each cell as an absolute count (the default) or as the percentage of the subjects in that group who hold the resource or role (e.g. 8 of 10 in a department shows as 80%). In percentage mode each column header also shows the group's subject total.
+- Saving a matrix now also stores the All / Governed / Non-governed toggle, so loading a saved matrix restores exactly what you saw — not just the wizard filter.

@@ -80,12 +80,18 @@ function filterHasAnyCondition(f) {
 export default function MatrixFilterWizard({
   open,
   initialFilter,
+  initialManaged = 'all',
   onApply,
   onClose,
 }) {
   const { authFetch } = useAuth();
   const [step, setStep] = useState('setup');
   const [filter, setFilter] = useState(() => structuredClone(initialFilter || EMPTY_FILTER));
+  // The All / Governed / Non-governed toggle lives in the matrix toolbar, not
+  // the wizard, but it's part of a saved matrix — carry it so save/load and
+  // Apply round-trip it. The wizard has no UI to change it; loading a saved
+  // matrix overrides it.
+  const [managed, setManaged] = useState(initialManaged);
   const [savedFilters, setSavedFilters] = useState([]);
   const [contextMeta, setContextMeta] = useState(new Map());  // id → context row
   const [error, setError] = useState(null);
@@ -111,9 +117,10 @@ export default function MatrixFilterWizard({
   useEffect(() => {
     if (!open) return;
     setFilter(structuredClone(initialFilter || EMPTY_FILTER));
+    setManaged(initialManaged);
     setStep('setup');
     setError(null);
-  }, [open, initialFilter]);
+  }, [open, initialFilter, initialManaged]);
 
   // Load saved filters and column schemas when the modal opens.
   useEffect(() => {
@@ -267,7 +274,7 @@ export default function MatrixFilterWizard({
       setError(`Matrix too large (${preview.assignmentCount.toLocaleString()} assignments). Add filters to reduce below ${BLOCK_ASSIGNMENTS.toLocaleString()}.`);
       return;
     }
-    onApply(filter);
+    onApply(filter, managed);
   };
 
   // ─── Save filter ───────────────────────────────────────────────
@@ -279,7 +286,9 @@ export default function MatrixFilterWizard({
       const res = await authFetch('/api/matrix/saved-filters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: saveName.trim(), filter }),
+        // Persist the toolbar's managed-state toggle alongside the wizard
+        // filter so a saved matrix restores exactly what the user saw.
+        body: JSON.stringify({ name: saveName.trim(), filter: { ...filter, managed } }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -325,6 +334,7 @@ export default function MatrixFilterWizard({
       sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
         ? f.sortAttributes.slice(0, 3) : DEFAULT_SORT,
     });
+    setManaged(['all', 'managed', 'unmanaged', 'gaps'].includes(f.managed) ? f.managed : 'all');
     setStep('subjects');
   };
 
