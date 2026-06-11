@@ -359,10 +359,12 @@ export default function MatrixFilterWizard({
   const contextRollup = filter.rollupKind === 'context' && !!filter.rollupContextId;
   const attrRollup = !!filter.rollup;
   const rollupOn = attrRollup || contextRollup;
-  const rolesOnly = attrRollup && filter.rollupContent === 'roles-only';
+  // The Content step (resources / +roles / roles-only) applies to BOTH attribute
+  // and context roll-ups. roles-only drops the Resources filter and Sort steps.
+  const rolesOnly = rollupOn && filter.rollupContent === 'roles-only';
   const steps = [
     { key: 'setup',       label: 'Setup' },
-    attrRollup ? { key: 'content', label: 'Content' } : null,
+    rollupOn ? { key: 'content', label: 'Content' } : null,
     { key: 'subjects',    label: 'Subjects' },
     rolesOnly ? null : { key: 'resources', label: 'Resources' },
     rollupOn ? null : { key: 'sort', label: 'Sort' },
@@ -523,7 +525,9 @@ export function Step2Content({ rollupContent, rollupMetric, rollup, onChange, on
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Roll-up content</h4>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-          You rolled up by <span className="font-semibold">{friendlyLabel(String(rollup).replace(/^ext\./, ''))}</span>. Choose what to put in the matrix.
+          {rollup
+            ? <>You rolled up by <span className="font-semibold">{friendlyLabel(String(rollup).replace(/^ext\./, ''))}</span>. Choose what to put in the matrix.</>
+            : <>You rolled up by <span className="font-semibold">Manager Hierarchy</span>. Choose what to put in the matrix.</>}
         </p>
         <div className="space-y-2">
           {options.map(o => (

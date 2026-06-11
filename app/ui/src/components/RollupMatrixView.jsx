@@ -324,7 +324,7 @@ export default function RollupMatrixView({
             ? <>the <span className="font-medium">percentage</span> of the {subjectWord} in that group</>
             : <>the count of distinct {subjectWord}</>;
           if (contextMode) return (
-            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the org units directly under the highlighted node, and each cell is {valueWord} anywhere under that org with a <span className="font-medium">Direct</span> assignment. Click <span className="font-medium">⊕</span> to zoom into an org's sub-teams, <span className="font-medium">▸</span> to expand a leaf team into people. Use the breadcrumb above to go back up.</>
+            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the org units under the highlighted node, and each cell is {valueWord} anywhere under that org who {rolesOnly ? 'hold the business role on that row' : <>have a <span className="font-medium">Direct</span> assignment</>}. Click <span className="font-medium">⊕</span> to zoom into an org's sub-teams, <span className="font-medium">▸</span> to expand a leaf team into people. Use the breadcrumb above to go back up.</>
           );
           return rolesOnly ? (
             <>Business roles on the rows, grouped by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is {valueWord} who hold the role.</>

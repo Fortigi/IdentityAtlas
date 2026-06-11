@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildContextChildrenSql, buildRootChildrenSql,
+  buildContextRolesSql, buildContextRolesAsRowsSql,
 } from './contextRollup.js';
 
 const A = '11111111-1111-1111-1111-111111111111';
@@ -57,6 +58,35 @@ describe('buildContextTotalsSql', () => {
     expect(sql).toContain('COUNT(DISTINCT nm.pid)::int AS "total"');
     expect(sql).toContain('nm.pid IN (SELECT id FROM s)');
     expect(sql).toMatch(/GROUP BY nm\.fid/);
+  });
+});
+
+describe('buildContextRolesSql (business-role columns)', () => {
+  const base = { values: frontierValues([A]), subjectId: 'nm.pid', subjectScope: 'nm.pid', subjectSql: null, resourceSql: null };
+  it('counts distinct subjects per (resource, business role) over the frontier', () => {
+    const sql = buildContextRolesSql(base);
+    expect(sql).toContain('WITH RECURSIVE frontier(fid) AS');
+    expect(sql).toContain('"vw_UserPermissionAssignmentViaBusinessRole"');
+    expect(sql).toContain('br."resourceId"      AS "resourceId"');
+    expect(sql).toContain('br."businessRoleId"  AS "roleId"');
+    expect(sql).toContain('COUNT(DISTINCT nm.pid)::int AS "count"');
+    expect(sql).toContain('SELECT DISTINCT fid, pid FROM node_members');
+  });
+  it('embeds subject + resource scope', () => {
+    const sql = buildContextRolesSql({ ...base, subjectSql: '(SELECT id FROM s)', resourceSql: '(SELECT id FROM r)' });
+    expect(sql).toContain('nm.pid IN (SELECT id FROM s)');
+    expect(sql).toContain('br."resourceId" IN (SELECT id FROM r)');
+  });
+});
+
+describe('buildContextRolesAsRowsSql (roles-only)', () => {
+  it('puts business roles on the rows × org-unit columns', () => {
+    const sql = buildContextRolesAsRowsSql({ values: frontierValues([A]), subjectId: 'nm.pid', subjectScope: 'nm.pid', subjectSql: '(SELECT id FROM s)' });
+    expect(sql).toContain('br."businessRoleId" AS "roleId"');
+    expect(sql).toContain('nm.fid::text        AS "groupValue"');
+    expect(sql).toContain('COUNT(DISTINCT nm.pid)::int AS "count"');
+    expect(sql).toContain('nm.pid IN (SELECT id FROM s)');
+    expect(sql).toMatch(/GROUP BY br\."businessRoleId"/);
   });
 });
 

@@ -37,6 +37,7 @@ import { resolveAttrExpr } from '../matrix/attrExpr.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildRootChildrenSql,
+  buildContextRolesSql, buildContextRolesAsRowsSql,
 } from '../matrix/contextRollup.js';
 
 const router = Router();
@@ -782,13 +783,27 @@ router.post('/matrix/data', async (req, res) => {
            JOIN "Identities" i ON i.id = im."identityId"` : '';
       const ctxSubjectId = rowType === 'identity' ? 'i.id' : 'nm.pid';
 
-      const cellsReq = timedRequest(p, `matrix-ctx-rollup[${rowType}]`, res);
-      for (const [k, v] of Object.entries(built.bindings)) cellsReq.input(k, v);
-      const cellRows = (await cellsReq.query(buildContextRollupSql({
-        values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-        subjectSql: built.subjectSql, resourceSql: built.resourceSql,
-      }))).recordset;
+      // Roles-only leaf drill: expand one org (already scoped via a subject
+      // context condition) into its subjects + the business role each holds.
+      if (filter.drill) {
+        const brSubjectJoin = rowType === 'identity'
+          ? `INNER JOIN "Principals" u ON u.id = br."userId"
+             INNER JOIN "IdentityMembers" im ON im."principalId" = u.id
+             INNER JOIN "Identities" i ON i.id = im."identityId"`
+          : `INNER JOIN "Principals" u ON u.id = br."userId"`;
+        const brId = rowType === 'identity' ? 'i.id' : 'u.id';
+        const drillReq = timedRequest(p, `matrix-ctx-rows-drill[${rowType}]`, res);
+        for (const [k, v] of Object.entries(built.bindings)) drillReq.input(k, v);
+        const members = (await drillReq.query(buildRolesDrillSql({
+          subjectJoin: brSubjectJoin, subjectIdExpr: brId,
+          subjectNameExpr: rowType === 'identity' ? 'i."displayName"' : 'u."displayName"',
+          subjectTypeExpr: rowType === 'identity' ? `'Identity'` : `'User'`,
+          subjectIdForFilter: brId, subjectSql: built.subjectSql,
+        }))).recordset;
+        return res.json({ rollup: 'context', rollupKind: 'context', rollupContent: 'roles-only', drill: { members } });
+      }
 
+      // Shared: per-node subject totals (% denominator), node metadata, breadcrumb.
       const totalsReq = timedRequest(p, `matrix-ctx-totals[${rowType}]`, res);
       for (const [k, v] of Object.entries(built.bindings)) totalsReq.input(k, v);
       const ctxTotals = (await totalsReq.query(buildContextTotalsSql({
@@ -798,8 +813,9 @@ router.post('/matrix/data', async (req, res) => {
 
       const nodesReq = timedRequest(p, 'matrix-ctx-nodes', res);
       const nodeRows = (await nodesReq.query(buildContextNodesSql(frontier))).recordset;
+      const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, parent: n.parent, total: n.total, childCount: n.childCount }]));
+      const orderedFrontier = [...frontier].sort((a, b) => (nodeMeta.get(b)?.total || 0) - (nodeMeta.get(a)?.total || 0));
 
-      // Breadcrumb: the root + every node on the drill path, in order.
       const crumbIds = [filter.rollupContextId, ...path];
       const crumbReq = timedRequest(p, 'matrix-ctx-crumbs', res);
       const crumbRows = (await crumbReq.query(buildContextNodesSql(crumbIds))).recordset;
@@ -807,6 +823,44 @@ router.post('/matrix/data', async (req, res) => {
       const breadcrumb = crumbIds.map(id => ({ id, displayName: crumbMeta.get(id) || id }));
 
       const counts = await scopeCounts(p, res, rowType, built);
+      const shared = {
+        rollup: 'context', rollupKind: 'context',
+        rollupContextId: filter.rollupContextId, rollupContent: filter.rollupContent,
+        rollupMetric: filter.rollupMetric, focusId: focus, breadcrumb, rowType,
+        groupValues: orderedFrontier,
+        nodes: orderedFrontier.map(id => nodeMeta.get(id) || { id, displayName: id, parent: null, total: 0, childCount: 0 }),
+        groupTotals: ctxTotals,
+        ...counts, totalUsers: counts.subjectTotal, warnings: built.warnings,
+      };
+
+      // ── Business roles on the rows (org units stay on the columns) ──
+      if (filter.rollupContent === 'roles-only') {
+        const rrReq = timedRequest(p, `matrix-ctx-roles-rows[${rowType}]`, res);
+        for (const [k, v] of Object.entries(built.bindings)) rrReq.input(k, v);
+        const roleRowsRes = (await rrReq.query(buildContextRolesAsRowsSql({
+          values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+          subjectSql: built.subjectSql,
+        }))).recordset;
+        const roleMap = new Map();
+        for (const r of roleRowsRes) {
+          if (!r.roleId) continue;
+          if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId, description: r.roleDescription || '' });
+        }
+        return res.json({
+          ...shared,
+          roleRows: [...roleMap.values()],
+          cells: roleRowsRes.filter(r => r.roleId).map(r => ({ roleId: r.roleId, groupValue: r.groupValue, count: r.count })),
+        });
+      }
+
+      // ── Resources on the rows (+ optional business-role count columns) ──
+      const cellsReq = timedRequest(p, `matrix-ctx-rollup[${rowType}]`, res);
+      for (const [k, v] of Object.entries(built.bindings)) cellsReq.input(k, v);
+      const cellRows = (await cellsReq.query(buildContextRollupSql({
+        values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+        subjectSql: built.subjectSql, resourceSql: built.resourceSql,
+      }))).recordset;
+
       const resMap = new Map();
       for (const row of cellRows) {
         if (!row.resourceId || resMap.has(row.resourceId)) continue;
@@ -816,29 +870,36 @@ router.post('/matrix/data', async (req, res) => {
           systemId: row.systemId, systemName: row.systemName,
         });
       }
-      // Column order: biggest subtree first.
-      const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, parent: n.parent, total: n.total, childCount: n.childCount }]));
-      const orderedFrontier = [...frontier].sort((a, b) => (nodeMeta.get(b)?.total || 0) - (nodeMeta.get(a)?.total || 0));
+
+      let businessRoles = [];
+      const roleCounts = [];
+      if (filter.rollupContent !== 'resources-only') {
+        try {
+          const brReq = timedRequest(p, `matrix-ctx-roles[${rowType}]`, res);
+          for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
+          const brRows = (await brReq.query(buildContextRolesSql({
+            values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+            subjectSql: built.subjectSql, resourceSql: built.resourceSql,
+          }))).recordset;
+          const roleMap = new Map();
+          for (const r of brRows) {
+            if (!r.roleId) continue;
+            if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId });
+            roleCounts.push({ resourceId: r.resourceId, roleId: r.roleId, count: r.count });
+          }
+          businessRoles = [...roleMap.values()].sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+        } catch { /* business-role view may be absent */ }
+      }
 
       return res.json({
-        rollup: 'context',
-        rollupKind: 'context',
-        rollupContextId: filter.rollupContextId,
-        rollupMetric: filter.rollupMetric,
-        focusId: focus,
-        breadcrumb,
-        rowType,
+        ...shared,
         resources: [...resMap.values()],
-        groupValues: orderedFrontier,
-        nodes: orderedFrontier.map(id => nodeMeta.get(id) || { id, displayName: id, parent: null, total: 0, childCount: 0 }),
         counts: cellRows.map(r => ({
           resourceId: r.resourceId, groupValue: r.groupValue,
           directCount: r.directCount, governedCount: r.governedCount,
         })),
-        groupTotals: ctxTotals,
-        ...counts,
-        totalUsers: counts.subjectTotal,
-        warnings: built.warnings,
+        businessRoles,
+        roleCounts,
       });
     }
 

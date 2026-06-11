@@ -100,6 +100,45 @@ export function buildContextTotalsSql({ values, identityJoin = '', subjectId, su
      GROUP BY nm.fid`;
 }
 
+// Business-role columns for the resources views: how many in-scope subjects
+// anywhere under the frontier hold each resource via each business role. Not
+// split by org column (mirrors the attribute roll-up's role columns).
+export function buildContextRolesSql({ values, identityJoin = '', subjectId, subjectScope, subjectSql, resourceSql }) {
+  const where = [];
+  if (subjectSql)  where.push(`${subjectScope} IN ${subjectSql}`);
+  if (resourceSql) where.push(`br."resourceId" IN ${resourceSql}`);
+  return `${subtreeCte(values)}
+    SELECT br."resourceId"      AS "resourceId",
+           br."businessRoleId"  AS "roleId",
+           role."displayName"   AS "roleName",
+           COUNT(DISTINCT ${subjectId})::int AS "count"
+      FROM (SELECT DISTINCT fid, pid FROM node_members) nm
+      ${identityJoin}
+      JOIN "vw_UserPermissionAssignmentViaBusinessRole" br ON br."userId" = nm.pid
+      LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
+     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     GROUP BY br."resourceId", br."businessRoleId", role."displayName"`;
+}
+
+// Roles-only view: business roles on the rows × org-unit columns. Each cell is
+// the count of in-scope subjects in that node's subtree who hold the role.
+export function buildContextRolesAsRowsSql({ values, identityJoin = '', subjectId, subjectScope, subjectSql }) {
+  const where = [];
+  if (subjectSql) where.push(`${subjectScope} IN ${subjectSql}`);
+  return `${subtreeCte(values)}
+    SELECT br."businessRoleId" AS "roleId",
+           role."displayName"  AS "roleName",
+           role."description"  AS "roleDescription",
+           nm.fid::text        AS "groupValue",
+           COUNT(DISTINCT ${subjectId})::int AS "count"
+      FROM node_members nm
+      ${identityJoin}
+      JOIN "vw_UserPermissionAssignmentViaBusinessRole" br ON br."userId" = nm.pid
+      LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
+     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     GROUP BY br."businessRoleId", role."displayName", role."description", nm.fid`;
+}
+
 // Frontier node metadata (display name, subtree size, whether it can drill).
 export function buildContextNodesSql(ids) {
   return `
