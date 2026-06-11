@@ -1,7 +1,40 @@
 import { describe, it, expect } from 'vitest';
-import { stripSiblingPrefix, dedupeSegments } from './ContextTreeView.jsx';
+import { stripSiblingPrefix, dedupeSegments, computeChildLabels } from './ContextTreeView.jsx';
 
 const node = (id, displayName) => ({ id, displayName });
+
+describe('computeChildLabels — parent path stripped down the tree', () => {
+  it("drops the parent's name echoed in each child", () => {
+    const parentSegs = dedupeSegments('Commercie').split(' · '); // ['Commercie']
+    const map = computeChildLabels([
+      node('a', 'Commercie · Internationaal (Thijsen, Martijn)'),
+      node('b', 'Commercie · Energie (Stoelinga, Mark)'),
+      node('c', 'Commercie · Project Office Commercie (Wolfswinkel, Bas)'),
+    ], parentSegs);
+    expect(map.get('a')).toBe('Internationaal (Thijsen, Martijn)');
+    expect(map.get('b')).toBe('Energie (Stoelinga, Mark)');
+    // "Commercie" inside a single segment is NOT a separate prefix segment — kept.
+    expect(map.get('c')).toBe('Project Office Commercie (Wolfswinkel, Bas)');
+  });
+
+  it('keeps the last segment when a child is named exactly like its parent', () => {
+    const map = computeChildLabels([
+      node('a', 'Commercie · Internationaal (Thijsen)'),
+      node('b', 'Commercie (Stiemer, Nicole)'),
+    ], ['Commercie']);
+    expect(map.get('a')).toBe('Internationaal (Thijsen)');
+    expect(map.get('b')).toBe('Commercie (Stiemer, Nicole)');
+  });
+
+  it('strips a multi-segment parent path', () => {
+    const map = computeChildLabels([
+      node('a', 'A · B · C (X)'),
+      node('b', 'A · B · D (Y)'),
+    ], ['A', 'B']);
+    expect(map.get('a')).toBe('C (X)');
+    expect(map.get('b')).toBe('D (Y)');
+  });
+});
 
 describe('dedupeSegments', () => {
   it('collapses consecutive repeated segments, keeping the manager suffix', () => {

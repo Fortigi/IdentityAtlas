@@ -63,27 +63,38 @@ export function dedupeSegments(name) {
   return out.join(PATH_SEP);
 }
 
-export function stripSiblingPrefix(siblings) {
+// Strip the leading segments of a child's name that repeat its parent's path
+// (compared by base, so a trailing "(Manager)" doesn't block the match). Always
+// keep at least the last segment.
+function stripLeading(childSegs, parentSegs) {
+  let i = 0;
+  while (i < parentSegs.length && i < childSegs.length - 1 && segBase(childSegs[i]) === segBase(parentSegs[i])) i++;
+  return childSegs.slice(i);
+}
+
+// Compute each child's display label: collapse repeated segments, drop the
+// parent's path prefix (so the parent's name isn't echoed down the tree), then
+// drop any remaining prefix common to all siblings. `parentSegs` is the parent
+// node's de-duplicated segment list ([] at the top level).
+export function computeChildLabels(siblings, parentSegs = []) {
   const map = new Map();
   const list = siblings || [];
-  // First collapse repeated segments within each name, then strip the prefix
-  // common to all siblings.
-  const names = new Map(list.map(s => [s.id, dedupeSegments(s.displayName)]));
-  for (const s of list) map.set(s.id, names.get(s.id));
-  if (list.length < 2) return map;
-  const segLists = list.map(s => names.get(s.id).split(PATH_SEP));
-  const minLen = Math.min(...segLists.map(l => l.length));
+  const items = list.map(s => ({ id: s.id, segs: stripLeading(dedupeSegments(s.displayName).split(PATH_SEP), parentSegs) }));
+  for (const it of items) map.set(it.id, it.segs.join(PATH_SEP));
+  if (items.length < 2) return map;
+  const minLen = Math.min(...items.map(it => it.segs.length));
   let common = 0;
   while (common < minLen - 1) {
-    const seg = segLists[0][common];
-    if (seg && segLists.every(l => l[common] === seg)) common++; else break;
+    const seg = items[0].segs[common];
+    if (seg && items.every(it => segBase(it.segs[common]) === segBase(seg))) common++; else break;
   }
-  if (common === 0) return map;
-  for (const s of list) {
-    const segs = names.get(s.id).split(PATH_SEP);
-    map.set(s.id, segs.slice(common).join(PATH_SEP) || names.get(s.id));
-  }
+  if (common > 0) for (const it of items) map.set(it.id, it.segs.slice(common).join(PATH_SEP));
   return map;
+}
+
+// Back-compat: sibling-prefix stripping is the top-level case (no parent).
+export function stripSiblingPrefix(siblings) {
+  return computeChildLabels(siblings, []);
 }
 
 export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRename, onAddChild, onLoadMembers, onOpenMember }) {
@@ -405,7 +416,9 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
       {hasChildren && expanded && (
         <ul className="space-y-1 mt-1">
           {(() => {
-            const childLabels = stripSiblingPrefix(node.children);
+            // Strip this node's own path from its children so the org name
+            // isn't repeated at every level going down.
+            const childLabels = computeChildLabels(node.children, dedupeSegments(node.displayName).split(PATH_SEP));
             return node.children.map((c, i) => (
               <TreeNode
                 key={c.id}
