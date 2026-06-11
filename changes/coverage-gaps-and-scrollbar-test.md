@@ -1,0 +1,2 @@
+- Fixed false-positive in `MatrixView.scrollbar.test.js`: the magic-number guard was matching a comment in `MatrixView.jsx` rather than actual class usage
+- Added tests for the two untested bootstrap guard paths in `Invoke-CrawlerJob.ps1`: skip (module already loaded) and throw (module file not found)
