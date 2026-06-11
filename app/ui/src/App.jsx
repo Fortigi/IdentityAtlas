@@ -602,6 +602,7 @@ export default function App() {
                 <RollupMatrixView
                   rollup={rollup}
                   filter={matrixFilter}
+                  counts={counts}
                   refreshing={refreshing}
                   onOpenDetail={openDetailTab}
                   onAdjustFilter={() => setWizardOpen(true)}

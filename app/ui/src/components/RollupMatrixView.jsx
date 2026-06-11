@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { friendlyLabel } from '../utils/formatters';
 import { getAccessPackageColor } from '../utils/colors';
@@ -6,6 +6,7 @@ import { useIsDark } from '../contexts/ThemeContext';
 import MatrixCell from './matrix/MatrixCell';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixLegend from './matrix/MatrixLegend';
+import MatrixFilterSummary from './matrix/MatrixFilterSummary';
 
 // Roll-up matrix: the subject (column) axis is aggregated by an attribute (e.g.
 // department). Rows are resources; each cell is the count of distinct subjects
@@ -15,7 +16,7 @@ import MatrixLegend from './matrix/MatrixLegend';
 
 const MAX_ROWS = 300; // this view isn't virtualized — cap rendered resource rows
 
-export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDetail, onAdjustFilter }) {
+export default function RollupMatrixView({ rollup, filter, counts, refreshing, onOpenDetail, onAdjustFilter }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
   const { attribute, resources, groupValues, counts, businessRoles = [], roleCounts = [] } = rollup;
@@ -108,29 +109,48 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
     return out;
   }, [groupValues, expanded, cache]);
 
+  // Cap the grid height to the remaining viewport so only the grid scrolls
+  // (matches MatrixView). overflow-auto then gives both scrollbars, including
+  // the horizontal one when the columns are wider than the screen.
+  const scrollRef = useRef(null);
+  const [gridMaxH, setGridMaxH] = useState(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const footer = document.querySelector('footer');
+      const below = (footer ? footer.getBoundingClientRect().height : 0) + 28;
+      const vh = document.documentElement.clientHeight;
+      const gridTop = el.getBoundingClientRect().top + window.scrollY;
+      setGridMaxH(Math.max(240, vh - gridTop - below));
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(measure); ro.observe(document.body); }
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
+  }, [columns.length, businessRoles.length]);
+
   return (
-    <div className="flex flex-col h-full min-w-0">
-      {/* Scope Statistics — governed % etc., same as the per-subject matrix. */}
+    <div className="flex flex-col gap-3">
+      {/* Filter summary chips + Adjust matrix — same toolbar as the per-subject view. */}
+      {filter && <MatrixFilterSummary filter={filter} preview={counts} onAdjust={onAdjustFilter} />}
+
+      {/* Scope Statistics — governed % etc. */}
       {filter && <MatrixScopePanel filter={filter} />}
 
-      <div className="flex items-center justify-between gap-3 px-1 py-2 text-xs">
-        <div className="text-gray-600 dark:text-gray-300">
-          Roll-up by <span className="font-semibold">{friendlyLabel(attribute)}</span> — each cell is the count of distinct {subjectWord} with a
-          <span className="font-medium"> Direct</span> assignment. Click a column to expand it into the individual {subjectWord}.
-          {refreshing && <span className="ml-2 text-gray-500 dark:text-gray-400">updating…</span>}
-        </div>
-        {onAdjustFilter && (
-          <button onClick={onAdjustFilter} className="px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 whitespace-nowrap">
-            Adjust matrix
-          </button>
-        )}
+      <div className="px-1 text-[11px] text-gray-600 dark:text-gray-300">
+        Roll-up by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is the count of distinct {subjectWord} with a
+        <span className="font-medium"> Direct</span> assignment. Click a column to expand it into the individual {subjectWord}.
+        {refreshing && <span className="ml-2 text-gray-500 dark:text-gray-400">updating…</span>}
       </div>
 
       {/* How to read this matrix — same legend as the per-subject view. */}
       <MatrixLegend />
 
-      <div className="flex-1 min-w-0 overflow-x-auto overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg mt-2">
-        <table className="border-collapse text-xs w-max max-w-none">
+      <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
+        <table className="border-collapse text-xs">
           <thead className="sticky top-0 z-20">
             <tr>
               <th className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left text-gray-600 dark:text-gray-300 font-medium" style={{ minWidth: '280px' }}>
