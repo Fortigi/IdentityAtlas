@@ -641,7 +641,7 @@ function Step4Rollup({ rollup, rollupKind, rollupContextId, columns, rowType, on
             </div>
           ) : (
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Start from org unit</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Start from</label>
               {ctxRoots === null ? (
                 <p className="text-xs text-gray-500 dark:text-gray-400">Loading hierarchies…</p>
               ) : ctxRoots.length === 0 ? (
@@ -656,7 +656,7 @@ function Step4Rollup({ rollup, rollupKind, rollupContextId, columns, rowType, on
                 </select>
               )}
               <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                Columns become the org units beneath this node. Click a column in the matrix to drill into its sub-teams, level by level, down to individuals.
+                Columns become the teams beneath this node. Click a column in the matrix to drill into its sub-teams, level by level, down to individuals.
               </p>
             </div>
           )}
