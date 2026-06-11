@@ -27,6 +27,9 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "build"
+    ignore:
+      - dependency-name: "node"
+        versions: ["26.*", ">= 27"]
 
   # Node.js API dependencies
   - package-ecosystem: "npm"
