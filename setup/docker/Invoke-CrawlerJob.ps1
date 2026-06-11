@@ -126,6 +126,17 @@ $appRoot = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app
 
 try {
 
+    # ─── Module bootstrap ─────────────────────────────────────────────────────
+    # Desktop worker spawns a fresh pwsh with no module pre-loaded; Docker's
+    # scheduler.ps1 imports the module in the same process before calling here.
+    if (-not (Get-Command Get-CrawlerRegistry -ErrorAction SilentlyContinue)) {
+        $modulePsd1 = Join-Path $appRoot 'setup' 'IdentityAtlas.psd1'
+        if (-not (Test-Path $modulePsd1)) {
+            throw "IdentityAtlas module not found at '$modulePsd1'. Is IA_APP_ROOT set correctly?"
+        }
+        Import-Module $modulePsd1 -Force
+    }
+
     # ─── Registry lookup ──────────────────────────────────────────────────────
     $registry = Get-CrawlerRegistry
     if (-not $registry.ContainsKey($JobType)) {
