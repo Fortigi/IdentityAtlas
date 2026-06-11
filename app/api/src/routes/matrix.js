@@ -669,6 +669,41 @@ router.post('/matrix/data', async (req, res) => {
         }
         groupSet.add(row.groupValue);
       }
+
+      // Business-role (SOLL) counts: how many in-scope subjects hold each
+      // resource via each business role. Mirrors the SOLL columns of the
+      // per-subject matrix, but aggregated to a count.
+      let businessRoles = [];
+      const roleCounts = [];
+      try {
+        const brMemberId = rowType === 'identity' ? 'im2."identityId"' : 'br."userId"';
+        const brJoin = rowType === 'identity'
+          ? 'INNER JOIN "IdentityMembers" im2 ON im2."principalId" = br."userId"' : '';
+        const brWhere = [];
+        if (built.subjectSql)  brWhere.push(`${brMemberId} IN ${built.subjectSql}`);
+        if (built.resourceSql) brWhere.push(`br."resourceId" IN ${built.resourceSql}`);
+        const brReq = timedRequest(p, 'matrix-rollup-roles', res);
+        for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
+        const brRows = (await brReq.query(`
+          SELECT br."resourceId"        AS "resourceId",
+                 br."businessRoleId"    AS "roleId",
+                 role."displayName"     AS "roleName",
+                 COUNT(DISTINCT ${brMemberId})::int AS "count"
+            FROM "vw_UserPermissionAssignmentViaBusinessRole" br
+            ${brJoin}
+            LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
+           ${brWhere.length ? 'WHERE ' + brWhere.join(' AND ') : ''}
+           GROUP BY br."resourceId", br."businessRoleId", role."displayName"
+        `)).recordset;
+        const roleMap = new Map();
+        for (const r of brRows) {
+          if (!r.roleId) continue;
+          if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId });
+          roleCounts.push({ resourceId: r.resourceId, roleId: r.roleId, count: r.count });
+        }
+        businessRoles = [...roleMap.values()].sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+      } catch { /* business-role view may be absent */ }
+
       return res.json({
         rollup: filter.rollup,
         rowType,
@@ -677,6 +712,8 @@ router.post('/matrix/data', async (req, res) => {
         counts: rollupResult.recordset.map(r => ({
           resourceId: r.resourceId, groupValue: r.groupValue, directCount: r.directCount,
         })),
+        businessRoles,
+        roleCounts,
         ...counts,
         totalUsers: counts.subjectTotal,
         warnings: built.warnings,

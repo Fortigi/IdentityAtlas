@@ -318,11 +318,14 @@ export default function MatrixFilterWizard({
 
   if (!open) return null;
 
-  // Roll-up and Sort only apply to the default orientation (subjects on the
-  // column axis). The rotated view has a simpler render path.
-  const rollupSortApplicable = filter.orientation === 'rows-as-resources';
-  const lastStep = rollupSortApplicable ? 5 : 3;
   const subjectColumns = filter.rowType === 'identity' ? identityColumns : principalColumns;
+  // Steps: 1 Setup (subject type + roll-up) · 2 Subjects · 3 Resources ·
+  //        4 Sort (skipped when rolled up — order is meaningless then) · 5 Orientation.
+  const sortShown = !filter.rollup;
+  const visibleSteps = [1, 2, 3, ...(sortShown ? [4] : []), 5];
+  const curIdx = visibleSteps.indexOf(step);
+  const goNext = () => setStep(visibleSteps[Math.min((curIdx < 0 ? 0 : curIdx) + 1, visibleSteps.length - 1)]);
+  const goBack = () => setStep(visibleSteps[Math.max((curIdx < 0 ? visibleSteps.length : curIdx) - 1, 0)]);
 
   // ─── Render ─────────────────────────────────────────────────────
 
@@ -340,21 +343,17 @@ export default function MatrixFilterWizard({
           onLoad={handleLoadSaved}
           onDelete={handleDeleteSaved}
         />
-        <StepIndicator step={step} onJump={setStep} rollupSortApplicable={rollupSortApplicable} />
+        <StepIndicator step={step} onJump={setStep} sortShown={sortShown} />
       </div>
 
       {/* Step content */}
       {step === 1 && (
         <Step1Setup
           rowType={filter.rowType}
-          orientation={filter.orientation}
           onRowTypeChange={setRowType}
-          onOrientationChange={(o) => {
-            setFilter(prev => ({ ...prev, orientation: o }));
-            // Roll-up/Sort steps vanish on the rotated orientation — pull the
-            // user back to a still-visible step.
-            if (o === 'rows-as-subjects' && step > 3) setStep(3);
-          }}
+          rollup={filter.rollup}
+          columns={subjectColumns}
+          onRollupChange={(rollup) => setFilter(prev => ({ ...prev, rollup }))}
         />
       )}
       {step === 2 && (
@@ -380,20 +379,19 @@ export default function MatrixFilterWizard({
           onUpdate={(side, idx, patch) => updateCondition('resource', side, idx, patch)}
         />
       )}
-      {step === 4 && rollupSortApplicable && (
-        <Step4Rollup
-          rollup={filter.rollup}
-          columns={subjectColumns}
-          rowType={filter.rowType}
-          onChange={(rollup) => setFilter(prev => ({ ...prev, rollup }))}
-        />
-      )}
-      {step === 5 && rollupSortApplicable && (
+      {step === 4 && sortShown && (
         <Step5Sort
           sortAttributes={filter.sortAttributes}
           columns={subjectColumns}
-          disabled={!!filter.rollup}
+          disabled={false}
           onChange={(sortAttributes) => setFilter(prev => ({ ...prev, sortAttributes }))}
+        />
+      )}
+      {step === 5 && (
+        <Step5Orientation
+          orientation={filter.orientation}
+          rollup={filter.rollup}
+          onChange={(o) => setFilter(prev => ({ ...prev, orientation: o }))}
         />
       )}
 
@@ -411,9 +409,9 @@ export default function MatrixFilterWizard({
         </div>
         <div className="flex items-center gap-2">
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          {step > 1 && <SecondaryButton onClick={() => setStep(s => s - 1)}>Back</SecondaryButton>}
-          {step < lastStep && <PrimaryButton onClick={() => setStep(s => s + 1)}>Next</PrimaryButton>}
-          {step === lastStep && (
+          {step > 1 && <SecondaryButton onClick={goBack}>Back</SecondaryButton>}
+          {step !== 5 && <PrimaryButton onClick={goNext}>Next</PrimaryButton>}
+          {step === 5 && (
             <PrimaryButton onClick={handleApply} disabled={!filter.rollup && preview.assignmentCount > BLOCK_ASSIGNMENTS}>
               Apply
             </PrimaryButton>
@@ -438,13 +436,13 @@ export default function MatrixFilterWizard({
 
 // ─── Step indicator ────────────────────────────────────────────────
 
-function StepIndicator({ step, onJump, rollupSortApplicable }) {
+function StepIndicator({ step, onJump, sortShown }) {
   const steps = [
     { n: 1, label: 'Setup' },
     { n: 2, label: 'Subjects' },
     { n: 3, label: 'Resources' },
-    { n: 4, label: 'Roll-up', shown: rollupSortApplicable },
-    { n: 5, label: 'Sort',    shown: rollupSortApplicable },
+    { n: 4, label: 'Sort',        shown: sortShown },
+    { n: 5, label: 'Orientation' },
   ];
   return <Stepper steps={steps} current={step} onStepClick={onJump} allowAll />;
 }
@@ -664,9 +662,9 @@ function LiveSummary({ preview, loading, rowType, rollup }) {
   );
 }
 
-// ─── Step 1 — Setup (subject type + orientation) ────────────────────
+// ─── Step 1 — Setup (subject type + roll-up) ────────────────────────
 
-function Step1Setup({ rowType, orientation, onRowTypeChange, onOrientationChange }) {
+function Step1Setup({ rowType, onRowTypeChange, rollup, columns, onRollupChange }) {
   return (
     <div className="space-y-4">
       <div>
@@ -687,25 +685,42 @@ function Step1Setup({ rowType, orientation, onRowTypeChange, onOrientationChange
         </div>
       </div>
 
+      <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+        <Step4Rollup rollup={rollup} columns={columns} rowType={rowType} onChange={onRollupChange} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 5 — Orientation ───────────────────────────────────────────
+
+function Step5Orientation({ orientation, rollup, onChange }) {
+  return (
+    <div className="space-y-3">
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Orientation</h4>
         <div className="grid grid-cols-2 gap-2">
           <RadioCard
             active={orientation === 'rows-as-resources'}
-            onClick={() => onOrientationChange('rows-as-resources')}
+            onClick={() => onChange('rows-as-resources')}
             title="Resources as rows"
             description="Resources go on the rows, subjects as columns (the default). Good when you have many resources and few subjects — vertical scroll handles the long axis."
             visual={<OrientationVisual rowsLabel="Res" colsLabel="Subj" />}
           />
           <RadioCard
             active={orientation === 'rows-as-subjects'}
-            onClick={() => onOrientationChange('rows-as-subjects')}
+            onClick={() => onChange('rows-as-subjects')}
             title="Subjects as rows"
             description="Subjects go on the rows, resources as columns. Good when you have few resources and many subjects — vertical scroll handles the people, not the columns."
             visual={<OrientationVisual rowsLabel="Subj" colsLabel="Res" />}
           />
         </div>
       </div>
+      {rollup && (
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 italic">
+          Roll-up uses its own resources-as-rows layout — orientation won’t change it.
+        </p>
+      )}
     </div>
   );
 }

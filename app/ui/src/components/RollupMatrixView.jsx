@@ -1,8 +1,11 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { friendlyLabel } from '../utils/formatters';
+import { getAccessPackageColor } from '../utils/colors';
+import { useIsDark } from '../contexts/ThemeContext';
 import MatrixCell from './matrix/MatrixCell';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
+import MatrixLegend from './matrix/MatrixLegend';
 
 // Roll-up matrix: the subject (column) axis is aggregated by an attribute (e.g.
 // department). Rows are resources; each cell is the count of distinct subjects
@@ -14,7 +17,8 @@ const MAX_ROWS = 300; // this view isn't virtualized — cap rendered resource r
 
 export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDetail, onAdjustFilter }) {
   const { authFetch } = useAuth();
-  const { attribute, resources, groupValues, counts } = rollup;
+  const isDark = useIsDark();
+  const { attribute, resources, groupValues, counts, businessRoles = [], roleCounts = [] } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
 
   // (resourceId|groupValue) -> directCount
@@ -23,6 +27,13 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
     for (const c of counts) m.set(`${c.resourceId}|${c.groupValue}`, c.directCount);
     return m;
   }, [counts]);
+
+  // (resourceId|roleId) -> governed count via that business role
+  const roleCountMap = useMemo(() => {
+    const m = new Map();
+    for (const rc of roleCounts) m.set(`${rc.resourceId}|${rc.roleId}`, rc.count);
+    return m;
+  }, [roleCounts]);
 
   // Resources ordered by total direct assignments (busiest first), capped so the
   // un-virtualized table stays responsive on an unscoped roll-up.
@@ -115,7 +126,10 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
         )}
       </div>
 
-      <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+      {/* How to read this matrix — same legend as the per-subject view. */}
+      <MatrixLegend />
+
+      <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg mt-2">
         <table className="border-collapse text-xs">
           <thead className="sticky top-0 z-20">
             <tr>
@@ -157,6 +171,24 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
                   </th>
                 );
               })}
+
+              {/* Business-role (SOLL) columns */}
+              {businessRoles.map((role, idx) => (
+                <th
+                  key={`role:${role.id}`}
+                  className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 align-bottom ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : ''}`}
+                  style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '40px', minWidth: '40px', height: '130px' }}
+                  title={`Business role: ${role.displayName}`}
+                >
+                  <div
+                    className="text-[10px] font-medium text-gray-700 dark:text-gray-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto"
+                    style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '120px', overflow: 'hidden', whiteSpace: 'nowrap' }}
+                    onClick={() => onOpenDetail?.('access-package', role.id, role.displayName)}
+                  >
+                    {role.displayName}
+                  </div>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -179,13 +211,21 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
                   const types = cache.get(col.group)?.memberships.get(`${r.resourceId}|${col.user.id}`);
                   return <MatrixCell key={col.key} cellKey={col.key} membershipTypes={types} managed={false} />;
                 })}
+                {businessRoles.map((role, idx) => {
+                  const n = roleCountMap.get(`${r.resourceId}|${role.id}`) || 0;
+                  return (
+                    <td key={`role:${role.id}`} className={`border-b border-r border-gray-100 dark:border-gray-700 text-center px-1 py-0.5 ${idx === 0 ? 'border-l-2 border-l-indigo-200 dark:border-l-indigo-700' : ''}`} style={{ minWidth: '40px' }}>
+                      {n > 0 ? <span className="inline-block text-[11px] font-semibold text-indigo-800 dark:text-indigo-300">{n}</span> : <span className="text-gray-500 dark:text-gray-700">·</span>}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
             {orderedResources.length === 0 && (
-              <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">No assignments match the current filter.</td></tr>
+              <tr><td colSpan={columns.length + businessRoles.length + 1} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">No assignments match the current filter.</td></tr>
             )}
             {truncated > 0 && (
-              <tr><td colSpan={columns.length + 1} className="px-3 py-2 text-center text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
+              <tr><td colSpan={columns.length + businessRoles.length + 1} className="px-3 py-2 text-center text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
                 Showing the top {MAX_ROWS} of {orderedResources.length} resources by Direct assignments — add resource filters to narrow.
               </td></tr>
             )}
