@@ -63,22 +63,15 @@ export function stripSiblingPrefix(siblings) {
   return map;
 }
 
-export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRename, onAddChild, onMoveMember, onLoadMembers, onOpenMember }) {
+export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRename, onAddChild }) {
   const sensors = useSensors(
     // 6px activation distance — a plain click still opens the detail; only a
     // deliberate drag starts a re-parent.
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
-  // active = { id, data } where data.type is 'member' for a member-reference
-  // drag, or undefined for a context-node drag.
-  const [active, setActive] = useState(null);
-  const activeMember = active?.data?.type === 'member' ? active.data : null;
-  const activeNode = useMemo(
-    () => (active && !activeMember ? findNode(nodes, active.id) : null),
-    [active, activeMember, nodes]
-  );
-  // Ids the active CONTEXT node may NOT be dropped onto (itself + descendants).
-  // A member can be dropped on any context, so it has no forbidden set.
+  const [activeId, setActiveId] = useState(null);
+  const activeNode = useMemo(() => (activeId ? findNode(nodes, activeId) : null), [activeId, nodes]);
+  // Ids that the active node may NOT be dropped onto (itself + its descendants).
   const forbidden = useMemo(
     () => (activeNode ? collectSubtreeIds(activeNode) : new Set()),
     [activeNode]
@@ -124,21 +117,10 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
   });
 
   function handleDragEnd(evt) {
-    const { active: a, over } = evt;
-    setActive(null);
-    if (!over) return;
-    const data = a.data?.current;
-    // Member reference dropped onto a context → move the member.
-    if (data?.type === 'member') {
-      const toId = String(over.id);
-      if (toId.startsWith('m:')) return;            // dropped on another member — ignore
-      if (toId === data.fromContextId) return;      // same context — no-op
-      onMoveMember?.(data.memberId, data.fromContextId, toId);
-      return;
-    }
-    // Context node dropped onto another → re-parent.
-    if (!onReparent) return;
-    const childId = a.id;
+    const { active, over } = evt;
+    setActiveId(null);
+    if (!over || !onReparent) return;
+    const childId = active.id;
     const newParentId = over.id;
     if (childId === newParentId || forbidden.has(newParentId)) return; // cycle / no-op
     onReparent(childId, newParentId);
@@ -159,11 +141,9 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
             onOpenDetail={onOpenDetail}
             onRename={onRename}
             onAddChild={onAddChild}
-            onLoadMembers={onLoadMembers}
-            onOpenMember={onOpenMember}
             editable={editable}
             forbidden={forbidden}
-            dragging={!!active}
+            dragging={!!activeId}
             isExpanded={isExpanded}
             toggleExpanded={toggleExpanded}
             setExpanded={setExpanded}
@@ -179,49 +159,23 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={(e) => setActive({ id: e.active.id, data: e.active.data?.current })}
+      onDragStart={(e) => setActiveId(e.active.id)}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActive(null)}
+      onDragCancel={() => setActiveId(null)}
     >
       {treeBody}
       <DragOverlay dropAnimation={null}>
-        {activeMember ? <MemberDragPill name={activeMember.name} /> : activeNode ? <DragPill node={activeNode} /> : null}
+        {activeNode ? <DragPill node={activeNode} /> : null}
       </DragOverlay>
     </DndContext>
   );
 }
 
-function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, onAddChild, onLoadMembers, onOpenMember, editable, forbidden, dragging, isExpanded, toggleExpanded, setExpanded }) {
+function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, onAddChild, editable, forbidden, dragging, isExpanded, toggleExpanded, setExpanded }) {
   const expanded = isExpanded(node.id);
   const [renaming, setRenaming] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
-  // Lazy-loaded direct members (user references) — fetched the first time the
-  // node is expanded. null = not loaded yet.
-  const [members, setMembers] = useState(null);
-  const [memberTotal, setMemberTotal] = useState(0);
-  const [membersLoading, setMembersLoading] = useState(false);
-  const memberLabel = displayLabel || node.displayName;
-  // Which detail tab a member opens, from the context's target type.
-  const memberKind = node.targetType === 'Identity' ? 'identity'
-    : node.targetType === 'Resource' ? 'group'
-    : node.targetType === 'System' ? 'system' : 'user';
-
-  // Re-fetch members when this node's direct count changes (e.g. after a move
-  // adds/removes a member here) — the cached list would otherwise go stale.
-  useEffect(() => { setMembers(null); }, [node.directMemberCount]);
-
-  // Fetch direct members the first time this node is expanded (and it has any).
-  useEffect(() => {
-    if (!expanded || members !== null || !onLoadMembers) return;
-    if (!(node.directMemberCount > 0)) { setMembers([]); return; }
-    let cancelled = false;
-    setMembersLoading(true);
-    onLoadMembers(node.id)
-      .then(({ rows, total }) => { if (!cancelled) { setMembers(rows); setMemberTotal(total); } })
-      .catch(() => { if (!cancelled) setMembers([]); })
-      .finally(() => { if (!cancelled) setMembersLoading(false); });
-    return () => { cancelled = true; };
-  }, [expanded, members, onLoadMembers, node.id, node.directMemberCount]);
+  const nodeLabel = displayLabel || node.displayName;
   // Single click opens the detail; double click renames. We delay the open so a
   // double-click can cancel it — otherwise the first click navigates away before
   // the rename can fire.
@@ -321,7 +275,7 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
               className={`w-2.5 h-2.5 rounded-full ${v.dotClass} ring-2 ring-white outline outline-1 outline-slate-200 shrink-0`}
               aria-hidden="true"
             />
-            <span className="font-medium text-gray-900 dark:text-white truncate" title={memberLabel !== node.displayName ? node.displayName : undefined}>{memberLabel}</span>
+            <span className="font-medium text-gray-900 dark:text-white truncate" title={nodeLabel !== node.displayName ? node.displayName : undefined}>{nodeLabel}</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap shrink-0`}>
               {t.label}
             </span>
@@ -374,8 +328,6 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
                 onOpenDetail={onOpenDetail}
                 onRename={onRename}
                 onAddChild={onAddChild}
-                onLoadMembers={onLoadMembers}
-                onOpenMember={onOpenMember}
                 isExpanded={isExpanded}
                 toggleExpanded={toggleExpanded}
                 setExpanded={setExpanded}
@@ -387,70 +339,7 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
           })()}
         </ul>
       )}
-
-      {/* Member references — the actual users in this context, draggable so they
-          can be moved to another context. Lazy-loaded on first expand. */}
-      {expanded && onLoadMembers && (node.directMemberCount > 0 || membersLoading) && (
-        <ul className="mt-1 flex flex-wrap gap-1" style={{ paddingLeft: `${(depth + 1) * INDENT_PX + 28}px` }}>
-          {membersLoading && members === null ? (
-            <li className="text-[11px] text-gray-500 dark:text-gray-400 py-0.5">Loading members…</li>
-          ) : (
-            <>
-              {(members || []).map(m => (
-                <MemberRef key={m.id} member={m} contextId={node.id} editable={editable} onOpenMember={onOpenMember} memberKind={memberKind} />
-              ))}
-              {memberTotal > (members?.length || 0) && (
-                <li className="text-[11px] text-gray-500 dark:text-gray-400 py-0.5 self-center">
-                  +{memberTotal - (members?.length || 0)} more — open this context to see all
-                </li>
-              )}
-            </>
-          )}
-        </ul>
-      )}
     </li>
-  );
-}
-
-// A user (member) shown under its context as a draggable reference chip. Drag it
-// onto another context node to move it there.
-function MemberRef({ member, contextId, editable, onOpenMember, memberKind }) {
-  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
-    id: `m:${contextId}:${member.id}`,
-    disabled: !editable,
-    data: { type: 'member', memberId: member.id, fromContextId: contextId, name: member.displayName },
-  });
-  const analyst = member.addedBy === 'analyst';
-  return (
-    <li>
-      <button
-        ref={setNodeRef}
-        {...listeners}
-        {...attributes}
-        onClick={() => onOpenMember?.(member.id, member.displayName, memberKind)}
-        title={`${member.displayName}${analyst ? ' · manually placed' : ''}${editable ? ' · drag onto a context to move' : ''}`}
-        className={[
-          'flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] bg-white dark:bg-gray-800 text-left max-w-[200px]',
-          analyst ? 'border-amber-300 dark:border-amber-700' : 'border-slate-200 dark:border-gray-600',
-          editable ? 'cursor-grab active:cursor-grabbing' : '',
-          isDragging ? 'opacity-40' : 'hover:border-slate-300 dark:hover:border-gray-500 hover:shadow-sm',
-        ].join(' ')}
-      >
-        <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" aria-hidden="true" />
-        <span className="text-gray-800 dark:text-gray-200 truncate">{member.displayName}</span>
-        {analyst && <span className="text-amber-600 dark:text-amber-400 shrink-0" title="Manually placed — kept on re-run">✎</span>}
-      </button>
-    </li>
-  );
-}
-
-// The chip rendered under the cursor while dragging a member.
-function MemberDragPill({ name }) {
-  return (
-    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-sky-400 bg-white dark:bg-gray-800 shadow-lg cursor-grabbing text-[11px]">
-      <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" aria-hidden="true" />
-      <span className="text-gray-800 dark:text-gray-200 truncate max-w-[200px]">{name}</span>
-    </div>
   );
 }
 

@@ -474,45 +474,6 @@ router.post('/contexts/:id/members', writeContexts, async (req, res) => {
   }
 });
 
-// ─── POST /api/contexts/members/move ─────────────────────────────────
-// Move a member from one context to another. The analyst placement wins and
-// survives plugin re-runs (the runner skips algorithm-placing analyst-held
-// members), mirroring how an analyst re-parent of a context node sticks.
-router.post('/contexts/members/move', writeContexts, async (req, res) => {
-  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-  const { memberId, fromContextId, toContextId } = req.body || {};
-  if (![memberId, fromContextId, toContextId].every(x => typeof x === 'string' && UUID_RE.test(x))) {
-    return res.status(400).json({ error: 'memberId, fromContextId and toContextId (uuids) are required' });
-  }
-  if (fromContextId === toContextId) return res.status(400).json({ error: 'Source and target are the same context' });
-
-  try {
-    const [from, to] = await Promise.all([
-      db.queryOne(`SELECT variant, "targetType" FROM "Contexts" WHERE id = $1`, [fromContextId]),
-      db.queryOne(`SELECT variant, "targetType" FROM "Contexts" WHERE id = $1`, [toContextId]),
-    ]);
-    if (!from || !to) return res.status(404).json({ error: 'Context not found' });
-    if (from.variant === 'synced' || to.variant === 'synced') {
-      return res.status(400).json({ error: 'Synced contexts are owned by their source system.' });
-    }
-    if (from.targetType !== to.targetType) {
-      return res.status(400).json({ error: 'Those contexts hold different kinds of member.' });
-    }
-    await db.query(`DELETE FROM "ContextMembers" WHERE "contextId" = $1 AND "memberId" = $2`, [fromContextId, memberId]);
-    await db.query(`
-      INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
-      VALUES ($1, $2, $3, 'analyst')
-      ON CONFLICT ("contextId", "memberId") DO UPDATE SET "addedBy" = 'analyst'
-    `, [toContextId, to.targetType, memberId]);
-    await recalcMemberCountsForChain(fromContextId);
-    await recalcMemberCountsForChain(toContextId);
-    res.json({ memberId, fromContextId, toContextId });
-  } catch (err) {
-    console.error('POST /contexts/members/move failed:', err.message);
-    res.status(500).json({ error: 'Failed to move member' });
-  }
-});
-
 // ─── DELETE /api/contexts/:id/members/:memberId ──────────────────────
 // Removal rules mirror POST: manual + generated OK, synced rejected.
 router.delete('/contexts/:id/members/:memberId', writeContexts, async (req, res) => {

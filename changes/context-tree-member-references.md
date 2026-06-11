@@ -1,3 +1,0 @@
-- The context tree now shows the actual users inside each context as small draggable "reference" chips (lazy-loaded when you expand a node). Drag a user onto another context to move them there — the same way you drag context nodes to re-parent them.
-- A manually placed or moved user is marked and kept when the generating plugin (e.g. Manager Hierarchy) re-runs, so analyst curation isn't lost.
-- Sibling context nodes that share a long name prefix (a side effect of how the Manager Hierarchy names nodes) now show only their distinctive tail, with the full name on hover — far less repetition in the tree.

@@ -1,0 +1,1 @@
+- Sibling context nodes that share a long name prefix (a side effect of how the Manager Hierarchy names nodes) now show only their distinctive tail in the tree, with the full name on hover — far less repetition and easier to read.
