@@ -63,32 +63,56 @@ export function dedupeSegments(name) {
   return out.join(PATH_SEP);
 }
 
-// Strip the leading segments of a child's name that repeat its parent's path
-// (compared by base, so a trailing "(Manager)" doesn't block the match). Always
-// keep at least the last segment.
-function stripLeading(childSegs, parentSegs) {
+// Split a name into its org path (segments, no manager) + the manager name from
+// the trailing "(Manager, Name)". "CEO · ADIR (Siemons, Boudewijn)" →
+// { org: ['CEO','ADIR'], manager: 'Siemons, Boudewijn' }.
+export function parseOrg(displayName) {
+  const segs = dedupeSegments(displayName).split(PATH_SEP);
+  const last = segs[segs.length - 1] || '';
+  const m = last.match(/\(([^)]*)\)\s*$/);
+  const manager = m ? m[1].trim() : '';
+  const orgLast = last.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const org = segs.slice(0, -1).concat(orgLast ? [orgLast] : []);
+  return { org, manager, full: segs.join(PATH_SEP) };
+}
+
+// Drop the leading org segments a child shares with its parent (by base). May
+// return an empty array when the child's org is identical to the parent's.
+function stripLeadingOrg(childOrg, parentOrg) {
   let i = 0;
-  while (i < parentSegs.length && i < childSegs.length - 1 && segBase(childSegs[i]) === segBase(parentSegs[i])) i++;
-  return childSegs.slice(i);
+  while (i < parentOrg.length && i < childOrg.length && segBase(childOrg[i]) === segBase(parentOrg[i])) i++;
+  return childOrg.slice(i);
 }
 
 // Compute each child's display label: collapse repeated segments, drop the
-// parent's path prefix (so the parent's name isn't echoed down the tree), then
-// drop any remaining prefix common to all siblings. `parentSegs` is the parent
-// node's de-duplicated segment list ([] at the top level).
-export function computeChildLabels(siblings, parentSegs = []) {
+// parent's org path (so the parent's name isn't echoed down the tree), then drop
+// any remaining org prefix common to all siblings. When a node's org is fully
+// shared with its parent/siblings — only the manager differs — show just the
+// manager's name. `parentOrg` is the parent's org segments ([] at the top).
+export function computeChildLabels(siblings, parentOrg = []) {
   const map = new Map();
   const list = siblings || [];
-  const items = list.map(s => ({ id: s.id, segs: stripLeading(dedupeSegments(s.displayName).split(PATH_SEP), parentSegs) }));
-  for (const it of items) map.set(it.id, it.segs.join(PATH_SEP));
-  if (items.length < 2) return map;
-  const minLen = Math.min(...items.map(it => it.segs.length));
-  let common = 0;
-  while (common < minLen - 1) {
-    const seg = items[0].segs[common];
-    if (seg && items.every(it => segBase(it.segs[common]) === segBase(seg))) common++; else break;
+  const items = list.map(s => {
+    const { org, manager, full } = parseOrg(s.displayName);
+    return { id: s.id, org: stripLeadingOrg(org, parentOrg), manager, lastOrg: org[org.length - 1] || '', full };
+  });
+  // Drop the org prefix common to all siblings (may collapse to manager-only).
+  if (items.length >= 2) {
+    const minLen = Math.min(...items.map(it => it.org.length));
+    let common = 0;
+    while (common < minLen) {
+      const seg = items[0].org[common];
+      if (seg && items.every(it => segBase(it.org[common]) === segBase(seg))) common++; else break;
+    }
+    if (common > 0) for (const it of items) it.org = it.org.slice(common);
   }
-  if (common > 0) for (const it of items) map.set(it.id, it.segs.slice(common).join(PATH_SEP));
+  for (const it of items) {
+    let label;
+    if (it.org.length > 0) label = it.org.join(PATH_SEP) + (it.manager ? ` (${it.manager})` : '');
+    else if (it.manager) label = it.manager;          // org fully shared → just the delegate
+    else label = it.lastOrg || it.full;               // no manager to fall back on
+    map.set(it.id, label);
+  }
   return map;
 }
 
@@ -416,9 +440,9 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
       {hasChildren && expanded && (
         <ul className="space-y-1 mt-1">
           {(() => {
-            // Strip this node's own path from its children so the org name
+            // Strip this node's own org path from its children so the org name
             // isn't repeated at every level going down.
-            const childLabels = computeChildLabels(node.children, dedupeSegments(node.displayName).split(PATH_SEP));
+            const childLabels = computeChildLabels(node.children, parseOrg(node.displayName).org);
             return node.children.map((c, i) => (
               <TreeNode
                 key={c.id}

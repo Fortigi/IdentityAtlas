@@ -17,13 +17,25 @@ describe('computeChildLabels — parent path stripped down the tree', () => {
     expect(map.get('c')).toBe('Project Office Commercie (Wolfswinkel, Bas)');
   });
 
-  it('keeps the last segment when a child is named exactly like its parent', () => {
+  it('shows just the manager when a child shares its parent\'s full org', () => {
     const map = computeChildLabels([
       node('a', 'Commercie · Internationaal (Thijsen)'),
       node('b', 'Commercie (Stiemer, Nicole)'),
     ], ['Commercie']);
     expect(map.get('a')).toBe('Internationaal (Thijsen)');
-    expect(map.get('b')).toBe('Commercie (Stiemer, Nicole)');
+    expect(map.get('b')).toBe('Stiemer, Nicole');
+  });
+
+  it('shows the delegate name when the whole sibling set shares the org with the parent', () => {
+    // e.g. every child of "Generieke IT Services (Louter)" is also "Generieke IT Services (X)".
+    const map = computeChildLabels([
+      node('a', 'Generieke IT Services (Vries, Gert-Jan de)'),
+      node('b', 'Generieke IT Services (Wallenburg, Paul)'),
+      node('c', 'Generieke IT Services (Scheepers, Kevin)'),
+    ], ['Generieke IT Services']);
+    expect(map.get('a')).toBe('Vries, Gert-Jan de');
+    expect(map.get('b')).toBe('Wallenburg, Paul');
+    expect(map.get('c')).toBe('Scheepers, Kevin');
   });
 
   it('strips a multi-segment parent path', () => {
