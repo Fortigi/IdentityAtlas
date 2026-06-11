@@ -43,7 +43,7 @@ function findNode(nodes, id) {
 // "·"-segments so each pill shows only its distinctive tail. Always keep at
 // least the last segment. Returns id → short label.
 const PATH_SEP = ' · ';
-function stripSiblingPrefix(siblings) {
+export function stripSiblingPrefix(siblings) {
   const map = new Map();
   const list = siblings || [];
   for (const s of list) map.set(s.id, s.displayName);
