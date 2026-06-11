@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { friendlyLabel } from '../utils/formatters';
 import { getAccessPackageColor } from '../utils/colors';
+import { exportRollupToExcel } from '../utils/exportRollupToExcel';
 import { useIsDark } from '../contexts/ThemeContext';
 import MatrixCell from './matrix/MatrixCell';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
@@ -235,23 +236,27 @@ export default function RollupMatrixView({
   }, [shareUrl]);
 
   const onExportExcel = useCallback(() => {
-    const header = [rowNoun, ...groupValues, ...visibleRoles.map(r => r.displayName), '#', 'Description'];
-    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [header.map(esc).join(',')];
-    for (const r of orderedResources) {
-      const row = [r.displayName || r.id];
-      for (const g of groupValues) row.push(groupCount(r.id, g) || '');
-      for (const role of visibleRoles) row.push(roleCountMap.get(`${r.id}|${role.id}`) || '');
-      row.push(r._total, r.description || '');
-      lines.push(row.map(esc).join(','));
-    }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `matrix-rollup-${attribute}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }, [rowNoun, groupValues, visibleRoles, orderedResources, groupCount, roleCountMap, attribute]);
+    const columns = groupValues.map(g => ({
+      key: g,
+      label: contextMode ? ctxLabel(g) : (g || '(none)'),
+    }));
+    const roleColumns = visibleRoles.map(r => ({ id: r.id, label: r.displayName }));
+    const rows = orderedResources.map(r => ({
+      label: r.displayName || r.id,
+      description: r.description || '',
+      total: r._total,
+      cell: (g) => groupCount(r.id, g) || 0,
+      roleCell: (roleId) => roleCountMap.get(`${r.id}|${roleId}`) || 0,
+    }));
+    exportRollupToExcel({
+      rowNoun,
+      columns,
+      roleColumns,
+      rows,
+      sheetName: rolesOnly ? 'Roll-up (roles)' : 'Roll-up',
+      fileName: `matrix-rollup-${contextMode ? 'context' : String(attribute).replace(/[^\w.-]+/g, '_')}.xlsx`,
+    }).catch(() => {});
+  }, [rowNoun, groupValues, visibleRoles, orderedResources, groupCount, roleCountMap, attribute, contextMode, ctxLabel, rolesOnly]);
 
   // Cap the grid height to the remaining viewport so only the grid scrolls
   // (matches MatrixView). overflow-auto then gives both scrollbars, including

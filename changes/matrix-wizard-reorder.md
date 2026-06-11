@@ -8,3 +8,4 @@
 - The roll-up Content step now offers a "Cell value" choice: show each cell as an absolute count (the default) or as the percentage of the subjects in that group who hold the resource or role (e.g. 8 of 10 in a department shows as 80%). In percentage mode each column header also shows the group's subject total.
 - Saving a matrix now also stores the All / Governed / Non-governed toggle, so loading a saved matrix restores exactly what you saw — not just the wizard filter.
 - You can again expand a roll-up group column into its individual subjects in the "Business roles only" view — clicking a group header now shows each subject in that group and which business role they hold (this already worked in the resources views).
+- The roll-up matrix "Export to Excel" now downloads a real .xlsx workbook (it previously produced a CSV).
