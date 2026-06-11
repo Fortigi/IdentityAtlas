@@ -40,14 +40,14 @@ export default function RollupMatrixView({
     for (const n of nodes) m.set(n.id, n);
     return m;
   }, [nodes]);
-  // The verbose plugin name is a full path "A · B · C (Manager, Name)" — show the
-  // manager's name when present, else the last path segment.
+  // The verbose plugin name is a full path "A · B · C (Manager, Name)". Show the
+  // deepest org-unit segment as the column label; the full path + manager stays
+  // in the header tooltip.
   const ctxLabel = useCallback((id) => {
     const dn = nodeMap.get(id)?.displayName || id;
-    const paren = dn.match(/\(([^)]+)\)\s*$/);
-    if (paren) return paren[1];
-    const segs = dn.split('·').map(s => s.trim()).filter(Boolean);
-    return segs[segs.length - 1] || dn;
+    const noMgr = dn.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    const segs = noMgr.split('·').map(s => s.trim()).filter(Boolean);
+    return segs[segs.length - 1] || noMgr || dn;
   }, [nodeMap]);
 
   // Cell value: absolute count (default) or % of the in-scope subjects in that
