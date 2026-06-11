@@ -1,0 +1,1 @@
+- Fixed the Admin → Authentication tab disappearing on Azure App Service deployments. Because that tab also hosts Roles & Permissions management, hiding it locked admins out of editing role permissions. The tab now stays visible to anyone with the `admin.auth` permission on every platform; only the Docker-specific setup walkthrough is hidden on Azure.
