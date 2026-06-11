@@ -716,11 +716,11 @@ export default function MatrixView({
   const filterIsApplied = filter !== null && filter !== undefined;
 
   // Cap the grid's height to the remaining viewport so ONLY the grid scrolls,
-  // never the page too. A fixed max-h-[calc(100vh-280px)] guesses the chrome
-  // height; the real chrome (auth banner + scope stats + "How to read") is
-  // taller, so the grid sat too low and the page got a second scrollbar.
-  // Measure the grid's real document-top instead and re-measure on any layout
-  // change (header content loads late, panels toggle).
+  // never the page too. A fixed viewport-minus-fixed-pixels max-height guesses
+  // the chrome height; the real chrome (auth banner + scope stats + "How to
+  // read") is taller, so the grid sat too low and the page got a second
+  // scrollbar. Measure the grid's real document-top instead and re-measure on
+  // any layout change (header content loads late, panels toggle).
   const rootRef = useRef(null);
   const [gridMaxH, setGridMaxH] = useState(null);
   useLayoutEffect(() => {
