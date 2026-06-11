@@ -49,10 +49,10 @@ const EMPTY_FILTER = {
   rollupMetric: 'count',
   // EXPERIMENTAL — aggregate by a Context tree (Manager Hierarchy) instead of an
   // attribute. 'attribute' uses `rollup`; 'context' uses rollupContextId (the
-  // starting node) and rollupFrontier (the current drilled-to cut of the tree).
+  // starting node) and rollupPath (the drill path from root to current focus).
   rollupKind: 'attribute',
   rollupContextId: null,
-  rollupFrontier: [],
+  rollupPath: [],
   // Subject-axis sort order — 1..3 attributes, applied client-side. Default
   // groups columns by department.
   sortAttributes: [{ attribute: 'department', dir: 'asc' }],
@@ -341,7 +341,7 @@ export default function MatrixFilterWizard({
       rollupMetric: f.rollupMetric === 'percent' ? 'percent' : 'count',
       rollupKind: f.rollupKind === 'context' ? 'context' : 'attribute',
       rollupContextId: typeof f.rollupContextId === 'string' && f.rollupContextId ? f.rollupContextId : null,
-      rollupFrontier: Array.isArray(f.rollupFrontier) ? f.rollupFrontier : [],
+      rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath : [],
       sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
         ? f.sortAttributes.slice(0, 3) : DEFAULT_SORT,
     });
@@ -407,7 +407,7 @@ export default function MatrixFilterWizard({
           columns={subjectColumns}
           onRollupChange={(rollup) => setFilter(prev => ({ ...prev, rollup }))}
           onRollupKindChange={(rollupKind) => setFilter(prev => ({ ...prev, rollupKind }))}
-          onRollupContextChange={(rollupContextId) => setFilter(prev => ({ ...prev, rollupContextId, rollupFrontier: [] }))}
+          onRollupContextChange={(rollupContextId) => setFilter(prev => ({ ...prev, rollupContextId, rollupPath: [] }))}
         />
       )}
       {activeStep === 'content' && (

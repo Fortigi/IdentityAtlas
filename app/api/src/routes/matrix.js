@@ -36,7 +36,7 @@ import {
 import { resolveAttrExpr } from '../matrix/attrExpr.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
-  buildContextNodesSql, buildContextChildrenSql, buildRootChildrenSql,
+  buildContextNodesSql, buildRootChildrenSql,
 } from '../matrix/contextRollup.js';
 
 const router = Router();
@@ -153,11 +153,12 @@ function parseFilter(body) {
     drill: f.drill === true,
     // EXPERIMENTAL — aggregate the subject axis by a Context tree (e.g. the
     // Manager Hierarchy) instead of an attribute. rollupKind 'context' switches
-    // the roll-up branch; rollupContextId is the starting (root) node and
-    // rollupFrontier is the current visible cut of the tree (client-managed).
+    // the roll-up branch; rollupContextId is the starting (root) node. The view
+    // zooms one level at a time: rollupPath is the drill path from the root to
+    // the current focus node, and the columns are the focus node's children.
     rollupKind: f.rollupKind === 'context' ? 'context' : 'attribute',
     rollupContextId: typeof f.rollupContextId === 'string' && f.rollupContextId ? f.rollupContextId : null,
-    rollupFrontier: Array.isArray(f.rollupFrontier) ? f.rollupFrontier.filter(x => typeof x === 'string').slice(0, 200) : [],
+    rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath.filter(x => typeof x === 'string').slice(0, 50) : [],
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),
@@ -762,14 +763,15 @@ router.post('/matrix/data', async (req, res) => {
     if (filter.rollupKind === 'context' && filter.rollupContextId) {
       if (!isUuid(filter.rollupContextId)) return res.status(400).json({ error: 'Invalid context id' });
 
-      // Determine the frontier: the client-sent cut, or default to the root's
-      // children (or the root itself if it's a leaf).
-      let frontier = filter.rollupFrontier.filter(isUuid);
-      if (frontier.length === 0) {
-        const rootReq = timedRequest(p, 'matrix-ctx-root-children', res);
-        const kids = (await rootReq.query(buildRootChildrenSql(filter.rollupContextId))).recordset.map(r => r.id);
-        frontier = kids.length ? kids : [filter.rollupContextId];
-      }
+      // The view zooms one level at a time. focus = the node we're zoomed into
+      // (the last step of the drill path, or the root). Columns = the focus
+      // node's children; the breadcrumb is root → … → focus.
+      const path = filter.rollupPath.filter(isUuid);
+      const focus = path.length ? path[path.length - 1] : filter.rollupContextId;
+
+      const kidsReq = timedRequest(p, 'matrix-ctx-focus-children', res);
+      let frontier = (await kidsReq.query(buildRootChildrenSql(focus))).recordset.map(r => r.id);
+      if (frontier.length === 0) frontier = [focus]; // leaf focus — show it as the single column
 
       let values;
       try { values = frontierValues(frontier); }
@@ -796,8 +798,13 @@ router.post('/matrix/data', async (req, res) => {
 
       const nodesReq = timedRequest(p, 'matrix-ctx-nodes', res);
       const nodeRows = (await nodesReq.query(buildContextNodesSql(frontier))).recordset;
-      const childrenReq = timedRequest(p, 'matrix-ctx-children', res);
-      const childRows = (await childrenReq.query(buildContextChildrenSql(frontier))).recordset;
+
+      // Breadcrumb: the root + every node on the drill path, in order.
+      const crumbIds = [filter.rollupContextId, ...path];
+      const crumbReq = timedRequest(p, 'matrix-ctx-crumbs', res);
+      const crumbRows = (await crumbReq.query(buildContextNodesSql(crumbIds))).recordset;
+      const crumbMeta = new Map(crumbRows.map(c => [c.id, c.displayName]));
+      const breadcrumb = crumbIds.map(id => ({ id, displayName: crumbMeta.get(id) || id }));
 
       const counts = await scopeCounts(p, res, rowType, built);
       const resMap = new Map();
@@ -809,24 +816,21 @@ router.post('/matrix/data', async (req, res) => {
           systemId: row.systemId, systemName: row.systemName,
         });
       }
-      // Frontier order: biggest subtree first (nodeRows carries totalMemberCount).
+      // Column order: biggest subtree first.
       const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, parent: n.parent, total: n.total, childCount: n.childCount }]));
       const orderedFrontier = [...frontier].sort((a, b) => (nodeMeta.get(b)?.total || 0) - (nodeMeta.get(a)?.total || 0));
-      const childrenByNode = {};
-      for (const c of childRows) {
-        (childrenByNode[c.parent] ||= []).push({ id: c.id, displayName: c.displayName, total: c.total, childCount: c.childCount });
-      }
 
       return res.json({
         rollup: 'context',
         rollupKind: 'context',
         rollupContextId: filter.rollupContextId,
         rollupMetric: filter.rollupMetric,
+        focusId: focus,
+        breadcrumb,
         rowType,
         resources: [...resMap.values()],
         groupValues: orderedFrontier,
         nodes: orderedFrontier.map(id => nodeMeta.get(id) || { id, displayName: id, parent: null, total: 0, childCount: 0 }),
-        childrenByNode,
         counts: cellRows.map(r => ({
           resourceId: r.resourceId, groupValue: r.groupValue,
           directCount: r.directCount, governedCount: r.governedCount,
