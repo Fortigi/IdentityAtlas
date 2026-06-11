@@ -325,7 +325,7 @@ function RenameInput({ initial, placeholder, onCommit, onCancel }) {
         else if (e.key === 'Escape') onCancel();
       }}
       onBlur={() => onCommit(value.trim())}
-      className="px-2 py-1 text-sm border border-blue-400 dark:border-blue-500 rounded bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+      className="w-full min-w-[260px] max-w-[480px] px-2 py-1 text-sm border border-blue-400 dark:border-blue-500 rounded bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
     />
   );
 }
