@@ -19,15 +19,15 @@ const MAX_ROWS = 300; // this view isn't virtualized — cap rendered resource r
 export default function RollupMatrixView({ rollup, filter, counts, refreshing, onOpenDetail, onAdjustFilter }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
-  const { attribute, resources, groupValues, counts, businessRoles = [], roleCounts = [] } = rollup;
+  const { attribute, resources, groupValues, counts: directCounts, businessRoles = [], roleCounts = [] } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
 
   // (resourceId|groupValue) -> directCount
   const countMap = useMemo(() => {
     const m = new Map();
-    for (const c of counts) m.set(`${c.resourceId}|${c.groupValue}`, c.directCount);
+    for (const c of directCounts) m.set(`${c.resourceId}|${c.groupValue}`, c.directCount);
     return m;
-  }, [counts]);
+  }, [directCounts]);
 
   // (resourceId|roleId) -> governed count via that business role
   const roleCountMap = useMemo(() => {
