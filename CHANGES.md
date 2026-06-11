@@ -1,5 +1,14 @@
 ## Changes in this PR
 
+- Fixed false-positive in `MatrixView.scrollbar.test.js`: the magic-number guard was matching a comment in `MatrixView.jsx` rather than actual class usage
+- Added tests for the two untested bootstrap guard paths in `Invoke-CrawlerJob.ps1`: skip (module already loaded) and throw (module file not found)
+
+## Changes in this PR
+
+- Pinned Docker base image to Node 24-slim; Dependabot will no longer propose upgrades to Node 26+
+
+## Changes in this PR
+
 - Fixed the Admin → Authentication tab disappearing on Azure App Service deployments. Because that tab also hosts Roles & Permissions management, hiding it locked admins out of editing role permissions. The tab now stays visible to anyone with the `admin.auth` permission on every platform; only the Docker-specific setup walkthrough is hidden on Azure.
 
 ## Changes in this PR

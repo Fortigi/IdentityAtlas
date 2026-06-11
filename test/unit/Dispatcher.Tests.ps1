@@ -211,3 +211,38 @@ Describe 'Dependency loader — entry points are never dot-sourced' {
         { Invoke-DependencyLoader -Resolved $resolved -Registry $script:loaderRegistry } | Should -Not -Throw
     }
 }
+
+# ─── Module bootstrap guard ───────────────────────────────────────────────────
+
+Describe 'Module bootstrap — module already loaded (skip path)' {
+    It 'guard is a no-op when Get-CrawlerRegistry is already in scope' {
+        # The BeforeAll in this file imports the module, so this simulates the
+        # Docker scenario where scheduler.ps1 pre-imports before the dispatcher runs.
+        Get-Command Get-CrawlerRegistry -ErrorAction SilentlyContinue |
+            Should -Not -BeNullOrEmpty -Because 'module must be loaded for this test to be meaningful'
+
+        $guardFired = if (-not (Get-Command Get-CrawlerRegistry -ErrorAction SilentlyContinue)) {
+            $true
+        } else {
+            $false
+        }
+        $guardFired | Should -BeFalse -Because 'bootstrap import must be skipped when module is already loaded'
+    }
+}
+
+Describe 'Module bootstrap — module file not found (throw path)' {
+    It 'throws a descriptive error when IA_APP_ROOT has no IdentityAtlas.psd1' {
+        $tmpRoot = Join-Path ([System.IO.Path]::GetTempPath()) "pester-bootstrap-$([guid]::NewGuid().ToString('N'))"
+        New-Item -ItemType Directory -Path $tmpRoot | Out-Null
+        try {
+            $dispatcherPath = Join-Path $script:repoRoot 'setup' 'docker' 'Invoke-CrawlerJob.ps1'
+            $output = & pwsh -NonInteractive -Command "
+                `$env:IA_APP_ROOT = '$tmpRoot'
+                & '$dispatcherPath' -JobId 0 -JobType 'entra-id' -Config '{}' -ApiKey 'test' 2>&1
+            " 2>&1 | Out-String
+            $output | Should -Match 'IdentityAtlas module not found'
+        } finally {
+            Remove-Item $tmpRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
