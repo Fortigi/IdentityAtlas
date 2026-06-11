@@ -612,6 +612,7 @@ export default function App() {
                   refreshing={refreshing}
                   onOpenDetail={openDetailTab}
                   onAdjustFilter={() => setWizardOpen(true)}
+                  onFilterChange={setMatrixFilter}
                 />
               ) : matrixFilter?.orientation === 'rows-as-subjects' ? (
                 <RotatedMatrixView

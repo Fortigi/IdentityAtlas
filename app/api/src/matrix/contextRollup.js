@@ -104,6 +104,7 @@ export function buildContextTotalsSql({ values, identityJoin = '', subjectId, su
 export function buildContextNodesSql(ids) {
   return `
     SELECT c.id::text AS id, c."displayName" AS "displayName",
+           c."parentContextId"::text AS parent,
            c."totalMemberCount" AS total,
            (SELECT COUNT(*)::int FROM "Contexts" g WHERE g."parentContextId" = c.id) AS "childCount"
       FROM "Contexts" c

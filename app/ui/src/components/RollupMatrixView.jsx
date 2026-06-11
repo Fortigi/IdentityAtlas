@@ -20,16 +20,35 @@ const MAX_ROWS = 300; // this view isn't virtualized — cap rendered resource r
 
 export default function RollupMatrixView({
   rollup, filter, counts, managedFilter, setManagedFilter, shareUrl,
-  refreshing, onOpenDetail, onAdjustFilter,
+  refreshing, onOpenDetail, onAdjustFilter, onFilterChange,
 }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
   const {
     attribute, rollupContent = 'resources-and-roles', resources, groupValues,
     counts: directCounts, businessRoles = [], roleCounts = [], roleRows = [], cells = [],
-    groupTotals = [],
+    groupTotals = [], rollupKind = 'attribute', nodes = [], childrenByNode = {},
   } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
+
+  // ── Context-tree roll-up (e.g. Manager Hierarchy) ──
+  // Columns are context nodes of the current frontier; drilling replaces a node
+  // with its children. nodeMap carries display/total/childCount/parent.
+  const contextMode = rollupKind === 'context';
+  const nodeMap = useMemo(() => {
+    const m = new Map();
+    for (const n of nodes) m.set(n.id, n);
+    return m;
+  }, [nodes]);
+  // The verbose plugin name is a full path "A · B · C (Manager, Name)" — show the
+  // manager's name when present, else the last path segment.
+  const ctxLabel = useCallback((id) => {
+    const dn = nodeMap.get(id)?.displayName || id;
+    const paren = dn.match(/\(([^)]+)\)\s*$/);
+    if (paren) return paren[1];
+    const segs = dn.split('·').map(s => s.trim()).filter(Boolean);
+    return segs[segs.length - 1] || dn;
+  }, [nodeMap]);
 
   // Cell value: absolute count (default) or % of the in-scope subjects in that
   // group who hold it. groupTotals provides the per-group denominator.
@@ -123,16 +142,22 @@ export default function RollupMatrixView({
     if (!cache.has(group)) {
       setLoadingGroup(prev => new Set(prev).add(group));
       try {
-        // Scope the drill to this one group via a subject attribute condition.
+        // Scope the drill to this one group. Attribute/roles roll-ups match on
+        // the attribute value; context roll-ups match on membership of the node
+        // (a leaf context) including its subtree.
+        const scopeCond = contextMode
+          ? { kind: 'context', contextId: group, includeChildren: true }
+          : { kind: 'attribute', field: attribute, values: [group] };
         const scopedSubject = {
-          include: [...(filter.subject?.include || []), { kind: 'attribute', field: attribute, values: [group] }],
+          include: [...(filter.subject?.include || []), scopeCond],
           exclude: filter.subject?.exclude || [],
         };
         // Roles-only puts business roles on the rows, so the drill returns which
-        // role each subject holds; the resources views return resource grants.
+        // role each subject holds; the resources/context views return resource
+        // grants (flat per-subject data — clear the roll-up).
         const drillFilter = rolesOnly
           ? { ...filter, drill: true, subject: scopedSubject }
-          : { ...filter, rollup: null, subject: scopedSubject };
+          : { ...filter, rollup: null, rollupKind: 'attribute', rollupContextId: null, rollupFrontier: [], subject: scopedSubject };
         const res = await authFetch('/api/matrix/data', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filter: drillFilter }),
@@ -171,7 +196,30 @@ export default function RollupMatrixView({
       setLoadingGroup(prev => { const n = new Set(prev); n.delete(group); return n; });
     }
     setExpanded(prev => new Set(prev).add(group));
-  }, [expanded, cache, filter, attribute, authFetch, rolesOnly]);
+  }, [expanded, cache, filter, attribute, authFetch, rolesOnly, contextMode]);
+
+  // ── Context drill: replace a node column with its children (one level down).
+  // Leaf nodes (no children) fall back to expanding into individual subjects.
+  const drillContextNode = useCallback((nodeId) => {
+    const kids = childrenByNode[nodeId];
+    if (!kids || kids.length === 0) { toggleGroup(nodeId); return; }
+    const next = [];
+    for (const id of groupValues) {
+      if (id === nodeId) next.push(...kids.map(k => k.id));
+      else next.push(id);
+    }
+    onFilterChange?.({ ...filter, rollupFrontier: next });
+  }, [childrenByNode, groupValues, filter, onFilterChange, toggleGroup]);
+
+  // Collapse a node back up: replace every visible sibling that shares its
+  // parent with the parent node itself.
+  const collapseContextNode = useCallback((nodeId) => {
+    const parent = nodeMap.get(nodeId)?.parent;
+    if (!parent) return;
+    const next = groupValues.filter(id => nodeMap.get(id)?.parent !== parent);
+    if (!next.includes(parent)) next.unshift(parent);
+    onFilterChange?.({ ...filter, rollupFrontier: next });
+  }, [nodeMap, groupValues, filter, onFilterChange]);
 
   // Flatten groups (+ expanded subjects) into a single column list.
   const columns = useMemo(() => {
@@ -258,6 +306,9 @@ export default function RollupMatrixView({
           const valueWord = percentMode
             ? <>the <span className="font-medium">percentage</span> of the {subjectWord} in that group</>
             : <>the count of distinct {subjectWord}</>;
+          if (contextMode) return (
+            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are org units, and each cell is {valueWord} anywhere under that org with a <span className="font-medium">Direct</span> assignment. Click <span className="font-medium">▾</span> to drill into sub-teams, <span className="font-medium">▸</span> to expand a team into people, <span className="font-medium">▲</span> to go back up.</>
+          );
           return rolesOnly ? (
             <>Business roles on the rows, grouped by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is {valueWord} who hold the role.</>
           ) : (
@@ -266,6 +317,12 @@ export default function RollupMatrixView({
             <span className="font-medium"> Direct</span> assignment. Click a column to expand it into the individual {subjectWord}.</>
           );
         })()}
+        {contextMode && (
+          <button
+            onClick={() => onFilterChange?.({ ...filter, rollupFrontier: [] })}
+            className="ml-2 text-blue-600 dark:text-blue-400 hover:underline"
+          >Reset to top level</button>
+        )}
         {refreshing && <span className="ml-2 text-gray-500 dark:text-gray-400">updating…</span>}
       </div>
 
@@ -288,18 +345,42 @@ export default function RollupMatrixView({
                   return (
                     <th key={col.key} className="border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 align-bottom bg-gray-100 dark:bg-gray-800" style={{ minWidth: '40px', height: '130px' }} title={grpTotal != null ? `${col.group || '(none)'} — ${grpTotal} ${subjectWord}` : undefined}>
                       <div className="flex flex-col items-center justify-end h-full gap-1">
-                        {percentMode && grpTotal != null && (
-                          <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0" title={`${grpTotal} ${subjectWord} in this group`}>{grpTotal}</span>
+                        {contextMode ? (() => {
+                          const node = nodeMap.get(col.group);
+                          const canDrill = (node?.childCount || 0) > 0;
+                          const canCollapse = !!node?.parent;
+                          const btn = 'w-4 h-4 flex items-center justify-center text-[10px] leading-none shrink-0';
+                          return (
+                            <>
+                              {node?.total != null && (
+                                <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0" title={`${node.total} ${subjectWord} in this org (whole subtree)`}>{node.total}</span>
+                              )}
+                              {canCollapse && (
+                                <button onClick={() => collapseContextNode(col.group)} className={`${btn} text-gray-500 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400`} title="Collapse — back up one level">▲</button>
+                              )}
+                              <button
+                                onClick={() => drillContextNode(col.group)}
+                                className={`${btn} text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400`}
+                                title={canDrill ? `Drill into ${ctxLabel(col.group)} — show its sub-teams` : (isExp ? 'Collapse' : `Expand into the individual ${subjectWord}`)}
+                              >{loading ? '⋯' : (canDrill ? '▾' : (isExp ? '▾' : '▸'))}</button>
+                            </>
+                          );
+                        })() : (
+                          <>
+                            {percentMode && grpTotal != null && (
+                              <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0" title={`${grpTotal} ${subjectWord} in this group`}>{grpTotal}</span>
+                            )}
+                            {canExpand && (
+                              <button
+                                onClick={() => toggleGroup(col.group)}
+                                className="w-4 h-4 flex items-center justify-center text-[10px] leading-none text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
+                                title={isExp ? `Collapse ${col.group}` : `Expand ${col.group} into ${subjectWord}`}
+                              >{loading ? '⋯' : (isExp ? '▾' : '▸')}</button>
+                            )}
+                          </>
                         )}
-                        {canExpand && (
-                          <button
-                            onClick={() => toggleGroup(col.group)}
-                            className="w-4 h-4 flex items-center justify-center text-[10px] leading-none text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
-                            title={isExp ? `Collapse ${col.group}` : `Expand ${col.group} into ${subjectWord}`}
-                          >{loading ? '⋯' : (isExp ? '▾' : '▸')}</button>
-                        )}
-                        <div className="text-[10px] font-semibold text-gray-700 dark:text-gray-300" style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '100px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                          {col.group || '(none)'}
+                        <div className="text-[10px] font-semibold text-gray-700 dark:text-gray-300" style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '100px', overflow: 'hidden', whiteSpace: 'nowrap' }} title={contextMode ? nodeMap.get(col.group)?.displayName : undefined}>
+                          {contextMode ? ctxLabel(col.group) : (col.group || '(none)')}
                         </div>
                       </div>
                     </th>

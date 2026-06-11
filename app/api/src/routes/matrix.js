@@ -810,7 +810,7 @@ router.post('/matrix/data', async (req, res) => {
         });
       }
       // Frontier order: biggest subtree first (nodeRows carries totalMemberCount).
-      const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, total: n.total, childCount: n.childCount }]));
+      const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, parent: n.parent, total: n.total, childCount: n.childCount }]));
       const orderedFrontier = [...frontier].sort((a, b) => (nodeMeta.get(b)?.total || 0) - (nodeMeta.get(a)?.total || 0));
       const childrenByNode = {};
       for (const c of childRows) {
@@ -825,7 +825,7 @@ router.post('/matrix/data', async (req, res) => {
         rowType,
         resources: [...resMap.values()],
         groupValues: orderedFrontier,
-        nodes: orderedFrontier.map(id => nodeMeta.get(id) || { id, displayName: id, total: 0, childCount: 0 }),
+        nodes: orderedFrontier.map(id => nodeMeta.get(id) || { id, displayName: id, parent: null, total: 0, childCount: 0 }),
         childrenByNode,
         counts: cellRows.map(r => ({
           resourceId: r.resourceId, groupValue: r.groupValue,

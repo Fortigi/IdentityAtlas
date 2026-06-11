@@ -154,6 +154,10 @@ export function useMatrix(filter) {
         if (body.rollup) {
           setRollup({
             attribute:     body.rollup,
+            rollupKind:    body.rollupKind    || 'attribute',
+            rollupContextId: body.rollupContextId || null,
+            nodes:         body.nodes         || [],
+            childrenByNode: body.childrenByNode || {},
             rollupContent: body.rollupContent || 'resources-and-roles',
             resources:     body.resources     || [],
             groupValues:   body.groupValues   || [],
