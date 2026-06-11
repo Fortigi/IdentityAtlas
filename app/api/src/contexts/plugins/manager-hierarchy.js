@@ -159,7 +159,10 @@ export default {
       const mgrName = mgr?.displayName || 'Unknown';
       const parts = resolved
         .map(r => (mgr?.[r.name] == null ? '' : String(mgr[r.name]).trim()))
-        .filter(Boolean);
+        .filter(Boolean)
+        // Collapse consecutive duplicate segments — org levels frequently repeat
+        // the same name (e.g. "Commercie · Commercie"); keep just one.
+        .filter((p, i, arr) => i === 0 || p.toLowerCase() !== arr[i - 1].toLowerCase());
       const label = parts.join(separator);
       if (label && includeManagerName) return `${label} (${mgrName})`;
       if (label) return label;

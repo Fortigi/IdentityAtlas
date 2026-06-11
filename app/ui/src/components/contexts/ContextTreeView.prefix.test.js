@@ -1,7 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { stripSiblingPrefix } from './ContextTreeView.jsx';
+import { stripSiblingPrefix, dedupeSegments } from './ContextTreeView.jsx';
 
 const node = (id, displayName) => ({ id, displayName });
+
+describe('dedupeSegments', () => {
+  it('collapses consecutive repeated segments, keeping the manager suffix', () => {
+    expect(dedupeSegments('Commercie · Commercie (Doorn, Matthijs van)')).toBe('Commercie (Doorn, Matthijs van)');
+    expect(dedupeSegments('CEO · ADIR · ADIR (Siemons, Boudewijn)')).toBe('CEO · ADIR (Siemons, Boudewijn)');
+  });
+  it('leaves non-repeating names untouched', () => {
+    expect(dedupeSegments('CEO · ADIR · COO (X)')).toBe('CEO · ADIR · COO (X)');
+  });
+  it('only collapses consecutive runs, not distant repeats', () => {
+    expect(dedupeSegments('A · B · A')).toBe('A · B · A');
+  });
+});
 
 describe('stripSiblingPrefix', () => {
   it('strips the common "·"-path prefix shared by all siblings', () => {
