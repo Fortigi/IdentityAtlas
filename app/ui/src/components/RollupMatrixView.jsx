@@ -109,7 +109,7 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
   }, [groupValues, expanded, cache]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-w-0">
       {/* Scope Statistics — governed % etc., same as the per-subject matrix. */}
       {filter && <MatrixScopePanel filter={filter} />}
 
@@ -129,8 +129,8 @@ export default function RollupMatrixView({ rollup, filter, refreshing, onOpenDet
       {/* How to read this matrix — same legend as the per-subject view. */}
       <MatrixLegend />
 
-      <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg mt-2">
-        <table className="border-collapse text-xs">
+      <div className="flex-1 min-w-0 overflow-x-auto overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg mt-2">
+        <table className="border-collapse text-xs w-max max-w-none">
           <thead className="sticky top-0 z-20">
             <tr>
               <th className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left text-gray-600 dark:text-gray-300 font-medium" style={{ minWidth: '280px' }}>

@@ -1,3 +1,5 @@
 - The matrix wizard steps were reordered for clarity: Step 1 now picks the subject type and the roll-up option, Step 4 is Sort (automatically skipped when roll-up is on, since column order is meaningless then), and Step 5 is Orientation.
 - The roll-up view now mirrors the per-subject matrix: the Scope Statistics banner (subjects, resources, governed %) and the "how to read this matrix" legend appear above the grid.
 - In roll-up mode the matrix now also shows business-role columns with a count of how many in-scope users/identities hold each resource via that business role, alongside the per-attribute Direct counts.
+- The Sort step now lets you sort by any attribute, including extended attributes.
+- The roll-up view now shows a horizontal scrollbar when its columns are wider than the screen.

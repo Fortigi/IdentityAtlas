@@ -494,9 +494,9 @@ function Step4Rollup({ rollup, columns, rowType, onChange }) {
 
 // ─── Step 5 — Sort ──────────────────────────────────────────────────
 function Step5Sort({ sortAttributes, columns, disabled, onChange }) {
-  // Sort reads the flat matrix payload, which only carries real columns — so
-  // ext.* keys aren't offered here (roll-up may still use them).
-  const options = attributeOptions(columns, { realOnly: true });
+  // Any attribute can be sorted on, including ext.* extended attributes — the
+  // matrix payload now carries extendedAttributes for the column sort.
+  const options = attributeOptions(columns);
   const rows = sortAttributes.length ? sortAttributes : DEFAULT_SORT;
 
   const update = (i, patch) => onChange(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));

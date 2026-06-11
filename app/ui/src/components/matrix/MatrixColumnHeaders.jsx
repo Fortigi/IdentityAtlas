@@ -37,7 +37,7 @@ export default function MatrixColumnHeaders({
           >
             <div className="text-[11px] text-gray-500 dark:text-gray-400 font-normal">
               {rowIdx === 0 ? <div className="text-[10px]">Drag rows to reorder</div> : null}
-              <div className="font-medium text-gray-600 dark:text-gray-300">{friendlyLabel(row.attribute)}</div>
+              <div className="font-medium text-gray-600 dark:text-gray-300">{friendlyLabel(String(row.attribute).replace(/^ext\./, ''))}</div>
             </div>
           </th>
 

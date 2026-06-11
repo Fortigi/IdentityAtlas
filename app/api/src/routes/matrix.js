@@ -285,6 +285,25 @@ export function buildRollupSql({ attrExpr, subjectJoin, subjectIdExpr, subjectId
   `;
 }
 
+// Pure builder for the roll-up business-role (SOLL) counts: distinct in-scope
+// subjects holding each resource via each business role. Exported for tests.
+export function buildRollupRolesSql({ brMemberId, brJoin, subjectSql, resourceSql }) {
+  const where = [];
+  if (subjectSql)  where.push(`${brMemberId} IN ${subjectSql}`);
+  if (resourceSql) where.push(`br."resourceId" IN ${resourceSql}`);
+  return `
+    SELECT br."resourceId"     AS "resourceId",
+           br."businessRoleId" AS "roleId",
+           role."displayName"  AS "roleName",
+           COUNT(DISTINCT ${brMemberId})::int AS "count"
+      FROM "vw_UserPermissionAssignmentViaBusinessRole" br
+      ${brJoin}
+      LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
+     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     GROUP BY br."resourceId", br."businessRoleId", role."displayName"
+  `;
+}
+
 // ─── POST /api/matrix/preview ───────────────────────────────────────
 router.post('/matrix/preview', async (req, res) => {
   if (!useSql) {
@@ -679,22 +698,11 @@ router.post('/matrix/data', async (req, res) => {
         const brMemberId = rowType === 'identity' ? 'im2."identityId"' : 'br."userId"';
         const brJoin = rowType === 'identity'
           ? 'INNER JOIN "IdentityMembers" im2 ON im2."principalId" = br."userId"' : '';
-        const brWhere = [];
-        if (built.subjectSql)  brWhere.push(`${brMemberId} IN ${built.subjectSql}`);
-        if (built.resourceSql) brWhere.push(`br."resourceId" IN ${built.resourceSql}`);
         const brReq = timedRequest(p, 'matrix-rollup-roles', res);
         for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
-        const brRows = (await brReq.query(`
-          SELECT br."resourceId"        AS "resourceId",
-                 br."businessRoleId"    AS "roleId",
-                 role."displayName"     AS "roleName",
-                 COUNT(DISTINCT ${brMemberId})::int AS "count"
-            FROM "vw_UserPermissionAssignmentViaBusinessRole" br
-            ${brJoin}
-            LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
-           ${brWhere.length ? 'WHERE ' + brWhere.join(' AND ') : ''}
-           GROUP BY br."resourceId", br."businessRoleId", role."displayName"
-        `)).recordset;
+        const brRows = (await brReq.query(buildRollupRolesSql({
+          brMemberId, brJoin, subjectSql: built.subjectSql, resourceSql: built.resourceSql,
+        }))).recordset;
         const roleMap = new Map();
         for (const r of brRows) {
           if (!r.roleId) continue;
@@ -749,6 +757,7 @@ router.post('/matrix/data', async (req, res) => {
         ${memberTypeExpr} AS "memberType",
         p."membershipType",
         ${dynamicSubjectCols ? dynamicSubjectCols + ',' : ''}
+        ${subjectAlias}."extendedAttributes" AS "extendedAttributes",
         p."managedByAccessPackage"
       FROM "vw_ResourceUserPermissionAssignments" p
       ${subjectJoin}
