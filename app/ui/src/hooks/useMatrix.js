@@ -154,11 +154,14 @@ export function useMatrix(filter) {
         if (body.rollup) {
           setRollup({
             attribute:     body.rollup,
+            rollupContent: body.rollupContent || 'resources-and-roles',
             resources:     body.resources     || [],
             groupValues:   body.groupValues   || [],
             counts:        body.counts        || [],
             businessRoles: body.businessRoles || [],
             roleCounts:    body.roleCounts    || [],
+            roleRows:      body.roleRows      || [],
+            cells:         body.cells         || [],
           });
           setData([]);
           setManagedByPackages([]);

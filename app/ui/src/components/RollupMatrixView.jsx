@@ -24,20 +24,35 @@ export default function RollupMatrixView({
 }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
-  const { attribute, resources, groupValues, counts: directCounts, businessRoles = [], roleCounts = [] } = rollup;
+  const {
+    attribute, rollupContent = 'resources-and-roles', resources, groupValues,
+    counts: directCounts, businessRoles = [], roleCounts = [], roleRows = [], cells = [],
+  } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
+
+  // 'roles-only' puts business roles on the rows; otherwise resources are rows.
+  const rolesOnly = rollupContent === 'roles-only';
+  const rowNoun = rolesOnly ? 'Business role' : 'Resource';
+  const rowDetailKind = rolesOnly ? 'access-package' : 'resource';
 
   // The Gaps view has no meaning for an aggregated count — fall back to All.
   const mode = managedFilter === 'gaps' ? 'all' : managedFilter;
-  // Business roles only make sense in the governed-inclusive views.
-  const visibleRoles = mode === 'unmanaged' ? [] : businessRoles;
+  // Business-role columns only in the resources-and-roles view, governed-inclusive.
+  const visibleRoles = (!rolesOnly && rollupContent !== 'resources-only' && mode !== 'unmanaged') ? businessRoles : [];
 
-  // (resourceId|groupValue) -> { direct, governed }
+  // (resourceId|groupValue) -> { direct, governed } for the resources views.
   const countMap = useMemo(() => {
     const m = new Map();
     for (const c of directCounts) m.set(`${c.resourceId}|${c.groupValue}`, { direct: c.directCount || 0, governed: c.governedCount || 0 });
     return m;
   }, [directCounts]);
+
+  // (roleId|groupValue) -> count for the roles-only view.
+  const cellMap = useMemo(() => {
+    const m = new Map();
+    for (const c of cells) m.set(`${c.roleId}|${c.groupValue}`, c.count);
+    return m;
+  }, [cells]);
 
   // Pick the number to show for the current All / Governed / Non-governed mode.
   const pick = useCallback((cell) => {
@@ -47,6 +62,13 @@ export default function RollupMatrixView({
     return cell.direct;
   }, [mode]);
 
+  // The count in a (row, group) cell — roles-only reads the role cell map; the
+  // resources views read the direct/governed map filtered by the toggle.
+  const groupCount = useCallback(
+    (rowId, group) => rolesOnly ? (cellMap.get(`${rowId}|${group}`) || 0) : pick(countMap.get(`${rowId}|${group}`)),
+    [rolesOnly, cellMap, countMap, pick],
+  );
+
   // (resourceId|roleId) -> governed count via that business role
   const roleCountMap = useMemo(() => {
     const m = new Map();
@@ -54,18 +76,19 @@ export default function RollupMatrixView({
     return m;
   }, [roleCounts]);
 
-  const resourceTotal = useCallback(
-    (rid) => groupValues.reduce((s, g) => s + pick(countMap.get(`${rid}|${g}`)), 0),
-    [groupValues, countMap, pick],
-  );
+  // Generic rows: resources or business roles.
+  const rowItems = useMemo(() => rolesOnly
+    ? roleRows.map(r => ({ id: r.id, displayName: r.displayName, description: r.description || '' }))
+    : resources.map(r => ({ id: r.resourceId, displayName: r.resourceDisplayName, description: r.resourceDescription || '' })),
+    [rolesOnly, roleRows, resources]);
 
-  // Resources ordered by total (busiest first), capped so the un-virtualized
-  // table stays responsive on an unscoped roll-up.
+  // Rows ordered by total (busiest first), capped so the un-virtualized table
+  // stays responsive.
   const orderedResources = useMemo(() => {
-    return [...resources]
-      .map(r => ({ ...r, _total: resourceTotal(r.resourceId) }))
-      .sort((a, b) => b._total - a._total || (a.resourceDisplayName || '').localeCompare(b.resourceDisplayName || ''));
-  }, [resources, resourceTotal]);
+    return rowItems
+      .map(r => ({ ...r, _total: groupValues.reduce((s, g) => s + groupCount(r.id, g), 0) }))
+      .sort((a, b) => b._total - a._total || (a.displayName || '').localeCompare(b.displayName || ''));
+  }, [rowItems, groupValues, groupCount]);
   const shownResources = orderedResources.slice(0, MAX_ROWS);
   const truncated = orderedResources.length - shownResources.length;
 
@@ -137,14 +160,14 @@ export default function RollupMatrixView({
   }, [shareUrl]);
 
   const onExportExcel = useCallback(() => {
-    const header = ['Resource', ...groupValues, ...visibleRoles.map(r => r.displayName), '#', 'Description'];
+    const header = [rowNoun, ...groupValues, ...visibleRoles.map(r => r.displayName), '#', 'Description'];
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = [header.map(esc).join(',')];
     for (const r of orderedResources) {
-      const row = [r.resourceDisplayName || r.resourceId];
-      for (const g of groupValues) row.push(pick(countMap.get(`${r.resourceId}|${g}`)) || '');
-      for (const role of visibleRoles) row.push(roleCountMap.get(`${r.resourceId}|${role.id}`) || '');
-      row.push(r._total, r.resourceDescription || '');
+      const row = [r.displayName || r.id];
+      for (const g of groupValues) row.push(groupCount(r.id, g) || '');
+      for (const role of visibleRoles) row.push(roleCountMap.get(`${r.id}|${role.id}`) || '');
+      row.push(r._total, r.description || '');
       lines.push(row.map(esc).join(','));
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
@@ -153,7 +176,7 @@ export default function RollupMatrixView({
     a.download = `matrix-rollup-${attribute}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
-  }, [groupValues, visibleRoles, orderedResources, countMap, roleCountMap, pick, attribute]);
+  }, [rowNoun, groupValues, visibleRoles, orderedResources, groupCount, roleCountMap, attribute]);
 
   // Cap the grid height to the remaining viewport so only the grid scrolls
   // (matches MatrixView). overflow-auto then gives both scrollbars, including
@@ -198,9 +221,13 @@ export default function RollupMatrixView({
       />
 
       <div className="px-1 text-[11px] text-gray-600 dark:text-gray-300">
-        Roll-up by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is the count of distinct {subjectWord}
-        {mode === 'managed' ? ' governed' : mode === 'unmanaged' ? ' non-governed' : ''} with a
-        <span className="font-medium"> Direct</span> assignment. Click a column to expand it into the individual {subjectWord}.
+        {rolesOnly ? (
+          <>Business roles on the rows, grouped by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is the count of distinct {subjectWord} in that group who hold the role.</>
+        ) : (
+          <>Roll-up by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is the count of distinct {subjectWord}
+          {mode === 'managed' ? ' governed' : mode === 'unmanaged' ? ' non-governed' : ''} with a
+          <span className="font-medium"> Direct</span> assignment. Click a column to expand it into the individual {subjectWord}.</>
+        )}
         {refreshing && <span className="ml-2 text-gray-500 dark:text-gray-400">updating…</span>}
       </div>
 
@@ -212,13 +239,13 @@ export default function RollupMatrixView({
           <thead className="sticky top-0 z-20">
             <tr>
               <th className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left text-gray-600 dark:text-gray-300 font-medium" style={{ minWidth: '280px' }}>
-                Resource
+                {rowNoun}
               </th>
               {columns.map(col => {
                 if (col.type === 'group') {
                   const isExp = expanded.has(col.group);
                   const loading = loadingGroup.has(col.group);
-                  const canExpand = col.group !== '(none)';
+                  const canExpand = col.group !== '(none)' && !rolesOnly;
                   return (
                     <th key={col.key} className="border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 align-bottom bg-gray-100 dark:bg-gray-800" style={{ minWidth: '40px', height: '130px' }}>
                       <div className="flex flex-col items-center justify-end h-full gap-1">
@@ -279,26 +306,26 @@ export default function RollupMatrixView({
           </thead>
           <tbody>
             {shownResources.map(r => (
-              <tr key={r.resourceId} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+              <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                 <td className="sticky left-0 z-10 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-700 px-2 py-1 text-gray-800 dark:text-gray-200" style={{ minWidth: '280px' }}>
-                  <button className="text-left hover:text-blue-600 dark:hover:text-blue-400 truncate max-w-[260px] block" onClick={() => onOpenDetail?.('resource', r.resourceId, r.resourceDisplayName)} title={r.resourceDisplayName}>
-                    {r.resourceDisplayName || r.resourceId}
+                  <button className="text-left hover:text-blue-600 dark:hover:text-blue-400 truncate max-w-[260px] block" onClick={() => onOpenDetail?.(rowDetailKind, r.id, r.displayName)} title={r.displayName}>
+                    {r.displayName || r.id}
                   </button>
                 </td>
                 {columns.map(col => {
                   if (col.type === 'group') {
-                    const n = pick(countMap.get(`${r.resourceId}|${col.group}`));
+                    const n = groupCount(r.id, col.group);
                     return (
                       <td key={col.key} className="border-b border-r border-gray-100 dark:border-gray-700 text-center px-1 py-0.5" style={{ minWidth: '40px' }}>
                         {n > 0 ? <span className="inline-block text-[11px] font-semibold text-gray-800 dark:text-gray-200">{n}</span> : <span className="text-gray-500 dark:text-gray-700">·</span>}
                       </td>
                     );
                   }
-                  const types = cache.get(col.group)?.memberships.get(`${r.resourceId}|${col.user.id}`);
+                  const types = cache.get(col.group)?.memberships.get(`${r.id}|${col.user.id}`);
                   return <MatrixCell key={col.key} cellKey={col.key} membershipTypes={types} managed={false} />;
                 })}
                 {visibleRoles.map((role, idx) => {
-                  const n = roleCountMap.get(`${r.resourceId}|${role.id}`) || 0;
+                  const n = roleCountMap.get(`${r.id}|${role.id}`) || 0;
                   return (
                     <td key={`role:${role.id}`} className={`border-b border-r border-gray-100 dark:border-gray-700 text-center px-1 py-0.5 ${idx === 0 ? 'border-l-2 border-l-indigo-200 dark:border-l-indigo-700' : ''}`} style={{ minWidth: '40px' }}>
                       {n > 0 ? <span className="inline-block text-[11px] font-semibold text-indigo-800 dark:text-indigo-300">{n}</span> : <span className="text-gray-500 dark:text-gray-700">·</span>}
@@ -310,8 +337,8 @@ export default function RollupMatrixView({
                   {r._total || <span className="text-gray-500 dark:text-gray-700">·</span>}
                 </td>
                 {/* Description */}
-                <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-1 text-gray-600 dark:text-gray-400" style={{ minWidth: '420px' }} title={r.resourceDescription || ''}>
-                  <div className="truncate max-w-[420px]">{r.resourceDescription || ''}</div>
+                <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-1 text-gray-600 dark:text-gray-400" style={{ minWidth: '420px' }} title={r.description || ''}>
+                  <div className="truncate max-w-[420px]">{r.description || ''}</div>
                 </td>
               </tr>
             ))}
@@ -320,7 +347,7 @@ export default function RollupMatrixView({
             )}
             {truncated > 0 && (
               <tr><td colSpan={columns.length + trailingCols} className="px-3 py-2 text-center text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
-                Showing the top {MAX_ROWS} of {orderedResources.length} resources by count — add resource filters to narrow.
+                Showing the top {MAX_ROWS} of {orderedResources.length} {rowNoun.toLowerCase()}s by count — add filters to narrow.
               </td></tr>
             )}
           </tbody>

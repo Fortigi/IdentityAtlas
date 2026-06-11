@@ -38,6 +38,11 @@ const EMPTY_FILTER = {
   resource: { include: [], exclude: [] },
   // Roll-up: aggregate the subject (column) axis by this attribute. null = off.
   rollup: null,
+  // What the roll-up shows (only when rollup is set):
+  //   'resources-and-roles' — resources as rows + business-role count columns (default)
+  //   'resources-only'      — resources as rows, no business-role columns
+  //   'roles-only'          — business roles as rows (resource filter is skipped)
+  rollupContent: 'resources-and-roles',
   // Subject-axis sort order — 1..3 attributes, applied client-side. Default
   // groups columns by department.
   sortAttributes: [{ attribute: 'department', dir: 'asc' }],
@@ -75,7 +80,7 @@ export default function MatrixFilterWizard({
   onClose,
 }) {
   const { authFetch } = useAuth();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState('setup');
   const [filter, setFilter] = useState(() => structuredClone(initialFilter || EMPTY_FILTER));
   const [savedFilters, setSavedFilters] = useState([]);
   const [contextMeta, setContextMeta] = useState(new Map());  // id → context row
@@ -102,7 +107,7 @@ export default function MatrixFilterWizard({
   useEffect(() => {
     if (!open) return;
     setFilter(structuredClone(initialFilter || EMPTY_FILTER));
-    setStep(1);
+    setStep('setup');
     setError(null);
   }, [open, initialFilter]);
 
@@ -310,22 +315,37 @@ export default function MatrixFilterWizard({
         exclude: Array.isArray(f.resource?.exclude) ? f.resource.exclude : [],
       },
       rollup: typeof f.rollup === 'string' && f.rollup ? f.rollup : null,
+      rollupContent: ['resources-and-roles', 'resources-only', 'roles-only'].includes(f.rollupContent)
+        ? f.rollupContent : 'resources-and-roles',
       sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
         ? f.sortAttributes.slice(0, 3) : DEFAULT_SORT,
     });
-    setStep(3);
+    setStep('subjects');
   };
 
   if (!open) return null;
 
   const subjectColumns = filter.rowType === 'identity' ? identityColumns : principalColumns;
-  // Steps: 1 Setup (subject type + roll-up) · 2 Subjects · 3 Resources ·
-  //        4 Sort (skipped when rolled up — order is meaningless then) · 5 Orientation.
-  const sortShown = !filter.rollup;
-  const visibleSteps = [1, 2, 3, ...(sortShown ? [4] : []), 5];
-  const curIdx = visibleSteps.indexOf(step);
-  const goNext = () => setStep(visibleSteps[Math.min((curIdx < 0 ? 0 : curIdx) + 1, visibleSteps.length - 1)]);
-  const goBack = () => setStep(visibleSteps[Math.max((curIdx < 0 ? visibleSteps.length : curIdx) - 1, 0)]);
+  // Dynamic, keyed steps. Roll-up inserts a "Content" step (resources/roles
+  // shape) and, for roles-only, drops the Resources filter and the Sort step.
+  const rollupOn = !!filter.rollup;
+  const rolesOnly = rollupOn && filter.rollupContent === 'roles-only';
+  const steps = [
+    { key: 'setup',       label: 'Setup' },
+    rollupOn ? { key: 'content', label: 'Content' } : null,
+    { key: 'subjects',    label: 'Subjects' },
+    rolesOnly ? null : { key: 'resources', label: 'Resources' },
+    rollupOn ? null : { key: 'sort', label: 'Sort' },
+    { key: 'orientation', label: 'Orientation' },
+  ].filter(Boolean);
+  const stepKeys = steps.map(s => s.key);
+  const curPos = Math.max(0, stepKeys.indexOf(step));
+  const isLast = curPos === steps.length - 1;
+  const goNext = () => setStep(stepKeys[Math.min(curPos + 1, steps.length - 1)]);
+  const goBack = () => setStep(stepKeys[Math.max(curPos - 1, 0)]);
+  // If the current step just became hidden (toggled roll-up / content), render
+  // the nearest still-visible one so the body never goes blank.
+  const activeStep = stepKeys.includes(step) ? step : stepKeys[Math.min(curPos, steps.length - 1)];
 
   // ─── Render ─────────────────────────────────────────────────────
 
@@ -343,11 +363,11 @@ export default function MatrixFilterWizard({
           onLoad={handleLoadSaved}
           onDelete={handleDeleteSaved}
         />
-        <StepIndicator step={step} onJump={setStep} sortShown={sortShown} />
+        <StepIndicator steps={steps} current={activeStep} onJump={setStep} />
       </div>
 
       {/* Step content */}
-      {step === 1 && (
+      {activeStep === 'setup' && (
         <Step1Setup
           rowType={filter.rowType}
           onRowTypeChange={setRowType}
@@ -356,7 +376,14 @@ export default function MatrixFilterWizard({
           onRollupChange={(rollup) => setFilter(prev => ({ ...prev, rollup }))}
         />
       )}
-      {step === 2 && (
+      {activeStep === 'content' && (
+        <Step2Content
+          rollupContent={filter.rollupContent}
+          rollup={filter.rollup}
+          onChange={(rollupContent) => setFilter(prev => ({ ...prev, rollupContent }))}
+        />
+      )}
+      {activeStep === 'subjects' && (
         <Step2Subject
           rowType={filter.rowType}
           subject={filter.subject}
@@ -368,7 +395,7 @@ export default function MatrixFilterWizard({
           onUpdate={(side, idx, patch) => updateCondition('subject', side, idx, patch)}
         />
       )}
-      {step === 3 && (
+      {activeStep === 'resources' && (
         <Step3Resource
           resource={filter.resource}
           contextMeta={contextMeta}
@@ -379,7 +406,7 @@ export default function MatrixFilterWizard({
           onUpdate={(side, idx, patch) => updateCondition('resource', side, idx, patch)}
         />
       )}
-      {step === 4 && sortShown && (
+      {activeStep === 'sort' && (
         <Step5Sort
           sortAttributes={filter.sortAttributes}
           columns={subjectColumns}
@@ -387,7 +414,7 @@ export default function MatrixFilterWizard({
           onChange={(sortAttributes) => setFilter(prev => ({ ...prev, sortAttributes }))}
         />
       )}
-      {step === 5 && (
+      {activeStep === 'orientation' && (
         <Step5Orientation
           orientation={filter.orientation}
           rollup={filter.rollup}
@@ -409,9 +436,9 @@ export default function MatrixFilterWizard({
         </div>
         <div className="flex items-center gap-2">
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          {step > 1 && <SecondaryButton onClick={goBack}>Back</SecondaryButton>}
-          {step !== 5 && <PrimaryButton onClick={goNext}>Next</PrimaryButton>}
-          {step === 5 && (
+          {curPos > 0 && <SecondaryButton onClick={goBack}>Back</SecondaryButton>}
+          {!isLast && <PrimaryButton onClick={goNext}>Next</PrimaryButton>}
+          {isLast && (
             <PrimaryButton onClick={handleApply} disabled={!filter.rollup && preview.assignmentCount > BLOCK_ASSIGNMENTS}>
               Apply
             </PrimaryButton>
@@ -436,15 +463,42 @@ export default function MatrixFilterWizard({
 
 // ─── Step indicator ────────────────────────────────────────────────
 
-function StepIndicator({ step, onJump, sortShown }) {
-  const steps = [
-    { n: 1, label: 'Setup' },
-    { n: 2, label: 'Subjects' },
-    { n: 3, label: 'Resources' },
-    { n: 4, label: 'Sort',        shown: sortShown },
-    { n: 5, label: 'Orientation' },
+function StepIndicator({ steps, current, onJump }) {
+  // Map the keyed, already-filtered step list onto the shared Stepper's
+  // sequential numbering.
+  const stepperSteps = steps.map((s, i) => ({ n: i + 1, label: s.label }));
+  const curN = Math.max(1, steps.findIndex(s => s.key === current) + 1);
+  return <Stepper steps={stepperSteps} current={curN} onStepClick={(n) => onJump(steps[n - 1].key)} allowAll />;
+}
+
+// ─── Step 2 — Roll-up content (what the roll-up shows) ──────────────
+function Step2Content({ rollupContent, rollup, onChange }) {
+  const options = [
+    { key: 'roles-only',          title: 'Business roles only',     description: 'Business roles go on the rows; each cell counts the subjects in that group who hold the role. The resource filter step is skipped.' },
+    { key: 'resources-and-roles', title: 'Resources and business roles', description: 'Resources on the rows with the roll-up groups, plus a count column per business role (the default).' },
+    { key: 'resources-only',      title: 'Resources only',          description: 'Resources on the rows with the roll-up groups, without the business-role columns.' },
   ];
-  return <Stepper steps={steps} current={step} onStepClick={onJump} allowAll />;
+  return (
+    <div className="space-y-3">
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Roll-up content</h4>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          You rolled up by <span className="font-semibold">{friendlyLabel(String(rollup).replace(/^ext\./, ''))}</span>. Choose what to put in the matrix.
+        </p>
+        <div className="space-y-2">
+          {options.map(o => (
+            <RadioCard
+              key={o.key}
+              active={(rollupContent || 'resources-and-roles') === o.key}
+              onClick={() => onChange(o.key)}
+              title={o.title}
+              description={o.description}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Step 4 — Roll-up ───────────────────────────────────────────────

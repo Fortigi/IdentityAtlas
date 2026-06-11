@@ -3,3 +3,4 @@
 - In roll-up mode the matrix now also shows business-role columns with a count of how many in-scope users/identities hold each resource via that business role, alongside the per-attribute Direct counts.
 - The Sort step now lets you sort by any attribute, including extended attributes.
 - The roll-up view now uses the same chrome as the regular matrix — the filter-summary bar with the Adjust matrix button, the scope banner, the All / Governed / Non-governed toggle (which adjusts the counts), Export and Share, and the legend in the same places — plus a trailing # (total) column and Description column, and a horizontal scrollbar when its columns are wider than the screen.
+- Roll-up now has a new "Content" step that chooses what the grid shows: business roles only (roles go on the rows, each cell counting the in-scope subjects in that group who hold the role — and the resource filter step is skipped), resources and business roles (the combined view), or resources only. 

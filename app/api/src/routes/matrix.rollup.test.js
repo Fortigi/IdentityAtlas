@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildRollupSql, buildRollupRolesSql, normaliseSortAttributes } from './matrix.js';
+import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, normaliseSortAttributes } from './matrix.js';
 
 describe('normaliseSortAttributes', () => {
   it('defaults to [department asc] when missing or empty', () => {
@@ -92,5 +92,40 @@ describe('buildRollupRolesSql', () => {
     expect(sql).toContain('COUNT(DISTINCT im2."identityId")');
     expect(sql).toContain('INNER JOIN "IdentityMembers" im2');
     expect(sql).toContain('im2."identityId" IN (q)');
+  });
+});
+
+describe('buildRolesAsRowsSql', () => {
+  const base = {
+    attrExpr: 'u."department"',
+    subjectJoin: 'INNER JOIN "Principals" u ON u.id = br."userId"',
+    subjectIdExpr: 'u.id',
+    subjectIdForFilter: 'u.id',
+    subjectSql: null,
+  };
+
+  it('puts business roles on the rows, grouped by the attribute', () => {
+    const sql = buildRolesAsRowsSql(base);
+    expect(sql).toContain('br."businessRoleId" AS "roleId"');
+    expect(sql).toContain('role."displayName"  AS "roleName"');
+    expect(sql).toContain('role."description"  AS "roleDescription"');
+    expect(sql).toContain('COUNT(DISTINCT u.id)::int AS "count"');
+    expect(sql).toContain('"vw_UserPermissionAssignmentViaBusinessRole"');
+    expect(sql).toContain('LEFT JOIN "Resources" role ON role.id = br."businessRoleId"');
+    expect(sql).toMatch(/GROUP BY/);
+  });
+
+  it('groups by the resolved attribute with a (none) fallback', () => {
+    const sql = buildRolesAsRowsSql(base);
+    expect(sql).toContain(`COALESCE(NULLIF(u."department"::text, ''), '(none)')`);
+  });
+
+  it('embeds the subject IN-clause when present', () => {
+    const sql = buildRolesAsRowsSql({ ...base, subjectSql: '(SELECT id FROM x)' });
+    expect(sql).toContain('u.id IN (SELECT id FROM x)');
+  });
+
+  it('omits the IN-clause when no subject scope', () => {
+    expect(buildRolesAsRowsSql(base)).not.toMatch(/IN \(SELECT/);
   });
 });

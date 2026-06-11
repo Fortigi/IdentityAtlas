@@ -136,6 +136,10 @@ function parseFilter(body) {
     // Roll-up: aggregate the subject axis by this attribute (real column or
     // ext.<key>). null = off. Validated against real columns in the handler.
     rollup: typeof f.rollup === 'string' && f.rollup ? f.rollup : null,
+    // What the roll-up returns: resources + role columns (default), resources
+    // only, or business roles as rows.
+    rollupContent: ['resources-and-roles', 'resources-only', 'roles-only'].includes(f.rollupContent)
+      ? f.rollupContent : 'resources-and-roles',
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),
@@ -321,6 +325,28 @@ export function buildRollupRolesSql({ brMemberId, brJoin, subjectSql, resourceSq
       LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
      GROUP BY br."resourceId", br."businessRoleId", role."displayName"
+  `;
+}
+
+// Pure builder for the "business roles only" roll-up: business roles on the
+// rows, roll-up attribute values on the columns, each cell the count of distinct
+// in-scope subjects who hold that role. Resources are not involved here.
+// Exported for unit tests.
+export function buildRolesAsRowsSql({ attrExpr, subjectJoin, subjectIdExpr, subjectIdForFilter, subjectSql }) {
+  const where = [];
+  if (subjectSql) where.push(`${subjectIdForFilter} IN ${subjectSql}`);
+  const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
+  return `
+    SELECT br."businessRoleId" AS "roleId",
+           role."displayName"  AS "roleName",
+           role."description"  AS "roleDescription",
+           ${grp}              AS "groupValue",
+           COUNT(DISTINCT ${subjectIdExpr})::int AS "count"
+      FROM "vw_UserPermissionAssignmentViaBusinessRole" br
+      ${subjectJoin}
+      LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
+     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     GROUP BY br."businessRoleId", role."displayName", role."description", ${grp}
   `;
 }
 
@@ -681,6 +707,48 @@ router.post('/matrix/data', async (req, res) => {
       const resolved = resolveAttrExpr(filter.rollup, subjectAlias, subjCols);
       if (resolved.error) return res.status(400).json({ error: resolved.error });
 
+      // ─── Business roles as rows ───
+      if (filter.rollupContent === 'roles-only') {
+        const brSubjectJoin = rowType === 'identity'
+          ? `INNER JOIN "Principals" u ON u.id = br."userId"
+             INNER JOIN "IdentityMembers" im ON im."principalId" = u.id
+             INNER JOIN "Identities" i ON i.id = im."identityId"`
+          : `INNER JOIN "Principals" u ON u.id = br."userId"`;
+        const brSubjectId = rowType === 'identity' ? 'i.id' : 'u.id';
+
+        const rolesReq = timedRequest(p, `matrix-rollup-rows[${rowType}]`, res);
+        for (const [k, v] of Object.entries(built.bindings)) rolesReq.input(k, v);
+        const rolesResult = (await rolesReq.query(buildRolesAsRowsSql({
+          attrExpr: resolved.attrExpr,
+          subjectJoin: brSubjectJoin,
+          subjectIdExpr: brSubjectId,
+          subjectIdForFilter: brSubjectId,
+          subjectSql: built.subjectSql,
+        }))).recordset;
+
+        const counts = await scopeCounts(p, res, rowType, built);
+        const roleMap = new Map();
+        const groupSet = new Set();
+        for (const row of rolesResult) {
+          if (!row.roleId) continue;
+          if (!roleMap.has(row.roleId)) {
+            roleMap.set(row.roleId, { id: row.roleId, displayName: row.roleName || row.roleId, description: row.roleDescription || '' });
+          }
+          groupSet.add(row.groupValue);
+        }
+        return res.json({
+          rollup: filter.rollup,
+          rollupContent: 'roles-only',
+          rowType,
+          groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
+          roleRows: [...roleMap.values()],
+          cells: rolesResult.filter(r => r.roleId).map(r => ({ roleId: r.roleId, groupValue: r.groupValue, count: r.count })),
+          ...counts,
+          totalUsers: counts.subjectTotal,
+          warnings: built.warnings,
+        });
+      }
+
       const rollupReq = timedRequest(p, `matrix-rollup[${rowType}]`, res);
       for (const [k, v] of Object.entries(built.bindings)) rollupReq.input(k, v);
       const rollupResult = await rollupReq.query(buildRollupSql({
@@ -714,26 +782,29 @@ router.post('/matrix/data', async (req, res) => {
       // per-subject matrix, but aggregated to a count.
       let businessRoles = [];
       const roleCounts = [];
-      try {
-        const brMemberId = rowType === 'identity' ? 'im2."identityId"' : 'br."userId"';
-        const brJoin = rowType === 'identity'
-          ? 'INNER JOIN "IdentityMembers" im2 ON im2."principalId" = br."userId"' : '';
-        const brReq = timedRequest(p, 'matrix-rollup-roles', res);
-        for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
-        const brRows = (await brReq.query(buildRollupRolesSql({
-          brMemberId, brJoin, subjectSql: built.subjectSql, resourceSql: built.resourceSql,
-        }))).recordset;
-        const roleMap = new Map();
-        for (const r of brRows) {
-          if (!r.roleId) continue;
-          if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId });
-          roleCounts.push({ resourceId: r.resourceId, roleId: r.roleId, count: r.count });
-        }
-        businessRoles = [...roleMap.values()].sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
-      } catch { /* business-role view may be absent */ }
+      if (filter.rollupContent !== 'resources-only') {
+        try {
+          const brMemberId = rowType === 'identity' ? 'im2."identityId"' : 'br."userId"';
+          const brJoin = rowType === 'identity'
+            ? 'INNER JOIN "IdentityMembers" im2 ON im2."principalId" = br."userId"' : '';
+          const brReq = timedRequest(p, 'matrix-rollup-roles', res);
+          for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
+          const brRows = (await brReq.query(buildRollupRolesSql({
+            brMemberId, brJoin, subjectSql: built.subjectSql, resourceSql: built.resourceSql,
+          }))).recordset;
+          const roleMap = new Map();
+          for (const r of brRows) {
+            if (!r.roleId) continue;
+            if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId });
+            roleCounts.push({ resourceId: r.resourceId, roleId: r.roleId, count: r.count });
+          }
+          businessRoles = [...roleMap.values()].sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+        } catch { /* business-role view may be absent */ }
+      }
 
       return res.json({
         rollup: filter.rollup,
+        rollupContent: filter.rollupContent,
         rowType,
         resources: [...resMap.values()],
         groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
