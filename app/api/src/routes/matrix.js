@@ -34,6 +34,10 @@ import {
   getResourceColumnValues,
 } from '../db/columnCache.js';
 import { resolveAttrExpr } from '../matrix/attrExpr.js';
+import {
+  isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
+  buildContextNodesSql, buildContextChildrenSql, buildRootChildrenSql,
+} from '../matrix/contextRollup.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -147,6 +151,13 @@ function parseFilter(body) {
     // Internal: a roles-only drill request returns the per-subject breakdown
     // for the group already scoped via a subject attribute condition.
     drill: f.drill === true,
+    // EXPERIMENTAL — aggregate the subject axis by a Context tree (e.g. the
+    // Manager Hierarchy) instead of an attribute. rollupKind 'context' switches
+    // the roll-up branch; rollupContextId is the starting (root) node and
+    // rollupFrontier is the current visible cut of the tree (client-managed).
+    rollupKind: f.rollupKind === 'context' ? 'context' : 'attribute',
+    rollupContextId: typeof f.rollupContextId === 'string' && f.rollupContextId ? f.rollupContextId : null,
+    rollupFrontier: Array.isArray(f.rollupFrontier) ? f.rollupFrontier.filter(x => typeof x === 'string').slice(0, 200) : [],
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),
@@ -742,6 +753,90 @@ router.post('/matrix/data', async (req, res) => {
     const memberTypeExpr = rowType === 'identity' ? `'Identity'`       : 'p."principalType"';
 
     const subjectIdForFilter = rowType === 'identity' ? 'i.id' : 'p."principalId"';
+
+    // ─── EXPERIMENTAL: context-tree roll-up ───
+    // Columns are the context nodes of the current frontier (a cut of the tree);
+    // each cell counts the in-scope subjects in that node's whole subtree with a
+    // Direct assignment. Drilling replaces a node with its children (handled by
+    // the frontend re-sending a new frontier).
+    if (filter.rollupKind === 'context' && filter.rollupContextId) {
+      if (!isUuid(filter.rollupContextId)) return res.status(400).json({ error: 'Invalid context id' });
+
+      // Determine the frontier: the client-sent cut, or default to the root's
+      // children (or the root itself if it's a leaf).
+      let frontier = filter.rollupFrontier.filter(isUuid);
+      if (frontier.length === 0) {
+        const rootReq = timedRequest(p, 'matrix-ctx-root-children', res);
+        const kids = (await rootReq.query(buildRootChildrenSql(filter.rollupContextId))).recordset.map(r => r.id);
+        frontier = kids.length ? kids : [filter.rollupContextId];
+      }
+
+      let values;
+      try { values = frontierValues(frontier); }
+      catch { return res.status(400).json({ error: 'Invalid frontier' }); }
+
+      const identityJoin = rowType === 'identity'
+        ? `JOIN "IdentityMembers" im ON im."principalId" = nm.pid
+           JOIN "Identities" i ON i.id = im."identityId"` : '';
+      const ctxSubjectId = rowType === 'identity' ? 'i.id' : 'nm.pid';
+
+      const cellsReq = timedRequest(p, `matrix-ctx-rollup[${rowType}]`, res);
+      for (const [k, v] of Object.entries(built.bindings)) cellsReq.input(k, v);
+      const cellRows = (await cellsReq.query(buildContextRollupSql({
+        values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+        subjectSql: built.subjectSql, resourceSql: built.resourceSql,
+      }))).recordset;
+
+      const totalsReq = timedRequest(p, `matrix-ctx-totals[${rowType}]`, res);
+      for (const [k, v] of Object.entries(built.bindings)) totalsReq.input(k, v);
+      const ctxTotals = (await totalsReq.query(buildContextTotalsSql({
+        values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+        subjectSql: built.subjectSql,
+      }))).recordset.map(r => ({ groupValue: r.groupValue, total: r.total }));
+
+      const nodesReq = timedRequest(p, 'matrix-ctx-nodes', res);
+      const nodeRows = (await nodesReq.query(buildContextNodesSql(frontier))).recordset;
+      const childrenReq = timedRequest(p, 'matrix-ctx-children', res);
+      const childRows = (await childrenReq.query(buildContextChildrenSql(frontier))).recordset;
+
+      const counts = await scopeCounts(p, res, rowType, built);
+      const resMap = new Map();
+      for (const row of cellRows) {
+        if (!row.resourceId || resMap.has(row.resourceId)) continue;
+        resMap.set(row.resourceId, {
+          resourceId: row.resourceId, resourceDisplayName: row.resourceDisplayName,
+          resourceType: row.resourceType, resourceDescription: row.resourceDescription,
+          systemId: row.systemId, systemName: row.systemName,
+        });
+      }
+      // Frontier order: biggest subtree first (nodeRows carries totalMemberCount).
+      const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, total: n.total, childCount: n.childCount }]));
+      const orderedFrontier = [...frontier].sort((a, b) => (nodeMeta.get(b)?.total || 0) - (nodeMeta.get(a)?.total || 0));
+      const childrenByNode = {};
+      for (const c of childRows) {
+        (childrenByNode[c.parent] ||= []).push({ id: c.id, displayName: c.displayName, total: c.total, childCount: c.childCount });
+      }
+
+      return res.json({
+        rollup: 'context',
+        rollupKind: 'context',
+        rollupContextId: filter.rollupContextId,
+        rollupMetric: filter.rollupMetric,
+        rowType,
+        resources: [...resMap.values()],
+        groupValues: orderedFrontier,
+        nodes: orderedFrontier.map(id => nodeMeta.get(id) || { id, displayName: id, total: 0, childCount: 0 }),
+        childrenByNode,
+        counts: cellRows.map(r => ({
+          resourceId: r.resourceId, groupValue: r.groupValue,
+          directCount: r.directCount, governedCount: r.governedCount,
+        })),
+        groupTotals: ctxTotals,
+        ...counts,
+        totalUsers: counts.subjectTotal,
+        warnings: built.warnings,
+      });
+    }
 
     // ─── Roll-up aggregation branch ───
     // Columns become distinct values of `filter.rollup`; each cell is the count
