@@ -144,6 +144,9 @@ function parseFilter(body) {
     // percentage of in-scope subjects in that group who hold it. Presentational
     // only — the backend always returns groupTotals so the frontend can switch.
     rollupMetric: f.rollupMetric === 'percent' ? 'percent' : 'count',
+    // Internal: a roles-only drill request returns the per-subject breakdown
+    // for the group already scoped via a subject attribute condition.
+    drill: f.drill === true,
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),
@@ -371,6 +374,24 @@ export function buildGroupTotalsSql({ attrExpr, subjectTable, subjectAlias, subj
       FROM "${subjectTable}" ${subjectAlias}
      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
      GROUP BY ${grp}
+  `;
+}
+
+// Roles-only drill-down: the individual subjects (already scoped to one group
+// via a subject attribute condition baked into subjectSql) and which business
+// role each one holds. Powers expanding a group column into its subjects when
+// business roles are the rows. Exported for unit tests.
+export function buildRolesDrillSql({ subjectJoin, subjectIdExpr, subjectNameExpr, subjectTypeExpr, subjectIdForFilter, subjectSql }) {
+  const where = [];
+  if (subjectSql) where.push(`${subjectIdForFilter} IN ${subjectSql}`);
+  return `
+    SELECT DISTINCT ${subjectIdExpr}  AS "memberId",
+           ${subjectNameExpr}         AS "memberDisplayName",
+           ${subjectTypeExpr}         AS "memberType",
+           br."businessRoleId"        AS "roleId"
+      FROM "vw_UserPermissionAssignmentViaBusinessRole" br
+      ${subjectJoin}
+     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
   `;
 }
 
@@ -751,6 +772,24 @@ router.post('/matrix/data', async (req, res) => {
              INNER JOIN "Identities" i ON i.id = im."identityId"`
           : `INNER JOIN "Principals" u ON u.id = br."userId"`;
         const brSubjectId = rowType === 'identity' ? 'i.id' : 'u.id';
+
+        // Drill-down: expand one group column into its individual subjects +
+        // which business role each holds. The group is already scoped via a
+        // subject attribute condition the frontend added, so subjectSql carries
+        // the constraint. Returns a compact { members } payload only.
+        if (filter.drill) {
+          const drillReq = timedRequest(p, `matrix-rollup-rows-drill[${rowType}]`, res);
+          for (const [k, v] of Object.entries(built.bindings)) drillReq.input(k, v);
+          const members = (await drillReq.query(buildRolesDrillSql({
+            subjectJoin: brSubjectJoin,
+            subjectIdExpr: brSubjectId,
+            subjectNameExpr: rowType === 'identity' ? 'i."displayName"' : 'u."displayName"',
+            subjectTypeExpr: rowType === 'identity' ? `'Identity'` : `'User'`,
+            subjectIdForFilter: brSubjectId,
+            subjectSql: built.subjectSql,
+          }))).recordset;
+          return res.json({ rollup: filter.rollup, rollupContent: 'roles-only', drill: { members } });
+        }
 
         const rolesReq = timedRequest(p, `matrix-rollup-rows[${rowType}]`, res);
         for (const [k, v] of Object.entries(built.bindings)) rolesReq.input(k, v);

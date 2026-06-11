@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, buildGroupTotalsSql, normaliseSortAttributes } from './matrix.js';
+import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, buildGroupTotalsSql, buildRolesDrillSql, normaliseSortAttributes } from './matrix.js';
 
 describe('normaliseSortAttributes', () => {
   it('defaults to [department asc] when missing or empty', () => {
@@ -153,5 +153,37 @@ describe('buildGroupTotalsSql', () => {
   it('embeds the subject IN-clause when scoped', () => {
     const sql = buildGroupTotalsSql({ attrExpr: 'i."department"', subjectTable: 'Identities', subjectAlias: 'i', subjectSql: '(SELECT id FROM x)' });
     expect(sql).toContain('i.id IN (SELECT id FROM x)');
+  });
+});
+
+describe('buildRolesDrillSql', () => {
+  const base = {
+    subjectJoin: 'INNER JOIN "Principals" u ON u.id = br."userId"',
+    subjectIdExpr: 'u.id',
+    subjectNameExpr: 'u."displayName"',
+    subjectTypeExpr: `'User'`,
+    subjectIdForFilter: 'u.id',
+    subjectSql: '(SELECT id FROM scope)',
+  };
+
+  it('returns each scoped subject and the business role they hold', () => {
+    const sql = buildRolesDrillSql(base);
+    expect(sql).toMatch(/u\.id\s+AS "memberId"/);
+    expect(sql).toMatch(/u\."displayName"\s+AS "memberDisplayName"/);
+    expect(sql).toMatch(/'User'\s+AS "memberType"/);
+    expect(sql).toMatch(/br\."businessRoleId"\s+AS "roleId"/);
+    expect(sql).toContain('"vw_UserPermissionAssignmentViaBusinessRole"');
+    expect(sql).toContain('u.id IN (SELECT id FROM scope)');
+    expect(sql).toMatch(/SELECT DISTINCT/);
+  });
+
+  it('uses the identity member expr when drilling identities', () => {
+    const sql = buildRolesDrillSql({ ...base, subjectIdExpr: 'i.id', subjectNameExpr: 'i."displayName"', subjectTypeExpr: `'Identity'`, subjectIdForFilter: 'i.id' });
+    expect(sql).toMatch(/i\.id\s+AS "memberId"/);
+    expect(sql).toMatch(/'Identity'\s+AS "memberType"/);
+  });
+
+  it('omits the WHERE clause when unscoped', () => {
+    expect(buildRolesDrillSql({ ...base, subjectSql: null })).not.toMatch(/WHERE/);
   });
 });

@@ -123,14 +123,16 @@ export default function RollupMatrixView({
     if (!cache.has(group)) {
       setLoadingGroup(prev => new Set(prev).add(group));
       try {
-        const drillFilter = {
-          ...filter,
-          rollup: null,
-          subject: {
-            include: [...(filter.subject?.include || []), { kind: 'attribute', field: attribute, values: [group] }],
-            exclude: filter.subject?.exclude || [],
-          },
+        // Scope the drill to this one group via a subject attribute condition.
+        const scopedSubject = {
+          include: [...(filter.subject?.include || []), { kind: 'attribute', field: attribute, values: [group] }],
+          exclude: filter.subject?.exclude || [],
         };
+        // Roles-only puts business roles on the rows, so the drill returns which
+        // role each subject holds; the resources views return resource grants.
+        const drillFilter = rolesOnly
+          ? { ...filter, drill: true, subject: scopedSubject }
+          : { ...filter, rollup: null, subject: scopedSubject };
         const res = await authFetch('/api/matrix/data', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filter: drillFilter }),
@@ -138,13 +140,27 @@ export default function RollupMatrixView({
         const body = await res.json();
         const userMap = new Map();
         const memberships = new Map();
-        for (const d of (body.data || [])) {
-          if (d.memberId && !userMap.has(d.memberId)) {
-            userMap.set(d.memberId, { id: d.memberId, displayName: d.memberDisplayName || d.memberId, memberType: d.memberType });
+        if (rolesOnly) {
+          // memberships keyed (roleId|memberId) — mirrors the resources path's
+          // (resourceId|memberId) so the body render is identical.
+          for (const m of (body.drill?.members || [])) {
+            if (m.memberId && !userMap.has(m.memberId)) {
+              userMap.set(m.memberId, { id: m.memberId, displayName: m.memberDisplayName || m.memberId, memberType: m.memberType });
+            }
+            if (!m.roleId) continue;
+            const k = `${m.roleId}|${m.memberId}`;
+            if (!memberships.has(k)) memberships.set(k, new Set());
+            memberships.get(k).add('Direct');
           }
-          const k = `${d.resourceId}|${d.memberId}`;
-          if (!memberships.has(k)) memberships.set(k, new Set());
-          memberships.get(k).add(d.membershipType);
+        } else {
+          for (const d of (body.data || [])) {
+            if (d.memberId && !userMap.has(d.memberId)) {
+              userMap.set(d.memberId, { id: d.memberId, displayName: d.memberDisplayName || d.memberId, memberType: d.memberType });
+            }
+            const k = `${d.resourceId}|${d.memberId}`;
+            if (!memberships.has(k)) memberships.set(k, new Set());
+            memberships.get(k).add(d.membershipType);
+          }
         }
         const users = [...userMap.values()].sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
         setCache(prev => new Map(prev).set(group, { users, memberships }));
@@ -155,7 +171,7 @@ export default function RollupMatrixView({
       setLoadingGroup(prev => { const n = new Set(prev); n.delete(group); return n; });
     }
     setExpanded(prev => new Set(prev).add(group));
-  }, [expanded, cache, filter, attribute, authFetch]);
+  }, [expanded, cache, filter, attribute, authFetch, rolesOnly]);
 
   // Flatten groups (+ expanded subjects) into a single column list.
   const columns = useMemo(() => {
@@ -267,7 +283,7 @@ export default function RollupMatrixView({
                 if (col.type === 'group') {
                   const isExp = expanded.has(col.group);
                   const loading = loadingGroup.has(col.group);
-                  const canExpand = col.group !== '(none)' && !rolesOnly;
+                  const canExpand = col.group !== '(none)';
                   const grpTotal = groupTotalMap.get(col.group);
                   return (
                     <th key={col.key} className="border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 align-bottom bg-gray-100 dark:bg-gray-800" style={{ minWidth: '40px', height: '130px' }} title={grpTotal != null ? `${col.group || '(none)'} — ${grpTotal} ${subjectWord}` : undefined}>
