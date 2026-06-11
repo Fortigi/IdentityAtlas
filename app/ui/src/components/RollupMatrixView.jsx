@@ -279,30 +279,30 @@ export default function RollupMatrixView({
 
   const trailingCols = visibleRoles.length + 3; // resource + # + Description (+ roles handled separately)
 
+  // Context drill breadcrumb — rendered just above the grid (under the legend).
+  const breadcrumbNav = contextMode && breadcrumb.length > 0 ? (
+    <nav className="flex items-center flex-wrap gap-1 text-xs px-2 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
+      <span className="text-gray-500 dark:text-gray-400 mr-1">Drill path:</span>
+      {breadcrumb.map((c, i) => {
+        const last = i === breadcrumb.length - 1;
+        return (
+          <span key={c.id} className="flex items-center gap-1">
+            {i > 0 && <span className="text-gray-400 dark:text-gray-600">›</span>}
+            {last ? (
+              <span className="font-semibold text-gray-800 dark:text-gray-100" title={c.displayName}>{orgShort(c.displayName)}</span>
+            ) : (
+              <button onClick={() => jumpToCrumb(i)} className="text-blue-600 dark:text-blue-400 hover:underline" title={`Zoom out to ${c.displayName}`}>
+                {orgShort(c.displayName)}
+              </button>
+            )}
+          </span>
+        );
+      })}
+    </nav>
+  ) : null;
+
   return (
     <div className="flex flex-col gap-3">
-      {/* Context drill breadcrumb — root → … → current focus. Click to zoom out. */}
-      {contextMode && breadcrumb.length > 0 && (
-        <nav className="flex items-center flex-wrap gap-1 text-xs px-2 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
-          <span className="text-gray-500 dark:text-gray-400 mr-1">Drill path:</span>
-          {breadcrumb.map((c, i) => {
-            const last = i === breadcrumb.length - 1;
-            return (
-              <span key={c.id} className="flex items-center gap-1">
-                {i > 0 && <span className="text-gray-400 dark:text-gray-600">›</span>}
-                {last ? (
-                  <span className="font-semibold text-gray-800 dark:text-gray-100" title={c.displayName}>{orgShort(c.displayName)}</span>
-                ) : (
-                  <button onClick={() => jumpToCrumb(i)} className="text-blue-600 dark:text-blue-400 hover:underline" title={`Zoom out to ${c.displayName}`}>
-                    {orgShort(c.displayName)}
-                  </button>
-                )}
-              </span>
-            );
-          })}
-        </nav>
-      )}
-
       {/* Filter summary chips + Adjust matrix — same toolbar as the per-subject view. */}
       {filter && <MatrixFilterSummary filter={filter} preview={counts} onAdjust={onAdjustFilter} />}
 
@@ -339,6 +339,9 @@ export default function RollupMatrixView({
 
       {/* How to read this matrix — same legend as the per-subject view. */}
       <MatrixLegend />
+
+      {/* Context drill breadcrumb — sits just above the column headers. */}
+      {breadcrumbNav}
 
       <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
         <table className="border-collapse text-xs">
