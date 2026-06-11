@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed false-positive in `MatrixView.scrollbar.test.js`: the magic-number guard was matching a comment in `MatrixView.jsx` rather than actual class usage
+- Added tests for the two untested bootstrap guard paths in `Invoke-CrawlerJob.ps1`: skip (module already loaded) and throw (module file not found)
+
+## Changes in this PR
+
 - Pinned Docker base image to Node 24-slim; Dependabot will no longer propose upgrades to Node 26+
 
 ## Changes in this PR
