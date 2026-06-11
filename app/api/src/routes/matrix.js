@@ -140,6 +140,10 @@ function parseFilter(body) {
     // only, or business roles as rows.
     rollupContent: ['resources-and-roles', 'resources-only', 'roles-only'].includes(f.rollupContent)
       ? f.rollupContent : 'resources-and-roles',
+    // How each roll-up cell is displayed: an absolute count (default) or the
+    // percentage of in-scope subjects in that group who hold it. Presentational
+    // only — the backend always returns groupTotals so the frontend can switch.
+    rollupMetric: f.rollupMetric === 'percent' ? 'percent' : 'count',
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),
@@ -347,6 +351,26 @@ export function buildRolesAsRowsSql({ attrExpr, subjectJoin, subjectIdExpr, subj
       LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
      GROUP BY br."businessRoleId", role."displayName", role."description", ${grp}
+  `;
+}
+
+// Per-group subject denominator for the roll-up "% of subjects" metric: the
+// count of distinct in-scope subjects in each attribute group, independent of
+// any resource or role. For principals the group-shaped accounts are excluded
+// so the denominator matches what the matrix renders. Exported for unit tests.
+export function buildGroupTotalsSql({ attrExpr, subjectTable, subjectAlias, subjectSql }) {
+  const where = [];
+  if (subjectTable === 'Principals') {
+    where.push(`(${subjectAlias}."principalType" IS NULL OR ${subjectAlias}."principalType" != '#microsoft.graph.group')`);
+  }
+  if (subjectSql) where.push(`${subjectAlias}.id IN ${subjectSql}`);
+  const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
+  return `
+    SELECT ${grp} AS "groupValue",
+           COUNT(DISTINCT ${subjectAlias}.id)::int AS "total"
+      FROM "${subjectTable}" ${subjectAlias}
+     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     GROUP BY ${grp}
   `;
 }
 
@@ -707,6 +731,18 @@ router.post('/matrix/data', async (req, res) => {
       const resolved = resolveAttrExpr(filter.rollup, subjectAlias, subjCols);
       if (resolved.error) return res.status(400).json({ error: resolved.error });
 
+      // Per-group subject denominator for the "% of subjects" metric. Returned
+      // in every roll-up response so the frontend can switch count↔percent
+      // without a re-query.
+      const totalsReq = timedRequest(p, `matrix-rollup-totals[${rowType}]`, res);
+      for (const [k, v] of Object.entries(built.bindings)) totalsReq.input(k, v);
+      const groupTotals = (await totalsReq.query(buildGroupTotalsSql({
+        attrExpr: resolved.attrExpr,
+        subjectTable: rowType === 'identity' ? 'Identities' : 'Principals',
+        subjectAlias,
+        subjectSql: built.subjectSql,
+      }))).recordset.map(r => ({ groupValue: r.groupValue, total: r.total }));
+
       // ─── Business roles as rows ───
       if (filter.rollupContent === 'roles-only') {
         const brSubjectJoin = rowType === 'identity'
@@ -741,6 +777,7 @@ router.post('/matrix/data', async (req, res) => {
           rollupContent: 'roles-only',
           rowType,
           groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
+          groupTotals,
           roleRows: [...roleMap.values()],
           cells: rolesResult.filter(r => r.roleId).map(r => ({ roleId: r.roleId, groupValue: r.groupValue, count: r.count })),
           ...counts,
@@ -808,6 +845,7 @@ router.post('/matrix/data', async (req, res) => {
         rowType,
         resources: [...resMap.values()],
         groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
+        groupTotals,
         counts: rollupResult.recordset.map(r => ({
           resourceId: r.resourceId, groupValue: r.groupValue,
           directCount: r.directCount, governedCount: r.governedCount,

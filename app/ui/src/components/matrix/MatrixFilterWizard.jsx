@@ -44,6 +44,9 @@ const EMPTY_FILTER = {
   //   'resources-only'      — resources as rows, no business-role columns
   //   'roles-only'          — business roles as rows (resource filter is skipped)
   rollupContent: 'resources-and-roles',
+  // How each roll-up cell is shown: 'count' (absolute, default) or 'percent'
+  // (share of the in-scope subjects in that group who hold it).
+  rollupMetric: 'count',
   // Subject-axis sort order — 1..3 attributes, applied client-side. Default
   // groups columns by department.
   sortAttributes: [{ attribute: 'department', dir: 'asc' }],
@@ -318,6 +321,7 @@ export default function MatrixFilterWizard({
       rollup: typeof f.rollup === 'string' && f.rollup ? f.rollup : null,
       rollupContent: ['resources-and-roles', 'resources-only', 'roles-only'].includes(f.rollupContent)
         ? f.rollupContent : 'resources-and-roles',
+      rollupMetric: f.rollupMetric === 'percent' ? 'percent' : 'count',
       sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
         ? f.sortAttributes.slice(0, 3) : DEFAULT_SORT,
     });
@@ -380,8 +384,10 @@ export default function MatrixFilterWizard({
       {activeStep === 'content' && (
         <Step2Content
           rollupContent={filter.rollupContent}
+          rollupMetric={filter.rollupMetric}
           rollup={filter.rollup}
           onChange={(rollupContent) => setFilter(prev => ({ ...prev, rollupContent }))}
+          onMetricChange={(rollupMetric) => setFilter(prev => ({ ...prev, rollupMetric }))}
         />
       )}
       {activeStep === 'subjects' && (
@@ -473,14 +479,18 @@ function StepIndicator({ steps, current, onJump }) {
 }
 
 // ─── Step 2 — Roll-up content (what the roll-up shows) ──────────────
-export function Step2Content({ rollupContent, rollup, onChange }) {
+export function Step2Content({ rollupContent, rollupMetric, rollup, onChange, onMetricChange }) {
   const options = [
     { key: 'roles-only',          title: 'Business roles only',     description: 'Business roles go on the rows; each cell counts the subjects in that group who hold the role. The resource filter step is skipped.' },
     { key: 'resources-and-roles', title: 'Resources and business roles', description: 'Resources on the rows with the roll-up groups, plus a count column per business role (the default).' },
     { key: 'resources-only',      title: 'Resources only',          description: 'Resources on the rows with the roll-up groups, without the business-role columns.' },
   ];
+  const metricOptions = [
+    { key: 'count',   title: 'Count (#)',            description: 'Each cell shows the number of subjects in the group who hold it (the default).' },
+    { key: 'percent', title: 'Percentage (%)',       description: 'Each cell shows the share of the group that holds it — e.g. 8 of 10 in a department shows as 80%.' },
+  ];
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Roll-up content</h4>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
@@ -492,6 +502,20 @@ export function Step2Content({ rollupContent, rollup, onChange }) {
               key={o.key}
               active={(rollupContent || 'resources-and-roles') === o.key}
               onClick={() => onChange(o.key)}
+              title={o.title}
+              description={o.description}
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Cell value</h4>
+        <div className="space-y-2">
+          {metricOptions.map(o => (
+            <RadioCard
+              key={o.key}
+              active={(rollupMetric || 'count') === o.key}
+              onClick={() => onMetricChange(o.key)}
               title={o.title}
               description={o.description}
             />

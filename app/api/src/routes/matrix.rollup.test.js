@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, normaliseSortAttributes } from './matrix.js';
+import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, buildGroupTotalsSql, normaliseSortAttributes } from './matrix.js';
 
 describe('normaliseSortAttributes', () => {
   it('defaults to [department asc] when missing or empty', () => {
@@ -127,5 +127,31 @@ describe('buildRolesAsRowsSql', () => {
 
   it('omits the IN-clause when no subject scope', () => {
     expect(buildRolesAsRowsSql(base)).not.toMatch(/IN \(SELECT/);
+  });
+});
+
+describe('buildGroupTotalsSql', () => {
+  it('counts distinct subjects per group from the subject table', () => {
+    const sql = buildGroupTotalsSql({ attrExpr: 'u."department"', subjectTable: 'Principals', subjectAlias: 'u', subjectSql: null });
+    expect(sql).toContain('COUNT(DISTINCT u.id)::int AS "total"');
+    expect(sql).toContain('FROM "Principals" u');
+    expect(sql).toContain(`COALESCE(NULLIF(u."department"::text, ''), '(none)')`);
+    expect(sql).toMatch(/GROUP BY/);
+  });
+
+  it('excludes group-shaped principal accounts from the denominator', () => {
+    const sql = buildGroupTotalsSql({ attrExpr: 'u."department"', subjectTable: 'Principals', subjectAlias: 'u', subjectSql: null });
+    expect(sql).toContain(`u."principalType" != '#microsoft.graph.group'`);
+  });
+
+  it('does not apply the principal exclusion for identities', () => {
+    const sql = buildGroupTotalsSql({ attrExpr: 'i."department"', subjectTable: 'Identities', subjectAlias: 'i', subjectSql: null });
+    expect(sql).not.toContain('principalType');
+    expect(sql).toContain('FROM "Identities" i');
+  });
+
+  it('embeds the subject IN-clause when scoped', () => {
+    const sql = buildGroupTotalsSql({ attrExpr: 'i."department"', subjectTable: 'Identities', subjectAlias: 'i', subjectSql: '(SELECT id FROM x)' });
+    expect(sql).toContain('i.id IN (SELECT id FROM x)');
   });
 });

@@ -27,8 +27,25 @@ export default function RollupMatrixView({
   const {
     attribute, rollupContent = 'resources-and-roles', resources, groupValues,
     counts: directCounts, businessRoles = [], roleCounts = [], roleRows = [], cells = [],
+    groupTotals = [],
   } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
+
+  // Cell value: absolute count (default) or % of the in-scope subjects in that
+  // group who hold it. groupTotals provides the per-group denominator.
+  const percentMode = (filter?.rollupMetric || 'count') === 'percent';
+  const groupTotalMap = useMemo(() => {
+    const m = new Map();
+    for (const g of groupTotals) m.set(g.groupValue, g.total);
+    return m;
+  }, [groupTotals]);
+  // Render text for a (row, group) cell: '·' when zero, else count or N%.
+  const fmtCell = useCallback((n, group) => {
+    if (!n) return null;
+    if (!percentMode) return n;
+    const total = groupTotalMap.get(group) || 0;
+    return total > 0 ? `${Math.round((n / total) * 100)}%` : n;
+  }, [percentMode, groupTotalMap]);
 
   // 'roles-only' puts business roles on the rows; otherwise resources are rows.
   const rolesOnly = rollupContent === 'roles-only';
@@ -221,13 +238,18 @@ export default function RollupMatrixView({
       />
 
       <div className="px-1 text-[11px] text-gray-600 dark:text-gray-300">
-        {rolesOnly ? (
-          <>Business roles on the rows, grouped by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is the count of distinct {subjectWord} in that group who hold the role.</>
-        ) : (
-          <>Roll-up by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is the count of distinct {subjectWord}
-          {mode === 'managed' ? ' governed' : mode === 'unmanaged' ? ' non-governed' : ''} with a
-          <span className="font-medium"> Direct</span> assignment. Click a column to expand it into the individual {subjectWord}.</>
-        )}
+        {(() => {
+          const valueWord = percentMode
+            ? <>the <span className="font-medium">percentage</span> of the {subjectWord} in that group</>
+            : <>the count of distinct {subjectWord}</>;
+          return rolesOnly ? (
+            <>Business roles on the rows, grouped by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is {valueWord} who hold the role.</>
+          ) : (
+            <>Roll-up by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is {valueWord}
+            {mode === 'managed' ? ' governed' : mode === 'unmanaged' ? ' non-governed' : ''} with a
+            <span className="font-medium"> Direct</span> assignment. Click a column to expand it into the individual {subjectWord}.</>
+          );
+        })()}
         {refreshing && <span className="ml-2 text-gray-500 dark:text-gray-400">updating…</span>}
       </div>
 
@@ -246,9 +268,13 @@ export default function RollupMatrixView({
                   const isExp = expanded.has(col.group);
                   const loading = loadingGroup.has(col.group);
                   const canExpand = col.group !== '(none)' && !rolesOnly;
+                  const grpTotal = groupTotalMap.get(col.group);
                   return (
-                    <th key={col.key} className="border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 align-bottom bg-gray-100 dark:bg-gray-800" style={{ minWidth: '40px', height: '130px' }}>
+                    <th key={col.key} className="border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 align-bottom bg-gray-100 dark:bg-gray-800" style={{ minWidth: '40px', height: '130px' }} title={grpTotal != null ? `${col.group || '(none)'} — ${grpTotal} ${subjectWord}` : undefined}>
                       <div className="flex flex-col items-center justify-end h-full gap-1">
+                        {percentMode && grpTotal != null && (
+                          <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0" title={`${grpTotal} ${subjectWord} in this group`}>{grpTotal}</span>
+                        )}
                         {canExpand && (
                           <button
                             onClick={() => toggleGroup(col.group)}
@@ -315,9 +341,10 @@ export default function RollupMatrixView({
                 {columns.map(col => {
                   if (col.type === 'group') {
                     const n = groupCount(r.id, col.group);
+                    const disp = fmtCell(n, col.group);
                     return (
-                      <td key={col.key} className="border-b border-r border-gray-100 dark:border-gray-700 text-center px-1 py-0.5" style={{ minWidth: '40px' }}>
-                        {n > 0 ? <span className="inline-block text-[11px] font-semibold text-gray-800 dark:text-gray-200">{n}</span> : <span className="text-gray-500 dark:text-gray-700">·</span>}
+                      <td key={col.key} className="border-b border-r border-gray-100 dark:border-gray-700 text-center px-1 py-0.5" style={{ minWidth: '40px' }} title={percentMode && n > 0 ? `${n} of ${groupTotalMap.get(col.group) || 0} ${subjectWord}` : undefined}>
+                        {disp ? <span className="inline-block text-[11px] font-semibold text-gray-800 dark:text-gray-200">{disp}</span> : <span className="text-gray-500 dark:text-gray-700">·</span>}
                       </td>
                     );
                   }

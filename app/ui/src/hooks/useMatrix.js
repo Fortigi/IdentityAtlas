@@ -157,6 +157,7 @@ export function useMatrix(filter) {
             rollupContent: body.rollupContent || 'resources-and-roles',
             resources:     body.resources     || [],
             groupValues:   body.groupValues   || [],
+            groupTotals:   body.groupTotals   || [],
             counts:        body.counts        || [],
             businessRoles: body.businessRoles || [],
             roleCounts:    body.roleCounts    || [],

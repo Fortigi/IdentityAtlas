@@ -8,14 +8,21 @@ import { Step2Content } from './MatrixFilterWizard';
 // This is the regression test for "friendlyLabel is not defined" when advancing
 // to the roll-up Content step.
 describe('MatrixFilterWizard — roll-up Content step', () => {
-  const render = (rollupContent) =>
-    renderToStaticMarkup(h(Step2Content, { rollupContent, rollup: 'department', onChange: () => {} }));
+  const render = (rollupContent, rollupMetric = 'count') =>
+    renderToStaticMarkup(h(Step2Content, { rollupContent, rollupMetric, rollup: 'department', onChange: () => {}, onMetricChange: () => {} }));
 
   it('renders without throwing and shows the three content choices', () => {
     const html = render('resources-and-roles');
     expect(html).toContain('Business roles only');
     expect(html).toContain('Resources and business roles');
     expect(html).toContain('Resources only');
+  });
+
+  it('offers the count vs percentage cell-value choice', () => {
+    const html = render('resources-and-roles', 'percent');
+    expect(html).toContain('Cell value');
+    expect(html).toContain('Count (#)');
+    expect(html).toContain('Percentage (%)');
   });
 
   it('labels the rolled-up attribute (exercises friendlyLabel)', () => {
