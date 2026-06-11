@@ -1,1 +1,0 @@
-- Fixed crawler jobs failing in the portable Windows launcher with "Get-CrawlerRegistry is not recognized" — the dispatcher now self-imports the IdentityAtlas module when running as a standalone process
