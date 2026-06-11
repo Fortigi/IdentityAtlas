@@ -266,22 +266,42 @@ export function buildRollupSql({ attrExpr, subjectJoin, subjectIdExpr, subjectId
   if (subjectSql)  where.push(`${subjectIdForFilter} IN ${subjectSql}`);
   if (resourceSql) where.push(`p."resourceId" IN ${resourceSql}`);
   const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
+  // Inner: one row per distinct subject per (resource, group) with a governed
+  // flag (covered by a business role). Outer: count subjects, and the subset
+  // that's governed — so the view's All / Governed / Non-governed toggle can
+  // pick the right number without a re-query.
   return `
-    SELECT p."resourceId"                        AS "resourceId",
-           r."displayName"                       AS "resourceDisplayName",
-           r."resourceType",
-           r."description"                       AS "resourceDescription",
-           r."systemId",
-           sys."displayName"                     AS "systemName",
-           ${grp}                                AS "groupValue",
-           COUNT(DISTINCT ${subjectIdExpr})::int AS "directCount"
-      FROM "vw_ResourceUserPermissionAssignments" p
-      ${subjectJoin}
-      LEFT JOIN "Resources" r ON p."resourceId" = r.id
-      LEFT JOIN "Systems" sys ON r."systemId" = sys.id
-     WHERE ${where.join(' AND ')}
-     GROUP BY p."resourceId", r."displayName", r."resourceType", r."description",
-              r."systemId", sys."displayName", ${grp}
+    SELECT t."resourceId"          AS "resourceId",
+           t."resourceDisplayName" AS "resourceDisplayName",
+           t."resourceType"        AS "resourceType",
+           t."resourceDescription" AS "resourceDescription",
+           t."systemId"            AS "systemId",
+           t."systemName"          AS "systemName",
+           t."groupValue"          AS "groupValue",
+           COUNT(*)::int                          AS "directCount",
+           COUNT(*) FILTER (WHERE t.governed)::int AS "governedCount"
+      FROM (
+        SELECT p."resourceId"      AS "resourceId",
+               r."displayName"     AS "resourceDisplayName",
+               r."resourceType"    AS "resourceType",
+               r."description"     AS "resourceDescription",
+               r."systemId"        AS "systemId",
+               sys."displayName"   AS "systemName",
+               ${grp}              AS "groupValue",
+               ${subjectIdExpr}    AS sid,
+               bool_or(br."userId" IS NOT NULL) AS governed
+          FROM "vw_ResourceUserPermissionAssignments" p
+          ${subjectJoin}
+          LEFT JOIN "Resources" r   ON p."resourceId" = r.id
+          LEFT JOIN "Systems"  sys  ON r."systemId" = sys.id
+          LEFT JOIN "vw_UserPermissionAssignmentViaBusinessRole" br
+            ON br."userId" = p."principalId" AND br."resourceId" = p."resourceId"
+         WHERE ${where.join(' AND ')}
+         GROUP BY p."resourceId", r."displayName", r."resourceType", r."description",
+                  r."systemId", sys."displayName", ${grp}, ${subjectIdExpr}
+      ) t
+     GROUP BY t."resourceId", t."resourceDisplayName", t."resourceType",
+              t."resourceDescription", t."systemId", t."systemName", t."groupValue"
   `;
 }
 
@@ -718,7 +738,8 @@ router.post('/matrix/data', async (req, res) => {
         resources: [...resMap.values()],
         groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
         counts: rollupResult.recordset.map(r => ({
-          resourceId: r.resourceId, groupValue: r.groupValue, directCount: r.directCount,
+          resourceId: r.resourceId, groupValue: r.groupValue,
+          directCount: r.directCount, governedCount: r.governedCount,
         })),
         businessRoles,
         roleCounts,

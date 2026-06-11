@@ -603,6 +603,9 @@ export default function App() {
                   rollup={rollup}
                   filter={matrixFilter}
                   counts={counts}
+                  managedFilter={managedFilter}
+                  setManagedFilter={setManagedFilter}
+                  shareUrl={shareUrl}
                   refreshing={refreshing}
                   onOpenDetail={openDetailTab}
                   onAdjustFilter={() => setWizardOpen(true)}

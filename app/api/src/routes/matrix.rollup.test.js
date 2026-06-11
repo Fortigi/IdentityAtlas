@@ -42,10 +42,13 @@ describe('buildRollupSql', () => {
     resourceSql: null,
   };
 
-  it('counts DISTINCT subjects with a Direct assignment only', () => {
+  it('counts Direct-only subjects and a governed subset', () => {
     const sql = buildRollupSql(base);
     expect(sql).toContain(`p."membershipType" = 'Direct'`);
-    expect(sql).toContain('COUNT(DISTINCT p."principalId")::int AS "directCount"');
+    expect(sql).toContain('COUNT(*)::int                          AS "directCount"');
+    expect(sql).toContain('COUNT(*) FILTER (WHERE t.governed)::int AS "governedCount"');
+    expect(sql).toContain('bool_or(br."userId" IS NOT NULL) AS governed');
+    expect(sql).toContain('"vw_UserPermissionAssignmentViaBusinessRole"');
     expect(sql).toMatch(/GROUP BY/);
     expect(sql).toContain('"vw_ResourceUserPermissionAssignments"');
   });

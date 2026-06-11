@@ -7,27 +7,45 @@ import MatrixCell from './matrix/MatrixCell';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';
+import MatrixToolbar from './matrix/MatrixToolbar';
 
 // Roll-up matrix: the subject (column) axis is aggregated by an attribute (e.g.
 // department). Rows are resources; each cell is the count of distinct subjects
-// in that group with a DIRECT assignment to the resource. Click a group header
+// in that group with a DIRECT assignment to the resource. The All / Governed /
+// Non-governed toggle picks total / governed / ungoverned. Click a group header
 // to expand it into the underlying subjects (a normal per-subject query scoped
 // to that attribute value), shown with their real D/I/O badges.
 
 const MAX_ROWS = 300; // this view isn't virtualized — cap rendered resource rows
 
-export default function RollupMatrixView({ rollup, filter, counts, refreshing, onOpenDetail, onAdjustFilter }) {
+export default function RollupMatrixView({
+  rollup, filter, counts, managedFilter, setManagedFilter, shareUrl,
+  refreshing, onOpenDetail, onAdjustFilter,
+}) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
   const { attribute, resources, groupValues, counts: directCounts, businessRoles = [], roleCounts = [] } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
 
-  // (resourceId|groupValue) -> directCount
+  // The Gaps view has no meaning for an aggregated count — fall back to All.
+  const mode = managedFilter === 'gaps' ? 'all' : managedFilter;
+  // Business roles only make sense in the governed-inclusive views.
+  const visibleRoles = mode === 'unmanaged' ? [] : businessRoles;
+
+  // (resourceId|groupValue) -> { direct, governed }
   const countMap = useMemo(() => {
     const m = new Map();
-    for (const c of directCounts) m.set(`${c.resourceId}|${c.groupValue}`, c.directCount);
+    for (const c of directCounts) m.set(`${c.resourceId}|${c.groupValue}`, { direct: c.directCount || 0, governed: c.governedCount || 0 });
     return m;
   }, [directCounts]);
+
+  // Pick the number to show for the current All / Governed / Non-governed mode.
+  const pick = useCallback((cell) => {
+    if (!cell) return 0;
+    if (mode === 'managed') return cell.governed;
+    if (mode === 'unmanaged') return Math.max(0, cell.direct - cell.governed);
+    return cell.direct;
+  }, [mode]);
 
   // (resourceId|roleId) -> governed count via that business role
   const roleCountMap = useMemo(() => {
@@ -36,14 +54,18 @@ export default function RollupMatrixView({ rollup, filter, counts, refreshing, o
     return m;
   }, [roleCounts]);
 
-  // Resources ordered by total direct assignments (busiest first), capped so the
-  // un-virtualized table stays responsive on an unscoped roll-up.
+  const resourceTotal = useCallback(
+    (rid) => groupValues.reduce((s, g) => s + pick(countMap.get(`${rid}|${g}`)), 0),
+    [groupValues, countMap, pick],
+  );
+
+  // Resources ordered by total (busiest first), capped so the un-virtualized
+  // table stays responsive on an unscoped roll-up.
   const orderedResources = useMemo(() => {
-    const total = (rid) => groupValues.reduce((s, g) => s + (countMap.get(`${rid}|${g}`) || 0), 0);
     return [...resources]
-      .map(r => ({ ...r, _total: total(r.resourceId) }))
+      .map(r => ({ ...r, _total: resourceTotal(r.resourceId) }))
       .sort((a, b) => b._total - a._total || (a.resourceDisplayName || '').localeCompare(b.resourceDisplayName || ''));
-  }, [resources, groupValues, countMap]);
+  }, [resources, resourceTotal]);
   const shownResources = orderedResources.slice(0, MAX_ROWS);
   const truncated = orderedResources.length - shownResources.length;
 
@@ -109,6 +131,30 @@ export default function RollupMatrixView({ rollup, filter, counts, refreshing, o
     return out;
   }, [groupValues, expanded, cache]);
 
+  // Share + export (parity with the per-subject toolbar).
+  const onShare = useCallback(async () => {
+    try { await navigator.clipboard.writeText(shareUrl || window.location.href); return true; } catch { return false; }
+  }, [shareUrl]);
+
+  const onExportExcel = useCallback(() => {
+    const header = ['Resource', ...groupValues, ...visibleRoles.map(r => r.displayName), '#', 'Description'];
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [header.map(esc).join(',')];
+    for (const r of orderedResources) {
+      const row = [r.resourceDisplayName || r.resourceId];
+      for (const g of groupValues) row.push(pick(countMap.get(`${r.resourceId}|${g}`)) || '');
+      for (const role of visibleRoles) row.push(roleCountMap.get(`${r.resourceId}|${role.id}`) || '');
+      row.push(r._total, r.resourceDescription || '');
+      lines.push(row.map(esc).join(','));
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `matrix-rollup-${attribute}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, [groupValues, visibleRoles, orderedResources, countMap, roleCountMap, pick, attribute]);
+
   // Cap the grid height to the remaining viewport so only the grid scrolls
   // (matches MatrixView). overflow-auto then gives both scrollbars, including
   // the horizontal one when the columns are wider than the screen.
@@ -130,7 +176,9 @@ export default function RollupMatrixView({ rollup, filter, counts, refreshing, o
     let ro;
     if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(measure); ro.observe(document.body); }
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
-  }, [columns.length, businessRoles.length]);
+  }, [columns.length, visibleRoles.length]);
+
+  const trailingCols = visibleRoles.length + 3; // resource + # + Description (+ roles handled separately)
 
   return (
     <div className="flex flex-col gap-3">
@@ -140,8 +188,18 @@ export default function RollupMatrixView({ rollup, filter, counts, refreshing, o
       {/* Scope Statistics — governed % etc. */}
       {filter && <MatrixScopePanel filter={filter} />}
 
+      {/* All / Governed / Non-governed + Export + Share — same toolbar as the per-subject view. */}
+      <MatrixToolbar
+        managedFilter={managedFilter}
+        setManagedFilter={setManagedFilter}
+        onExportExcel={onExportExcel}
+        onShare={onShare}
+        hideGaps
+      />
+
       <div className="px-1 text-[11px] text-gray-600 dark:text-gray-300">
-        Roll-up by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is the count of distinct {subjectWord} with a
+        Roll-up by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is the count of distinct {subjectWord}
+        {mode === 'managed' ? ' governed' : mode === 'unmanaged' ? ' non-governed' : ''} with a
         <span className="font-medium"> Direct</span> assignment. Click a column to expand it into the individual {subjectWord}.
         {refreshing && <span className="ml-2 text-gray-500 dark:text-gray-400">updating…</span>}
       </div>
@@ -193,7 +251,7 @@ export default function RollupMatrixView({ rollup, filter, counts, refreshing, o
               })}
 
               {/* Business-role (SOLL) columns */}
-              {businessRoles.map((role, idx) => (
+              {visibleRoles.map((role, idx) => (
                 <th
                   key={`role:${role.id}`}
                   className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 align-bottom ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : ''}`}
@@ -209,6 +267,14 @@ export default function RollupMatrixView({ rollup, filter, counts, refreshing, o
                   </div>
                 </th>
               ))}
+
+              {/* Trailing # (total) + Description columns — like the per-subject matrix. */}
+              <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 align-bottom text-[10px] text-gray-600 dark:text-gray-400 font-medium" style={{ minWidth: '40px' }} title="Total count for this resource">
+                <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># ▼</div>
+              </th>
+              <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 align-bottom text-xs text-gray-600 dark:text-gray-400 font-medium text-left" style={{ minWidth: '420px' }}>
+                Description
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -221,7 +287,7 @@ export default function RollupMatrixView({ rollup, filter, counts, refreshing, o
                 </td>
                 {columns.map(col => {
                   if (col.type === 'group') {
-                    const n = countMap.get(`${r.resourceId}|${col.group}`) || 0;
+                    const n = pick(countMap.get(`${r.resourceId}|${col.group}`));
                     return (
                       <td key={col.key} className="border-b border-r border-gray-100 dark:border-gray-700 text-center px-1 py-0.5" style={{ minWidth: '40px' }}>
                         {n > 0 ? <span className="inline-block text-[11px] font-semibold text-gray-800 dark:text-gray-200">{n}</span> : <span className="text-gray-500 dark:text-gray-700">·</span>}
@@ -231,7 +297,7 @@ export default function RollupMatrixView({ rollup, filter, counts, refreshing, o
                   const types = cache.get(col.group)?.memberships.get(`${r.resourceId}|${col.user.id}`);
                   return <MatrixCell key={col.key} cellKey={col.key} membershipTypes={types} managed={false} />;
                 })}
-                {businessRoles.map((role, idx) => {
+                {visibleRoles.map((role, idx) => {
                   const n = roleCountMap.get(`${r.resourceId}|${role.id}`) || 0;
                   return (
                     <td key={`role:${role.id}`} className={`border-b border-r border-gray-100 dark:border-gray-700 text-center px-1 py-0.5 ${idx === 0 ? 'border-l-2 border-l-indigo-200 dark:border-l-indigo-700' : ''}`} style={{ minWidth: '40px' }}>
@@ -239,14 +305,22 @@ export default function RollupMatrixView({ rollup, filter, counts, refreshing, o
                     </td>
                   );
                 })}
+                {/* # total */}
+                <td className="border-b border-l-2 border-gray-200 dark:border-gray-700 text-center px-1 py-0.5 font-semibold text-gray-800 dark:text-gray-200" style={{ minWidth: '40px' }}>
+                  {r._total || <span className="text-gray-500 dark:text-gray-700">·</span>}
+                </td>
+                {/* Description */}
+                <td className="border-b border-gray-200 dark:border-gray-700 px-2 py-1 text-gray-600 dark:text-gray-400" style={{ minWidth: '420px' }} title={r.resourceDescription || ''}>
+                  <div className="truncate max-w-[420px]">{r.resourceDescription || ''}</div>
+                </td>
               </tr>
             ))}
             {orderedResources.length === 0 && (
-              <tr><td colSpan={columns.length + businessRoles.length + 1} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">No assignments match the current filter.</td></tr>
+              <tr><td colSpan={columns.length + trailingCols} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">No assignments match the current filter.</td></tr>
             )}
             {truncated > 0 && (
-              <tr><td colSpan={columns.length + businessRoles.length + 1} className="px-3 py-2 text-center text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
-                Showing the top {MAX_ROWS} of {orderedResources.length} resources by Direct assignments — add resource filters to narrow.
+              <tr><td colSpan={columns.length + trailingCols} className="px-3 py-2 text-center text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
+                Showing the top {MAX_ROWS} of {orderedResources.length} resources by count — add resource filters to narrow.
               </td></tr>
             )}
           </tbody>
