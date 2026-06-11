@@ -149,7 +149,7 @@ export default function RollupMatrixView({
         // the attribute value; context roll-ups match on membership of the node
         // (a leaf context) including its subtree.
         const scopeCond = contextMode
-          ? { kind: 'context', contextId: group, includeChildren: true }
+          ? { kind: 'context', contextId: group, includeChildren: false } // direct members of this node
           : { kind: 'attribute', field: attribute, values: [group] };
         const scopedSubject = {
           include: [...(filter.subject?.include || []), scopeCond],
@@ -201,14 +201,13 @@ export default function RollupMatrixView({
     setExpanded(prev => new Set(prev).add(group));
   }, [expanded, cache, filter, attribute, authFetch, rolesOnly, contextMode]);
 
-  // ── Context drill: zoom INTO a node (push it onto the drill path → the view
-  // shows that node's children). Leaf nodes (no children) instead expand into
-  // their individual subjects. Zooming OUT is via the breadcrumb, not here.
-  const drillContextNode = useCallback((nodeId) => {
-    const hasChildren = (nodeMap.get(nodeId)?.childCount || 0) > 0;
-    if (!hasChildren) { toggleGroup(nodeId); return; }
+  // ── Context zoom: drill INTO a node (push it onto the drill path → the view
+  // shows that node's children). Zooming OUT is via the breadcrumb. Expanding a
+  // node's direct members is a separate control (toggleGroup), available on any
+  // node, so you can see a team's people without leaving the current level.
+  const zoomNode = useCallback((nodeId) => {
     onFilterChange?.({ ...filter, rollupPath: [...(filter.rollupPath || []), nodeId] });
-  }, [nodeMap, filter, onFilterChange, toggleGroup]);
+  }, [filter, onFilterChange]);
 
   // Breadcrumb navigation: jump to a level. Index 0 = the root (path = []),
   // index i = the i-th drill step.
@@ -324,7 +323,7 @@ export default function RollupMatrixView({
             ? <>the <span className="font-medium">percentage</span> of the {subjectWord} in that group</>
             : <>the count of distinct {subjectWord}</>;
           if (contextMode) return (
-            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the teams under the highlighted node, and each cell is {valueWord} anywhere under that team who {rolesOnly ? 'hold the business role on that row' : <>have a <span className="font-medium">Direct</span> assignment</>}. Click <span className="font-medium">⊕</span> to zoom into an org's sub-teams, <span className="font-medium">▸</span> to expand a leaf team into people. Use the breadcrumb above to go back up.</>
+            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the teams under the highlighted node, and each cell is {valueWord} anywhere under that team who {rolesOnly ? 'hold the business role on that row' : <>have a <span className="font-medium">Direct</span> assignment</>}. Click <span className="font-medium">⊕</span> to zoom into a team's sub-teams, <span className="font-medium">▸</span> to expand its direct people. Use the breadcrumb above to go back up.</>
           );
           return rolesOnly ? (
             <>Business roles on the rows, grouped by <span className="font-semibold">{friendlyLabel(String(attribute).replace(/^ext\./, ''))}</span> — each cell is {valueWord} who hold the role.</>
@@ -361,18 +360,28 @@ export default function RollupMatrixView({
                       <div className="flex flex-col items-center justify-end h-full gap-1">
                         {contextMode ? (() => {
                           const node = nodeMap.get(col.group);
-                          const canDrill = (node?.childCount || 0) > 0;
+                          const canZoom = (node?.childCount || 0) > 0;
+                          const hasMembers = (node?.directMembers || 0) > 0;
                           const btn = 'w-4 h-4 flex items-center justify-center text-[10px] leading-none shrink-0';
                           return (
                             <>
                               {node?.total != null && (
                                 <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0" title={`${node.total} ${subjectWord} in this org (whole subtree)`}>{node.total}</span>
                               )}
-                              <button
-                                onClick={() => drillContextNode(col.group)}
-                                className={`${btn} text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400`}
-                                title={canDrill ? `Zoom into ${ctxLabel(col.group)} — show its sub-teams` : (isExp ? 'Collapse' : `Expand into the individual ${subjectWord}`)}
-                              >{loading ? '⋯' : (canDrill ? '⊕' : (isExp ? '▾' : '▸'))}</button>
+                              {hasMembers && (
+                                <button
+                                  onClick={() => toggleGroup(col.group)}
+                                  className={`${btn} ${isExp ? 'text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-gray-400'} hover:text-sky-600 dark:hover:text-sky-400`}
+                                  title={isExp ? 'Hide the people directly in this team' : `Show the ${node.directMembers} ${subjectWord} directly in this team`}
+                                >{loading ? '⋯' : (isExp ? '▾' : '▸')}</button>
+                              )}
+                              {canZoom && (
+                                <button
+                                  onClick={() => zoomNode(col.group)}
+                                  className={`${btn} text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400`}
+                                  title={`Zoom into ${ctxLabel(col.group)} — show its sub-teams`}
+                                >⊕</button>
+                              )}
                             </>
                           );
                         })() : (

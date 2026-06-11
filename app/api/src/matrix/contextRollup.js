@@ -145,6 +145,7 @@ export function buildContextNodesSql(ids) {
     SELECT c.id::text AS id, c."displayName" AS "displayName",
            c."parentContextId"::text AS parent,
            c."totalMemberCount" AS total,
+           c."directMemberCount" AS "directMembers",
            (SELECT COUNT(*)::int FROM "Contexts" g WHERE g."parentContextId" = c.id) AS "childCount"
       FROM "Contexts" c
      WHERE c.id IN (${idList(ids)})`;

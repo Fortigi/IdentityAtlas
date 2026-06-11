@@ -813,7 +813,7 @@ router.post('/matrix/data', async (req, res) => {
 
       const nodesReq = timedRequest(p, 'matrix-ctx-nodes', res);
       const nodeRows = (await nodesReq.query(buildContextNodesSql(frontier))).recordset;
-      const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, parent: n.parent, total: n.total, childCount: n.childCount }]));
+      const nodeMeta = new Map(nodeRows.map(n => [n.id, { id: n.id, displayName: n.displayName, parent: n.parent, total: n.total, directMembers: n.directMembers, childCount: n.childCount }]));
       const orderedFrontier = [...frontier].sort((a, b) => (nodeMeta.get(b)?.total || 0) - (nodeMeta.get(a)?.total || 0));
 
       const crumbIds = [filter.rollupContextId, ...path];
@@ -828,7 +828,7 @@ router.post('/matrix/data', async (req, res) => {
         rollupContextId: filter.rollupContextId, rollupContent: filter.rollupContent,
         rollupMetric: filter.rollupMetric, focusId: focus, breadcrumb, rowType,
         groupValues: orderedFrontier,
-        nodes: orderedFrontier.map(id => nodeMeta.get(id) || { id, displayName: id, parent: null, total: 0, childCount: 0 }),
+        nodes: orderedFrontier.map(id => nodeMeta.get(id) || { id, displayName: id, parent: null, total: 0, directMembers: 0, childCount: 0 }),
         groupTotals: ctxTotals,
         ...counts, totalUsers: counts.subjectTotal, warnings: built.warnings,
       };
