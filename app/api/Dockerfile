@@ -2,7 +2,7 @@
 # Usage: docker build -f app/api/Dockerfile -t fortigraph-backend .
 
 # ── Stage 1: Build frontend ───────────────────────────────────────────────────
-FROM node:24-slim AS frontend-build
+FROM node:26-slim AS frontend-build
 WORKDIR /app/frontend
 COPY app/ui/package*.json ./
 RUN npm ci
@@ -10,7 +10,7 @@ COPY app/ui/ .
 RUN npm run build
 
 # ── Stage 2: Backend runtime ──────────────────────────────────────────────────
-FROM node:24-slim AS runtime
+FROM node:26-slim AS runtime
 
 # Bake the module version into the image so /api/version returns the full
 # version string (e.g. 5.0.20260414.0900) without needing the .psd1 file.
