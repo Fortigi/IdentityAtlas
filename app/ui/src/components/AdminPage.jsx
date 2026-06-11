@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '../auth/AuthGate';
-import { hasPermission } from '../auth/usePermissions';
+import { ADMIN_TABS, visibleAdminTabs } from './admin/adminTabs';
 import ScheduleEditor from './ScheduleEditor';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
@@ -1147,22 +1147,6 @@ function DangerZoneSection({ onRefresh }) {
   );
 }
 
-// ─── Admin Sub-Tabs ───────────────────────────────────────────────────────────
-// `requires` lists permissions any one of which (logical OR) grants access to
-// that sub-tab. Tabs without `requires` are visible to any authenticated user
-// (read-only stuff: Performance / About).
-const ADMIN_TABS = [
-  { key: 'crawlers',     label: 'Crawlers',            description: 'Add, configure and run identity data crawlers',                                  requires: ['admin.crawlers'] },
-  { key: 'data',         label: 'Data',                description: 'Export/import curated data and clean the database',                              requires: ['data.export.ui', 'admin.csv-import', 'admin.systems', 'admin.read-tokens', 'data.export.apikey'] },
-  { key: 'account-linking', label: 'Account Linking',  description: 'Rules for linking orphan accounts to existing identities',                        requires: ['admin.crawlers'] },
-  { key: 'risk-scoring', label: 'Risk Scoring',        description: 'Risk profile, classifiers and feature toggle',                                   requires: ['admin.llm', 'admin.crawlers'] },
-  { key: 'llm',          label: 'LLM Settings',        description: 'Configure the LLM provider used by risk scoring',                                requires: ['admin.llm'] },
-  { key: 'performance',  label: 'Performance',         description: 'API and SQL performance metrics' },
-
-  { key: 'auth',         label: 'Authentication',      description: 'Configure Entra ID single sign-on',                                              requires: ['admin.auth'] },
-  { key: 'about',        label: 'About',               description: 'License, version, and software bill of materials' },
-];
-
 // ─── LLM Settings sub-tab ────────────────────────────────────────────────────
 // Configures the LLM provider used by risk scoring, classifier generation and
 // (future) account correlation. The API key never leaves the server — the GET
@@ -1651,40 +1635,13 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
   };
   const [activeTab, setActiveTab] = useState(getInitialTab);
 
-  // On Azure App Service, auth is enforced via Bicep parameters at deploy
-  // time — there's nothing useful to do from the auth admin page (the CLI
-  // commands shown there assume Docker), so hide it when we detect Azure.
-  const { authFetch } = useAuth();
   // hasWildcard + permissions come from AuthContext (populated by AuthGateProvider
-  // after sign-in via /api/auth-me). Used to hide sub-tabs the user can't use.
-  const [platform, setPlatform] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await authFetch('/api/admin/auth-settings');
-        if (!r.ok || cancelled) return;
-        const data = await r.json();
-        setPlatform(data.platform || 'docker');
-      } catch {
-        // Best-effort — keep all tabs visible on detection failure.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [authFetch]);
-  const isAzure = platform === 'azure-app-service';
+  // after sign-in via /api/auth-me). Sub-tab visibility is permission-driven only:
+  // the Authentication tab hosts Roles & Permissions, so it must stay reachable
+  // for admins on every platform. Platform-specific guidance (the Docker CLI
+  // walkthrough) is hidden inside AuthSettingsPage, not by dropping the whole tab.
   const { hasWildcard, permissions } = useAuth();
-  // Reuse the shared pure check (can't use the useHasPermission hook here —
-  // this runs inside a .filter() callback). Tabs with no `requires` are always
-  // visible; everything else delegates to the same logic the hook uses.
-  const hasAnyPerm = (required) => {
-    if (!required) return true;             // no `requires` → always visible
-    return hasPermission(permissions, hasWildcard, ...required);
-  };
-  const visibleTabs = ADMIN_TABS.filter(t => {
-    if (isAzure && t.key === 'auth') return false;
-    return hasAnyPerm(t.requires);
-  });
+  const visibleTabs = visibleAdminTabs(permissions, hasWildcard);
 
   // If the user was on a now-hidden tab, bounce them to the first visible one.
   useEffect(() => {

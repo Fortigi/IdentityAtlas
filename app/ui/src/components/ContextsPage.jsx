@@ -85,6 +85,15 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
     } catch (e) { setEditError(e.message || 'Move failed'); }
   }
 
+  // Lazy-load a context's direct members (users) — shown nested inside a node
+  // only when the analyst expands it.
+  async function loadMembers(ctxId) {
+    const r = await authFetch(`/api/contexts/${ctxId}/members?limit=200`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const body = await r.json();
+    return { rows: body.data || [], total: body.total || 0 };
+  }
+
   // Inline rename from the tree.
   async function rename(id, displayName) {
     setEditError(null);
@@ -195,6 +204,8 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
                   onReparent={reparent}
                   onRename={rename}
                   onAddChild={addChild}
+                  onLoadMembers={loadMembers}
+                  onOpenMember={(id, name, kind) => onOpenDetail?.(kind || 'user', id, name)}
                 />
               ) : (
                 <ContextListView nodes={nodes} onOpenDetail={open} />
