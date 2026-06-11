@@ -19,6 +19,7 @@ import Stepper from '../Stepper';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '../contexts/ModalPrimitives';
 import ContextPicker from '../contexts/ContextPicker';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
+import { friendlyLabel } from '../../utils/formatters';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -472,7 +473,7 @@ function StepIndicator({ steps, current, onJump }) {
 }
 
 // ─── Step 2 — Roll-up content (what the roll-up shows) ──────────────
-function Step2Content({ rollupContent, rollup, onChange }) {
+export function Step2Content({ rollupContent, rollup, onChange }) {
   const options = [
     { key: 'roles-only',          title: 'Business roles only',     description: 'Business roles go on the rows; each cell counts the subjects in that group who hold the role. The resource filter step is skipped.' },
     { key: 'resources-and-roles', title: 'Resources and business roles', description: 'Resources on the rows with the roll-up groups, plus a count column per business role (the default).' },
