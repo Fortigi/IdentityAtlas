@@ -14,6 +14,7 @@ export default function MatrixColumnHeaders({
   loadingIdentityCols,
   sortAttributes,
   onToggleCollapse,
+  onToggleMembers,
   maxHeaderDepth,
 }) {
   const isDark = useIsDark();
@@ -55,11 +56,19 @@ export default function MatrixColumnHeaders({
             // collapsible even though it happens to contain an aggregate column.
             const aggHere = !!col?.isAggregateCol && rowIdx >= col.level;
             const showChildCount = aggHere && rowIdx > col.level; // "6 departments"
-            const collapsible = !!onToggleCollapse && !aggHere;   // normal/ancestor group
-            const onClick = collapsible
+            // A member-exploded org: its own level header collapses the members
+            // back into a count; deeper rows are inert placeholders.
+            const memberOwn = !!col?.isMemberCol && rowIdx === col.memberLevel;
+            const memberDeep = !!col?.isMemberCol && rowIdx > col.memberLevel;
+            const collapsible = !!onToggleCollapse && !aggHere && !memberOwn && !memberDeep;
+            const onClick = memberOwn && onToggleMembers
+              ? () => onToggleMembers(col.sortKeys, col.memberLevel)
+              : collapsible
               ? () => onToggleCollapse(col.sortKeys, rowIdx)
               : aggHere ? () => onToggleCollapse(col.sortKeys, col.level) : undefined;
-            const title = collapsible
+            const title = memberOwn
+              ? `Collapse ${span.value || '(none)'} members back into a count`
+              : collapsible
               ? `Collapse ${span.value || '(none)'} into one column`
               : aggHere ? `Expand ${col.value || '(none)'} back into its columns` : undefined;
             return (
@@ -69,7 +78,7 @@ export default function MatrixColumnHeaders({
                 onClick={onClick}
                 title={title}
                 className={`border-b border-r border-gray-300 dark:border-gray-600 px-0 py-0 text-center ${
-                  aggHere ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-gray-100 dark:bg-gray-800'
+                  aggHere || memberOwn ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-gray-100 dark:bg-gray-800'
                 } ${onClick ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
                 style={{ height: '120px', minWidth: `${span.span * 24}px` }}
               >
@@ -77,13 +86,13 @@ export default function MatrixColumnHeaders({
                   <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">{col.childCounts?.[rowIdx] ?? 0}</span>
                 ) : (
                   <div
-                    className={`text-[10px] font-semibold ${aggHere ? 'text-indigo-800 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-300'}`}
+                    className={`text-[10px] font-semibold ${aggHere || memberOwn ? 'text-indigo-800 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-300'}`}
                     style={{
                       writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)',
                       maxHeight: '110px', overflow: 'hidden', whiteSpace: 'nowrap', margin: '0 auto',
                     }}
                   >
-                    {aggHere ? `▤ ${col.value || '(none)'}` : (span.value || '(none)')}
+                    {aggHere ? `▤ ${col.value || '(none)'}` : memberOwn ? `▾ ${span.value || '(none)'}` : (span.value || '(none)')}
                   </div>
                 )}
               </th>
@@ -152,15 +161,27 @@ export default function MatrixColumnHeaders({
           // Collapsed aggregate column: the name row shows the user COUNT and an
           // expand control, instead of a single subject name.
           if (user.isAggregateCol) {
+            // The folded count column. The vertical attribute header above DRILLS
+            // to the next level; here in the name row two small controls instead
+            // EXPLODE this column into its individual member columns at this level
+            // — ▾ = all (direct + indirect), ↳ = direct members only.
             return (
               <th key={user.id}
-                className="border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                className="border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-indigo-50 dark:bg-indigo-900/20"
                 style={{ height: '100px', width: '24px', minWidth: '24px', verticalAlign: 'bottom' }}
-                onClick={() => onToggleCollapse?.(user.sortKeys, user.level)}
-                title={`${user.userCount} ${user.userCount === 1 ? 'user' : 'users'} — click to expand`}>
+                title={`${user.userCount} ${user.userCount === 1 ? 'user' : 'users'} in ${user.value || '(none)'}`}>
                 <div className="flex flex-col items-center justify-end h-full pb-1 gap-0.5">
                   <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">{user.userCount}</span>
-                  <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400">▸</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleMembers?.(user.sortKeys, user.level, 'all'); }}
+                    className="w-4 h-4 flex items-center justify-center text-[10px] leading-none text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
+                    title="Show all members here (direct + indirect)"
+                  >▾</button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleMembers?.(user.sortKeys, user.level, 'direct'); }}
+                    className="w-4 h-4 flex items-center justify-center text-[10px] leading-none text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
+                    title="Show direct members at this level only"
+                  >↳</button>
                 </div>
               </th>
             );

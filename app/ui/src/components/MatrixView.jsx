@@ -71,6 +71,24 @@ function collapseKey(sortKeys, level) {
   return `${level}|${seg}`;
 }
 
+// A per-account sub-column spliced in under an expanded identity (or member),
+// inheriting the parent's sort-keys so the merged attribute headers stay contiguous.
+function makeAccountCol(parent, acc, sortKeys) {
+  return {
+    id: acc.id,
+    displayName: acc.displayName || acc.id,
+    jobTitle: parent.jobTitle || '',
+    department: parent.department || '',
+    upn: '',
+    memberType: 'Principal',
+    isAccountCol: true,
+    parentId: parent.id,
+    accountType: acc.accountType || null,
+    isPrimary: !!acc.isPrimary,
+    sortKeys: [...(sortKeys || [])],
+  };
+}
+
 export default function MatrixView({
   data, accessPackageGroups = [], managedByPackages = [],
   filter,
@@ -102,6 +120,13 @@ export default function MatrixView({
   // than jumping straight to individual subjects. (toggleCollapse is defined
   // below, where the sorted `users` list is available.)
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  // A folded aggregate column can instead be exploded into its individual member
+  // columns AT this level (rather than drilling to the next sort level): Map of
+  // collapseKey → 'all' (direct + indirect, the whole subtree) | 'direct' (only
+  // subjects whose path ends at this level). Used mainly in Manager-Hierarchy
+  // sort, where "drill" reveals the next org layer but you sometimes want to see
+  // the people sitting at the current layer.
+  const [memberExpanded, setMemberExpanded] = useState(() => new Map());
 
   const toggleIdentityColumn = useCallback(async (identityId) => {
     if (expandedIdentities.has(identityId)) {
@@ -375,7 +400,7 @@ export default function MatrixView({
   // large matrices so the first paint stays fast. User fold/unfold actions
   // afterwards aren't overridden (we only seed once per filter).
   const seededFoldRef = useRef(null);
-  useEffect(() => { seededFoldRef.current = null; setCollapsedGroups(new Set()); }, [storageKey]);
+  useEffect(() => { seededFoldRef.current = null; setCollapsedGroups(new Set()); setMemberExpanded(new Map()); }, [storageKey]);
   useEffect(() => {
     if (seededFoldRef.current === storageKey || users.length === 0) return;
     // A Manager-Hierarchy matrix has thousands of columns — always open folded.
@@ -759,6 +784,25 @@ export default function MatrixView({
         if (!emitted.has(key)) {
           emitted.add(key);
           const members = users.filter(x => collapseKey(x.sortKeys, lvl) === key);
+          // Member-expanded: show the individual subjects at this level instead
+          // of one aggregate. Truncate their sort-keys to this level so they sit
+          // under the current org header and don't sprout deeper org rows.
+          const memMode = memberExpanded.get(key);
+          if (memMode) {
+            const picked = memMode === 'direct'
+              ? members.filter(m => !(m.sortKeys?.[lvl + 1])) // path ends here
+              : members;
+            for (const m of picked) {
+              const sk = [];
+              for (let i = 0; i < nAttr; i++) sk[i] = i <= lvl ? (m.sortKeys?.[i] ?? '') : '';
+              out.push({ ...m, sortKeys: sk, isMemberCol: true, aggKey: key, memberLevel: lvl });
+              if (m.memberType === 'Identity' && expandedIdentities.has(m.id)) {
+                const cache = accountMatrixCache.get(m.id);
+                for (const acc of (cache?.accounts || [])) out.push(makeAccountCol(m, acc, sk));
+              }
+            }
+            continue;
+          }
           const aggId = `agg ${key}`;
           // Distinct child-value count for each level below the collapse level.
           const childCounts = {};
@@ -781,28 +825,11 @@ export default function MatrixView({
       out.push(u);
       if (u.memberType === 'Identity' && expandedIdentities.has(u.id)) {
         const cache = accountMatrixCache.get(u.id);
-        for (const acc of (cache?.accounts || [])) {
-          const accCol = {
-            id: acc.id,
-            displayName: acc.displayName || acc.id,
-            jobTitle: u.jobTitle || '',     // inherit so the merged title header stays contiguous
-            department: u.department || '',
-            upn: '',
-            memberType: 'Principal',
-            isAccountCol: true,
-            parentId: u.id,
-            accountType: acc.accountType || null,
-            isPrimary: !!acc.isPrimary,
-          };
-          // Inherit the parent identity's sort values so the merged attribute
-          // header rows stay contiguous across an expanded identity.
-          accCol.sortKeys = [...(u.sortKeys || [])];
-          out.push(accCol);
-        }
+        for (const acc of (cache?.accounts || [])) out.push(makeAccountCol(u, acc, u.sortKeys));
       }
     }
     return { cols: out, userToAgg };
-  }, [users, collapsedGroups, sortAttrs, expandedIdentities, accountMatrixCache]);
+  }, [users, collapsedGroups, memberExpanded, sortAttrs, expandedIdentities, accountMatrixCache]);
 
   const colMemberships = useMemo(() => {
     if (expandedIdentities.size === 0) return displayMemberships;
@@ -867,6 +894,20 @@ export default function MatrixView({
     });
   }, [users, sortAttrs]);
 
+  // Explode a folded aggregate column into its individual member columns at the
+  // SAME level (vs. toggleCollapse, which drills to the next level). Clicking the
+  // same mode again, or the org's own level header, collapses back to the count.
+  const toggleMembers = useCallback((sortKeys, level, mode) => {
+    const key = collapseKey(sortKeys, level);
+    setMemberExpanded(prev => {
+      const next = new Map(prev);
+      if (next.get(key) === mode) next.delete(key);
+      else if (mode) next.set(key, mode);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
   // In Manager-Hierarchy sort, only show as many org-level header rows as have
   // actually been unfolded: a folded group reaches level+1, an unfolded subject
   // reaches its own path depth. Attribute sort always shows all chosen levels.
@@ -896,6 +937,7 @@ export default function MatrixView({
       onToggleIdentity={toggleIdentityColumn}
       loadingIdentityCols={loadingIdentityCols}
       onToggleCollapse={toggleCollapse}
+      onToggleMembers={toggleMembers}
     />
   );
 
