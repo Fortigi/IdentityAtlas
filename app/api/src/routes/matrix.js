@@ -717,6 +717,56 @@ router.post('/matrix/scope-breakdown', async (req, res) => {
   }
 });
 
+// ─── POST /api/matrix/hierarchy-paths ───────────────────────────────
+// For sorting the matrix by a Manager-Hierarchy context tree: returns each
+// subject's ancestor-node path (top org → … → their node) as display-name
+// labels. The frontend shortens each label and uses the path as the column
+// sort keys, so the existing fold machinery reveals one org level at a time.
+router.post('/matrix/hierarchy-paths', async (req, res) => {
+  if (!useSql) return res.json({ paths: {}, depth: 0 });
+  const body = req.body || {};
+  const rootContextId = body.rootContextId;
+  const rowType = body.rowType === 'identity' ? 'identity' : 'principal';
+  if (!isUuid(rootContextId)) return res.status(400).json({ error: 'rootContextId (uuid) is required' });
+
+  try {
+    const p = await db.getPool();
+    // Path of displayNames from the first level below the root down to each node
+    // (the synthetic root contributes nothing).
+    const pathCte = `
+      WITH RECURSIVE down AS (
+        SELECT id, ARRAY[]::text[] AS path
+          FROM "Contexts" WHERE id = '${rootContextId}'::uuid
+        UNION ALL
+        SELECT c.id, d.path || c."displayName"
+          FROM "Contexts" c JOIN down d ON c."parentContextId" = d.id
+      )`;
+    const sql = rowType === 'identity'
+      ? `${pathCte}
+         SELECT DISTINCT ON (im."identityId") im."identityId"::text AS "subjectId", d.path AS path
+           FROM down d
+           JOIN "ContextMembers" cm ON cm."contextId" = d.id AND cm."memberType" = 'Principal'
+           JOIN "IdentityMembers" im ON im."principalId" = cm."memberId"
+          ORDER BY im."identityId", im."isHrAuthoritative" DESC NULLS LAST, im."isPrimary" DESC NULLS LAST`
+      : `${pathCte}
+         SELECT cm."memberId"::text AS "subjectId", d.path AS path
+           FROM down d
+           JOIN "ContextMembers" cm ON cm."contextId" = d.id AND cm."memberType" = 'Principal'`;
+    const rows = (await timedRequest(p, `matrix-hierarchy-paths[${rowType}]`, res).query(sql)).recordset;
+    const paths = {};
+    let depth = 0;
+    for (const r of rows) {
+      const path = Array.isArray(r.path) ? r.path : [];
+      paths[r.subjectId] = path;
+      if (path.length > depth) depth = path.length;
+    }
+    res.json({ paths, depth });
+  } catch (err) {
+    console.error('POST /matrix/hierarchy-paths failed:', err.message);
+    res.status(500).json({ error: 'Failed to load hierarchy paths' });
+  }
+});
+
 // ─── POST /api/matrix/data ──────────────────────────────────────────
 router.post('/matrix/data', async (req, res) => {
   if (!useSql) {
