@@ -173,7 +173,7 @@ export function normaliseSortAttributes(arr) {
   for (const a of arr) {
     if (!a || typeof a.attribute !== 'string' || !a.attribute) continue;
     out.push({ attribute: a.attribute, dir: a.dir === 'desc' ? 'desc' : 'asc' });
-    if (out.length === 3) break;
+    if (out.length === 6) break;
   }
   return out.length ? out : DEFAULT;
 }

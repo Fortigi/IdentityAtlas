@@ -20,6 +20,10 @@ export default function MatrixToolbar({
   hasExpandedGroups,
   onExpandAll,
   onCollapseAll,
+  canFoldColumns = false,
+  isFolded = false,
+  onFoldAllColumns,
+  onUnfoldAllColumns,
   hideGaps = false,
 }) {
   const [copied, setCopied] = useState(false);
@@ -109,6 +113,29 @@ export default function MatrixToolbar({
               title="Collapse all nested groups"
             >
               Collapse All
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Fold/unfold the sort-attribute columns into aggregate count columns */}
+      {canFoldColumns && (
+        <>
+          <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
+          <button
+            onClick={onFoldAllColumns}
+            className="px-2 py-1 rounded text-xs text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700"
+            title="Fold every top-level group into a single count column"
+          >
+            Fold columns
+          </button>
+          {isFolded && (
+            <button
+              onClick={onUnfoldAllColumns}
+              className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
+              title="Unfold all columns back to individual subjects"
+            >
+              Unfold columns
             </button>
           )}
         </>

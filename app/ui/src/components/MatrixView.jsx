@@ -770,6 +770,14 @@ export default function MatrixView({
     return counts;
   }, [colMemberships, userToAgg, collapsedGroups]);
 
+  // Fold every top-level (first sort attribute) group into one aggregate column;
+  // unfold clears all collapses. There's something to fold only when the first
+  // attribute has more than one distinct value.
+  const distinctTopGroups = useMemo(() => new Set(users.map(u => collapseKey(u.sortKeys, 0))), [users]);
+  const canFoldColumns = distinctTopGroups.size > 1;
+  const foldAllColumns = useCallback(() => setCollapsedGroups(new Set(distinctTopGroups)), [distinctTopGroups]);
+  const unfoldAllColumns = useCallback(() => setCollapsedGroups(new Set()), []);
+
   // Shared column headers element (used by both sortable and static table)
   const columnHeaders = (
     <MatrixColumnHeaders
@@ -847,6 +855,10 @@ export default function MatrixView({
         hasExpandedGroups={expandedGroups.size > 0}
         onExpandAll={expandAll}
         onCollapseAll={collapseAll}
+        canFoldColumns={canFoldColumns}
+        isFolded={collapsedGroups.size > 0}
+        onFoldAllColumns={foldAllColumns}
+        onUnfoldAllColumns={unfoldAllColumns}
       />
 
       {filterIsApplied && <MatrixLegend />}

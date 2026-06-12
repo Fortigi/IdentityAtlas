@@ -18,12 +18,13 @@ describe('normaliseSortAttributes', () => {
     ]);
   });
 
-  it('caps at 3 attributes', () => {
+  it('caps at 6 attributes', () => {
     const out = normaliseSortAttributes([
-      { attribute: 'a' }, { attribute: 'b' }, { attribute: 'c' }, { attribute: 'd' },
+      { attribute: 'a' }, { attribute: 'b' }, { attribute: 'c' },
+      { attribute: 'd' }, { attribute: 'e' }, { attribute: 'f' }, { attribute: 'g' },
     ]);
-    expect(out).toHaveLength(3);
-    expect(out.map(a => a.attribute)).toEqual(['a', 'b', 'c']);
+    expect(out).toHaveLength(6);
+    expect(out.map(a => a.attribute)).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
   });
 
   it('drops entries with no attribute string', () => {

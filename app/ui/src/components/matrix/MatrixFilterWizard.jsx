@@ -53,7 +53,7 @@ const EMPTY_FILTER = {
   rollupKind: 'attribute',
   rollupContextId: null,
   rollupPath: [],
-  // Subject-axis sort order — 1..3 attributes, applied client-side. Default
+  // Subject-axis sort order — 1..6 attributes, applied client-side. Default
   // groups columns by department.
   sortAttributes: [{ attribute: 'department', dir: 'asc' }],
 };
@@ -343,7 +343,7 @@ export default function MatrixFilterWizard({
       rollupContextId: typeof f.rollupContextId === 'string' && f.rollupContextId ? f.rollupContextId : null,
       rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath : [],
       sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
-        ? f.sortAttributes.slice(0, 3) : DEFAULT_SORT,
+        ? f.sortAttributes.slice(0, 6) : DEFAULT_SORT,
     });
     setManaged(['all', 'managed', 'unmanaged', 'gaps'].includes(f.managed) ? f.managed : 'all');
     setStep('subjects');
@@ -723,7 +723,7 @@ function Step5Sort({ sortAttributes, columns, disabled, onChange }) {
               )}
             </div>
           ))}
-          {rows.length < 3 && options.length > rows.length && (
+          {rows.length < 6 && options.length > rows.length && (
             <button type="button" onClick={add} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline">
               + Add attribute
             </button>
