@@ -53,6 +53,9 @@ function EmptyFilterState({ onAdjustFilter, hasData }) {
 // with real attribute values.
 export const AGG_SENTINEL = '@@AGG@@';
 
+// Above this many assignments, an 'auto' fold-on-load matrix opens folded.
+const FOLD_AUTO_THRESHOLD = 5000;
+
 // Key identifying a collapsed attribute group: the level plus the sort-key
 // prefix up to and including `level`. Each segment is length-prefixed so two
 // different value sequences can never collide.
@@ -324,6 +327,20 @@ export default function MatrixView({
 
     return { users, groups, memberships: membershipMap, managedMap: managed };
   }, [filteredData, groupTagMap, sortAttrs]);
+
+  // Seed the initial fold state from the wizard's foldOnLoad setting, once per
+  // matrix (storageKey) when its subjects have loaded. 'auto' folds only for
+  // large matrices so the first paint stays fast. User fold/unfold actions
+  // afterwards aren't overridden (we only seed once per filter).
+  const seededFoldRef = useRef(null);
+  useEffect(() => { seededFoldRef.current = null; setCollapsedGroups(new Set()); }, [storageKey]);
+  useEffect(() => {
+    if (seededFoldRef.current === storageKey || users.length === 0) return;
+    seededFoldRef.current = storageKey;
+    const fol = filter?.foldOnLoad ?? 'auto';
+    const shouldFold = fol === 'auto' ? ((counts?.assignmentCount || 0) >= FOLD_AUTO_THRESHOLD) : !!fol;
+    if (shouldFold) setCollapsedGroups(new Set(users.map(u => collapseKey(u.sortKeys, 0))));
+  }, [storageKey, users, filter, counts]);
 
   // Build managed-by-AP map: cellKey (lowercase) -> accessPackageId[] (lowercase)
   // All keys and values normalized to lowercase for case-insensitive matching

@@ -56,7 +56,15 @@ const EMPTY_FILTER = {
   // Subject-axis sort order — 1..6 attributes, applied client-side. Default
   // groups columns by department.
   sortAttributes: [{ attribute: 'department', dir: 'asc' }],
+  // Whether the matrix opens with its top-level groups folded into count
+  // columns. 'auto' folds only when the matrix is large (keeps load fast);
+  // true/false force it.
+  foldOnLoad: 'auto',
 };
+
+// Above this many assignments, 'auto' fold-on-load defaults to folded so the
+// first render stays fast.
+const FOLD_AUTO_THRESHOLD = 5000;
 
 const DEFAULT_SORT = [{ attribute: 'department', dir: 'asc' }];
 
@@ -344,6 +352,7 @@ export default function MatrixFilterWizard({
       rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath : [],
       sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
         ? f.sortAttributes.slice(0, 6) : DEFAULT_SORT,
+      foldOnLoad: [true, false, 'auto'].includes(f.foldOnLoad) ? f.foldOnLoad : 'auto',
     });
     setManaged(['all', 'managed', 'unmanaged', 'gaps'].includes(f.managed) ? f.managed : 'all');
     setStep('subjects');
@@ -403,13 +412,6 @@ export default function MatrixFilterWizard({
         <Step1Setup
           rowType={filter.rowType}
           onRowTypeChange={setRowType}
-          rollup={filter.rollup}
-          rollupKind={filter.rollupKind}
-          rollupContextId={filter.rollupContextId}
-          columns={subjectColumns}
-          onRollupChange={(rollup) => setFilter(prev => ({ ...prev, rollup }))}
-          onRollupKindChange={(rollupKind) => setFilter(prev => ({ ...prev, rollupKind }))}
-          onRollupContextChange={(rollupContextId) => setFilter(prev => ({ ...prev, rollupContextId, rollupPath: [] }))}
         />
       )}
       {activeStep === 'content' && (
@@ -450,6 +452,9 @@ export default function MatrixFilterWizard({
           columns={subjectColumns}
           disabled={false}
           onChange={(sortAttributes) => setFilter(prev => ({ ...prev, sortAttributes }))}
+          foldOnLoad={filter.foldOnLoad}
+          onFoldChange={(foldOnLoad) => setFilter(prev => ({ ...prev, foldOnLoad }))}
+          assignmentCount={preview.assignmentCount || 0}
         />
       )}
       {activeStep === 'orientation' && (
@@ -559,119 +564,14 @@ export function Step2Content({ rollupContent, rollupMetric, rollup, onChange, on
   );
 }
 
-// ─── Step 4 — Roll-up ───────────────────────────────────────────────
-function Step4Rollup({ rollup, rollupKind, rollupContextId, columns, rowType, onChange, onKindChange, onContextChange }) {
-  const { authFetch } = useAuth();
-  const options = attributeOptions(columns);
-  const subjectWord = rowType === 'identity' ? 'identities' : 'users';
-  const isContext = rollupKind === 'context';
-  const enabled = !!rollup || (isContext && !!rollupContextId);
-
-  // Manager-hierarchy (and other Principal-targeted) root contexts to aggregate by.
-  const [ctxRoots, setCtxRoots] = useState(null); // null = not loaded
-  useEffect(() => {
-    if (!isContext || ctxRoots !== null) return;
-    let cancelled = false;
-    authFetch('/api/contexts?contextType=ManagerHierarchy')
-      .then(r => r.ok ? r.json() : { data: [] })
-      .then(body => { if (!cancelled) setCtxRoots(Array.isArray(body.data) ? body.data : []); })
-      .catch(() => { if (!cancelled) setCtxRoots([]); });
-    return () => { cancelled = true; };
-  }, [isContext, ctxRoots, authFetch]);
-
-  function enable(on) {
-    if (!on) { onChange(null); onKindChange('attribute'); onContextChange(null); return; }
-    const def = options.includes('department') ? 'department' : (options[0] || null);
-    onChange(def); onKindChange('attribute');
-  }
-
-  function pickKind(kind) {
-    if (kind === 'context') { onChange(null); onKindChange('context'); }
-    else {
-      onKindChange('attribute'); onContextChange(null);
-      if (!rollup) onChange(options.includes('department') ? 'department' : (options[0] || null));
-    }
-  }
-
-  // Default the context root once the list loads.
-  useEffect(() => {
-    if (isContext && !rollupContextId && Array.isArray(ctxRoots) && ctxRoots.length) {
-      onContextChange(ctxRoots[0].id);
-    }
-  }, [isContext, rollupContextId, ctxRoots, onContextChange]);
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Roll-up (optional)</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Aggregate the {subjectWord} columns. Each cell then shows the
-          <span className="font-medium"> count of distinct {subjectWord} with a Direct assignment</span> to that
-          resource (Indirect and Owner are ignored).
-        </p>
-      </div>
-      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-        <input type="checkbox" checked={enabled} onChange={e => enable(e.target.checked)} />
-        <span>Aggregate the columns</span>
-      </label>
-      {enabled && (
-        <div className="pl-6 space-y-2">
-          <div className="flex gap-2">
-            <button
-              onClick={() => pickKind('attribute')}
-              className={`text-xs px-2 py-1 rounded border ${!isContext ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}
-            >By attribute</button>
-            <button
-              onClick={() => pickKind('context')}
-              className={`text-xs px-2 py-1 rounded border ${isContext ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}
-            >By Manager Hierarchy <span className="text-[10px] opacity-70">experimental</span></button>
-          </div>
-
-          {!isContext ? (
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Group by attribute</label>
-              <select
-                value={rollup || ''}
-                onChange={e => onChange(e.target.value)}
-                className="w-full max-w-xs border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-              >
-                {options.length === 0 && <option value="">(no attributes available)</option>}
-                {options.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Start from</label>
-              {ctxRoots === null ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400">Loading hierarchies…</p>
-              ) : ctxRoots.length === 0 ? (
-                <p className="text-xs text-amber-700 dark:text-amber-400">No Manager Hierarchy context found — run the manager-hierarchy plugin first.</p>
-              ) : (
-                <select
-                  value={rollupContextId || ''}
-                  onChange={e => onContextChange(e.target.value)}
-                  className="w-full max-w-md border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-                >
-                  {ctxRoots.map(c => <option key={c.id} value={c.id}>{c.displayName} ({c.totalMemberCount})</option>)}
-                </select>
-              )}
-              <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                Columns become the teams beneath this node. Click a column in the matrix to drill into its sub-teams, level by level, down to individuals.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Step 5 — Sort ──────────────────────────────────────────────────
-function Step5Sort({ sortAttributes, columns, disabled, onChange }) {
+function Step5Sort({ sortAttributes, columns, disabled, onChange, foldOnLoad = 'auto', onFoldChange, assignmentCount = 0 }) {
   // Any attribute can be sorted on, including ext.* extended attributes — the
   // matrix payload now carries extendedAttributes for the column sort.
   const options = attributeOptions(columns);
   const rows = sortAttributes.length ? sortAttributes : DEFAULT_SORT;
+  const autoFold = assignmentCount >= FOLD_AUTO_THRESHOLD;
+  const foldChecked = foldOnLoad === 'auto' ? autoFold : !!foldOnLoad;
 
   const update = (i, patch) => onChange(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
   const remove = (i) => onChange(rows.filter((_, idx) => idx !== i));
@@ -729,6 +629,21 @@ function Step5Sort({ sortAttributes, columns, disabled, onChange }) {
               + Add attribute
             </button>
           )}
+
+          <label className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={foldChecked}
+              onChange={e => onFoldChange?.(e.target.checked)}
+            />
+            <span>
+              Open with the first group folded into count columns
+              {foldOnLoad === 'auto' && (
+                <span className="text-gray-500 dark:text-gray-400"> — auto ({autoFold ? 'on' : 'off'}: {assignmentCount.toLocaleString()} assignments, folds at {FOLD_AUTO_THRESHOLD.toLocaleString()}+ to keep loading fast)</span>
+              )}
+            </span>
+          </label>
         </>
       )}
     </div>
@@ -839,7 +754,7 @@ function LiveSummary({ preview, loading, rowType, rollup }) {
 
 // ─── Step 1 — Setup (subject type + roll-up) ────────────────────────
 
-function Step1Setup({ rowType, onRowTypeChange, rollup, rollupKind, rollupContextId, columns, onRollupChange, onRollupKindChange, onRollupContextChange }) {
+function Step1Setup({ rowType, onRowTypeChange }) {
   return (
     <div className="space-y-4">
       <div>
@@ -858,14 +773,9 @@ function Step1Setup({ rowType, onRowTypeChange, rollup, rollupKind, rollupContex
             description="Each subject is one correlated person, unioning across their accounts. A cell is filled if any underlying account has the assignment. Best for role-mining and birthright analysis."
           />
         </div>
-      </div>
-
-      <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-        <Step4Rollup
-          rollup={rollup} rollupKind={rollupKind} rollupContextId={rollupContextId}
-          columns={columns} rowType={rowType}
-          onChange={onRollupChange} onKindChange={onRollupKindChange} onContextChange={onRollupContextChange}
-        />
+        <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+          Sort the columns by one or more attributes in the Sort step — then fold any group into a single count column right in the matrix.
+        </p>
       </div>
     </div>
   );
