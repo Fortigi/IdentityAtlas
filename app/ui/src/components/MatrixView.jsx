@@ -86,14 +86,12 @@ export default function MatrixView({
   const [loadingIdentityCols, setLoadingIdentityCols] = useState(new Set());
 
   // ─── Attribute column folding ───────────────────────────────────
-  // Collapse all subject columns that share a sort-attribute value (e.g. a
-  // Division) into ONE aggregate column showing counts. Keyed by "<level>
-  // <value0><value1>…" — the sort-key prefix up to and including <level>.
+  // Collapse subject columns that share a sort-attribute value (e.g. a Division)
+  // into ONE aggregate column showing counts. Folding/unfolding behaves like a
+  // tree: unfolding a group drops to the NEXT sort level (still folded) rather
+  // than jumping straight to individual subjects. (toggleCollapse is defined
+  // below, where the sorted `users` list is available.)
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
-  const toggleCollapse = useCallback((sortKeys, level) => {
-    const key = collapseKey(sortKeys, level);
-    setCollapsedGroups(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
-  }, []);
 
   const toggleIdentityColumn = useCallback(async (identityId) => {
     if (expandedIdentities.has(identityId)) {
@@ -777,6 +775,32 @@ export default function MatrixView({
   const canFoldColumns = distinctTopGroups.size > 1;
   const foldAllColumns = useCallback(() => setCollapsedGroups(new Set(distinctTopGroups)), [distinctTopGroups]);
   const unfoldAllColumns = useCallback(() => setCollapsedGroups(new Set()), []);
+
+  // Tree-aware fold toggle. Folding a group also clears any deeper sub-folds it
+  // now hides; UNfolding it drops to the next sort level (its child groups stay
+  // folded) unless it's already the deepest level.
+  const toggleCollapse = useCallback((sortKeys, level) => {
+    const key = collapseKey(sortKeys, level);
+    const nAttr = sortAttrs.length;
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+        if (level + 1 < nAttr) {
+          for (const u of users) {
+            if (collapseKey(u.sortKeys, level) === key) next.add(collapseKey(u.sortKeys, level + 1));
+          }
+        }
+      } else {
+        next.add(key);
+        for (const u of users) {
+          if (collapseKey(u.sortKeys, level) !== key) continue;
+          for (let L = level + 1; L < nAttr; L++) next.delete(collapseKey(u.sortKeys, L));
+        }
+      }
+      return next;
+    });
+  }, [users, sortAttrs]);
 
   // Shared column headers element (used by both sortable and static table)
   const columnHeaders = (
