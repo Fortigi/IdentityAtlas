@@ -56,6 +56,13 @@ export const AGG_SENTINEL = '@@AGG@@';
 // Above this many assignments, an 'auto' fold-on-load matrix opens folded.
 const FOLD_AUTO_THRESHOLD = 5000;
 
+// Short label for a manager-hierarchy node name ("A · B · C (Manager)" → "C").
+function orgShort(name) {
+  const noMgr = String(name || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const segs = noMgr.split('·').map(s => s.trim()).filter(Boolean);
+  return segs[segs.length - 1] || noMgr;
+}
+
 // Key identifying a collapsed attribute group: the level plus the sort-key
 // prefix up to and including `level`. Each segment is length-prefixed so two
 // different value sequences can never collide.
@@ -196,10 +203,43 @@ export default function MatrixView({
 
   // Subject-axis sort order (default: department). Drives both the user sort
   // and the merged attribute header rows.
-  const sortAttrs = useMemo(
-    () => (filter?.sortAttributes?.length ? filter.sortAttributes : [{ attribute: 'department', dir: 'asc' }]),
-    [filter],
-  );
+  // ─── Sort by Manager Hierarchy ──────────────────────────────────
+  // When the filter selects a hierarchy root, fetch each subject's ancestor org
+  // path and use it as the column sort keys; the merged header rows become the
+  // org levels and the existing fold reveals one level at a time.
+  const sortHierarchyId = filter?.sortHierarchy?.contextId || null;
+  const [hierPaths, setHierPaths] = useState(null); // Map subjectId → short label[]
+  const [hierDepth, setHierDepth] = useState(0);
+  useEffect(() => {
+    if (!sortHierarchyId) { setHierPaths(null); setHierDepth(0); return; }
+    let cancelled = false;
+    authFetch('/api/matrix/hierarchy-paths', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rootContextId: sortHierarchyId, rowType: filter?.rowType }),
+    })
+      .then(r => r.ok ? r.json() : { paths: {}, depth: 0 })
+      .then(body => {
+        if (cancelled) return;
+        const m = new Map();
+        let maxD = 0;
+        for (const [sid, path] of Object.entries(body.paths || {})) {
+          const short = [];
+          for (const seg of path) { const s = orgShort(seg); if (!short.length || short[short.length - 1] !== s) short.push(s); }
+          m.set(sid, short);
+          if (short.length > maxD) maxD = short.length;
+        }
+        setHierPaths(m); setHierDepth(maxD);
+      })
+      .catch(() => { if (!cancelled) { setHierPaths(new Map()); setHierDepth(0); } });
+    return () => { cancelled = true; };
+  }, [sortHierarchyId, filter?.rowType, authFetch]);
+
+  const hierActive = !!sortHierarchyId && hierDepth > 0;
+
+  const sortAttrs = useMemo(() => {
+    if (hierActive) return Array.from({ length: hierDepth }, (_, i) => ({ attribute: `Org level ${i + 1}`, dir: 'asc' }));
+    return filter?.sortAttributes?.length ? filter.sortAttributes : [{ attribute: 'department', dir: 'asc' }];
+  }, [filter, hierActive, hierDepth]);
 
   // Build matrix data structures
   // Owner memberships are split into separate synthetic rows (id: "groupId__owner",
@@ -225,7 +265,9 @@ export default function MatrixView({
         // Precompute the sort values (attribute order) for multi-key sort +
         // merged headers. Stored under a static `sortKeys` key — the user-derived
         // attribute names are only read, never used as a write target.
-        u.sortKeys = buildSortKeys(d, sortAttrs);
+        u.sortKeys = hierActive
+          ? Array.from({ length: hierDepth }, (_, i) => (hierPaths.get(d.memberId)?.[i] ?? ''))
+          : buildSortKeys(d, sortAttrs);
         userMap.set(d.memberId, u);
       }
 
@@ -326,7 +368,7 @@ export default function MatrixView({
       });
 
     return { users, groups, memberships: membershipMap, managedMap: managed };
-  }, [filteredData, groupTagMap, sortAttrs]);
+  }, [filteredData, groupTagMap, sortAttrs, hierActive, hierDepth, hierPaths]);
 
   // Seed the initial fold state from the wizard's foldOnLoad setting, once per
   // matrix (storageKey) when its subjects have loaded. 'auto' folds only for
