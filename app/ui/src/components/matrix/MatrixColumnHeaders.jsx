@@ -44,19 +44,19 @@ export default function MatrixColumnHeaders({
 
           {row.spans.map((span, idx) => {
             const col = users[span.start];
-            const isAgg = !!col?.isAggregateCol;
-            // A collapsed aggregate column, at a level BELOW where it was folded,
-            // shows the count of distinct child values (e.g. "6 departments").
-            const showChildCount = isAgg && rowIdx > col.level;
-            // The cell at the fold level (or a normal group cell) is clickable.
-            const collapsible = !!onToggleCollapse && !isAgg;
-            const expandable = isAgg && rowIdx >= col.level;
+            // `aggHere`: this span IS a collapsed aggregate column at-or-below its
+            // fold level. At ANCESTOR levels (rowIdx < level) the span is just a
+            // normal merged group (its value is the ancestor's), so treat it as
+            // collapsible even though it happens to contain an aggregate column.
+            const aggHere = !!col?.isAggregateCol && rowIdx >= col.level;
+            const showChildCount = aggHere && rowIdx > col.level; // "6 departments"
+            const collapsible = !!onToggleCollapse && !aggHere;   // normal/ancestor group
             const onClick = collapsible
               ? () => onToggleCollapse(col.sortKeys, rowIdx)
-              : expandable ? () => onToggleCollapse(col.sortKeys, col.level) : undefined;
+              : aggHere ? () => onToggleCollapse(col.sortKeys, col.level) : undefined;
             const title = collapsible
               ? `Collapse ${span.value || '(none)'} into one column`
-              : expandable ? `Expand ${col.value || '(none)'} back into its columns` : undefined;
+              : aggHere ? `Expand ${col.value || '(none)'} back into its columns` : undefined;
             return (
               <th
                 key={idx}
@@ -64,21 +64,21 @@ export default function MatrixColumnHeaders({
                 onClick={onClick}
                 title={title}
                 className={`border-b border-r border-gray-300 dark:border-gray-600 px-0 py-0 text-center ${
-                  isAgg ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-gray-100 dark:bg-gray-800'
-                } ${(collapsible || expandable) ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
+                  aggHere ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-gray-100 dark:bg-gray-800'
+                } ${onClick ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
                 style={{ height: '120px', minWidth: `${span.span * 24}px` }}
               >
                 {showChildCount ? (
                   <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">{col.childCounts?.[rowIdx] ?? 0}</span>
                 ) : (
                   <div
-                    className={`text-[10px] font-semibold ${isAgg ? 'text-indigo-800 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-300'}`}
+                    className={`text-[10px] font-semibold ${aggHere ? 'text-indigo-800 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-300'}`}
                     style={{
                       writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)',
                       maxHeight: '110px', overflow: 'hidden', whiteSpace: 'nowrap', margin: '0 auto',
                     }}
                   >
-                    {isAgg ? `▤ ${col.value || '(none)'}` : (span.value || '(none)')}
+                    {aggHere ? `▤ ${col.value || '(none)'}` : (span.value || '(none)')}
                   </div>
                 )}
               </th>
