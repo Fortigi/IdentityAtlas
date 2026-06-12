@@ -1,0 +1,11 @@
+- The matrix wizard steps were reordered for clarity: Step 1 now picks the subject type and the roll-up option, Step 4 is Sort (automatically skipped when roll-up is on, since column order is meaningless then), and Step 5 is Orientation.
+- The roll-up view now mirrors the per-subject matrix: the Scope Statistics banner (subjects, resources, governed %) and the "how to read this matrix" legend appear above the grid.
+- In roll-up mode the matrix now also shows business-role columns with a count of how many in-scope users/identities hold each resource via that business role, alongside the per-attribute Direct counts.
+- The Sort step now lets you sort by any attribute, including extended attributes.
+- The roll-up view now uses the same chrome as the regular matrix — the filter-summary bar with the Adjust matrix button, the scope banner, the All / Governed / Non-governed toggle (which adjusts the counts), Export and Share, and the legend in the same places — plus a trailing # (total) column and Description column, and a horizontal scrollbar when its columns are wider than the screen.
+- Roll-up now has a new "Content" step that chooses what the grid shows: business roles only (roles go on the rows, each cell counting the in-scope subjects in that group who hold the role — and the resource filter step is skipped), resources and business roles (the combined view), or resources only. 
+- Fixed a crash ("friendlyLabel is not defined") when advancing to the roll-up Content step.
+- The roll-up Content step now offers a "Cell value" choice: show each cell as an absolute count (the default) or as the percentage of the subjects in that group who hold the resource or role (e.g. 8 of 10 in a department shows as 80%). In percentage mode each column header also shows the group's subject total.
+- Saving a matrix now also stores the All / Governed / Non-governed toggle, so loading a saved matrix restores exactly what you saw — not just the wizard filter.
+- You can again expand a roll-up group column into its individual subjects in the "Business roles only" view — clicking a group header now shows each subject in that group and which business role they hold (this already worked in the resources views).
+- The roll-up matrix "Export to Excel" now downloads a real .xlsx workbook (it previously produced a CSV).

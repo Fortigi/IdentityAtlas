@@ -38,7 +38,90 @@ function findNode(nodes, id) {
   return null;
 }
 
-export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRename, onAddChild }) {
+// Sibling nodes built by the manager-hierarchy plugin share a long path prefix
+// ("CEO · ADIR · ADIR (…)" / "CEO · ADIR · COO (…)"). Strip the common leading
+// "·"-segments so each pill shows only its distinctive tail. Always keep at
+// least the last segment. Returns id → short label.
+const PATH_SEP = ' · ';
+
+// A segment's base name, ignoring a trailing "(Manager, Name)" suffix and case,
+// so "Commercie" and "Commercie (Doorn, Matthijs)" compare equal.
+function segBase(s) {
+  return String(s).replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+}
+
+// Collapse consecutive duplicate segments within a single name, keeping the last
+// of each run (so a trailing manager suffix is preserved): "CEO · ADIR · ADIR
+// (Siemons)" → "CEO · ADIR (Siemons)".
+export function dedupeSegments(name) {
+  const segs = String(name || '').split(PATH_SEP);
+  const out = [];
+  for (const seg of segs) {
+    if (out.length && segBase(out[out.length - 1]) === segBase(seg)) out[out.length - 1] = seg;
+    else out.push(seg);
+  }
+  return out.join(PATH_SEP);
+}
+
+// Split a name into its org path (segments, no manager) + the manager name from
+// the trailing "(Manager, Name)". "CEO · ADIR (Siemons, Boudewijn)" →
+// { org: ['CEO','ADIR'], manager: 'Siemons, Boudewijn' }.
+export function parseOrg(displayName) {
+  const segs = dedupeSegments(displayName).split(PATH_SEP);
+  const last = segs[segs.length - 1] || '';
+  const m = last.match(/\(([^)]*)\)\s*$/);
+  const manager = m ? m[1].trim() : '';
+  const orgLast = last.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const org = segs.slice(0, -1).concat(orgLast ? [orgLast] : []);
+  return { org, manager, full: segs.join(PATH_SEP) };
+}
+
+// Drop the leading org segments a child shares with its parent (by base). May
+// return an empty array when the child's org is identical to the parent's.
+function stripLeadingOrg(childOrg, parentOrg) {
+  let i = 0;
+  while (i < parentOrg.length && i < childOrg.length && segBase(childOrg[i]) === segBase(parentOrg[i])) i++;
+  return childOrg.slice(i);
+}
+
+// Compute each child's display label: collapse repeated segments, drop the
+// parent's org path (so the parent's name isn't echoed down the tree), then drop
+// any remaining org prefix common to all siblings. When a node's org is fully
+// shared with its parent/siblings — only the manager differs — show just the
+// manager's name. `parentOrg` is the parent's org segments ([] at the top).
+export function computeChildLabels(siblings, parentOrg = []) {
+  const map = new Map();
+  const list = siblings || [];
+  const items = list.map(s => {
+    const { org, manager, full } = parseOrg(s.displayName);
+    return { id: s.id, org: stripLeadingOrg(org, parentOrg), manager, lastOrg: org[org.length - 1] || '', full };
+  });
+  // Drop the org prefix common to all siblings (may collapse to manager-only).
+  if (items.length >= 2) {
+    const minLen = Math.min(...items.map(it => it.org.length));
+    let common = 0;
+    while (common < minLen) {
+      const seg = items[0].org[common];
+      if (seg && items.every(it => segBase(it.org[common]) === segBase(seg))) common++; else break;
+    }
+    if (common > 0) for (const it of items) it.org = it.org.slice(common);
+  }
+  for (const it of items) {
+    let label;
+    if (it.org.length > 0) label = it.org.join(PATH_SEP) + (it.manager ? ` (${it.manager})` : '');
+    else if (it.manager) label = it.manager;          // org fully shared → just the delegate
+    else label = it.lastOrg || it.full;               // no manager to fall back on
+    map.set(it.id, label);
+  }
+  return map;
+}
+
+// Back-compat: sibling-prefix stripping is the top-level case (no parent).
+export function stripSiblingPrefix(siblings) {
+  return computeChildLabels(siblings, []);
+}
+
+export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRename, onAddChild, onLoadMembers, onOpenMember }) {
   const sensors = useSensors(
     // 6px activation distance — a plain click still opens the detail; only a
     // deliberate drag starts a re-parent.
@@ -101,6 +184,8 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
     onReparent(childId, newParentId);
   }
 
+  const rootLabels = useMemo(() => stripSiblingPrefix(nodes), [nodes]);
+
   const treeBody = (
     <div className="p-4">
       <ul className="text-sm space-y-1">
@@ -108,11 +193,14 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
           <TreeNode
             key={n.id}
             node={n}
+            displayLabel={rootLabels.get(n.id)}
             depth={0}
             isLast={true}
             onOpenDetail={onOpenDetail}
             onRename={onRename}
             onAddChild={onAddChild}
+            onLoadMembers={onLoadMembers}
+            onOpenMember={onOpenMember}
             editable={editable}
             forbidden={forbidden}
             dragging={!!activeId}
@@ -143,10 +231,32 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
   );
 }
 
-function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, editable, forbidden, dragging, isExpanded, toggleExpanded, setExpanded }) {
+function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, onAddChild, onLoadMembers, onOpenMember, editable, forbidden, dragging, isExpanded, toggleExpanded, setExpanded }) {
   const expanded = isExpanded(node.id);
   const [renaming, setRenaming] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
+  const nodeLabel = displayLabel || node.displayName;
+
+  // Opt-in: members (the actual users) are hidden until the analyst clicks the
+  // member toggle, then shown nested inside the node. Lazy-loaded on first open.
+  const [showMembers, setShowMembers] = useState(false);
+  const [members, setMembers] = useState(null); // null = not loaded
+  const [memberTotal, setMemberTotal] = useState(0);
+  const canShowMembers = typeof onLoadMembers === 'function' && node.directMemberCount > 0;
+  const memberKind = node.targetType === 'Identity' ? 'identity'
+    : node.targetType === 'Resource' ? 'group'
+    : node.targetType === 'System' ? 'system' : 'user';
+
+  useEffect(() => {
+    if (!showMembers || members !== null || !onLoadMembers) return;
+    let cancelled = false;
+    onLoadMembers(node.id)
+      .then(({ rows, total }) => { if (!cancelled) { setMembers(rows); setMemberTotal(total); } })
+      .catch(() => { if (!cancelled) { setMembers([]); setMemberTotal(0); } });
+    return () => { cancelled = true; };
+  }, [showMembers, members, onLoadMembers, node.id]);
+  // Drop the cache if the direct count changes (e.g. a member added elsewhere).
+  useEffect(() => { setMembers(null); }, [node.directMemberCount]);
   // Single click opens the detail; double click renames. We delay the open so a
   // double-click can cancel it — otherwise the first click navigates away before
   // the rename can fire.
@@ -246,7 +356,7 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
               className={`w-2.5 h-2.5 rounded-full ${v.dotClass} ring-2 ring-white outline outline-1 outline-slate-200 shrink-0`}
               aria-hidden="true"
             />
-            <span className="font-medium text-gray-900 dark:text-white truncate">{node.displayName}</span>
+            <span className="font-medium text-gray-900 dark:text-white truncate" title={nodeLabel !== node.displayName ? node.displayName : undefined}>{nodeLabel}</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass} whitespace-nowrap shrink-0`}>
               {t.label}
             </span>
@@ -262,6 +372,23 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
           </button>
         )}
 
+        {/* Member toggle — show/hide the actual users nested inside this node. */}
+        {canShowMembers && !dragging && (
+          <button
+            onClick={() => setShowMembers(s => !s)}
+            className={`flex items-center gap-1 h-6 px-1.5 rounded-full border text-[11px] shrink-0 ${
+              showMembers
+                ? 'border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300'
+                : 'border-slate-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-500'
+            }`}
+            title={showMembers ? 'Hide the users in this context' : 'Show the users directly in this context'}
+          >
+            <span aria-hidden="true">{showMembers ? '▾' : '▸'}</span>
+            <span aria-hidden="true">👤</span>
+            <span>{node.directMemberCount}</span>
+          </button>
+        )}
+
         {/* Add-child affordance — appears on hover, hidden while dragging. */}
         {editable && !renaming && !dragging && (
           <button
@@ -273,6 +400,31 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
           </button>
         )}
       </div>
+
+      {/* Members nested inside this context — the direct-report users as ovals. */}
+      {showMembers && (
+        <div
+          className="mt-1 rounded-xl border border-sky-200 dark:border-sky-800/60 bg-sky-50/50 dark:bg-sky-900/10 px-2 py-1.5"
+          style={{ marginLeft: `${depth * INDENT_PX + 28}px` }}
+        >
+          {members === null ? (
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">Loading users…</span>
+          ) : members.length === 0 ? (
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">No directly-assigned users.</span>
+          ) : (
+            <div className="flex flex-wrap gap-1">
+              {members.map(m => (
+                <MemberOval key={m.id} member={m} onOpen={() => onOpenMember?.(m.id, m.displayName, memberKind)} />
+              ))}
+              {memberTotal > members.length && (
+                <span className="self-center text-[11px] text-gray-500 dark:text-gray-400">
+                  +{memberTotal - members.length} more — open this context to see all
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {addingChild && (
         <div className="mt-1" style={{ paddingLeft: `${(depth + 1) * INDENT_PX + 28}px` }}>
@@ -287,26 +439,49 @@ function TreeNode({ node, depth, isLast, onOpenDetail, onRename, onAddChild, edi
 
       {hasChildren && expanded && (
         <ul className="space-y-1 mt-1">
-          {node.children.map((c, i) => (
-            <TreeNode
-              key={c.id}
-              node={c}
-              depth={depth + 1}
-              isLast={i === node.children.length - 1}
-              onOpenDetail={onOpenDetail}
-              onRename={onRename}
-              onAddChild={onAddChild}
-              isExpanded={isExpanded}
-              toggleExpanded={toggleExpanded}
-              setExpanded={setExpanded}
-              editable={editable}
-              forbidden={forbidden}
-              dragging={dragging}
-            />
-          ))}
+          {(() => {
+            // Strip this node's own org path from its children so the org name
+            // isn't repeated at every level going down.
+            const childLabels = computeChildLabels(node.children, parseOrg(node.displayName).org);
+            return node.children.map((c, i) => (
+              <TreeNode
+                key={c.id}
+                node={c}
+                displayLabel={childLabels.get(c.id)}
+                depth={depth + 1}
+                isLast={i === node.children.length - 1}
+                onOpenDetail={onOpenDetail}
+                onRename={onRename}
+                onAddChild={onAddChild}
+                onLoadMembers={onLoadMembers}
+                onOpenMember={onOpenMember}
+                isExpanded={isExpanded}
+                toggleExpanded={toggleExpanded}
+                setExpanded={setExpanded}
+                editable={editable}
+                forbidden={forbidden}
+                dragging={dragging}
+              />
+            ));
+          })()}
         </ul>
       )}
     </li>
+  );
+}
+
+// A user (member) shown as a small oval nested inside its context. Click opens
+// the user's detail.
+function MemberOval({ member, onOpen }) {
+  return (
+    <button
+      onClick={onOpen}
+      title={member.displayName}
+      className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-[11px] text-left max-w-[220px] hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-sm"
+    >
+      <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" aria-hidden="true" />
+      <span className="text-gray-800 dark:text-gray-200 truncate">{member.displayName}</span>
+    </button>
   );
 }
 
@@ -325,7 +500,7 @@ function RenameInput({ initial, placeholder, onCommit, onCancel }) {
         else if (e.key === 'Escape') onCancel();
       }}
       onBlur={() => onCommit(value.trim())}
-      className="px-2 py-1 text-sm border border-blue-400 dark:border-blue-500 rounded bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+      className="w-full min-w-[260px] max-w-[480px] px-2 py-1 text-sm border border-blue-400 dark:border-blue-500 rounded bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
     />
   );
 }

@@ -19,6 +19,7 @@ import Stepper from '../Stepper';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '../contexts/ModalPrimitives';
 import ContextPicker from '../contexts/ContextPicker';
 import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
+import { friendlyLabel } from '../../utils/formatters';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -38,6 +39,20 @@ const EMPTY_FILTER = {
   resource: { include: [], exclude: [] },
   // Roll-up: aggregate the subject (column) axis by this attribute. null = off.
   rollup: null,
+  // What the roll-up shows (only when rollup is set):
+  //   'resources-and-roles' — resources as rows + business-role count columns (default)
+  //   'resources-only'      — resources as rows, no business-role columns
+  //   'roles-only'          — business roles as rows (resource filter is skipped)
+  rollupContent: 'resources-and-roles',
+  // How each roll-up cell is shown: 'count' (absolute, default) or 'percent'
+  // (share of the in-scope subjects in that group who hold it).
+  rollupMetric: 'count',
+  // EXPERIMENTAL — aggregate by a Context tree (Manager Hierarchy) instead of an
+  // attribute. 'attribute' uses `rollup`; 'context' uses rollupContextId (the
+  // starting node) and rollupPath (the drill path from root to current focus).
+  rollupKind: 'attribute',
+  rollupContextId: null,
+  rollupPath: [],
   // Subject-axis sort order — 1..3 attributes, applied client-side. Default
   // groups columns by department.
   sortAttributes: [{ attribute: 'department', dir: 'asc' }],
@@ -71,12 +86,18 @@ function filterHasAnyCondition(f) {
 export default function MatrixFilterWizard({
   open,
   initialFilter,
+  initialManaged = 'all',
   onApply,
   onClose,
 }) {
   const { authFetch } = useAuth();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState('setup');
   const [filter, setFilter] = useState(() => structuredClone(initialFilter || EMPTY_FILTER));
+  // The All / Governed / Non-governed toggle lives in the matrix toolbar, not
+  // the wizard, but it's part of a saved matrix — carry it so save/load and
+  // Apply round-trip it. The wizard has no UI to change it; loading a saved
+  // matrix overrides it.
+  const [managed, setManaged] = useState(initialManaged);
   const [savedFilters, setSavedFilters] = useState([]);
   const [contextMeta, setContextMeta] = useState(new Map());  // id → context row
   const [error, setError] = useState(null);
@@ -102,9 +123,10 @@ export default function MatrixFilterWizard({
   useEffect(() => {
     if (!open) return;
     setFilter(structuredClone(initialFilter || EMPTY_FILTER));
-    setStep(1);
+    setManaged(initialManaged);
+    setStep('setup');
     setError(null);
-  }, [open, initialFilter]);
+  }, [open, initialFilter, initialManaged]);
 
   // Load saved filters and column schemas when the modal opens.
   useEffect(() => {
@@ -253,12 +275,14 @@ export default function MatrixFilterWizard({
   // ─── Apply / Cancel ────────────────────────────────────────────
 
   const handleApply = () => {
-    // Roll-up returns an aggregated (small) payload, so the size guard doesn't apply.
-    if (!filter.rollup && preview.assignmentCount > BLOCK_ASSIGNMENTS) {
+    // Roll-up (attribute or context tree) returns an aggregated (small) payload,
+    // so the size guard doesn't apply.
+    const anyRollup = !!filter.rollup || (filter.rollupKind === 'context' && !!filter.rollupContextId);
+    if (!anyRollup && preview.assignmentCount > BLOCK_ASSIGNMENTS) {
       setError(`Matrix too large (${preview.assignmentCount.toLocaleString()} assignments). Add filters to reduce below ${BLOCK_ASSIGNMENTS.toLocaleString()}.`);
       return;
     }
-    onApply(filter);
+    onApply(filter, managed);
   };
 
   // ─── Save filter ───────────────────────────────────────────────
@@ -270,7 +294,9 @@ export default function MatrixFilterWizard({
       const res = await authFetch('/api/matrix/saved-filters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: saveName.trim(), filter }),
+        // Persist the toolbar's managed-state toggle alongside the wizard
+        // filter so a saved matrix restores exactly what the user saw.
+        body: JSON.stringify({ name: saveName.trim(), filter: { ...filter, managed } }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -310,19 +336,48 @@ export default function MatrixFilterWizard({
         exclude: Array.isArray(f.resource?.exclude) ? f.resource.exclude : [],
       },
       rollup: typeof f.rollup === 'string' && f.rollup ? f.rollup : null,
+      rollupContent: ['resources-and-roles', 'resources-only', 'roles-only'].includes(f.rollupContent)
+        ? f.rollupContent : 'resources-and-roles',
+      rollupMetric: f.rollupMetric === 'percent' ? 'percent' : 'count',
+      rollupKind: f.rollupKind === 'context' ? 'context' : 'attribute',
+      rollupContextId: typeof f.rollupContextId === 'string' && f.rollupContextId ? f.rollupContextId : null,
+      rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath : [],
       sortAttributes: Array.isArray(f.sortAttributes) && f.sortAttributes.length
         ? f.sortAttributes.slice(0, 3) : DEFAULT_SORT,
     });
-    setStep(3);
+    setManaged(['all', 'managed', 'unmanaged', 'gaps'].includes(f.managed) ? f.managed : 'all');
+    setStep('subjects');
   };
 
   if (!open) return null;
 
-  // Roll-up and Sort only apply to the default orientation (subjects on the
-  // column axis). The rotated view has a simpler render path.
-  const rollupSortApplicable = filter.orientation === 'rows-as-resources';
-  const lastStep = rollupSortApplicable ? 5 : 3;
   const subjectColumns = filter.rowType === 'identity' ? identityColumns : principalColumns;
+  // Dynamic, keyed steps. Attribute roll-up inserts a "Content" step
+  // (resources/roles shape); roles-only drops the Resources filter. Any roll-up
+  // (attribute or context tree) drops the Sort step. The context-tree roll-up
+  // has no Content step (it's always resources-as-rows).
+  const contextRollup = filter.rollupKind === 'context' && !!filter.rollupContextId;
+  const attrRollup = !!filter.rollup;
+  const rollupOn = attrRollup || contextRollup;
+  // The Content step (resources / +roles / roles-only) applies to BOTH attribute
+  // and context roll-ups. roles-only drops the Resources filter and Sort steps.
+  const rolesOnly = rollupOn && filter.rollupContent === 'roles-only';
+  const steps = [
+    { key: 'setup',       label: 'Setup' },
+    rollupOn ? { key: 'content', label: 'Content' } : null,
+    { key: 'subjects',    label: 'Subjects' },
+    rolesOnly ? null : { key: 'resources', label: 'Resources' },
+    rollupOn ? null : { key: 'sort', label: 'Sort' },
+    { key: 'orientation', label: 'Orientation' },
+  ].filter(Boolean);
+  const stepKeys = steps.map(s => s.key);
+  const curPos = Math.max(0, stepKeys.indexOf(step));
+  const isLast = curPos === steps.length - 1;
+  const goNext = () => setStep(stepKeys[Math.min(curPos + 1, steps.length - 1)]);
+  const goBack = () => setStep(stepKeys[Math.max(curPos - 1, 0)]);
+  // If the current step just became hidden (toggled roll-up / content), render
+  // the nearest still-visible one so the body never goes blank.
+  const activeStep = stepKeys.includes(step) ? step : stepKeys[Math.min(curPos, steps.length - 1)];
 
   // ─── Render ─────────────────────────────────────────────────────
 
@@ -340,24 +395,33 @@ export default function MatrixFilterWizard({
           onLoad={handleLoadSaved}
           onDelete={handleDeleteSaved}
         />
-        <StepIndicator step={step} onJump={setStep} rollupSortApplicable={rollupSortApplicable} />
+        <StepIndicator steps={steps} current={activeStep} onJump={setStep} />
       </div>
 
       {/* Step content */}
-      {step === 1 && (
+      {activeStep === 'setup' && (
         <Step1Setup
           rowType={filter.rowType}
-          orientation={filter.orientation}
           onRowTypeChange={setRowType}
-          onOrientationChange={(o) => {
-            setFilter(prev => ({ ...prev, orientation: o }));
-            // Roll-up/Sort steps vanish on the rotated orientation — pull the
-            // user back to a still-visible step.
-            if (o === 'rows-as-subjects' && step > 3) setStep(3);
-          }}
+          rollup={filter.rollup}
+          rollupKind={filter.rollupKind}
+          rollupContextId={filter.rollupContextId}
+          columns={subjectColumns}
+          onRollupChange={(rollup) => setFilter(prev => ({ ...prev, rollup }))}
+          onRollupKindChange={(rollupKind) => setFilter(prev => ({ ...prev, rollupKind }))}
+          onRollupContextChange={(rollupContextId) => setFilter(prev => ({ ...prev, rollupContextId, rollupPath: [] }))}
         />
       )}
-      {step === 2 && (
+      {activeStep === 'content' && (
+        <Step2Content
+          rollupContent={filter.rollupContent}
+          rollupMetric={filter.rollupMetric}
+          rollup={filter.rollup}
+          onChange={(rollupContent) => setFilter(prev => ({ ...prev, rollupContent }))}
+          onMetricChange={(rollupMetric) => setFilter(prev => ({ ...prev, rollupMetric }))}
+        />
+      )}
+      {activeStep === 'subjects' && (
         <Step2Subject
           rowType={filter.rowType}
           subject={filter.subject}
@@ -369,7 +433,7 @@ export default function MatrixFilterWizard({
           onUpdate={(side, idx, patch) => updateCondition('subject', side, idx, patch)}
         />
       )}
-      {step === 3 && (
+      {activeStep === 'resources' && (
         <Step3Resource
           resource={filter.resource}
           contextMeta={contextMeta}
@@ -380,20 +444,19 @@ export default function MatrixFilterWizard({
           onUpdate={(side, idx, patch) => updateCondition('resource', side, idx, patch)}
         />
       )}
-      {step === 4 && rollupSortApplicable && (
-        <Step4Rollup
-          rollup={filter.rollup}
-          columns={subjectColumns}
-          rowType={filter.rowType}
-          onChange={(rollup) => setFilter(prev => ({ ...prev, rollup }))}
-        />
-      )}
-      {step === 5 && rollupSortApplicable && (
+      {activeStep === 'sort' && (
         <Step5Sort
           sortAttributes={filter.sortAttributes}
           columns={subjectColumns}
-          disabled={!!filter.rollup}
+          disabled={false}
           onChange={(sortAttributes) => setFilter(prev => ({ ...prev, sortAttributes }))}
+        />
+      )}
+      {activeStep === 'orientation' && (
+        <Step5Orientation
+          orientation={filter.orientation}
+          rollup={filter.rollup}
+          onChange={(o) => setFilter(prev => ({ ...prev, orientation: o }))}
         />
       )}
 
@@ -411,10 +474,10 @@ export default function MatrixFilterWizard({
         </div>
         <div className="flex items-center gap-2">
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          {step > 1 && <SecondaryButton onClick={() => setStep(s => s - 1)}>Back</SecondaryButton>}
-          {step < lastStep && <PrimaryButton onClick={() => setStep(s => s + 1)}>Next</PrimaryButton>}
-          {step === lastStep && (
-            <PrimaryButton onClick={handleApply} disabled={!filter.rollup && preview.assignmentCount > BLOCK_ASSIGNMENTS}>
+          {curPos > 0 && <SecondaryButton onClick={goBack}>Back</SecondaryButton>}
+          {!isLast && <PrimaryButton onClick={goNext}>Next</PrimaryButton>}
+          {isLast && (
+            <PrimaryButton onClick={handleApply} disabled={!rollupOn && preview.assignmentCount > BLOCK_ASSIGNMENTS}>
               Apply
             </PrimaryButton>
           )}
@@ -438,56 +501,165 @@ export default function MatrixFilterWizard({
 
 // ─── Step indicator ────────────────────────────────────────────────
 
-function StepIndicator({ step, onJump, rollupSortApplicable }) {
-  const steps = [
-    { n: 1, label: 'Setup' },
-    { n: 2, label: 'Subjects' },
-    { n: 3, label: 'Resources' },
-    { n: 4, label: 'Roll-up', shown: rollupSortApplicable },
-    { n: 5, label: 'Sort',    shown: rollupSortApplicable },
+function StepIndicator({ steps, current, onJump }) {
+  // Map the keyed, already-filtered step list onto the shared Stepper's
+  // sequential numbering.
+  const stepperSteps = steps.map((s, i) => ({ n: i + 1, label: s.label }));
+  const curN = Math.max(1, steps.findIndex(s => s.key === current) + 1);
+  return <Stepper steps={stepperSteps} current={curN} onStepClick={(n) => onJump(steps[n - 1].key)} allowAll />;
+}
+
+// ─── Step 2 — Roll-up content (what the roll-up shows) ──────────────
+export function Step2Content({ rollupContent, rollupMetric, rollup, onChange, onMetricChange }) {
+  const options = [
+    { key: 'roles-only',          title: 'Business roles only',     description: 'Business roles go on the rows; each cell counts the subjects in that group who hold the role. The resource filter step is skipped.' },
+    { key: 'resources-and-roles', title: 'Resources and business roles', description: 'Resources on the rows with the roll-up groups, plus a count column per business role (the default).' },
+    { key: 'resources-only',      title: 'Resources only',          description: 'Resources on the rows with the roll-up groups, without the business-role columns.' },
   ];
-  return <Stepper steps={steps} current={step} onStepClick={onJump} allowAll />;
+  const metricOptions = [
+    { key: 'count',   title: 'Count (#)',            description: 'Each cell shows the number of subjects in the group who hold it (the default).' },
+    { key: 'percent', title: 'Percentage (%)',       description: 'Each cell shows the share of the group that holds it — e.g. 8 of 10 in a department shows as 80%.' },
+  ];
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Roll-up content</h4>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          {rollup
+            ? <>You rolled up by <span className="font-semibold">{friendlyLabel(String(rollup).replace(/^ext\./, ''))}</span>. Choose what to put in the matrix.</>
+            : <>You rolled up by <span className="font-semibold">Manager Hierarchy</span>. Choose what to put in the matrix.</>}
+        </p>
+        <div className="space-y-2">
+          {options.map(o => (
+            <RadioCard
+              key={o.key}
+              active={(rollupContent || 'resources-and-roles') === o.key}
+              onClick={() => onChange(o.key)}
+              title={o.title}
+              description={o.description}
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Cell value</h4>
+        <div className="space-y-2">
+          {metricOptions.map(o => (
+            <RadioCard
+              key={o.key}
+              active={(rollupMetric || 'count') === o.key}
+              onClick={() => onMetricChange(o.key)}
+              title={o.title}
+              description={o.description}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Step 4 — Roll-up ───────────────────────────────────────────────
-function Step4Rollup({ rollup, columns, rowType, onChange }) {
+function Step4Rollup({ rollup, rollupKind, rollupContextId, columns, rowType, onChange, onKindChange, onContextChange }) {
+  const { authFetch } = useAuth();
   const options = attributeOptions(columns);
-  const enabled = !!rollup;
   const subjectWord = rowType === 'identity' ? 'identities' : 'users';
+  const isContext = rollupKind === 'context';
+  const enabled = !!rollup || (isContext && !!rollupContextId);
+
+  // Manager-hierarchy (and other Principal-targeted) root contexts to aggregate by.
+  const [ctxRoots, setCtxRoots] = useState(null); // null = not loaded
+  useEffect(() => {
+    if (!isContext || ctxRoots !== null) return;
+    let cancelled = false;
+    authFetch('/api/contexts?contextType=ManagerHierarchy')
+      .then(r => r.ok ? r.json() : { data: [] })
+      .then(body => { if (!cancelled) setCtxRoots(Array.isArray(body.data) ? body.data : []); })
+      .catch(() => { if (!cancelled) setCtxRoots([]); });
+    return () => { cancelled = true; };
+  }, [isContext, ctxRoots, authFetch]);
 
   function enable(on) {
-    if (!on) { onChange(null); return; }
-    // Default to department when available, else the first option.
+    if (!on) { onChange(null); onKindChange('attribute'); onContextChange(null); return; }
     const def = options.includes('department') ? 'department' : (options[0] || null);
-    onChange(def);
+    onChange(def); onKindChange('attribute');
   }
+
+  function pickKind(kind) {
+    if (kind === 'context') { onChange(null); onKindChange('context'); }
+    else {
+      onKindChange('attribute'); onContextChange(null);
+      if (!rollup) onChange(options.includes('department') ? 'department' : (options[0] || null));
+    }
+  }
+
+  // Default the context root once the list loads.
+  useEffect(() => {
+    if (isContext && !rollupContextId && Array.isArray(ctxRoots) && ctxRoots.length) {
+      onContextChange(ctxRoots[0].id);
+    }
+  }, [isContext, rollupContextId, ctxRoots, onContextChange]);
 
   return (
     <div className="space-y-3">
       <div>
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Roll-up (optional)</h3>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Aggregate the {subjectWord} columns by an attribute. Each cell then shows the
+          Aggregate the {subjectWord} columns. Each cell then shows the
           <span className="font-medium"> count of distinct {subjectWord} with a Direct assignment</span> to that
-          resource (Indirect and Owner are ignored). Click a column in the matrix to expand it into the
-          individual {subjectWord}.
+          resource (Indirect and Owner are ignored).
         </p>
       </div>
       <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
         <input type="checkbox" checked={enabled} onChange={e => enable(e.target.checked)} />
-        <span>Aggregate columns by an attribute</span>
+        <span>Aggregate the columns</span>
       </label>
       {enabled && (
-        <div className="pl-6">
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Group by</label>
-          <select
-            value={rollup}
-            onChange={e => onChange(e.target.value)}
-            className="w-full max-w-xs border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-          >
-            {options.length === 0 && <option value="">(no attributes available)</option>}
-            {options.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
+        <div className="pl-6 space-y-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => pickKind('attribute')}
+              className={`text-xs px-2 py-1 rounded border ${!isContext ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}
+            >By attribute</button>
+            <button
+              onClick={() => pickKind('context')}
+              className={`text-xs px-2 py-1 rounded border ${isContext ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}
+            >By Manager Hierarchy <span className="text-[10px] opacity-70">experimental</span></button>
+          </div>
+
+          {!isContext ? (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Group by attribute</label>
+              <select
+                value={rollup || ''}
+                onChange={e => onChange(e.target.value)}
+                className="w-full max-w-xs border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+              >
+                {options.length === 0 && <option value="">(no attributes available)</option>}
+                {options.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Start from</label>
+              {ctxRoots === null ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400">Loading hierarchies…</p>
+              ) : ctxRoots.length === 0 ? (
+                <p className="text-xs text-amber-700 dark:text-amber-400">No Manager Hierarchy context found — run the manager-hierarchy plugin first.</p>
+              ) : (
+                <select
+                  value={rollupContextId || ''}
+                  onChange={e => onContextChange(e.target.value)}
+                  className="w-full max-w-md border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+                >
+                  {ctxRoots.map(c => <option key={c.id} value={c.id}>{c.displayName} ({c.totalMemberCount})</option>)}
+                </select>
+              )}
+              <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                Columns become the teams beneath this node. Click a column in the matrix to drill into its sub-teams, level by level, down to individuals.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -496,9 +668,9 @@ function Step4Rollup({ rollup, columns, rowType, onChange }) {
 
 // ─── Step 5 — Sort ──────────────────────────────────────────────────
 function Step5Sort({ sortAttributes, columns, disabled, onChange }) {
-  // Sort reads the flat matrix payload, which only carries real columns — so
-  // ext.* keys aren't offered here (roll-up may still use them).
-  const options = attributeOptions(columns, { realOnly: true });
+  // Any attribute can be sorted on, including ext.* extended attributes — the
+  // matrix payload now carries extendedAttributes for the column sort.
+  const options = attributeOptions(columns);
   const rows = sortAttributes.length ? sortAttributes : DEFAULT_SORT;
 
   const update = (i, patch) => onChange(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
@@ -664,9 +836,9 @@ function LiveSummary({ preview, loading, rowType, rollup }) {
   );
 }
 
-// ─── Step 1 — Setup (subject type + orientation) ────────────────────
+// ─── Step 1 — Setup (subject type + roll-up) ────────────────────────
 
-function Step1Setup({ rowType, orientation, onRowTypeChange, onOrientationChange }) {
+function Step1Setup({ rowType, onRowTypeChange, rollup, rollupKind, rollupContextId, columns, onRollupChange, onRollupKindChange, onRollupContextChange }) {
   return (
     <div className="space-y-4">
       <div>
@@ -687,25 +859,46 @@ function Step1Setup({ rowType, orientation, onRowTypeChange, onOrientationChange
         </div>
       </div>
 
+      <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+        <Step4Rollup
+          rollup={rollup} rollupKind={rollupKind} rollupContextId={rollupContextId}
+          columns={columns} rowType={rowType}
+          onChange={onRollupChange} onKindChange={onRollupKindChange} onContextChange={onRollupContextChange}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 5 — Orientation ───────────────────────────────────────────
+
+function Step5Orientation({ orientation, rollup, onChange }) {
+  return (
+    <div className="space-y-3">
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Orientation</h4>
         <div className="grid grid-cols-2 gap-2">
           <RadioCard
             active={orientation === 'rows-as-resources'}
-            onClick={() => onOrientationChange('rows-as-resources')}
+            onClick={() => onChange('rows-as-resources')}
             title="Resources as rows"
             description="Resources go on the rows, subjects as columns (the default). Good when you have many resources and few subjects — vertical scroll handles the long axis."
             visual={<OrientationVisual rowsLabel="Res" colsLabel="Subj" />}
           />
           <RadioCard
             active={orientation === 'rows-as-subjects'}
-            onClick={() => onOrientationChange('rows-as-subjects')}
+            onClick={() => onChange('rows-as-subjects')}
             title="Subjects as rows"
             description="Subjects go on the rows, resources as columns. Good when you have few resources and many subjects — vertical scroll handles the people, not the columns."
             visual={<OrientationVisual rowsLabel="Subj" colsLabel="Res" />}
           />
         </div>
       </div>
+      {rollup && (
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 italic">
+          Roll-up uses its own resources-as-rows layout — orientation won’t change it.
+        </p>
+      )}
     </div>
   );
 }

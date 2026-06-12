@@ -153,10 +153,21 @@ export function useMatrix(filter) {
         if (cancelled) return;
         if (body.rollup) {
           setRollup({
-            attribute:   body.rollup,
-            resources:   body.resources   || [],
-            groupValues: body.groupValues || [],
-            counts:      body.counts      || [],
+            attribute:     body.rollup,
+            rollupKind:    body.rollupKind    || 'attribute',
+            rollupContextId: body.rollupContextId || null,
+            focusId:       body.focusId       || null,
+            breadcrumb:    body.breadcrumb    || [],
+            nodes:         body.nodes         || [],
+            rollupContent: body.rollupContent || 'resources-and-roles',
+            resources:     body.resources     || [],
+            groupValues:   body.groupValues   || [],
+            groupTotals:   body.groupTotals   || [],
+            counts:        body.counts        || [],
+            businessRoles: body.businessRoles || [],
+            roleCounts:    body.roleCounts    || [],
+            roleRows:      body.roleRows      || [],
+            cells:         body.cells         || [],
           });
           setData([]);
           setManagedByPackages([]);

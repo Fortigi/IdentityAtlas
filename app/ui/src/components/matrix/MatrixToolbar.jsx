@@ -20,6 +20,7 @@ export default function MatrixToolbar({
   hasExpandedGroups,
   onExpandAll,
   onCollapseAll,
+  hideGaps = false,
 }) {
   const [copied, setCopied] = useState(false);
   const canExport = useCanExportUi();
@@ -32,7 +33,7 @@ export default function MatrixToolbar({
           { key: 'all',       label: 'All' },
           { key: 'managed',   label: 'Governed' },
           { key: 'unmanaged', label: 'Non-governed' },
-          { key: 'gaps',      label: 'Gaps' },
+          ...(hideGaps ? [] : [{ key: 'gaps', label: 'Gaps' }]),
         ].map(opt => (
           <button
             key={opt.key}

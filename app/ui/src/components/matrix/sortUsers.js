@@ -13,11 +13,16 @@ const DEFAULT_SORT = [{ attribute: 'department', dir: 'asc' }];
 const collate = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 
 // Read the (attribute → string) values for one row, in sort-attribute order.
-// The dynamic read row[attr] is safe; only dynamic *writes* are injection sinks.
+// An `ext.<key>` attribute reads from the row's extendedAttributes JSON; a plain
+// name reads the real column. These are dynamic READS (safe — only dynamic
+// *writes* are property-injection sinks).
 export function buildSortKeys(row, sortAttributes) {
   const attrs = (Array.isArray(sortAttributes) && sortAttributes.length) ? sortAttributes : DEFAULT_SORT;
   return attrs.map(sa => {
-    const v = row == null ? '' : row[sa.attribute];
+    const a = sa.attribute;
+    let v;
+    if (typeof a === 'string' && a.startsWith('ext.')) v = row && row.extendedAttributes ? row.extendedAttributes[a.slice(4)] : undefined;
+    else v = row == null ? '' : row[a];
     return v == null ? '' : String(v);
   });
 }
