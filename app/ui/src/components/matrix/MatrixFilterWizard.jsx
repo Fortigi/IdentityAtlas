@@ -579,7 +579,7 @@ function Step5Sort({ sortAttributes, columns, disabled, onChange, foldOnLoad = '
   const rows = sortAttributes.length ? sortAttributes : DEFAULT_SORT;
   const autoFold = assignmentCount >= FOLD_AUTO_THRESHOLD;
   const foldChecked = foldOnLoad === 'auto' ? autoFold : !!foldOnLoad;
-  const isHierarchy = !!sortHierarchy?.contextId;
+  const isHierarchy = !!sortHierarchy; // an object (even with empty contextId) = hierarchy mode
 
   // Manager-Hierarchy roots to sort by.
   const [ctxRoots, setCtxRoots] = useState(null);
