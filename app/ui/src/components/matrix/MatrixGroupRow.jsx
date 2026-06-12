@@ -116,9 +116,9 @@ export default function MatrixGroupRow({
           return (
             <td key={user.id}
               className="border-r border-b border-gray-200 dark:border-gray-700 text-center px-0 py-0 bg-indigo-50/40 dark:bg-indigo-900/10"
-              style={{ minWidth: '34px' }}>
+              style={{ width: '24px', minWidth: '24px' }}>
               {n > 0
-                ? <span className="text-[11px] font-semibold text-gray-800 dark:text-gray-200">{n}</span>
+                ? <span className="text-[10px] font-semibold text-gray-800 dark:text-gray-200">{n}</span>
                 : <span className="text-gray-500 dark:text-gray-700">·</span>}
             </td>
           );

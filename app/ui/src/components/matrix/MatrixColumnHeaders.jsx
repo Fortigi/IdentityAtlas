@@ -150,12 +150,12 @@ export default function MatrixColumnHeaders({
             return (
               <th key={user.id}
                 className="border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                style={{ height: '100px', minWidth: '34px', verticalAlign: 'bottom' }}
+                style={{ height: '100px', width: '24px', minWidth: '24px', verticalAlign: 'bottom' }}
                 onClick={() => onToggleCollapse?.(user.sortKeys, user.level)}
                 title={`${user.userCount} ${user.userCount === 1 ? 'user' : 'users'} — click to expand`}>
                 <div className="flex flex-col items-center justify-end h-full pb-1 gap-0.5">
-                  <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">{user.userCount}</span>
-                  <span className="text-[10px] leading-none text-gray-500 dark:text-gray-400">▸</span>
+                  <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">{user.userCount}</span>
+                  <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400">▸</span>
                 </div>
               </th>
             );
