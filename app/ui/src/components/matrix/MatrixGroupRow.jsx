@@ -119,7 +119,7 @@ export default function MatrixGroupRow({
               style={{ minWidth: '34px' }}>
               {n > 0
                 ? <span className="text-[11px] font-semibold text-gray-800 dark:text-gray-200">{n}</span>
-                : <span className="text-gray-300 dark:text-gray-700">·</span>}
+                : <span className="text-gray-500 dark:text-gray-700">·</span>}
             </td>
           );
         }
