@@ -867,6 +867,21 @@ export default function MatrixView({
     });
   }, [users, sortAttrs]);
 
+  // In Manager-Hierarchy sort, only show as many org-level header rows as have
+  // actually been unfolded: a folded group reaches level+1, an unfolded subject
+  // reaches its own path depth. Attribute sort always shows all chosen levels.
+  const headerDepth = useMemo(() => {
+    if (!hierActive) return sortAttrs.length;
+    let d = 1;
+    for (const c of colUsers) {
+      const cd = c.isAggregateCol
+        ? c.level + 1
+        : (c.sortKeys || []).reduce((n, v, i) => (v ? i + 1 : n), 0) || 1;
+      if (cd > d) d = cd;
+    }
+    return Math.min(d, sortAttrs.length);
+  }, [hierActive, colUsers, sortAttrs.length]);
+
   // Shared column headers element (used by both sortable and static table)
   const columnHeaders = (
     <MatrixColumnHeaders
@@ -875,6 +890,7 @@ export default function MatrixView({
       onSortByCount={handleSortByCount}
       accessPackages={visibleAccessPackages}
       sortAttributes={sortAttrs}
+      maxHeaderDepth={headerDepth}
       onOpenDetail={onOpenDetail}
       expandedIdentities={expandedIdentities}
       onToggleIdentity={toggleIdentityColumn}

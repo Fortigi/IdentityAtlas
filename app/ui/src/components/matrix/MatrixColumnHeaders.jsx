@@ -14,16 +14,21 @@ export default function MatrixColumnHeaders({
   loadingIdentityCols,
   sortAttributes,
   onToggleCollapse,
+  maxHeaderDepth,
 }) {
   const isDark = useIsDark();
 
   // One merged header row per sort attribute (default: department), each
   // grouping consecutive columns that share the same value (read from each
-  // user's precomputed sortKeys[index]). Columns are pre-sorted in MatrixView.
+  // user's precomputed sortKeys[index]). In hierarchy sort, maxHeaderDepth caps
+  // the rows to the unfolded depth so the next org level only appears once a
+  // group is expanded into it.
   const attrs = (Array.isArray(sortAttributes) && sortAttributes.length)
     ? sortAttributes.map(s => s.attribute)
     : ['department'];
-  const attrRows = attrs.map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
+  const shown = (typeof maxHeaderDepth === 'number' && maxHeaderDepth > 0)
+    ? Math.min(maxHeaderDepth, attrs.length) : attrs.length;
+  const attrRows = attrs.slice(0, shown).map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
   const headerRowCount = attrRows.length;
 
   return (
