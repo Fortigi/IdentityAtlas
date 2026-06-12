@@ -686,8 +686,9 @@ function Step5Sort({ sortAttributes, columns, disabled, onChange }) {
       <div>
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Sort columns</h3>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Order the columns by up to three attributes (e.g. Department, then Job Title). The chosen
-          attributes appear as grouped header rows above the column names.
+          Order the columns by up to six attributes (e.g. Division, then Department). The chosen
+          attributes appear as grouped header rows above the column names — click a header value to
+          fold that group into a single count column.
         </p>
       </div>
       {disabled ? (
