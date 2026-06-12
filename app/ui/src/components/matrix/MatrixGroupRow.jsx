@@ -20,6 +20,7 @@ export default function MatrixGroupRow({
   users,
   totalUsers,
   memberships,
+  aggDirectCounts,
   managedMap,
   managedApMap,
   apIdToIndex,
@@ -108,6 +109,20 @@ export default function MatrixGroupRow({
 
       {/* Intersection cells */}
       {users.map(user => {
+        // Collapsed (folded) attribute group → show the count of Direct
+        // assignments among its users instead of per-subject badges.
+        if (user.isAggregateCol) {
+          const n = aggDirectCounts?.get(`${group.id} ${user.id}`) || 0;
+          return (
+            <td key={user.id}
+              className="border-r border-b border-gray-200 dark:border-gray-700 text-center px-0 py-0 bg-indigo-50/40 dark:bg-indigo-900/10"
+              style={{ minWidth: '34px' }}>
+              {n > 0
+                ? <span className="text-[11px] font-semibold text-gray-800 dark:text-gray-200">{n}</span>
+                : <span className="text-gray-300 dark:text-gray-700">·</span>}
+            </td>
+          );
+        }
         const cellKey = `${group.id}|${user.id}`;
         const cellTypes = memberships.get(cellKey);
 

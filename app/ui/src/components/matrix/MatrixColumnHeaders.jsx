@@ -13,6 +13,7 @@ export default function MatrixColumnHeaders({
   onToggleIdentity,
   loadingIdentityCols,
   sortAttributes,
+  onToggleCollapse,
 }) {
   const isDark = useIsDark();
 
@@ -41,29 +42,48 @@ export default function MatrixColumnHeaders({
             </div>
           </th>
 
-          {row.spans.map((span, idx) => (
-            <th
-              key={idx}
-              colSpan={span.span}
-              className="border-b border-r border-gray-300 dark:border-gray-600 px-0 py-0 text-center bg-gray-100 dark:bg-gray-800"
-              style={{ height: '120px', minWidth: `${span.span * 24}px` }}
-            >
-              <div
-                className="text-[10px] font-semibold text-gray-700 dark:text-gray-300"
-                style={{
-                  writingMode: 'vertical-lr',
-                  textOrientation: 'mixed',
-                  transform: 'rotate(180deg)',
-                  maxHeight: '110px',
-                  overflow: 'hidden',
-                  whiteSpace: 'nowrap',
-                  margin: '0 auto',
-                }}
+          {row.spans.map((span, idx) => {
+            const col = users[span.start];
+            const isAgg = !!col?.isAggregateCol;
+            // A collapsed aggregate column, at a level BELOW where it was folded,
+            // shows the count of distinct child values (e.g. "6 departments").
+            const showChildCount = isAgg && rowIdx > col.level;
+            // The cell at the fold level (or a normal group cell) is clickable.
+            const collapsible = !!onToggleCollapse && !isAgg;
+            const expandable = isAgg && rowIdx >= col.level;
+            const onClick = collapsible
+              ? () => onToggleCollapse(col.sortKeys, rowIdx)
+              : expandable ? () => onToggleCollapse(col.sortKeys, col.level) : undefined;
+            const title = collapsible
+              ? `Collapse ${span.value || '(none)'} into one column`
+              : expandable ? `Expand ${col.value || '(none)'} back into its columns` : undefined;
+            return (
+              <th
+                key={idx}
+                colSpan={span.span}
+                onClick={onClick}
+                title={title}
+                className={`border-b border-r border-gray-300 dark:border-gray-600 px-0 py-0 text-center ${
+                  isAgg ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-gray-100 dark:bg-gray-800'
+                } ${(collapsible || expandable) ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
+                style={{ height: '120px', minWidth: `${span.span * 24}px` }}
               >
-                {span.value || '(none)'}
-              </div>
-            </th>
-          ))}
+                {showChildCount ? (
+                  <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">{col.childCounts?.[rowIdx] ?? 0}</span>
+                ) : (
+                  <div
+                    className={`text-[10px] font-semibold ${isAgg ? 'text-indigo-800 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-300'}`}
+                    style={{
+                      writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)',
+                      maxHeight: '110px', overflow: 'hidden', whiteSpace: 'nowrap', margin: '0 auto',
+                    }}
+                  >
+                    {isAgg ? `▤ ${col.value || '(none)'}` : (span.value || '(none)')}
+                  </div>
+                )}
+              </th>
+            );
+          })}
 
           {/* Access Package name headers — rendered once, spanning all header rows + the name row */}
           {rowIdx === 0 && accessPackages.map((ap, idx) => {
@@ -124,6 +144,22 @@ export default function MatrixColumnHeaders({
         </th>
 
         {users.map(user => {
+          // Collapsed aggregate column: the name row shows the user COUNT and an
+          // expand control, instead of a single subject name.
+          if (user.isAggregateCol) {
+            return (
+              <th key={user.id}
+                className="border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                style={{ height: '100px', minWidth: '34px', verticalAlign: 'bottom' }}
+                onClick={() => onToggleCollapse?.(user.sortKeys, user.level)}
+                title={`${user.userCount} ${user.userCount === 1 ? 'user' : 'users'} — click to expand`}>
+                <div className="flex flex-col items-center justify-end h-full pb-1 gap-0.5">
+                  <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">{user.userCount}</span>
+                  <span className="text-[10px] leading-none text-gray-500 dark:text-gray-400">▸</span>
+                </div>
+              </th>
+            );
+          }
           const isIdentity = user.memberType === 'Identity';
           const isAcct = !!user.isAccountCol;
           const isExpanded = expandedIdentities?.has(user.id);

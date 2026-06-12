@@ -1,0 +1,1 @@
+- The sorted matrix can now fold a sort-attribute group into a single aggregate column: click a Division/Department header value to collapse all of its subject columns into one column showing the number of child groups, the number of users, and a count of Direct assignments per resource. Click the collapsed header again to unfold. Works at every sort level.
