@@ -378,11 +378,17 @@ export default function MatrixView({
   useEffect(() => { seededFoldRef.current = null; setCollapsedGroups(new Set()); }, [storageKey]);
   useEffect(() => {
     if (seededFoldRef.current === storageKey || users.length === 0) return;
+    // A Manager-Hierarchy matrix has thousands of columns — always open folded.
+    // Wait for the hierarchy paths to load so we fold on the right (org) keys.
+    const wantsHierarchy = !!sortHierarchyId;
+    if (wantsHierarchy && !hierActive) return;
     seededFoldRef.current = storageKey;
     const fol = filter?.foldOnLoad ?? 'auto';
-    const shouldFold = fol === 'auto' ? ((counts?.assignmentCount || 0) >= FOLD_AUTO_THRESHOLD) : !!fol;
+    const shouldFold = wantsHierarchy
+      ? true
+      : (fol === 'auto' ? ((counts?.assignmentCount || 0) >= FOLD_AUTO_THRESHOLD) : !!fol);
     if (shouldFold) setCollapsedGroups(new Set(users.map(u => collapseKey(u.sortKeys, 0))));
-  }, [storageKey, users, filter, counts]);
+  }, [storageKey, users, filter, counts, sortHierarchyId, hierActive]);
 
   // Build managed-by-AP map: cellKey (lowercase) -> accessPackageId[] (lowercase)
   // All keys and values normalized to lowercase for case-insensitive matching

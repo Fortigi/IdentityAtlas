@@ -695,7 +695,7 @@ function Step5Sort({ sortAttributes, columns, disabled, onChange, foldOnLoad = '
         </>
       )}
 
-      {!disabled && (
+      {!disabled && !isHierarchy && (
         <label className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 cursor-pointer">
           <input
             type="checkbox"
