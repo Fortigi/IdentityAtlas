@@ -171,6 +171,7 @@ Resultaat van de crawl op 2026-06-14 (vaste-OID-suffix `…0000000000XX`). Elke 
 - 2026-06-14 — "go" ontvangen. Branch `feature/midpoint-crawler` aangemaakt. Conventies bestudeerd. Omgeving + midPoint REST-vorm + connectoren ontdekt.
 - 2026-06-14 — Crawler (manifest + REST-client + entry point + seeder + mock + tests) geschreven. Iteratief gedebugd tegen live midpoint-dev: array-nesting (leading-comma return), `[string]`-Fallback met `$null`, multi-value velden, lege-batch-400, deterministic-vs-native id-resolutie (assignments via directe `resourceId`/`principalId`), `@ns`-volgorde in resource-JSON, shadow `options=raw`, org-hiërarchie via assignment.
 - 2026-06-14 — Eindrun groen; reconciliatie 9/9 (zie §7); 28 unit-tests groen; mock-integratie groen; test-rommel opgeruimd. Bewijs compleet. Niets gepusht.
+- 2026-06-14 — Werkafspraken: vrije SSH + autonoom werken (geheugen opgeslagen). CSV-pad configureerbaar gemaakt + demo-vs-productie-padcaveat genoteerd (commit `1dbdecc`). Volledige levenscyclus geverifieerd: `Remove-MidpointTestData` ruimt alle 10 fixtures op (0 resterend), daarna re-seed + re-crawl → fixtures hersteld (3/3/3/2). Idempotent en herhaalbaar.
 
 ---
 
