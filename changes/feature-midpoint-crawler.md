@@ -2,4 +2,7 @@
 - Imports midPoint orgs as org-unit contexts (with hierarchy), roles and services as resources, and users as identities with their midPoint accounts.
 - Imports accounts on connected systems (midPoint shadows) as principals, linked to the right person, so multi-account identities are visible.
 - Surfaces role/service assignments as governed assignments and role nesting as "contains" relationships, and maps org membership to context membership.
+- Imports midPoint access certification campaigns as review decisions, so certify/revoke outcomes show up under each business role.
+- Shows readable account names for connected-system accounts (e.g. database accounts that midPoint keys by a number now display the person's name and source system).
+- Refreshes the access matrix automatically at the end of a sync so governed assignments appear immediately.
 - Supports Basic, API-token, and OAuth2 (client-credentials / password) authentication, configurable from the Add Crawler screen.

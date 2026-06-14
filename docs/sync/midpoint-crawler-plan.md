@@ -172,8 +172,23 @@ Resultaat van de crawl op 2026-06-14 (vaste-OID-suffix `…0000000000XX`). Elke 
 - 2026-06-14 — Crawler (manifest + REST-client + entry point + seeder + mock + tests) geschreven. Iteratief gedebugd tegen live midpoint-dev: array-nesting (leading-comma return), `[string]`-Fallback met `$null`, multi-value velden, lege-batch-400, deterministic-vs-native id-resolutie (assignments via directe `resourceId`/`principalId`), `@ns`-volgorde in resource-JSON, shadow `options=raw`, org-hiërarchie via assignment.
 - 2026-06-14 — Eindrun groen; reconciliatie 9/9 (zie §7); 28 unit-tests groen; mock-integratie groen; test-rommel opgeruimd. Bewijs compleet. Niets gepusht.
 - 2026-06-14 — Werkafspraken: vrije SSH + autonoom werken (geheugen opgeslagen). CSV-pad configureerbaar gemaakt + demo-vs-productie-padcaveat genoteerd (commit `1dbdecc`). Volledige levenscyclus geverifieerd: `Remove-MidpointTestData` ruimt alle 10 fixtures op (0 resterend), daarna re-seed + re-crawl → fixtures hersteld (3/3/3/2). Idempotent en herhaalbaar.
+- 2026-06-14 — Ronde 2 (na UI-inspectie gebruiker): refresh-views in crawler (matrix vult), leesbare shadow-labels (numeriek 1277→2), nieuwe Reviews-fase (3 CertificationDecisions) + campaign-fixture. Alles geverifieerd via DB + product-API. Unit-tests 40/40. Zie "Ronde 2"-sectie.
 
 ---
+
+## Ronde 2 — UI-gebreken opgelost (2026-06-14)
+Na UI-inspectie door de gebruiker bleken vier punten; alle opgelost en geverifieerd via DB + product-API:
+
+| Gemeld probleem | Oorzaak | Fix | Bewijs |
+|---|---|---|---|
+| Matrix leeg; "niets governed" | Matrix-**materialized views niet ververst** na de crawl (crawler riep `refresh-views` niet aan) | Crawler roept nu `POST /ingest/refresh-views` aan het eind aan | matrix-view 0 → **4 rijen** (de 4 governed-assignments) |
+| Resources/Assignments/Relationships niet zichtbaar | Grotendeels gevolg van de stale views; BusinessRoles tonen als "access packages" (by design) | refresh-views fix | `/access-package/RoleA/assignments` → Alice, `/resource-roles` → Role-B (Contains), `/reviews` → Certify |
+| Reviews ontbreken | midPoint-dev had **0 certification-campaigns** | Nieuwe **Reviews-fase** (`accessCertificationCampaigns` met `?include=case` → `CertificationDecisions`) + campaign-fixture in de seeder | **3 CertificationDecisions**: Certify (Alice/Role-A), Revoke (Carol/Role-B), Certify (Bob/Service-1), met namen + reviewer |
+| User-displayName toont identificatienummer | DB-connector-shadows hebben een **numerieke `name`** (DB-key); crawler gebruikte `shadow.name` | Leesbaar shadow-label: readable attribuut → CN-extract → eigenaar-naam + resource → ruwe naam; ruwe naam bewaard in `extendedAttributes.accountName` | numerieke shadow-displayNames **1277 → 2**; labels nu "William Denver (Omada demo …)" etc. |
+
+**Data-realiteit (uitleg, geen bug):** deze midPoint-demo is org-centrisch — 626 effectieve org-memberships (vastgelegd als ContextMembers) en slechts ~4 role/service-toewijzingen. De resource-matrix toont daarom terecht weinig cellen; de bulk-toegang zit in de Contexts/org-weergave. De 50 archetypes zijn systeem-archetypes (geen business-governance), dus bewust niet als resources gesynct.
+
+**Tests:** unit-tests uitgebreid naar **40/40 groen** (incl. outcome-mapping, stable-guid, shadow-attribuut-parsing, campaign-fixture).
 
 ## Referenties
 - Crawler-raamwerk: `tools/crawlers/CLAUDE.md`, `docs/sync/custom-crawlers.md`, `docs/architecture/crawler-architecture.md`

@@ -60,7 +60,7 @@ $PageSize = if ($Cfg.pageSize) { [int]$Cfg.pageSize } else { 100 }
 # Phase toggles — default on, overridden by selectedObjects
 $Sync = @{ systems = $true; orgs = $true; roles = $true; services = $true
            users = $true; shadows = $true; orgMembership = $true
-           assignments = $true; roleNesting = $true }
+           assignments = $true; roleNesting = $true; reviews = $true }
 if ($null -ne $Cfg.syncShadows) { $Sync.shadows = [bool]$Cfg.syncShadows }
 $objects = $RawConfig['selectedObjects']
 if ($objects) {
@@ -82,7 +82,7 @@ if (-not (Get-Command Connect-MidpointAPI -ErrorAction SilentlyContinue)) {
 #region Helpers
 # Cross-system tables have no per-system delete scope → never reconcile-delete them
 # (would remove other sources' data). Always upsert-only (delta) for these.
-$CrossSystemEntities = @('systems', 'identities', 'identity-members', 'context-members')
+$CrossSystemEntities = @('systems', 'identities', 'identity-members', 'context-members', 'governance/certifications')
 function Get-EntitySyncMode {
     param([string]$Entity)
     if ($CrossSystemEntities -contains $Entity) { return 'delta' }
@@ -134,6 +134,25 @@ function Add-PhaseError { param([string]$Phase, [string]$Msg)
     Write-Host "  $Phase failed: $Msg" -ForegroundColor Red
     $Script:phaseErrors.Add("${Phase}: $Msg")
 }
+
+# Build a human-readable label for a shadow account. Some connectors (e.g. DatabaseTable)
+# name shadows by a numeric key; prefer a readable attribute, then the owner's name +
+# resource, and only fall back to the raw (possibly numeric) shadow name as a last resort.
+function Get-MidpointShadowLabel {
+    param($Shadow, [string]$ShadowOid, [string]$ResourceOid)
+    $readable = Get-MidpointAttrValue -Shadow $Shadow -Keys @('fullName', 'cn', 'displayName', 'sAMAccountName', 'login', 'name')
+    if (-not $readable) { $readable = Format-AccountLabel (Get-MidpointString $Shadow.name '') }
+    else { $readable = Format-AccountLabel $readable }
+    if ($readable -and $readable -match '[A-Za-z]') { return $readable }
+    if ($ShadowOidToUserOid.ContainsKey($ShadowOid)) {
+        $ownerOid = $ShadowOidToUserOid[$ShadowOid]
+        if ($UserOidToName.ContainsKey($ownerOid)) {
+            $rn = if ($ResourceOidToName.ContainsKey($ResourceOid)) { $ResourceOidToName[$ResourceOid] } else { 'account' }
+            return ($UserOidToName[$ownerOid] + ' (' + $rn + ')')
+        }
+    }
+    return (Get-MidpointString $Shadow.name $ShadowOid)
+}
 #endregion Helpers
 
 #region Main
@@ -156,6 +175,8 @@ Connect-MidpointAPI @AuthParams
 $RestRoot                = (Get-MidpointRestRoot -BaseUrl $Cfg.baseUrl)
 $MidpointSystemId        = 0
 $ResourceSystemId        = @{}                                                   # resource OID → Identity Atlas system.id
+$ResourceOidToName       = @{}                                                   # resource OID → display name (for readable shadow labels)
+$UserOidToName           = @{}                                                   # user OID → display name (for readable shadow labels)
 $SyncedOrgIds            = [System.Collections.Generic.HashSet[string]]::new()  # OrgType OIDs synced as Contexts
 $SyncedResourceIds       = [System.Collections.Generic.HashSet[string]]::new()  # Role/Service OIDs synced as Resources
 $AllUsers                = $null
@@ -174,9 +195,11 @@ if ($Sync.systems) {
         $resources = @(Invoke-MidpointSearch -Type 'resources' -PageSize $PageSize)
         Write-Host "  $($resources.Count) connected resources in midPoint" -ForegroundColor Gray
         foreach ($r in $resources) {
+            $rName = (Get-MidpointString $r.name "Resource $($r.oid)")
+            $ResourceOidToName[[string]$r.oid] = $rName
             $sysRecords.Add([PSCustomObject]@{
                 systemType = 'Midpoint'
-                displayName = (Get-MidpointString $r.name "Resource $($r.oid)")
+                displayName = $rName
                 tenantId   = [string]$r.oid
                 enabled    = $true; syncEnabled = $false
             })
@@ -313,6 +336,7 @@ if ($Sync.users) {
         foreach ($u in $AllUsers) {
             $oid  = [string]$u.oid
             $name = (Get-MidpointString $u.fullName (Get-MidpointString $u.name $oid))
+            $UserOidToName[$oid] = $name
             $identRecs.Add([PSCustomObject]@{
                 id          = $oid
                 externalId  = $oid
@@ -381,10 +405,11 @@ if ($Sync.shadows -and $Sync.users) {
             $bySystem[$sysId].Add([PSCustomObject]@{
                 id             = $shadowOid
                 externalId     = $shadowOid
-                displayName    = (Get-MidpointString $s.name $shadowOid)
+                displayName    = (Get-MidpointShadowLabel -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid)
                 principalType  = 'User'
                 accountEnabled = (Test-MidpointEnabled $s)
                 extendedAttributes = @{
+                    accountName = (Get-MidpointString $s.name '')
                     resourceOid = $resOid
                     objectClass = (Get-MidpointString $s.objectClass '')
                     kind        = (Get-MidpointString $s.kind '')
@@ -505,6 +530,72 @@ if ($Sync.roleNesting -and $AllRoles) {
         $R = Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $MidpointSystemId -Scope @{ relationshipType = 'Contains' } -Records @($rr)
         Write-Host "  ResourceRelationships (Contains): +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($rr.Count) links)" -ForegroundColor Green
     } catch { Add-PhaseError 'RoleNesting' $_.Exception.Message }
+}
+
+# ─── Phase: Reviews → CertificationDecisions ─────────────────────────────────
+# midPoint access certification campaigns → review decisions. Each campaign case
+# (objectRef=user, targetRef=role/service, outcome=accept/revoke) maps to one
+# CertificationDecisions row. The case container is only returned with ?include=case.
+if ($Sync.reviews) {
+    Write-Host "`nReviews (certification decisions):" -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing reviews' -Pct 92
+    try {
+        $campaigns = @(Invoke-MidpointSearch -Type 'accessCertificationCampaigns' -PageSize $PageSize -Include 'case')
+        Write-Host "  $($campaigns.Count) certification campaigns from midPoint" -ForegroundColor Gray
+        $seen = [System.Collections.Generic.HashSet[string]]::new()
+        $cd   = [System.Collections.Generic.List[object]]::new()
+        foreach ($camp in $campaigns) {
+            $campOid   = [string]$camp.oid
+            $campName  = (Get-MidpointString $camp.name $campOid)
+            $campState = (Get-MidpointString $camp.state '')
+            $cases = $camp.case; $cases = if ($cases -is [System.Array]) { $cases } elseif ($cases) { @($cases) } else { @() }
+            foreach ($case in $cases) {
+                $principalOid = Get-MidpointRefOid $case.objectRef $null   # the user under review
+                $targetOid    = Get-MidpointRefOid $case.targetRef $null   # role/service under review
+                $targetType   = Get-MidpointRefType $case.targetRef ''
+                if (-not $principalOid -or -not $targetOid) { continue }
+                if ($targetType -notin @('RoleType', 'ServiceType')) { continue }   # org reviews aren't resource reviews
+                if (-not $SyncedResourceIds.Contains($targetOid)) { continue }
+                $caseId = [string]$case.'@id'
+                $key = "$campOid|$caseId"
+                if (-not $seen.Add($key)) { continue }
+                $wi = $case.workItem; $wi = if ($wi -is [System.Array]) { $wi | Select-Object -First 1 } else { $wi }
+                $comment = if ($wi -and $wi.output) { (Get-MidpointString $wi.output.comment '') } else { '' }
+                $reviewerOid = if ($wi) { Get-MidpointRefOid $wi.assigneeRef $null } else { $null }
+                $rec = [ordered]@{
+                    id                   = (New-StableGuid $key)
+                    resourceId           = $targetOid
+                    principalId          = $principalOid
+                    decision             = (Convert-MidpointOutcome (Get-MidpointString $case.outcome ''))
+                    justification        = $comment
+                    reviewInstanceStatus = $campState
+                    extendedAttributes   = @{ campaign = $campName; campaignOid = $campOid; caseId = $caseId; outcome = (Get-MidpointString $case.outcome '') }
+                }
+                if ($UserOidToName.ContainsKey($principalOid)) { $rec['principalDisplayName'] = $UserOidToName[$principalOid] }
+                # Only set reviewedBy when the reviewer is a synced principal (FK safety).
+                if ($reviewerOid -and $UserOidToName.ContainsKey($reviewerOid)) {
+                    $rec['reviewedBy'] = $reviewerOid
+                    $rec['reviewedByDisplayName'] = $UserOidToName[$reviewerOid]
+                }
+                $cd.Add([PSCustomObject]$rec)
+            }
+        }
+        $R = Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $MidpointSystemId -Records @($cd)
+        Write-Host "  CertificationDecisions: +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($cd.Count) decisions)" -ForegroundColor Green
+    } catch { Add-PhaseError 'Reviews' $_.Exception.Message }
+}
+
+# ─── Refresh matrix views ────────────────────────────────────────────────────
+# The matrix and several derived UI pages read from materialized views that are
+# stale until refreshed; do it here so the new data is visible immediately.
+Write-Host "`nRefreshing matrix views:" -ForegroundColor Cyan
+Update-CrawlerProgress -Step 'Refreshing views' -Pct 95
+try {
+    Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/refresh-views" -Method Post `
+        -Headers @{ Authorization = "Bearer $ApiKey"; 'Content-Type' = 'application/json' } -TimeoutSec 180 | Out-Null
+    Write-Host "  Views refreshed." -ForegroundColor Green
+} catch {
+    Write-Host "  Warning: refresh-views failed: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
 # ─── Summary ─────────────────────────────────────────────────────────────────

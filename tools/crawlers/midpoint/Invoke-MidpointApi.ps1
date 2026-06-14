@@ -186,12 +186,16 @@ function Invoke-MidpointSearch {
         [int]$PageSize    = 100,
         [int]$MaxItems    = 0,
         [int]$MaxRetries  = 4,
-        [string]$Options  = ''   # midPoint search options appended as ?options= (e.g. 'raw' for shadows)
+        [string]$Options  = '',  # midPoint search options appended as ?options= (e.g. 'raw' for shadows)
+        [string]$Include  = ''   # container(s) to retrieve, appended as ?include= (e.g. 'case' for campaigns)
     )
 
     $rest    = $script:MidpointSession.RestRoot
     $uri     = "$rest/$Type/search"
-    if ($Options) { $uri += "?options=$Options" }
+    $qs = @()
+    if ($Options) { $qs += "options=$Options" }
+    if ($Include) { $qs += "include=$Include" }
+    if ($qs.Count -gt 0) { $uri += '?' + ($qs -join '&') }
     $offset  = 0
     $all     = [System.Collections.Generic.List[object]]::new()
 
@@ -370,6 +374,60 @@ function Get-MidpointString {
     if ($Value.orig) { return [string]$Value.orig }
     if ($Value.norm) { return [string]$Value.norm }
     return [string]$Value
+}
+
+function Get-MidpointAttrValue {
+    <#
+    .SYNOPSIS
+        Read a (ri:-prefixed) attribute value from a shadow's attributes bag. Values are
+        midPoint typed-scalars { "@value": ... } and may be arrays — first non-empty wins.
+    #>
+    [CmdletBinding()]
+    param($Shadow, [string[]]$Keys)
+    $attrs = $Shadow.attributes
+    if (-not $attrs) { return $null }
+    foreach ($k in $Keys) {
+        foreach ($prop in $attrs.PSObject.Properties) {
+            if (($prop.Name -replace '^ri:', '') -ieq $k) {
+                $v = $prop.Value
+                if ($v -is [System.Array]) { $v = $v | Select-Object -First 1 }
+                $val = if ($null -ne $v.'@value') { [string]$v.'@value' } elseif ($v -is [string]) { $v } else { [string]$v }
+                if ($val -and $val.Trim()) { return $val.Trim() }
+            }
+        }
+    }
+    return $null
+}
+
+function Format-AccountLabel {
+    <# .SYNOPSIS Extract the CN component from an LDAP DN: "CN=Andrea Hill [..],OU=.." → "Andrea Hill". #>
+    [CmdletBinding()]
+    param([string]$Raw)
+    if ($Raw -and $Raw -match '(?i)^CN=([^,\[]+)') { return $Matches[1].Trim() }
+    return $Raw
+}
+
+function New-StableGuid {
+    <# .SYNOPSIS Stable UUID derived from a string (MD5 → GUID) for idempotent surrogate ids. #>
+    [CmdletBinding()]
+    param([string]$Seed)
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try { $bytes = $md5.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Seed)) } finally { $md5.Dispose() }
+    return ([guid]::new($bytes)).ToString()
+}
+
+function Convert-MidpointOutcome {
+    <# .SYNOPSIS Map a midPoint certification outcome to an Identity Atlas review decision. #>
+    [CmdletBinding()]
+    param([string]$Outcome)
+    switch ($Outcome) {
+        'accept'     { 'Certify' }
+        'revoke'     { 'Revoke' }
+        'reduce'     { 'Reduce' }
+        'notDecided' { 'NoDecision' }
+        'noResponse' { 'NoResponse' }
+        default      { if ($Outcome) { $Outcome } else { 'NoDecision' } }
+    }
 }
 
 function Test-MidpointEnabled {

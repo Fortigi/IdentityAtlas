@@ -58,6 +58,16 @@ function Get-MidpointFixtureSpec {
             @{ oid = '1a000000-0000-4000-8000-000000000030'; name = 'IA-Test-Service-1'; displayName = 'IA Test Service 1' }
         )
         resource = @{ oid = '1a000000-0000-4000-8000-000000000040'; name = 'IA-Test-CSV-Resource' }
+        # Access certification campaign with 3 decided cases (proves Reviews → CertificationDecisions)
+        campaign = @{
+            oid = '1a000000-0000-4000-8000-000000000050'; name = 'IA-Test-Review-Campaign'
+            reviewerOid = '00000000-0000-0000-0000-000000000002'   # administrator (well-known midPoint oid)
+            cases = @(
+                @{ id = 1; user = '1a000000-0000-4000-8000-000000000001'; target = '1a000000-0000-4000-8000-000000000010'; targetType = 'RoleType';    outcome = 'accept'; comment = 'Role A confirmed for Alice' }
+                @{ id = 2; user = '1a000000-0000-4000-8000-000000000003'; target = '1a000000-0000-4000-8000-000000000011'; targetType = 'RoleType';    outcome = 'revoke'; comment = 'Role B revoked for Carol' }
+                @{ id = 3; user = '1a000000-0000-4000-8000-000000000002'; target = '1a000000-0000-4000-8000-000000000030'; targetType = 'ServiceType'; outcome = 'accept'; comment = 'Service 1 confirmed for Bob' }
+            )
+        }
         users = @(
             @{ oid = '1a000000-0000-4000-8000-000000000001'; name = 'IA-Test-Alice'; fullName = 'IA Test Alice'; given = 'Alice'; family = 'Tester'; email = 'alice@ia-test.local'
                roleOid = '1a000000-0000-4000-8000-000000000010'; roleType = 'RoleType'
@@ -80,6 +90,7 @@ function Get-MidpointFixtureSpec {
             governedAssignments = 3   # Alice→Role-A, Bob→Service-1, Carol→Role-B
             containsRelations   = 1   # Role-A → Role-B
             contextMembers      = 3   # Alice∈ChildA, Bob∈ChildB, Carol∈Root
+            certificationDecisions = 3 # Alice/Role-A accept, Carol/Role-B revoke, Bob/Service-1 accept
         }
     }
 }
@@ -217,6 +228,23 @@ function New-MidpointTestData {
         Write-Host "  user  $($u.name)$(if ($u.account) { ' (+CSV account)' })" -ForegroundColor DarkGray
     }
 
+    # ── Certification campaign (decided cases) ─────────────────────────────────
+    $cmp = $spec.campaign
+    $cases = @($cmp.cases | ForEach-Object {
+        @{
+            id = $_.id
+            objectRef = @{ oid = $_.user;   type = 'UserType' }
+            targetRef = @{ oid = $_.target; type = $_.targetType }
+            stageNumber = 1; iteration = 1; outcome = $_.outcome
+            workItem = @( @{ id = 1; stageNumber = 1; iteration = 1
+                             assigneeRef = @{ oid = $cmp.reviewerOid; type = 'UserType' }
+                             output = @{ outcome = $_.outcome; comment = $_.comment } } )
+        }
+    })
+    $campObj = @{ oid = $cmp.oid; name = $cmp.name; state = 'closed'; stageNumber = 1; iteration = 1; case = $cases }
+    Invoke-SeedPut -RestRoot $root -Headers $headers -Type 'accessCertificationCampaign' -Oid $cmp.oid -Object $campObj
+    Write-Host "  campaign $($cmp.name) ($($cases.Count) decided cases)" -ForegroundColor DarkGray
+
     Write-Host "Seeding complete." -ForegroundColor Green
     return $spec
 }
@@ -246,6 +274,7 @@ function Remove-MidpointTestData {
     }
 
     Write-Host "Removing midPoint fixtures → $root" -ForegroundColor Cyan
+    Remove-One -Type 'accessCertificationCampaigns' -Oid $spec.campaign.oid
     foreach ($u in $spec.users)    { Remove-One -Type 'users'    -Oid $u.oid }
     # Delete shadows still attached to the CSV resource (deprovisioning may have left them)
     try {

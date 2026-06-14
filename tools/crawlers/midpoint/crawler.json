@@ -30,7 +30,8 @@
           "shadows":        { "type": "boolean", "default": true },
           "orgMembership":  { "type": "boolean", "default": true },
           "assignments":    { "type": "boolean", "default": true },
-          "roleNesting":    { "type": "boolean", "default": true }
+          "roleNesting":    { "type": "boolean", "default": true },
+          "reviews":        { "type": "boolean", "default": true }
         }
       }
     },

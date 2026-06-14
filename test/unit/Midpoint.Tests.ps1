@@ -118,6 +118,39 @@ Describe 'Connect-MidpointAPI' {
     }
 }
 
+# ─── Convert-MidpointOutcome ──────────────────────────────────────────────────
+Describe 'Convert-MidpointOutcome' {
+    It 'maps accept→Certify' { Convert-MidpointOutcome 'accept' | Should -Be 'Certify' }
+    It 'maps revoke→Revoke' { Convert-MidpointOutcome 'revoke' | Should -Be 'Revoke' }
+    It 'maps empty→NoDecision' { Convert-MidpointOutcome '' | Should -Be 'NoDecision' }
+    It 'passes through an unknown outcome' { Convert-MidpointOutcome 'somethingElse' | Should -Be 'somethingElse' }
+}
+
+# ─── New-StableGuid ───────────────────────────────────────────────────────────
+Describe 'New-StableGuid' {
+    It 'is deterministic for the same seed' { (New-StableGuid 'camp|1') | Should -Be (New-StableGuid 'camp|1') }
+    It 'differs for different seeds' { (New-StableGuid 'camp|1') | Should -Not -Be (New-StableGuid 'camp|2') }
+    It 'produces a valid UUID' { (New-StableGuid 'x') | Should -Match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' }
+}
+
+# ─── Format-AccountLabel ──────────────────────────────────────────────────────
+Describe 'Format-AccountLabel' {
+    It 'extracts the CN from an LDAP DN' { Format-AccountLabel 'CN=Andrea Hill [ANDHIL@x.com],OU=Users,DC=x' | Should -Be 'Andrea Hill' }
+    It 'leaves a plain string unchanged' { Format-AccountLabel 'JDOE' | Should -Be 'JDOE' }
+}
+
+# ─── Get-MidpointAttrValue ────────────────────────────────────────────────────
+Describe 'Get-MidpointAttrValue' {
+    It 'reads a ri:-prefixed typed-scalar attribute by unprefixed key' {
+        $shadow = [pscustomobject]@{ attributes = [pscustomobject]@{ 'ri:fullName' = [pscustomobject]@{ '@value' = 'Jane Roe' } } }
+        Get-MidpointAttrValue -Shadow $shadow -Keys @('fullName') | Should -Be 'Jane Roe'
+    }
+    It 'returns null when no key matches' {
+        $shadow = [pscustomobject]@{ attributes = [pscustomobject]@{ 'ri:uid' = [pscustomobject]@{ '@value' = '314' } } }
+        Get-MidpointAttrValue -Shadow $shadow -Keys @('fullName','cn') | Should -BeNullOrEmpty
+    }
+}
+
 # ─── Fixture spec (seeder single source of truth) ─────────────────────────────
 Describe 'Get-MidpointFixtureSpec' {
     It 'defines 3 orgs, 2 roles, 1 service, 3 users' {
@@ -130,6 +163,12 @@ Describe 'Get-MidpointFixtureSpec' {
     It 'uses valid-UUID fixed OIDs' {
         $uuid = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         foreach ($u in (Get-MidpointFixtureSpec).users) { $u.oid | Should -Match $uuid }
+    }
+    It 'defines a certification campaign with 3 decided cases' {
+        $c = (Get-MidpointFixtureSpec).campaign
+        $c.oid | Should -Not -BeNullOrEmpty
+        $c.cases.Count | Should -Be 3
+        @($c.cases | Where-Object { $_.outcome -eq 'revoke' }).Count | Should -Be 1
     }
 }
 
