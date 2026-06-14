@@ -225,6 +225,27 @@ De fix is een **midPoint-AD-resourceconfiguratie** (memberOf laten ophalen + aan
 
 **Besluit gebruiker:** laten zoals het is (optie 3). Crawler is en blijft bewezen: entitlements → resources, en memberships → matrix zodra midPoint associaties levert (aangetoond via mock + geseede Adam Brown→AFS). Eén geseede membership (Adam Brown→AFS) staat nog in midpoint-dev als bewijs.
 
+## Sessie-afsluiting & resume-context (2026-06-14)
+
+**Branch:** `feature/midpoint-crawler` — 8 lokale commits, **niets gepusht**. Crawler compleet en bewezen werkend (volledige crawl groen, reconciliatie, 40/40 unit-tests, CI-integratietest).
+
+**Wat staat er (en is veilig om op voort te bouwen):**
+- Volledige crawler in `tools/crawlers/midpoint/` (manifest, REST-client, entry point, seeder, mock-server in `tools/crawlers/shared/`, CI-test, unit-test in `test/unit/Midpoint.Tests.ps1`).
+- Mapping: ResourceType→Systems (alleen niet-lege), OrgType→Contexts(OrgUnit), Role/Service→Resources, User→Identity+focus-Principal+IdentityMember, Shadow `kind=account`→Principal, `kind=entitlement`→Resource(Entitlement)+assignments via associations, `generic`→overgeslagen; org-membership→ContextMembers; assignments→Governed; inducement→Contains; access-cert-campaigns→CertificationDecisions; refresh-views aan het eind.
+- Toegang per persoon geconsolideerd op de focus-principal.
+
+**Open punten (voor een volgende sessie):**
+1. **Contexts-UI toont OrgUnit-contexts met badge "Identity"** (komt van `targetType`). **UI-only fix** (badge `contextType` "Org Unit" tonen) — door de gebruiker bewust buiten scope gehouden; crawler-data is correct (`contextType=OrgUnit`). NIET de UI aanpassen zonder expliciete opdracht.
+2. **AD-groepslidmaatschappen** stromen niet binnen: in midpoint-dev is `member`/`memberOf` `returnedByDefault=false` en niet als fetch-attribuut geconfigureerd → midPoint importeert ze niet. Fix = midPoint-AD-connector-config (resource-wizard), niet de crawler. Gebruiker koos: laten zoals het is. Crawler is klaar zodra associaties aanwezig zijn (bewezen via mock + 1 geseede `Adam Brown→AFS`).
+3. **Optioneel:** `CRAWLER_MANIFESTS_DIR=/app/crawlers` op de web-container zetten zodat de crawler in de UI ("Add Crawler") verschijnt; en t.z.t. PR/merge (vereist push — alleen op expliciete opdracht).
+
+**Omgeving/credentials:** zie secties hierboven + geheugen [[project-midpoint-crawler]] en [[feedback-autonomy-ssh]]. Deploy = `docker cp` crawler-map naar `identityatlas-worker-1:/app/tools/crawlers/midpoint` + dispatch via `Invoke-CrawlerJob.ps1` (web kent `midpoint` niet als jobType door ontbrekende `CRAWLER_MANIFESTS_DIR`). midPoint-admin-wachtwoord uit container-env (base64 doorgeven i.v.m. shell-escaping). Back-up AD-resource: `/tmp/ad-resource-backup.json` op midpoint-dev (let op: `/tmp` overleeft een reboot mogelijk niet).
+
+**Testdata staat nog:** `IA-Test-*` fixtures in midpoint-dev + IdentityAtlas; geseede `Adam Brown→AFS`-membership. Opruimen kan met `Remove-MidpointTestData`.
+
+## Uitvoerings-logboek (vervolg)
+- 2026-06-14 (sessie-eind) — UI-review door gebruiker: stale systeem [2] + lege context-systemen [11,12,13] verwijderd; crawler registreert lege resource-systemen niet meer; bevestigd dat HR-import-personen als identities binnenkomen (319/319 gelinkt). Contexts-UI-label ("Identity" i.p.v. OrgUnit) bewust niet gefixt (UI buiten scope). Sessie afgesloten.
+
 ## Referenties
 - Crawler-raamwerk: `tools/crawlers/CLAUDE.md`, `docs/sync/custom-crawlers.md`, `docs/architecture/crawler-architecture.md`
 - Referentie-crawler: `tools/crawlers/omada/` (IGA via OData)
