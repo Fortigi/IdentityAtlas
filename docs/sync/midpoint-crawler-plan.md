@@ -164,6 +164,7 @@ Resultaat van de crawl op 2026-06-14 (vaste-OID-suffix `…0000000000XX`). Elke 
 - ⚠️ **Deployment-bevinding (geen crawler-bug):** de web-container op deze node heeft `CRAWLER_MANIFESTS_DIR` niet gezet, dus de Node-API valt terug op de hardcoded `VALID_JOB_TYPES` (`demo,entra-id,csv,omada`) en toont nieuwe crawlers (ook midpoint/custom-connector/odata) niet in "Add Crawler". Voor de proof is de crawler daarom via de dispatcher gedraaid; in CI (image uit de repo) wordt het manifest wél ontdekt. Fix voor productiegebruik op deze node: `CRAWLER_MANIFESTS_DIR=/app/crawlers` zetten op de web-container.
 - Shadow-search vereist `?options=raw` (plain search → 500). In de crawler verwerkt.
 - Sommige midPoint-velden zijn multi-valued (bv. `emailAddress`); de client neemt de eerste waarde.
+- ⚠️ **Demo-vs-productie paden (gebruiker benadrukt):** midPoint-server-paden in de docker-demo komen niet overeen met productie. Het CSV-bestandspad voor shadow-provisioning is demo-specifiek (`/opt/midpoint/var/...`, want `MP_DIR=/opt/midpoint` in het Evolveum docker-image); een productie/native install heeft een andere midpoint-home. Daarom is dit **configureerbaar** gemaakt via `New-MidpointTestData -CsvFilePath <pad>` (niet hardcoden). De **crawler zelf** is padonafhankelijk (alleen REST/baseUrl); alleen de test-seeder raakt een server-pad. Ook het lezen van het admin-wachtwoord uit de container-env is demo-specifiek — in productie komt dat uit de vault/operator-config.
 
 ## Uitvoerings-logboek (chronologisch)
 - 2026-06-13 — Plan v3 vastgelegd. Wacht op "go".

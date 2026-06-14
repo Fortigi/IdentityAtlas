@@ -21,10 +21,16 @@
       Users  : Alice (Role-A, ChildA, CSV account), Bob (Service-1, ChildB, CSV account),
                Carol (Role-B, Root, no account)
 
-    PREREQUISITE for shadow provisioning: the CSV file (CsvFilePath, default
-    /opt/midpoint/var/ia-test-accounts.csv) must exist on the midPoint server with the
-    header "login,firstName,lastName,email". Create it once with, e.g.:
-      docker exec <midpoint-container> sh -lc 'printf "login,firstName,lastName,email\n" > /opt/midpoint/var/ia-test-accounts.csv'
+    PREREQUISITE for shadow provisioning: the CSV file (CsvFilePath) must exist on the
+    midPoint server with the header "login,firstName,lastName,email". Create it once with, e.g.:
+      docker exec <midpoint-container> sh -lc 'printf "login,firstName,lastName,email\n" > <CsvFilePath>'
+
+    DEPLOYMENT NOTE — midPoint server paths are environment-specific. The default
+    CsvFilePath (/opt/midpoint/var/ia-test-accounts.csv) matches the Evolveum DOCKER
+    DEMO image (MP_DIR=/opt/midpoint); a production / native midPoint install uses a
+    different home (e.g. ~/.midpoint or a configured midpoint.home). ALWAYS pass
+    -CsvFilePath for non-demo environments — never assume the demo path. The crawler
+    itself is path-agnostic (REST only); only this test-data seeder touches a server path.
 
 .EXAMPLE
     . ./Seed-MidpointTestData.ps1
