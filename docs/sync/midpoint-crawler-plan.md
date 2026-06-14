@@ -208,6 +208,16 @@ Bewijs:
 
 **Bron-limitatie (geen crawler-bug):** midPoint-dev synct geen AD-groepslidmaatschappen (0 associaties), dus de 28 entitlements tonen op echte data nauwelijks members. De crawler vult ze zodra associaties aanwezig zijn (bewezen via mock + de ene geseede Adam Brown→AFS-membership).
 
+## Ronde 4 — projecties & assignments van een user (2026-06-14)
+Onderzoek (Adam Brown, oid `d521c3b7…`):
+- **Projecties:** midPoint `linkRef`=3 shadows → 2 echte accounts (AD `intent=default`, HR-bron `intent=HR import`) + 1 generic (terecht overgeslagen). Plus de focus-principal (midPoint). Correct.
+- **Assignments:** midPoint focus-assignments = Archetype("System user", overgeslagen) + Org (→ context "Chicago Private Customer"). Entitlement AFS via AD-account-`association`.
+- **Oorzaak gevonden:** toegang stond **versnipperd over principals** — rollen op de focus-principal, entitlements op het account-principal — en `/user/:id` is **per-principal** (aggregeert niet over de gekoppelde accounts). Open je de persoon, dan miste je de account-entitlements. (De matrix op identity-niveau aggregeert wél correct via IdentityMembers — daar was het al goed.)
+
+Fix: een persoon z'n entitlement-memberships (uit account-associaties) worden nu aan de **eigenaar (focus-principal)** gekoppeld i.p.v. het losse account (met `viaAccount` in extendedAttributes). Daardoor toont het openen van de persoon álle toegang (rollen + entitlements) op één plek; de accounts blijven zichtbaar als projecties.
+
+Bewijs: `/user/<Adam Brown>/memberships` → **AFS - Administrators (Entitlement)**; entitlement-assignment verplaatst van AD-account naar persoon (`+1 ~0 -1`); 1 identity + 3 projecties; matrix 5 rijen; fixtures intact; unit-tests 40/40.
+
 ## Referenties
 - Crawler-raamwerk: `tools/crawlers/CLAUDE.md`, `docs/sync/custom-crawlers.md`, `docs/architecture/crawler-architecture.md`
 - Referentie-crawler: `tools/crawlers/omada/` (IGA via OData)

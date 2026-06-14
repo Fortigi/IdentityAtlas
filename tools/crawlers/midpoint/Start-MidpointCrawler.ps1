@@ -402,7 +402,8 @@ if ($Sync.shadows -and $Sync.users) {
         $acctBySystem  = @{}   # systemId → List[account principal record]
         $entBySystem   = @{}   # systemId → List[entitlement resource record]
         $shadowMembers = [System.Collections.Generic.List[object]]::new()   # account → identity links
-        $entAssignsBySystem = @{}   # systemId → List[account→entitlement assignment]
+        $entAssignsBySystem = @{}   # systemId → List[person→entitlement assignment]
+        $entAssignSeen = [System.Collections.Generic.HashSet[string]]::new()   # dedup (resourceId|principalId)
         $skipped = @{ generic = 0; other = 0 }
 
         foreach ($s in $shadows) {
@@ -453,14 +454,18 @@ if ($Sync.shadows -and $Sync.users) {
             else { if ($kind -eq 'generic') { $skipped.generic++ } else { $skipped.other++ } }
 
             # Entitlement membership: an account shadow's associations reference entitlement
-            # shadows. Each becomes an account → entitlement ResourceAssignment (matrix cell).
+            # shadows. Each becomes a person → entitlement ResourceAssignment so the access
+            # shows consolidated on the identity (the entitlement is reached VIA this account,
+            # recorded in extendedAttributes). Falls back to the account itself if unlinked.
             if ($kind -eq 'account' -and $s.association) {
+                $ownerOid = if ($ShadowOidToUserOid.ContainsKey($shadowOid)) { $ShadowOidToUserOid[$shadowOid] } else { $shadowOid }
                 foreach ($assoc in @($s.association)) {
                     $entOid = Get-MidpointRefOid $assoc.shadowRef $null
                     if (-not $entOid) { $entOid = Get-MidpointRefOid $assoc.identifier $null }
                     if (-not $entOid) { continue }
+                    if (-not $entAssignSeen.Add("$entOid|$ownerOid")) { continue }
                     if (-not $entAssignsBySystem.ContainsKey($sysId)) { $entAssignsBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
-                    $entAssignsBySystem[$sysId].Add([PSCustomObject]@{ resourceId = $entOid; principalId = $shadowOid; assignmentType = 'Direct' })
+                    $entAssignsBySystem[$sysId].Add([PSCustomObject]@{ resourceId = $entOid; principalId = $ownerOid; assignmentType = 'Direct'; extendedAttributes = @{ viaAccount = $shadowOid } })
                 }
             }
         }
