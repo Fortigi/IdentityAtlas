@@ -1,0 +1,5 @@
+- Added a midPoint (Evolveum) crawler that pulls identity governance data from the midPoint REST API into Identity Atlas.
+- Imports midPoint orgs as org-unit contexts (with hierarchy), roles and services as resources, and users as identities with their midPoint accounts.
+- Imports accounts on connected systems (midPoint shadows) as principals, linked to the right person, so multi-account identities are visible.
+- Surfaces role/service assignments as governed assignments and role nesting as "contains" relationships, and maps org membership to context membership.
+- Supports Basic, API-token, and OAuth2 (client-credentials / password) authentication, configurable from the Add Crawler screen.

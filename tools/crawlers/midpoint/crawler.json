@@ -1,0 +1,48 @@
+{
+  "type": "midpoint",
+  "displayName": "midPoint (Evolveum)",
+  "entryPoint": "Start-MidpointCrawler.ps1",
+  "dependsOn": [],
+  "postSyncHooks": ["buildContexts"],
+  "configSchema": {
+    "type": "object",
+    "required": ["baseUrl", "authMethod"],
+    "properties": {
+      "baseUrl":      { "type": "string", "minLength": 1, "description": "midPoint base URL (e.g. https://midpoint.example.com/midpoint or .../midpoint/ws/rest)" },
+      "authMethod":   { "enum": ["BasicAuth", "ApiToken", "OAuth2CC", "OAuth2ROPC"], "description": "REST authentication method" },
+      "username":     { "type": "string", "description": "Username for BasicAuth / OAuth2ROPC" },
+      "password":     { "type": "string", "description": "Password for BasicAuth / OAuth2ROPC" },
+      "apiToken":     { "type": "string", "description": "Static bearer token for ApiToken auth" },
+      "clientId":     { "type": "string", "description": "OAuth2 client id" },
+      "clientSecret": { "type": "string", "description": "OAuth2 client secret" },
+      "tokenEndpoint":{ "type": "string", "description": "OAuth2 token endpoint URL" },
+      "pageSize":     { "type": "number", "default": 100, "description": "Search page size (maxSize per request)" },
+      "syncShadows":  { "type": "boolean", "default": true, "description": "Sync ShadowType accounts on connected resources as Principals" },
+      "selectedObjects": {
+        "type": "object",
+        "description": "Toggle individual sync phases",
+        "properties": {
+          "systems":        { "type": "boolean", "default": true },
+          "orgs":           { "type": "boolean", "default": true },
+          "roles":          { "type": "boolean", "default": true },
+          "services":       { "type": "boolean", "default": true },
+          "users":          { "type": "boolean", "default": true },
+          "shadows":        { "type": "boolean", "default": true },
+          "orgMembership":  { "type": "boolean", "default": true },
+          "assignments":    { "type": "boolean", "default": true },
+          "roleNesting":    { "type": "boolean", "default": true }
+        }
+      }
+    },
+    "allOf": [
+      { "if": { "properties": { "authMethod": { "const": "BasicAuth" } } },
+        "then": { "required": ["username", "password"] } },
+      { "if": { "properties": { "authMethod": { "const": "ApiToken" } } },
+        "then": { "required": ["apiToken"] } },
+      { "if": { "properties": { "authMethod": { "const": "OAuth2CC" } } },
+        "then": { "required": ["tokenEndpoint", "clientId", "clientSecret"] } },
+      { "if": { "properties": { "authMethod": { "const": "OAuth2ROPC" } } },
+        "then": { "required": ["tokenEndpoint", "clientId", "clientSecret", "username", "password"] } }
+    ]
+  }
+}
