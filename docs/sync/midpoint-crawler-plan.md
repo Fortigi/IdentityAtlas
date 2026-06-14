@@ -218,6 +218,13 @@ Fix: een persoon z'n entitlement-memberships (uit account-associaties) worden nu
 
 Bewijs: `/user/<Adam Brown>/memberships` → **AFS - Administrators (Entitlement)**; entitlement-assignment verplaatst van AD-account naar persoon (`+1 ~0 -1`); 1 identity + 3 projecties; matrix 5 rijen; fixtures intact; unit-tests 40/40.
 
+## Ronde 5 — AD-groepslidmaatschappen (2026-06-14)
+Onderzocht waarom entitlements geen members tonen. **Gecorrigeerde conclusie:** AD (`masterdemo.corporate.com`) heeft de lidmaatschappen wél; midPoint-dev haalt ze alleen niet op. Precieze oorzaak: `member`/`memberOf` zijn `returnedByDefault=false` in het connector-schema én niet als op-te-halen attribuut geconfigureerd in de AD-resource-schemaHandling. Geverifieerd met een AD-account-import (319 accounts → 0 associaties).
+
+De fix is een **midPoint-AD-resourceconfiguratie** (memberOf laten ophalen + aan de `#group`-associatie koppelen, bij voorkeur als subject→object/`memberOf`-shortcut zodat het op de account-shadow wordt opgeslagen voor de crawler). Dit is midPoint-beheerwerk (resource-wizard), niet de crawler. Een REST-PATCH-poging faalde (4.9: `returnedByDefault` bestaat niet op `ResourceAttributeDefinitionType`) — **geen wijziging doorgevoerd**, AD-resource onveranderd, redundante import-taken opgeruimd, back-up `/tmp/ad-resource-backup.json` aanwezig.
+
+**Besluit gebruiker:** laten zoals het is (optie 3). Crawler is en blijft bewezen: entitlements → resources, en memberships → matrix zodra midPoint associaties levert (aangetoond via mock + geseede Adam Brown→AFS). Eén geseede membership (Adam Brown→AFS) staat nog in midpoint-dev als bewijs.
+
 ## Referenties
 - Crawler-raamwerk: `tools/crawlers/CLAUDE.md`, `docs/sync/custom-crawlers.md`, `docs/architecture/crawler-architecture.md`
 - Referentie-crawler: `tools/crawlers/omada/` (IGA via OData)
