@@ -190,6 +190,24 @@ Na UI-inspectie door de gebruiker bleken vier punten; alle opgelost en geverifie
 
 **Tests:** unit-tests uitgebreid naar **40/40 groen** (incl. outcome-mapping, stable-guid, shadow-attribuut-parsing, campaign-fixture).
 
+## Ronde 3 — shadow-typering onder Users (2026-06-14)
+De gebruiker zag onder Users dat entitlements/OU's als users stonden en één persoon meervoudig. Grondoorzaak: **alle shadows werden als `principalType=User` geïmporteerd**, ongeacht `kind`. Audit op midPoint-dev (1639 shadows): kind generic=957, account=645, entitlement=28; objectClass group=36, user=324, AccountObjectClass=1279; **0 shadows met `association`** (groepslidmaatschap niet gesynct).
+
+Fix — shadows mappen op `kind`:
+| `kind` | Mapping |
+|---|---|
+| `account` | Principal (account), gelinkt aan de identity |
+| `entitlement` (AD-groep) | **Resource** (`resourceType='Entitlement'`); account→entitlement-`association` → ResourceAssignment (matrix) |
+| `generic` / overig (OU, container, DB-rij) | **Overgeslagen** — niet als user |
+
+Bewijs:
+- **#1** "AFS - Administrators" → `resourceType=Entitlement`, 0× als principal. Entitlement-membership in matrix bewezen: via mock (account+associatie → Resource+assignment+matrixrij) **én** op echte midPoint-dev-data: **Adam Brown → AFS - Administrators (Direct)** zichtbaar in de matrix.
+- **#2** Adam Brown: 1 identity met 3 correct-getypeerde accounts (AD/default, HR-import, midPoint-focus); 0 generic-principals (957 stale opgeruimd). De HR-bron is herkenbaar aan `intent='HR import'`.
+- **#3** Aalborg/business-unit-objecten: 0× als principal.
+- Matrix nu **5 rijen** (4 role/service governed + 1 entitlement), originele fixtures intact (3 governed, 3 reviews), 0 numerieke shadow-namen. Unit-tests 40/40; CI-test dekt nu ook entitlement→resource + membership + generic-skip.
+
+**Bron-limitatie (geen crawler-bug):** midPoint-dev synct geen AD-groepslidmaatschappen (0 associaties), dus de 28 entitlements tonen op echte data nauwelijks members. De crawler vult ze zodra associaties aanwezig zijn (bewezen via mock + de ene geseede Adam Brown→AFS-membership).
+
 ## Referenties
 - Crawler-raamwerk: `tools/crawlers/CLAUDE.md`, `docs/sync/custom-crawlers.md`, `docs/architecture/crawler-architecture.md`
 - Referentie-crawler: `tools/crawlers/omada/` (IGA via OData)

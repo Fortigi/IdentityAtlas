@@ -383,63 +383,112 @@ if ($Sync.users) {
     } catch { Add-PhaseError 'Users' $_.Exception.Message }
 }
 
-# ─── Phase: Shadows → Principals (per resource system) + IdentityMembers ─────
+# ─── Phase: Shadows → Accounts / Entitlements ────────────────────────────────
+# A midPoint shadow is NOT always a user account. Map by `kind`:
+#   account     → Principal (account) on its resource system, linked to the identity
+#   entitlement → Resource (resourceType='Entitlement', e.g. an AD group); account→
+#                 entitlement associations become ResourceAssignments (matrix membership)
+#   generic / other → skipped (these are non-account objects such as OU/container/DB rows,
+#                 and must NOT pollute the Users list)
 if ($Sync.shadows -and $Sync.users) {
-    Write-Host "`nShadows (resource accounts):" -ForegroundColor Cyan
+    Write-Host "`nShadows (accounts + entitlements):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing shadows' -Pct 60
     try {
-        # Shadow search must use options=raw — a plain shadow search errors (it would
-        # try to contact every resource); raw reads the shadows straight from the repo.
-        $shadows = @(Invoke-MidpointSearch -Type 'shadows' -PageSize $PageSize -Options 'raw')
+        # options=raw reads shadows straight from the repo (a plain search errors);
+        # include=association pulls the entitlement links (account → group).
+        $shadows = @(Invoke-MidpointSearch -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association')
         Write-Host "  $($shadows.Count) shadows from midPoint" -ForegroundColor Gray
 
-        # Group shadows by their resource system; principals ingest is per-systemId.
-        $bySystem = @{}                                   # systemId → List[principal record]
-        $shadowMembers = [System.Collections.Generic.List[object]]::new()
+        $acctBySystem  = @{}   # systemId → List[account principal record]
+        $entBySystem   = @{}   # systemId → List[entitlement resource record]
+        $shadowMembers = [System.Collections.Generic.List[object]]::new()   # account → identity links
+        $entAssignsBySystem = @{}   # systemId → List[account→entitlement assignment]
+        $skipped = @{ generic = 0; other = 0 }
+
         foreach ($s in $shadows) {
             $resOid = Get-MidpointRefOid $s.resourceRef $null
             if (-not $resOid -or -not $ResourceSystemId.ContainsKey($resOid)) { continue }   # skip shadows on un-synced resources
-            $sysId  = $ResourceSystemId[$resOid]
+            $sysId     = $ResourceSystemId[$resOid]
             $shadowOid = [string]$s.oid
-            if (-not $bySystem.ContainsKey($sysId)) { $bySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
-            $bySystem[$sysId].Add([PSCustomObject]@{
-                id             = $shadowOid
-                externalId     = $shadowOid
-                displayName    = (Get-MidpointShadowLabel -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid)
-                principalType  = 'User'
-                accountEnabled = (Test-MidpointEnabled $s)
-                extendedAttributes = @{
-                    accountName = (Get-MidpointString $s.name '')
-                    resourceOid = $resOid
-                    objectClass = (Get-MidpointString $s.objectClass '')
-                    kind        = (Get-MidpointString $s.kind '')
-                    intent      = (Get-MidpointString $s.intent '')
-                    source      = 'midpoint-shadow'
-                }
-            })
-            # Link shadow → owning identity (via user.linkRef captured in Users phase)
-            if ($ShadowOidToUserOid.ContainsKey($shadowOid)) {
-                $shadowMembers.Add([PSCustomObject]@{
-                    identityId = $ShadowOidToUserOid[$shadowOid]
-                    principalId = $shadowOid
-                    accountType = 'Account'
-                    isPrimary  = $false
+            $kind      = if ($s.kind) { [string]$s.kind } else { '' }
+
+            if ($kind -eq 'account') {
+                if (-not $acctBySystem.ContainsKey($sysId)) { $acctBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
+                $acctBySystem[$sysId].Add([PSCustomObject]@{
+                    id             = $shadowOid
+                    externalId     = $shadowOid
+                    displayName    = (Get-MidpointShadowLabel -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid)
+                    principalType  = 'User'
+                    accountEnabled = (Test-MidpointEnabled $s)
+                    extendedAttributes = @{
+                        accountName = (Get-MidpointString $s.name '')
+                        resourceOid = $resOid
+                        objectClass = (Get-MidpointString $s.objectClass '')
+                        kind        = $kind
+                        intent      = (Get-MidpointString $s.intent '')
+                        source      = 'midpoint-shadow'
+                    }
                 })
+                if ($ShadowOidToUserOid.ContainsKey($shadowOid)) {
+                    $shadowMembers.Add([PSCustomObject]@{ identityId = $ShadowOidToUserOid[$shadowOid]; principalId = $shadowOid; accountType = 'Account'; isPrimary = $false })
+                }
+            }
+            elseif ($kind -eq 'entitlement') {
+                if (-not $entBySystem.ContainsKey($sysId)) { $entBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
+                $entBySystem[$sysId].Add([PSCustomObject]@{
+                    id           = $shadowOid
+                    externalId   = $shadowOid
+                    displayName  = (Format-AccountLabel (Get-MidpointString $s.name $shadowOid))
+                    resourceType = 'Entitlement'
+                    extendedAttributes = @{
+                        accountName = (Get-MidpointString $s.name '')
+                        resourceOid = $resOid
+                        objectClass = (Get-MidpointString $s.objectClass '')
+                        intent      = (Get-MidpointString $s.intent '')
+                        source      = 'midpoint-entitlement'
+                    }
+                })
+                [void]$SyncedResourceIds.Add($shadowOid)
+            }
+            else { if ($kind -eq 'generic') { $skipped.generic++ } else { $skipped.other++ } }
+
+            # Entitlement membership: an account shadow's associations reference entitlement
+            # shadows. Each becomes an account → entitlement ResourceAssignment (matrix cell).
+            if ($kind -eq 'account' -and $s.association) {
+                foreach ($assoc in @($s.association)) {
+                    $entOid = Get-MidpointRefOid $assoc.shadowRef $null
+                    if (-not $entOid) { $entOid = Get-MidpointRefOid $assoc.identifier $null }
+                    if (-not $entOid) { continue }
+                    if (-not $entAssignsBySystem.ContainsKey($sysId)) { $entAssignsBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
+                    $entAssignsBySystem[$sysId].Add([PSCustomObject]@{ resourceId = $entOid; principalId = $shadowOid; assignmentType = 'Direct' })
+                }
             }
         }
 
-        $totalShadows = 0
-        foreach ($sysId in $bySystem.Keys) {
-            $recs = @($bySystem[$sysId])
+        # Entitlements first (so association assignments satisfy the resource FK), then accounts.
+        $totalEnt = 0
+        foreach ($sysId in $entBySystem.Keys) {
+            $recs = @($entBySystem[$sysId]); $totalEnt += $recs.Count
+            $R = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $sysId -Scope @{ resourceType = 'Entitlement' } -Records $recs
+            Write-Host "  Entitlements (resources, system $sysId): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+        }
+        $totalAcct = 0
+        foreach ($sysId in $acctBySystem.Keys) {
+            $recs = @($acctBySystem[$sysId]); $totalAcct += $recs.Count
             $R = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $sysId -Scope @{ principalType = 'User' } -Records $recs
-            $totalShadows += $recs.Count
-            Write-Host "  Principals (shadows, system $sysId): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+            Write-Host "  Accounts (principals, system $sysId): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
         }
         if ($shadowMembers.Count -gt 0) {
             $R = Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $MidpointSystemId -Records @($shadowMembers)
-            Write-Host "  IdentityMembers (shadow links): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+            Write-Host "  IdentityMembers (account links): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
         }
-        Write-Host "  Total shadows synced: $totalShadows (linked: $($shadowMembers.Count))" -ForegroundColor Gray
+        $totalEntAssign = 0
+        foreach ($sysId in $entAssignsBySystem.Keys) {
+            $recs = @($entAssignsBySystem[$sysId]); $totalEntAssign += $recs.Count
+            $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $sysId -Scope @{ assignmentType = 'Direct' } -Records $recs
+            Write-Host "  Entitlement assignments (system $sysId): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+        }
+        Write-Host "  Accounts: $totalAcct | Entitlements: $totalEnt | Entitlement-memberships: $totalEntAssign | skipped generic/other: $($skipped.generic)/$($skipped.other)" -ForegroundColor Gray
     } catch { Add-PhaseError 'Shadows' $_.Exception.Message }
 }
 

@@ -57,10 +57,12 @@ $orgOid  = 'aaaa1111-0000-4000-8000-000000000001'
 $roleOid = 'aaaa1111-0000-4000-8000-000000000002'
 $svcOid  = 'aaaa1111-0000-4000-8000-000000000003'
 $userOid = 'aaaa1111-0000-4000-8000-000000000004'
+$resOid  = 'aaaa1111-0000-4000-8000-000000000005'
+$acctOid = 'aaaa1111-0000-4000-8000-000000000006'
+$entOid  = 'aaaa1111-0000-4000-8000-000000000007'
 
 $mockObjects = @{
-    resources = @()
-    shadows   = @()
+    resources = @(@{ oid = $resOid; name = 'midpoint-ci-resource' })
     orgs      = @(@{ oid = $orgOid; name = 'midpoint-ci-org'; displayName = 'midPoint CI Org' })
     roles     = @(@{ oid = $roleOid; name = 'midpoint-ci-role'; displayName = 'midPoint CI Role' })
     services  = @(@{ oid = $svcOid; name = 'midpoint-ci-service'; displayName = 'midPoint CI Service' })
@@ -70,7 +72,16 @@ $mockObjects = @{
         activation = @{ effectiveStatus = 'enabled' }
         assignment   = @( @{ targetRef = @{ oid = $roleOid; type = 'RoleType' } } )
         parentOrgRef = @{ oid = $orgOid; type = 'OrgType' }
+        linkRef      = @{ oid = $acctOid; type = 'ShadowType' }
     })
+    # An account shadow (→ Principal) with an association to an entitlement shadow (→ Resource),
+    # plus a generic shadow that MUST be skipped (not imported as a user).
+    shadows = @(
+        @{ oid = $acctOid; name = 'midpoint.citest@ci'; kind = 'account'; resourceRef = @{ oid = $resOid; type = 'ResourceType' }
+           association = @( @{ name = 'ri:group'; shadowRef = @{ oid = $entOid; type = 'ShadowType' } } ) }
+        @{ oid = $entOid; name = 'CN=midPoint CI Entitlement,OU=Groups'; kind = 'entitlement'; resourceRef = @{ oid = $resOid; type = 'ResourceType' } }
+        @{ oid = 'aaaa1111-0000-4000-8000-000000000008'; name = '99999'; kind = 'generic'; resourceRef = @{ oid = $resOid; type = 'ResourceType' } }
+    )
 }
 
 $mock = $null; $configId = $null
@@ -115,6 +126,15 @@ try {
         $rcnt = if ($res.data) { $res.data.Count } elseif ($res -is [array]) { $res.Count } else { 0 }
         Report-Result 'Midpoint/Data — resource ingested' ($rcnt -ge 1) "($rcnt resource(s) in system $sid)"
     } catch { Report-Result 'Midpoint/Data — resource ingested' $false $_.Exception.Message }
+
+    # ── Assert: entitlement shadow became a Resource (Entitlement), not a user ──
+    try {
+        $sid = if ($thisSystem) { $thisSystem.id } else { 0 }
+        $res = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?systemId=$sid&limit=50" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $list = if ($res.data) { $res.data } elseif ($res -is [array]) { $res } else { @() }
+        $ent  = @($list) | Where-Object { $_.resourceType -eq 'Entitlement' } | Select-Object -First 1
+        Report-Result 'Midpoint/Data — entitlement mapped as resource (not user)' ($null -ne $ent) "$(if ($ent) { "($($ent.displayName))" } else { '(no Entitlement resource)' })"
+    } catch { Report-Result 'Midpoint/Data — entitlement mapped as resource' $false $_.Exception.Message }
 
 } catch {
     Write-Host "  Fatal test error: $($_.Exception.Message)" -ForegroundColor Red
