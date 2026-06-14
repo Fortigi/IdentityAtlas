@@ -181,6 +181,7 @@ $SyncedOrgIds            = [System.Collections.Generic.HashSet[string]]::new()  
 $SyncedResourceIds       = [System.Collections.Generic.HashSet[string]]::new()  # Role/Service OIDs synced as Resources
 $AllUsers                = $null
 $ShadowOidToUserOid      = @{}                                                   # shadow OID → owning user OID (from user.linkRef)
+$AllShadows              = $null                                                 # fetched once in Systems phase, reused by Shadows phase
 
 # ─── Phase: Systems ──────────────────────────────────────────────────────────
 # midPoint itself + each ResourceType become Identity Atlas Systems.
@@ -194,13 +195,32 @@ if ($Sync.systems) {
 
         $resources = @(Invoke-MidpointSearch -Type 'resources' -PageSize $PageSize)
         Write-Host "  $($resources.Count) connected resources in midPoint" -ForegroundColor Gray
+
+        # Fetch shadows once (reused by the Shadows phase) and determine which resources
+        # actually hold accounts/entitlements. Resources whose shadows are all generic
+        # (e.g. context/data-only connectors) yield nothing and are NOT registered as
+        # systems — that avoids empty, confusing systems in the UI.
+        $AllShadows = @(Invoke-MidpointSearch -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association')
+        $resWithData = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($s in $AllShadows) {
+            if (($s.kind -eq 'account') -or ($s.kind -eq 'entitlement')) {
+                $ro = Get-MidpointRefOid $s.resourceRef $null
+                if ($ro) { [void]$resWithData.Add($ro) }
+            }
+        }
+
         foreach ($r in $resources) {
-            $rName = (Get-MidpointString $r.name "Resource $($r.oid)")
-            $ResourceOidToName[[string]$r.oid] = $rName
+            $roid  = [string]$r.oid
+            $rName = (Get-MidpointString $r.name "Resource $roid")
+            $ResourceOidToName[$roid] = $rName
+            if (-not $resWithData.Contains($roid)) {
+                Write-Host "  Skipping system registration for '$rName' (no account/entitlement shadows)" -ForegroundColor DarkGray
+                continue
+            }
             $sysRecords.Add([PSCustomObject]@{
                 systemType = 'Midpoint'
                 displayName = $rName
-                tenantId   = [string]$r.oid
+                tenantId   = $roid
                 enabled    = $true; syncEnabled = $false
             })
         }
@@ -394,9 +414,9 @@ if ($Sync.shadows -and $Sync.users) {
     Write-Host "`nShadows (accounts + entitlements):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing shadows' -Pct 60
     try {
-        # options=raw reads shadows straight from the repo (a plain search errors);
-        # include=association pulls the entitlement links (account → group).
-        $shadows = @(Invoke-MidpointSearch -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association')
+        # Reuse the shadow list already fetched in the Systems phase (options=raw +
+        # include=association). Fall back to a fresh fetch if Systems was skipped.
+        $shadows = if ($null -ne $AllShadows) { @($AllShadows) } else { @(Invoke-MidpointSearch -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association') }
         Write-Host "  $($shadows.Count) shadows from midPoint" -ForegroundColor Gray
 
         $acctBySystem  = @{}   # systemId → List[account principal record]
