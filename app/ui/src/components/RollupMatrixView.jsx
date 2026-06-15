@@ -38,6 +38,7 @@ export default function RollupMatrixView({
     attribute, rollupContent = 'resources-and-roles', resources, groupValues,
     counts: directCounts, businessRoles = [], roleCounts = [], roleRows = [], cells = [],
     groupTotals = [], rollupKind = 'attribute', nodes = [], breadcrumb = [],
+    layered = false, maxDepth = 1,
   } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
 
@@ -210,6 +211,20 @@ export default function RollupMatrixView({
     onFilterChange?.({ ...filter, rollupPath: [...(filter.rollupPath || []), nodeId] });
   }, [filter, onFilterChange]);
 
+  // ── Layered drill: expand an org IN PLACE — its sub-teams appear as a new
+  // header row beneath it (vs. zoom, which replaces the columns). Collapsing an
+  // org clicks its (now-merged) parent header. Both just edit rollupExpanded.
+  const orgExpanded = useMemo(() => new Set(filter?.rollupExpanded || []), [filter?.rollupExpanded]);
+  const expandOrg = useCallback((nodeId) => {
+    const cur = filter?.rollupExpanded || [];
+    if (cur.includes(nodeId)) return;
+    onFilterChange?.({ ...filter, rollupExpanded: [...cur, nodeId] });
+  }, [filter, onFilterChange]);
+  const collapseOrg = useCallback((nodeId) => {
+    const cur = filter?.rollupExpanded || [];
+    onFilterChange?.({ ...filter, rollupExpanded: cur.filter(id => id !== nodeId) });
+  }, [filter, onFilterChange]);
+
   // Breadcrumb navigation: jump to a level. Index 0 = the root (path = []),
   // index i = the i-th drill step.
   const jumpToCrumb = useCallback((idx) => {
@@ -284,7 +299,7 @@ export default function RollupMatrixView({
   const trailingCols = visibleRoles.length + 3; // resource + # + Description (+ roles handled separately)
 
   // Context drill breadcrumb — rendered just above the grid (under the legend).
-  const breadcrumbNav = contextMode && breadcrumb.length > 0 ? (
+  const breadcrumbNav = contextMode && !layered && breadcrumb.length > 0 ? (
     <nav className="flex items-center flex-wrap gap-1 text-xs px-2 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
       <span className="text-gray-500 dark:text-gray-400 mr-1">Drill path:</span>
       {breadcrumb.map((c, i) => {
@@ -304,6 +319,99 @@ export default function RollupMatrixView({
       })}
     </nav>
   ) : null;
+
+  // ── Layered hierarchy header: one merged row per org level. A node sits at
+  // its own level (depth-1); ancestor levels above it are the expanded parents
+  // (merged, click to collapse); levels below show the sub-team count (click to
+  // expand). Member-expanded people (toggleGroup) ride along as rowSpan columns.
+  const mergeKeyAt = (col, L) => {
+    const n = nodeMap.get(col.group);
+    if (!n) return `__n__${col.group}`;
+    return L < (n.depth || 1) ? n.pathIds?.[L] : `__below__${col.group}`;
+  };
+  const vLabel = (text, extra = '') => (
+    <div className={`text-[10px] font-semibold ${extra}`} style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '90px', overflow: 'hidden', whiteSpace: 'nowrap', margin: '0 auto' }}>{text}</div>
+  );
+  const layeredGroupCell = (col, L) => {
+    const n = nodeMap.get(col.group);
+    const span = (() => { let j = 1; while (col._i + j < columns.length && columns[col._i + j].type === 'group' && mergeKeyAt(columns[col._i + j], L) === mergeKeyAt(col, L)) j++; return j; })();
+    const baseTh = 'border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-center';
+    if (!n) return { span, th: <th key={`${col.key}-${L}`} colSpan={span} className={`${baseTh} bg-gray-100 dark:bg-gray-800`} /> };
+    const ownLevel = (n.depth || 1) - 1;
+    if (L < ownLevel) {
+      // expanded ancestor — click to collapse this branch back into one column
+      return { span, th: (
+        <th key={`${col.key}-${L}`} colSpan={span} onClick={() => collapseOrg(n.pathIds[L])}
+            className={`${baseTh} align-middle bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
+            title={`Collapse ${n.pathNames?.[L] || ''} back into one column`}>
+          <span className="text-[10px] font-semibold text-indigo-800 dark:text-indigo-200">▾ {orgShort(n.pathNames?.[L] || '')}</span>
+        </th>
+      ) };
+    }
+    if (L === ownLevel) {
+      const isMembersExp = expanded.has(col.group);
+      const loadingM = loadingGroup.has(col.group);
+      const canExpand = (n.childCount || 0) > 0;
+      const hasMembers = (n.directMembers || 0) > 0;
+      const btn = 'w-4 h-4 flex items-center justify-center text-[10px] leading-none shrink-0';
+      return { span, th: (
+        <th key={`${col.key}-${L}`} colSpan={span} className={`${baseTh} align-bottom bg-gray-100 dark:bg-gray-800`} style={{ minWidth: '40px', height: '120px' }} title={`${n.displayName} — ${n.total} ${subjectWord} (whole subtree)`}>
+          <div className="flex flex-col items-center justify-end h-full gap-1">
+            <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0">{n.total}</span>
+            {hasMembers && (
+              <button onClick={() => toggleGroup(col.group)} className={`${btn} ${isMembersExp ? 'text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-gray-400'} hover:text-sky-600 dark:hover:text-sky-400`}
+                title={isMembersExp ? 'Hide the people directly in this team' : `Show the ${n.directMembers} ${subjectWord} directly in this team`}>{loadingM ? '⋯' : (isMembersExp ? '▾' : '▸')}</button>
+            )}
+            {canExpand && (
+              <button onClick={() => expandOrg(col.group)} className={`${btn} text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400`}
+                title={`Expand ${orgShort(n.displayName)} — show its ${n.childCount} sub-teams as a new row`}>⊕</button>
+            )}
+            {vLabel(orgShort(n.displayName), 'text-gray-700 dark:text-gray-300')}
+          </div>
+        </th>
+      ) };
+    }
+    // below the node's own level — the collapsed column extends down; show the
+    // sub-team count once as an expand hint.
+    return { span, th: (
+      <th key={`${col.key}-${L}`} colSpan={span} onClick={() => (n.childCount ? expandOrg(col.group) : undefined)}
+          className={`${baseTh} align-middle bg-gray-50 dark:bg-gray-800/40 ${n.childCount ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
+          title={n.childCount ? `${n.childCount} sub-teams — click to expand` : undefined}>
+        {L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-gray-500 dark:text-gray-400">{n.childCount}</span> : null}
+      </th>
+    ) };
+  };
+  const layeredHeader = () => {
+    const indexed = columns.map((c, i) => ({ ...c, _i: i }));
+    const rows = [];
+    for (let L = 0; L < maxDepth; L++) {
+      const cells = [];
+      if (L === 0) cells.push(
+        <th key="corner" rowSpan={maxDepth} className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left align-bottom text-gray-600 dark:text-gray-300 font-medium" style={{ minWidth: '280px' }}>{rowNoun}</th>
+      );
+      let i = 0;
+      while (i < indexed.length) {
+        const col = indexed[i];
+        if (col.type === 'user') {
+          if (L === 0) cells.push(
+            <th key={col.key} rowSpan={maxDepth} className="border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center align-bottom bg-blue-50 dark:bg-blue-900/20" style={{ width: '24px', minWidth: '24px' }} title={col.user.displayName}>
+              <div className="text-[10px] font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto" style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '120px', overflow: 'hidden', whiteSpace: 'nowrap' }} onClick={() => onOpenDetail?.(col.user.memberType === 'Identity' ? 'identity' : 'user', col.user.id, col.user.displayName)}>{col.user.displayName}</div>
+            </th>
+          );
+          i += 1; continue;
+        }
+        const { span, th } = layeredGroupCell(col, L);
+        cells.push(th);
+        i += span;
+      }
+      if (L === 0) {
+        cells.push(<th key="num" rowSpan={maxDepth} className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 align-bottom text-[10px] text-gray-600 dark:text-gray-400 font-medium" style={{ minWidth: '40px' }} title="Total count for this resource"><div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># ▼</div></th>);
+        cells.push(<th key="desc" rowSpan={maxDepth} className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 align-bottom text-xs text-gray-600 dark:text-gray-400 font-medium text-left" style={{ minWidth: '420px' }}>Description</th>);
+      }
+      rows.push(<tr key={`hl${L}`}>{cells}</tr>);
+    }
+    return rows;
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -327,6 +435,9 @@ export default function RollupMatrixView({
           const valueWord = percentMode
             ? <>the <span className="font-medium">percentage</span> of the {subjectWord} in that group</>
             : <>the count of distinct {subjectWord}</>;
+          if (contextMode && layered) return (
+            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are org teams and each cell is {valueWord} anywhere under that team with a <span className="font-medium">Direct</span> assignment. Click <span className="font-medium">⊕</span> on a team to expand it in place — its sub-teams appear as a new header row beneath it; click the team's name in the row above to collapse it back. <span className="font-medium">▸</span> shows the people directly in a team.</>
+          );
           if (contextMode) return (
             <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the teams under the highlighted node, and each cell is {valueWord} anywhere under that team who {rolesOnly ? 'hold the business role on that row' : <>have a <span className="font-medium">Direct</span> assignment</>}. Click <span className="font-medium">⊕</span> to zoom into a team's sub-teams, <span className="font-medium">▸</span> to expand its direct people. Use the breadcrumb above to go back up.</>
           );
@@ -350,6 +461,7 @@ export default function RollupMatrixView({
       <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
         <table className="border-collapse text-xs">
           <thead className="sticky top-0 z-20">
+            {layered ? layeredHeader() : (
             <tr>
               <th className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left text-gray-600 dark:text-gray-300 font-medium" style={{ minWidth: '280px' }}>
                 {rowNoun}
@@ -450,6 +562,7 @@ export default function RollupMatrixView({
                 Description
               </th>
             </tr>
+            )}
           </thead>
           <tbody>
             {shownResources.map(r => (
