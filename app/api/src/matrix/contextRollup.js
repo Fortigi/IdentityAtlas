@@ -180,7 +180,7 @@ export function buildContextCutSql(rootId, expandedIds = []) {
              cut.path_names || c."displayName"
         FROM cut
         JOIN "Contexts" c ON c."parentContextId" = cut.id
-       WHERE cut.id IN (SELECT id FROM expanded)
+       WHERE EXISTS (SELECT 1 FROM expanded e WHERE e.id = cut.id)
     )
     SELECT cut.id::text            AS id,
            cut.depth               AS depth,
@@ -192,7 +192,7 @@ export function buildContextCutSql(rootId, expandedIds = []) {
            (SELECT COUNT(*)::int FROM "Contexts" g WHERE g."parentContextId" = cut.id) AS "childCount"
       FROM cut
       JOIN "Contexts" c ON c.id = cut.id
-     WHERE cut.id NOT IN (SELECT id FROM expanded)
+     WHERE NOT EXISTS (SELECT 1 FROM expanded e WHERE e.id = cut.id)
      ORDER BY cut.path_names`;
 }
 
