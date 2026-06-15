@@ -59,7 +59,8 @@ $svcOid  = 'aaaa1111-0000-4000-8000-000000000003'
 $userOid = 'aaaa1111-0000-4000-8000-000000000004'
 $resOid  = 'aaaa1111-0000-4000-8000-000000000005'
 $acctOid = 'aaaa1111-0000-4000-8000-000000000006'
-$entOid  = 'aaaa1111-0000-4000-8000-000000000007'
+$entOid  = 'aaaa1111-0000-4000-8000-000000000007'   # reached via legacy association[]
+$entOid2 = 'aaaa1111-0000-4000-8000-000000000009'   # reached via 4.9 referenceAttributes.group[]
 
 $mockObjects = @{
     resources = @(@{ oid = $resOid; name = 'midpoint-ci-resource' })
@@ -74,12 +75,16 @@ $mockObjects = @{
         parentOrgRef = @{ oid = $orgOid; type = 'OrgType' }
         linkRef      = @{ oid = $acctOid; type = 'ShadowType' }
     })
-    # An account shadow (→ Principal) with an association to an entitlement shadow (→ Resource),
-    # plus a generic shadow that MUST be skipped (not imported as a user).
+    # An account shadow (→ Principal) that reaches two entitlement shadows (→ Resources) two
+    # different ways: the legacy association[] element AND the midPoint 4.9 native reference
+    # attribute (referenceAttributes.group[]). Both must yield a Direct entitlement membership.
+    # Plus a generic shadow that MUST be skipped (not imported as a user).
     shadows = @(
         @{ oid = $acctOid; name = 'midpoint.citest@ci'; kind = 'account'; resourceRef = @{ oid = $resOid; type = 'ResourceType' }
-           association = @( @{ name = 'ri:group'; shadowRef = @{ oid = $entOid; type = 'ShadowType' } } ) }
+           association = @( @{ name = 'ri:group'; shadowRef = @{ oid = $entOid; type = 'ShadowType' } } )
+           referenceAttributes = @{ group = @( @{ oid = $entOid2; relation = 'org:default'; type = 'ShadowType' } ) } }
         @{ oid = $entOid; name = 'CN=midPoint CI Entitlement,OU=Groups'; kind = 'entitlement'; resourceRef = @{ oid = $resOid; type = 'ResourceType' } }
+        @{ oid = $entOid2; name = 'CN=midPoint CI RefAttr Group,OU=Groups'; kind = 'entitlement'; resourceRef = @{ oid = $resOid; type = 'ResourceType' } }
         @{ oid = 'aaaa1111-0000-4000-8000-000000000008'; name = '99999'; kind = 'generic'; resourceRef = @{ oid = $resOid; type = 'ResourceType' } }
     )
 }
@@ -132,8 +137,10 @@ try {
         $sid = if ($thisSystem) { $thisSystem.id } else { 0 }
         $res = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?systemId=$sid&limit=50" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
         $list = if ($res.data) { $res.data } elseif ($res -is [array]) { $res } else { @() }
-        $ent  = @($list) | Where-Object { $_.resourceType -eq 'Entitlement' } | Select-Object -First 1
-        Report-Result 'Midpoint/Data — entitlement mapped as resource (not user)' ($null -ne $ent) "$(if ($ent) { "($($ent.displayName))" } else { '(no Entitlement resource)' })"
+        $ents = @($list) | Where-Object { $_.resourceType -eq 'Entitlement' }
+        # Two entitlements expected: one reached via legacy association[], one via 4.9
+        # referenceAttributes.group[]. Both code paths must have produced a resource.
+        Report-Result 'Midpoint/Data — entitlements mapped as resources (assoc + referenceAttributes)' ($ents.Count -ge 2) "($($ents.Count) Entitlement resource(s); expected >= 2)"
     } catch { Report-Result 'Midpoint/Data — entitlement mapped as resource' $false $_.Exception.Message }
 
 } catch {

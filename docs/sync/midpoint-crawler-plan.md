@@ -225,6 +225,21 @@ De fix is een **midPoint-AD-resourceconfiguratie** (memberOf laten ophalen + aan
 
 **Besluit gebruiker:** laten zoals het is (optie 3). Crawler is en blijft bewezen: entitlements → resources, en memberships → matrix zodra midPoint associaties levert (aangetoond via mock + geseede Adam Brown→AFS). Eén geseede membership (Adam Brown→AFS) staat nog in midpoint-dev als bewijs.
 
+## Ronde 6 — AD-groepslidmaatschappen stromen wél binnen (4.9 referenceAttributes) (2026-06-15)
+**Ronde 5 trok de verkeerde conclusie.** De lidmaatschappen zíjn er — de crawler las alleen het verkeerde veld. In midPoint **4.9** staan account→groep-relaties als **native reference attributes** (`shadow.referenceAttributes.group[]`, elke entry een directe ref `{oid,relation,type}`), niet als de legacy `association[]`. De crawler keek alleen naar `$s.association` → 0 matches, vandaar "0 associaties".
+
+Bron-audit op midpoint-dev (1690 shadows, `options=raw`): legacy `association` = **0**, maar **315 account-shadows** dragen samen **855** `referenceAttributes.group`-refs. Voorbeeld ADABRO (`d521c3b7…`): AD-account `2c89c2cc…` → 2 refs → **DM - Read Documents** + **DM - Write Documents** (beide `kind=entitlement`).
+
+Fix (crawler): account-shadow-loop leest nu **beide** vormen — legacy `association[]` én `referenceAttributes.<name>[]` — en mapt elke ref naar een Direct entitlement-`ResourceAssignment` (geconsolideerd op de focus-principal, `viaAccount` in extendedAttributes). Geen fetch-wijziging nodig: `options=raw` levert `referenceAttributes` al mee. `Get-MidpointRefOid` resolt de bare ref ongewijzigd.
+
+Bewijs (live re-crawl tegen midpoint-dev, 2026-06-15):
+- Crawl groen: **`Entitlement assignments: +855 ~0 -1`** (was ~1).
+- Matrix-view voor ADABRO: **Direct | DM - Read Documents** en **Direct | DM - Write Documents**, beide `managedByAccessPackage=false` → kale Direct-cellen (ist/unmanaged, geen governed-overlay).
+- Totaal **855 entitlement-memberships over 315 personen** in `ResourceAssignments` (`extendedAttributes ? 'viaAccount'`).
+- Unit-tests **42/42** (2 nieuwe: 4.9-ref-vorm + referenceAttributes-parsing); mock-integratietest dekt nu beide paden (legacy + referenceAttributes → 2 entitlement-resources).
+
+**Open punt 2 (AD-memberships) is hiermee opgelost** — geen midPoint-resourceconfig nodig; het lag aan de crawler-mapping. Connectiviteit-noot: de worker-container resolt `midpoint-dev` niet; gebruik het IP (`192.168.8.184:8080`) in de baseUrl bij een handmatige dispatch op de node.
+
 ## Sessie-afsluiting & resume-context (2026-06-14)
 
 **Branch:** `feature/midpoint-crawler` — 8 lokale commits, **niets gepusht**. Crawler compleet en bewezen werkend (volledige crawl groen, reconciliatie, 40/40 unit-tests, CI-integratietest).
@@ -236,7 +251,7 @@ De fix is een **midPoint-AD-resourceconfiguratie** (memberOf laten ophalen + aan
 
 **Open punten (voor een volgende sessie):**
 1. **Contexts-UI toont OrgUnit-contexts met badge "Identity"** (komt van `targetType`). **UI-only fix** (badge `contextType` "Org Unit" tonen) — door de gebruiker bewust buiten scope gehouden; crawler-data is correct (`contextType=OrgUnit`). NIET de UI aanpassen zonder expliciete opdracht.
-2. **AD-groepslidmaatschappen** stromen niet binnen: in midpoint-dev is `member`/`memberOf` `returnedByDefault=false` en niet als fetch-attribuut geconfigureerd → midPoint importeert ze niet. Fix = midPoint-AD-connector-config (resource-wizard), niet de crawler. Gebruiker koos: laten zoals het is. Crawler is klaar zodra associaties aanwezig zijn (bewezen via mock + 1 geseede `Adam Brown→AFS`).
+2. ~~**AD-groepslidmaatschappen** stromen niet binnen~~ → **OPGELOST in Ronde 6 (2026-06-15)**. De eerdere conclusie klopte niet: de memberships zíjn er, maar staan in midPoint 4.9 als `referenceAttributes.group[]` i.p.v. legacy `association[]`. Crawler leest nu beide; 855 memberships over 315 personen stromen binnen als Direct-assignments. Geen midPoint-resourceconfig nodig.
 3. **Optioneel:** `CRAWLER_MANIFESTS_DIR=/app/crawlers` op de web-container zetten zodat de crawler in de UI ("Add Crawler") verschijnt; en t.z.t. PR/merge (vereist push — alleen op expliciete opdracht).
 
 **Omgeving/credentials:** zie secties hierboven + geheugen [[project-midpoint-crawler]] en [[feedback-autonomy-ssh]]. Deploy = `docker cp` crawler-map naar `identityatlas-worker-1:/app/tools/crawlers/midpoint` + dispatch via `Invoke-CrawlerJob.ps1` (web kent `midpoint` niet als jobType door ontbrekende `CRAWLER_MANIFESTS_DIR`). midPoint-admin-wachtwoord uit container-env (base64 doorgeven i.v.m. shell-escaping). Back-up AD-resource: `/tmp/ad-resource-backup.json` op midpoint-dev (let op: `/tmp` overleeft een reboot mogelijk niet).

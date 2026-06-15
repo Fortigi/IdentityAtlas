@@ -2,6 +2,7 @@
 - Imports midPoint orgs as org-unit contexts (with hierarchy), roles and services as resources, and users as identities with their midPoint accounts.
 - Imports accounts on connected systems (midPoint shadows) as principals, linked to the right person, so multi-account identities are visible.
 - Maps connected-system objects by their type: real accounts become principals, groups/entitlements (e.g. AD security groups) become entitlement resources with their memberships shown in the access matrix, and non-account objects (org units, container/data rows) are no longer wrongly listed as users.
+- Imports the actual group memberships on connected-system accounts (e.g. AD group memberships) as direct assignments in the access matrix, including memberships stored in midPoint 4.9's native reference-attribute form — previously only the older association format was read, so these memberships were missed.
 - Consolidates a person's access on the identity: role and entitlement memberships gained through any of a person's accounts now show together when you open that person, instead of being scattered across separate account entries.
 - Registers a connected system only when it actually holds accounts or entitlements, so resources that contain only context/data objects no longer appear as empty systems.
 - Surfaces role/service assignments as governed assignments and role nesting as "contains" relationships, and maps org membership to context membership.

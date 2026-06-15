@@ -473,19 +473,42 @@ if ($Sync.shadows -and $Sync.users) {
             }
             else { if ($kind -eq 'generic') { $skipped.generic++ } else { $skipped.other++ } }
 
-            # Entitlement membership: an account shadow's associations reference entitlement
-            # shadows. Each becomes a person → entitlement ResourceAssignment so the access
-            # shows consolidated on the identity (the entitlement is reached VIA this account,
-            # recorded in extendedAttributes). Falls back to the account itself if unlinked.
-            if ($kind -eq 'account' -and $s.association) {
+            # Entitlement membership (the resource's "ist" state): an account shadow points
+            # at the entitlement shadows it belongs to (e.g. AD group membership). Each becomes
+            # a person → entitlement ResourceAssignment (Direct) so the access shows consolidated
+            # on the identity (the entitlement is reached VIA this account, recorded in
+            # extendedAttributes). Falls back to the account itself if unlinked.
+            #
+            # midPoint stores these two ways depending on version/connector:
+            #   • legacy association[]            — { shadowRef:{oid} | identifier:{oid} }
+            #   • 4.9 referenceAttributes.<name>[] — native reference attribute (e.g. `group`),
+            #                                        each entry a direct ref { oid, relation, type }
+            # Both are collected here.
+            if ($kind -eq 'account') {
                 $ownerOid = if ($ShadowOidToUserOid.ContainsKey($shadowOid)) { $ShadowOidToUserOid[$shadowOid] } else { $shadowOid }
-                foreach ($assoc in @($s.association)) {
-                    $entOid = Get-MidpointRefOid $assoc.shadowRef $null
-                    if (-not $entOid) { $entOid = Get-MidpointRefOid $assoc.identifier $null }
-                    if (-not $entOid) { continue }
-                    if (-not $entAssignSeen.Add("$entOid|$ownerOid")) { continue }
+                $addEntAssign = {
+                    param($entOid)
+                    if (-not $entOid) { return }
+                    if (-not $entAssignSeen.Add("$entOid|$ownerOid")) { return }
                     if (-not $entAssignsBySystem.ContainsKey($sysId)) { $entAssignsBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
                     $entAssignsBySystem[$sysId].Add([PSCustomObject]@{ resourceId = $entOid; principalId = $ownerOid; assignmentType = 'Direct'; extendedAttributes = @{ viaAccount = $shadowOid } })
+                }
+                # legacy association[]
+                if ($s.association) {
+                    foreach ($assoc in @($s.association)) {
+                        $entOid = Get-MidpointRefOid $assoc.shadowRef $null
+                        if (-not $entOid) { $entOid = Get-MidpointRefOid $assoc.identifier $null }
+                        & $addEntAssign $entOid
+                    }
+                }
+                # 4.9 native reference attributes (referenceAttributes.<name>[])
+                if ($s.referenceAttributes) {
+                    foreach ($refProp in $s.referenceAttributes.PSObject.Properties) {
+                        if ($refProp.Name -eq '@ns' -or $null -eq $refProp.Value) { continue }
+                        foreach ($ref in @($refProp.Value)) {
+                            & $addEntAssign (Get-MidpointRefOid $ref $null)
+                        }
+                    }
                 }
             }
         }

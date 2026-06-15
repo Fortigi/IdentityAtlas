@@ -65,6 +65,30 @@ Describe 'Get-MidpointRefOid' {
     It 'accepts a null fallback without throwing' {
         { Get-MidpointRefOid -Ref $null -Fallback $null } | Should -Not -Throw
     }
+    It 'resolves a midPoint 4.9 reference-attribute entry ({oid, relation, type})' {
+        # AD group memberships in 4.9 arrive as referenceAttributes.group[] — a bare ref
+        # with no shadowRef wrapper. Get-MidpointRefOid must read .oid straight off it.
+        Get-MidpointRefOid -Ref ([pscustomobject]@{ oid = 'grp-1'; relation = 'org:default'; type = 'c:ShadowType' }) | Should -Be 'grp-1'
+    }
+}
+
+Describe 'referenceAttributes membership parsing' {
+    It 'collects entitlement oids from referenceAttributes, skipping @ns' {
+        # Mirrors the crawler's account-shadow loop: every referenceAttributes property
+        # except @ns is an array of refs pointing at entitlement shadows.
+        $refAttrs = [pscustomobject]@{
+            '@ns' = 'http://midpoint.evolveum.com/xml/ns/public/resource/instance-3'
+            group = @(
+                [pscustomobject]@{ oid = 'ent-a'; relation = 'org:default'; type = 'c:ShadowType' },
+                [pscustomobject]@{ oid = 'ent-b'; relation = 'org:default'; type = 'c:ShadowType' }
+            )
+        }
+        $oids = foreach ($p in $refAttrs.PSObject.Properties) {
+            if ($p.Name -eq '@ns' -or $null -eq $p.Value) { continue }
+            foreach ($r in @($p.Value)) { Get-MidpointRefOid $r $null }
+        }
+        @($oids) | Should -Be @('ent-a', 'ent-b')
+    }
 }
 
 Describe 'Get-MidpointRefType' {
