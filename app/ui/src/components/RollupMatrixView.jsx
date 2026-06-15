@@ -38,7 +38,7 @@ export default function RollupMatrixView({
     attribute, rollupContent = 'resources-and-roles', resources, groupValues,
     counts: directCounts, businessRoles = [], roleCounts = [], roleRows = [], cells = [],
     groupTotals = [], rollupKind = 'attribute', nodes = [], breadcrumb = [],
-    layered = false, maxDepth = 1,
+    layered = false, layeredAttributes = false, maxDepth = 1,
   } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
 
@@ -448,9 +448,12 @@ export default function RollupMatrixView({
           const valueWord = percentMode
             ? <>the <span className="font-medium">percentage</span> of the {subjectWord} in that group</>
             : <>the count of distinct {subjectWord}</>;
-          if (contextMode && layered) return (
-            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are org teams and each cell is {valueWord} anywhere under that team with a <span className="font-medium">Direct</span> assignment. <span className="font-medium">Click a team header</span> to split it into its sub-teams — they appear as a new header row beneath it; click the team's name in the row above to collapse it back. <span className="font-medium">▸</span> shows the people directly in a team.</>
-          );
+          if (contextMode && layered) {
+            const unit = layeredAttributes ? 'attribute group' : 'team';
+            return (
+              <>Aggregated {layeredAttributes ? 'by your fold attributes' : <>by the <span className="font-semibold">Manager Hierarchy</span></>} — columns are {layeredAttributes ? 'attribute groups' : 'org teams'} and each cell is {valueWord} in that {unit} with a <span className="font-medium">Direct</span> assignment. <span className="font-medium">Click a {unit} header</span> to split it into the next level — it appears as a new header row beneath it; click the name in the row above to collapse it back.{!layeredAttributes && <> <span className="font-medium">▸</span> shows the people directly in a team.</>}</>
+            );
+          }
           if (contextMode) return (
             <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the teams under the highlighted node, and each cell is {valueWord} anywhere under that team who {rolesOnly ? 'hold the business role on that row' : <>have a <span className="font-medium">Direct</span> assignment</>}. Click <span className="font-medium">⊕</span> to zoom into a team's sub-teams, <span className="font-medium">▸</span> to expand its direct people. Use the breadcrumb above to go back up.</>
           );

@@ -39,6 +39,7 @@ import {
   buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
   buildContextRolesSql, buildContextRolesAsRowsSql,
 } from '../matrix/contextRollup.js';
+import { buildAttrCutCellsSql, buildAttrCutNodesSql, tupleToNode } from '../matrix/attributeCut.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -162,8 +163,13 @@ function parseFilter(body) {
     rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath.filter(x => typeof x === 'string').slice(0, 50) : [],
     // Layered hierarchy view: the set of org nodes the user has expanded in
     // place. The visible columns are the resulting tree cut; expanding a node
-    // adds the next level as a new header row (see buildContextCutSql).
+    // adds the next level as a new header row (see buildContextCutSql). Reused by
+    // the layered attribute fold, where the entries are attribute-tuple keys.
     rollupExpanded: Array.isArray(f.rollupExpanded) ? f.rollupExpanded.filter(x => typeof x === 'string').slice(0, 200) : [],
+    // Serve the attribute fold as a server-aggregated layered view (counts +
+    // expand-in-place) rather than a flat per-subject grid — set by the wizard
+    // for matrices too large to ship every row. Uses sortAttributes as the tree.
+    foldAttributes: f.foldAttributes === true,
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),
@@ -826,6 +832,79 @@ router.post('/matrix/data', async (req, res) => {
     const memberTypeExpr = rowType === 'identity' ? `'Identity'`       : 'p."principalType"';
 
     const subjectIdForFilter = rowType === 'identity' ? 'i.id' : 'p."principalId"';
+
+    // ─── Layered ATTRIBUTE fold (server-aggregated, expand-in-place) ───
+    // The efficient counterpart of the per-subject attribute fold: columns are
+    // the visible attribute-tuple "cut", each cell a Direct count, expanding a
+    // tuple into the next attribute's values. Renders through the same layered
+    // view as Manager Hierarchy. Set by the wizard for matrices too large to
+    // ship every per-subject row.
+    if (filter.foldAttributes && !filter.rollup && filter.rollupKind !== 'context') {
+      const subjCols = rowType === 'identity' ? built.identityCols : built.principalCols;
+      const attrExprs = [];
+      for (const a of filter.sortAttributes) {
+        const resolved = resolveAttrExpr(a.attribute, subjectAlias, subjCols);
+        if (resolved.error) return res.status(400).json({ error: resolved.error });
+        attrExprs.push(resolved.attrExpr);
+      }
+      if (!attrExprs.length) return res.status(400).json({ error: 'No fold attributes' });
+
+      const expandedKeys = filter.rollupExpanded || [];
+      const expandedParams = expandedKeys.map((_, i) => `@exp${i}`);
+      const bindExpanded = (req) => expandedKeys.forEach((kk, i) => req.input(`exp${i}`, kk));
+
+      const cellsReq = timedRequest(p, `matrix-attrcut-cells[${rowType}]`, res);
+      for (const [k, v] of Object.entries(built.bindings)) cellsReq.input(k, v);
+      bindExpanded(cellsReq);
+      const cellRows = (await cellsReq.query(buildAttrCutCellsSql({
+        attrExprs, expandedParams, subjectJoin,
+        subjectIdExpr: memberIdExpr, subjectIdForFilter,
+        subjectSql: built.subjectSql, resourceSql: built.resourceSql,
+      }))).recordset;
+
+      const nodesReq = timedRequest(p, `matrix-attrcut-nodes[${rowType}]`, res);
+      for (const [k, v] of Object.entries(built.bindings)) nodesReq.input(k, v);
+      bindExpanded(nodesReq);
+      const nodeRows = (await nodesReq.query(buildAttrCutNodesSql({
+        attrExprs, expandedParams,
+        subjectTable: rowType === 'identity' ? 'Identities' : 'Principals',
+        subjectAlias,
+        subjectIdExpr: rowType === 'identity' ? 'i.id' : 'u.id',
+        subjectIdForFilter: rowType === 'identity' ? 'i.id' : 'u.id',
+        subjectSql: built.subjectSql,
+        excludeGroups: rowType !== 'identity',
+      }))).recordset;
+
+      const nodes = nodeRows
+        .map(r => tupleToNode(r.groupValue, r.total, r.childCount))
+        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+      const resMap = new Map();
+      for (const row of cellRows) {
+        if (!row.resourceId || resMap.has(row.resourceId)) continue;
+        resMap.set(row.resourceId, {
+          resourceId: row.resourceId, resourceDisplayName: row.resourceDisplayName,
+          resourceType: row.resourceType, resourceDescription: row.resourceDescription,
+          systemId: row.systemId, systemName: row.systemName,
+        });
+      }
+
+      const counts = await scopeCounts(p, res, rowType, built);
+      const maxDepth = nodes.reduce((m, n) => Math.max(m, n.depth || 1), 1);
+      return res.json({
+        rollup: 'context', rollupKind: 'context', layered: true, layeredAttributes: true,
+        rollupContent: 'resources-only', rollupMetric: filter.rollupMetric, rowType, maxDepth,
+        nodes,
+        groupValues: nodes.map(n => n.id),
+        groupTotals: nodes.map(n => ({ groupValue: n.id, total: n.total })),
+        resources: [...resMap.values()],
+        counts: cellRows.map(r => ({
+          resourceId: r.resourceId, groupValue: r.groupValue,
+          directCount: r.directCount, governedCount: r.governedCount,
+        })),
+        ...counts, totalUsers: counts.subjectTotal, warnings: built.warnings,
+      });
+    }
 
     // ─── EXPERIMENTAL: context-tree roll-up ───
     // Columns are the context nodes of the current frontier (a cut of the tree);

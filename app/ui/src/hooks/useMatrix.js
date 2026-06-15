@@ -161,6 +161,7 @@ export function useMatrix(filter) {
             nodes:         body.nodes         || [],
             rollupContent: body.rollupContent || 'resources-and-roles',
             layered:       body.layered       || false,
+            layeredAttributes: body.layeredAttributes || false,
             maxDepth:      body.maxDepth       || 1,
             resources:     body.resources     || [],
             groupValues:   body.groupValues   || [],

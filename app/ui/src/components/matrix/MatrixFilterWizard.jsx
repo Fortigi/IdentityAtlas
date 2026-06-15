@@ -53,6 +53,11 @@ const EMPTY_FILTER = {
   rollupKind: 'attribute',
   rollupContextId: null,
   rollupPath: [],
+  // Expanded nodes/tuples in a layered view (Manager Hierarchy or attribute cut).
+  rollupExpanded: [],
+  // Set automatically for an oversized attribute fold: serve it as a layered,
+  // server-aggregated view instead of a flat per-subject grid.
+  foldAttributes: false,
   // Subject-axis sort order — 1..6 attributes, applied client-side. Default
   // groups columns by department.
   sortAttributes: [{ attribute: 'department', dir: 'asc' }],
@@ -69,20 +74,37 @@ const EMPTY_FILTER = {
 // first render stays fast.
 const FOLD_AUTO_THRESHOLD = 5000;
 
-// Server-aggregated views — attribute roll-up, context roll-up, and
-// Manager-Hierarchy sort — return a compact (counts-only) payload, so they load
-// at any size. Everything else is a flat per-subject fetch.
-function isServerAggregated(filter, anyRollup) {
-  return anyRollup || !!filter?.sortHierarchy;
+function willLoadFolded(filter, assignmentCount) {
+  const fol = filter?.foldOnLoad ?? 'auto';
+  if (fol === true) return true;
+  if (fol === false) return false;
+  return (assignmentCount || 0) >= FOLD_AUTO_THRESHOLD;
 }
 
-// Hard-block an oversized FLAT matrix. Client-side folding only collapses the
-// rendered columns, NOT the fetch — the server still serializes every
-// per-subject row — so folding can't make an oversized flat matrix loadable.
-// Only the server-aggregated views above are exempt.
+// An oversized FLAT matrix can still load efficiently IF it will open folded on
+// attributes: we then serve it as a server-aggregated layered view (counts +
+// expand-in-place) instead of shipping every per-subject row. (Small matrices
+// keep the detailed per-subject grid; an oversized *unfolded* matrix can't.)
+function servesViaAttrCut(filter, anyRollup, assignmentCount) {
+  if (anyRollup || filter?.sortHierarchy) return false;
+  if ((assignmentCount || 0) <= BLOCK_ASSIGNMENTS) return false;
+  return (filter?.sortAttributes?.length || 0) > 0 && willLoadFolded(filter, assignmentCount);
+}
+
+// Server-aggregated views return a compact payload, so they load at any size:
+// attribute roll-up, context roll-up, Manager-Hierarchy sort, and an oversized
+// attribute fold served via the layered attribute cut.
+function isServerAggregated(filter, anyRollup, assignmentCount) {
+  return anyRollup || !!filter?.sortHierarchy || servesViaAttrCut(filter, anyRollup, assignmentCount);
+}
+
+// Hard-block only an oversized FLAT matrix that won't fold — folding the columns
+// is what lets us aggregate it on the server; an unfolded oversized grid would
+// have to ship every per-subject row, which can't be loaded.
 function matrixIsBlocked(filter, anyRollup, assignmentCount) {
-  if (isServerAggregated(filter, anyRollup)) return false;
-  return (assignmentCount || 0) > BLOCK_ASSIGNMENTS;
+  if (anyRollup || filter?.sortHierarchy) return false;
+  if ((assignmentCount || 0) <= BLOCK_ASSIGNMENTS) return false;
+  return !(((filter?.sortAttributes?.length || 0) > 0) && willLoadFolded(filter, assignmentCount));
 }
 
 const DEFAULT_SORT = [{ attribute: 'department', dir: 'asc' }];
@@ -306,10 +328,13 @@ export default function MatrixFilterWizard({
     // so the size guard doesn't apply.
     const anyRollup = !!filter.rollup || (filter.rollupKind === 'context' && !!filter.rollupContextId);
     if (matrixIsBlocked(filter, anyRollup, preview.assignmentCount)) {
-      setError(`Matrix too large (${preview.assignmentCount.toLocaleString()} assignments) to load unfolded. Add filters to reduce below ${BLOCK_ASSIGNMENTS.toLocaleString()}, or let it open folded (Sort step).`);
+      setError(`Matrix too large (${preview.assignmentCount.toLocaleString()} assignments) to load as a per-subject grid. Sort by Manager Hierarchy or roll up by an attribute, or add filters to reduce below ${BLOCK_ASSIGNMENTS.toLocaleString()}.`);
       return;
     }
-    onApply(filter, managed);
+    // Oversized but foldable on attributes → serve it as the layered,
+    // server-aggregated attribute view (a fresh expand state each apply).
+    const foldAttributes = servesViaAttrCut(filter, anyRollup, preview.assignmentCount);
+    onApply({ ...filter, foldAttributes, rollupExpanded: foldAttributes ? [] : (filter.rollupExpanded || []) }, managed);
   };
 
   // ─── Save filter ───────────────────────────────────────────────
@@ -373,6 +398,8 @@ export default function MatrixFilterWizard({
         ? f.sortAttributes.slice(0, 6) : DEFAULT_SORT,
       foldOnLoad: [true, false, 'auto'].includes(f.foldOnLoad) ? f.foldOnLoad : 'auto',
       sortHierarchy: (f.sortHierarchy && typeof f.sortHierarchy.contextId === 'string') ? f.sortHierarchy : null,
+      rollupExpanded: [],
+      foldAttributes: false,
     });
     setManaged(['all', 'managed', 'unmanaged', 'gaps'].includes(f.managed) ? f.managed : 'all');
     setStep('subjects');
@@ -796,7 +823,7 @@ function LiveSummary({ preview, loading, rowType, rollup, filter, rollupOn }) {
   // payload, so they load at any size. A flat per-subject matrix ships every
   // row — folding only collapses the render, not the fetch — so an oversized
   // flat matrix is hard-blocked regardless of fold.
-  const aggregated = isServerAggregated(filter, rollupOn);
+  const aggregated = isServerAggregated(filter, rollupOn, preview.assignmentCount);
   const blocked   = matrixIsBlocked(filter, rollupOn, preview.assignmentCount);
   const bigAgg    = aggregated && preview.assignmentCount > WARN_ASSIGNMENTS;
   const large     = !aggregated && !blocked && preview.assignmentCount > WARN_ASSIGNMENTS;
