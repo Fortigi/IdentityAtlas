@@ -161,7 +161,7 @@ export default function RollupMatrixView({
         // grants (flat per-subject data — clear the roll-up).
         const drillFilter = rolesOnly
           ? { ...filter, drill: true, subject: scopedSubject }
-          : { ...filter, rollup: null, rollupKind: 'attribute', rollupContextId: null, rollupPath: [], subject: scopedSubject };
+          : { ...filter, rollup: null, rollupKind: 'attribute', rollupContextId: null, rollupPath: [], sortHierarchy: null, subject: scopedSubject };
         const res = await authFetch('/api/matrix/data', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filter: drillFilter }),

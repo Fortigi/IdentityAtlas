@@ -163,6 +163,12 @@ function parseFilter(body) {
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),
+    // Sort the subject axis by a Context tree (Manager Hierarchy). Served as a
+    // context roll-up (aggregated per org node) so we never ship every
+    // per-subject row — see the translation in the /matrix/data handler.
+    sortHierarchy: f.sortHierarchy && typeof f.sortHierarchy === 'object'
+      && typeof f.sortHierarchy.contextId === 'string' && f.sortHierarchy.contextId
+      ? { contextId: f.sortHierarchy.contextId } : null,
   };
 }
 
@@ -777,6 +783,17 @@ router.post('/matrix/data', async (req, res) => {
   }
   const filter = parseFilter(req.body);
   if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
+
+  // Manager-Hierarchy sort is served as a context roll-up: aggregate per org
+  // node on the server rather than ship every per-subject row (which overflows
+  // JSON serialization for large subject sets). The wizard still presents it as
+  // a sort; rollupPath (set by RollupMatrixView as you zoom in) carries the
+  // drill state. Member drill-downs clear sortHierarchy to get the flat rows.
+  if (filter.sortHierarchy && filter.rollupKind !== 'context' && !filter.rollup) {
+    filter.rollupKind = 'context';
+    filter.rollupContextId = filter.sortHierarchy.contextId;
+    filter.rollupContent = 'resources-only';
+  }
 
   try {
     const built = await buildSubqueries(filter);
