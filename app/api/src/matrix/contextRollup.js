@@ -151,6 +151,51 @@ export function buildContextNodesSql(ids) {
      WHERE c.id IN (${idList(ids)})`;
 }
 
+// The visible "cut" of the tree for the LAYERED hierarchy view: start at the
+// root's children and descend only THROUGH expanded nodes, emitting every node
+// that is not itself expanded. Each emitted (visible) node carries its ancestor
+// path — ids + display names from the root's child down to the node — so the
+// frontend can render stacked, merged header rows (one per depth) and split an
+// org into its sub-orgs in place. Expanded ids must be UUID-validated by the
+// caller; the root is validated here.
+export function buildContextCutSql(rootId, expandedIds = []) {
+  if (!isUuid(rootId)) throw new Error('invalid context id');
+  for (const id of expandedIds) if (!isUuid(id)) throw new Error('invalid context id');
+  // VALUES body for the expanded set; a single NULL row when nothing is expanded
+  // (so `cut.id IN (SELECT id FROM expanded)` is simply never true).
+  const expandedVals = expandedIds.length
+    ? expandedIds.map(id => `('${id}'::uuid)`).join(', ')
+    : '(NULL::uuid)';
+  return `
+    WITH RECURSIVE expanded(id) AS ( VALUES ${expandedVals} ),
+    cut AS (
+      SELECT c.id, 1 AS depth,
+             ARRAY[c.id::text]        AS path_ids,
+             ARRAY[c."displayName"]   AS path_names
+        FROM "Contexts" c
+       WHERE c."parentContextId" = '${rootId}'::uuid
+      UNION ALL
+      SELECT c.id, cut.depth + 1,
+             cut.path_ids   || c.id::text,
+             cut.path_names || c."displayName"
+        FROM cut
+        JOIN "Contexts" c ON c."parentContextId" = cut.id
+       WHERE cut.id IN (SELECT id FROM expanded)
+    )
+    SELECT cut.id::text            AS id,
+           cut.depth               AS depth,
+           cut.path_ids            AS "pathIds",
+           cut.path_names          AS "pathNames",
+           c."displayName"         AS "displayName",
+           c."totalMemberCount"    AS total,
+           c."directMemberCount"   AS "directMembers",
+           (SELECT COUNT(*)::int FROM "Contexts" g WHERE g."parentContextId" = cut.id) AS "childCount"
+      FROM cut
+      JOIN "Contexts" c ON c.id = cut.id
+     WHERE cut.id NOT IN (SELECT id FROM expanded)
+     ORDER BY cut.path_names`;
+}
+
 // Children of every frontier node — lets the frontend drill (replace a node with
 // its children) without an extra round-trip. Ordered biggest subtree first.
 export function buildContextChildrenSql(ids) {

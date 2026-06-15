@@ -36,7 +36,7 @@ import {
 import { resolveAttrExpr } from '../matrix/attrExpr.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
-  buildContextNodesSql, buildRootChildrenSql,
+  buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
   buildContextRolesSql, buildContextRolesAsRowsSql,
 } from '../matrix/contextRollup.js';
 
@@ -160,6 +160,10 @@ function parseFilter(body) {
     rollupKind: f.rollupKind === 'context' ? 'context' : 'attribute',
     rollupContextId: typeof f.rollupContextId === 'string' && f.rollupContextId ? f.rollupContextId : null,
     rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath.filter(x => typeof x === 'string').slice(0, 50) : [],
+    // Layered hierarchy view: the set of org nodes the user has expanded in
+    // place. The visible columns are the resulting tree cut; expanding a node
+    // adds the next level as a new header row (see buildContextCutSql).
+    rollupExpanded: Array.isArray(f.rollupExpanded) ? f.rollupExpanded.filter(x => typeof x === 'string').slice(0, 200) : [],
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),
@@ -830,6 +834,68 @@ router.post('/matrix/data', async (req, res) => {
     // the frontend re-sending a new frontier).
     if (filter.rollupKind === 'context' && filter.rollupContextId) {
       if (!isUuid(filter.rollupContextId)) return res.status(400).json({ error: 'Invalid context id' });
+
+      // ─── Layered hierarchy view (Manager-Hierarchy sort) ───
+      // Show the tree as stacked, expand-in-place header rows instead of the
+      // one-level-at-a-time zoom. The visible columns are the current cut: the
+      // root's children, with every expanded node replaced by its children. Each
+      // column carries its ancestor path so the frontend renders one merged
+      // header row per level; cells count the node's whole subtree (resources on
+      // the rows). Expanding a node adds the next level as a new header row.
+      if (filter.sortHierarchy) {
+        const expandedIds = (filter.rollupExpanded || []).filter(isUuid);
+        let cutNodes;
+        try {
+          const cutReq = timedRequest(p, 'matrix-ctx-cut', res);
+          cutNodes = (await cutReq.query(buildContextCutSql(filter.rollupContextId, expandedIds))).recordset;
+        } catch { return res.status(400).json({ error: 'Invalid hierarchy' }); }
+
+        let frontier = cutNodes.map(n => n.id);
+        if (frontier.length === 0) frontier = [filter.rollupContextId]; // root is a leaf
+
+        let cutValues;
+        try { cutValues = frontierValues(frontier); }
+        catch { return res.status(400).json({ error: 'Invalid frontier' }); }
+
+        const idJoin = rowType === 'identity'
+          ? `JOIN "IdentityMembers" im ON im."principalId" = nm.pid
+             JOIN "Identities" i ON i.id = im."identityId"` : '';
+        const cutSubjectId = rowType === 'identity' ? 'i.id' : 'nm.pid';
+
+        const layerReq = timedRequest(p, `matrix-ctx-layered[${rowType}]`, res);
+        for (const [k, v] of Object.entries(built.bindings)) layerReq.input(k, v);
+        const layerCells = (await layerReq.query(buildContextRollupSql({
+          values: cutValues, identityJoin: idJoin, subjectId: cutSubjectId, subjectScope: cutSubjectId,
+          subjectSql: built.subjectSql, resourceSql: built.resourceSql,
+        }))).recordset;
+
+        const layerResMap = new Map();
+        for (const row of layerCells) {
+          if (!row.resourceId || layerResMap.has(row.resourceId)) continue;
+          layerResMap.set(row.resourceId, {
+            resourceId: row.resourceId, resourceDisplayName: row.resourceDisplayName,
+            resourceType: row.resourceType, resourceDescription: row.resourceDescription,
+            systemId: row.systemId, systemName: row.systemName,
+          });
+        }
+
+        const layerCounts = await scopeCounts(p, res, rowType, built);
+        const maxDepth = cutNodes.reduce((m, n) => Math.max(m, n.depth || 1), 1);
+        return res.json({
+          rollup: 'context', rollupKind: 'context', layered: true,
+          rollupContextId: filter.rollupContextId, rollupContent: 'resources-only',
+          rollupMetric: filter.rollupMetric, rowType, maxDepth,
+          nodes: cutNodes,
+          groupValues: frontier,
+          groupTotals: cutNodes.map(n => ({ groupValue: n.id, total: n.total })),
+          resources: [...layerResMap.values()],
+          counts: layerCells.map(r => ({
+            resourceId: r.resourceId, groupValue: r.groupValue,
+            directCount: r.directCount, governedCount: r.governedCount,
+          })),
+          ...layerCounts, totalUsers: layerCounts.subjectTotal, warnings: built.warnings,
+        });
+      }
 
       // The view zooms one level at a time. focus = the node we're zoomed into
       // (the last step of the drill path, or the root). Columns = the focus
