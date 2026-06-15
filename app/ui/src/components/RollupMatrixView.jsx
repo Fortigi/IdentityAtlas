@@ -332,10 +332,14 @@ export default function RollupMatrixView({
   const vLabel = (text, extra = '') => (
     <div className={`text-[10px] font-semibold ${extra}`} style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '90px', overflow: 'hidden', whiteSpace: 'nowrap', margin: '0 auto' }}>{text}</div>
   );
-  const layeredGroupCell = (col, L) => {
+  // Only the deepest header row is sticky, so when there are many levels the
+  // upper org rows scroll away and the bottom row (the actual leaf columns)
+  // stays pinned — you keep column context without the headers eating the grid.
+  const layeredGroupCell = (col, L, isLast) => {
     const n = nodeMap.get(col.group);
     const span = (() => { let j = 1; while (col._i + j < columns.length && columns[col._i + j].type === 'group' && mergeKeyAt(columns[col._i + j], L) === mergeKeyAt(col, L)) j++; return j; })();
-    const baseTh = 'border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-center';
+    const sticky = isLast ? ' sticky top-0 z-20' : '';
+    const baseTh = `border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-center${sticky}`;
     if (!n) return { span, th: <th key={`${col.key}-${L}`} colSpan={span} className={`${baseTh} bg-gray-100 dark:bg-gray-800`} /> };
     const ownLevel = (n.depth || 1) - 1;
     if (L < ownLevel) {
@@ -374,12 +378,15 @@ export default function RollupMatrixView({
       ) };
     }
     // below the node's own level — the collapsed column extends down; clicking
-    // anywhere in it also splits it, with the sub-team count as a hint.
+    // anywhere in it also splits it. On the pinned bottom row show the team name
+    // so the column stays identifiable; otherwise just the sub-team count hint.
     return { span, th: (
       <th key={`${col.key}-${L}`} colSpan={span} onClick={n.childCount ? () => expandOrg(col.group) : undefined}
-          className={`${baseTh} align-middle ${n.childCount ? 'bg-indigo-50/40 dark:bg-indigo-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-800/40'}`}
+          className={`${baseTh} align-bottom ${n.childCount ? 'bg-indigo-50/40 dark:bg-indigo-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-800/40'}`}
           title={n.childCount ? `Click to split into ${n.childCount} sub-teams` : undefined}>
-        {L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-indigo-700 dark:text-indigo-300">{n.childCount}</span> : null}
+        {isLast
+          ? vLabel(orgShort(n.displayName), 'text-gray-600 dark:text-gray-400')
+          : (L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-indigo-700 dark:text-indigo-300">{n.childCount}</span> : null)}
       </th>
     ) };
   };
@@ -387,29 +394,33 @@ export default function RollupMatrixView({
     const indexed = columns.map((c, i) => ({ ...c, _i: i }));
     const rows = [];
     for (let L = 0; L < maxDepth; L++) {
+      const isLast = L === maxDepth - 1;
+      const stick = isLast ? ' sticky top-0' : '';
       const cells = [];
-      if (L === 0) cells.push(
-        <th key="corner" rowSpan={maxDepth} className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left align-bottom text-gray-600 dark:text-gray-300 font-medium" style={{ minWidth: '280px' }}>{rowNoun}</th>
+      // Resource-name corner — sticky-left every row; sticky-top + labelled only
+      // on the pinned bottom row.
+      cells.push(
+        <th key={`corner-${L}`} className={`sticky left-0 ${isLast ? 'top-0 z-40' : 'z-30'} bg-gray-100 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left align-bottom text-gray-600 dark:text-gray-300 font-medium ${isLast ? 'border-b' : ''}`} style={{ minWidth: '280px' }}>{isLast ? rowNoun : ''}</th>
       );
       let i = 0;
       while (i < indexed.length) {
         const col = indexed[i];
         if (col.type === 'user') {
-          if (L === 0) cells.push(
-            <th key={col.key} rowSpan={maxDepth} className="border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center align-bottom bg-blue-50 dark:bg-blue-900/20" style={{ width: '24px', minWidth: '24px' }} title={col.user.displayName}>
-              <div className="text-[10px] font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto" style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '120px', overflow: 'hidden', whiteSpace: 'nowrap' }} onClick={() => onOpenDetail?.(col.user.memberType === 'Identity' ? 'identity' : 'user', col.user.id, col.user.displayName)}>{col.user.displayName}</div>
+          // People columns ride along; the name shows on the pinned bottom row.
+          cells.push(
+            <th key={`${col.key}-${L}`} className={`border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center align-bottom bg-blue-50 dark:bg-blue-900/20${stick}${isLast ? ' z-20 border-b' : ''}`} style={{ width: '24px', minWidth: '24px', height: isLast ? '120px' : undefined }} title={col.user.displayName}>
+              {isLast ? <div className="text-[10px] font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto" style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '110px', overflow: 'hidden', whiteSpace: 'nowrap' }} onClick={() => onOpenDetail?.(col.user.memberType === 'Identity' ? 'identity' : 'user', col.user.id, col.user.displayName)}>{col.user.displayName}</div> : null}
             </th>
           );
           i += 1; continue;
         }
-        const { span, th } = layeredGroupCell(col, L);
+        const { span, th } = layeredGroupCell(col, L, isLast);
         cells.push(th);
         i += span;
       }
-      if (L === 0) {
-        cells.push(<th key="num" rowSpan={maxDepth} className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 align-bottom text-[10px] text-gray-600 dark:text-gray-400 font-medium" style={{ minWidth: '40px' }} title="Total count for this resource"><div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># ▼</div></th>);
-        cells.push(<th key="desc" rowSpan={maxDepth} className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 align-bottom text-xs text-gray-600 dark:text-gray-400 font-medium text-left" style={{ minWidth: '420px' }}>Description</th>);
-      }
+      // Trailing # + Description — labelled + sticky only on the bottom row.
+      cells.push(<th key={`num-${L}`} className={`border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 align-bottom text-[10px] text-gray-600 dark:text-gray-400 font-medium${stick}${isLast ? ' z-20 border-b' : ''}`} style={{ minWidth: '40px' }} title="Total count for this resource">{isLast ? <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># ▼</div> : null}</th>);
+      cells.push(<th key={`desc-${L}`} className={`border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 align-bottom text-xs text-gray-600 dark:text-gray-400 font-medium text-left${stick}${isLast ? ' z-20 border-b' : ''}`} style={{ minWidth: '420px' }}>{isLast ? 'Description' : ''}</th>);
       rows.push(<tr key={`hl${L}`}>{cells}</tr>);
     }
     return rows;
@@ -462,7 +473,7 @@ export default function RollupMatrixView({
 
       <div ref={scrollRef} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto" style={{ maxHeight: gridMaxH ? `${gridMaxH}px` : undefined }}>
         <table className="border-collapse text-xs">
-          <thead className="sticky top-0 z-20">
+          <thead className={layered ? '' : 'sticky top-0 z-20'}>
             {layered ? layeredHeader() : (
             <tr>
               <th className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-left text-gray-600 dark:text-gray-300 font-medium" style={{ minWidth: '280px' }}>
