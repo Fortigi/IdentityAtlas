@@ -69,6 +69,27 @@ const EMPTY_FILTER = {
 // first render stays fast.
 const FOLD_AUTO_THRESHOLD = 5000;
 
+// Will this matrix open with its columns folded? Folding is client-side and
+// collapses the un-virtualized subject columns, so a folded matrix renders fine
+// at sizes that would otherwise be too heavy. Manager-Hierarchy sort always
+// opens folded; otherwise fold-on-load decides (auto folds at the threshold).
+function willLoadFolded(filter, assignmentCount) {
+  if (filter?.sortHierarchy) return true;
+  const fol = filter?.foldOnLoad ?? 'auto';
+  if (fol === true) return true;
+  if (fol === false) return false;
+  return (assignmentCount || 0) >= FOLD_AUTO_THRESHOLD;
+}
+
+// Hard-block loading only when the matrix is both oversized AND would open
+// unfolded (where the column blowup is real). Roll-up payloads are aggregated,
+// so they're never blocked. Folded loads are allowed at any size.
+function matrixIsBlocked(filter, anyRollup, assignmentCount) {
+  if (anyRollup) return false;
+  if ((assignmentCount || 0) <= BLOCK_ASSIGNMENTS) return false;
+  return !willLoadFolded(filter, assignmentCount);
+}
+
 const DEFAULT_SORT = [{ attribute: 'department', dir: 'asc' }];
 
 // Pull selectable attribute names out of a /matrix/columns response. Excludes
@@ -289,8 +310,8 @@ export default function MatrixFilterWizard({
     // Roll-up (attribute or context tree) returns an aggregated (small) payload,
     // so the size guard doesn't apply.
     const anyRollup = !!filter.rollup || (filter.rollupKind === 'context' && !!filter.rollupContextId);
-    if (!anyRollup && preview.assignmentCount > BLOCK_ASSIGNMENTS) {
-      setError(`Matrix too large (${preview.assignmentCount.toLocaleString()} assignments). Add filters to reduce below ${BLOCK_ASSIGNMENTS.toLocaleString()}.`);
+    if (matrixIsBlocked(filter, anyRollup, preview.assignmentCount)) {
+      setError(`Matrix too large (${preview.assignmentCount.toLocaleString()} assignments) to load unfolded. Add filters to reduce below ${BLOCK_ASSIGNMENTS.toLocaleString()}, or let it open folded (Sort step).`);
       return;
     }
     onApply(filter, managed);
@@ -474,7 +495,7 @@ export default function MatrixFilterWizard({
       <ErrorBox message={error} />
 
       {/* Live summary */}
-      <LiveSummary preview={preview} loading={previewLoading} rowType={filter.rowType} rollup={filter.rollup} />
+      <LiveSummary preview={preview} loading={previewLoading} rowType={filter.rowType} rollup={filter.rollup} filter={filter} rollupOn={rollupOn} />
 
       {/* Footer buttons */}
       <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
@@ -488,7 +509,7 @@ export default function MatrixFilterWizard({
           {curPos > 0 && <SecondaryButton onClick={goBack}>Back</SecondaryButton>}
           {!isLast && <PrimaryButton onClick={goNext}>Next</PrimaryButton>}
           {isLast && (
-            <PrimaryButton onClick={handleApply} disabled={!rollupOn && preview.assignmentCount > BLOCK_ASSIGNMENTS}>
+            <PrimaryButton onClick={handleApply} disabled={matrixIsBlocked(filter, rollupOn, preview.assignmentCount)}>
               Apply
             </PrimaryButton>
           )}
@@ -767,7 +788,7 @@ function SavedFilterDropdown({ savedFilters, onLoad, onDelete }) {
 
 // ─── Live summary footer ───────────────────────────────────────────
 
-function LiveSummary({ preview, loading, rowType, rollup }) {
+function LiveSummary({ preview, loading, rowType, rollup, filter, rollupOn }) {
   const subjectLabel = rowType === 'identity' ? 'identities' : 'users';
   const subjectPct = preview.subjectTotal > 0
     ? Math.round((preview.subjectCount / preview.subjectTotal) * 100)
@@ -776,20 +797,24 @@ function LiveSummary({ preview, loading, rowType, rollup }) {
     ? Math.round((preview.resourceCount / preview.resourceTotal) * 100)
     : 0;
 
-  // In roll-up mode the payload is aggregated, so the assignment-count size
-  // limit doesn't apply — never flag it as "too large".
-  const tooLarge = !rollup && preview.assignmentCount > BLOCK_ASSIGNMENTS;
-  const large    = !rollup && !tooLarge && preview.assignmentCount > WARN_ASSIGNMENTS;
+  // Roll-up payloads are aggregated (small), so the size guard never applies.
+  // Otherwise: over the block ceiling we only HARD-block when the matrix would
+  // open unfolded — if it opens folded the un-virtualized columns collapse, so
+  // it renders fine and we just note it instead of blocking.
+  const oversized = !rollupOn && preview.assignmentCount > BLOCK_ASSIGNMENTS;
+  const blocked   = matrixIsBlocked(filter, rollupOn, preview.assignmentCount);
+  const foldsLarge = oversized && !blocked; // big but opens folded → allowed
+  const large     = !rollupOn && !oversized && preview.assignmentCount > WARN_ASSIGNMENTS;
 
-  const countClass = tooLarge
+  const countClass = blocked
     ? 'font-semibold text-red-700 dark:text-red-400'
-    : large
+    : (large || foldsLarge)
       ? 'font-semibold text-amber-700 dark:text-amber-400'
       : 'font-semibold text-gray-800 dark:text-gray-200';
 
   return (
     <div className={`mt-3 text-xs bg-gray-50 dark:bg-gray-700/30 border rounded px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 ${
-      tooLarge ? 'border-red-300 dark:border-red-700' : large ? 'border-amber-300 dark:border-amber-700' : 'border-gray-100 dark:border-gray-700'
+      blocked ? 'border-red-300 dark:border-red-700' : (large || foldsLarge) ? 'border-amber-300 dark:border-amber-700' : 'border-gray-100 dark:border-gray-700'
     } text-gray-600 dark:text-gray-400`}>
       <div>
         <span className="font-semibold text-gray-800 dark:text-gray-200">{preview.subjectCount.toLocaleString()}</span>
@@ -806,9 +831,10 @@ function LiveSummary({ preview, loading, rowType, rollup }) {
       <div>
         <span className={countClass}>{preview.assignmentCount.toLocaleString()}</span>
         {' '}assignments
-        {tooLarge && <span className="ml-1 text-red-700 dark:text-red-400">— too large to load, add filters to reduce below {BLOCK_ASSIGNMENTS.toLocaleString()}</span>}
-        {large    && <span className="ml-1 text-amber-700 dark:text-amber-400">— large, consider narrowing</span>}
-        {rollup   && <span className="ml-1 text-blue-700 dark:text-blue-400">— roll-up mode: aggregated, size limit not applied</span>}
+        {blocked    && <span className="ml-1 text-red-700 dark:text-red-400">— too large to load unfolded; add filters to reduce below {BLOCK_ASSIGNMENTS.toLocaleString()}, or let it open folded (Sort step)</span>}
+        {foldsLarge && <span className="ml-1 text-amber-700 dark:text-amber-400">— large, but opens folded to keep loading fast</span>}
+        {large      && <span className="ml-1 text-amber-700 dark:text-amber-400">— large, consider narrowing</span>}
+        {rollup     && <span className="ml-1 text-blue-700 dark:text-blue-400">— roll-up mode: aggregated, size limit not applied</span>}
       </div>
       {loading && (
         <div className="ml-auto text-[10px] text-gray-600 dark:text-gray-400">updating…</div>
