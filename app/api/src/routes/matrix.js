@@ -1229,6 +1229,17 @@ router.post('/matrix/data', async (req, res) => {
     `;
     const result = await dataReq.query(dataSql);
 
+    // Backstop: a flat per-subject grid serializes every assignment row into one
+    // JSON string. Past ~half a million rows that string can exceed V8's max
+    // length (RangeError: Invalid string length) and crash the response. Fail
+    // cleanly with guidance toward the aggregated views instead.
+    const MAX_FLAT_ROWS = 400_000;
+    if (result.recordset.length > MAX_FLAT_ROWS) {
+      return res.status(413).json({
+        error: `This matrix has ${result.recordset.length.toLocaleString()} assignments — too many to load as a per-subject grid. Sort by Manager Hierarchy or roll up by an attribute (both aggregate on the server), or add filters to narrow it.`,
+      });
+    }
+
     const { subjectCount, subjectTotal, resourceCount, resourceTotal } = await scopeCounts(p, res, rowType, built);
 
     // AP mapping — keyed by memberId (principal or identity depending on
