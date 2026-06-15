@@ -354,30 +354,32 @@ export default function RollupMatrixView({
       const canExpand = (n.childCount || 0) > 0;
       const hasMembers = (n.directMembers || 0) > 0;
       const btn = 'w-4 h-4 flex items-center justify-center text-[10px] leading-none shrink-0';
+      // Clicking the team header expands it in place into its sub-teams (adds a
+      // new header row). The small ▸ shows the team's direct people instead.
       return { span, th: (
-        <th key={`${col.key}-${L}`} colSpan={span} className={`${baseTh} align-bottom bg-gray-100 dark:bg-gray-800`} style={{ minWidth: '40px', height: '120px' }} title={`${n.displayName} — ${n.total} ${subjectWord} (whole subtree)`}>
+        <th key={`${col.key}-${L}`} colSpan={span}
+            onClick={canExpand ? () => expandOrg(col.group) : undefined}
+            className={`${baseTh} align-bottom ${canExpand ? 'bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}
+            style={{ minWidth: '40px', height: '120px' }}
+            title={canExpand ? `Click to split ${orgShort(n.displayName)} into its ${n.childCount} sub-teams — ${n.total} ${subjectWord}` : `${n.displayName} — ${n.total} ${subjectWord}`}>
           <div className="flex flex-col items-center justify-end h-full gap-1">
             <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0">{n.total}</span>
             {hasMembers && (
-              <button onClick={() => toggleGroup(col.group)} className={`${btn} ${isMembersExp ? 'text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-gray-400'} hover:text-sky-600 dark:hover:text-sky-400`}
+              <button onClick={(e) => { e.stopPropagation(); toggleGroup(col.group); }} className={`${btn} ${isMembersExp ? 'text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-gray-400'} hover:text-sky-600 dark:hover:text-sky-400`}
                 title={isMembersExp ? 'Hide the people directly in this team' : `Show the ${n.directMembers} ${subjectWord} directly in this team`}>{loadingM ? '⋯' : (isMembersExp ? '▾' : '▸')}</button>
             )}
-            {canExpand && (
-              <button onClick={() => expandOrg(col.group)} className={`${btn} text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400`}
-                title={`Expand ${orgShort(n.displayName)} — show its ${n.childCount} sub-teams as a new row`}>⊕</button>
-            )}
-            {vLabel(orgShort(n.displayName), 'text-gray-700 dark:text-gray-300')}
+            {vLabel((canExpand ? '▸ ' : '') + orgShort(n.displayName), canExpand ? 'text-indigo-800 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-300')}
           </div>
         </th>
       ) };
     }
-    // below the node's own level — the collapsed column extends down; show the
-    // sub-team count once as an expand hint.
+    // below the node's own level — the collapsed column extends down; clicking
+    // anywhere in it also splits it, with the sub-team count as a hint.
     return { span, th: (
-      <th key={`${col.key}-${L}`} colSpan={span} onClick={() => (n.childCount ? expandOrg(col.group) : undefined)}
-          className={`${baseTh} align-middle bg-gray-50 dark:bg-gray-800/40 ${n.childCount ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
-          title={n.childCount ? `${n.childCount} sub-teams — click to expand` : undefined}>
-        {L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-gray-500 dark:text-gray-400">{n.childCount}</span> : null}
+      <th key={`${col.key}-${L}`} colSpan={span} onClick={n.childCount ? () => expandOrg(col.group) : undefined}
+          className={`${baseTh} align-middle ${n.childCount ? 'bg-indigo-50/40 dark:bg-indigo-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-800/40'}`}
+          title={n.childCount ? `Click to split into ${n.childCount} sub-teams` : undefined}>
+        {L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-indigo-700 dark:text-indigo-300">{n.childCount}</span> : null}
       </th>
     ) };
   };
@@ -436,7 +438,7 @@ export default function RollupMatrixView({
             ? <>the <span className="font-medium">percentage</span> of the {subjectWord} in that group</>
             : <>the count of distinct {subjectWord}</>;
           if (contextMode && layered) return (
-            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are org teams and each cell is {valueWord} anywhere under that team with a <span className="font-medium">Direct</span> assignment. Click <span className="font-medium">⊕</span> on a team to expand it in place — its sub-teams appear as a new header row beneath it; click the team's name in the row above to collapse it back. <span className="font-medium">▸</span> shows the people directly in a team.</>
+            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are org teams and each cell is {valueWord} anywhere under that team with a <span className="font-medium">Direct</span> assignment. <span className="font-medium">Click a team header</span> to split it into its sub-teams — they appear as a new header row beneath it; click the team's name in the row above to collapse it back. <span className="font-medium">▸</span> shows the people directly in a team.</>
           );
           if (contextMode) return (
             <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the teams under the highlighted node, and each cell is {valueWord} anywhere under that team who {rolesOnly ? 'hold the business role on that row' : <>have a <span className="font-medium">Direct</span> assignment</>}. Click <span className="font-medium">⊕</span> to zoom into a team's sub-teams, <span className="font-medium">▸</span> to expand its direct people. Use the breadcrumb above to go back up.</>

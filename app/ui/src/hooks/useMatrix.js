@@ -160,6 +160,8 @@ export function useMatrix(filter) {
             breadcrumb:    body.breadcrumb    || [],
             nodes:         body.nodes         || [],
             rollupContent: body.rollupContent || 'resources-and-roles',
+            layered:       body.layered       || false,
+            maxDepth:      body.maxDepth       || 1,
             resources:     body.resources     || [],
             groupValues:   body.groupValues   || [],
             groupTotals:   body.groupTotals   || [],
