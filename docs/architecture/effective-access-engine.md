@@ -82,7 +82,10 @@ and adds principled deny.
 **Non-goals**
 
 - Not a full-tenant effective-access flattener for the interactive matrix (that is a separate
-  async **export** path, §13.4).
+  async **export** path, §13.4). **Consequence:** the base matrix continues to show only
+  *declared* grants for unvisited nodes. Inherited access becomes visible when the user expands
+  a container — not pre-populated for every row. This is intentional and must be communicated
+  in the UI.
 - Not a crawler — it consumes crawler output.
 - Not responsible for data collection (crawlers do that) or for the declared-grant base grid
   (the matview keeps that).
@@ -125,6 +128,19 @@ Principal --assigned--> EntraID Group          (Direct,   stored)
 First hop = **Direct**, everything transitive = **Indirect**. The whole problem reduces to
 bounded graph reachability + a per-source decision function.
 
+**How the two traversals interleave:** `holders(P)` (principal-side expansion) and the
+ancestor window (containment traversal) are **independent passes that share the same graph**:
+
+1. `holders(P)` expands principal → groups via `ResourceAssignments` (where the group is the
+   *resource* being assigned to, and P is the *principal*). This is a standard group-membership
+   walk — no `Contains` edges involved.
+2. The ancestor window walks *upward* via `Contains` edges in reverse (index on
+   `childResourceId`), collecting candidate nodes.
+3. The gather step cross-joins: "does any holder of P have a grant at any node in the ancestor
+   window?" Both expansions cross system boundaries freely because the graph is system-agnostic
+   — an Entra group can be a principal on an ARM scope via a `ResourceAssignment`, and the
+   traversal follows that edge regardless of which crawler emitted it.
+
 ---
 
 ## 6. The crawler contract — what is stored
@@ -156,9 +172,11 @@ rows resolve unchanged. They are **not** stored in `extendedAttributes` (cannot 
 indexed; read on every resolve).
 
 > **`relationshipType` / `effect` and the enum gate:** `Contains` is already in
-> `RELATIONSHIP_TYPES` (validation.js). `propagates` is free-form `extendedAttributes` on the
-> relationship. `effect` is a new column with its own allowed-value set. `resourceType` /
-> `contextType` are free-form, so new capability/scope types need no validation change.
+> `RELATIONSHIP_TYPES` (validation.js). `propagates` is stored in `extendedAttributes` on the
+> relationship (decided — §15.8: JSONB is acceptable for a bounded ancestor window; a
+> first-class column adds value only when P3 deny-bearing sources are in scope). `effect` is a
+> new first-class column with its own allowed-value set. `resourceType` / `contextType` are
+> free-form, so new capability/scope types need no validation change.
 
 ---
 
@@ -167,9 +185,17 @@ indexed; read on every resolve).
 For a query `(principal P | principalSet, capability C | all, focusNode N)`:
 
 1. **holders(P)** — P plus all groups P transitively belongs to (visited-set for cycles).
+   Bounded by `maxHoldersPerExpansion` (default 500); exceeding emits `truncated:
+   { holders: N }` — never silent, same principle as the ancestor cap.
 2. **Ancestor window** — ascend from N following `Contains` edges *upward*. **Stop the moment
    you would cross an edge with `propagates = false`** — the nearest inheritance-break boundary
    is N's effective root. Collect `M₀ = N … M_k = root-or-break`.
+
+   **DAG case:** if N has multiple parent edges and some have `propagates = false` while others
+   have `propagates = true`, follow **all unblocked paths** independently. The inheritance
+   break is on the specific edge, not on the node globally. Grants reachable via any unblocked
+   path are collected; ancestors only reachable via blocked paths are excluded. A visited-set
+   prevents revisiting the same ancestor node twice across paths.
 3. **Gather ACEs** — all grants of C where target ∈ ancestor window, principal ∈ holders(P),
    and `propagationScope` reaches N (`self` only at `M₀`; `descendants` / `selfAndDescendants`
    at strict ancestors). Each ACE retains `{ effect, distance, explicit (M == N),
@@ -205,7 +231,7 @@ truth table (§17). A new source means a new (or reused) policy — **never** ne
 
 | Policy | Rule | Sources |
 |---|---|---|
-| `AdditiveAllow` | any `allow` → allow; `deny` ignored (monotonic) | Azure RM v1, SharePoint (additive levels) |
+| `AdditiveAllow` | any `allow` → allow; `deny` ignored (monotonic) | Azure RM v1, SharePoint permission levels (additive only — SharePoint's "Deny All" permission level is NOT covered; a SharePoint crawler that needs deny semantics must use `DenyOverrides` or a dedicated policy) |
 | `DenyOverrides` | any `deny` → deny; else any `allow` → allow | Azure DevOps (deny-wins) |
 | `NtfsCanonical` | explicit deny ≻ explicit allow ≻ inherited deny ≻ inherited allow; among inherited, **closer node wins** | NTFS / file systems |
 | `ClosestWins` | most-specific node decides; deny ≻ allow within a node; `notset` passes through | generic three-state |
@@ -270,6 +296,29 @@ same `(capability, node)` carry the **same id** and merge into one matrix row sh
 Direct and Indirect holders — with **no dedup logic**. `NS_CAP` is a single fixed namespace
 UUID constant shared by engine and crawlers — defined once, documented, never changed.
 
+> **`NS_CAP` is a one-way door.** Changing it would require re-crawling all sources to
+> regenerate stored capability-resource rows with new IDs, and purging all synthesized rows
+> from any cache. The input format (`targetNodeId + '|' + capabilityId`) is equally frozen.
+> If a crawler discovers its `capabilityId` values are unstable across versions, that is a
+> crawler data-quality problem — fix it in the crawler, not by changing `NS_CAP`.
+
+**`NS_CAP` cross-language boundary:** The engine (Node.js) and crawlers (PowerShell) must
+produce identical ids from the same inputs. Approach: define `NS_CAP` as a string literal in
+both `app/api/src/lib/capabilityId.js` (engine side, exported) and
+`tools/crawlers/shared/Get-CapabilityId.ps1` (crawler side, dot-sourced). A cross-language
+conformance test (`test/unit/CapabilityId.Tests.ps1`) asserts that both implementations
+return identical UUIDs for a fixed set of `(targetNodeId, capabilityId)` pairs. This test
+must run in CI and is a hard gate — a mismatch would cause synthesized rows to never
+collapse with stored rows.
+
+> **Pipe-free constraint:** Both `targetNodeId` and `capabilityId` **must be pipe-free
+> strings**. UUIDs satisfy this inherently. Non-UUID `capabilityId` values (e.g. NTFS atomic
+> rights `Read`/`Write`/`Execute`/`Delete`) are also pipe-free and safe. A future crawler
+> emitting a compound capabilityId containing `|` would produce an ambiguous input format —
+> crawlers must validate and reject any such value before calling `Get-CapabilityId.ps1`.
+> The conformance test catches regressions on its fixed fixture set but cannot detect novel
+> capabilityId formats; this constraint must be enforced in the crawler-author guide.
+
 ---
 
 ## 12. API surface
@@ -281,7 +330,22 @@ UUID constant shared by engine and crawlers — defined once, documented, never 
 | `POST /api/effective-access/resolve` | Batch resolve `(principals × nodes × capabilities)` for the **export** path (§13.4) — paginated/streamed, cache-bypassing. |
 
 `/group/:id/nested-groups` is retained as a **thin shim** over the engine during migration,
-golden-tested to be byte-identical, then removed.
+golden-tested to be byte-identical, then removed. **Removal gate:** (a) golden snapshot tests
+pass for 30 days in production with zero diffs, AND (b) log analysis confirms no callers
+outside the engine itself. Shims without removal gates tend to live forever.
+
+**Shim shape contract:** The existing endpoint returns `{ groups: [], memberships: [] }` — two
+arrays of resources and flat membership rows. The engine returns structured rows with
+`{ capabilityResourceId, principalId, badge, decisivePath, effect, … }`. The shim must
+map engine output back to the legacy shape: de-virtualize synthesized rows (drop rows where
+`virtual=true`), rename `principalId` → `memberId`, and strip `effect`/`badge`/`decisivePath`.
+**Golden snapshots must be generated from the ORIGINAL endpoint BEFORE the shim is written**
+— snapshots generated from the shim itself would validate the shim against itself and miss
+any divergence.
+
+**Error contract:** If `:id` does not exist as a known resource, the endpoint returns `404`.
+If `:n` (node param on the principal endpoint) does not exist, the endpoint returns `404`.
+Empty results (resource exists but no effective access) return `200` with an empty array.
 
 **Response row:**
 
@@ -304,12 +368,36 @@ full-tenant computation.
 
 ### 13.2 Caching (decided — §15.2)
 In-memory LRU **per web process**, keyed by `(focusNode, filters, dataVersion)`. `dataVersion`
-bumps in the existing end-of-sync `refresh-views` hook → stale entries simply miss, never
-serve wrong data. (Single `web` container today; revisit Redis only on horizontal scale-out.)
+is a **separate sync version counter** incremented atomically at the successful completion of
+each sync — **not** `MAX(GraphSyncLog.id)`. Using the sync log max-id would advance the
+version key as soon as a sync begins, causing requests during the sync window to cache
+partially-updated data. The separate counter ensures the version advances only when all writes
+are durable. `dataVersion = 0` (no syncs completed yet on a fresh install) causes requests to
+run uncached, which is correct. The counter lives in a new table `SyncVersion(id SERIAL,
+completed_at TIMESTAMPTZ)` or a single-row config entry — one row, incremented at sync end.
+(Single `web` container today; revisit Redis only on horizontal scale-out.)
+
+> **Post-sync cache miss:** when a sync completes, all cached entries become stale
+> simultaneously. On a heavily-used instance, the first wave of requests after a sync will
+> all miss and trigger parallel traversals. With the current single-container, bounded-user
+> deployment this is acceptable. Document and revisit at horizontal scale-out.
 
 ### 13.3 Caps
-Defaults `maxDepth = 50`, `maxNodesPerExpansion = 1000`, configurable. Exceeding emits
-`truncated: { more: N }` — surfaced in the UI, **never silently dropped**.
+Defaults `maxDepth = 50`, `maxNodesPerExpansion = 1000`, `maxHoldersPerExpansion = 500`,
+all configurable. Exceeding any cap emits a `truncated` marker — **never silently dropped**:
+
+```json
+{
+  "truncated": {
+    "more": 42,           // ancestor/descendant nodes cut off (null if not truncated)
+    "holders": 15         // holder principals cut off (null if not truncated)
+  }
+}
+```
+
+When a result set is truncated, nodes are returned **sorted alphabetically by `displayName`**
+so the returned subset is predictable and reproducible. The caller can filter/search to narrow
+results below the cap.
 
 ### 13.4 Export path
 `POST /api/effective-access/resolve` streams in batches with backpressure for "give me
@@ -323,9 +411,29 @@ node)` has *any* reachable deny — without running full resolution at refresh. 
 contested cells and the engine resolves the true effect (with path) on demand. **Monotonic
 systems never set `contested`, so they pay nothing.** The base grid never *lies* about access.
 
+**Schema timing:** The `contested` column is added to the matview in the **P2 migration**
+as `BOOLEAN DEFAULT FALSE NOT NULL`. The deny-presence index logic that populates it is
+added in P3. This avoids a breaking schema change at P3 time (which may be months later)
+and allows the UI to treat `contested=false` as "safe to show" from day one — without the
+column being absent and requiring conditional rendering. **P3 readiness gate:** no deny-bearing
+crawler may be enabled until the `contested` population logic is deployed and verified.
+
 ### 13.6 Indexing
 Index `Contains(parentResourceId)` and `(childResourceId)`; index `ResourceAssignments` by
-`(resourceId, effect)`; a partial deny-presence index backs the `contested` flag.
+`(resourceId, effect)`; index `ResourceAssignments(principalId)` — verify this index exists
+from prior migrations (group-membership queries already need it); add if absent. A partial
+deny-presence index backs the `contested` flag (added in P3 alongside the population logic).
+
+`capabilityId` is stored in `extendedAttributes` on capability-resource rows but is read in
+the resolution inner loop. Add a **generated stored column** and index:
+```sql
+ALTER TABLE "Resources"
+  ADD COLUMN "capabilityId" TEXT GENERATED ALWAYS AS
+    (("extendedAttributes"->>'capabilityId')) STORED;
+CREATE INDEX "ix_Resources_capabilityId" ON "Resources"("capabilityId")
+  WHERE "capabilityId" IS NOT NULL;
+```
+This matches the reasoning in §15.1 (hot-path columns must be indexable).
 
 ---
 
@@ -337,7 +445,9 @@ Index `Contains(parentResourceId)` and `(childResourceId)`; index `ResourceAssig
 | Containment cycle | shouldn't occur; defend with visited-set + data-quality warning. |
 | Multi-parent node (DAG) | resolved by the policy; default `DenyOverrides` for conflicts in deny systems, `AdditiveAllow` union otherwise (§15.4). |
 | Inheritance break mid-path | ascent stops at the break boundary (§7.2). |
+| DAG with mixed `propagates` (some edges blocked, some not) | follow all unblocked paths; block is per-edge, not per-node. Visited-set prevents revisiting ancestors reached via multiple paths. |
 | `self`-scoped ACE | applies only at its node, never to children. |
+| `descendants`-scoped ACE declared AT N (focus node is the grant target) | does NOT apply at N — only at N's children. Engine correctly returns `none` at N from this ACE. This is correct semantics; crawlers that mean "self and descendants" must emit `selfAndDescendants`. |
 | `notset` three-state | passes through to parent; contributes nothing itself. |
 | Orphan capability-resource (parent unsynced) | treat as its own root; resolve what's present; flag data-quality. |
 | Dangling edge (node deleted between syncs) | skip the edge; tolerate. |
@@ -354,12 +464,16 @@ Index `Contains(parentResourceId)` and `(childResourceId)`; index `ResourceAssig
 | # | Question | Decision | Rationale |
 |---|---|---|---|
 | 15.1 | `effect` / `propagationScope` storage | **First-class columns + migration** | Read in the innermost resolution loop; must be indexable; JSONB can't be cleanly indexed and pays extraction on every resolve. |
-| 15.2 | Cache strategy | **In-memory LRU, `dataVersion`-keyed** | Single web container; `dataVersion` invalidation makes staleness impossible. Redis only on scale-out. |
+| 15.2 | Cache strategy | **In-memory LRU, `dataVersion`-keyed; `dataVersion` = separate atomic sync version counter** | Using `MAX(GraphSyncLog.id)` advances the cache key as soon as a sync begins, causing requests to cache partially-updated data for the duration of the sync. A dedicated counter (`SyncVersion` table or config row) incremented only at sync completion avoids this race. Redis only on scale-out. |
 | 15.3 | Deny vs base grid | **`contested` flag + resolve-on-demand** | Keeps the matview a fast declared projection; monotonic sources pay nothing; the grid never lies. |
 | 15.4 | DAG conflict default | **Policy-owned**; deny-wins for deny policies, union for additive | Conflict semantics belong to the source's policy, not the traversal. |
 | 15.5 | Synthesized-resource detail pages | **Matrix-only in v1** | Virtual rows carry a path but no drill-through; detail pages operate on stored resources. Revisit on demand. |
 | 15.6 | `effect` vs `assignmentType` | **`effect` is a new orthogonal axis**; engine ignores `assignmentType` for reachability; missing `effect` = `allow` | Reachability is computed; legacy `assignmentType` is harmonized elsewhere; back-compat preserved. |
 | 15.7 | Capability granularity under deny | **Compare same `capabilityId` only; no subsumption lattice** | Minimal engine; sources needing right-level deny emit comparable granularity. Doesn't foreclose correct filesystem deny. |
+| 15.8 | `propagates` storage on `ResourceRelationships` | **`extendedAttributes` (JSONB) — not a first-class column** | Interactive traversal reads a bounded ancestor window (≤ ~20 hops for the deepest expected hierarchy); JSONB extraction on that set is negligible. The main benefit of a first-class column would be a partial index for inheritance-break lookups — but that optimization is only material for deny-bearing filesystem crawlers. P3 is deferred (see §16), so the index is not needed now. Add a first-class column when a deny-bearing source is scoped. |
+| 15.9 | `capabilityId` indexing | **Generated stored column + index on `Resources`** | `capabilityId` is in `extendedAttributes` but read in the resolution inner loop. Same reasoning as §15.1 — hot-path fields must be indexable. Generated column avoids schema drift between the JSONB blob and the query path. |
+| 15.10 | `contested` column schema timing | **Added in P2 migration as `DEFAULT FALSE`; populated in P3** | Adding the column in P2 avoids a breaking schema change when P3 lands, allows the UI to render `contested=false` as "safe" from day one, and makes the P3 scope smaller (logic change only, no schema change). P3 readiness gate: deny-bearing crawlers blocked until population logic is deployed. |
+| 15.11 | `holders(P)` cap | **`maxHoldersPerExpansion = 500` (configurable); exceeds emits `truncated:{holders:N}`** | Mirrors the ancestor window cap. Without a bound, a principal in deep nested AD mega-groups could exhaust memory. Silent truncation would violate the "no silent truncation" invariant; the structured truncated response preserves caller observability. |
 
 ---
 
@@ -368,19 +482,34 @@ Index `Contains(parentResourceId)` and `(childResourceId)`; index `ResourceAssig
 | Phase | Scope | Unblocks |
 |---|---|---|
 | **P1** | Engine core + `AdditiveAllow` + migrate nested-group expand onto it. No behavior change (golden-test parity). | The framework; Entra Owner-harmonization. |
-| **P2** | Containment down-expansion: constant-capability carry, synthesized rows, deterministic-id collapse. | **Azure RM crawler.** |
+| **P2** | Containment down-expansion: constant-capability carry, synthesized rows, deterministic-id collapse. Adds `contested BOOLEAN DEFAULT FALSE` column to matview. | **Azure RM crawler.** |
 | **P3** | Deny-aware resolution + `DenyOverrides` / `NtfsCanonical` / `ClosestWins` + `contested` matview flag + path-aware explainability. | Filesystem / SharePoint / DevOps crawlers. |
 | **P4** | Export path (`POST /resolve`, async/streamed). | Full effective-access export. |
 
 Dependency summary: ARM crawler → **P1 + P2**; Entra Owner-harmonization → **P1**; deny-bearing
 crawlers → **P3**.
 
+> **P3 is deferred until a deny-bearing crawler is actually planned.** No filesystem,
+> SharePoint, or DevOps crawler is currently in scope. Specifying `DenyOverrides`,
+> `NtfsCanonical`, the `contested` flag, and the full deny traversal before there is a
+> consumer is YAGNI. When a deny-bearing source is scoped, revisit §8 and §13.5 and add P3
+> to the active roadmap. The engine architecture (pluggable `ResolutionPolicy`, `effect`
+> column) is designed to make P3 addable without touching the traversal core — that is the
+> extent of the current investment in deny.
+
 ---
 
 ## 17. Migration & backward compatibility
 
 - The `effect` / `propagationScope` migration backfills defaults; existing rows resolve as
-  today (missing `effect` = `allow`).
+  today (missing `effect` = `allow`). **Exception:** rows with `assignmentType = 'Eligible'`
+  must be backfilled to `effect = 'eligible'`, not `allow` — otherwise the engine would
+  surface eligible-only access as granted access on day one. The migration SQL must be:
+  ```sql
+  UPDATE "ResourceAssignments"
+  SET "effect" = CASE WHEN "assignmentType" = 'Eligible' THEN 'eligible' ELSE 'allow' END
+  WHERE "effect" IS NULL;
+  ```
 - `/group/:id/nested-groups` becomes a shim over the engine; **golden tests assert identical
   output** before the old code is deleted.
 - The matview keeps its declared-grant contract; `contested` is additive.
@@ -397,18 +526,55 @@ crawlers → **P3**.
   explicit/inherited/deny ordering, and `DenyOverrides` against DevOps deny-wins.
 - **Graph fixtures (golden files).** Deterministic fixtures for: deep tree, wide tree, broken
   inheritance, `self`/`descendants` scopes, multi-parent DAG, membership cycle, thin stubs,
-  orphan/dangling edges — each with an asserted expected effective-access set.
+  orphan/dangling edges — each with an asserted expected effective-access set. Mandatory
+  additional fixtures:
+  - **DAG mixed inheritance-break:** N has parents M₁ (propagates=true) and M₃
+    (propagates=false). Grant at M₁'s ancestor. Expected: grant is effective at N via M₁
+    path; M₃'s ancestors are not consulted. Verifies "follow all unblocked paths" (§7).
+  - **`descendants`-only at focus node:** grant declared AT N with `propagationScope =
+    'descendants'`. Query: does P have access at N? Expected: `none`. Verifies that
+    `descendants` scope does not include the grant's own node.
 - **Explainability assertions.** Every fixture asserts the decisive path, not just the boolean.
-- **Parity / regression.** Golden snapshots of current `/nested-groups` output; the engine must
-  reproduce them exactly (the P1 gate).
+- **Parity / regression.** Golden snapshots of current `/nested-groups` output — captured from
+  the **ORIGINAL endpoint before the shim is written**; the engine must reproduce them exactly
+  (the P1 gate). The shim's shape transform (de-virtualize, rename principalId → memberId,
+  strip effect/badge/decisivePath) must be separately tested against a known-good fixture.
 - **Performance tests.** Deep (10k-nested) and wide (10k-children) trees and a root-level grant
   fan-out: assert bounded latency, cache behavior, and correct `truncated` markers.
+- **holders(P) truncation fixture.** Principal transitively belongs to N > `maxHoldersPerExpansion`
+  groups via nested chains. Expected: `truncated:{holders:N}` returned; subset is sorted
+  alphabetically by group `displayName`; result is deterministic across calls.
+- **Post-sync cache miss concurrency test.** Simulate multiple concurrent requests immediately
+  after the sync version counter increments. Assert: (a) all requests serve consistent results
+  (same dataVersion, same effective-access outputs), (b) p99 latency stays within the
+  `maxDepth=50` traversal bound for the fixture size, (c) no request serves partial-sync data.
 - **Determinism.** Same input → identical ids and stable row ordering.
 - **Cross-source conformance suite** that every new `ResolutionPolicy` must pass to be accepted.
 
 ---
 
-## 19. Documentation requirements *(ship with the feature)*
+## 19. Observability requirements *(ship with the feature)*
+
+Every traversal request emits one structured log line at exit:
+
+```json
+{ "event": "effective-access-resolve", "focusNode": "...", "direction": "down|up",
+  "traversalDepth": 4, "nodesVisited": 12, "holdersCount": 3,
+  "cacheHit": false, "truncated": false, "durationMs": 18, "dataVersion": 42 }
+```
+
+**Required metrics (from log aggregation):**
+- Cache hit rate by endpoint (`GET /resource/:id/effective-access`, `GET /principal/:id/effective-access`)
+- Traversal depth histogram (p50, p99) — flag if p99 exceeds 20 levels
+- Truncation rate — percent of requests where `truncated = true`
+- p99 traversal latency per endpoint
+
+**Alerting:**
+- Cache hit rate falls below 50% for 5 minutes → investigate `dataVersion` or LRU size
+- p99 traversal latency exceeds 500ms → investigate query plan or index coverage
+- Truncation rate exceeds 10% → containers too wide for default cap; surface to UI team
+
+## 20. Documentation requirements *(ship with the feature)*
 
 - **Architecture doc** — this file, kept current.
 - **Crawler-author guide** — additions to `docs/sync/custom-crawlers.md`: the engine contract
@@ -426,7 +592,7 @@ crawlers → **P3**.
 
 ---
 
-## 20. First consumers (how they map)
+## 21. First consumers (how they map)
 
 - **Azure RM crawler** — emits the scope tree (`Contains`, `propagates = true`), sparse
   `Role @ Scope` capability-resources, `Direct` `allow` grants (`selfAndDescendants`). Uses
@@ -439,7 +605,7 @@ crawlers → **P3**.
 
 ---
 
-## 21. Reviewer sign-off
+## 22. Reviewer sign-off
 
 Please confirm agreement (or record objections) on each:
 
@@ -451,6 +617,30 @@ Please confirm agreement (or record objections) on each:
 - [ ] **Capability granularity** (§15.7) — same-`capabilityId` comparison; sources emit
       comparable granularity; no subsumption lattice.
 - [ ] **Phasing** (§16) — P1 before the ARM crawler; deny in P3.
-- [ ] **Testing & documentation** (§18–19) — required to ship with the feature.
+- [ ] **Testing & documentation** (§18–20) — required to ship with the feature.
+- [ ] **Observability** (§19) — structured log line + metrics + alerts required to ship.
+- [ ] **`capabilityId` generated column** (§13.6, §15.9) — added to migration scope.
+- [ ] **DAG inheritance-break semantics** (§7) — follow all unblocked paths; confirm this matches any DAG-native source planned for the future.
+- [ ] **`holders(P)` cap** (§7, §13.3, §15.11) — `maxHoldersPerExpansion=500`, emits `truncated:{holders:N}`.
+- [ ] **Sync version counter** (§13.2, §15.2) — separate `SyncVersion` counter incremented at sync completion; not `MAX(GraphSyncLog.id)`.
+- [ ] **`contested` column timing** (§13.5, §15.10) — added in P2 as `DEFAULT FALSE`; populated in P3; P3 readiness gate enforced.
+- [ ] **Shim shape contract** (§12) — golden snapshots captured from original endpoint before shim is written; shape transform specified.
+- [ ] **Pipe-free constraint** (§11) — `capabilityId` must be pipe-free; crawler-author guide to enforce.
 
 _Approved by: ____________________  Date: ___________
+
+---
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | CLEAN | HOLD SCOPE; 5 doc gaps fixed, 1 TODO deferred |
+| Outside Voice | Claude subagent | Independent 2nd opinion | 1 | ISSUES FOUND | 9 findings, 5 actioned (holders cap, sync version counter, contested timing, shim shape, pipe-free constraint), 4 skipped/deferred |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 0 | — | — |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
+
+**VERDICT:** CEO CLEARED — spec is implementation-ready. Eng Review required before code ships.
+
+NO UNRESOLVED DECISIONS

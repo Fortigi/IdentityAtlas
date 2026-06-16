@@ -1,0 +1,1 @@
+- Added architecture specification for the effective-access engine: a lazy, on-demand traversal engine that computes inherited permission access across containment hierarchies (Azure RM scopes, folder trees, group nesting) using the existing `Contains` relationship edges
