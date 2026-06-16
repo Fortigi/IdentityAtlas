@@ -60,7 +60,7 @@ export const VALID_JOB_TYPES = Object.keys(_crawlerManifests);
 export function validateCrawlerConfig(type, config) {
   const validate = _configValidators[type];
   if (!validate) return null;
-  if (validate(config)) return null;
+  if (validate(config ?? {})) return null;
   return _ajv.errorsText(validate.errors, { separator: '; ' });
 }
 const MAX_RECENT_JOBS = 50;
