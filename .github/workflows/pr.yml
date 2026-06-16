@@ -226,10 +226,12 @@ jobs:
   # ── Stage 7: PR hygiene (tests + changelog required for code changes) ────
   # Blocks merging a code change that ships without tests or a changelog
   # fragment — the gap that let an undocumented, untested feature reach main.
-  # Escape hatch: a maintainer can apply the 'skip-hygiene' label.
+  # Escape hatch: a maintainer can apply the 'skip-hygiene' label, which
+  # skips the job entirely (job-level if, so it is never even scheduled).
   hygiene:
     name: 'PR Hygiene'
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-hygiene') }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -239,15 +241,8 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
           set -euo pipefail
-
-          # Escape hatch for genuinely test-less changes (reviewed by a human).
-          if echo ",${PR_LABELS}," | grep -q ',skip-hygiene,'; then
-            echo "::notice::'skip-hygiene' label present — skipping PR hygiene checks."
-            exit 0
-          fi
 
           CHANGED=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
           echo "Changed files:"; echo "${CHANGED}" | sed 's/^/  /'
