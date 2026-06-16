@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- The midPoint crawler now prints a performance summary at the end of each run (total wall-clock, per-read timings, and per-endpoint ingest throughput), making it easy to see where a large sync spends its time.
+- Added a load-test data generator for the midPoint crawler (`tools/crawlers/midpoint/dev/Seed-MidpointLoadData.ps1`) that seeds a large fictitious AD with a realistic, repeatable distribution for capacity testing — proven up to 1,000,000 group memberships.
+- The midPoint crawler now streams connected-system accounts, entitlements, and their memberships page by page instead of loading the entire set into memory, so it can sync very large directories (millions of group memberships) within a bounded, fixed amount of memory — and runs noticeably faster on large syncs.
+
+## Changes in this PR
+
 - Added a midPoint (Evolveum) crawler that pulls identity governance data from the midPoint REST API into Identity Atlas.
 - Imports midPoint orgs as org-unit contexts (with hierarchy), roles and services as resources, and users as identities with their midPoint accounts.
 - Imports accounts on connected systems (midPoint shadows) as principals, linked to the right person, so multi-account identities are visible.
