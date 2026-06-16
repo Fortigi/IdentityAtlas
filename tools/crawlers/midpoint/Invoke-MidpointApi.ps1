@@ -222,6 +222,54 @@ function Invoke-MidpointSearch {
     return $all.ToArray()
 }
 
+function Invoke-MidpointSearchStream {
+    <#
+    .SYNOPSIS
+        Like Invoke-MidpointSearch, but invokes -OnPage for each page instead of
+        accumulating the whole result set in memory. Returns the total object count.
+    .DESCRIPTION
+        For large collections (e.g. millions of shadow reference-attributes) holding
+        every object in memory is the crawler's memory ceiling. Streaming lets a caller
+        process and discard each page (e.g. ingest in batches), so memory stays bounded
+        regardless of total volume — mirroring how midPoint itself serves paged reads.
+        The -OnPage scriptblock receives one argument: the page as an object[].
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$Type,
+        [Parameter(Mandatory)] [scriptblock]$OnPage,
+        [hashtable]$Query = @{},
+        [int]$PageSize    = 100,
+        [int]$MaxRetries  = 4,
+        [string]$Options  = '',
+        [string]$Include  = ''
+    )
+    $rest = $script:MidpointSession.RestRoot
+    $uri  = "$rest/$Type/search"
+    $qs = @()
+    if ($Options) { $qs += "options=$Options" }
+    if ($Include) { $qs += "include=$Include" }
+    if ($qs.Count -gt 0) { $uri += '?' + ($qs -join '&') }
+    $offset = 0
+    $total  = 0
+
+    while ($true) {
+        $paging = @{ maxSize = $PageSize; offset = $offset }
+        $queryObj = @{}
+        foreach ($k in $Query.Keys) { $queryObj[$k] = $Query[$k] }
+        $queryObj['paging'] = $paging
+        $body = @{ query = $queryObj } | ConvertTo-Json -Depth 20 -Compress
+
+        $resp = Invoke-MidpointRequest -Method Post -Uri $uri -Body $body -MaxRetries $MaxRetries
+        $page = ConvertTo-MidpointObjectArray -SearchResponse $resp
+
+        if ($page.Count -gt 0) { & $OnPage $page; $total += $page.Count }
+        if ($page.Count -lt $PageSize) { break }   # last page
+        $offset += $PageSize
+    }
+    return $total
+}
+
 function Invoke-MidpointGet {
     <#
     .SYNOPSIS
