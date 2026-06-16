@@ -268,10 +268,15 @@ export default function RollupMatrixView({
   }, [shareUrl]);
 
   const onExportExcel = useCallback(() => {
-    const columns = groupValues.map(g => ({
-      key: g,
-      label: contextMode ? ctxLabel(g) : (g || '(none)'),
-    }));
+    const columns = groupValues.map(g => {
+      const node = nodeMap.get(g);
+      // Layered views carry the full header trail; org names are shortened, plain
+      // attribute values are kept as-is. Non-layered = a single header value.
+      const path = (layered && node?.pathNames?.length)
+        ? (layeredAttributes ? node.pathNames : node.pathNames.map(orgShort))
+        : [contextMode ? ctxLabel(g) : (g || '(none)')];
+      return { key: g, label: path[path.length - 1], path };
+    });
     const roleColumns = visibleRoles.map(r => ({ id: r.id, label: r.displayName }));
     const rows = orderedResources.map(r => ({
       label: r.displayName || r.id,
@@ -288,7 +293,7 @@ export default function RollupMatrixView({
       sheetName: rolesOnly ? 'Roll-up (roles)' : 'Roll-up',
       fileName: `matrix-rollup-${contextMode ? 'context' : String(attribute).replace(/[^\w.-]+/g, '_')}.xlsx`,
     }).catch(() => {});
-  }, [rowNoun, groupValues, visibleRoles, orderedResources, groupCount, roleCountMap, attribute, contextMode, ctxLabel, rolesOnly]);
+  }, [rowNoun, groupValues, visibleRoles, orderedResources, groupCount, roleCountMap, attribute, contextMode, ctxLabel, rolesOnly, nodeMap, layered, layeredAttributes]);
 
   // Cap the grid height to the remaining viewport so only the grid scrolls
   // (matches MatrixView). overflow-auto then gives both scrollbars, including

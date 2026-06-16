@@ -6,7 +6,10 @@ import { setHeaderCell, safeCell } from './excelHelpers';
 // Description) to a real .xlsx workbook — matching the on-screen grid.
 //
 //   rowNoun      'Resource' | 'Business role'
-//   columns      [{ key, label }]   the roll-up group columns
+//   columns      [{ key, label, path }]  the roll-up group columns; `path` is the
+//                full header trail (e.g. ['Algemene Directie','CEO']) for the
+//                layered org-chart / attribute views — one Excel header row per
+//                level, with merged on-screen spans written as repeated values.
 //   roleColumns  [{ id, label }]    optional business-role count columns
 //   rows         [{ label, description, total, cell(colKey), roleCell(roleId) }]
 //   sheetName    worksheet title
@@ -16,25 +19,39 @@ import { setHeaderCell, safeCell } from './excelHelpers';
 export function buildRollupWorkbook({ rowNoun, columns, roleColumns = [], rows, sheetName = 'Roll-up' }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Identity Atlas';
-  const ws = wb.addWorksheet(sheetName.slice(0, 31), { views: [{ state: 'frozen', xSplit: 1, ySplit: 1 }] });
 
   const groupCount = columns.length;
   const roleCount = roleColumns.length;
   const totalCol = 1 + groupCount + roleCount + 1; // 1-based: rowNoun + groups + roles + '#'
   const descCol = totalCol + 1;
 
-  // ── Header row ──
-  const hr = ws.getRow(1);
-  setHeaderCell(hr.getCell(1), rowNoun);
-  columns.forEach((c, i) => setHeaderCell(hr.getCell(2 + i), safeCell(c.label), true));
-  roleColumns.forEach((r, i) => setHeaderCell(hr.getCell(2 + groupCount + i), safeCell(r.label), true));
-  setHeaderCell(hr.getCell(totalCol), '#', true);
-  setHeaderCell(hr.getCell(descCol), 'Description');
-  hr.height = 110;
+  // One header row per group-column header level. Merged spans on screen are
+  // written as the same value repeated across each column (Excel cells are NOT
+  // merged). Paths are top-aligned, matching the on-screen stack.
+  const headerLevels = Math.max(1, ...columns.map(c => (c.path?.length || 1)));
+  const ws = wb.addWorksheet(sheetName.slice(0, 31), { views: [{ state: 'frozen', xSplit: 1, ySplit: headerLevels }] });
+
+  for (let L = 0; L < headerLevels; L++) {
+    const isBottom = L === headerLevels - 1;
+    const hr = ws.getRow(L + 1);
+    if (isBottom) setHeaderCell(hr.getCell(1), rowNoun);
+    columns.forEach((c, i) => {
+      const path = (c.path && c.path.length) ? c.path : [c.label];
+      const val = L < path.length ? path[L] : '';
+      setHeaderCell(hr.getCell(2 + i), safeCell(val), true);
+    });
+    if (isBottom) {
+      roleColumns.forEach((r, i) => setHeaderCell(hr.getCell(2 + groupCount + i), safeCell(r.label), true));
+      setHeaderCell(hr.getCell(totalCol), '#', true);
+      setHeaderCell(hr.getCell(descCol), 'Description');
+    }
+    hr.height = isBottom ? 110 : 90;
+  }
 
   // ── Data rows ──
+  const firstData = headerLevels + 1;
   rows.forEach((r, ri) => {
-    const row = ws.getRow(ri + 2);
+    const row = ws.getRow(firstData + ri);
     row.getCell(1).value = safeCell(r.label);
     columns.forEach((c, i) => {
       const v = r.cell(c.key);

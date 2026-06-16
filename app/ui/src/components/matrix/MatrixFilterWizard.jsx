@@ -428,7 +428,6 @@ export default function MatrixFilterWizard({
     { key: 'subjects',    label: 'Subjects' },
     rolesOnly ? null : { key: 'resources', label: 'Resources' },
     rollupOn ? null : { key: 'sort', label: 'Sort' },
-    { key: 'orientation', label: 'Orientation' },
   ].filter(Boolean);
   const stepKeys = steps.map(s => s.key);
   const curPos = Math.max(0, stepKeys.indexOf(step));
@@ -510,14 +509,6 @@ export default function MatrixFilterWizard({
           onHierarchyChange={(sortHierarchy) => setFilter(prev => ({ ...prev, sortHierarchy }))}
         />
       )}
-      {activeStep === 'orientation' && (
-        <Step5Orientation
-          orientation={filter.orientation}
-          rollup={filter.rollup}
-          onChange={(o) => setFilter(prev => ({ ...prev, orientation: o }))}
-        />
-      )}
-
       <ErrorBox message={error} />
 
       {/* Live summary */}
@@ -897,39 +888,6 @@ function Step1Setup({ rowType, onRowTypeChange }) {
   );
 }
 
-// ─── Step 5 — Orientation ───────────────────────────────────────────
-
-function Step5Orientation({ orientation, rollup, onChange }) {
-  return (
-    <div className="space-y-3">
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">Orientation</h4>
-        <div className="grid grid-cols-2 gap-2">
-          <RadioCard
-            active={orientation === 'rows-as-resources'}
-            onClick={() => onChange('rows-as-resources')}
-            title="Resources as rows"
-            description="Resources go on the rows, subjects as columns (the default). Good when you have many resources and few subjects — vertical scroll handles the long axis."
-            visual={<OrientationVisual rowsLabel="Res" colsLabel="Subj" />}
-          />
-          <RadioCard
-            active={orientation === 'rows-as-subjects'}
-            onClick={() => onChange('rows-as-subjects')}
-            title="Subjects as rows"
-            description="Subjects go on the rows, resources as columns. Good when you have few resources and many subjects — vertical scroll handles the people, not the columns."
-            visual={<OrientationVisual rowsLabel="Subj" colsLabel="Res" />}
-          />
-        </div>
-      </div>
-      {rollup && (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 italic">
-          Roll-up uses its own resources-as-rows layout — orientation won’t change it.
-        </p>
-      )}
-    </div>
-  );
-}
-
 function RadioCard({ active, onClick, title, description, visual }) {
   return (
     <button
@@ -953,23 +911,6 @@ function RadioCard({ active, onClick, title, description, visual }) {
         {visual && <div className="ml-2 flex-shrink-0">{visual}</div>}
       </div>
     </button>
-  );
-}
-
-function OrientationVisual({ rowsLabel, colsLabel }) {
-  // Tiny 2×3 grid that visually communicates which axis is rows / columns.
-  return (
-    <div className="flex flex-col items-end gap-0.5">
-      <div className="text-[8px] uppercase tracking-wider text-gray-600 dark:text-gray-400">{colsLabel}</div>
-      <div className="flex items-center gap-1">
-        <div className="text-[8px] uppercase tracking-wider text-gray-600 dark:text-gray-400" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{rowsLabel}</div>
-        <div className="grid grid-cols-3 gap-px bg-gray-300 dark:bg-gray-600 p-px rounded">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="w-2 h-2 bg-white dark:bg-gray-800" />
-          ))}
-        </div>
-      </div>
-    </div>
   );
 }
 

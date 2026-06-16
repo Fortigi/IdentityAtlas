@@ -742,8 +742,9 @@ export default function MatrixView({
       accessPackages,
       apGroupMap,
       shareUrl,
+      sortAttributes: sortAttrs,
     });
-  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl]);
+  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs]);
 
   // Share: copy URL to clipboard
   const handleShare = useCallback(async () => {
