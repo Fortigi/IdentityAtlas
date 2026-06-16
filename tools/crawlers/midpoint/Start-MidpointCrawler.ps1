@@ -107,24 +107,82 @@ function Send-IngestBatch {
         Write-Host "  (no records for $Endpoint — skipping)" -ForegroundColor DarkGray
         return @{ inserted = 0; updated = 0; deleted = 0 }
     }
+    $swIngest = [System.Diagnostics.Stopwatch]::StartNew()
     if ($Records.Count -le $BatchSize) {
-        $Body = @{ systemId = $SystemId; syncMode = $mode; scope = $Scope; records = ConvertTo-JsonArray $Records }
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
+        $Body   = @{ systemId = $SystemId; syncMode = $mode; scope = $Scope; records = ConvertTo-JsonArray $Records }
+        $Result = Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
     }
-    # Chunked session for large batches
-    $SyncId = $null; $TotIns = 0; $TotUpd = 0; $TotDel = 0
-    for ($i = 0; $i -lt $Records.Count; $i += $BatchSize) {
-        $Chunk   = $Records[$i..([Math]::Min($i + $BatchSize - 1, $Records.Count - 1))]
-        $IsFirst = ($i -eq 0)
-        $IsLast  = ($i + $BatchSize -ge $Records.Count)
-        $Body    = @{ systemId = $SystemId; syncMode = $mode; scope = $Scope; records = ConvertTo-JsonArray $Chunk
-                      syncSession = if ($IsFirst) { 'start' } elseif ($IsLast) { 'end' } else { 'continue' } }
-        if ($SyncId) { $Body.syncId = $SyncId }
-        $R = Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-        if ($IsFirst -and $R.syncId) { $SyncId = $R.syncId }
-        $TotIns += ($R.inserted ?? 0); $TotUpd += ($R.updated ?? 0); $TotDel += ($R.deleted ?? 0)
+    else {
+        # Chunked session for large batches
+        $SyncId = $null; $TotIns = 0; $TotUpd = 0; $TotDel = 0
+        for ($i = 0; $i -lt $Records.Count; $i += $BatchSize) {
+            $Chunk   = $Records[$i..([Math]::Min($i + $BatchSize - 1, $Records.Count - 1))]
+            $IsFirst = ($i -eq 0)
+            $IsLast  = ($i + $BatchSize -ge $Records.Count)
+            $Body    = @{ systemId = $SystemId; syncMode = $mode; scope = $Scope; records = ConvertTo-JsonArray $Chunk
+                          syncSession = if ($IsFirst) { 'start' } elseif ($IsLast) { 'end' } else { 'continue' } }
+            if ($SyncId) { $Body.syncId = $SyncId }
+            $R = Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
+            if ($IsFirst -and $R.syncId) { $SyncId = $R.syncId }
+            $TotIns += ($R.inserted ?? 0); $TotUpd += ($R.updated ?? 0); $TotDel += ($R.deleted ?? 0)
+        }
+        $Result = @{ inserted = $TotIns; updated = $TotUpd; deleted = $TotDel }
     }
-    return @{ inserted = $TotIns; updated = $TotUpd; deleted = $TotDel }
+    $swIngest.Stop()
+    Add-IngestStat -Endpoint $entity -Seconds $swIngest.Elapsed.TotalSeconds -Records $Records.Count
+    return $Result
+}
+
+# ── Streaming ingest ──────────────────────────────────────────────────────────
+# Flush records in BatchSize chunks within ONE sync session so a full-sync's scoped
+# delete still sees the complete set — without ever holding all records in memory.
+# Mirrors Send-IngestBatch's chunked-session protocol (start → continue → end), or a
+# single full-sync call when everything fits in one batch.
+function New-IngestStream {
+    param([Parameter(Mandatory)][string]$Endpoint, [int]$SystemId = 0, [hashtable]$Scope = @{}, [int]$BatchSize = 5000)
+    [pscustomobject]@{
+        Endpoint = $Endpoint; SystemId = $SystemId; Scope = $Scope; BatchSize = $BatchSize
+        Buffer = [System.Collections.Generic.List[object]]::new(); SyncId = $null; Started = $false
+        Records = 0; Inserted = 0; Updated = 0; Deleted = 0
+    }
+}
+function Send-IngestStreamChunk {
+    param($Stream, [string]$Session)   # 'start' | 'continue' | 'end' | 'single'
+    $entity = ($Stream.Endpoint -replace '^ingest/', '')
+    $mode   = Get-EntitySyncMode -Entity $entity
+    $count  = $Stream.Buffer.Count
+    $body   = @{ systemId = $Stream.SystemId; syncMode = $mode; scope = $Stream.Scope; records = ConvertTo-JsonArray @($Stream.Buffer) }
+    if ($Session -ne 'single') {
+        $body['syncSession'] = $Session
+        if ($Stream.SyncId) { $body['syncId'] = $Stream.SyncId }
+    }
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $R  = Invoke-IngestAPI -Endpoint $Stream.Endpoint -Body $body
+    $sw.Stop()
+    if ($Session -in @('start', 'single') -and $R.syncId) { $Stream.SyncId = $R.syncId }
+    $Stream.Inserted += ($R.inserted ?? 0); $Stream.Updated += ($R.updated ?? 0); $Stream.Deleted += ($R.deleted ?? 0)
+    Add-IngestStat -Endpoint $entity -Seconds $sw.Elapsed.TotalSeconds -Records $count
+    $Stream.Buffer.Clear()
+}
+function Add-IngestStreamRecord {
+    param($Stream, $Record)
+    $Stream.Buffer.Add($Record); $Stream.Records++
+    # Flush only once we hold MORE than a full batch, so a non-empty remainder is always
+    # left for the closing 'end' (the ingest API rejects an empty records array, and the
+    # scoped delete fires on 'end').
+    if ($Stream.Buffer.Count -gt $Stream.BatchSize) {
+        $remainder = [System.Collections.Generic.List[object]]::new()
+        for ($i = $Stream.BatchSize; $i -lt $Stream.Buffer.Count; $i++) { $remainder.Add($Stream.Buffer[$i]) }
+        while ($Stream.Buffer.Count -gt $Stream.BatchSize) { $Stream.Buffer.RemoveAt($Stream.Buffer.Count - 1) }
+        Send-IngestStreamChunk -Stream $Stream -Session ($(if ($Stream.Started) { 'continue' } else { 'start' }))
+        $Stream.Started = $true
+        $Stream.Buffer = $remainder
+    }
+}
+function Complete-IngestStream {
+    param($Stream)
+    if ($Stream.Records -eq 0) { return }   # nothing → no scoped delete (matches Send-IngestBatch empty-skip)
+    Send-IngestStreamChunk -Stream $Stream -Session ($(if ($Stream.Started) { 'end' } else { 'single' }))
 }
 
 function Write-Step { param([string]$Msg) Write-Host "  → $Msg" -ForegroundColor DarkGray }
@@ -133,6 +191,27 @@ $Script:phaseErrors = [System.Collections.Generic.List[string]]::new()
 function Add-PhaseError { param([string]$Phase, [string]$Msg)
     Write-Host "  $Phase failed: $Msg" -ForegroundColor Red
     $Script:phaseErrors.Add("${Phase}: $Msg")
+}
+
+# ── Lightweight performance instrumentation (behaviour-neutral) ──────────────
+# Master wall-clock, per-ingest-endpoint latency, and midPoint read timings, so a
+# load test can attribute time to source reads vs ingest writes. Printed in the summary.
+$Script:swMaster    = [System.Diagnostics.Stopwatch]::StartNew()
+$Script:ingestStats = [ordered]@{}   # endpoint → @{ seconds; calls; records }
+$Script:fetchStats  = [ordered]@{}   # read label → @{ seconds; count }
+function Add-IngestStat { param([string]$Endpoint, [double]$Seconds, [int]$Records)
+    if (-not $Script:ingestStats.Contains($Endpoint)) { $Script:ingestStats[$Endpoint] = @{ seconds = 0.0; calls = 0; records = 0 } }
+    $Script:ingestStats[$Endpoint].seconds += $Seconds
+    $Script:ingestStats[$Endpoint].calls++
+    $Script:ingestStats[$Endpoint].records += $Records
+}
+function Measure-MidpointFetch { param([string]$Label, [scriptblock]$Script)
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $result = & $Script
+    $sw.Stop()
+    $n = @($result).Count
+    $Script:fetchStats[$Label] = @{ seconds = $sw.Elapsed.TotalSeconds; count = $n }
+    return $result
 }
 
 # Build a human-readable label for a shadow account. Some connectors (e.g. DatabaseTable)
@@ -181,7 +260,6 @@ $SyncedOrgIds            = [System.Collections.Generic.HashSet[string]]::new()  
 $SyncedResourceIds       = [System.Collections.Generic.HashSet[string]]::new()  # Role/Service OIDs synced as Resources
 $AllUsers                = $null
 $ShadowOidToUserOid      = @{}                                                   # shadow OID → owning user OID (from user.linkRef)
-$AllShadows              = $null                                                 # fetched once in Systems phase, reused by Shadows phase
 
 # ─── Phase: Systems ──────────────────────────────────────────────────────────
 # midPoint itself + each ResourceType become Identity Atlas Systems.
@@ -196,18 +274,24 @@ if ($Sync.systems) {
         $resources = @(Invoke-MidpointSearch -Type 'resources' -PageSize $PageSize)
         Write-Host "  $($resources.Count) connected resources in midPoint" -ForegroundColor Gray
 
-        # Fetch shadows once (reused by the Shadows phase) and determine which resources
-        # actually hold accounts/entitlements. Resources whose shadows are all generic
-        # (e.g. context/data-only connectors) yield nothing and are NOT registered as
-        # systems — that avoids empty, confusing systems in the UI.
-        $AllShadows = @(Invoke-MidpointSearch -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association')
+        # STREAM shadows (do NOT retain — memory stays bounded regardless of volume) to learn
+        # which resources actually hold account/entitlement shadows. Resources whose shadows are
+        # all generic (e.g. context/data-only connectors) are NOT registered as systems — that
+        # avoids empty, confusing systems in the UI. The Shadows phase re-streams independently.
         $resWithData = [System.Collections.Generic.HashSet[string]]::new()
-        foreach ($s in $AllShadows) {
-            if (($s.kind -eq 'account') -or ($s.kind -eq 'entitlement')) {
-                $ro = Get-MidpointRefOid $s.resourceRef $null
-                if ($ro) { [void]$resWithData.Add($ro) }
+        $swShRead = [System.Diagnostics.Stopwatch]::StartNew()
+        $nShadowsScan = Invoke-MidpointSearchStream -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association' -OnPage {
+            param($page)
+            foreach ($s in $page) {
+                if (($s.kind -eq 'account') -or ($s.kind -eq 'entitlement')) {
+                    $ro = Get-MidpointRefOid $s.resourceRef $null
+                    if ($ro) { [void]$resWithData.Add($ro) }
+                }
             }
         }
+        $swShRead.Stop()
+        $Script:fetchStats['shadows (system scan)'] = @{ seconds = $swShRead.Elapsed.TotalSeconds; count = $nShadowsScan }
+        Write-Host "  scanned $nShadowsScan shadows ($($resWithData.Count) resources hold accounts/entitlements)" -ForegroundColor Gray
 
         foreach ($r in $resources) {
             $roid  = [string]$r.oid
@@ -346,7 +430,7 @@ if ($Sync.users) {
     Write-Host "`nUsers (Identities + Principals):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing users' -Pct 45
     try {
-        $AllUsers = @(Invoke-MidpointSearch -Type 'users' -PageSize $PageSize)
+        $AllUsers = @(Measure-MidpointFetch 'users (read)' { Invoke-MidpointSearch -Type 'users' -PageSize $PageSize })
         Write-Host "  $($AllUsers.Count) users from midPoint" -ForegroundColor Gray
 
         $identRecs  = [System.Collections.Generic.List[object]]::new()
@@ -414,106 +498,71 @@ if ($Sync.shadows -and $Sync.users) {
     Write-Host "`nShadows (accounts + entitlements):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing shadows' -Pct 60
     try {
-        # Reuse the shadow list already fetched in the Systems phase (options=raw +
-        # include=association). Fall back to a fresh fetch if Systems was skipped.
-        $shadows = if ($null -ne $AllShadows) { @($AllShadows) } else { @(Invoke-MidpointSearch -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association') }
-        Write-Host "  $($shadows.Count) shadows from midPoint" -ForegroundColor Gray
-
+        # STREAMING design (memory stays bounded regardless of volume):
+        #   Pass A — stream shadows; accumulate the comparatively small entitlement/account/
+        #            member records and ingest them. Entitlements MUST land before assignments
+        #            (resource FK), so assignments are emitted in a second pass.
+        #   Pass B — stream account-shadows again; emit person→entitlement assignments straight
+        #            into a per-system streaming ingest (flushed in batches, never all held).
         $acctBySystem  = @{}   # systemId → List[account principal record]
         $entBySystem   = @{}   # systemId → List[entitlement resource record]
         $shadowMembers = [System.Collections.Generic.List[object]]::new()   # account → identity links
-        $entAssignsBySystem = @{}   # systemId → List[person→entitlement assignment]
-        $entAssignSeen = [System.Collections.Generic.HashSet[string]]::new()   # dedup (resourceId|principalId)
         $skipped = @{ generic = 0; other = 0 }
 
-        foreach ($s in $shadows) {
-            $resOid = Get-MidpointRefOid $s.resourceRef $null
-            if (-not $resOid -or -not $ResourceSystemId.ContainsKey($resOid)) { continue }   # skip shadows on un-synced resources
-            $sysId     = $ResourceSystemId[$resOid]
-            $shadowOid = [string]$s.oid
-            $kind      = if ($s.kind) { [string]$s.kind } else { '' }
+        $swPassA = [System.Diagnostics.Stopwatch]::StartNew()
+        $nPassA = Invoke-MidpointSearchStream -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association' -OnPage {
+            param($page)
+            foreach ($s in $page) {
+                $resOid = Get-MidpointRefOid $s.resourceRef $null
+                if (-not $resOid -or -not $ResourceSystemId.ContainsKey($resOid)) { continue }   # skip shadows on un-synced resources
+                $sysId     = $ResourceSystemId[$resOid]
+                $shadowOid = [string]$s.oid
+                $kind      = if ($s.kind) { [string]$s.kind } else { '' }
 
-            if ($kind -eq 'account') {
-                if (-not $acctBySystem.ContainsKey($sysId)) { $acctBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
-                $acctBySystem[$sysId].Add([PSCustomObject]@{
-                    id             = $shadowOid
-                    externalId     = $shadowOid
-                    displayName    = (Get-MidpointShadowLabel -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid)
-                    principalType  = 'User'
-                    accountEnabled = (Test-MidpointEnabled $s)
-                    extendedAttributes = @{
-                        accountName = (Get-MidpointString $s.name '')
-                        resourceOid = $resOid
-                        objectClass = (Get-MidpointString $s.objectClass '')
-                        kind        = $kind
-                        intent      = (Get-MidpointString $s.intent '')
-                        source      = 'midpoint-shadow'
-                    }
-                })
-                if ($ShadowOidToUserOid.ContainsKey($shadowOid)) {
-                    $shadowMembers.Add([PSCustomObject]@{ identityId = $ShadowOidToUserOid[$shadowOid]; principalId = $shadowOid; accountType = 'Account'; isPrimary = $false })
-                }
-            }
-            elseif ($kind -eq 'entitlement') {
-                if (-not $entBySystem.ContainsKey($sysId)) { $entBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
-                $entBySystem[$sysId].Add([PSCustomObject]@{
-                    id           = $shadowOid
-                    externalId   = $shadowOid
-                    displayName  = (Format-AccountLabel (Get-MidpointString $s.name $shadowOid))
-                    resourceType = 'Entitlement'
-                    extendedAttributes = @{
-                        accountName = (Get-MidpointString $s.name '')
-                        resourceOid = $resOid
-                        objectClass = (Get-MidpointString $s.objectClass '')
-                        intent      = (Get-MidpointString $s.intent '')
-                        source      = 'midpoint-entitlement'
-                    }
-                })
-                [void]$SyncedResourceIds.Add($shadowOid)
-            }
-            else { if ($kind -eq 'generic') { $skipped.generic++ } else { $skipped.other++ } }
-
-            # Entitlement membership (the resource's "ist" state): an account shadow points
-            # at the entitlement shadows it belongs to (e.g. AD group membership). Each becomes
-            # a person → entitlement ResourceAssignment (Direct) so the access shows consolidated
-            # on the identity (the entitlement is reached VIA this account, recorded in
-            # extendedAttributes). Falls back to the account itself if unlinked.
-            #
-            # midPoint stores these two ways depending on version/connector:
-            #   • legacy association[]            — { shadowRef:{oid} | identifier:{oid} }
-            #   • 4.9 referenceAttributes.<name>[] — native reference attribute (e.g. `group`),
-            #                                        each entry a direct ref { oid, relation, type }
-            # Both are collected here.
-            if ($kind -eq 'account') {
-                $ownerOid = if ($ShadowOidToUserOid.ContainsKey($shadowOid)) { $ShadowOidToUserOid[$shadowOid] } else { $shadowOid }
-                $addEntAssign = {
-                    param($entOid)
-                    if (-not $entOid) { return }
-                    if (-not $entAssignSeen.Add("$entOid|$ownerOid")) { return }
-                    if (-not $entAssignsBySystem.ContainsKey($sysId)) { $entAssignsBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
-                    $entAssignsBySystem[$sysId].Add([PSCustomObject]@{ resourceId = $entOid; principalId = $ownerOid; assignmentType = 'Direct'; extendedAttributes = @{ viaAccount = $shadowOid } })
-                }
-                # legacy association[]
-                if ($s.association) {
-                    foreach ($assoc in @($s.association)) {
-                        $entOid = Get-MidpointRefOid $assoc.shadowRef $null
-                        if (-not $entOid) { $entOid = Get-MidpointRefOid $assoc.identifier $null }
-                        & $addEntAssign $entOid
-                    }
-                }
-                # 4.9 native reference attributes (referenceAttributes.<name>[])
-                if ($s.referenceAttributes) {
-                    foreach ($refProp in $s.referenceAttributes.PSObject.Properties) {
-                        if ($refProp.Name -eq '@ns' -or $null -eq $refProp.Value) { continue }
-                        foreach ($ref in @($refProp.Value)) {
-                            & $addEntAssign (Get-MidpointRefOid $ref $null)
+                if ($kind -eq 'account') {
+                    if (-not $acctBySystem.ContainsKey($sysId)) { $acctBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
+                    $acctBySystem[$sysId].Add([PSCustomObject]@{
+                        id             = $shadowOid
+                        externalId     = $shadowOid
+                        displayName    = (Get-MidpointShadowLabel -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid)
+                        principalType  = 'User'
+                        accountEnabled = (Test-MidpointEnabled $s)
+                        extendedAttributes = @{
+                            accountName = (Get-MidpointString $s.name '')
+                            resourceOid = $resOid
+                            objectClass = (Get-MidpointString $s.objectClass '')
+                            kind        = $kind
+                            intent      = (Get-MidpointString $s.intent '')
+                            source      = 'midpoint-shadow'
                         }
+                    })
+                    if ($ShadowOidToUserOid.ContainsKey($shadowOid)) {
+                        $shadowMembers.Add([PSCustomObject]@{ identityId = $ShadowOidToUserOid[$shadowOid]; principalId = $shadowOid; accountType = 'Account'; isPrimary = $false })
                     }
                 }
+                elseif ($kind -eq 'entitlement') {
+                    if (-not $entBySystem.ContainsKey($sysId)) { $entBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
+                    $entBySystem[$sysId].Add([PSCustomObject]@{
+                        id           = $shadowOid
+                        externalId   = $shadowOid
+                        displayName  = (Format-AccountLabel (Get-MidpointString $s.name $shadowOid))
+                        resourceType = 'Entitlement'
+                        extendedAttributes = @{
+                            accountName = (Get-MidpointString $s.name '')
+                            resourceOid = $resOid
+                            objectClass = (Get-MidpointString $s.objectClass '')
+                            intent      = (Get-MidpointString $s.intent '')
+                            source      = 'midpoint-entitlement'
+                        }
+                    })
+                    [void]$SyncedResourceIds.Add($shadowOid)
+                }
+                else { if ($kind -eq 'generic') { $skipped.generic++ } else { $skipped.other++ } }
             }
         }
+        $swPassA.Stop(); $Script:fetchStats['shadows (pass A)'] = @{ seconds = $swPassA.Elapsed.TotalSeconds; count = $nPassA }
 
-        # Entitlements first (so association assignments satisfy the resource FK), then accounts.
+        # Entitlements first (so the assignments in pass B satisfy the resource FK), then accounts, then members.
         $totalEnt = 0
         foreach ($sysId in $entBySystem.Keys) {
             $recs = @($entBySystem[$sysId]); $totalEnt += $recs.Count
@@ -530,11 +579,57 @@ if ($Sync.shadows -and $Sync.users) {
             $R = Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $MidpointSystemId -Records @($shadowMembers)
             Write-Host "  IdentityMembers (account links): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
         }
+
+        # PASS B — person → entitlement assignments (the resource's "ist" state). An account
+        # shadow points at the entitlement shadows it belongs to (e.g. AD group membership),
+        # stored either as legacy association[] or 4.9 referenceAttributes.<name>[]. Each ref
+        # becomes a Direct ResourceAssignment consolidated on the owner (focus) principal, with
+        # the source account recorded in extendedAttributes.viaAccount. Streamed in batches so
+        # the (potentially millions of) assignments are never all held in memory at once.
+        $entAssignStreams = @{}   # systemId → IngestStream
+        $entAssignSeen    = [System.Collections.Generic.HashSet[string]]::new()   # dedup (resourceId|ownerOid)
+        $swPassB = [System.Diagnostics.Stopwatch]::StartNew()
+        $nPassB = Invoke-MidpointSearchStream -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association' -OnPage {
+            param($page)
+            foreach ($s in $page) {
+                if ($s.kind -ne 'account') { continue }
+                $resOid = Get-MidpointRefOid $s.resourceRef $null
+                if (-not $resOid -or -not $ResourceSystemId.ContainsKey($resOid)) { continue }
+                $sysId     = $ResourceSystemId[$resOid]
+                $shadowOid = [string]$s.oid
+                $ownerOid  = if ($ShadowOidToUserOid.ContainsKey($shadowOid)) { $ShadowOidToUserOid[$shadowOid] } else { $shadowOid }
+                $emit = {
+                    param($entOid)
+                    if (-not $entOid) { return }
+                    if (-not $entAssignSeen.Add("$entOid|$ownerOid")) { return }
+                    if (-not $entAssignStreams.ContainsKey($sysId)) {
+                        $entAssignStreams[$sysId] = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId $sysId -Scope @{ assignmentType = 'Direct' }
+                    }
+                    Add-IngestStreamRecord -Stream $entAssignStreams[$sysId] -Record ([PSCustomObject]@{ resourceId = $entOid; principalId = $ownerOid; assignmentType = 'Direct'; extendedAttributes = @{ viaAccount = $shadowOid } })
+                }
+                if ($s.association) {
+                    foreach ($assoc in @($s.association)) {
+                        $entOid = Get-MidpointRefOid $assoc.shadowRef $null
+                        if (-not $entOid) { $entOid = Get-MidpointRefOid $assoc.identifier $null }
+                        & $emit $entOid
+                    }
+                }
+                if ($s.referenceAttributes) {
+                    foreach ($refProp in $s.referenceAttributes.PSObject.Properties) {
+                        if ($refProp.Name -eq '@ns' -or $null -eq $refProp.Value) { continue }
+                        foreach ($ref in @($refProp.Value)) { & $emit (Get-MidpointRefOid $ref $null) }
+                    }
+                }
+            }
+        }
+        $swPassB.Stop(); $Script:fetchStats['shadows (pass B)'] = @{ seconds = $swPassB.Elapsed.TotalSeconds; count = $nPassB }
+
         $totalEntAssign = 0
-        foreach ($sysId in $entAssignsBySystem.Keys) {
-            $recs = @($entAssignsBySystem[$sysId]); $totalEntAssign += $recs.Count
-            $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $sysId -Scope @{ assignmentType = 'Direct' } -Records $recs
-            Write-Host "  Entitlement assignments (system $sysId): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+        foreach ($sysId in $entAssignStreams.Keys) {
+            $st = $entAssignStreams[$sysId]
+            Complete-IngestStream -Stream $st
+            $totalEntAssign += $st.Records
+            Write-Host "  Entitlement assignments (system $sysId): +$($st.Inserted) ~$($st.Updated) -$($st.Deleted) (streamed $($st.Records))" -ForegroundColor Green
         }
         Write-Host "  Accounts: $totalAcct | Entitlements: $totalEnt | Entitlement-memberships: $totalEntAssign | skipped generic/other: $($skipped.generic)/$($skipped.other)" -ForegroundColor Gray
     } catch { Add-PhaseError 'Shadows' $_.Exception.Message }
@@ -693,6 +788,28 @@ try {
     Write-Host "  Views refreshed." -ForegroundColor Green
 } catch {
     Write-Host "  Warning: refresh-views failed: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
+# ─── Performance summary (load-test instrumentation) ─────────────────────────
+$Script:swMaster.Stop()
+Write-Host "`n── Performance ──" -ForegroundColor Cyan
+Write-Host ("  Total wall-clock: {0:N1}s" -f $Script:swMaster.Elapsed.TotalSeconds) -ForegroundColor Gray
+if ($Script:fetchStats.Count -gt 0) {
+    Write-Host "  midPoint reads:" -ForegroundColor Gray
+    foreach ($k in $Script:fetchStats.Keys) {
+        $f = $Script:fetchStats[$k]
+        Write-Host ("    {0,-18} {1,8:N1}s  ({2} objects)" -f $k, $f.seconds, $f.count) -ForegroundColor DarkGray
+    }
+}
+if ($Script:ingestStats.Count -gt 0) {
+    Write-Host "  Ingest API (endpoint: time / calls / records → rec/s):" -ForegroundColor Gray
+    $ingTotal = 0.0
+    foreach ($k in $Script:ingestStats.Keys) {
+        $s = $Script:ingestStats[$k]; $ingTotal += $s.seconds
+        $rps = if ($s.seconds -gt 0) { [math]::Round($s.records / $s.seconds) } else { 0 }
+        Write-Host ("    {0,-26} {1,7:N1}s / {2,3} / {3,7} → {4} rec/s" -f $k, $s.seconds, $s.calls, $s.records, $rps) -ForegroundColor DarkGray
+    }
+    Write-Host ("    {0,-26} {1,7:N1}s total" -f 'ingest TOTAL', $ingTotal) -ForegroundColor DarkGray
 }
 
 # ─── Summary ─────────────────────────────────────────────────────────────────
