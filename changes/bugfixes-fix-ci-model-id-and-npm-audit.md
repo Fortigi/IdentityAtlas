@@ -1,0 +1,2 @@
+- Updated default Anthropic model from the retired `claude-sonnet-4-20250514` to `claude-sonnet-4-6`, fixing the LLM connection test in CI.
+- Fixed two high-severity npm vulnerabilities in the API (`esbuild` and `form-data`).
