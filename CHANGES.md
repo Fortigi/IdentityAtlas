@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Fixed crawler manifest discovery in Docker: the API container now automatically discovers all installed crawlers at startup, so newly added crawlers are recognised without requiring code changes.
+- Removed the hardcoded crawler-type allowlist (`demo`, `entra-id`, `csv`, `omada`). The list is now built entirely from the manifest files — any crawler not present in the container is no longer silently accepted.
+- Fixed a validation error that caused the demo crawler job to be rejected when submitted without a config body.
+- Fixed the Entra ID crawler config schema so that `clientSecret` is no longer required when credentials are stored in the vault.
+
+## Changes in this PR
+
 - Updated default Anthropic model from the retired `claude-sonnet-4-20250514` to `claude-sonnet-4-6`, fixing the LLM connection test in CI.
 - Fixed two high-severity npm vulnerabilities in the API (`esbuild` and `form-data`).
 - Fixed PR hygiene CI check not respecting the `skip-hygiene` label when re-running a workflow: the check is now skipped at job level so it is never scheduled when the label is present.

@@ -70,6 +70,7 @@ Crawler types and their config schemas are auto-discovered from `tools/crawlers/
 **Manifest discovery path** (checked in order):
 1. `CRAWLER_MANIFESTS_DIR` env var (set to `/app/crawlers` in Docker, `bundled-scripts/tools/crawlers` in node-launcher)
 2. Relative to `src/routes/`: `../../../../tools/crawlers` (works in local dev)
-3. Hardcoded fallback list if directory is unreachable
+
+If the directory is unreachable, an error is logged and `VALID_JOB_TYPES` is empty — there is no hardcoded fallback list.
 
 **`scheduler.js`** fires scheduled crawler jobs. It imports `VALID_JOB_TYPES` and `validateCrawlerConfig` from `routes/jobs.js` — do not duplicate that logic here.
