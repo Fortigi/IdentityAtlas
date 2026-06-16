@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Updated default Anthropic model from the retired `claude-sonnet-4-20250514` to `claude-sonnet-4-6`, fixing the LLM connection test in CI.
+- Fixed two high-severity npm vulnerabilities in the API (`esbuild` and `form-data`).
+- Fixed PR hygiene CI check not respecting the `skip-hygiene` label when re-running a workflow: the check is now skipped at job level so it is never scheduled when the label is present.
+
+## Changes in this PR
+
 - Fixed false-positive in `MatrixView.scrollbar.test.js`: the magic-number guard was matching a comment in `MatrixView.jsx` rather than actual class usage
 - Added tests for the two untested bootstrap guard paths in `Invoke-CrawlerJob.ps1`: skip (module already loaded) and throw (module file not found)
 
