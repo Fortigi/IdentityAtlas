@@ -11,3 +11,4 @@
 - Refreshes the access matrix automatically at the end of a sync so governed assignments appear immediately.
 - Supports Basic, API-token, and OAuth2 (client-credentials / password) authentication, configurable from the Add Crawler screen.
 - Fixed crawler manifest discovery in Docker so newly added crawlers are always recognised by the API without requiring a code change to the fallback list.
+- Added user-facing documentation for the midPoint crawler (`docs/sync/midpoint.md`): what data gets imported, configuration reference, and troubleshooting tips.
