@@ -119,14 +119,16 @@ the source's resolution policy:
   channel. Carries the capability **constant** down the tree.
 
 ```
-Principal --assigned--> EntraID Group          (Direct,   stored)
+Principal --assigned--> EntraID Group          (group member, stored)
           --assigned--> Contributor @ Sub      (Indirect, group is a principal here)
           --contains--> Contributor @ RG       (Indirect, scope inheritance)
           --contains--> Contributor @ VM       (Indirect, scope inheritance)
 ```
 
 First hop = **Direct**, everything transitive = **Indirect**. The whole problem reduces to
-bounded graph reachability + a per-source decision function.
+bounded graph reachability + a per-source decision function. **Note:** `Direct`/`Indirect`
+badges (§9) are determined at the *capability-resource* level — a group-membership edge is
+not itself a badge; it affects whether the capability grant is direct or indirect.
 
 **How the two traversals interleave:** `holders(P)` (principal-side expansion) and the
 ancestor window (containment traversal) are **independent passes that share the same graph**:
@@ -149,7 +151,7 @@ The engine operates over the existing tables. To feed it, a crawler emits:
 
 1. **Container nodes** — `Resources` rows (scopes, folders, sites, groups…).
 2. **Capability-resources** — `Resources` rows for `Capability @ Target`, **only where a grant
-   is declared** (sparse). `id = uuidv5(NS_CAP, targetNodeId + '|' + capabilityId)`
+   is declared** (sparse). `id = SHA256-UUID(targetNodeId + '|' + capabilityId)`
    (deterministic, see §11). `extendedAttributes`: `capabilityId`, `capabilityName`,
    `targetNodeId`.
 3. **Containment edges** — `Contains` relationships, parent→child, with `propagates` (bool,
@@ -194,13 +196,17 @@ For a query `(principal P | principalSet, capability C | all, focusNode N)`:
    **DAG case:** if N has multiple parent edges and some have `propagates = false` while others
    have `propagates = true`, follow **all unblocked paths** independently. The inheritance
    break is on the specific edge, not on the node globally. Grants reachable via any unblocked
-   path are collected; ancestors only reachable via blocked paths are excluded. A visited-set
-   prevents revisiting the same ancestor node twice across paths.
+   path are collected; ancestors only reachable via blocked paths are excluded.
+   **Admission rule:** an ancestor node is admitted to the window the first time *any*
+   unblocked path reaches it; the visited-set then prevents processing it a second time. If the
+   first path to reach an ancestor happens to be blocked and a second path is unblocked, the
+   node is still admitted — admission requires at least one unblocked path.
 3. **Gather ACEs** — all grants of C where target ∈ ancestor window, principal ∈ holders(P),
    and `propagationScope` reaches N (`self` only at `M₀`; `descendants` / `selfAndDescendants`
    at strict ancestors). Each ACE retains `{ effect, distance, explicit (M == N),
    viaGroupId|null, nodePath }`. **Distance and node path are always retained** — deny
-   precedence needs them.
+   precedence needs them. `notset` ACEs are included in the gathered list and passed to the
+   policy; policies that do not use three-state may discard them internally.
 4. **Resolve** — hand the ordered ACE list to the source's `ResolutionPolicy` →
    `{ effective, decisiveAce, contributing }`.
 5. **Bound** — `maxDepth` and `maxNodesPerExpansion` caps (defaults §13.3). Exceeding emits an
@@ -253,11 +259,15 @@ granularity.
 
 ## 9. Badges, eligibility, and the effect axis
 
-- **Badge** is reachability *at the focus node*: `Direct` iff the decisive `allow` is a grant
-  declared *at N* held *directly* (no group hop); otherwise `Indirect`.
+- **Badge** is reachability *at the focus node*: `Direct` iff the decisive ACE is a grant
+  declared *at N* held *directly* (no group hop); otherwise `Indirect`. For `deny` results,
+  badge reflects the same Direct/Indirect logic applied to the decisive deny ACE — a
+  `deny` with `badge=Direct` means the deny is explicit at N with no group hop.
 - **Eligibility** (`effect = 'eligible'`) is *potential* access (PIM-style): carried like allow
-  for display, rendered `E`, but **excluded** from "current effective access" answers and
-  never combined with deny.
+  for display, rendered `E`, but **excluded** from "current effective access" answers.
+  When a principal has both `eligible` and `deny` ACEs for the same capability at the same
+  effective node: `deny` wins — the engine returns `{ effective: 'deny' }` and the `E` badge
+  is not shown (a deny forecloses even potential access).
 - **`effect` vs legacy `assignmentType` (decided — §15.6):** `effect` is a **new orthogonal
   axis**. The engine computes reachability by traversal and **never reads `assignmentType` for
   reachability**. Legacy `assignmentType` values are sorted out by the harmonization work, not
@@ -285,29 +295,45 @@ Inherited capability-resources with **no declared grant** (e.g. `Contributor @ V
 from the subscription) are **synthesized at expand time and never stored**:
 
 ```json
-{ "id": "uuidv5(NS_CAP, vmNodeId + '|' + roleDefId)",
+{ "id": "<SHA256-UUID of 'vmNodeId|roleDefId'>",
   "displayName": "Contributor @ VM-01",
   "capabilityId": "<roleDefId>", "targetNodeId": "<vmNodeId>", "virtual": true }
 ```
 
-Because the id is deterministic **and the crawler uses the same `uuidv5` for stored
+Virtual rows are synthesized as **output** of the gather/resolve step — they represent
+inherited access paths where no stored grant exists at the target node. They are never
+written to the database and are not queried in the gather SQL; the gather step queries only
+stored `ResourceAssignments`. Virtual rows are merged in application memory into the result
+set and carry the same deterministic id as any stored row for the same `(capability, node)`.
+
+Because the id is deterministic **and the crawler uses the same algorithm for stored
 capability-resources**, a synthesized inherited row and a stored directly-declared row for the
 same `(capability, node)` carry the **same id** and merge into one matrix row showing both
-Direct and Indirect holders — with **no dedup logic**. `NS_CAP` is a single fixed namespace
-UUID constant shared by engine and crawlers — defined once, documented, never changed.
+Direct and Indirect holders — with **no dedup logic**.
 
-> **`NS_CAP` is a one-way door.** Changing it would require re-crawling all sources to
-> regenerate stored capability-resource rows with new IDs, and purging all synthesized rows
-> from any cache. The input format (`targetNodeId + '|' + capabilityId`) is equally frozen.
-> If a crawler discovers its `capabilityId` values are unstable across versions, that is a
-> crawler data-quality problem — fix it in the crawler, not by changing `NS_CAP`.
+**ID algorithm — SHA256-UUID:**
+```
+input  = UTF-8 bytes of (targetNodeId + '|' + capabilityId), no null terminator
+hash   = SHA256(input)                          // 32 bytes
+id     = lowercase hex of hash[0..15], formatted as UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+No RFC 4122 version or variant bits are set — this is a deterministic opaque identifier used
+only as a database primary key. Implementation: Node.js `crypto.createHash('sha256')`
+(built-in, Node ≥ 18); PowerShell `[System.Security.Cryptography.SHA256]::Create()` (built-in,
+.NET). No third-party package required in either runtime.
 
-**`NS_CAP` cross-language boundary:** The engine (Node.js) and crawlers (PowerShell) must
-produce identical ids from the same inputs. Approach: define `NS_CAP` as a string literal in
-both `app/api/src/lib/capabilityId.js` (engine side, exported) and
+> **The input format is a one-way door.** Changing `targetNodeId + '|' + capabilityId`
+> (including the separator) would require re-crawling all sources to regenerate stored
+> capability-resource rows with new IDs, and purging all cached synthesized rows. If a crawler
+> discovers its `capabilityId` values are unstable across versions, that is a crawler
+> data-quality problem — fix it in the crawler, not by changing the input format.
+
+**Cross-language conformance:** The engine (Node.js) and crawlers (PowerShell) must produce
+identical ids from the same inputs. Define the algorithm once in
+`app/api/src/lib/capabilityId.js` (engine side, exported) and
 `tools/crawlers/shared/Get-CapabilityId.ps1` (crawler side, dot-sourced). A cross-language
 conformance test (`test/unit/CapabilityId.Tests.ps1`) asserts that both implementations
-return identical UUIDs for a fixed set of `(targetNodeId, capabilityId)` pairs. This test
+return identical ids for a fixed set of `(targetNodeId, capabilityId)` pairs. This test
 must run in CI and is a hard gate — a mismatch would cause synthesized rows to never
 collapse with stored rows.
 
@@ -334,6 +360,11 @@ golden-tested to be byte-identical, then removed. **Removal gate:** (a) golden s
 pass for 30 days in production with zero diffs, AND (b) log analysis confirms no callers
 outside the engine itself. Shims without removal gates tend to live forever.
 
+**Shim phasing:** The shim is written in P1 (at migration time). In P1, the engine emits no
+virtual rows, so the de-virtualization step is a no-op. In P2, the shim is updated to
+actively drop `virtual=true` rows from the engine output. **The 30-day removal gate clock
+starts after the P2 shim update is deployed** — not at P1 shim creation.
+
 **Shim shape contract:** The existing endpoint returns `{ groups: [], memberships: [] }` — two
 arrays of resources and flat membership rows. The engine returns structured rows with
 `{ capabilityResourceId, principalId, badge, decisivePath, effect, … }`. The shim must
@@ -346,6 +377,9 @@ any divergence.
 **Error contract:** If `:id` does not exist as a known resource, the endpoint returns `404`.
 If `:n` (node param on the principal endpoint) does not exist, the endpoint returns `404`.
 Empty results (resource exists but no effective access) return `200` with an empty array.
+When a traversal cap is hit before any matching grant is encountered, the endpoint returns
+`200` with an empty rows array and a non-null `truncated` object — a `200` with
+`truncated.more > 0` and empty rows is a valid pagination signal, not an error.
 
 **Response row:**
 
@@ -367,14 +401,28 @@ Interactive paths only ever expand a focus neighborhood. The live matrix never t
 full-tenant computation.
 
 ### 13.2 Caching (decided — §15.2)
-In-memory LRU **per web process**, keyed by `(focusNode, filters, dataVersion)`. `dataVersion`
-is a **separate sync version counter** incremented atomically at the successful completion of
-each sync — **not** `MAX(GraphSyncLog.id)`. Using the sync log max-id would advance the
-version key as soon as a sync begins, causing requests during the sync window to cache
-partially-updated data. The separate counter ensures the version advances only when all writes
-are durable. `dataVersion = 0` (no syncs completed yet on a fresh install) causes requests to
-run uncached, which is correct. The counter lives in a new table `SyncVersion(id SERIAL,
-completed_at TIMESTAMPTZ)` or a single-row config entry — one row, incremented at sync end.
+In-memory LRU **per web process** using the `lru-cache` npm package (add to
+`app/api/package.json`). Size limit: `maxSize: 100_000_000` bytes with
+`sizeCalculation: (v) => JSON.stringify(v).length`. Configurable via
+`EFFECTIVE_ACCESS_CACHE_MAX_BYTES` env var.
+
+**Cache key** — explicit colon-delimited string (no pipe characters to avoid NS_CAP separator
+ambiguity in debug output):
+```
+`${focusNode}:${direction}:${depth ?? ''}:${principalId ?? ''}:${capabilityId ?? ''}:${includeDeny ? '1' : '0'}:${dataVersion}`
+```
+
+**`dataVersion`** is a **separate sync version counter** — **not** `MAX(GraphSyncLog.id)`.
+The counter lives in the existing `WorkerConfig` table as a single row:
+`WorkerConfig('syncVersion', '0')`, incremented atomically at sync completion. Using the sync
+log max-id would advance the cache key as soon as a sync begins, causing requests during the
+sync window to cache partially-updated data. The `WorkerConfig` counter advances only after
+all sync writes are durable. **Who increments it:** the crawler (PowerShell), via a separate
+`UPDATE "WorkerConfig" SET "configValue" = ("configValue"::int + 1) WHERE "configKey" =
+'syncVersion'` committed immediately after all sync data is durable — not the API.
+`dataVersion = 0` (no syncs completed yet on a fresh install) causes requests to run uncached,
+which is correct.
+
 (Single `web` container today; revisit Redis only on horizontal scale-out.)
 
 > **Post-sync cache miss:** when a sync completes, all cached entries become stale
@@ -395,9 +443,11 @@ all configurable. Exceeding any cap emits a `truncated` marker — **never silen
 }
 ```
 
-When a result set is truncated, nodes are returned **sorted alphabetically by `displayName`**
-so the returned subset is predictable and reproducible. The caller can filter/search to narrow
-results below the cap.
+All results are returned sorted by `(nodeId, principalId, capabilityId) ASC` for stable
+pagination — the same query with the same data always returns rows in the same order.
+When a result set is truncated, the returned subset is additionally surfaced sorted
+alphabetically by `displayName` so the most relevant subset is visible. The caller can
+filter/search to narrow results below the cap.
 
 ### 13.4 Export path
 `POST /api/effective-access/resolve` streams in batches with backpressure for "give me
@@ -454,7 +504,8 @@ This matches the reasoning in §15.1 (hot-path columns must be indexable).
 | Thin-stub principal (no name) | expand by id; display falls back to GUID. |
 | Same `(capability, node)` via two paths | one cell; strongest badge (`Direct` > `Indirect`); **all** paths retained for explainability. |
 | Inherited `Contributor` + child's own `Reader` | distinct capabilities → distinct rows. |
-| Eligibility under a deny | eligibility excluded from effective computation; shown `E` separately. |
+| `eligible` + `deny` ACEs for same capability at same effective node | `deny` wins — engine returns `{ effective: 'deny' }`; `E` badge not shown (deny forecloses even potential access). |
+| Eligibility under a deny (general) | eligible ACEs excluded from effective-access computation; shown `E` separately when no deny is present. |
 | Cross-system inheritance (ARM scope → Entra group → members) | the graph is system-agnostic; traversal crosses systems freely. |
 
 ---
@@ -464,13 +515,13 @@ This matches the reasoning in §15.1 (hot-path columns must be indexable).
 | # | Question | Decision | Rationale |
 |---|---|---|---|
 | 15.1 | `effect` / `propagationScope` storage | **First-class columns + migration** | Read in the innermost resolution loop; must be indexable; JSONB can't be cleanly indexed and pays extraction on every resolve. |
-| 15.2 | Cache strategy | **In-memory LRU, `dataVersion`-keyed; `dataVersion` = separate atomic sync version counter** | Using `MAX(GraphSyncLog.id)` advances the cache key as soon as a sync begins, causing requests to cache partially-updated data for the duration of the sync. A dedicated counter (`SyncVersion` table or config row) incremented only at sync completion avoids this race. Redis only on scale-out. |
+| 15.2 | Cache strategy | **In-memory LRU (`lru-cache`), `dataVersion`-keyed; `dataVersion` = `WorkerConfig('syncVersion')` counter incremented by crawler at sync completion** | Using `MAX(GraphSyncLog.id)` advances the cache key as soon as a sync begins, causing requests to cache partially-updated data for the duration of the sync. `WorkerConfig` already exists (migration 001); reusing it adds no new schema object. Redis only on scale-out. |
 | 15.3 | Deny vs base grid | **`contested` flag + resolve-on-demand** | Keeps the matview a fast declared projection; monotonic sources pay nothing; the grid never lies. |
 | 15.4 | DAG conflict default | **Policy-owned**; deny-wins for deny policies, union for additive | Conflict semantics belong to the source's policy, not the traversal. |
 | 15.5 | Synthesized-resource detail pages | **Matrix-only in v1** | Virtual rows carry a path but no drill-through; detail pages operate on stored resources. Revisit on demand. |
 | 15.6 | `effect` vs `assignmentType` | **`effect` is a new orthogonal axis**; engine ignores `assignmentType` for reachability; missing `effect` = `allow` | Reachability is computed; legacy `assignmentType` is harmonized elsewhere; back-compat preserved. |
 | 15.7 | Capability granularity under deny | **Compare same `capabilityId` only; no subsumption lattice** | Minimal engine; sources needing right-level deny emit comparable granularity. Doesn't foreclose correct filesystem deny. |
-| 15.8 | `propagates` storage on `ResourceRelationships` | **`extendedAttributes` (JSONB) — not a first-class column** | Interactive traversal reads a bounded ancestor window (≤ ~20 hops for the deepest expected hierarchy); JSONB extraction on that set is negligible. The main benefit of a first-class column would be a partial index for inheritance-break lookups — but that optimization is only material for deny-bearing filesystem crawlers. P3 is deferred (see §16), so the index is not needed now. Add a first-class column when a deny-bearing source is scoped. |
+| 15.8 | `propagates` storage on `ResourceRelationships` | **`extendedAttributes` (JSONB) — not a first-class column** | Interactive traversal reads a bounded ancestor window (≤ ~20 hops for the deepest expected hierarchy); JSONB extraction on that set is negligible. The main benefit of a first-class column would be a partial index for inheritance-break lookups — but that optimization is only material for deny-bearing filesystem crawlers. P3 is deferred (see §16), so the index is not needed now. **Concrete promotion trigger:** add a first-class column (+ partial index) when any hierarchy in production exceeds 500 nodes with >10% of edges having `propagates=false`, or when a deny-bearing source is scoped — whichever comes first. |
 | 15.9 | `capabilityId` indexing | **Generated stored column + index on `Resources`** | `capabilityId` is in `extendedAttributes` but read in the resolution inner loop. Same reasoning as §15.1 — hot-path fields must be indexable. Generated column avoids schema drift between the JSONB blob and the query path. |
 | 15.10 | `contested` column schema timing | **Added in P2 migration as `DEFAULT FALSE`; populated in P3** | Adding the column in P2 avoids a breaking schema change when P3 lands, allows the UI to render `contested=false` as "safe" from day one, and makes the P3 scope smaller (logic change only, no schema change). P3 readiness gate: deny-bearing crawlers blocked until population logic is deployed. |
 | 15.11 | `holders(P)` cap | **`maxHoldersPerExpansion = 500` (configurable); exceeds emits `truncated:{holders:N}`** | Mirrors the ancestor window cap. Without a bound, a principal in deep nested AD mega-groups could exhaust memory. Silent truncation would violate the "no silent truncation" invariant; the structured truncated response preserves caller observability. |
@@ -481,8 +532,8 @@ This matches the reasoning in §15.1 (hot-path columns must be indexable).
 
 | Phase | Scope | Unblocks |
 |---|---|---|
-| **P1** | Engine core + `AdditiveAllow` + migrate nested-group expand onto it. No behavior change (golden-test parity). | The framework; Entra Owner-harmonization. |
-| **P2** | Containment down-expansion: constant-capability carry, synthesized rows, deterministic-id collapse. Adds `contested BOOLEAN DEFAULT FALSE` column to matview. | **Azure RM crawler.** |
+| **P1** | Schema migration adding `effect` and `propagationScope` columns to `ResourceAssignments` (with backfill). Engine core + `AdditiveAllow` + migrate nested-group expand onto it. Write `/group/:id/nested-groups` shim (de-virtualize is no-op in P1 — no virtual rows yet). No behavior change (golden-test parity). | The framework; Entra Owner-harmonization. |
+| **P2** | Containment down-expansion: constant-capability carry, synthesized rows, deterministic-id collapse. Adds `contested BOOLEAN DEFAULT FALSE` column to matview. Update shim to drop `virtual=true` rows. **30-day shim removal gate clock starts here.** | **Azure RM crawler.** |
 | **P3** | Deny-aware resolution + `DenyOverrides` / `NtfsCanonical` / `ClosestWins` + `contested` matview flag + path-aware explainability. | Filesystem / SharePoint / DevOps crawlers. |
 | **P4** | Export path (`POST /resolve`, async/streamed). | Full effective-access export. |
 
@@ -521,6 +572,9 @@ crawlers → **P3**.
 
 ## 18. Testing requirements *(must ship with the feature — not optional)*
 
+- **Test runner:** engine unit tests and `ResolutionPolicy` truth tables use the **`node:test`
+  built-in** (Node.js ≥ 18, no additional dev dependency). Pester continues for PowerShell
+  crawler conformance (`test/unit/CapabilityId.Tests.ps1` and future crawler unit tests).
 - **Resolution truth tables.** Each `ResolutionPolicy` unit-tested against its vendor's
   documented precedence — especially `NtfsCanonical` against the canonical Windows
   explicit/inherited/deny ordering, and `DenyOverrides` against DevOps deny-wins.
@@ -544,10 +598,12 @@ crawlers → **P3**.
 - **holders(P) truncation fixture.** Principal transitively belongs to N > `maxHoldersPerExpansion`
   groups via nested chains. Expected: `truncated:{holders:N}` returned; subset is sorted
   alphabetically by group `displayName`; result is deterministic across calls.
-- **Post-sync cache miss concurrency test.** Simulate multiple concurrent requests immediately
-  after the sync version counter increments. Assert: (a) all requests serve consistent results
-  (same dataVersion, same effective-access outputs), (b) p99 latency stays within the
-  `maxDepth=50` traversal bound for the fixture size, (c) no request serves partial-sync data.
+- **Cache staleness determinism test.** Unit test (mocked DB): if the `dataVersion` read at
+  cache-key construction differs from the `dataVersion` read at result-population time (a sync
+  completed mid-traversal), the result is discarded and re-fetched — never cached under the
+  stale key. Separately, an integration smoke test: run a sync against a real test database,
+  verify no stale data is returned immediately after the version increments (without asserting
+  sub-millisecond timing properties).
 - **Determinism.** Same input → identical ids and stable row ordering.
 - **Cross-source conformance suite** that every new `ResolutionPolicy` must pass to be accepted.
 
@@ -565,12 +621,13 @@ Every traversal request emits one structured log line at exit:
 
 **Required metrics (from log aggregation):**
 - Cache hit rate by endpoint (`GET /resource/:id/effective-access`, `GET /principal/:id/effective-access`)
-- Traversal depth histogram (p50, p99) — flag if p99 exceeds 20 levels
+- Traversal depth histogram (p50, p99)
 - Truncation rate — percent of requests where `truncated = true`
 - p99 traversal latency per endpoint
 
 **Alerting:**
 - Cache hit rate falls below 50% for 5 minutes → investigate `dataVersion` or LRU size
+- Traversal depth p99 exceeds 40 levels (80% of `maxDepth=50`) → investigate data model or raise cap
 - p99 traversal latency exceeds 500ms → investigate query plan or index coverage
 - Truncation rate exceeds 10% → containers too wide for default cap; surface to UI team
 
@@ -578,7 +635,7 @@ Every traversal request emits one structured log line at exit:
 
 - **Architecture doc** — this file, kept current.
 - **Crawler-author guide** — additions to `docs/sync/custom-crawlers.md`: the engine contract
-  (`Contains` edges + `propagates`, `effect`, `propagationScope`, deterministic `NS_CAP` id),
+  (`Contains` edges + `propagates`, `effect`, `propagationScope`, SHA256-UUID capability-resource id),
   with a worked example per hierarchy type.
 - **ResolutionPolicy authoring guide** — how to add a source's precedence rules + the
   conformance suite it must pass.
@@ -622,7 +679,7 @@ Please confirm agreement (or record objections) on each:
 - [ ] **`capabilityId` generated column** (§13.6, §15.9) — added to migration scope.
 - [ ] **DAG inheritance-break semantics** (§7) — follow all unblocked paths; confirm this matches any DAG-native source planned for the future.
 - [ ] **`holders(P)` cap** (§7, §13.3, §15.11) — `maxHoldersPerExpansion=500`, emits `truncated:{holders:N}`.
-- [ ] **Sync version counter** (§13.2, §15.2) — separate `SyncVersion` counter incremented at sync completion; not `MAX(GraphSyncLog.id)`.
+- [ ] **Sync version counter** (§13.2, §15.2) — `WorkerConfig('syncVersion')` counter incremented by crawler at sync completion; not `MAX(GraphSyncLog.id)`.
 - [ ] **`contested` column timing** (§13.5, §15.10) — added in P2 as `DEFAULT FALSE`; populated in P3; P3 readiness gate enforced.
 - [ ] **Shim shape contract** (§12) — golden snapshots captured from original endpoint before shim is written; shape transform specified.
 - [ ] **Pipe-free constraint** (§11) — `capabilityId` must be pipe-free; crawler-author guide to enforce.
@@ -636,11 +693,22 @@ _Approved by: ____________________  Date: ___________
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | CLEAN | HOLD SCOPE; 5 doc gaps fixed, 1 TODO deferred |
-| Outside Voice | Claude subagent | Independent 2nd opinion | 1 | ISSUES FOUND | 9 findings, 5 actioned (holders cap, sync version counter, contested timing, shim shape, pipe-free constraint), 4 skipped/deferred |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 0 | — | — |
+| Outside Voice (CEO) | Claude subagent | Independent 2nd opinion | 1 | ISSUES FOUND → ACTIONED | 9 findings, 5 actioned in-session, 4 deferred to later phases |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAN | D1–D8 decisions + 14 OV findings; all actioned in-session |
+| Outside Voice (Eng) | Claude subagent | Independent 2nd opinion | 1 | ISSUES FOUND → ACTIONED | 14 findings; all resolved in-session (spec clarifications + algorithm decisions) |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
 
-**VERDICT:** CEO CLEARED — spec is implementation-ready. Eng Review required before code ships.
+**VERDICT:** SPEC APPROVED — CEO review and Eng review complete. All decisions resolved. Ready for implementation.
+
+**Key decisions locked in Eng Review:**
+- D1: SHA256-UUID for capability-resource ids (no third-party dep; native in Node.js + PowerShell)
+- D2: `WorkerConfig('syncVersion')` counter (reuses existing table; incremented by crawler at sync completion)
+- D3: `lru-cache` npm package for in-process LRU
+- D4: Explicit colon-delimited cache key string
+- D5: All results sorted `(nodeId, principalId, capabilityId) ASC`; truncated subsets also by `displayName`
+- D6: Migration backfill test mandatory (`Eligible` rows → `effect='eligible'`)
+- D7: `node:test` built-in for engine unit tests (Node ≥ 18, no new dep)
+- D8: `maxSize: 100MB` with `sizeCalculation: (v) => JSON.stringify(v).length`
 
 NO UNRESOLVED DECISIONS
