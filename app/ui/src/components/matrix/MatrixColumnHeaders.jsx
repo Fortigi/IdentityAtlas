@@ -30,10 +30,12 @@ export default function MatrixColumnHeaders({
   const shown = (typeof maxHeaderDepth === 'number' && maxHeaderDepth > 0)
     ? Math.min(maxHeaderDepth, attrs.length) : attrs.length;
   const attrRows = attrs.slice(0, shown).map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
-  const headerRowCount = attrRows.length;
 
+  // Only the final (names) row is sticky on vertical scroll — the attribute
+  // grouping rows above it scroll away, so many sort attributes don't bury the
+  // grid. (Matches the aggregated layered view.)
   return (
-    <thead className="sticky top-0 z-20">
+    <thead>
       {/* One merged row per sort attribute */}
       {attrRows.map((row, rowIdx) => (
         <tr key={row.attribute + rowIdx}>
@@ -99,40 +101,18 @@ export default function MatrixColumnHeaders({
             );
           })}
 
-          {/* Access Package name headers — rendered once, spanning all header rows + the name row */}
-          {rowIdx === 0 && accessPackages.map((ap, idx) => {
+          {/* Access Package color bands — placeholders on the attribute rows; the
+              labels live on the pinned names row below so they stay visible. */}
+          {accessPackages.map((ap, idx) => {
             const prevCat = idx > 0 ? (accessPackages[idx - 1].categoryName || null) : undefined;
             const curCat = ap.categoryName || null;
             const isCategoryBoundary = idx === 0 || prevCat !== curCat;
             return (
               <th
                 key={ap.id}
-                rowSpan={headerRowCount + 1}
-                className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
-                style={{
-                  backgroundColor: getAccessPackageColor(idx, isDark),
-                  width: '24px',
-                  minWidth: '24px',
-                  verticalAlign: 'bottom',
-                }}
-                title={`${ap.displayName}\nCatalog: ${ap.catalogName || ''}${ap.categoryName ? '\nCategory: ' + ap.categoryName : ''}`}
-              >
-                <div
-                  className="text-[10px] text-gray-700 dark:text-gray-200 font-medium select-none cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-                  style={{
-                    writingMode: 'vertical-lr',
-                    textOrientation: 'mixed',
-                    transform: 'rotate(180deg)',
-                    maxHeight: '210px',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                    margin: '0 auto',
-                  }}
-                  onClick={() => onOpenDetail?.('access-package', ap.id, ap.displayName)}
-                >
-                  {ap.displayName}
-                </div>
-              </th>
+                className={`border-b border-r border-gray-200 dark:border-gray-600 ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
+                style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '24px', minWidth: '24px' }}
+              />
             );
           })}
 
@@ -142,17 +122,17 @@ export default function MatrixColumnHeaders({
         </tr>
       ))}
 
-      {/* Final row: User names */}
+      {/* Final row: User names — the only sticky header row on vertical scroll */}
       <tr>
         {/* Corner cells for row info headers */}
-        <th className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400"
+        <th className="sticky left-0 top-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400"
             style={{ minWidth: '24px' }}>
         </th>
-        <th className="sticky z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 text-left font-medium"
+        <th className="sticky top-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 text-left font-medium"
             style={{ left: '24px', minWidth: '275px' }}>
           Resource Name
         </th>
-        <th className="sticky z-30 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-left font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+        <th className="sticky top-0 z-40 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-left font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
             style={{ left: '299px', minWidth: '180px' }}>
           Type
         </th>
@@ -167,7 +147,7 @@ export default function MatrixColumnHeaders({
             // — ▾ = all (direct + indirect), ↳ = direct members only.
             return (
               <th key={user.id}
-                className="border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-indigo-50 dark:bg-indigo-900/20"
+                className="sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-indigo-50 dark:bg-indigo-900/20"
                 style={{ height: '100px', width: '24px', minWidth: '24px', verticalAlign: 'bottom' }}
                 title={`${user.userCount} ${user.userCount === 1 ? 'user' : 'users'} in ${user.value || '(none)'}`}>
                 <div className="flex flex-col items-center justify-end h-full pb-1 gap-0.5">
@@ -193,7 +173,7 @@ export default function MatrixColumnHeaders({
           return (
             <th
               key={user.id}
-              className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${
+              className={`sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${
                 isAcct ? 'bg-blue-50 dark:bg-blue-900/20 border-l border-l-blue-200 dark:border-l-blue-800' : 'bg-gray-100 dark:bg-gray-800'
               }`}
               style={{ height: '100px', width: '24px', minWidth: '24px', verticalAlign: 'bottom' }}
@@ -231,13 +211,36 @@ export default function MatrixColumnHeaders({
           );
         })}
 
+        {/* Access Package labels — on the pinned names row so they stay visible. */}
+        {accessPackages.map((ap, idx) => {
+          const prevCat = idx > 0 ? (accessPackages[idx - 1].categoryName || null) : undefined;
+          const curCat = ap.categoryName || null;
+          const isCategoryBoundary = idx === 0 || prevCat !== curCat;
+          return (
+            <th
+              key={ap.id}
+              className={`sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
+              style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '24px', minWidth: '24px', height: '100px', verticalAlign: 'bottom' }}
+              title={`${ap.displayName}\nCatalog: ${ap.catalogName || ''}${ap.categoryName ? '\nCategory: ' + ap.categoryName : ''}`}
+            >
+              <div
+                className="text-[10px] text-gray-700 dark:text-gray-200 font-medium select-none cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '95px', overflow: 'hidden', whiteSpace: 'nowrap', margin: '0 auto' }}
+                onClick={() => onOpenDetail?.('access-package', ap.id, ap.displayName)}
+              >
+                {ap.displayName}
+              </div>
+            </th>
+          );
+        })}
+
         {/* Right metadata column headers row 2 — # | Description */}
-        <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none"
+        <th className="sticky top-0 z-20 border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none"
             onClick={onSortByCount}
             title="Sort by member count (descending)">
           <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># &#x25BC;</div>
         </th>
-        <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 font-medium text-left"
+        <th className="sticky top-0 z-20 border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 font-medium text-left"
             style={{ minWidth: '500px' }}>
           Description
         </th>
