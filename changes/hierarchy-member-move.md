@@ -1,0 +1,1 @@
+- In the Manager Hierarchy context tree you can now drag a team's direct member (a person) onto another team to change who they report to — the same way you can drag a team to re-parent it. The move is recorded as an override of the person's manager, so it survives every plugin re-run (dropping them back on their original manager clears the override).

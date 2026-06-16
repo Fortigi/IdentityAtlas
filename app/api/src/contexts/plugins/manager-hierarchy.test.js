@@ -33,6 +33,7 @@ async function loadPluginWithRows(rows, { columns = DEFAULT_COLUMNS, extKeys = [
   vi.doMock('../../db/connection.js', () => ({
     query: vi.fn(async (sql) => {
       if (/jsonb_object_keys/.test(sql)) return { rows: extKeys.map(k => ({ k })) };
+      if (/ManagerHierarchyOverrides/.test(sql)) return { rows: [] };
       return { rows };
     }),
   }));

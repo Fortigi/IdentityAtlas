@@ -121,7 +121,7 @@ export function stripSiblingPrefix(siblings) {
   return computeChildLabels(siblings, []);
 }
 
-export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRename, onAddChild, onLoadMembers, onOpenMember }) {
+export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRename, onAddChild, onLoadMembers, onOpenMember, onMoveMember }) {
   const sensors = useSensors(
     // 6px activation distance — a plain click still opens the detail; only a
     // deliberate drag starts a re-parent.
@@ -136,6 +136,10 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
   );
 
   const editable = typeof onReparent === 'function';
+  const memberMoveEnabled = typeof onMoveMember === 'function';
+  const dndEnabled = editable || memberMoveEnabled;
+  // The member chip being dragged (vs a context node). { memberId, fromContextId, displayName }
+  const [activeMember, setActiveMember] = useState(null);
 
   // Expand/collapse state lives here (keyed by node id) instead of in each
   // TreeNode's local state, so it SURVIVES a refetch — e.g. after a drag-drop
@@ -174,10 +178,25 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
     return n;
   });
 
+  function handleDragStart(e) {
+    const d = e.active.data?.current;
+    if (d?.type === 'member') { setActiveMember(d); setActiveId(null); }
+    else { setActiveId(e.active.id); setActiveMember(null); }
+  }
+
   function handleDragEnd(evt) {
     const { active, over } = evt;
+    const d = active.data?.current;
     setActiveId(null);
-    if (!over || !onReparent) return;
+    setActiveMember(null);
+    if (!over) return;
+    // Member chip dropped onto a team → move the person there.
+    if (d?.type === 'member') {
+      if (onMoveMember && over.id !== d.fromContextId) onMoveMember(d.memberId, d.fromContextId, over.id);
+      return;
+    }
+    // Context node dropped onto another → re-parent.
+    if (!onReparent) return;
     const childId = active.id;
     const newParentId = over.id;
     if (childId === newParentId || forbidden.has(newParentId)) return; // cycle / no-op
@@ -202,8 +221,9 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
             onLoadMembers={onLoadMembers}
             onOpenMember={onOpenMember}
             editable={editable}
+            memberDraggable={memberMoveEnabled}
             forbidden={forbidden}
-            dragging={!!activeId}
+            dragging={!!activeId || !!activeMember}
             isExpanded={isExpanded}
             toggleExpanded={toggleExpanded}
             setExpanded={setExpanded}
@@ -213,25 +233,27 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
     </div>
   );
 
-  if (!editable) return treeBody;
+  if (!dndEnabled) return treeBody;
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={(e) => setActiveId(e.active.id)}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => { setActiveId(null); setActiveMember(null); }}
     >
       {treeBody}
       <DragOverlay dropAnimation={null}>
-        {activeNode ? <DragPill node={activeNode} /> : null}
+        {activeNode ? <DragPill node={activeNode} />
+          : activeMember ? <MemberDragPill displayName={activeMember.displayName} />
+          : null}
       </DragOverlay>
     </DndContext>
   );
 }
 
-function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, onAddChild, onLoadMembers, onOpenMember, editable, forbidden, dragging, isExpanded, toggleExpanded, setExpanded }) {
+function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, onAddChild, onLoadMembers, onOpenMember, editable, memberDraggable, forbidden, dragging, isExpanded, toggleExpanded, setExpanded }) {
   const expanded = isExpanded(node.id);
   const [renaming, setRenaming] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
@@ -414,7 +436,9 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
           ) : (
             <div className="flex flex-wrap gap-1">
               {members.map(m => (
-                <MemberOval key={m.id} member={m} onOpen={() => onOpenMember?.(m.id, m.displayName, memberKind)} />
+                memberDraggable
+                  ? <DraggableMemberOval key={m.id} member={m} fromContextId={node.id} onOpen={() => onOpenMember?.(m.id, m.displayName, memberKind)} />
+                  : <MemberOval key={m.id} member={m} onOpen={() => onOpenMember?.(m.id, m.displayName, memberKind)} />
               ))}
               {memberTotal > members.length && (
                 <span className="self-center text-[11px] text-gray-500 dark:text-gray-400">
@@ -459,6 +483,7 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
                 toggleExpanded={toggleExpanded}
                 setExpanded={setExpanded}
                 editable={editable}
+                memberDraggable={memberDraggable}
                 forbidden={forbidden}
                 dragging={dragging}
               />
@@ -482,6 +507,41 @@ function MemberOval({ member, onOpen }) {
       <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" aria-hidden="true" />
       <span className="text-gray-800 dark:text-gray-200 truncate">{member.displayName}</span>
     </button>
+  );
+}
+
+// In an editable Manager-Hierarchy tree the member ovals are draggable: drop one
+// onto another team to change who this person reports to (a 6px activation
+// distance keeps a plain click opening the detail). The drag carries the member
+// + its current context so the drop handler can move it.
+function DraggableMemberOval({ member, fromContextId, onOpen }) {
+  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
+    id: `m:${fromContextId}:${member.id}`,
+    data: { type: 'member', memberId: member.id, fromContextId, displayName: member.displayName },
+  });
+  return (
+    <button
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      onClick={onOpen}
+      title={`${member.displayName} — drag onto another team to move`}
+      style={{ opacity: isDragging ? 0.4 : 1 }}
+      className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-[11px] text-left max-w-[220px] cursor-grab active:cursor-grabbing hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-sm"
+    >
+      <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" aria-hidden="true" />
+      <span className="text-gray-800 dark:text-gray-200 truncate">{member.displayName}</span>
+    </button>
+  );
+}
+
+// The member oval rendered under the cursor while dragging it to a new team.
+function MemberDragPill({ displayName }) {
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-sky-400 bg-white dark:bg-gray-800 text-[11px] shadow-lg cursor-grabbing">
+      <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" aria-hidden="true" />
+      <span className="text-gray-800 dark:text-gray-200 truncate max-w-[200px]">{displayName}</span>
+    </div>
   );
 }
 
