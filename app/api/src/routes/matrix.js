@@ -881,7 +881,11 @@ router.post('/matrix/data', async (req, res) => {
         excludeGroups: rowType !== 'identity',
       }))).recordset;
 
+      // Hide attribute groups with no in-scope assignments — a column only shows
+      // if some resource has a Direct count for it.
+      const attrCellIds = new Set(cellRows.map(c => c.groupValue));
       const nodes = nodeRows
+        .filter(r => attrCellIds.has(r.groupValue))
         .map(r => tupleToNode(r.groupValue, r.total, r.childCount))
         .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
@@ -967,15 +971,21 @@ router.post('/matrix/data', async (req, res) => {
           });
         }
 
+        // Hide org branches with no in-scope assignments: a column only shows if
+        // some resource has a Direct count for that node's subtree. Keeps the
+        // header focused on where the selected resources are actually used.
+        const cellNodeIds = new Set(layerCells.map(c => c.groupValue));
+        const visibleNodes = cutNodes.filter(n => cellNodeIds.has(n.id));
+
         const layerCounts = await scopeCounts(p, res, rowType, built);
-        const maxDepth = cutNodes.reduce((m, n) => Math.max(m, n.depth || 1), 1);
+        const maxDepth = visibleNodes.reduce((m, n) => Math.max(m, n.depth || 1), 1);
         return res.json({
           rollup: 'context', rollupKind: 'context', layered: true,
           rollupContextId: filter.rollupContextId, rollupContent: 'resources-only',
           rollupMetric: filter.rollupMetric, rowType, maxDepth,
-          nodes: cutNodes,
-          groupValues: frontier,
-          groupTotals: cutNodes.map(n => ({ groupValue: n.id, total: n.total })),
+          nodes: visibleNodes,
+          groupValues: visibleNodes.map(n => n.id),
+          groupTotals: visibleNodes.map(n => ({ groupValue: n.id, total: n.total })),
           resources: [...layerResMap.values()],
           counts: layerCells.map(r => ({
             resourceId: r.resourceId, groupValue: r.groupValue,
