@@ -27,6 +27,7 @@ COPY app/api/src ./src
 # Node.js only; scripts belong in the worker image.
 COPY tools/crawlers /app/crawlers
 RUN find /app/crawlers -name "*.ps1" -delete
+ENV CRAWLER_MANIFESTS_DIR=/app/crawlers
 # Copy the compiled frontend so Express can serve it as static files
 COPY --from=frontend-build /app/frontend/dist ../frontend/dist
 
