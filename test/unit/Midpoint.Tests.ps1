@@ -17,6 +17,7 @@ BeforeAll {
     $script:midpointDir = Join-Path $script:repoRoot 'tools\crawlers\midpoint'
     . (Join-Path $script:midpointDir 'Invoke-MidpointApi.ps1')
     . (Join-Path $script:midpointDir 'Seed-MidpointTestData.ps1')
+    . (Join-Path $script:midpointDir 'dev' 'Seed-MidpointLoadData.ps1')
 }
 
 # ─── Get-MidpointRestRoot ─────────────────────────────────────────────────────
@@ -197,6 +198,59 @@ Describe 'Get-MidpointFixtureSpec' {
 }
 
 
+# ─── Load-test seeder: tiers & OID scheme ────────────────────────────────────
+Describe 'Get-MidpointLoadSpec' {
+    It 'defines the three ramp tiers with the expected scale' {
+        (Get-MidpointLoadSpec -Tier T1).users       | Should -Be 250
+        (Get-MidpointLoadSpec -Tier T2).groups      | Should -Be 5000
+        (Get-MidpointLoadSpec -Tier T3).memberships | Should -Be 300000
+    }
+    It 'uses the 1b… OID block, disjoint from IA-Test (1a…)' {
+        (Get-MidpointLoadSpec -Tier T3).resourceOid | Should -Match '^1b000000-'
+    }
+}
+
+Describe 'Get-LoadOid' {
+    It 'builds a valid UUID from a prefix + index' {
+        Get-LoadOid -Prefix '0001' -Index 0 | Should -Be '1b000000-0000-4000-8000-000100000000'
+        Get-LoadOid -Prefix '0003' -Index 42 | Should -Be '1b000000-0000-4000-8000-00030000002a'
+        Get-LoadOid -Prefix '0001' -Index 5 | Should -Match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    }
+}
+
+# ─── Load-test distribution (pure, deterministic) ─────────────────────────────
+Describe 'Get-LoadAssignmentPlan' {
+    BeforeAll { $script:plan = Get-LoadAssignmentPlan -Users 40 -Groups 200 -Memberships 2000 -Seed 1337 }
+
+    It 'produces exactly the requested number of memberships' {
+        $script:plan.Total | Should -Be 2000
+    }
+    It 'is deterministic for the same seed' {
+        $a = Get-LoadAssignmentPlan -Users 40 -Groups 200 -Memberships 2000 -Seed 1337
+        $b = Get-LoadAssignmentPlan -Users 40 -Groups 200 -Memberships 2000 -Seed 1337
+        $a.Total | Should -Be $b.Total
+        (Compare-Object $a.UserGroups[3] $b.UserGroups[3]) | Should -BeNullOrEmpty
+    }
+    It 'never assigns a user more groups than exist (no over-clamping bug)' {
+        $script:plan.MaxPerUser | Should -BeLessOrEqual 200
+    }
+    It 'never assigns a group more members than there are users' {
+        $script:plan.MaxPerGroup | Should -BeLessOrEqual 40
+    }
+    It 'each user belongs to a DISTINCT set of groups (no duplicates)' {
+        foreach ($g in $script:plan.UserGroups) {
+            ($g | Select-Object -Unique).Count | Should -Be $g.Count
+        }
+    }
+    It 'is realistically skewed — a few universal groups hold everyone' {
+        $script:plan.UniversalGroups | Should -BeGreaterThan 0
+        $script:plan.MaxPerGroup | Should -Be 40
+    }
+    It 'throws when memberships exceed Users*Groups capacity' {
+        { Get-LoadAssignmentPlan -Users 10 -Groups 10 -Memberships 200 } | Should -Throw
+    }
+}
+
 # ─── File structure ────────────────────────────────────────────────────────────
 Describe 'midPoint file structure' {
     It 'crawler.json declares type midpoint and no OData dependency' {
@@ -212,5 +266,9 @@ Describe 'midPoint file structure' {
     }
     It 'shadow search uses options=raw' {
         (Get-Content (Join-Path $script:midpointDir 'Start-MidpointCrawler.ps1') -Raw) | Should -Match "Options 'raw'"
+    }
+    It 'dev/ folder contains load seeder and README' {
+        Join-Path $script:midpointDir 'dev' 'Seed-MidpointLoadData.ps1' | Should -Exist
+        Join-Path $script:midpointDir 'dev' 'README.md'                  | Should -Exist
     }
 }
