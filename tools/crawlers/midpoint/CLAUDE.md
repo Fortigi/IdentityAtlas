@@ -12,7 +12,6 @@ A crawler is a folder under `tools/crawlers/<type>/` with a `crawler.json` manif
 | `Start-MidpointCrawler.ps1` | Entry point. Fixed params: `ApiBaseUrl`, `ApiKey`, `JobId`, `ConfigPath`. Runs all sync phases, safe-scoped per `systemId`, emits a performance summary (wall-clock + per-read + per-ingest-endpoint) |
 | `Invoke-MidpointApi.ps1` | REST client: `Connect-MidpointAPI` (BasicAuth/ApiToken/OAuth2CC/OAuth2ROPC), `Invoke-MidpointSearch` (paged), `Invoke-MidpointSearchStream` (paged, per-page callback — no accumulation in memory), `Invoke-MidpointGet`, and helpers (`Get-MidpointRefOid/Type/Relation`, `Get-MidpointString` (PolyString/multi-value), `Get-MidpointAttrValue`, `Test-MidpointEnabled`, `Convert-MidpointOutcome`, `New-StableGuid`, `Format-AccountLabel`) |
 | `Seed-MidpointTestData.ps1` | Idempotent functional fixture seeder with fixed OIDs (`New-/Remove-MidpointTestData`, `Get-MidpointFixtureSpec`). Covers every type/phase/relationship for the CI proof cycle |
-| `Seed-MidpointLoadData.ps1` | Load-test seeder: fictitious AD as raw shadows at scale (`New-/Remove-MidpointLoadData`, `Get-MidpointLoadSpec`, `Get-LoadAssignmentPlan`). OIDs in the `1b…` block |
 | `Test-MidpointCrawler.ps1` | CI integration test: starts a mock midPoint server, runs a job through the full dispatch pipeline, asserts on the DB |
 | `../shared/Invoke-CrawlerIngest.ps1` | Shared ingest helpers (`Invoke-IngestAPI`, `Update-CrawlerProgress`, `ConvertTo-JsonArray`) |
 | `../shared/Start-MockMidpointServer.ps1` | Mock REST server used by the CI integration test |
@@ -66,18 +65,7 @@ Each phase is safe-scoped by `systemId`: full-sync deletes only rows the crawler
 
 **Streaming memory:** `Invoke-MidpointSearchStream` bounds the managed heap, but docker-stats RSS stays ~6 GiB due to native/JSON-parsing memory. To reduce this further, look into streaming JSON deserialization or a smaller `pageSize`.
 
-## Running the Load-Test Seeder
-
-```powershell
-. .\Seed-MidpointLoadData.ps1
-New-MidpointLoadData -BaseUrl <midpoint-url> -Username administrator -Password <pw> -Tier T1
-# Tiers: T1 (30k memberships), T2 (150k), T3 (300k), T4 (1M)
-
-# Cleanup (only touches the 1b… OID block):
-Remove-MidpointLoadData -Tier T1 -BaseUrl <midpoint-url> -Username administrator -Password <pw>
-```
-
-Functional fixtures (for the CI proof cycle):
+## Running the Functional Fixtures (CI proof cycle)
 ```powershell
 . .\Seed-MidpointTestData.ps1
 New-MidpointTestData -BaseUrl <midpoint-url> -Username administrator -Password <pw>
