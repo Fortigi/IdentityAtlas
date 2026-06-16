@@ -37,6 +37,7 @@ import { resolveAttrExpr } from '../matrix/attrExpr.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
+  buildContextScopedMemberCountsSql,
   buildContextRolesSql, buildContextRolesAsRowsSql,
 } from '../matrix/contextRollup.js';
 import { buildAttrCutCellsSql, buildAttrCutNodesSql, tupleToNode } from '../matrix/attributeCut.js';
@@ -971,11 +972,26 @@ router.post('/matrix/data', async (req, res) => {
           });
         }
 
+        // SCOPED member counts for the header (direct / total), so they match the
+        // assignment-scoped cells and member drill rather than raw org size.
+        const scReq = timedRequest(p, `matrix-ctx-scoped-members[${rowType}]`, res);
+        for (const [k, v] of Object.entries(built.bindings)) scReq.input(k, v);
+        const scMap = new Map((await scReq.query(buildContextScopedMemberCountsSql({
+          values: cutValues, identityJoin: idJoin, subjectId: cutSubjectId, subjectScope: cutSubjectId,
+          subjectSql: built.subjectSql, resourceSql: built.resourceSql,
+        }))).recordset.map(r => [r.groupValue, { total: r.total, direct: r.direct }]));
+
         // Hide org branches with no in-scope assignments: a column only shows if
         // some resource has a Direct count for that node's subtree. Keeps the
-        // header focused on where the selected resources are actually used.
+        // header focused on where the selected resources are actually used. Each
+        // surviving node gets its scoped direct/total counts.
         const cellNodeIds = new Set(layerCells.map(c => c.groupValue));
-        const visibleNodes = cutNodes.filter(n => cellNodeIds.has(n.id));
+        const visibleNodes = cutNodes
+          .filter(n => cellNodeIds.has(n.id))
+          .map(n => {
+            const sc = scMap.get(n.id);
+            return sc ? { ...n, total: sc.total, directMembers: sc.direct } : n;
+          });
 
         const layerCounts = await scopeCounts(p, res, rowType, built);
         const maxDepth = visibleNodes.reduce((m, n) => Math.max(m, n.depth || 1), 1);

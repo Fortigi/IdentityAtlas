@@ -448,13 +448,13 @@ export default function RollupMatrixView({
             style={{ minWidth: '40px', height: '120px' }}
             title={canExpand ? `Click to split ${orgShort(n.displayName)} into its ${n.childCount} sub-teams — ${n.total} ${subjectWord}` : `${n.displayName} — ${n.total} ${subjectWord}`}>
           <div className="flex flex-col items-center justify-end h-full gap-1">
-            <span className="text-[9px] leading-none shrink-0 whitespace-nowrap" title={`${n.directMembers} ${subjectWord} directly in this team · ${n.total} in the whole subtree`}>
+            <span className="text-[9px] leading-none shrink-0 whitespace-nowrap" title={`${n.directMembers} ${subjectWord} directly in this team · ${n.total} in the whole subtree — counting only those with a Direct assignment to a shown resource`}>
               <span className="font-semibold text-sky-600 dark:text-sky-400">{n.directMembers}</span>
               <span className="text-gray-500 dark:text-gray-400">/{n.total}</span>
             </span>
             {hasMembers && (
               <button onClick={(e) => { e.stopPropagation(); toggleGroup(col.group); }} className={`${btn} ${isMembersExp ? 'text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-gray-400'} hover:text-sky-600 dark:hover:text-sky-400`}
-                title={isMembersExp ? 'Hide the people directly in this team' : `Show the ${n.directMembers} ${subjectWord} directly in this team`}>{loadingM ? '⋯' : (isMembersExp ? '▾' : '▸')}</button>
+                title={isMembersExp ? 'Hide the people directly in this team' : `Show the ${n.directMembers} ${subjectWord} directly in this team with a Direct assignment`}>{loadingM ? '⋯' : (isMembersExp ? '▾' : '▸')}</button>
             )}
             {vLabel((canExpand ? '▸ ' : '') + orgShort(n.displayName), canExpand ? 'text-indigo-800 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-300')}
           </div>
@@ -536,7 +536,7 @@ export default function RollupMatrixView({
             <>Aggregated by your fold attributes — every attribute is shown as a header row, and each cell is {valueWord} in that group with a <span className="font-medium">Direct</span> assignment. <span className="font-medium">Click a value</span> to fold its group into a single count column; click a folded column to unfold it again.</>
           );
           if (contextMode && layered) return (
-            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are org teams and each cell is {valueWord} in that team with a <span className="font-medium">Direct</span> assignment. The numbers above a team are its <span className="text-sky-600 dark:text-sky-400 font-medium">direct members</span> / total members (whole subtree). <span className="font-medium">Click a team header</span> to split it into its sub-teams — they appear as a new header row beneath it; click the name in the row above to collapse it back. <span className="font-medium">▸</span> shows the people directly in a team.</>
+            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are org teams and each cell is {valueWord} in that team with a <span className="font-medium">Direct</span> assignment. The numbers above a team are its <span className="text-sky-600 dark:text-sky-400 font-medium">direct members</span> / total members (whole subtree) that hold one of the shown resources. <span className="font-medium">Click a team header</span> to split it into its sub-teams — they appear as a new header row beneath it; click the name in the row above to collapse it back. <span className="font-medium">▸</span> shows the people directly in a team.</>
           );
           if (contextMode) return (
             <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the teams under the highlighted node, and each cell is {valueWord} anywhere under that team who {rolesOnly ? 'hold the business role on that row' : <>have a <span className="font-medium">Direct</span> assignment</>}. Click <span className="font-medium">⊕</span> to zoom into a team's sub-teams, <span className="font-medium">▸</span> to expand its direct people. Use the breadcrumb above to go back up.</>

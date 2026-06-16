@@ -139,6 +139,45 @@ export function buildContextRolesAsRowsSql({ values, identityJoin = '', subjectI
      GROUP BY br."businessRoleId", role."displayName", role."description", nm.fid`;
 }
 
+// Per frontier node, the SCOPED member counts for the column header: distinct
+// in-scope subjects who hold any scoped resource via a Direct assignment, split
+// into those directly in the node vs. its whole subtree. This keeps the header's
+// "direct / total" in step with the cells and the member drill — all of which
+// only count subjects that actually have an in-scope assignment.
+export function buildContextScopedMemberCountsSql({ values, identityJoin = '', subjectId, subjectScope, subjectSql, resourceSql }) {
+  const where = [
+    `p."membershipType" = 'Direct'`,
+    `(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`,
+  ];
+  if (subjectSql)  where.push(`${subjectScope} IN ${subjectSql}`);
+  if (resourceSql) where.push(`p."resourceId" IN ${resourceSql}`);
+  return `
+    WITH RECURSIVE frontier(fid) AS ( VALUES ${values} ),
+    subtree(frontier_id, ctx_id) AS (
+      SELECT fid, fid FROM frontier
+      UNION ALL
+      SELECT s.frontier_id, c.id
+        FROM "Contexts" c
+        JOIN subtree s ON c."parentContextId" = s.ctx_id
+    ),
+    member_dir AS (
+      SELECT s.frontier_id AS fid, cm."memberId" AS pid,
+             bool_or(s.ctx_id = s.frontier_id) AS is_direct
+        FROM subtree s
+        JOIN "ContextMembers" cm ON cm."contextId" = s.ctx_id
+       WHERE cm."memberType" = 'Principal'
+       GROUP BY s.frontier_id, cm."memberId"
+    )
+    SELECT nm.fid::text AS "groupValue",
+           COUNT(DISTINCT ${subjectId})::int AS "total",
+           COUNT(DISTINCT ${subjectId}) FILTER (WHERE nm.is_direct)::int AS "direct"
+      FROM member_dir nm
+      ${identityJoin}
+      JOIN "vw_ResourceUserPermissionAssignments" p ON p."principalId" = nm.pid
+     WHERE ${where.join(' AND ')}
+     GROUP BY nm.fid`;
+}
+
 // Frontier node metadata (display name, subtree size, whether it can drill).
 export function buildContextNodesSql(ids) {
   return `
