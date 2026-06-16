@@ -134,13 +134,16 @@ try {
 
     # ── Assert: entitlement shadow became a Resource (Entitlement), not a user ──
     try {
-        $sid = if ($thisSystem) { $thisSystem.id } else { 0 }
-        $res = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?systemId=$sid&limit=50" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        # Entitlements belong to the *connector resource* system (tenantId = resource OID),
+        # not the midPoint host system — look it up by tenantId.
+        $resSys = @($systems) | Where-Object { $_.tenantId -eq $resOid } | Select-Object -First 1
+        $resSid = if ($resSys) { $resSys.id } else { 0 }
+        $res = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?systemId=$resSid&limit=50" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
         $list = if ($res.data) { $res.data } elseif ($res -is [array]) { $res } else { @() }
         $ents = @($list) | Where-Object { $_.resourceType -eq 'Entitlement' }
         # Two entitlements expected: one reached via legacy association[], one via 4.9
         # referenceAttributes.group[]. Both code paths must have produced a resource.
-        Report-Result 'Midpoint/Data — entitlements mapped as resources (assoc + referenceAttributes)' ($ents.Count -ge 2) "($($ents.Count) Entitlement resource(s); expected >= 2)"
+        Report-Result 'Midpoint/Data — entitlements mapped as resources (assoc + referenceAttributes)' ($ents.Count -ge 2) "($($ents.Count) Entitlement resource(s) in system $resSid; expected >= 2)"
     } catch { Report-Result 'Midpoint/Data — entitlement mapped as resource' $false $_.Exception.Message }
 
 } catch {
