@@ -41,7 +41,7 @@ function validateAzureEndpoint(endpoint) {
 
 
 const DEFAULT_MODELS = {
-  anthropic: 'claude-sonnet-4-20250514',
+  anthropic: 'claude-sonnet-4-6',
   openai: 'gpt-4o',
   'azure-openai': null, // must be supplied by config (the deployment name)
 };
