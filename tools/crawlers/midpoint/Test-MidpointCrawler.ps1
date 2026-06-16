@@ -133,9 +133,12 @@ try {
     } catch { Report-Result 'Midpoint/Data — resource ingested' $false $_.Exception.Message }
 
     # ── Assert: entitlement shadow became a Resource (Entitlement), not a user ──
+    # Entitlements belong to the *connector resource* system (tenantId = resource OID),
+    # not the midPoint host system — look it up by tenantId.
     try {
-        $sid = if ($thisSystem) { $thisSystem.id } else { 0 }
-        $res = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?systemId=$sid&limit=50" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $resSys = @($systems) | Where-Object { $_.tenantId -eq $resOid } | Select-Object -First 1
+        $resSid = if ($resSys) { $resSys.id } else { 0 }
+        $res = Invoke-RestMethod -Uri "$ApiBaseUrl/resources?systemId=$resSid&limit=50" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
         $list = if ($res.data) { $res.data } elseif ($res -is [array]) { $res } else { @() }
         $ents = @($list) | Where-Object { $_.resourceType -eq 'Entitlement' }
         # Two entitlements expected: one reached via legacy association[], one via 4.9
