@@ -170,6 +170,10 @@ function parseFilter(body) {
     // expand-in-place) rather than a flat per-subject grid — set by the wizard
     // for matrices too large to ship every row. Uses sortAttributes as the tree.
     foldAttributes: f.foldAttributes === true,
+    // Layered attribute fold: the set of attribute-tuple keys the user has
+    // FOLDED (collapse model — default none = full depth, all attribute rows
+    // shown). Inverse of rollupExpanded, which the hierarchy view uses.
+    rollupCollapsed: Array.isArray(f.rollupCollapsed) ? f.rollupCollapsed.filter(x => typeof x === 'string').slice(0, 500) : [],
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),
@@ -849,24 +853,26 @@ router.post('/matrix/data', async (req, res) => {
       }
       if (!attrExprs.length) return res.status(400).json({ error: 'No fold attributes' });
 
-      const expandedKeys = filter.rollupExpanded || [];
-      const expandedParams = expandedKeys.map((_, i) => `@exp${i}`);
-      const bindExpanded = (req) => expandedKeys.forEach((kk, i) => req.input(`exp${i}`, kk));
+      // COLLAPSE model: nothing folded -> every subject at full depth, so all
+      // chosen attributes show as header rows. Folding a group pulls it up.
+      const collapsedKeys = filter.rollupCollapsed || [];
+      const collapsedParams = collapsedKeys.map((_, i) => `@col${i}`);
+      const bindCollapsed = (req) => collapsedKeys.forEach((kk, i) => req.input(`col${i}`, kk));
 
       const cellsReq = timedRequest(p, `matrix-attrcut-cells[${rowType}]`, res);
       for (const [k, v] of Object.entries(built.bindings)) cellsReq.input(k, v);
-      bindExpanded(cellsReq);
+      bindCollapsed(cellsReq);
       const cellRows = (await cellsReq.query(buildAttrCutCellsSql({
-        attrExprs, expandedParams, subjectJoin,
+        attrExprs, collapsedParams, subjectJoin,
         subjectIdExpr: memberIdExpr, subjectIdForFilter,
         subjectSql: built.subjectSql, resourceSql: built.resourceSql,
       }))).recordset;
 
       const nodesReq = timedRequest(p, `matrix-attrcut-nodes[${rowType}]`, res);
       for (const [k, v] of Object.entries(built.bindings)) nodesReq.input(k, v);
-      bindExpanded(nodesReq);
+      bindCollapsed(nodesReq);
       const nodeRows = (await nodesReq.query(buildAttrCutNodesSql({
-        attrExprs, expandedParams,
+        attrExprs, collapsedParams,
         subjectTable: rowType === 'identity' ? 'Identities' : 'Principals',
         subjectAlias,
         subjectIdExpr: rowType === 'identity' ? 'i.id' : 'u.id',
@@ -890,7 +896,10 @@ router.post('/matrix/data', async (req, res) => {
       }
 
       const counts = await scopeCounts(p, res, rowType, built);
-      const maxDepth = nodes.reduce((m, n) => Math.max(m, n.depth || 1), 1);
+      // Always show one header row per chosen attribute (folded groups occupy
+      // their level and a "folded" cell below), so the structure is visible even
+      // when collapsed — unlike the dynamic-depth Manager-Hierarchy view.
+      const maxDepth = attrExprs.length;
       return res.json({
         rollup: 'context', rollupKind: 'context', layered: true, layeredAttributes: true,
         rollupContent: 'resources-only', rollupMetric: filter.rollupMetric, rowType, maxDepth,

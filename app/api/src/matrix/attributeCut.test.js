@@ -5,25 +5,27 @@ import {
 
 const E = ['u."division"', 'u."department"', 'u."jobTitle"'];
 
-describe('visibleKeyExpr', () => {
-  it('is just the first attribute when nothing is expanded', () => {
+describe('visibleKeyExpr (collapse model)', () => {
+  it('is the full-depth tuple when nothing is folded', () => {
     const sql = visibleKeyExpr(E, []);
-    expect(sql).toContain(`COALESCE(NULLIF(u."division"::text, ''), '(none)')`);
     expect(sql).not.toContain('CASE');
+    // all three attributes joined by chr(31)
+    expect(sql).toContain(`COALESCE(NULLIF(u."division"::text, ''), '(none)')`);
+    expect(sql).toContain(`COALESCE(NULLIF(u."jobTitle"::text, ''), '(none)')`);
+    expect((sql.match(/chr\(31\)/g) || []).length).toBe(2);
   });
 
-  it('descends through expanded prefixes with a CASE, capped at the deepest attribute', () => {
-    const sql = visibleKeyExpr(E, ['@exp0', '@exp1']);
+  it('pulls a subject up to the first FOLDED prefix (IN, not NOT IN)', () => {
+    const sql = visibleKeyExpr(E, ['@col0', '@col1']);
     expect(sql).toMatch(/^CASE /);
-    // one WHEN per non-leaf level (division, division+department)
     expect((sql.match(/WHEN /g) || []).length).toBe(2);
-    expect(sql).toContain('NOT IN (@exp0, @exp1)');
-    expect(sql).toContain('chr(31)');
+    expect(sql).toContain('IN (@col0, @col1)');
+    expect(sql).not.toContain('NOT IN');
     expect(sql).toMatch(/ELSE .* END$/);
   });
 
-  it('never has a WHEN for a single attribute', () => {
-    expect(visibleKeyExpr(['u."division"'], ['@exp0'])).not.toContain('CASE');
+  it('never has a CASE for a single attribute', () => {
+    expect(visibleKeyExpr(['u."division"'], ['@col0'])).not.toContain('CASE');
   });
 });
 

@@ -53,8 +53,11 @@ const EMPTY_FILTER = {
   rollupKind: 'attribute',
   rollupContextId: null,
   rollupPath: [],
-  // Expanded nodes/tuples in a layered view (Manager Hierarchy or attribute cut).
+  // Expanded nodes in the Manager-Hierarchy layered view (dynamic drill-down).
   rollupExpanded: [],
+  // Folded tuple keys in the layered attribute view (default none = all chosen
+  // attributes shown as header rows; fold collapses a group).
+  rollupCollapsed: [],
   // Set automatically for an oversized attribute fold: serve it as a layered,
   // server-aggregated view instead of a flat per-subject grid.
   foldAttributes: false,
@@ -334,7 +337,7 @@ export default function MatrixFilterWizard({
     // Oversized but foldable on attributes → serve it as the layered,
     // server-aggregated attribute view (a fresh expand state each apply).
     const foldAttributes = servesViaAttrCut(filter, anyRollup, preview.assignmentCount);
-    onApply({ ...filter, foldAttributes, rollupExpanded: foldAttributes ? [] : (filter.rollupExpanded || []) }, managed);
+    onApply({ ...filter, foldAttributes, rollupExpanded: foldAttributes ? [] : (filter.rollupExpanded || []), rollupCollapsed: [] }, managed);
   };
 
   // ─── Save filter ───────────────────────────────────────────────
@@ -399,6 +402,7 @@ export default function MatrixFilterWizard({
       foldOnLoad: [true, false, 'auto'].includes(f.foldOnLoad) ? f.foldOnLoad : 'auto',
       sortHierarchy: (f.sortHierarchy && typeof f.sortHierarchy.contextId === 'string') ? f.sortHierarchy : null,
       rollupExpanded: [],
+      rollupCollapsed: [],
       foldAttributes: false,
     });
     setManaged(['all', 'managed', 'unmanaged', 'gaps'].includes(f.managed) ? f.managed : 'all');

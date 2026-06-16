@@ -19,6 +19,10 @@ import MatrixToolbar from './matrix/MatrixToolbar';
 
 const MAX_ROWS = 300; // this view isn't virtualized — cap rendered resource rows
 
+// Matches the server's attribute-tuple key separator (chr(31)); a tuple key is
+// its attribute values joined by it.
+const TUPLE_SEP = String.fromCharCode(31);
+
 // The manager-hierarchy plugin names nodes as a full path "A · B · C (Manager,
 // Name)". Show the deepest org-unit segment as a compact label.
 function orgShort(displayName) {
@@ -225,6 +229,19 @@ export default function RollupMatrixView({
     onFilterChange?.({ ...filter, rollupExpanded: cur.filter(id => id !== nodeId) });
   }, [filter, onFilterChange]);
 
+  // ── Attribute fold (collapse model): all chosen attributes show as header
+  // rows by default; folding a group (adding its tuple key to rollupCollapsed)
+  // pulls its subjects up to that level, unfolding (removing it) drops them back.
+  const foldToKey = useCallback((key) => {
+    const cur = filter?.rollupCollapsed || [];
+    if (cur.includes(key)) return;
+    onFilterChange?.({ ...filter, rollupCollapsed: [...cur, key] });
+  }, [filter, onFilterChange]);
+  const unfoldKey = useCallback((key) => {
+    const cur = filter?.rollupCollapsed || [];
+    onFilterChange?.({ ...filter, rollupCollapsed: cur.filter(k => k !== key) });
+  }, [filter, onFilterChange]);
+
   // Breadcrumb navigation: jump to a level. Index 0 = the root (path = []),
   // index i = the i-th drill step.
   const jumpToCrumb = useCallback((idx) => {
@@ -335,9 +352,73 @@ export default function RollupMatrixView({
   // Only the deepest header row is sticky, so when there are many levels the
   // upper org rows scroll away and the bottom row (the actual leaf columns)
   // stays pinned — you keep column context without the headers eating the grid.
-  const layeredGroupCell = (col, L, isLast) => {
+  const spanAt = (col, L) => { let j = 1; while (col._i + j < columns.length && columns[col._i + j].type === 'group' && mergeKeyAt(columns[col._i + j], L) === mergeKeyAt(col, L)) j++; return j; };
+
+  // Attribute fold cell (collapse model): every attribute is a header row.
+  // Ancestor/leaf cells fold their group; a folded group's cell unfolds it.
+  const layeredAttrCell = (col, L, isLast) => {
     const n = nodeMap.get(col.group);
-    const span = (() => { let j = 1; while (col._i + j < columns.length && columns[col._i + j].type === 'group' && mergeKeyAt(columns[col._i + j], L) === mergeKeyAt(col, L)) j++; return j; })();
+    const span = spanAt(col, L);
+    const sticky = isLast ? ' sticky top-0 z-20' : '';
+    const baseTh = `border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-center${sticky}`;
+    if (!n) return { span, th: <th key={`${col.key}-${L}`} colSpan={span} className={`${baseTh} bg-gray-100 dark:bg-gray-800`} /> };
+    const ownLevel = (n.depth || 1) - 1;
+    const isFolded = (n.depth || 1) < maxDepth; // pulled up by a fold
+    const key = (d) => (n.pathIds || []).slice(0, d).join(TUPLE_SEP);
+    if (L < ownLevel) {
+      // ancestor value — click to fold this group to this level
+      return { span, th: (
+        <th key={`${col.key}-${L}`} colSpan={span} onClick={() => foldToKey(key(L + 1))}
+            className={`${baseTh} align-middle bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
+            title={`Click to fold ${orgShort(n.pathNames?.[L] || '')}`}>
+          <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300">{orgShort(n.pathNames?.[L] || '')}</span>
+        </th>
+      ) };
+    }
+    if (L === ownLevel) {
+      if (isFolded) {
+        return { span, th: (
+          <th key={`${col.key}-${L}`} colSpan={span} onClick={() => unfoldKey(n.id)}
+              className={`${baseTh} align-bottom bg-indigo-50 dark:bg-indigo-900/20 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
+              style={{ minWidth: '40px', height: '120px' }}
+              title={`Folded — click to unfold ${orgShort(n.displayName)} into its ${n.childCount} values (${n.total} ${subjectWord})`}>
+            <div className="flex flex-col items-center justify-end h-full gap-1">
+              <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0">{n.total}</span>
+              {vLabel('▸ ' + orgShort(n.displayName), 'text-indigo-800 dark:text-indigo-200')}
+            </div>
+          </th>
+        ) };
+      }
+      // leaf (deepest visible value) — click folds its parent group
+      const parent = ownLevel > 0 ? key(ownLevel) : null;
+      return { span, th: (
+        <th key={`${col.key}-${L}`} colSpan={span} onClick={parent ? () => foldToKey(parent) : undefined}
+            className={`${baseTh} align-bottom bg-gray-100 dark:bg-gray-800 ${parent ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
+            style={{ minWidth: '40px', height: '120px' }}
+            title={`${n.displayName} — ${n.total} ${subjectWord}${parent ? ' · click to fold this group' : ''}`}>
+          <div className="flex flex-col items-center justify-end h-full gap-1">
+            <span className="text-[9px] leading-none text-gray-500 dark:text-gray-400 shrink-0">{n.total}</span>
+            {vLabel(orgShort(n.displayName), 'text-gray-700 dark:text-gray-300')}
+          </div>
+        </th>
+      ) };
+    }
+    // below a folded group's own level — click to unfold; show name on the pinned row
+    return { span, th: (
+      <th key={`${col.key}-${L}`} colSpan={span} onClick={() => unfoldKey(n.id)}
+          className={`${baseTh} align-bottom bg-indigo-50/40 dark:bg-indigo-900/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30`}
+          title={`Folded — click to unfold ${orgShort(n.displayName)}`}>
+        {isLast
+          ? vLabel('▸ ' + orgShort(n.displayName), 'text-gray-600 dark:text-gray-400')
+          : (L === (n.depth || 1) && n.childCount > 0 ? <span className="text-[9px] text-indigo-700 dark:text-indigo-300">{n.childCount}</span> : null)}
+      </th>
+    ) };
+  };
+
+  const layeredGroupCell = (col, L, isLast) => {
+    if (layeredAttributes) return layeredAttrCell(col, L, isLast);
+    const n = nodeMap.get(col.group);
+    const span = spanAt(col, L);
     const sticky = isLast ? ' sticky top-0 z-20' : '';
     const baseTh = `border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-center${sticky}`;
     if (!n) return { span, th: <th key={`${col.key}-${L}`} colSpan={span} className={`${baseTh} bg-gray-100 dark:bg-gray-800`} /> };
@@ -448,12 +529,12 @@ export default function RollupMatrixView({
           const valueWord = percentMode
             ? <>the <span className="font-medium">percentage</span> of the {subjectWord} in that group</>
             : <>the count of distinct {subjectWord}</>;
-          if (contextMode && layered) {
-            const unit = layeredAttributes ? 'attribute group' : 'team';
-            return (
-              <>Aggregated {layeredAttributes ? 'by your fold attributes' : <>by the <span className="font-semibold">Manager Hierarchy</span></>} — columns are {layeredAttributes ? 'attribute groups' : 'org teams'} and each cell is {valueWord} in that {unit} with a <span className="font-medium">Direct</span> assignment. <span className="font-medium">Click a {unit} header</span> to split it into the next level — it appears as a new header row beneath it; click the name in the row above to collapse it back.{!layeredAttributes && <> <span className="font-medium">▸</span> shows the people directly in a team.</>}</>
-            );
-          }
+          if (contextMode && layered && layeredAttributes) return (
+            <>Aggregated by your fold attributes — every attribute is shown as a header row, and each cell is {valueWord} in that group with a <span className="font-medium">Direct</span> assignment. <span className="font-medium">Click a value</span> to fold its group into a single count column; click a folded column to unfold it again.</>
+          );
+          if (contextMode && layered) return (
+            <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are org teams and each cell is {valueWord} in that team with a <span className="font-medium">Direct</span> assignment. <span className="font-medium">Click a team header</span> to split it into its sub-teams — they appear as a new header row beneath it; click the name in the row above to collapse it back. <span className="font-medium">▸</span> shows the people directly in a team.</>
+          );
           if (contextMode) return (
             <>Aggregated by the <span className="font-semibold">Manager Hierarchy</span> — columns are the teams under the highlighted node, and each cell is {valueWord} anywhere under that team who {rolesOnly ? 'hold the business role on that row' : <>have a <span className="font-medium">Direct</span> assignment</>}. Click <span className="font-medium">⊕</span> to zoom into a team's sub-teams, <span className="font-medium">▸</span> to expand its direct people. Use the breadcrumb above to go back up.</>
           );

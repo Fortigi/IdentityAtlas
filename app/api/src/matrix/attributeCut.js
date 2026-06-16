@@ -32,19 +32,21 @@ function prefixKeys(attrExprs) {
   return keys;
 }
 
-// The per-subject "visible key": descend through expanded prefixes and stop at
-// the first prefix NOT in the expanded set (capped at the deepest attribute).
-// expandedParams are bound placeholder names (e.g. ['@exp0','@exp1']); an empty
-// set means nothing is expanded, so every subject sits at the first attribute.
-export function visibleKeyExpr(attrExprs, expandedParams = []) {
+// The per-subject "visible key", COLLAPSE model: a subject is shown at the full
+// tuple depth by DEFAULT (so all chosen attributes appear as header rows), and a
+// folded group pulls its subjects up to that level — the subject stops at the
+// first prefix that is in the collapsed set. collapsedParams are bound
+// placeholder names (e.g. ['@col0','@col1']); empty = nothing folded = full depth.
+export function visibleKeyExpr(attrExprs, collapsedParams = []) {
   const keys = prefixKeys(attrExprs);
-  if (!expandedParams.length || keys.length === 1) return keys[0];
-  const inList = `(${expandedParams.join(', ')})`;
+  const deepest = keys[keys.length - 1];
+  if (!collapsedParams.length || keys.length === 1) return deepest; // full depth
+  const inList = `(${collapsedParams.join(', ')})`;
   const whens = [];
   for (let d = 0; d < keys.length - 1; d++) {
-    whens.push(`WHEN ${keys[d]} NOT IN ${inList} THEN ${keys[d]}`);
+    whens.push(`WHEN ${keys[d]} IN ${inList} THEN ${keys[d]}`);
   }
-  return `CASE ${whens.join(' ')} ELSE ${keys[keys.length - 1]} END`;
+  return `CASE ${whens.join(' ')} ELSE ${deepest} END`;
 }
 
 // The (depth+1)-th attribute value for a subject — the value its visible tuple
@@ -61,14 +63,14 @@ function nextValExpr(attrExprs, vkExpr) {
 // Cells: distinct in-scope subjects per (resource, visible tuple) with a Direct
 // assignment, plus the governed subset — mirrors buildRollupSql's shape so the
 // frontend renders it identically.
-export function buildAttrCutCellsSql({ attrExprs, expandedParams = [], subjectJoin, subjectIdExpr, subjectIdForFilter, subjectSql, resourceSql }) {
+export function buildAttrCutCellsSql({ attrExprs, collapsedParams = [], subjectJoin, subjectIdExpr, subjectIdForFilter, subjectSql, resourceSql }) {
   const where = [
     `(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`,
     `p."membershipType" = 'Direct'`,
   ];
   if (subjectSql)  where.push(`${subjectIdForFilter} IN ${subjectSql}`);
   if (resourceSql) where.push(`p."resourceId" IN ${resourceSql}`);
-  const vk = visibleKeyExpr(attrExprs, expandedParams);
+  const vk = visibleKeyExpr(attrExprs, collapsedParams);
   return `
     SELECT t."resourceId"          AS "resourceId",
            t."resourceDisplayName" AS "resourceDisplayName",
@@ -107,8 +109,8 @@ export function buildAttrCutCellsSql({ attrExprs, expandedParams = [], subjectJo
 // how many distinct next-attribute values it would split into (childCount = 0 ->
 // a leaf, can't expand). For principals the group-shaped accounts are excluded
 // so the totals match what the matrix renders.
-export function buildAttrCutNodesSql({ attrExprs, expandedParams = [], subjectTable, subjectAlias, subjectIdExpr, subjectIdForFilter, subjectSql, excludeGroups }) {
-  const vk = visibleKeyExpr(attrExprs, expandedParams);
+export function buildAttrCutNodesSql({ attrExprs, collapsedParams = [], subjectTable, subjectAlias, subjectIdExpr, subjectIdForFilter, subjectSql, excludeGroups }) {
+  const vk = visibleKeyExpr(attrExprs, collapsedParams);
   const nv = nextValExpr(attrExprs, vk);
   const where = [];
   if (excludeGroups) where.push(`${subjectAlias}."principalType" != '#microsoft.graph.group'`);
