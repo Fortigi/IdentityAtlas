@@ -37,6 +37,25 @@ describe('buildRollupWorkbook', () => {
     expect(r[6]).toBe('The finance system');
   });
 
+  it('writes one header row per path level, repeating merged spans (no merge)', () => {
+    const wb = buildRollupWorkbook({
+      rowNoun: 'Resource',
+      columns: [
+        { key: 'a', label: 'CEO', path: ['Algemene Directie', 'CEO'] },
+        { key: 'b', label: 'CFO', path: ['Algemene Directie', 'CFO'] },
+        { key: 'c', label: 'Vrij', path: ['Vrijgesteld'] }, // folded (depth 1)
+      ],
+      rows: [{ label: 'HAMIS', description: 'x', total: 5, cell: (g) => ({ a: 1, b: 2, c: 0 }[g]) }],
+    });
+    const ws = wb.getWorksheet('Roll-up');
+    // Row 1 = top level: the shared parent value is repeated across CEO & CFO.
+    expect(ws.getRow(1).values.slice(1)).toEqual([undefined, 'Algemene Directie', 'Algemene Directie', 'Vrijgesteld']);
+    // Row 2 = bottom level: row label + leaf values; the depth-1 column is blank here.
+    expect(ws.getRow(2).values.slice(1, 4)).toEqual(['Resource', 'CEO', 'CFO']);
+    // Data starts on row 3.
+    expect(ws.getRow(3).values[1]).toBe('HAMIS');
+  });
+
   it('leaves zero cells empty rather than writing 0', () => {
     const wb = buildRollupWorkbook({
       ...opts,
