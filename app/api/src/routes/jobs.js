@@ -53,11 +53,9 @@ try {
         ? _ajv.compile(manifest.configSchema) : null;
     } catch (e) { console.warn(`Crawler manifest skipped (${mPath}): ${e.message}`); }
   }
-} catch { /* crawlers directory not accessible — fall through to hardcoded list */ }
+} catch (e) { console.error(`Crawler manifests directory not accessible (${CRAWLER_MANIFESTS_DIR}): ${e.message}`); }
 
-export const VALID_JOB_TYPES = Object.keys(_crawlerManifests).length > 0
-  ? Object.keys(_crawlerManifests)
-  : ['demo', 'entra-id', 'csv', 'omada'];  // fallback if manifests unavailable
+export const VALID_JOB_TYPES = Object.keys(_crawlerManifests);
 
 export function validateCrawlerConfig(type, config) {
   const validate = _configValidators[type];
