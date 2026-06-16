@@ -139,6 +139,20 @@ export default {
 
     const byId = new Map(rows.map(r => [r.id, r]));
 
+    // Analyst overrides of who a principal reports to (set by dragging a member
+    // onto another team in the tree). principalId -> effective managerPrincipalId
+    // (null = report to root). These take precedence over the source managerId so
+    // a manual move survives every re-run.
+    const overrides = new Map(
+      (await db.query(`
+        SELECT o."principalId", o."managerPrincipalId"
+          FROM "ManagerHierarchyOverrides" o
+          JOIN "Principals" p ON p.id = o."principalId"
+         WHERE p."systemId" = $1
+      `, [scopeSystemId])).rows.map(r => [r.principalId, r.managerPrincipalId])
+    );
+    const effMgrId = (p) => (overrides.has(p.id) ? overrides.get(p.id) : p.managerId);
+
     // Start from "every referenced managerId", then remove anyone whose
     // displayName matches an excludeNamePattern. After exclusion, their
     // would-be reports fall through to the "go to root" branch below.
@@ -152,6 +166,11 @@ export default {
     }
     if (excludedCount > 0) {
       ctx.log?.(`Excluded ${excludedCount} principal(s) from becoming manager nodes via excludeNamePatterns.`);
+    }
+    // An override target must exist as a manager node even if no one reports to
+    // them in the source data, so a moved member has a team to land in.
+    for (const target of overrides.values()) {
+      if (target && byId.has(target)) managerIds.add(target);
     }
 
     // Build a node name from the resolved fields (+ optional manager name).
@@ -200,12 +219,13 @@ export default {
     // the principal goes to root instead — visible as "no real manager in this
     // system" rather than hidden.
     for (const p of rows) {
-      if (p.managerId && managerIds.has(p.managerId)) {
-        members.push({ contextExternalId: p.managerId, memberId: p.id });
+      const em = effMgrId(p); // analyst override takes precedence over source managerId
+      if (em && managerIds.has(em)) {
+        members.push({ contextExternalId: em, memberId: p.id });
       } else if (!managerIds.has(p.id)) {
         members.push({ contextExternalId: rootExt, memberId: p.id });
       }
-      // else: p is a top-level manager (no managerId, but has reports).
+      // else: p is a top-level manager (no manager, but has reports).
     }
 
     ctx.log?.(`Built ${contexts.length} contexts, ${members.length} member rows. Named by [${nameFieldLabels.join(', ') || 'manager name'}].`);
