@@ -1,0 +1,4 @@
+- The midPoint crawler now prints a performance summary at the end of each run (total wall-clock, per-read timings, and per-endpoint ingest throughput), making it easy to see where a large sync spends its time.
+- Added a load-test data generator for the midPoint crawler that seeds a large fictitious AD (users, groups, and group memberships) with a realistic, repeatable distribution, for capacity and performance testing.
+- The midPoint crawler now streams connected-system accounts, entitlements, and their memberships page by page instead of loading the entire set into memory, so it can sync very large directories (millions of group memberships) within a bounded, fixed amount of memory — and runs noticeably faster on large syncs.
+- Added user-facing documentation for the midPoint crawler (`docs/sync/midpoint.md`): what data gets imported, configuration reference, and troubleshooting tips.
