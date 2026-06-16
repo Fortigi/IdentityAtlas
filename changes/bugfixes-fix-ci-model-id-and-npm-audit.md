@@ -1,3 +1,0 @@
-- Updated default Anthropic model from the retired `claude-sonnet-4-20250514` to `claude-sonnet-4-6`, fixing the LLM connection test in CI.
-- Fixed two high-severity npm vulnerabilities in the API (`esbuild` and `form-data`).
-- Fixed PR hygiene CI check not respecting the `skip-hygiene` label when re-running a workflow: the check is now skipped at job level so it is never scheduled when the label is present.
