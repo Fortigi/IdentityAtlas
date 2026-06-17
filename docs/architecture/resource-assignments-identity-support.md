@@ -9,11 +9,12 @@
 
 ## 1. TL;DR
 
-In IGA (Identity Governance and Administration), business roles are assigned to **people**,
-not to individual system accounts. A person's business role spans multiple applications —
-each component applies to whichever account that person holds in that system. IdentityAtlas
-currently has no way to model this: every assignment must point to a specific account,
-so the connection between "Alice the person" and her business role is lost.
+In IGA (Identity Governance and Administration), access is assigned to **people**,
+not to individual system accounts. When a person is given a role, that access spans
+multiple applications — each component applies to whichever account that person holds
+in that system. IdentityAtlas currently has no way to model this: every assignment must
+point to a specific account, so the fact that "Alice the person was given this access"
+is lost regardless of the resource type.
 
 **Technical accounts are different.** Mailbox accounts, service accounts, and functional
 accounts are created for a specific system, and their roles only contain permissions within
@@ -21,8 +22,8 @@ that system. Assigning those roles to the account directly is correct and suffic
 
 Both patterns coexist in every IGA-managed organisation. This spec adds a first-class
 `identityId` assignment target to `ResourceAssignments`, alongside the existing
-`principalId`, so IGA crawlers can store business role assignments at the person level
-without disrupting any existing data or non-IGA deployments.
+`principalId`, so IGA crawlers can store any person-level assignment without disrupting
+existing data or non-IGA deployments.
 
 ---
 
@@ -191,9 +192,12 @@ Accepted — document in changelog.
 
 ### 4.1 Two endpoints — batch type enforced by route
 
-Business role assignments for human persons and assignments for system accounts use
-**separate endpoints**. Batch type is enforced at the route level — no runtime detection,
-no mixed-batch validation.
+**Person-level and account-level assignments use separate endpoints.** The routing rule is
+based on *who the source system says has the access*: if the subject is a person (identity)
+→ use the identity endpoint; if the subject is a specific account (principal) → use the
+principal endpoint. Resource type is irrelevant to the routing decision.
+
+Batch type is enforced at the route level — no runtime detection, no mixed-batch validation.
 
 | Endpoint | Accepted records | Key columns |
 |---|---|---|
@@ -495,7 +499,7 @@ post-deploy verification that IGA crawlers are pushing identity-level assignment
 |---|---|---|
 | Apply migrations 035 + 036 | DB migration runner at container startup | Automatically on deploy |
 | Existing crawlers (Entra, AD, CSV) | No change needed | — |
-| IGA crawlers (Omada, MidPoint) | Update to emit `identityId` / `identityExternalId` on business role assignments | After this ships |
+| IGA crawlers (Omada, MidPoint) | Switch any assignment where the source system's subject is a person to `/ingest/resource-assignments-identity` (use `identityId` / `identityExternalId` instead of `principalId`). Account-level assignments (shadow memberships, entitlements assigned to a specific account) stay on `/ingest/resource-assignments`. | After this ships |
 
 The migrations are **non-destructive**: no data loss, no column removals, no breaking changes
 to existing `principalId` paths. Brief exclusive lock during 035 on container startup.
@@ -514,8 +518,8 @@ express "person has         identityExternalId.             via IdentityMembers,
 business role" without      Matrix expands identity         computes effective
 picking one account.        rows through IdentityMembers.   access per scope node.
                             MidPoint/Omada crawlers          One person. One view.
-                            can emit identity-level          All systems.
-                            business role assignments.
+                            emit identity-level              All systems.
+                            assignments (any resource).
 ```
 
 ---
