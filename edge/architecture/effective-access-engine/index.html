@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/matrix/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/effective-access-engine/">
       
       
       
@@ -23,7 +23,7 @@
     
     
       
-        <title>Matrix view — architecture - Identity Atlas</title>
+        <title>Effective-Access Engine — Design Specification - Identity Atlas</title>
       
     
     
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#matrix-view-architecture" class="md-skip">
+        <a href="#effective-access-engine-design-specification" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Matrix view — architecture
+              Effective-Access Engine — Design Specification
             
           </span>
         </div>
@@ -2535,10 +2535,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-grid" class="md-nav__link">
+  <a href="#1-tldr" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The grid
+        1. TL;DR
       
     </span>
   </a>
@@ -2546,99 +2546,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-source" class="md-nav__link">
+  <a href="#2-motivation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data source
+        2. Motivation
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#badge-collapse-what-each-letter-actually-means" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Badge collapse — what each letter actually means
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#expand-semantics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Expand semantics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#why-groups-dont-appear-as-columns" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why groups don't appear as columns
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#owner-rows-are-split" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Owner rows are split
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#performance-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Performance notes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#identity-rows" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Identity rows
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Identity rows">
+    <nav class="md-nav" aria-label="2. Motivation">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#context-picker-filtered-by-row-type" class="md-nav__link">
+  <a href="#the-model-is-already-half-proven" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Context picker filtered by row type
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#identity-extension-attribute-filtering" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Identity extension-attribute filtering
+        The model is already half-proven
       
     </span>
   </a>
@@ -2651,55 +2574,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sorting-folding-server-side-aggregation" class="md-nav__link">
+  <a href="#3-goals-non-goals" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sorting, folding &amp; server-side aggregation
+        3. Goals / non-goals
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Sorting, folding &amp; server-side aggregation">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Terminology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-architecture-overview-one-graph-two-edge-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Architecture overview — one graph, two edge types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-the-crawler-contract-what-is-stored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The crawler contract — what is stored
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. The crawler contract — what is stored">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#per-subject-sort-fold-client-side-small-matrices" class="md-nav__link">
+  <a href="#schema-impact-decided-151" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Per-subject sort + fold (client-side, small matrices)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#size-gate" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Size gate
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#layered-server-aggregated-views-large-matrices" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Layered server-aggregated views (large matrices)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#excel-export" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Excel export
+        Schema impact (decided — §15.1)
       
     </span>
   </a>
@@ -2712,10 +2635,264 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#related-references" class="md-nav__link">
+  <a href="#7-traversal-lazy-bounded-inheritance-aware" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related references
+        7. Traversal — lazy, bounded, inheritance-aware
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-resolution-monotonic-and-path-aware-deny" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Resolution — monotonic and path-aware deny
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Resolution — monotonic and path-aware deny">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#built-in-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Built-in policies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capability-granularity-decided-157" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capability granularity (decided — §15.7)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-badges-eligibility-and-the-effect-axis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Badges, eligibility, and the effect axis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-explainability-first-class-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Explainability — first-class output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-synthesized-resources-deterministic-id-collapse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Synthesized resources &amp; deterministic-id collapse
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-api-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. API surface
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-performance-matrix-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Performance &amp; matrix integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. Performance &amp; matrix integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#131-lazy-bounded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.1 Lazy + bounded
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#132-caching-decided-152" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.2 Caching (decided — §15.2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#133-caps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.3 Caps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#134-export-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.4 Export path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#135-the-base-grid-and-deny-decided-153" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.5 The base grid and deny (decided — §15.3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#136-indexing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.6 Indexing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-edge-cases-enumerated-with-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Edge cases — enumerated, with decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-decisions-rationale-resolved-open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. Decisions &amp; rationale (resolved open questions)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-phased-delivery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. Phased delivery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#17-migration-backward-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        17. Migration &amp; backward compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#18-testing-requirements-must-ship-with-the-feature-not-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        18. Testing requirements (must ship with the feature — not optional)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#19-documentation-requirements-ship-with-the-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        19. Documentation requirements (ship with the feature)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#20-first-consumers-how-they-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        20. First consumers (how they map)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#21-reviewer-sign-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        21. Reviewer sign-off
       
     </span>
   </a>
@@ -2750,250 +2927,573 @@
   
 
 
-<h1 id="matrix-view-architecture">Matrix view — architecture<a class="headerlink" href="#matrix-view-architecture" title="Permanent link">&para;</a></h1>
+<h1 id="effective-access-engine-design-specification">Effective-Access Engine — Design Specification<a class="headerlink" href="#effective-access-engine-design-specification" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p><strong>Status:</strong> current as of May 2026.
-Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql"><code>013_matrix_matviews_and_indexes.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql"><code>024_matrix_view_all_assignment_types.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/025_matrix_view_governed_renders_as_direct.sql"><code>025_matrix_view_governed_renders_as_direct.sql</code></a>.</p>
+<p><strong>Status:</strong> Draft for review &amp; approval. Pre-implementation — no code exists yet.
+<strong>Purpose of this document:</strong> get sign-off on the model, the data contract, and the
+resolution semantics <em>before</em> any code is written. A reviewer should be able to
+approve (or push back on) every decision here without reading source.
+<strong>Owner:</strong> <em>TBD</em> · <strong>Reviewers:</strong> <em>TBD</em></p>
 </blockquote>
-<h2 id="the-grid">The grid<a class="headerlink" href="#the-grid" title="Permanent link">&para;</a></h2>
-<p>Rows are <strong>resources</strong>. Columns are <strong>principals</strong> (users / service principals / managed identities — <em>not</em> groups, see below). Each cell describes whether the column-principal has the row-resource and, if so, <em>how</em>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                   alice    bob    carol    ...
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Sales Team           D                       &lt;- group membership
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Reader on CRM        D       I              &lt;- app role (direct vs. via group)
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>HR-Manager BR        D                       &lt;- BusinessRole assignment
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>DelegatedPerm: …             A               &lt;- OAuth2 user consent
-</code></pre></div>
-<p>(That last <code>A</code> no longer renders — see "Badge collapse" below — but the underlying row is still in the data.)</p>
-<h2 id="data-source">Data source<a class="headerlink" href="#data-source" title="Permanent link">&para;</a></h2>
-<p>A single materialized view: <code>vw_ResourceUserPermissionAssignments</code>. Refreshed at web boot via <code>bootstrap.js → refreshMatrixViews()</code> and at end-of-sync via <code>POST /api/ingest/refresh-views</code>.</p>
-<p>Shape:</p>
+<hr />
+<h2 id="1-tldr">1. TL;DR<a class="headerlink" href="#1-tldr" title="Permanent link">&para;</a></h2>
+<p>Crawlers store where access is <strong>declared</strong>. In any system with a containment hierarchy
+and inherited permissions, a declared grant <em>reaches</em> far beyond its declaration point — a
+role at an Azure subscription reaches every resource group and resource beneath it; an ACL
+on a folder reaches every descendant file. None of that reach is stored.</p>
+<p>A matrix that reads only declared assignments therefore <strong>systematically under-reports
+effective access</strong> — the single most important thing a role-mining / audit tool must show.</p>
+<p>The <strong>effective-access engine</strong> is a <strong>core product feature</strong> (not a crawler feature) that
+converts <em>declared grants + a containment hierarchy</em> into <em>effective access at a node</em>,
+<strong>computed lazily on demand</strong>, bounded by what is being viewed. It supports both monotonic
+(grant-only) and non-monotonic (<strong>deny</strong>-bearing, path-aware) permission models through a
+<strong>pluggable per-source resolution policy</strong>. It is the shared substrate every "system with
+nested permissions" plugs into.</p>
+<p>It is built <strong>before</strong> the Azure RM crawler, because the crawler depends on it and the deny
+semantics cannot be retrofitted cleanly.</p>
+<hr />
+<h2 id="2-motivation">2. Motivation<a class="headerlink" href="#2-motivation" title="Permanent link">&para;</a></h2>
+<p>Today the matrix data source — the materialized view <code>vw_ResourceUserPermissionAssignments</code>
+(current definition: migration <code>026_matrix_view_dedup_after_case_collapse.sql</code>) — is a flat
+<code>SELECT FROM "ResourceAssignments"</code>. It does <strong>not</strong> join <code>ResourceRelationships</code>. So a
+<code>Contains</code> edge sitting in the table is inert: storing "RG is a child of Subscription" does
+not make anyone with a subscription-level role appear on the RG.</p>
+<p>This was deliberate. Migration <code>013_matrix_matviews_and_indexes.sql</code> <em>removed</em> recursive
+transitive expansion from the matview because it was the dominant performance cost, and
+replaced it with <strong>lazy click-time expansion</strong> (<code>GET /api/group/:id/nested-groups</code>). There
+is, today, <strong>no generic "walk <code>Contains</code> → render inherited access" consumer</strong> anywhere.</p>
+<p>Two ways exist to close the declared-vs-effective gap:</p>
+<ol>
+<li><strong>Materialize</strong> every effective tuple (crawler or matview writes them all). Correct, but a
+   single high-level grant × a deep tree = a combinatorial explosion of rows, recomputed
+   every sync.</li>
+<li><strong>Compute on demand</strong> — store only declared grants + the hierarchy edges, and derive
+   "effective access at node N" by traversal <em>when someone actually looks at N</em>.</li>
+</ol>
+<p>This engine is option 2, generalized.</p>
+<h3 id="the-model-is-already-half-proven">The model is already half-proven<a class="headerlink" href="#the-model-is-already-half-proven" title="Permanent link">&para;</a></h3>
+<p>The capability-in-resource pattern this engine assumes <strong>already ships</strong>:</p>
+<ul>
+<li><strong>App roles</strong> — <code>tools/crawlers/entra-id/Start-EntraIDCrawler.ps1</code> already emits one
+  resource per app role (<code>displayName = "&lt;role&gt; on &lt;app&gt;"</code>, <code>resourceType='AppRole'</code>),
+  linked to the application via <code>relationshipType='HasAppRole'</code>, assigned via
+  <code>assignmentType='AppRole'</code> / <code>AppRoleViaGroup</code>.</li>
+<li><strong>OAuth2 delegated permissions</strong> — same shape (<code>resourceType='DelegatedPermission'</code>).</li>
+</ul>
+<p>So the engine does not invent a new model; it generalizes an existing one to arbitrary depth
+and adds principled deny.</p>
+<hr />
+<h2 id="3-goals-non-goals">3. Goals / non-goals<a class="headerlink" href="#3-goals-non-goals" title="Permanent link">&para;</a></h2>
+<p><strong>Goals</strong></p>
+<ul>
+<li>Compute effective access (<strong>allow and deny</strong>) for a focus node or a principal, on demand.</li>
+<li>One engine serving all sources via a pluggable per-source <strong>resolution policy</strong>.</li>
+<li>First-class <strong>explainability</strong> — return the access path that produced each result.</li>
+<li>Bounded, predictable performance; <strong>no silent truncation</strong>.</li>
+<li>Preserve existing nested-group behavior, migrated onto the engine with <strong>no observable
+  change</strong> (golden-test gated).</li>
+</ul>
+<p><strong>Non-goals</strong></p>
+<ul>
+<li>Not a full-tenant effective-access flattener for the interactive matrix (that is a separate
+  async <strong>export</strong> path, §13.4).</li>
+<li>Not a crawler — it consumes crawler output.</li>
+<li>Not responsible for data collection (crawlers do that) or for the declared-grant base grid
+  (the matview keeps that).</li>
+</ul>
+<hr />
+<h2 id="4-terminology">4. Terminology<a class="headerlink" href="#4-terminology" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Column</th>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Node</strong></td>
+<td>A resource: a <em>container</em> (scope / folder / site / group / app) or a <em>capability-resource</em> (<code>Capability @ Target</code>).</td>
+</tr>
+<tr>
+<td><strong>Containment edge</strong></td>
+<td><code>ResourceRelationships</code> row, <code>relationshipType='Contains'</code>, parent→child, carrying <code>propagates</code> (bool).</td>
+</tr>
+<tr>
+<td><strong>Capability</strong></td>
+<td>The grantable unit (RBAC role, permission level, ACE right). Has a stable, opaque <code>capabilityId</code>.</td>
+</tr>
+<tr>
+<td><strong>Grant / ACE</strong></td>
+<td>A declared assignment: principal → capability-resource, with <code>effect</code> and <code>propagationScope</code>.</td>
+</tr>
+<tr>
+<td><strong>Effect</strong></td>
+<td><code>allow</code> | <code>deny</code> | <code>eligible</code> | <code>notset</code>.</td>
+</tr>
+<tr>
+<td><strong>PropagationScope</strong></td>
+<td><code>self</code> | <code>descendants</code> | <code>selfAndDescendants</code> — how far a grant reaches from its declared node.</td>
+</tr>
+<tr>
+<td><strong>ResolutionPolicy</strong></td>
+<td>Per-source pure function: ordered ACE list → effective effect + decisive ACE.</td>
+</tr>
+<tr>
+<td><strong>EffectivePath</strong></td>
+<td>The provenance chain explaining a result (for audit / "why?").</td>
+</tr>
+<tr>
+<td><strong>Badge</strong></td>
+<td>Reachability shown in the matrix: <code>Direct</code> / <code>Indirect</code> / <code>Eligible</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-architecture-overview-one-graph-two-edge-types">5. Architecture overview — one graph, two edge types<a class="headerlink" href="#5-architecture-overview-one-graph-two-edge-types" title="Permanent link">&para;</a></h2>
+<p>A principal's effective access = <strong>reachability</strong> across two edge types, evaluated through
+the source's resolution policy:</p>
+<ul>
+<li><strong>Assignment edges</strong> — principal → resource (a declared grant). A resource can itself be a
+  principal (a group holding a role), so these chain.</li>
+<li><strong>Containment edges</strong> — resource → resource (<code>Contains</code>, parent→child) — the propagation
+  channel. Carries the capability <strong>constant</strong> down the tree.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Principal --assigned--&gt; EntraID Group          (Direct,   stored)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>          --assigned--&gt; Contributor @ Sub      (Indirect, group is a principal here)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>          --contains--&gt; Contributor @ RG       (Indirect, scope inheritance)
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>          --contains--&gt; Contributor @ VM       (Indirect, scope inheritance)
+</code></pre></div>
+<p>First hop = <strong>Direct</strong>, everything transitive = <strong>Indirect</strong>. The whole problem reduces to
+bounded graph reachability + a per-source decision function.</p>
+<hr />
+<h2 id="6-the-crawler-contract-what-is-stored">6. The crawler contract — what is stored<a class="headerlink" href="#6-the-crawler-contract-what-is-stored" title="Permanent link">&para;</a></h2>
+<p>The engine operates over the existing tables. To feed it, a crawler emits:</p>
+<ol>
+<li><strong>Container nodes</strong> — <code>Resources</code> rows (scopes, folders, sites, groups…).</li>
+<li><strong>Capability-resources</strong> — <code>Resources</code> rows for <code>Capability @ Target</code>, <strong>only where a grant
+   is declared</strong> (sparse). <code>id = uuidv5(NS_CAP, targetNodeId + '|' + capabilityId)</code>
+   (deterministic, see §11). <code>extendedAttributes</code>: <code>capabilityId</code>, <code>capabilityName</code>,
+   <code>targetNodeId</code>.</li>
+<li><strong>Containment edges</strong> — <code>Contains</code> relationships, parent→child, with <code>propagates</code> (bool,
+   default <code>true</code>). A crawler sets <code>propagates = false</code> on the edge to a child that <strong>breaks
+   inheritance</strong> (NTFS block-inheritance / SharePoint break-inheritance).</li>
+<li><strong>Declared grants</strong> — <code>ResourceAssignments</code> (principal → capability-resource) carrying:</li>
+<li><code>effect</code> — default <code>allow</code>; <code>deny</code> / <code>eligible</code> where the source supports it.</li>
+<li><code>propagationScope</code> — default <code>selfAndDescendants</code>; NTFS/DevOps can emit <code>self</code> or
+     <code>descendants</code>.</li>
+<li><strong>Group memberships</strong> — so principal-side expansion works (already emitted today).</li>
+</ol>
+<p>The crawler-contract additions are small and additive (<code>propagates</code>, <code>effect</code>,
+<code>propagationScope</code>). Monotonic sources (Azure RM v1) take all defaults and behave as today.</p>
+<h3 id="schema-impact-decided-151">Schema impact (decided — §15.1)<a class="headerlink" href="#schema-impact-decided-151" title="Permanent link">&para;</a></h3>
+<p><code>effect</code> and <code>propagationScope</code> become <strong>first-class columns</strong> on <code>ResourceAssignments</code>
+(indexed, hot-path), added by a migration with safe defaults and a backfill so all existing
+rows resolve unchanged. They are <strong>not</strong> stored in <code>extendedAttributes</code> (cannot be cleanly
+indexed; read on every resolve).</p>
+<blockquote>
+<p><strong><code>relationshipType</code> / <code>effect</code> and the enum gate:</strong> <code>Contains</code> is already in
+<code>RELATIONSHIP_TYPES</code> (validation.js). <code>propagates</code> is free-form <code>extendedAttributes</code> on the
+relationship. <code>effect</code> is a new column with its own allowed-value set. <code>resourceType</code> /
+<code>contextType</code> are free-form, so new capability/scope types need no validation change.</p>
+</blockquote>
+<hr />
+<h2 id="7-traversal-lazy-bounded-inheritance-aware">7. Traversal — lazy, bounded, inheritance-aware<a class="headerlink" href="#7-traversal-lazy-bounded-inheritance-aware" title="Permanent link">&para;</a></h2>
+<p>For a query <code>(principal P | principalSet, capability C | all, focusNode N)</code>:</p>
+<ol>
+<li><strong>holders(P)</strong> — P plus all groups P transitively belongs to (visited-set for cycles).</li>
+<li><strong>Ancestor window</strong> — ascend from N following <code>Contains</code> edges <em>upward</em>. <strong>Stop the moment
+   you would cross an edge with <code>propagates = false</code></strong> — the nearest inheritance-break boundary
+   is N's effective root. Collect <code>M₀ = N … M_k = root-or-break</code>.</li>
+<li><strong>Gather ACEs</strong> — all grants of C where target ∈ ancestor window, principal ∈ holders(P),
+   and <code>propagationScope</code> reaches N (<code>self</code> only at <code>M₀</code>; <code>descendants</code> / <code>selfAndDescendants</code>
+   at strict ancestors). Each ACE retains <code>{ effect, distance, explicit (M == N),
+   viaGroupId|null, nodePath }</code>. <strong>Distance and node path are always retained</strong> — deny
+   precedence needs them.</li>
+<li><strong>Resolve</strong> — hand the ordered ACE list to the source's <code>ResolutionPolicy</code> →
+   <code>{ effective, decisiveAce, contributing }</code>.</li>
+<li><strong>Bound</strong> — <code>maxDepth</code> and <code>maxNodesPerExpansion</code> caps (defaults §13.3). Exceeding emits an
+   explicit <code>truncated: { more: N }</code> marker — <strong>never silent</strong>.</li>
+</ol>
+<p><strong>Down-expansion</strong> (the matrix chevron on a container) is the same machinery run for each
+child in the focus subtree, <strong>one level per click</strong> — "multiple smaller fetches."</p>
+<hr />
+<h2 id="8-resolution-monotonic-and-path-aware-deny">8. Resolution — monotonic <em>and</em> path-aware deny<a class="headerlink" href="#8-resolution-monotonic-and-path-aware-deny" title="Permanent link">&para;</a></h2>
+<p>The engine <strong>gathers</strong>; the per-source <code>ResolutionPolicy</code> <strong>decides</strong>. This is the seam that
+makes deny first-class without leaking source-specific rules into the traversal.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>resolve(aces: Ace[], ctx) -&gt; {
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  effective: &#39;allow&#39; | &#39;deny&#39; | &#39;none&#39;,
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  decisiveAce: Ace,        // for explainability
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  contributing: Ace[]      // everything that mattered
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>}
+</code></pre></div>
+<p>A policy is <strong>pure and deterministic</strong> and is unit-tested against its vendor's documented
+truth table (§17). A new source means a new (or reused) policy — <strong>never</strong> new traversal code.</p>
+<h3 id="built-in-policies">Built-in policies<a class="headerlink" href="#built-in-policies" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Rule</th>
+<th>Sources</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AdditiveAllow</code></td>
+<td>any <code>allow</code> → allow; <code>deny</code> ignored (monotonic)</td>
+<td>Azure RM v1, SharePoint (additive levels)</td>
+</tr>
+<tr>
+<td><code>DenyOverrides</code></td>
+<td>any <code>deny</code> → deny; else any <code>allow</code> → allow</td>
+<td>Azure DevOps (deny-wins)</td>
+</tr>
+<tr>
+<td><code>NtfsCanonical</code></td>
+<td>explicit deny ≻ explicit allow ≻ inherited deny ≻ inherited allow; among inherited, <strong>closer node wins</strong></td>
+<td>NTFS / file systems</td>
+</tr>
+<tr>
+<td><code>ClosestWins</code></td>
+<td>most-specific node decides; deny ≻ allow within a node; <code>notset</code> passes through</td>
+<td>generic three-state</td>
+</tr>
+</tbody>
+</table>
+<h3 id="capability-granularity-decided-157">Capability granularity (decided — §15.7)<a class="headerlink" href="#capability-granularity-decided-157" title="Permanent link">&para;</a></h3>
+<p>Resolution compares ACEs of the <strong>same <code>capabilityId</code> only</strong>. The engine treats capabilities
+as <strong>opaque atoms</strong> and does <strong>not</strong> model subsumption (e.g. it does not know NTFS <code>Modify</code> ⊇
+<code>Write</code>). A source that needs right-level deny semantics must emit capabilities at a
+granularity where allow and deny are directly comparable — atomic rights
+(<code>Read</code>/<code>Write</code>/<code>Execute</code>/<code>Delete</code>) or a level model the source guarantees is comparable.</p>
+<p>This keeps the engine minimal and pushes the (source-specific) granularity choice into the
+crawler, where the source's own semantics live. The engine design does <strong>not</strong> foreclose
+correct filesystem deny — it requires the filesystem crawler to choose a comparable
+granularity.</p>
+<hr />
+<h2 id="9-badges-eligibility-and-the-effect-axis">9. Badges, eligibility, and the effect axis<a class="headerlink" href="#9-badges-eligibility-and-the-effect-axis" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Badge</strong> is reachability <em>at the focus node</em>: <code>Direct</code> iff the decisive <code>allow</code> is a grant
+  declared <em>at N</em> held <em>directly</em> (no group hop); otherwise <code>Indirect</code>.</li>
+<li><strong>Eligibility</strong> (<code>effect = 'eligible'</code>) is <em>potential</em> access (PIM-style): carried like allow
+  for display, rendered <code>E</code>, but <strong>excluded</strong> from "current effective access" answers and
+  never combined with deny.</li>
+<li><strong><code>effect</code> vs legacy <code>assignmentType</code> (decided — §15.6):</strong> <code>effect</code> is a <strong>new orthogonal
+  axis</strong>. The engine computes reachability by traversal and <strong>never reads <code>assignmentType</code> for
+  reachability</strong>. Legacy <code>assignmentType</code> values are sorted out by the harmonization work, not
+  here. For safety the engine treats a <strong>missing <code>effect</code> as <code>allow</code></strong>, so all existing data
+  resolves unchanged on day one.</li>
+</ul>
+<hr />
+<h2 id="10-explainability-first-class-output">10. Explainability — first-class output<a class="headerlink" href="#10-explainability-first-class-output" title="Permanent link">&para;</a></h2>
+<p>Every effective result returns its <strong>EffectivePath(s)</strong>. Example:</p>
+<blockquote>
+<p><em>alice has </em><em>effective deny</em><em> on <code>/Finance/2026/budget.xlsx</code> for <code>Modify</code> because: she's in
+<code>Finance-RW</code> → <code>Modify allow @ /Finance</code> (inherited), </em><em>overridden by</em><em> an explicit
+<code>Modify deny @ /Finance/2026</code> on <code>Everyone</code>.</em></p>
+</blockquote>
+<p>This is <strong>required</strong>, not optional — it is the audit value of the product. The response carries
+<code>decisiveAce</code>, the <code>contributing</code> chain, and the node path. The UI renders "why?" from it.</p>
+<hr />
+<h2 id="11-synthesized-resources-deterministic-id-collapse">11. Synthesized resources &amp; deterministic-id collapse<a class="headerlink" href="#11-synthesized-resources-deterministic-id-collapse" title="Permanent link">&para;</a></h2>
+<p>Inherited capability-resources with <strong>no declared grant</strong> (e.g. <code>Contributor @ VM</code> inherited
+from the subscription) are <strong>synthesized at expand time and never stored</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uuidv5(NS_CAP, vmNodeId + &#39;|&#39; + roleDefId)&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;displayName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Contributor @ VM-01&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;capabilityId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;roleDefId&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;targetNodeId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;vmNodeId&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;virtual&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>Because the id is deterministic <strong>and the crawler uses the same <code>uuidv5</code> for stored
+capability-resources</strong>, a synthesized inherited row and a stored directly-declared row for the
+same <code>(capability, node)</code> carry the <strong>same id</strong> and merge into one matrix row showing both
+Direct and Indirect holders — with <strong>no dedup logic</strong>. <code>NS_CAP</code> is a single fixed namespace
+UUID constant shared by engine and crawlers — defined once, documented, never changed.</p>
+<hr />
+<h2 id="12-api-surface">12. API surface<a class="headerlink" href="#12-api-surface" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>resourceId</code></td>
-<td>Row (joined to <code>Resources</code> for displayName etc.)</td>
+<td><code>GET /api/resource/:id/effective-access</code></td>
+<td>Expand a focus container/capability: synthesized inherited rows + resolved holders. Params: <code>direction=down\|up</code>, <code>depth</code>, <code>principalId?</code>, <code>capabilityId?</code>, <code>includeDeny</code>. <strong>Supersedes</strong> <code>/group/:id/nested-groups</code> and the proposed <code>/scope/:id/effective</code>.</td>
 </tr>
 <tr>
-<td><code>principalId</code></td>
-<td>Column (joined to <code>Principals</code> — group-typed rows fall out at the JOIN)</td>
+<td><code>GET /api/principal/:id/effective-access?node=:n</code></td>
+<td>For one principal: effective access at/under a node, with paths. Detail pages.</td>
 </tr>
 <tr>
-<td><code>principalType</code></td>
-<td>Passed through; legacy filter against <code>'#microsoft.graph.group'</code> is dead in v5 but harmless</td>
-</tr>
-<tr>
-<td><code>membershipType</code></td>
-<td>What badge to render — see badge collapse below</td>
-</tr>
-<tr>
-<td><code>managedByAccessPackage</code></td>
-<td>Drives AP color overlay on the cell</td>
+<td><code>POST /api/effective-access/resolve</code></td>
+<td>Batch resolve <code>(principals × nodes × capabilities)</code> for the <strong>export</strong> path (§13.4) — paginated/streamed, cache-bypassing.</td>
 </tr>
 </tbody>
 </table>
-<p>The view itself is a single <code>SELECT FROM "ResourceAssignments"</code> with no <code>assignmentType</code> filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of <code>Direct/Owner/Eligible/Governed</code> was removed in migration 024 so future assignment types don't need a migration to surface.</p>
-<h2 id="badge-collapse-what-each-letter-actually-means">Badge collapse — what each letter actually means<a class="headerlink" href="#badge-collapse-what-each-letter-actually-means" title="Permanent link">&para;</a></h2>
-<p>The user reads four letters. The DB stores eight assignment types. The translation lives in migration 025's CASE expression and is intentionally lossy:</p>
+<p><code>/group/:id/nested-groups</code> is retained as a <strong>thin shim</strong> over the engine during migration,
+golden-tested to be byte-identical, then removed.</p>
+<p><strong>Response row:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;capabilityResourceId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;virtual&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;nodeId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;principalId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;allow&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;badge&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Indirect&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;viaGroupId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;decisivePath&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;truncated&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>Auth: reuse the existing matrix/permissions authorization middleware — this endpoint exposes
+the same sensitivity class as the matrix.</p>
+<hr />
+<h2 id="13-performance-matrix-integration">13. Performance &amp; matrix integration<a class="headerlink" href="#13-performance-matrix-integration" title="Permanent link">&para;</a></h2>
+<h3 id="131-lazy-bounded">13.1 Lazy + bounded<a class="headerlink" href="#131-lazy-bounded" title="Permanent link">&para;</a></h3>
+<p>Interactive paths only ever expand a focus neighborhood. The live matrix never triggers
+full-tenant computation.</p>
+<h3 id="132-caching-decided-152">13.2 Caching (decided — §15.2)<a class="headerlink" href="#132-caching-decided-152" title="Permanent link">&para;</a></h3>
+<p>In-memory LRU <strong>per web process</strong>, keyed by <code>(focusNode, filters, dataVersion)</code>. <code>dataVersion</code>
+bumps in the existing end-of-sync <code>refresh-views</code> hook → stale entries simply miss, never
+serve wrong data. (Single <code>web</code> container today; revisit Redis only on horizontal scale-out.)</p>
+<h3 id="133-caps">13.3 Caps<a class="headerlink" href="#133-caps" title="Permanent link">&para;</a></h3>
+<p>Defaults <code>maxDepth = 50</code>, <code>maxNodesPerExpansion = 1000</code>, configurable. Exceeding emits
+<code>truncated: { more: N }</code> — surfaced in the UI, <strong>never silently dropped</strong>.</p>
+<h3 id="134-export-path">13.4 Export path<a class="headerlink" href="#134-export-path" title="Permanent link">&para;</a></h3>
+<p><code>POST /api/effective-access/resolve</code> streams in batches with backpressure for "give me
+everything," explicitly separate from interactive expansion.</p>
+<h3 id="135-the-base-grid-and-deny-decided-153">13.5 The base grid and deny (decided — §15.3)<a class="headerlink" href="#135-the-base-grid-and-deny-decided-153" title="Permanent link">&para;</a></h3>
+<p>The matview keeps showing <strong>declared</strong> grants (fast; unchanged for monotonic sources). For
+deny-bearing systems, declared <code>allow</code> ≠ effective. <strong>Decision:</strong> the matview gains a per-row
+<code>contested</code> flag, set from a cheap <strong>deny-presence index</strong> when a <code>(principal, capability,
+node)</code> has <em>any</em> reachable deny — without running full resolution at refresh. The UI marks
+contested cells and the engine resolves the true effect (with path) on demand. <strong>Monotonic
+systems never set <code>contested</code>, so they pay nothing.</strong> The base grid never <em>lies</em> about access.</p>
+<h3 id="136-indexing">13.6 Indexing<a class="headerlink" href="#136-indexing" title="Permanent link">&para;</a></h3>
+<p>Index <code>Contains(parentResourceId)</code> and <code>(childResourceId)</code>; index <code>ResourceAssignments</code> by
+<code>(resourceId, effect)</code>; a partial deny-presence index backs the <code>contested</code> flag.</p>
+<hr />
+<h2 id="14-edge-cases-enumerated-with-decisions">14. Edge cases — enumerated, with decisions<a class="headerlink" href="#14-edge-cases-enumerated-with-decisions" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Raw <code>assignmentType</code> in ResourceAssignments</th>
-<th>Displayed <code>membershipType</code></th>
-<th>Badge</th>
+<th>Case</th>
+<th>Decision</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>Direct</code></td>
-<td><code>Direct</code></td>
-<td><strong>D</strong></td>
+<td>Group-membership cycle (A∈B∈A)</td>
+<td>visited-set; each principal counted once.</td>
 </tr>
 <tr>
-<td><code>Indirect</code></td>
-<td><code>Indirect</code></td>
-<td><strong>I</strong></td>
+<td>Containment cycle</td>
+<td>shouldn't occur; defend with visited-set + data-quality warning.</td>
 </tr>
 <tr>
-<td><code>Owner</code></td>
-<td><code>Owner</code></td>
-<td><strong>O</strong></td>
+<td>Multi-parent node (DAG)</td>
+<td>resolved by the policy; default <code>DenyOverrides</code> for conflicts in deny systems, <code>AdditiveAllow</code> union otherwise (§15.4).</td>
 </tr>
 <tr>
-<td><code>Eligible</code></td>
-<td><code>Eligible</code></td>
-<td><strong>E</strong></td>
+<td>Inheritance break mid-path</td>
+<td>ascent stops at the break boundary (§7.2).</td>
 </tr>
 <tr>
-<td><code>Governed</code></td>
-<td><code>Direct</code></td>
-<td><strong>D</strong></td>
+<td><code>self</code>-scoped ACE</td>
+<td>applies only at its node, never to children.</td>
 </tr>
 <tr>
-<td><code>OAuth2Grant</code></td>
-<td><code>Direct</code></td>
-<td><strong>D</strong></td>
+<td><code>notset</code> three-state</td>
+<td>passes through to parent; contributes nothing itself.</td>
 </tr>
 <tr>
-<td><code>AppRole</code></td>
-<td><code>Direct</code></td>
-<td><strong>D</strong></td>
+<td>Orphan capability-resource (parent unsynced)</td>
+<td>treat as its own root; resolve what's present; flag data-quality.</td>
 </tr>
 <tr>
-<td><code>AppRoleViaGroup</code></td>
-<td><code>Indirect</code></td>
-<td><strong>I</strong></td>
+<td>Dangling edge (node deleted between syncs)</td>
+<td>skip the edge; tolerate.</td>
+</tr>
+<tr>
+<td>Thin-stub principal (no name)</td>
+<td>expand by id; display falls back to GUID.</td>
+</tr>
+<tr>
+<td>Same <code>(capability, node)</code> via two paths</td>
+<td>one cell; strongest badge (<code>Direct</code> &gt; <code>Indirect</code>); <strong>all</strong> paths retained for explainability.</td>
+</tr>
+<tr>
+<td>Inherited <code>Contributor</code> + child's own <code>Reader</code></td>
+<td>distinct capabilities → distinct rows.</td>
+</tr>
+<tr>
+<td>Eligibility under a deny</td>
+<td>eligibility excluded from effective computation; shown <code>E</code> separately.</td>
+</tr>
+<tr>
+<td>Cross-system inheritance (ARM scope → Entra group → members)</td>
+<td>the graph is system-agnostic; traversal crosses systems freely.</td>
 </tr>
 </tbody>
 </table>
-<p>The rationale: the <em>resource type</em> already says what <em>kind</em> of membership it is (<code>BusinessRole</code>, <code>DelegatedPermission</code>, <code>AppRole</code>). The badge is reserved for <em>how</em> the user holds the resource — Direct / Indirect / Owner / Eligible — not <em>why</em> the assignment exists.</p>
-<p><strong>Cell coloring is independent.</strong> <code>managedByAccessPackage</code> still uses the raw <code>assignmentType='Governed'</code> so the AP color overlay correctly marks governed cells regardless of the badge.</p>
-<p>The four-letter alphabet was chosen for an explicit reason: <strong><code>E</code> (Eligible) is not "current access"</strong>. A user with an Eligible row could activate via PIM but right now has nothing. Folding <code>Eligible</code> into <code>Direct</code> would misrepresent reality and was rejected in design discussion.</p>
-<h2 id="expand-semantics">Expand semantics<a class="headerlink" href="#expand-semantics" title="Permanent link">&para;</a></h2>
-<p>A group can appear as a <em>principal</em> of other resources — that's how nested group membership and group-assigned app roles work. The matrix grid hides these rows (the column <code>INNER JOIN</code>s <code>Principals</code>, and groups live in <code>Resources</code>). The <strong>expand</strong> affordance surfaces them:</p>
-<ul>
-<li><code>GET /api/groups-with-nested</code> — returns every group ID that is itself a principal on at least one row in <code>ResourceAssignments</code> (any <code>assignmentType</code>).</li>
-<li><code>GET /api/group/:id/nested-groups</code> — returns every resource that group is a principal on, plus the user-level memberships of those resources.</li>
-</ul>
-<p>Clicking the chevron on a group row fans out:
-1. <strong>Nested parent groups</strong> — groups this one is a member of. Members of the row's group inherit them.
-2. <strong>App roles</strong> — app roles assigned to this group. Members inherit them via the per-user <code>AppRoleViaGroup</code> rows (badge <code>I</code>).</p>
-<p>The endpoints don't filter by <code>assignmentType</code> — any future "group-as-principal" type (directory roles assigned to groups, governed BRs assigned to groups, …) automatically surfaces.</p>
-<h2 id="why-groups-dont-appear-as-columns">Why groups don't appear as columns<a class="headerlink" href="#why-groups-dont-appear-as-columns" title="Permanent link">&para;</a></h2>
-<p><code>Principals</code> is users + service principals + managed identities. Groups live in <code>Resources</code> (as <code>resourceType='EntraGroup'</code>). When a group is itself a principal of an assignment (e.g. nested membership), the row's <code>principalId</code> is a group's UUID — which has no matching <code>Principals.id</code>, so the matrix endpoint's <code>INNER JOIN Principals</code> drops the row. The expand endpoints query <code>ResourceAssignments</code> directly to surface those rows.</p>
-<p>This is why we can store <em>both</em>:
-- <code>(resourceId=AppRole_X, principalId=Group_Y, assignmentType='AppRole')</code> — Group Y has the role
-- <code>(resourceId=AppRole_X, principalId=User_Z, assignmentType='AppRoleViaGroup', extendedAttributes.viaGroupId='Group_Y')</code> — User Z has the role because they're in Group Y</p>
-<p>…without polluting the user-facing matrix grid. The first row is invisible there; the second row paints User Z's cell with an <code>I</code> badge.</p>
-<h2 id="owner-rows-are-split">Owner rows are split<a class="headerlink" href="#owner-rows-are-split" title="Permanent link">&para;</a></h2>
-<p>A user who is both a member and an owner of a group gets two rows in the data — <code>assignmentType='Direct'</code> and <code>assignmentType='Owner'</code>. The UI splits these into two distinct rows in the matrix (<code>&lt;groupId&gt;</code> and <code>&lt;groupId&gt;__owner</code>) so the badges don't collapse to a single ambiguous cell. See <code>MatrixView.jsx</code>'s <code>isOwner</code> branch.</p>
-<h2 id="performance-notes">Performance notes<a class="headerlink" href="#performance-notes" title="Permanent link">&para;</a></h2>
-<ul>
-<li>The matview is refreshed <code>CONCURRENTLY</code> after the first run (which is non-concurrent because the matview starts empty).</li>
-<li>The unique covering index <code>(resourceId, principalId, membershipType)</code> is required for <code>REFRESH CONCURRENTLY</code> and also makes the matrix endpoint's per-principal lookups index-only.</li>
-<li>The recursive CTE that previously expanded nested groups <em>inside</em> the matview was removed in 013 — it was the dominant cost on the load-test dataset and produced the same matrix for tenants without group-in-group nesting. Group-level expansion happens lazily at click time via the <code>/nested-groups</code> endpoint instead.</li>
-</ul>
-<h2 id="identity-rows">Identity rows<a class="headerlink" href="#identity-rows" title="Permanent link">&para;</a></h2>
-<p>The matrix can run with <strong>identities</strong> as subjects instead of individual principals. The choice is made in step 1 of the <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/matrix/MatrixFilterWizard.jsx">matrix filter wizard</a> (<code>rowType: 'principal' | 'identity'</code>):</p>
-<ul>
-<li><strong>User accounts</strong> (<code>principal</code>) — each subject is one Principal (a single account). Best for clean-up sweeps and per-account audits.</li>
-<li><strong>Identities</strong> (<code>identity</code>) — each subject is one correlated person, unioning across their linked accounts. A cell is filled if <em>any</em> underlying account has the assignment. Best for role-mining and birthright analysis.</li>
-</ul>
-<p>When the orientation puts subjects on the column axis, an <strong>identity column can be expanded into per-account sub-columns</strong>. Clicking the chevron on an identity header (<code>MatrixColumnHeaders.jsx</code>) loads <code>GET /api/identities/:id/account-matrix</code>, which returns the identity's linked accounts plus each account's <code>(resourceId, membershipType)</code> rows drawn from the <em>same</em> <code>vw_ResourceUserPermissionAssignments</code> view the principal matrix uses — so the account sub-columns render cells identical to a principal-scoped matrix. The account sub-columns are visually tinted (blue) and labelled <code>displayName · accountType</code> to distinguish them from the rolled-up identity column.</p>
-<h3 id="context-picker-filtered-by-row-type">Context picker filtered by row type<a class="headerlink" href="#context-picker-filtered-by-row-type" title="Permanent link">&para;</a></h3>
-<p>The wizard's "+ Context" picker is filtered by the subject row type so an analyst can only pick contexts that actually apply to the rows:</p>
+<hr />
+<h2 id="15-decisions-rationale-resolved-open-questions">15. Decisions &amp; rationale (resolved open questions)<a class="headerlink" href="#15-decisions-rationale-resolved-open-questions" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Row type</th>
-<th>Subject-side contexts offered</th>
-<th>Resource-side contexts offered</th>
+<th>#</th>
+<th>Question</th>
+<th>Decision</th>
+<th>Rationale</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>principal</code></td>
-<td><code>Principal</code></td>
-<td><code>Resource</code>, <code>System</code></td>
+<td>15.1</td>
+<td><code>effect</code> / <code>propagationScope</code> storage</td>
+<td><strong>First-class columns + migration</strong></td>
+<td>Read in the innermost resolution loop; must be indexable; JSONB can't be cleanly indexed and pays extraction on every resolve.</td>
 </tr>
 <tr>
-<td><code>identity</code></td>
-<td><code>Identity</code></td>
-<td><code>Resource</code>, <code>System</code></td>
+<td>15.2</td>
+<td>Cache strategy</td>
+<td><strong>In-memory LRU, <code>dataVersion</code>-keyed</strong></td>
+<td>Single web container; <code>dataVersion</code> invalidation makes staleness impossible. Redis only on scale-out.</td>
+</tr>
+<tr>
+<td>15.3</td>
+<td>Deny vs base grid</td>
+<td><strong><code>contested</code> flag + resolve-on-demand</strong></td>
+<td>Keeps the matview a fast declared projection; monotonic sources pay nothing; the grid never lies.</td>
+</tr>
+<tr>
+<td>15.4</td>
+<td>DAG conflict default</td>
+<td><strong>Policy-owned</strong>; deny-wins for deny policies, union for additive</td>
+<td>Conflict semantics belong to the source's policy, not the traversal.</td>
+</tr>
+<tr>
+<td>15.5</td>
+<td>Synthesized-resource detail pages</td>
+<td><strong>Matrix-only in v1</strong></td>
+<td>Virtual rows carry a path but no drill-through; detail pages operate on stored resources. Revisit on demand.</td>
+</tr>
+<tr>
+<td>15.6</td>
+<td><code>effect</code> vs <code>assignmentType</code></td>
+<td><strong><code>effect</code> is a new orthogonal axis</strong>; engine ignores <code>assignmentType</code> for reachability; missing <code>effect</code> = <code>allow</code></td>
+<td>Reachability is computed; legacy <code>assignmentType</code> is harmonized elsewhere; back-compat preserved.</td>
+</tr>
+<tr>
+<td>15.7</td>
+<td>Capability granularity under deny</td>
+<td><strong>Compare same <code>capabilityId</code> only; no subsumption lattice</strong></td>
+<td>Minimal engine; sources needing right-level deny emit comparable granularity. Doesn't foreclose correct filesystem deny.</td>
 </tr>
 </tbody>
 </table>
-<p>(Resource/System contexts always apply to the resource axis; Identity and Principal contexts to the subject axis.)</p>
-<h3 id="identity-extension-attribute-filtering">Identity extension-attribute filtering<a class="headerlink" href="#identity-extension-attribute-filtering" title="Permanent link">&para;</a></h3>
-<p>The subject-condition step also offers an "+ Attribute" filter. When <code>rowType=identity</code>, the column list comes from <code>GET /api/matrix/columns?entity=Identity</code> (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.</p>
-<h2 id="sorting-folding-server-side-aggregation">Sorting, folding &amp; server-side aggregation<a class="headerlink" href="#sorting-folding-server-side-aggregation" title="Permanent link">&para;</a></h2>
-<p>The column axis can get very wide (one column per subject). Three mechanisms keep
-it usable at scale; which one is in play depends on the wizard's <strong>Sort</strong> step and
-the matrix size.</p>
-<h3 id="per-subject-sort-fold-client-side-small-matrices">Per-subject sort + fold (client-side, small matrices)<a class="headerlink" href="#per-subject-sort-fold-client-side-small-matrices" title="Permanent link">&para;</a></h3>
-<p>In the default per-subject grid (<code>MatrixView.jsx</code>) the columns can be <strong>sorted by
-1–6 attributes</strong> (<code>sortAttributes</code>, e.g. <code>department</code> then <code>jobTitle</code>). Each sort
-attribute becomes a merged header row above the subject names
-(<code>computeAttributeSpans</code> in <code>matrix/sortUsers.js</code>). A sort group can then be
-<strong>folded</strong> into a single aggregate count column in place (<code>collapsedGroups</code>); the
-aggregate column shows the number of child groups, the user count, and a per-row
-count of Direct assignments. <code>▾</code>/<code>↳</code> explode an aggregate back into its members
-(direct + indirect, or direct only). This is all <strong>client-side</strong> on the flat
-per-subject payload — it changes what is <em>rendered</em>, not what is <em>fetched</em>.</p>
-<h3 id="size-gate">Size gate<a class="headerlink" href="#size-gate" title="Permanent link">&para;</a></h3>
-<p>Folding does not shrink the fetch, so a flat per-subject matrix has a hard size
-limit. <code>MatrixFilterWizard.jsx</code> (<code>matrixIsBlocked</code>) blocks an oversized flat
-matrix (<code>&gt; BLOCK_ASSIGNMENTS</code>); the server adds a backstop that returns <code>413</code>
-rather than overflowing <code>JSON.stringify</code> (V8's ~512 MB max string length) past
-<code>MAX_FLAT_ROWS</code> rows. Only <strong>server-aggregated</strong> views (below) are exempt — they
-return counts, never per-subject rows, so they load at any size.</p>
-<h3 id="layered-server-aggregated-views-large-matrices">Layered server-aggregated views (large matrices)<a class="headerlink" href="#layered-server-aggregated-views-large-matrices" title="Permanent link">&para;</a></h3>
-<p>Two views aggregate on the server and render through <code>RollupMatrixView.jsx</code> as a
-<strong>stacked, expand-in-place</strong> grid (columns = groups, cells = Direct counts). They
-share the same payload shape (<code>layered: true</code>, <code>nodes[]</code> with <code>pathIds</code>/<code>pathNames</code>
-/<code>depth</code>, <code>counts[]</code>, <code>maxDepth</code>) so they use one renderer:</p>
+<hr />
+<h2 id="16-phased-delivery">16. Phased delivery<a class="headerlink" href="#16-phased-delivery" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>View</th>
-<th>Trigger</th>
-<th>Tree</th>
-<th>Default depth</th>
-<th>Server cut</th>
+<th>Phase</th>
+<th>Scope</th>
+<th>Unblocks</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Manager Hierarchy</strong></td>
-<td><code>sortHierarchy: {contextId}</code></td>
-<td>a <code>ManagerHierarchy</code> Context tree</td>
-<td>top level (1 row); <strong>expand to drill deeper</strong></td>
-<td><code>buildContextCutSql</code> — root's children, with any <em>expanded</em> node replaced by its children (<code>rollupExpanded</code>)</td>
+<td><strong>P1</strong></td>
+<td>Engine core + <code>AdditiveAllow</code> + migrate nested-group expand onto it. No behavior change (golden-test parity).</td>
+<td>The framework; Entra Owner-harmonization.</td>
 </tr>
 <tr>
-<td><strong>Attribute fold</strong></td>
-<td><code>foldAttributes</code> (set by the wizard for an oversized foldable matrix)</td>
-<td>the chosen <code>sortAttributes</code></td>
-<td><strong>full depth</strong> (all attribute rows shown); <strong>fold to collapse</strong></td>
-<td><code>attributeCut.js</code> — each subject's visible tuple, truncated at the first <em>folded</em> prefix (<code>rollupCollapsed</code>)</td>
+<td><strong>P2</strong></td>
+<td>Containment down-expansion: constant-capability carry, synthesized rows, deterministic-id collapse.</td>
+<td><strong>Azure RM crawler.</strong></td>
+</tr>
+<tr>
+<td><strong>P3</strong></td>
+<td>Deny-aware resolution + <code>DenyOverrides</code> / <code>NtfsCanonical</code> / <code>ClosestWins</code> + <code>contested</code> matview flag + path-aware explainability.</td>
+<td>Filesystem / SharePoint / DevOps crawlers.</td>
+</tr>
+<tr>
+<td><strong>P4</strong></td>
+<td>Export path (<code>POST /resolve</code>, async/streamed).</td>
+<td>Full effective-access export.</td>
 </tr>
 </tbody>
 </table>
-<p>Note the inverse defaults: the hierarchy starts shallow and <strong>expands</strong> (depth
-unknown); attribute fold starts at full depth and <strong>collapses</strong> (depth = the
-attributes you picked). Counts are computed only for the <em>visible frontier</em>
-(<code>buildContextRollupSql</code> / <code>buildAttrCutCellsSql</code>), so the payload stays small
-regardless of subtree size. The <code>sortHierarchy → context roll-up</code> translation
-lives in the <code>/api/matrix/data</code> handler in <code>matrix.js</code>.</p>
-<p><strong>Empty-branch hiding.</strong> A column only appears if at least one in-scope resource
-has a Direct count for that node's subtree, so scoping the matrix to a few
-resources drops the org branches / attribute groups those resources aren't used
-in.</p>
-<p><strong>Scoped header counts.</strong> A Manager-Hierarchy column header shows
-<code>direct / total</code> members — and both are <strong>assignment-scoped</strong>
-(<code>buildContextScopedMemberCountsSql</code>): only people who actually hold a shown
-resource, so the header agrees with the cells and with the member drill-down.</p>
-<p><strong>Sticky headers.</strong> With many header rows, only the <em>deepest</em> (layered views) or
-the <em>names</em> row (per-subject grid) stays pinned on vertical scroll; the upper
-grouping rows scroll away.</p>
-<h3 id="excel-export">Excel export<a class="headerlink" href="#excel-export" title="Permanent link">&para;</a></h3>
-<p>Both renderers export an <code>.xlsx</code> that mirrors the on-screen header stack: one
-header row per shown level (every sort attribute / every org level). On-screen
-merged spans are written as the <strong>same value repeated</strong> across each column — cells
-are not merged in the file (<code>exportRollupToExcel.js</code>, <code>exportToExcel.js</code>). All
-externally-influenced cells route through <code>safeCell</code> (formula-injection guard).</p>
-<h2 id="related-references">Related references<a class="headerlink" href="#related-references" title="Permanent link">&para;</a></h2>
+<p>Dependency summary: ARM crawler → <strong>P1 + P2</strong>; Entra Owner-harmonization → <strong>P1</strong>; deny-bearing
+crawlers → <strong>P3</strong>.</p>
+<hr />
+<h2 id="17-migration-backward-compatibility">17. Migration &amp; backward compatibility<a class="headerlink" href="#17-migration-backward-compatibility" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Crawler emits — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/tools/crawlers/entra-id/Start-EntraIDCrawler.ps1"><code>tools/crawlers/entra-id/Start-EntraIDCrawler.ps1</code></a> (phases <code>Assignments</code>, <code>PIM</code>, <code>Governance</code>, <code>OAuth2Grants</code>, <code>AppRoles</code>)</li>
-<li>Frontend renderer — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/components/MatrixView.jsx"><code>app/ui/src/components/MatrixView.jsx</code></a> and <code>app/ui/src/components/matrix/*</code></li>
-<li>Badge color map — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/src/utils/colors.js"><code>app/ui/src/utils/colors.js</code></a> (<code>TYPE_COLORS</code>)</li>
-<li>Permissions endpoint — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/routes/permissions.js"><code>app/api/src/routes/permissions.js</code></a> (<code>GET /api/permissions</code>, <code>GET /api/groups-with-nested</code>, <code>GET /api/group/:id/nested-groups</code>)</li>
+<li>The <code>effect</code> / <code>propagationScope</code> migration backfills defaults; existing rows resolve as
+  today (missing <code>effect</code> = <code>allow</code>).</li>
+<li><code>/group/:id/nested-groups</code> becomes a shim over the engine; <strong>golden tests assert identical
+  output</strong> before the old code is deleted.</li>
+<li>The matview keeps its declared-grant contract; <code>contested</code> is additive.</li>
+<li><code>NS_CAP</code> namespace constant is introduced once and frozen.</li>
+<li>Schema changes go through versioned migration files in
+  <code>app/api/src/db/migrations/</code> — never edit existing migrations.</li>
 </ul>
+<hr />
+<h2 id="18-testing-requirements-must-ship-with-the-feature-not-optional">18. Testing requirements <em>(must ship with the feature — not optional)</em><a class="headerlink" href="#18-testing-requirements-must-ship-with-the-feature-not-optional" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Resolution truth tables.</strong> Each <code>ResolutionPolicy</code> unit-tested against its vendor's
+  documented precedence — especially <code>NtfsCanonical</code> against the canonical Windows
+  explicit/inherited/deny ordering, and <code>DenyOverrides</code> against DevOps deny-wins.</li>
+<li><strong>Graph fixtures (golden files).</strong> Deterministic fixtures for: deep tree, wide tree, broken
+  inheritance, <code>self</code>/<code>descendants</code> scopes, multi-parent DAG, membership cycle, thin stubs,
+  orphan/dangling edges — each with an asserted expected effective-access set.</li>
+<li><strong>Explainability assertions.</strong> Every fixture asserts the decisive path, not just the boolean.</li>
+<li><strong>Parity / regression.</strong> Golden snapshots of current <code>/nested-groups</code> output; the engine must
+  reproduce them exactly (the P1 gate).</li>
+<li><strong>Performance tests.</strong> Deep (10k-nested) and wide (10k-children) trees and a root-level grant
+  fan-out: assert bounded latency, cache behavior, and correct <code>truncated</code> markers.</li>
+<li><strong>Determinism.</strong> Same input → identical ids and stable row ordering.</li>
+<li><strong>Cross-source conformance suite</strong> that every new <code>ResolutionPolicy</code> must pass to be accepted.</li>
+</ul>
+<hr />
+<h2 id="19-documentation-requirements-ship-with-the-feature">19. Documentation requirements <em>(ship with the feature)</em><a class="headerlink" href="#19-documentation-requirements-ship-with-the-feature" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Architecture doc</strong> — this file, kept current.</li>
+<li><strong>Crawler-author guide</strong> — additions to <code>docs/sync/custom-crawlers.md</code>: the engine contract
+  (<code>Contains</code> edges + <code>propagates</code>, <code>effect</code>, <code>propagationScope</code>, deterministic <code>NS_CAP</code> id),
+  with a worked example per hierarchy type.</li>
+<li><strong>ResolutionPolicy authoring guide</strong> — how to add a source's precedence rules + the
+  conformance suite it must pass.</li>
+<li><strong>API reference</strong> — the three endpoints, params, response shape, <code>truncated</code> / <code>contested</code>
+  semantics.</li>
+<li><strong>Operator / UI doc</strong> — what <em>declared vs effective</em> means, the <code>contested</code> indicator, how to
+  read an access path; update <code>docs/architecture/matrix.md</code> to point at the engine as the
+  inheritance mechanism (superseding the bespoke nested-group note from migration 013).</li>
+<li><strong>Changelog fragment</strong> on each implementing branch, per repo rules (do <strong>not</strong> edit
+  <code>CHANGES.md</code> directly).</li>
+</ul>
+<hr />
+<h2 id="20-first-consumers-how-they-map">20. First consumers (how they map)<a class="headerlink" href="#20-first-consumers-how-they-map" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Azure RM crawler</strong> — emits the scope tree (<code>Contains</code>, <code>propagates = true</code>), sparse
+  <code>Role @ Scope</code> capability-resources, <code>Direct</code> <code>allow</code> grants (<code>selfAndDescendants</code>). Uses
+  <code>AdditiveAllow</code>. Inheritance is pure P2 down-expansion; nothing inherited is stored.</li>
+<li><strong>Entra Owner-harmonization</strong> — <code>Owner of &lt;Group&gt;</code> becomes a capability-resource; group
+  nesting runs through P1; the <code>O</code> badge is retired in favor of <code>Direct</code>/<code>Indirect</code>.</li>
+<li><strong>Filesystem (future)</strong> — folder tree with <code>propagates = false</code> on block-inheritance nodes,
+  <code>effect = deny</code> ACEs, <code>self</code> / <code>descendants</code> scopes, atomic-right capabilities; uses
+  <code>NtfsCanonical</code>. This is the reason deny is first-class from day one.</li>
+</ul>
+<hr />
+<h2 id="21-reviewer-sign-off">21. Reviewer sign-off<a class="headerlink" href="#21-reviewer-sign-off" title="Permanent link">&para;</a></h2>
+<p>Please confirm agreement (or record objections) on each:</p>
+<ul>
+<li>[ ] <strong>Model</strong> — capability-in-resource + two-edge reachability is the right core abstraction.</li>
+<li>[ ] <strong>Crawler contract</strong> (§6) — the additive fields (<code>propagates</code>, <code>effect</code>,
+      <code>propagationScope</code>) are acceptable.</li>
+<li>[ ] <strong>Schema</strong> (§15.1) — first-class columns + a backfilling migration.</li>
+<li>[ ] <strong>Deny on the base grid</strong> (§13.5) — the <code>contested</code> flag approach.</li>
+<li>[ ] <strong>Capability granularity</strong> (§15.7) — same-<code>capabilityId</code> comparison; sources emit
+      comparable granularity; no subsumption lattice.</li>
+<li>[ ] <strong>Phasing</strong> (§16) — P1 before the ARM crawler; deny in P3.</li>
+<li>[ ] <strong>Testing &amp; documentation</strong> (§18–19) — required to ship with the feature.</li>
+</ul>
+<p>_Approved by: <strong><em>_</em></strong><strong><em>_</em></strong><strong><em>_</em>_  Date: </strong><strong><em>_</em></strong>__</p>
 
 
 

@@ -2673,6 +2673,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#44-analyst-curation-of-generated-trees-survives-re-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Analyst curation of generated trees (survives re-runs)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3114,6 +3125,61 @@
 <h3 id="43-where-plugins-run">4.3 Where plugins run<a class="headerlink" href="#43-where-plugins-run" title="Permanent link">&para;</a></h3>
 <p>In the <strong>web container</strong>, in-process, queued via the same job system risk-scoring already uses. The worker container stays plugin-free — the Entra crawler stops computing the org chart and just feeds raw Principals + managerId. The <code>manager-hierarchy</code> plugin then produces the tree.</p>
 <p>This is a hard split: <strong>crawlers ingest, plugins derive.</strong> No more derivations in crawlers.</p>
+<h3 id="44-analyst-curation-of-generated-trees-survives-re-runs">4.4 Analyst curation of generated trees (survives re-runs)<a class="headerlink" href="#44-analyst-curation-of-generated-trees-survives-re-runs" title="Permanent link">&para;</a></h3>
+<p>A generated tree is a starting point: the analyst then renames nodes, drags them
+under a different parent, adds manual children, and moves members. None of these
+edits may be lost when the plugin re-runs. The mechanisms:</p>
+<table>
+<thead>
+<tr>
+<th>Edit</th>
+<th>How it persists</th>
+<th>Honored by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Rename a node</strong></td>
+<td><code>Contexts.userRenamed = true</code> (migration 033)</td>
+<td>runner keeps the analyst name</td>
+</tr>
+<tr>
+<td><strong>Re-parent a node</strong> (drag a node)</td>
+<td><code>Contexts.userReparented = true</code> (migration 033)</td>
+<td>runner keeps the analyst placement</td>
+</tr>
+<tr>
+<td><strong>Add a manual child</strong></td>
+<td><code>variant='manual'</code> sub-tree under a generated parent</td>
+<td>survives via <code>parentContextId</code></td>
+</tr>
+<tr>
+<td><strong>Add / remove a member</strong></td>
+<td><code>ContextMembers.addedBy = 'analyst'</code> (algorithm-owned rows are wiped &amp; recomputed each run; analyst rows are not)</td>
+<td>runner's member reconcile</td>
+</tr>
+<tr>
+<td><strong>Move a member to another team</strong> (drag a member oval)</td>
+<td><code>ManagerHierarchyOverrides</code> (migration 035) — an override of who that principal reports to</td>
+<td>the <strong>manager-hierarchy plugin</strong> reads it and uses the override managerId instead of the source one</td>
+</tr>
+</tbody>
+</table>
+<p>The last one is specific to the Manager-Hierarchy tree, where membership is
+derived from <code>Principals.managerId</code>. Dragging a person's oval onto another team in
+<code>ContextTreeView</code> calls <code>PATCH /api/contexts/:id/members/:memberId/move</code>, which:</p>
+<ol>
+<li>upserts a <code>ManagerHierarchyOverrides</code> row <code>(principalId → managerPrincipalId)</code>
+   — the target node's manager (or <code>NULL</code> to report to the root). Dropping the
+   person back on their <em>source</em> manager deletes the override.</li>
+<li>moves the <code>ContextMembers</code> row immediately (analyst-owned) so the tree updates
+   without waiting for a re-run, and recomputes member counts on both branches.</li>
+</ol>
+<p>On the next plugin run, <code>manager-hierarchy.js</code> loads the overrides for the scope
+system and computes each subject's <em>effective</em> manager as <code>override ?? managerId</code>,
+so the moved person is produced under the target team — the move sticks. (The
+endpoint is gated to <code>ManagerHierarchy</code> trees and requires the
+<code>admin.context-plugins</code> permission.)</p>
 <h2 id="5-filtering-by-context">5. Filtering by Context<a class="headerlink" href="#5-filtering-by-context" title="Permanent link">&para;</a></h2>
 <p>The matrix gains a context filter with two controls per filter:</p>
 <ol>
