@@ -1,3 +1,0 @@
-- Context nodes can now show the actual users inside them on demand: each node with directly-assigned users gets a small "👤 N" toggle — click it to reveal the users as ovals nested inside that context (hidden by default to keep the tree readable). Click a user oval to open their detail.
-- Sibling context nodes that share a long name prefix (a side effect of how the Manager Hierarchy names nodes) now show only their distinctive tail in the tree, with the full name on hover.
-- The Manager Hierarchy plugin no longer repeats a name across consecutive org levels — "Commercie · Commercie" now reads just "Commercie" (existing trees also display de-duplicated without needing a re-run).
