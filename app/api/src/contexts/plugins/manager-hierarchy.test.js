@@ -25,7 +25,7 @@ const PRINCIPALS = {
 
 const DEFAULT_COLUMNS = ['id', 'displayName', 'managerId', 'department', 'jobTitle', 'companyName'];
 
-async function loadPluginWithRows(rows, { columns = DEFAULT_COLUMNS, extKeys = [] } = {}) {
+async function loadPluginWithRows(rows, { columns = DEFAULT_COLUMNS, extKeys = [], overrides = [] } = {}) {
   vi.resetModules();
   vi.doMock('../../db/columnCache.js', () => ({
     getPrincipalColumns: vi.fn(async () => columns.map(name => ({ name }))),
@@ -33,7 +33,7 @@ async function loadPluginWithRows(rows, { columns = DEFAULT_COLUMNS, extKeys = [
   vi.doMock('../../db/connection.js', () => ({
     query: vi.fn(async (sql) => {
       if (/jsonb_object_keys/.test(sql)) return { rows: extKeys.map(k => ({ k })) };
-      if (/ManagerHierarchyOverrides/.test(sql)) return { rows: [] };
+      if (/ManagerHierarchyOverrides/.test(sql)) return { rows: overrides };
       return { rows };
     }),
   }));
@@ -155,5 +155,39 @@ describe('manager-hierarchy plugin', () => {
     const plugin = await loadPluginWithRows([]);
     const out = await plugin.run({ scopeSystemId: 1 }, {});
     expect(out).toEqual({ contexts: [], members: [] });
+  });
+
+  // ── Analyst manager overrides (drag-a-member-to-another-team) ──────────────
+  const memberOf = (out, memberId) =>
+    out.members.filter(m => m.memberId === memberId).map(m => m.contextExternalId);
+
+  it('an override moves a member from their source manager to the target manager', async () => {
+    // ic1 reports to mgr in the source data; override → report to vp instead.
+    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS), {
+      overrides: [{ principalId: 'ic1-uuid', managerPrincipalId: 'vp-uuid' }],
+    });
+    const out = await plugin.run({ scopeSystemId: 1 }, {});
+    expect(memberOf(out, 'ic1-uuid')).toEqual(['vp-uuid']);          // moved
+    expect(memberOf(out, 'ic1-uuid')).not.toContain('mgr-uuid');     // no longer under source
+    expect(memberOf(out, 'ic2-uuid')).toEqual(['mgr-uuid']);         // sibling unaffected
+  });
+
+  it('an override target with no source reports still becomes a manager node', async () => {
+    // ic2 has no reports in the source, so it is not normally a manager node.
+    // Overriding ic1 to report to ic2 must create ic2's node so ic1 has a home.
+    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS), {
+      overrides: [{ principalId: 'ic1-uuid', managerPrincipalId: 'ic2-uuid' }],
+    });
+    const out = await plugin.run({ scopeSystemId: 1 }, {});
+    expect(out.contexts.map(c => c.externalId)).toContain('ic2-uuid');
+    expect(memberOf(out, 'ic1-uuid')).toEqual(['ic2-uuid']);
+  });
+
+  it('a null override routes the member to the root', async () => {
+    const plugin = await loadPluginWithRows(Object.values(PRINCIPALS), {
+      overrides: [{ principalId: 'ic1-uuid', managerPrincipalId: null }],
+    });
+    const out = await plugin.run({ scopeSystemId: 1, rootName: 'Org' }, {});
+    expect(memberOf(out, 'ic1-uuid')).toEqual(['root']);
   });
 });
