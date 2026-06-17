@@ -1,6 +1,6 @@
 # ResourceAssignments: Identity-Level Assignment Support
 
-> **Status:** Implemented — T7 (tests) outstanding.
+> **Status:** Implemented — all tasks complete.
 > **Owner:** _TBD_ · **Reviewers:** _TBD_
 
 ---
@@ -542,7 +542,7 @@ picking one account.        rows through IdentityMembers.   access per scope nod
 - [x] **T6 (P2)** — API — Add `identityAssignments` admin stat
   - Files: `app/api/src/routes/admin.js`
 
-- [ ] **T7 (P1)** — Tests — Add ingest + matview + engine tests
+- [x] **T7 (P1)** — Tests — Add ingest + matview + engine tests
   - Files: `app/api/src/ingest/validation.test.js`, `app/api/src/ingest/engine.test.js`, nearest ingest integration test
   - Tests:
     1. identity batch to `/resource-assignments-identity` accepted
