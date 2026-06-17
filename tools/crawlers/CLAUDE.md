@@ -125,9 +125,9 @@ Set secrets in GitHub Actions → Settings → Secrets and variables → Actions
 - `tools/crawlers/odata/Test-ODataCrawler.ps1` — library test against a mock server (no `-ApiKey` needed)
 - `tools/crawlers/omada/Test-OmadaCrawler.ps1` — full E2E test against a mock server (requires Docker stack)
 
-## `principalType` Values
+## `principalType` and `identityType` Values
 
-The `Principals.principalType` column is `NVARCHAR(50)`. Use these values consistently across all crawlers:
+**`Principals.principalType`** — use these values consistently across all crawlers:
 
 | Value | Description |
 |-------|-------------|
@@ -138,6 +138,16 @@ The `Principals.principalType` column is `NVARCHAR(50)`. Use these values consis
 | `AIAgent` | AI agent (Copilot Studio, Azure OpenAI, custom) |
 | `ExternalUser` | Guest / B2B account from another tenant |
 | `SharedMailbox` | Shared mailbox or room/equipment account |
+
+**`Identities.identityType`** — since `ResourceAssignments` now supports `identityId` alongside `principalId` (migration 036), identities can represent both humans and technical accounts modelled as identities in IGA systems. The `Identities` table does not yet have an `identityType` column — this is a planned addition. Until it lands, crawlers that write technical-account identities should store the type in `extendedAttributes`. When the column is added, use:
+
+| Value | Description |
+|-------|-------------|
+| `Person` | Human identity — the standard case |
+| `ServiceAccount` | Technical / functional / service account modelled as an identity in an IGA system |
+| `MachineAccount` | Non-human machine or device account |
+
+**Which table to use:** `principalType` describes the account; `identityType` describes the correlated entity. A technical account (`principalType=ServicePrincipal`) can have a corresponding Identity (`identityType=ServiceAccount`) when the IGA system models it that way — both tables may be populated. Pure principal-only organisations (no IGA) never write `identityId` rows.
 
 ## PowerShell SDK
 
