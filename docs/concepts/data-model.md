@@ -364,17 +364,19 @@ The `principalType` column on the Principals table uses these standard values ac
 
 ## resourceType Values
 
-The `resourceType` column on the Resources table is a free-form string. These are the standard values used by the built-in sync functions.
+The `resourceType` column on the Resources table is a free-form string. The values below are produced by the built-in crawlers.
 
-| Value | What it covers |
-|---|---|
-| `EntraGroup` | Entra ID security groups and Microsoft 365 groups |
-| `EntraDirectoryRole` | Entra ID directory roles (Global Administrator, etc.) |
-| `EntraAppRole` | Application roles from enterprise app registrations |
-| `BusinessRole` | Named entitlement bundles from any IGA platform |
-| `SharePointSite` | SharePoint sites (via CSV import) |
-| `AzureRBACRole` | Azure RBAC role assignments (via CSV import) |
-| Custom | Any string — fully extensible for any authorization source |
+| Value | Crawler | What it represents |
+|---|---|---|
+| `EntraGroup` | Entra ID | Security group or Microsoft 365 group |
+| `Application` | Entra ID | Enterprise application / service principal. Parent of `AppRole` and `DelegatedPermission` — does not grant access on its own. |
+| `AppRole` | Entra ID | One synthetic resource per (Application, appRoleId). Linked to its parent via `relationshipType='HasAppRole'`. |
+| `DelegatedPermission` | Entra ID | One synthetic resource per (clientSP, targetAPI, OAuth2 scope). Linked to its parent via `relationshipType='DelegatesScope'`. |
+| `BusinessRole` | Entra ID, Omada, MidPoint | Entra ID access package; Omada business role; MidPoint role type. Contains child resources via `relationshipType='Contains'`; assigned via `assignmentType='Governed'`. |
+| `Entitlement` | MidPoint | AD group or other entitlement synced as a MidPoint shadow (kind=entitlement). |
+| `Resource` | Omada | Omada resource. |
+| `Service` | MidPoint | MidPoint service type. |
+| Custom | Any crawler | Any string — fully extensible for any authorization source. |
 
 !!! tip "Extending resourceType"
     You can use any string value for custom source systems. The model does not enforce an enum — `resourceType` is TEXT. Use a consistent naming convention such as `SystemPrefix_TypeName` (e.g., `SAP_Role`, `Pathlock_Permission`) so queries and views remain readable.
@@ -387,27 +389,34 @@ The `assignmentType` column on ResourceAssignments describes how the assignment 
 
 | Value | Meaning |
 |---|---|
-| `Direct` | Direct group membership |
+| `Direct` | Direct group or role membership |
 | `Owner` | Group owner relationship |
 | `Eligible` | PIM-eligible membership — granted but not yet activated |
 | `Governed` | Assigned through a business role or access package |
+| `AppRole` | Direct app role assignment to a principal |
+| `AppRoleViaGroup` | App role inherited through group membership |
+| `OAuth2Grant` | Delegated OAuth2 permission grant |
 | Custom | Any string for CSV-imported assignments |
 
 ---
 
 ## Source System Mapping
 
-The same three tables (Resources, Principals, ResourceAssignments) absorb data from any source. The crawler that writes the data and the `resourceType` / `assignmentType` values are the only things that differ.
+The same tables (Resources, Principals, ResourceAssignments) absorb data from any source. The crawler and the `resourceType` / `assignmentType` values are the only things that differ.
 
 | Source System | Crawler | resourceType | principalType | assignmentType |
 |---|---|---|---|---|
-| Entra ID groups | Entra ID crawler | `EntraGroup` | `User` | `Direct` / `Owner` / `Eligible` |
-| Entra ID directory roles | Entra ID crawler | `EntraDirectoryRole` | `User` | `Direct` |
-| Entra ID app roles | Entra ID crawler | `EntraAppRole` | `User` / `ServicePrincipal` | `Direct` |
-| Entra ID access packages | Entra ID crawler | `BusinessRole` | — | `Governed` |
-| Omada / SailPoint | CSV crawler | `BusinessRole` | Any | `Governed` |
-| SAP / Pathlock | CSV crawler | Any | Any | Any |
-| Custom system | CSV crawler (or your own via the [Ingest API](../architecture/ingest-api.md)) | Any | Any | Any |
+| Entra ID groups | Entra ID | `EntraGroup` | `User` | `Direct` / `Owner` / `Eligible` |
+| Entra ID enterprise apps | Entra ID | `Application` | — | — (parent only) |
+| Entra ID app roles | Entra ID | `AppRole` | `User` / `ServicePrincipal` | `AppRole` / `AppRoleViaGroup` |
+| Entra ID OAuth2 grants | Entra ID | `DelegatedPermission` | `User` | `OAuth2Grant` |
+| Entra ID access packages | Entra ID | `BusinessRole` | `User` | `Governed` |
+| Omada business roles | Omada | `BusinessRole` | `User` | `Governed` |
+| Omada resources | Omada | `Resource` | `User` | `Governed` |
+| MidPoint roles | MidPoint | `BusinessRole` | `User` | `Governed` |
+| MidPoint entitlements (AD groups etc.) | MidPoint | `Entitlement` | `User` | `Direct` |
+| MidPoint service types | MidPoint | `Service` | `User` | `Governed` |
+| Any system | CSV / custom crawler | Any string | Any | Any |
 
 ---
 
