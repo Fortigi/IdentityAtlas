@@ -13,20 +13,29 @@ export default function MatrixColumnHeaders({
   onToggleIdentity,
   loadingIdentityCols,
   sortAttributes,
+  onToggleCollapse,
+  onToggleMembers,
+  maxHeaderDepth,
 }) {
   const isDark = useIsDark();
 
   // One merged header row per sort attribute (default: department), each
   // grouping consecutive columns that share the same value (read from each
-  // user's precomputed sortKeys[index]). Columns are pre-sorted in MatrixView.
+  // user's precomputed sortKeys[index]). In hierarchy sort, maxHeaderDepth caps
+  // the rows to the unfolded depth so the next org level only appears once a
+  // group is expanded into it.
   const attrs = (Array.isArray(sortAttributes) && sortAttributes.length)
     ? sortAttributes.map(s => s.attribute)
     : ['department'];
-  const attrRows = attrs.map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
-  const headerRowCount = attrRows.length;
+  const shown = (typeof maxHeaderDepth === 'number' && maxHeaderDepth > 0)
+    ? Math.min(maxHeaderDepth, attrs.length) : attrs.length;
+  const attrRows = attrs.slice(0, shown).map((attribute, index) => ({ attribute, spans: computeAttributeSpans(users, index) }));
 
+  // Only the final (names) row is sticky on vertical scroll — the attribute
+  // grouping rows above it scroll away, so many sort attributes don't bury the
+  // grid. (Matches the aggregated layered view.)
   return (
-    <thead className="sticky top-0 z-20">
+    <thead>
       {/* One merged row per sort attribute */}
       {attrRows.map((row, rowIdx) => (
         <tr key={row.attribute + rowIdx}>
@@ -37,68 +46,73 @@ export default function MatrixColumnHeaders({
           >
             <div className="text-[11px] text-gray-500 dark:text-gray-400 font-normal">
               {rowIdx === 0 ? <div className="text-[10px]">Drag rows to reorder</div> : null}
-              <div className="font-medium text-gray-600 dark:text-gray-300">{friendlyLabel(row.attribute)}</div>
+              <div className="font-medium text-gray-600 dark:text-gray-300">{friendlyLabel(String(row.attribute).replace(/^ext\./, ''))}</div>
             </div>
           </th>
 
-          {row.spans.map((span, idx) => (
-            <th
-              key={idx}
-              colSpan={span.span}
-              className="border-b border-r border-gray-300 dark:border-gray-600 px-0 py-0 text-center bg-gray-100 dark:bg-gray-800"
-              style={{ height: '120px', minWidth: `${span.span * 24}px` }}
-            >
-              <div
-                className="text-[10px] font-semibold text-gray-700 dark:text-gray-300"
-                style={{
-                  writingMode: 'vertical-lr',
-                  textOrientation: 'mixed',
-                  transform: 'rotate(180deg)',
-                  maxHeight: '110px',
-                  overflow: 'hidden',
-                  whiteSpace: 'nowrap',
-                  margin: '0 auto',
-                }}
+          {row.spans.map((span, idx) => {
+            const col = users[span.start];
+            // `aggHere`: this span IS a collapsed aggregate column at-or-below its
+            // fold level. At ANCESTOR levels (rowIdx < level) the span is just a
+            // normal merged group (its value is the ancestor's), so treat it as
+            // collapsible even though it happens to contain an aggregate column.
+            const aggHere = !!col?.isAggregateCol && rowIdx >= col.level;
+            const showChildCount = aggHere && rowIdx > col.level; // "6 departments"
+            // A member-exploded org: its own level header collapses the members
+            // back into a count; deeper rows are inert placeholders.
+            const memberOwn = !!col?.isMemberCol && rowIdx === col.memberLevel;
+            const memberDeep = !!col?.isMemberCol && rowIdx > col.memberLevel;
+            const collapsible = !!onToggleCollapse && !aggHere && !memberOwn && !memberDeep;
+            const onClick = memberOwn && onToggleMembers
+              ? () => onToggleMembers(col.sortKeys, col.memberLevel)
+              : collapsible
+              ? () => onToggleCollapse(col.sortKeys, rowIdx)
+              : aggHere ? () => onToggleCollapse(col.sortKeys, col.level) : undefined;
+            const title = memberOwn
+              ? `Collapse ${span.value || '(none)'} members back into a count`
+              : collapsible
+              ? `Collapse ${span.value || '(none)'} into one column`
+              : aggHere ? `Expand ${col.value || '(none)'} back into its columns` : undefined;
+            return (
+              <th
+                key={idx}
+                colSpan={span.span}
+                onClick={onClick}
+                title={title}
+                className={`border-b border-r border-gray-300 dark:border-gray-600 px-0 py-0 text-center ${
+                  aggHere || memberOwn ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'bg-gray-100 dark:bg-gray-800'
+                } ${onClick ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30' : ''}`}
+                style={{ height: '120px', minWidth: `${span.span * 24}px` }}
               >
-                {span.value || '(none)'}
-              </div>
-            </th>
-          ))}
+                {showChildCount ? (
+                  <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">{col.childCounts?.[rowIdx] ?? 0}</span>
+                ) : (
+                  <div
+                    className={`text-[10px] font-semibold ${aggHere || memberOwn ? 'text-indigo-800 dark:text-indigo-200' : 'text-gray-700 dark:text-gray-300'}`}
+                    style={{
+                      writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)',
+                      maxHeight: '110px', overflow: 'hidden', whiteSpace: 'nowrap', margin: '0 auto',
+                    }}
+                  >
+                    {aggHere ? `▤ ${col.value || '(none)'}` : memberOwn ? `▾ ${span.value || '(none)'}` : (span.value || '(none)')}
+                  </div>
+                )}
+              </th>
+            );
+          })}
 
-          {/* Access Package name headers — rendered once, spanning all header rows + the name row */}
-          {rowIdx === 0 && accessPackages.map((ap, idx) => {
+          {/* Access Package color bands — placeholders on the attribute rows; the
+              labels live on the pinned names row below so they stay visible. */}
+          {accessPackages.map((ap, idx) => {
             const prevCat = idx > 0 ? (accessPackages[idx - 1].categoryName || null) : undefined;
             const curCat = ap.categoryName || null;
             const isCategoryBoundary = idx === 0 || prevCat !== curCat;
             return (
               <th
                 key={ap.id}
-                rowSpan={headerRowCount + 1}
-                className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
-                style={{
-                  backgroundColor: getAccessPackageColor(idx, isDark),
-                  width: '24px',
-                  minWidth: '24px',
-                  verticalAlign: 'bottom',
-                }}
-                title={`${ap.displayName}\nCatalog: ${ap.catalogName || ''}${ap.categoryName ? '\nCategory: ' + ap.categoryName : ''}`}
-              >
-                <div
-                  className="text-[10px] text-gray-700 dark:text-gray-200 font-medium select-none cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-                  style={{
-                    writingMode: 'vertical-lr',
-                    textOrientation: 'mixed',
-                    transform: 'rotate(180deg)',
-                    maxHeight: '210px',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                    margin: '0 auto',
-                  }}
-                  onClick={() => onOpenDetail?.('access-package', ap.id, ap.displayName)}
-                >
-                  {ap.displayName}
-                </div>
-              </th>
+                className={`border-b border-r border-gray-200 dark:border-gray-600 ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
+                style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '24px', minWidth: '24px' }}
+              />
             );
           })}
 
@@ -108,22 +122,50 @@ export default function MatrixColumnHeaders({
         </tr>
       ))}
 
-      {/* Final row: User names */}
+      {/* Final row: User names — the only sticky header row on vertical scroll */}
       <tr>
         {/* Corner cells for row info headers */}
-        <th className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400"
+        <th className="sticky left-0 top-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400"
             style={{ minWidth: '24px' }}>
         </th>
-        <th className="sticky z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 text-left font-medium"
+        <th className="sticky top-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 text-left font-medium"
             style={{ left: '24px', minWidth: '275px' }}>
           Resource Name
         </th>
-        <th className="sticky z-30 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-left font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+        <th className="sticky top-0 z-40 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-left font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
             style={{ left: '299px', minWidth: '180px' }}>
           Type
         </th>
 
         {users.map(user => {
+          // Collapsed aggregate column: the name row shows the user COUNT and an
+          // expand control, instead of a single subject name.
+          if (user.isAggregateCol) {
+            // The folded count column. The vertical attribute header above DRILLS
+            // to the next level; here in the name row two small controls instead
+            // EXPLODE this column into its individual member columns at this level
+            // — ▾ = all (direct + indirect), ↳ = direct members only.
+            return (
+              <th key={user.id}
+                className="sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center bg-indigo-50 dark:bg-indigo-900/20"
+                style={{ height: '100px', width: '24px', minWidth: '24px', verticalAlign: 'bottom' }}
+                title={`${user.userCount} ${user.userCount === 1 ? 'user' : 'users'} in ${user.value || '(none)'}`}>
+                <div className="flex flex-col items-center justify-end h-full pb-1 gap-0.5">
+                  <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">{user.userCount}</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleMembers?.(user.sortKeys, user.level, 'all'); }}
+                    className="w-4 h-4 flex items-center justify-center text-[10px] leading-none text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
+                    title="Show all members here (direct + indirect)"
+                  >▾</button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleMembers?.(user.sortKeys, user.level, 'direct'); }}
+                    className="w-4 h-4 flex items-center justify-center text-[10px] leading-none text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
+                    title="Show direct members at this level only"
+                  >↳</button>
+                </div>
+              </th>
+            );
+          }
           const isIdentity = user.memberType === 'Identity';
           const isAcct = !!user.isAccountCol;
           const isExpanded = expandedIdentities?.has(user.id);
@@ -131,7 +173,7 @@ export default function MatrixColumnHeaders({
           return (
             <th
               key={user.id}
-              className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${
+              className={`sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${
                 isAcct ? 'bg-blue-50 dark:bg-blue-900/20 border-l border-l-blue-200 dark:border-l-blue-800' : 'bg-gray-100 dark:bg-gray-800'
               }`}
               style={{ height: '100px', width: '24px', minWidth: '24px', verticalAlign: 'bottom' }}
@@ -169,13 +211,36 @@ export default function MatrixColumnHeaders({
           );
         })}
 
+        {/* Access Package labels — on the pinned names row so they stay visible. */}
+        {accessPackages.map((ap, idx) => {
+          const prevCat = idx > 0 ? (accessPackages[idx - 1].categoryName || null) : undefined;
+          const curCat = ap.categoryName || null;
+          const isCategoryBoundary = idx === 0 || prevCat !== curCat;
+          return (
+            <th
+              key={ap.id}
+              className={`sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
+              style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '24px', minWidth: '24px', height: '100px', verticalAlign: 'bottom' }}
+              title={`${ap.displayName}\nCatalog: ${ap.catalogName || ''}${ap.categoryName ? '\nCategory: ' + ap.categoryName : ''}`}
+            >
+              <div
+                className="text-[10px] text-gray-700 dark:text-gray-200 font-medium select-none cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '95px', overflow: 'hidden', whiteSpace: 'nowrap', margin: '0 auto' }}
+                onClick={() => onOpenDetail?.('access-package', ap.id, ap.displayName)}
+              >
+                {ap.displayName}
+              </div>
+            </th>
+          );
+        })}
+
         {/* Right metadata column headers row 2 — # | Description */}
-        <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none"
+        <th className="sticky top-0 z-20 border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none"
             onClick={onSortByCount}
             title="Sort by member count (descending)">
           <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># &#x25BC;</div>
         </th>
-        <th className="border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 font-medium text-left"
+        <th className="sticky top-0 z-20 border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 font-medium text-left"
             style={{ minWidth: '500px' }}>
           Description
         </th>
