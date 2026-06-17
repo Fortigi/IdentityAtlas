@@ -86,13 +86,47 @@ Analysts can adjust any entity's score by −50 to +50 points with a required ju
 - Overrides are stored in `RiskScores` and preserved across re-scoring runs
 - Override history is preserved across re-scoring runs
 
+## Configuring the AI provider
+
+The AI provider is configured in **Admin → LLM Settings**. Three providers are supported:
+
+| Provider | `provider` value | Default model | Notes |
+|---|---|---|---|
+| Anthropic | `anthropic` | `claude-sonnet-4-6` | API key required |
+| OpenAI | `openai` | `gpt-4o` | API key required |
+| Azure OpenAI | `azure-openai` | _(deployment name required)_ | Also requires endpoint URL and deployment name |
+
+Once you enter the API key and click **Test**, IdentityAtlas verifies the connection and populates the model dropdown from the provider's API. The key is stored encrypted in the built-in secrets vault — it is never stored as plain text.
+
+For Azure OpenAI the endpoint must be a valid Azure OpenAI hostname (`*.openai.azure.com`, `.us`, or `.cn`). The deployment name is the name you gave the deployment in Azure, not the underlying model name.
+
 ## Data Privacy
 
-!!! success "No sensitive data leaves your infrastructure"
-    - **Phase 1 only** contacts an LLM — sends only public organizational context (domain, industry, known systems)
-    - **No identity data** (user names, email addresses, group memberships) is ever sent to external services
-    - All scoring runs locally against your SQL database
-    - Supported LLM providers: Anthropic Claude (default: `claude-sonnet-4-20250514`), OpenAI (default: `gpt-4o`)
+!!! success "No identity data ever leaves your infrastructure"
+    - **Phase 1 only** contacts an LLM — the prompt contains only public organisational context: the domain name, optional organisation name, optional free-text hints you type, and any text you paste from internal documents.
+    - **No identity data** — no user names, email addresses, group names, or access assignments — is ever sent to the AI provider.
+    - All scoring (matching classifiers against your data) runs locally against your database with no network calls.
+
+**What is sent to the AI, exactly:**
+
+| What | Example |
+|---|---|
+| Domain name | `contoso.com` |
+| Organisation name (optional) | `Contoso Ltd` |
+| Free-text hints (optional) | `We operate in the Netherlands under NIS2` |
+| Text from URLs you add (optional) | Scraped text from public or internal pages |
+
+Nothing else. The AI generates regex patterns from this context; those patterns are then stored locally and applied against your data entirely on-premises.
+
+**Provider security comparison:**
+
+| Provider | Data stays in your region? | Used for AI training? |
+|---|---|---|
+| Anthropic API | No — routed to `api.anthropic.com` | Depends on your plan. Paid API plans include a no-training clause; verify your agreement. |
+| OpenAI API | No — routed to `api.openai.com` | Consumer tier: opt-out required in account settings. Enterprise agreement: excluded by contract. |
+| Azure OpenAI | Yes — stays within your Azure subscription | No — Microsoft Azure terms contractually exclude customer prompts from model training. |
+
+For regulated environments or when in doubt, use **Azure OpenAI**: the data stays within your Azure tenant and training exclusion is contractual by default.
 
 ## RiskScores Table
 
