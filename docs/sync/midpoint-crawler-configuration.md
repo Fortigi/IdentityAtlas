@@ -88,9 +88,9 @@ imported as `Service`.**
 
 > **How the dropdown fields work.** Every dropdown field in the wizard shows a chevron (▾). Click it
 > (or start typing) to open the list of values discovered **live** from your midPoint server. The list
-> always offers the **default** entry first, so even when midPoint has no values for that field you can
-> still pick the default — or just type a free-text value. (Fields without a chevron, such as
-> *Context type*, are plain free-text inputs.)
+> always offers the **default** entry first, followed by the live values in **alphabetical order**, so
+> even when midPoint has no values for that field you can still pick the default — or just type a
+> free-text value. (Fields without a chevron, such as *Context type*, are plain free-text inputs.)
 
 | Column | Description |
 |---|---|

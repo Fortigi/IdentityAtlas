@@ -6,3 +6,4 @@
 - midPoint crawler configurations can now be exported and re-imported like the other crawler types.
 - Added a full configuration reference for the midPoint crawler documenting every field and its default value.
 - Every dropdown field in the midPoint wizard now shows a consistent dropdown arrow; the archetype/subtype fields open a clickable list of values discovered live from midPoint, always offer the default value (even when midPoint has none), and still allow free text.
+- The live dropdown lists (archetypes, subtypes) are now shown in alphabetical order, with the default entry pinned at the top.
