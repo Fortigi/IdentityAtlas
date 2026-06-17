@@ -1194,6 +1194,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#configuring-the-ai-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuring the AI provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#data-privacy" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2756,6 +2767,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#configuring-the-ai-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuring the AI provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#data-privacy" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3017,16 +3039,105 @@
 <li>Overrides are stored in <code>RiskScores</code> and preserved across re-scoring runs</li>
 <li>Override history is preserved across re-scoring runs</li>
 </ul>
+<h2 id="configuring-the-ai-provider">Configuring the AI provider<a class="headerlink" href="#configuring-the-ai-provider" title="Permanent link">&para;</a></h2>
+<p>The AI provider is configured in <strong>Admin → LLM Settings</strong>. Three providers are supported:</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th><code>provider</code> value</th>
+<th>Default model</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anthropic</td>
+<td><code>anthropic</code></td>
+<td><code>claude-sonnet-4-6</code></td>
+<td>API key required</td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td><code>openai</code></td>
+<td><code>gpt-4o</code></td>
+<td>API key required</td>
+</tr>
+<tr>
+<td>Azure OpenAI</td>
+<td><code>azure-openai</code></td>
+<td><em>(deployment name required)</em></td>
+<td>Also requires endpoint URL and deployment name</td>
+</tr>
+</tbody>
+</table>
+<p>Once you enter the API key and click <strong>Test</strong>, IdentityAtlas verifies the connection and populates the model dropdown from the provider's API. The key is stored encrypted in the built-in secrets vault — it is never stored as plain text.</p>
+<p>For Azure OpenAI the endpoint must be a valid Azure OpenAI hostname (<code>*.openai.azure.com</code>, <code>.us</code>, or <code>.cn</code>). The deployment name is the name you gave the deployment in Azure, not the underlying model name.</p>
 <h2 id="data-privacy">Data Privacy<a class="headerlink" href="#data-privacy" title="Permanent link">&para;</a></h2>
 <div class="admonition success">
-<p class="admonition-title">No sensitive data leaves your infrastructure</p>
+<p class="admonition-title">No identity data ever leaves your infrastructure</p>
 <ul>
-<li><strong>Phase 1 only</strong> contacts an LLM — sends only public organizational context (domain, industry, known systems)</li>
-<li><strong>No identity data</strong> (user names, email addresses, group memberships) is ever sent to external services</li>
-<li>All scoring runs locally against your SQL database</li>
-<li>Supported LLM providers: Anthropic Claude (default: <code>claude-sonnet-4-20250514</code>), OpenAI (default: <code>gpt-4o</code>)</li>
+<li><strong>Phase 1 only</strong> contacts an LLM — the prompt contains only public organisational context: the domain name, optional organisation name, optional free-text hints you type, and any text you paste from internal documents.</li>
+<li><strong>No identity data</strong> — no user names, email addresses, group names, or access assignments — is ever sent to the AI provider.</li>
+<li>All scoring (matching classifiers against your data) runs locally against your database with no network calls.</li>
 </ul>
 </div>
+<p><strong>What is sent to the AI, exactly:</strong></p>
+<table>
+<thead>
+<tr>
+<th>What</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Domain name</td>
+<td><code>contoso.com</code></td>
+</tr>
+<tr>
+<td>Organisation name (optional)</td>
+<td><code>Contoso Ltd</code></td>
+</tr>
+<tr>
+<td>Free-text hints (optional)</td>
+<td><code>We operate in the Netherlands under NIS2</code></td>
+</tr>
+<tr>
+<td>Text from URLs you add (optional)</td>
+<td>Scraped text from public or internal pages</td>
+</tr>
+</tbody>
+</table>
+<p>Nothing else. The AI generates regex patterns from this context; those patterns are then stored locally and applied against your data entirely on-premises.</p>
+<p><strong>Provider security comparison:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Data stays in your region?</th>
+<th>Used for AI training?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anthropic API</td>
+<td>No — routed to <code>api.anthropic.com</code></td>
+<td>Depends on your plan. Paid API plans include a no-training clause; verify your agreement.</td>
+</tr>
+<tr>
+<td>OpenAI API</td>
+<td>No — routed to <code>api.openai.com</code></td>
+<td>Consumer tier: opt-out required in account settings. Enterprise agreement: excluded by contract.</td>
+</tr>
+<tr>
+<td>Azure OpenAI</td>
+<td>Yes — stays within your Azure subscription</td>
+<td>No — Microsoft Azure terms contractually exclude customer prompts from model training.</td>
+</tr>
+</tbody>
+</table>
+<p>For regulated environments or when in doubt, use <strong>Azure OpenAI</strong>: the data stays within your Azure tenant and training exclusion is contractual by default.</p>
 <h2 id="riskscores-table">RiskScores Table<a class="headerlink" href="#riskscores-table" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Top risky principals</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">displayName</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">principalType</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">riskScore</span><span class="p">,</span><span class="w"> </span><span class="n">rs</span><span class="p">.</span><span class="n">riskTier</span><span class="p">,</span>

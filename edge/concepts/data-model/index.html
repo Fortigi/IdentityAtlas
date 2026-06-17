@@ -3645,42 +3645,60 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </div>
 <hr />
 <h2 id="resourcetype-values">resourceType Values<a class="headerlink" href="#resourcetype-values" title="Permanent link">&para;</a></h2>
-<p>The <code>resourceType</code> column on the Resources table is a free-form string. These are the standard values used by the built-in sync functions.</p>
+<p>The <code>resourceType</code> column on the Resources table is a free-form string. The values below are produced by the built-in crawlers.</p>
 <table>
 <thead>
 <tr>
 <th>Value</th>
-<th>What it covers</th>
+<th>Crawler</th>
+<th>What it represents</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>EntraGroup</code></td>
-<td>Entra ID security groups and Microsoft 365 groups</td>
+<td>Entra ID</td>
+<td>Security group or Microsoft 365 group</td>
 </tr>
 <tr>
-<td><code>EntraDirectoryRole</code></td>
-<td>Entra ID directory roles (Global Administrator, etc.)</td>
+<td><code>Application</code></td>
+<td>Entra ID</td>
+<td>Enterprise application / service principal. Parent of <code>AppRole</code> and <code>DelegatedPermission</code> — does not grant access on its own.</td>
 </tr>
 <tr>
-<td><code>EntraAppRole</code></td>
-<td>Application roles from enterprise app registrations</td>
+<td><code>AppRole</code></td>
+<td>Entra ID</td>
+<td>One synthetic resource per (Application, appRoleId). Linked to its parent via <code>relationshipType='HasAppRole'</code>.</td>
+</tr>
+<tr>
+<td><code>DelegatedPermission</code></td>
+<td>Entra ID</td>
+<td>One synthetic resource per (clientSP, targetAPI, OAuth2 scope). Linked to its parent via <code>relationshipType='DelegatesScope'</code>.</td>
 </tr>
 <tr>
 <td><code>BusinessRole</code></td>
-<td>Named entitlement bundles from any IGA platform</td>
+<td>Entra ID, Omada, MidPoint</td>
+<td>Entra ID access package; Omada business role; MidPoint role type. Contains child resources via <code>relationshipType='Contains'</code>; assigned via <code>assignmentType='Governed'</code>.</td>
 </tr>
 <tr>
-<td><code>SharePointSite</code></td>
-<td>SharePoint sites (via CSV import)</td>
+<td><code>Entitlement</code></td>
+<td>MidPoint</td>
+<td>AD group or other entitlement synced as a MidPoint shadow (kind=entitlement).</td>
 </tr>
 <tr>
-<td><code>AzureRBACRole</code></td>
-<td>Azure RBAC role assignments (via CSV import)</td>
+<td><code>Resource</code></td>
+<td>Omada</td>
+<td>Omada resource.</td>
+</tr>
+<tr>
+<td><code>Service</code></td>
+<td>MidPoint</td>
+<td>MidPoint service type.</td>
 </tr>
 <tr>
 <td>Custom</td>
-<td>Any string — fully extensible for any authorization source</td>
+<td>Any crawler</td>
+<td>Any string — fully extensible for any authorization source.</td>
 </tr>
 </tbody>
 </table>
@@ -3701,7 +3719,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <tbody>
 <tr>
 <td><code>Direct</code></td>
-<td>Direct group membership</td>
+<td>Direct group or role membership</td>
 </tr>
 <tr>
 <td><code>Owner</code></td>
@@ -3716,6 +3734,18 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <td>Assigned through a business role or access package</td>
 </tr>
 <tr>
+<td><code>AppRole</code></td>
+<td>Direct app role assignment to a principal</td>
+</tr>
+<tr>
+<td><code>AppRoleViaGroup</code></td>
+<td>App role inherited through group membership</td>
+</tr>
+<tr>
+<td><code>OAuth2Grant</code></td>
+<td>Delegated OAuth2 permission grant</td>
+</tr>
+<tr>
 <td>Custom</td>
 <td>Any string for CSV-imported assignments</td>
 </tr>
@@ -3723,7 +3753,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </table>
 <hr />
 <h2 id="source-system-mapping">Source System Mapping<a class="headerlink" href="#source-system-mapping" title="Permanent link">&para;</a></h2>
-<p>The same three tables (Resources, Principals, ResourceAssignments) absorb data from any source. The crawler that writes the data and the <code>resourceType</code> / <code>assignmentType</code> values are the only things that differ.</p>
+<p>The same tables (Resources, Principals, ResourceAssignments) absorb data from any source. The crawler and the <code>resourceType</code> / <code>assignmentType</code> values are the only things that differ.</p>
 <table>
 <thead>
 <tr>
@@ -3737,50 +3767,78 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <tbody>
 <tr>
 <td>Entra ID groups</td>
-<td>Entra ID crawler</td>
+<td>Entra ID</td>
 <td><code>EntraGroup</code></td>
 <td><code>User</code></td>
 <td><code>Direct</code> / <code>Owner</code> / <code>Eligible</code></td>
 </tr>
 <tr>
-<td>Entra ID directory roles</td>
-<td>Entra ID crawler</td>
-<td><code>EntraDirectoryRole</code></td>
+<td>Entra ID enterprise apps</td>
+<td>Entra ID</td>
+<td><code>Application</code></td>
+<td>—</td>
+<td>— (parent only)</td>
+</tr>
+<tr>
+<td>Entra ID app roles</td>
+<td>Entra ID</td>
+<td><code>AppRole</code></td>
+<td><code>User</code> / <code>ServicePrincipal</code></td>
+<td><code>AppRole</code> / <code>AppRoleViaGroup</code></td>
+</tr>
+<tr>
+<td>Entra ID OAuth2 grants</td>
+<td>Entra ID</td>
+<td><code>DelegatedPermission</code></td>
+<td><code>User</code></td>
+<td><code>OAuth2Grant</code></td>
+</tr>
+<tr>
+<td>Entra ID access packages</td>
+<td>Entra ID</td>
+<td><code>BusinessRole</code></td>
+<td><code>User</code></td>
+<td><code>Governed</code></td>
+</tr>
+<tr>
+<td>Omada business roles</td>
+<td>Omada</td>
+<td><code>BusinessRole</code></td>
+<td><code>User</code></td>
+<td><code>Governed</code></td>
+</tr>
+<tr>
+<td>Omada resources</td>
+<td>Omada</td>
+<td><code>Resource</code></td>
+<td><code>User</code></td>
+<td><code>Governed</code></td>
+</tr>
+<tr>
+<td>MidPoint roles</td>
+<td>MidPoint</td>
+<td><code>BusinessRole</code></td>
+<td><code>User</code></td>
+<td><code>Governed</code></td>
+</tr>
+<tr>
+<td>MidPoint entitlements (AD groups etc.)</td>
+<td>MidPoint</td>
+<td><code>Entitlement</code></td>
 <td><code>User</code></td>
 <td><code>Direct</code></td>
 </tr>
 <tr>
-<td>Entra ID app roles</td>
-<td>Entra ID crawler</td>
-<td><code>EntraAppRole</code></td>
-<td><code>User</code> / <code>ServicePrincipal</code></td>
-<td><code>Direct</code></td>
-</tr>
-<tr>
-<td>Entra ID access packages</td>
-<td>Entra ID crawler</td>
-<td><code>BusinessRole</code></td>
-<td>—</td>
+<td>MidPoint service types</td>
+<td>MidPoint</td>
+<td><code>Service</code></td>
+<td><code>User</code></td>
 <td><code>Governed</code></td>
 </tr>
 <tr>
-<td>Omada / SailPoint</td>
-<td>CSV crawler</td>
-<td><code>BusinessRole</code></td>
-<td>Any</td>
-<td><code>Governed</code></td>
-</tr>
-<tr>
-<td>SAP / Pathlock</td>
-<td>CSV crawler</td>
-<td>Any</td>
-<td>Any</td>
-<td>Any</td>
-</tr>
-<tr>
-<td>Custom system</td>
-<td>CSV crawler (or your own via the <a href="../../architecture/ingest-api/">Ingest API</a>)</td>
-<td>Any</td>
+<td>Any system</td>
+<td>CSV / custom crawler</td>
+<td>Any string</td>
 <td>Any</td>
 <td>Any</td>
 </tr>
