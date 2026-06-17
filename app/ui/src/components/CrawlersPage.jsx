@@ -4,6 +4,8 @@ import ScheduleEditor from './ScheduleEditor';
 import Stepper from './Stepper';
 import useDocsUrl from '../hooks/useDocsUrl';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
+import Combobox from './inputs/Combobox';
+import Select from './inputs/Select';
 
 // Crawler wizard components and their display metadata are auto-discovered by naming convention:
 //   tools/crawlers/{type}/ConfigWizard.jsx  — the wizard form (lazy-loaded)
@@ -2405,6 +2407,8 @@ const MIDPOINT_SYNC_OPTIONS = [
 
 const MP_RESOURCE_TYPE_OPTIONS  = ['BusinessRole', 'Service', 'Resource', 'Application', 'AppRole', 'Entitlement', 'DelegatedPermission'];
 const MP_PRINCIPAL_TYPE_OPTIONS = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
+// Shared visual classes for the mapping-row fields (Combobox/Select/free-text inputs).
+const MP_FIELD_CLASS = 'text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 
 function MidpointWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
   const [step, setStep] = useState(1);
@@ -2555,12 +2559,6 @@ function MidpointWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch
 
   return (
     <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      {/* Datalists populated from live discovery */}
-      <datalist id="mp-archetypes">{(disco?.archetypes || []).map(a => <option key={a.oid} value={a.name} />)}</datalist>
-      <datalist id="mp-role-subtypes">{(disco?.roleSubtypes || []).map(s => <option key={s} value={s} />)}</datalist>
-      <datalist id="mp-org-subtypes">{(disco?.orgSubtypes || []).map(s => <option key={s} value={s} />)}</datalist>
-      <datalist id="mp-user-types">{(disco?.userTypes || []).map(s => <option key={s} value={s} />)}</datalist>
-
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold dark:text-white">
           {isEdit ? 'Edit midPoint Crawler' : 'Add midPoint Crawler'} — Step {step} of 4
@@ -2694,16 +2692,20 @@ function MidpointWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch
               </div>
               {archetypeMapping.map((m, i) => (
                 <div key={i} className="flex gap-2 items-center">
-                  <input list="mp-archetypes" value={m.archetype} onChange={e => upArch(i, 'archetype', e.target.value)}
+                  <Combobox value={m.archetype} onChange={v => upArch(i, 'archetype', v)}
+                    options={(disco?.archetypes || []).map(a => a.name)}
+                    defaultOption={{ value: '', label: '(any / catch-all)' }}
                     placeholder="(any / catch-all)"
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                  <input list="mp-role-subtypes" value={m.subtype} onChange={e => upArch(i, 'subtype', e.target.value)}
+                    wrapperClassName="flex-1 min-w-0" className={MP_FIELD_CLASS} />
+                  <Combobox value={m.subtype} onChange={v => upArch(i, 'subtype', v)}
+                    options={disco?.roleSubtypes || []}
+                    defaultOption={{ value: '', label: '(none)' }}
                     placeholder="(optional)"
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                  <select value={m.resourceType} onChange={e => upArch(i, 'resourceType', e.target.value)}
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                    wrapperClassName="flex-1 min-w-0" className={MP_FIELD_CLASS} />
+                  <Select value={m.resourceType} onChange={e => upArch(i, 'resourceType', e.target.value)}
+                    wrapperClassName="flex-1 min-w-0" className={MP_FIELD_CLASS + ' bg-white'}>
                     {MP_RESOURCE_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                  </Select>
                   <button onClick={() => rmArch(i)} disabled={archetypeMapping.length === 1}
                     className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
                 </div>
@@ -2725,10 +2727,13 @@ function MidpointWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch
                   <div className="grid grid-cols-2 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 pr-6 mb-1"><span>Org subtype</span><span>Context type</span></div>
                   {orgMapping.map((m, i) => (
                     <div key={i} className="flex gap-2 items-center mb-1">
-                      <input list="mp-org-subtypes" value={m.orgSubtype} onChange={e => upOrg(i, 'orgSubtype', e.target.value)} placeholder="(any / catch-all)"
-                        className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                      <Combobox value={m.orgSubtype} onChange={v => upOrg(i, 'orgSubtype', v)}
+                        options={disco?.orgSubtypes || []}
+                        defaultOption={{ value: '', label: '(any / catch-all)' }}
+                        placeholder="(any / catch-all)"
+                        wrapperClassName="flex-1 min-w-0" className={MP_FIELD_CLASS} />
                       <input value={m.contextType} onChange={e => upOrg(i, 'contextType', e.target.value)} placeholder="OrgUnit"
-                        className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                        className={'flex-1 min-w-0 ' + MP_FIELD_CLASS} />
                       <button onClick={() => rmOrg(i)} disabled={orgMapping.length === 1}
                         className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
                     </div>
@@ -2741,12 +2746,15 @@ function MidpointWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch
                   <div className="grid grid-cols-2 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 pr-6 mb-1"><span>User subtype</span><span>Principal type</span></div>
                   {idMapping.map((m, i) => (
                     <div key={i} className="flex gap-2 items-center mb-1">
-                      <input list="mp-user-types" value={m.userType} onChange={e => upId(i, 'userType', e.target.value)} placeholder="(any / catch-all)"
-                        className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                      <select value={m.principalType} onChange={e => upId(i, 'principalType', e.target.value)}
-                        className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                      <Combobox value={m.userType} onChange={v => upId(i, 'userType', v)}
+                        options={disco?.userTypes || []}
+                        defaultOption={{ value: '', label: '(any / catch-all)' }}
+                        placeholder="(any / catch-all)"
+                        wrapperClassName="flex-1 min-w-0" className={MP_FIELD_CLASS} />
+                      <Select value={m.principalType} onChange={e => upId(i, 'principalType', e.target.value)}
+                        wrapperClassName="flex-1 min-w-0" className={MP_FIELD_CLASS + ' bg-white'}>
                         {MP_PRINCIPAL_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
+                      </Select>
                       <button onClick={() => rmId(i)} disabled={idMapping.length === 1}
                         className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
                     </div>

@@ -86,10 +86,16 @@ imported as `Service`.**
 
 **Default value:** a single catch-all row → `BusinessRole`, i.e. identical to the old behaviour.
 
+> **How the dropdown fields work.** Every dropdown field in the wizard shows a chevron (▾). Click it
+> (or start typing) to open the list of values discovered **live** from your midPoint server. The list
+> always offers the **default** entry first, so even when midPoint has no values for that field you can
+> still pick the default — or just type a free-text value. (Fields without a chevron, such as
+> *Context type*, are plain free-text inputs.)
+
 | Column | Description |
 |---|---|
-| **Archetype** | The midPoint archetype name (e.g. *Business role*, *Application role*). The dropdown is populated **live** from your midPoint server. Leave blank for a subtype-only or catch-all rule. |
-| **Subtype** | The role's `subtype` value — a free-text label set on the role in midPoint. Used as a fallback when no archetype matches. The dropdown suggests subtype values **found on your objects** (so it is empty if your midPoint doesn't use subtypes); you can also type a value. |
+| **Archetype** | The midPoint archetype name (e.g. *Business role*, *Application role*). Live dropdown from your midPoint server. Leave blank (the default entry) for a subtype-only or catch-all rule. |
+| **Subtype** | The role's `subtype` value — a free-text label set on the role in midPoint. Used as a fallback when no archetype matches. The dropdown suggests subtype values **found on your objects** (so it offers only the default if your midPoint uses no subtypes); you can also type a value. |
 | **Identity Atlas type** | The resulting `resourceType`. One of `BusinessRole`, `Service`, `Resource`, `Application`, `AppRole`, `Entitlement`, `DelegatedPermission`. |
 
 > **Archetype vs. subtype.** An *archetype* is a first-class object in midPoint (a catalog entry like
@@ -121,10 +127,11 @@ side** that is matched against your midPoint data, and a **right side** that is 
 Identity Atlas type:
 
 - **Left = the value as it exists in midPoint.** It is matched against the object's `subtype`
-  (for users also `employeeType`). The input is a **live dropdown**: it suggests the subtype values
-  that actually occur in *your* midPoint (fetched from the server when you open the step), and you
-  can also type a value that isn't there yet. The dropdown is empty only when your midPoint uses no
-  subtypes — then you simply rely on the catch-all (a blank left side).
+  (for users also `employeeType`). The input is a **live dropdown** (click the ▾ chevron to open it):
+  it suggests the subtype values that actually occur in *your* midPoint (fetched from the server when
+  you open the step), and you can also type a value that isn't there yet. When your midPoint uses no
+  subtypes the list offers only the **default/catch-all** entry (a blank left side) — which is exactly
+  what you fall back to.
 - **Right = an Identity Atlas type that you assign.** This is *not* read from midPoint — these target
   types are Identity Atlas concepts. midPoint has no notion of an Identity Atlas "context type" or
   "principal type". You may give the right side the same name as the midPoint value (e.g. subtype
