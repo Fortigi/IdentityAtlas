@@ -1,22 +1,28 @@
-﻿import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 import Stepper from './Stepper';
 import useDocsUrl from '../hooks/useDocsUrl';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
 
-// Crawler wizard components are auto-discovered by naming convention:
-//   app/ui/src/components/crawlers/{type}ConfigWizard.jsx
-// Adding a new crawler wizard never requires editing this file.
-const _wizardModules = import.meta.glob('./crawlers/*ConfigWizard.jsx');
+// Crawler wizard components and their display metadata are auto-discovered by naming convention:
+//   tools/crawlers/{type}/ConfigWizard.jsx  — the wizard form (lazy-loaded)
+//   tools/crawlers/{type}/CrawlerMeta.js    — { id, name, description } for the type picker
+// Adding a new crawler type never requires editing this file.
+const _wizardModules = import.meta.glob('../../../../tools/crawlers/*/ConfigWizard.jsx');
 function getCrawlerWizard(crawlerType) {
-  const loader = _wizardModules[`./crawlers/${crawlerType}ConfigWizard.jsx`];
+  const loader = _wizardModules[`../../../../tools/crawlers/${crawlerType}/ConfigWizard.jsx`];
   return loader ? lazy(loader) : null;
 }
+
+const _crawlerMetaModules = import.meta.glob('../../../../tools/crawlers/*/CrawlerMeta.js', { eager: true });
+const _discoveredCrawlerTypes = Object.values(_crawlerMetaModules).map(m => ({ ...m.default, available: true }));
 
 const SECRET_MASK = '••••••••';
 
 // ─── Crawler type catalog ─────────────────────────────────────────────────────
+// Built-in types (entra-id, csv, demo, omada) keep their wizards inline in this file.
+// File-based crawlers under tools/crawlers/*/CrawlerMeta.js are appended automatically.
 const CRAWLER_TYPES = [
   {
     id: 'entra-id',
@@ -42,6 +48,7 @@ const CRAWLER_TYPES = [
     description: 'Sync business roles, identities, role assignments, and certification reviews directly from the Omada REST API',
     available: true,
   },
+  ..._discoveredCrawlerTypes,
   {
     id: 'custom',
     name: 'Custom Connector',
@@ -900,6 +907,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
           </div>
         </div>
       )}
+
 
       {/* Schedules */}
       {scheduleList.length > 0 && (
@@ -2783,9 +2791,9 @@ export default function CrawlersPage({ onNavigate }) {
     } else if (type === 'omada') {
       setEditingConfig(null);
       setWizardStep('omada-wizard');
-    } else if (type === 'midpoint') {
+    } else if (getCrawlerWizard(type)) {
       setEditingConfig(null);
-      setWizardCrawlerType('midpoint'); setWizardStep('crawler-wizard');
+      setWizardCrawlerType(type); setWizardStep('crawler-wizard');
     } else if (type === 'custom') {
       setEditingConfig(null);
       setWizardStep('custom-wizard');
@@ -2980,7 +2988,7 @@ export default function CrawlersPage({ onNavigate }) {
       if (!imported.crawlerType || !imported.config) {
         throw new Error('Invalid export file (missing crawlerType or config)');
       }
-      if (!['entra-id', 'csv', 'omada'].includes(imported.crawlerType)) {
+      if (!['entra-id', 'csv', 'omada'].includes(imported.crawlerType) && !getCrawlerWizard(imported.crawlerType)) {
         throw new Error(`Unsupported crawlerType: ${imported.crawlerType}`);
       }
       // No id on editingConfig → wizard treats this as a new crawler;
