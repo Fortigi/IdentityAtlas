@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Added identity-level assignment support to ResourceAssignments: any access can now be assigned to a person (Identity) rather than a specific account (Principal), enabling IGA crawlers (e.g. MidPoint, Omada) to express the true IGA assignment model
+- Added `POST /ingest/resource-assignments-identity` endpoint for IGA crawlers to push identity-level business role assignments
+- Matrix view now expands identity-level assignments through IdentityMembers so each linked account appears in the access matrix
+- Fixed `classify-business-role-assignments` endpoint to correctly handle identity-level Direct assignments when promoting to Governed
+- Admin stats panel now shows count of identity-level assignments for post-deploy verification
+
+## Changes in this PR
+
 - Fixed the context rename box shrinking to a tiny width when you double-click a context to rename it — it now stays wide enough to read and edit the full name.
 - Context nodes can now show the actual users inside them on demand: each node with directly-assigned users gets a small "👤 N" toggle — click it to reveal the users as ovals nested inside that context (hidden by default to keep the tree readable). Click a user oval to open their detail.
 - Sibling context nodes that share a long name prefix (a side effect of how the Manager Hierarchy names nodes) now show only their distinctive tail in the tree, with the full name on hover.
