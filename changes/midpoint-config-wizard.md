@@ -1,0 +1,6 @@
+- Added a dedicated midPoint (Evolveum) crawler wizard in Admin → Crawlers, so midPoint can now be added and configured fully from the UI (previously it could only be set up via raw config/import).
+- The wizard guides you through connection, authentication (Basic / API token / OAuth2 client-credentials / OAuth2 ROPC), which object types to sync, the mapping rules, and scheduling — with every field pre-filled to the crawler's existing defaults.
+- Added role classification: map midPoint roles and services to an Identity Atlas resource type by archetype (with subtype as a fallback). Archetypes and subtypes are discovered live from the connected midPoint server and offered as dropdown suggestions.
+- Added advanced type-mapping overrides to map org subtypes to a context type and user subtypes to a principal type, also populated live from the server.
+- Fixed: editing an existing midPoint crawler now opens the midPoint wizard instead of incorrectly opening the Microsoft Graph wizard.
+- midPoint crawler configurations can now be exported and re-imported like the other crawler types.

@@ -90,6 +90,47 @@ All phases are enabled by default. To disable individual phases:
 
 Available phase flags: `systems`, `orgs`, `roles`, `services`, `users`, `shadows`, `orgMembership`, `assignments`, `roleNesting`, `reviews`.
 
+### Role classification (`archetypeMapping`)
+
+By default every `RoleType` becomes a `BusinessRole` and every `ServiceType` a `Service`. You can override this per **archetype** (matched first) or **subtype** (fallback) — useful when midPoint distinguishes business, application, and technical roles by archetype. A row with both `archetype` and `subtype` blank is the catch-all.
+
+In the wizard, the archetype and subtype dropdowns are populated **live** from the connected midPoint server.
+
+```json
+{
+  "archetypeMapping": [
+    { "archetype": "Application Role", "subtype": "", "resourceType": "Application" },
+    { "archetype": "", "subtype": "technical", "resourceType": "Resource" },
+    { "archetype": "", "subtype": "", "resourceType": "BusinessRole" }
+  ]
+}
+```
+
+`resourceType` is one of `BusinessRole`, `Service`, `Resource`, `Application`, `AppRole`, `Entitlement`, `DelegatedPermission`.
+
+### Org & user type overrides (`typeMappings`)
+
+Map an `OrgType` subtype to a context type, or a `UserType` subtype/`employeeType` to a principal type. Blank key = catch-all. Defaults reproduce the historical behaviour (org → `OrgUnit`, user → `User`).
+
+```json
+{
+  "typeMappings": {
+    "orgContextTypeMapping": [
+      { "orgSubtype": "department", "contextType": "Department" },
+      { "orgSubtype": "", "contextType": "OrgUnit" }
+    ],
+    "identityTypeMapping": [
+      { "userType": "contractor", "principalType": "ExternalUser" },
+      { "userType": "", "principalType": "User" }
+    ]
+  }
+}
+```
+
+`principalType` is one of `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox`.
+
+> Leaving `archetypeMapping` and `typeMappings` at their defaults (or omitting them) produces exactly the same output as before these options existed.
+
 ---
 
 ## Data Scope
