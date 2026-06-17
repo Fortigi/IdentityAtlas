@@ -94,7 +94,7 @@ imported as `Service`.**
 
 | Column | Description |
 |---|---|
-| **Archetype** | The midPoint archetype name (e.g. *Business role*, *Application role*). Live dropdown from your midPoint server. Leave blank (the default entry) for a subtype-only or catch-all rule. |
+| **Archetype** | The midPoint archetype name (e.g. *Business role*, *Application role*). Live dropdown from your midPoint server — only archetypes that apply to **roles** are listed (midPoint's task/report/case system archetypes are filtered out). Leave blank (the default entry) for a subtype-only or catch-all rule. |
 | **Subtype** | The role's `subtype` value — a free-text label set on the role in midPoint. Used as a fallback when no archetype matches. The dropdown suggests subtype values **found on your objects** (so it offers only the default if your midPoint uses no subtypes); you can also type a value. |
 | **Identity Atlas type** | The resulting `resourceType`. One of `BusinessRole`, `Service`, `Resource`, `Application`, `AppRole`, `Entitlement`, `DelegatedPermission`. |
 
