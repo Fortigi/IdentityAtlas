@@ -222,7 +222,14 @@ schedules to run it automatically.
 
 ---
 
-## 8. Example configurations
+## 8. The stored config object (export / import / command-line)
+
+> **You don't enter JSON in the wizard.** The wizard form generates this config object for you and
+> stores it. These examples are only relevant when you work with the config *outside* the wizard:
+> when you **Export** a crawler to a JSON file and **Import** it again (e.g. to copy it between
+> environments), or when you run the crawler directly from the command line with a config file
+> (`Start-MidpointCrawler.ps1 -ConfigPath <file.json>`). They also show which wizard field maps to
+> which config key. Secrets shown as `••••••` are stored encrypted, not in the exported file.
 
 **Minimal** — connect and import everything with default mappings (the recommended starting point):
 
