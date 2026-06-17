@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Ajv from 'ajv';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
-import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
+import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, getConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
 import { fetchOmadaMetadata } from '../omada/metadataProxy.js';
 
 const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
@@ -1156,6 +1156,34 @@ router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
     console.error('validate-metadata error:', err.message);
     res.status(500).json({ error: err.message || 'Failed to fetch metadata' });
   }
+});
+
+// ─── Generic per-crawler live discovery ─────────────────────────────────────
+// Crawlers that support live discovery (e.g. populating wizard dropdowns)
+// export a default handler(req, res, ctx) from their own crawler folder
+// (tools/crawlers/<type>/discover.js, bundled into /app/crawlers at build time).
+// No core file needs to know which crawlers exist.
+router.post('/admin/crawlers/:type/discover', gate, async (req, res) => {
+  const { type } = req.params;
+  if (!/^[a-z][a-z0-9-]*$/.test(type) || !VALID_JOB_TYPES.includes(type)) {
+    return res.status(404).json({ error: `Unknown crawler type: ${type}` });
+  }
+  let handler;
+  try {
+    const discoverPath = path.join(CRAWLER_MANIFESTS_DIR, type, 'discover.js');
+    const { pathToFileURL } = await import('url');
+    const mod = await import(pathToFileURL(discoverPath).href);
+    handler = mod.default;
+  } catch (err) {
+    if (err.code === 'ERR_MODULE_NOT_FOUND') {
+      return res.status(404).json({ error: `Crawler '${type}' does not support live discovery` });
+    }
+    console.error(`${type}/discover load error:`, err.message);
+    return res.status(500).json({ error: 'Failed to load discovery handler' });
+  }
+  // Pass API dependencies as context — the handler must not import them directly
+  // because its path in the Docker image differs from the API source tree.
+  return handler(req, res, { db, getConfigSecret });
 });
 
 export default router;
