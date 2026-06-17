@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Fixed resourceType documentation to match what the built-in crawlers actually produce (removed non-existent types, added Application, AppRole, DelegatedPermission, Entitlement, Resource, Service)
+- Added missing assignmentType values (AppRole, AppRoleViaGroup, OAuth2Grant) to the data model reference
+- Added AI provider configuration guide to the Risk Scoring overview, including all three supported providers (Anthropic, OpenAI, Azure OpenAI), required fields per provider, and a data privacy table showing which providers are suitable for regulated environments
+- Updated config file reference to cover Azure OpenAI and correct stale model defaults
+
+## Changes in this PR
+
 - Added identity-level assignment support to ResourceAssignments: any access can now be assigned to a person (Identity) rather than a specific account (Principal), enabling IGA crawlers (e.g. MidPoint, Omada) to express the true IGA assignment model
 - Added `POST /ingest/resource-assignments-identity` endpoint for IGA crawlers to push identity-level business role assignments
 - Matrix view now expands identity-level assignments through IdentityMembers so each linked account appears in the access matrix
