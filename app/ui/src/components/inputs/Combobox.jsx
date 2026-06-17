@@ -2,9 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import ChevronDown from './ChevronDown';
 
 // A free-text input with a clickable dropdown of live suggestions, sharing the same
-// ChevronDown symbol as Select. Designed for midPoint mapping fields:
+// ChevronDown symbol as Select. Designed for mapping fields backed by live discovery:
 //   - the chevron (or focus) opens the list;
-//   - `options` are the values discovered live from midPoint (may be empty);
+//   - `options` are values discovered live from a backend (may be empty);
 //   - `defaultOption` ({ value, label }) is ALWAYS shown first, so an empty list still
 //     offers the default/catch-all value;
 //   - typing is always allowed (free text) — the field keeps whatever you type.
