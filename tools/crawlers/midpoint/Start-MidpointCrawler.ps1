@@ -257,6 +257,7 @@ $ResourceSystemId        = @{}                                                  
 $ResourceOidToName       = @{}                                                   # resource OID → display name (for readable shadow labels)
 $UserOidToName           = @{}                                                   # user OID → display name (for readable shadow labels)
 $SyncedOrgIds            = [System.Collections.Generic.HashSet[string]]::new()  # OrgType OIDs synced as Contexts
+$OrgOidToName            = @{}                                                   # OrgType OID → display name (for the user's department)
 $SyncedResourceIds       = [System.Collections.Generic.HashSet[string]]::new()  # Role/Service OIDs synced as Resources
 $AllUsers                = $null
 $ShadowOidToUserOid      = @{}                                                   # shadow OID → owning user OID (from user.linkRef)
@@ -367,7 +368,7 @@ if ($Sync.orgs) {
 
         $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $MidpointSystemId `
             -Scope @{ variant = 'synced'; contextType = 'OrgUnit'; scopeSystemId = $MidpointSystemId } -Records @($records)
-        $records | ForEach-Object { [void]$SyncedOrgIds.Add($_.id) }
+        $records | ForEach-Object { [void]$SyncedOrgIds.Add($_.id); $OrgOidToName[$_.id] = $_.displayName }
         Write-Host "  Contexts: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
     } catch { Add-PhaseError 'Orgs' $_.Exception.Message }
 }
@@ -441,6 +442,8 @@ if ($Sync.users) {
             $oid  = [string]$u.oid
             $name = (Get-MidpointString $u.fullName (Get-MidpointString $u.name $oid))
             $UserOidToName[$oid] = $name
+            # Department = the user's primary org-unit (parentOrgRef, default relation).
+            $department = (Resolve-MidpointDepartment -User $u -OrgMap $OrgOidToName)
             $identRecs.Add([PSCustomObject]@{
                 id          = $oid
                 externalId  = $oid
@@ -450,6 +453,7 @@ if ($Sync.users) {
                 email       = (Get-MidpointString $u.emailAddress '')
                 employeeId  = (Get-MidpointString $u.employeeNumber '')
                 jobTitle    = (Get-MidpointString $u.title '')
+                department  = $department
                 extendedAttributes = @{
                     name           = (Get-MidpointString $u.name '')
                     lifecycleState = (Get-MidpointString $u.lifecycleState '')
@@ -464,6 +468,7 @@ if ($Sync.users) {
                 principalType  = 'User'
                 accountEnabled = (Test-MidpointEnabled $u)
                 jobTitle       = (Get-MidpointString $u.title '')
+                department     = $department
                 extendedAttributes = @{ name = (Get-MidpointString $u.name ''); source = 'midpoint-focus' }
             })
             $memberRecs.Add([PSCustomObject]@{ identityId = $oid; principalId = $oid; accountType = 'Primary'; isPrimary = $true })
