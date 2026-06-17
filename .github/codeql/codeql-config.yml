@@ -12,7 +12,7 @@ paths-ignore:
   # is protected by admin auth middleware.
   - app/api/src/omada/metadataProxy.js
 
-  # discoveryProxy.js fetches the midPoint REST API (token endpoint + object
-  # search) on behalf of the admin wizard. Same rationale as metadataProxy.js:
-  # admin-supplied, scheme-validated URL behind admin auth middleware.
-  - app/api/src/midpoint/discoveryProxy.js
+  # tools/crawlers/midpoint/discover.js fetches the midPoint REST API (token
+  # endpoint + object search) on behalf of the admin wizard. Same rationale as
+  # metadataProxy.js: admin-supplied URL, scheme-validated, admin auth required.
+  - tools/crawlers/midpoint/discover.js
