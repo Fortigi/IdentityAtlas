@@ -92,7 +92,7 @@ Available phase flags: `systems`, `orgs`, `roles`, `services`, `users`, `shadows
 
 ### Role classification (`archetypeMapping`)
 
-By default every `RoleType` becomes a `BusinessRole` and every `ServiceType` a `Service`. You can override this per **archetype** (matched first) or **subtype** (fallback) — useful when midPoint distinguishes business, application, and technical roles by archetype. A row with both `archetype` and `subtype` blank is the catch-all.
+By default every `RoleType` becomes a `BusinessRole`. You can override this per **archetype** (matched first) or **subtype** (fallback) — useful when midPoint distinguishes business, application, and technical roles by archetype. A row with both `archetype` and `subtype` blank is the catch-all. (This classifier applies to roles only; `ServiceType` objects are always synced as `Service`.)
 
 In the wizard, the archetype and subtype dropdowns are populated **live** from the connected midPoint server.
 

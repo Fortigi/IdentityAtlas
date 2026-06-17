@@ -462,20 +462,18 @@ if ($Sync.roles -or $Sync.services) {
                 $oid  = [string]$s.oid
                 $disp = (Get-MidpointString $s.displayName (Get-MidpointString $s.name $oid))
                 if (-not $oid -or -not $disp) { continue }
-                $subs      = Get-MidpointStringList $s.subtype
-                $archNames = Get-MidpointArchetypeNames -Obj $s -LabelsByOid $ArchetypeLabelsByOid
-                $rt        = Resolve-MappedResourceType -Rows $ArchetypeMapping -ArchetypeNames $archNames -Subtypes $subs -Default 'Service'
-                Add-ResByType $rt ([PSCustomObject]@{
+                # Services are always 'Service'. archetypeMapping is a *role* classifier — its
+                # catch-all row must not bleed into services (that would override their default).
+                Add-ResByType 'Service' ([PSCustomObject]@{
                     id           = $oid
                     externalId   = $oid
                     displayName  = $disp
-                    resourceType = $rt
+                    resourceType = 'Service'
                     description  = (Get-MidpointString $s.description '')
                     enabled      = (Test-MidpointEnabled $s)
                     extendedAttributes = @{
                         name       = (Get-MidpointString $s.name '')
                         identifier = (Get-MidpointString $s.identifier '')
-                        archetype  = ($archNames -join ', ')
                     }
                 })
                 [void]$SyncedResourceIds.Add($oid)

@@ -36,7 +36,7 @@
       },
       "archetypeMapping": {
         "type": "array",
-        "description": "Classify roles/services into an Identity Atlas resourceType. Each role is matched by archetype name first, then by subtype; a row with a blank archetype and subtype is the catch-all. Defaults to every role → BusinessRole (service → Service).",
+        "description": "Classify roles into an Identity Atlas resourceType. Each role is matched by archetype name first, then by subtype; a row with a blank archetype and subtype is the catch-all. Defaults to every role → BusinessRole. (Services are always 'Service'.)",
         "default": [ { "archetype": "", "subtype": "", "resourceType": "BusinessRole" } ],
         "items": {
           "type": "object",
