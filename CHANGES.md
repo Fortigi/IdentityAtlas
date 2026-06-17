@@ -1,5 +1,45 @@
 ## Changes in this PR
 
+- The midPoint crawler now fills the **department** field on both identities and their midPoint accounts, derived from the user's primary organizational unit (org membership).
+
+## Changes in this PR
+
+- The midPoint crawler now prints a performance summary at the end of each run (total wall-clock, per-read timings, and per-endpoint ingest throughput), making it easy to see where a large sync spends its time.
+- Added a load-test data generator for the midPoint crawler (`tools/crawlers/midpoint/dev/Seed-MidpointLoadData.ps1`) that seeds a large fictitious AD with a realistic, repeatable distribution for capacity testing — proven up to 1,000,000 group memberships.
+- The midPoint crawler now streams connected-system accounts, entitlements, and their memberships page by page instead of loading the entire set into memory, so it can sync very large directories (millions of group memberships) within a bounded, fixed amount of memory — and runs noticeably faster on large syncs.
+
+## Changes in this PR
+
+- Added a midPoint (Evolveum) crawler that pulls identity governance data from the midPoint REST API into Identity Atlas.
+- Imports midPoint orgs as org-unit contexts (with hierarchy), roles and services as resources, and users as identities with their midPoint accounts.
+- Imports accounts on connected systems (midPoint shadows) as principals, linked to the right person, so multi-account identities are visible.
+- Maps connected-system objects by their type: real accounts become principals, groups/entitlements (e.g. AD security groups) become entitlement resources with their memberships shown in the access matrix, and non-account objects (org units, container/data rows) are no longer wrongly listed as users.
+- Imports the actual group memberships on connected-system accounts (e.g. AD group memberships) as direct assignments in the access matrix, including memberships stored in midPoint 4.9's native reference-attribute form — previously only the older association format was read, so these memberships were missed.
+- Consolidates a person's access on the identity: role and entitlement memberships gained through any of a person's accounts now show together when you open that person, instead of being scattered across separate account entries.
+- Registers a connected system only when it actually holds accounts or entitlements, so resources that contain only context/data objects no longer appear as empty systems.
+- Surfaces role/service assignments as governed assignments and role nesting as "contains" relationships, and maps org membership to context membership.
+- Imports midPoint access certification campaigns as review decisions, so certify/revoke outcomes show up under each business role.
+- Shows readable account names for connected-system accounts (e.g. database accounts that midPoint keys by a number now display the person's name and source system).
+- Refreshes the access matrix automatically at the end of a sync so governed assignments appear immediately.
+- Supports Basic, API-token, and OAuth2 (client-credentials / password) authentication, configurable from the Add Crawler screen.
+- Fixed crawler manifest discovery in Docker so newly added crawlers are always recognised by the API without requiring a code change to the fallback list.
+- Added user-facing documentation for the midPoint crawler (`docs/sync/midpoint.md`): what data gets imported, configuration reference, and troubleshooting tips.
+
+## Changes in this PR
+
+- Fixed crawler manifest discovery in Docker: the API container now automatically discovers all installed crawlers at startup, so newly added crawlers are recognised without requiring code changes.
+- Removed the hardcoded crawler-type allowlist (`demo`, `entra-id`, `csv`, `omada`). The list is now built entirely from the manifest files — any crawler not present in the container is no longer silently accepted.
+- Fixed a validation error that caused the demo crawler job to be rejected when submitted without a config body.
+- Fixed the Entra ID crawler config schema so that `clientSecret` is no longer required when credentials are stored in the vault.
+
+## Changes in this PR
+
+- Updated default Anthropic model from the retired `claude-sonnet-4-20250514` to `claude-sonnet-4-6`, fixing the LLM connection test in CI.
+- Fixed two high-severity npm vulnerabilities in the API (`esbuild` and `form-data`).
+- Fixed PR hygiene CI check not respecting the `skip-hygiene` label when re-running a workflow: the check is now skipped at job level so it is never scheduled when the label is present.
+
+## Changes in this PR
+
 - Fixed false-positive in `MatrixView.scrollbar.test.js`: the magic-number guard was matching a comment in `MatrixView.jsx` rather than actual class usage
 - Added tests for the two untested bootstrap guard paths in `Invoke-CrawlerJob.ps1`: skip (module already loaded) and throw (module file not found)
 
