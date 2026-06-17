@@ -11,8 +11,23 @@ For how the system works internally, see [`docs/architecture/crawler-architectur
 ```
 tools/crawlers/my-source/
 ├── crawler.json               ← required manifest
-└── Start-MySourceCrawler.ps1  ← entry point declared in manifest
+├── Start-MySourceCrawler.ps1  ← entry point declared in manifest
+├── CLAUDE.md                  ← developer guide (architecture, data-model mapping, gotchas)
+├── Test-MySourceCrawler.ps1   ← CI integration test (optional but recommended)
+└── dev/                       ← development and testing utilities (optional)
+    ├── README.md              ← what each tool does and how to run it
+    └── Seed-MySourceData.ps1  ← example: load-test seeder, fixture generator, etc.
 ```
+
+### The `dev/` subfolder
+
+The `dev/` folder is the home for scripts that support development and testing of the crawler but are **not part of the production image** and not loaded by the dispatcher. Use it for:
+
+- **Load-test seeders** — scripts that create large volumes of test data in the source system to validate crawler performance and memory usage
+- **Fixture generators** — one-off scripts that seed a known, repeatable dataset for manual or exploratory testing
+- **Migration helpers** — scripts useful during initial setup or version upgrades of the source system
+
+The dispatcher ignores subdirectories, so nothing in `dev/` is ever executed at runtime. Include a `dev/README.md` that describes what each tool does, how to run it, and (for seeders) how to clean up afterwards.
 
 Restart the worker container after adding the folder. The new crawler appears in the UI under **Admin → Crawlers → Add Crawler** immediately.
 
