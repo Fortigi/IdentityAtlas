@@ -3208,7 +3208,8 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
     }
     ResourceAssignments {
         guid resourceId FK
-        guid principalId FK
+        guid principalId "nullable FK — XOR with identityId"
+        guid identityId "nullable FK — XOR with principalId"
         string assignmentType
         int systemId FK
         string principalType
@@ -3248,7 +3249,8 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
     Systems ||--o{ Principals : "hosts"
     Systems ||--o{ Contexts : "scopes"
     Resources ||--o{ ResourceAssignments : "granted via"
-    Principals ||--o{ ResourceAssignments : "receives"
+    Principals |o--o{ ResourceAssignments : "receives (account-level)"
+    Identities |o--o{ ResourceAssignments : "receives (person-level)"
     Resources ||--o{ ResourceRelationships : "parent in"
     Resources ||--o{ ResourceRelationships : "child in"
     Principals ||--o{ PrincipalActivity : "has activity"
@@ -3454,7 +3456,8 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <p>Key columns: <code>displayName</code>, <code>resourceType</code>, <code>systemId</code>, <code>contextId</code> (optional — classification or grouping context), <code>extendedAttributes</code> (JSON), <code>catalogId</code>, <code>isHidden</code>, <code>riskScore</code>.</p>
 <hr />
 <h3 id="resourceassignments">ResourceAssignments<a class="headerlink" href="#resourceassignments" title="Permanent link">&para;</a></h3>
-<p>Captures who has access to what, and how. The <code>assignmentType</code> column distinguishes direct membership from PIM-eligible access from governed (business-role-driven) access.</p>
+<p>Captures who has access to what, and how. The <code>assignmentType</code> column distinguishes direct membership from PIM-eligible access from governed (IGA-driven) access.</p>
+<p>Every row targets either a specific account (<code>principalId</code>) or a person (<code>identityId</code>) — exactly one must be set (XOR CHECK constraint). Use the principal endpoint for account-level assignments (e.g. "this AD account is in this group") and the identity endpoint for person-level assignments (e.g. "this person has been given this access" from an IGA system).</p>
 <table>
 <thead>
 <tr>
@@ -3464,8 +3467,8 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </thead>
 <tbody>
 <tr>
-<td>Primary Key</td>
-<td>Composite: <code>resourceId</code> + <code>principalId</code> + <code>assignmentType</code></td>
+<td>Uniqueness</td>
+<td>Two partial unique indexes: <code>(resourceId, principalId, assignmentType)</code> WHERE <code>principalId IS NOT NULL</code>; <code>(resourceId, identityId, assignmentType)</code> WHERE <code>identityId IS NOT NULL</code></td>
 </tr>
 <tr>
 <td>Audit history</td>
@@ -3475,9 +3478,13 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <td>Created by</td>
 <td>Migration <code>001_core_schema.sql</code></td>
 </tr>
+<tr>
+<td>Modified by</td>
+<td>Migration <code>036_resource_assignments_identity_support.sql</code></td>
+</tr>
 </tbody>
 </table>
-<p>Key columns: <code>assignmentType</code>, <code>systemId</code>, <code>principalType</code>, <code>complianceState</code>, <code>policyId</code>, <code>state</code>, <code>assignmentStatus</code>, <code>expirationDateTime</code>, <code>extendedAttributes</code> (JSONB).</p>
+<p>Key columns: <code>assignmentType</code>, <code>principalId</code> (nullable), <code>identityId</code> (nullable), <code>systemId</code>, <code>principalType</code>, <code>complianceState</code>, <code>policyId</code>, <code>state</code>, <code>assignmentStatus</code>, <code>expirationDateTime</code>, <code>extendedAttributes</code> (JSONB).</p>
 <hr />
 <h3 id="resourcerelationships">ResourceRelationships<a class="headerlink" href="#resourcerelationships" title="Permanent link">&para;</a></h3>
 <p>Resource-to-resource links. Used for two purposes: <code>Contains</code> links a business role to the resources it grants; <code>GrantsAccessTo</code> expresses that holding one resource implies access to another.</p>
