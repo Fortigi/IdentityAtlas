@@ -296,6 +296,113 @@ describe('validateRecords — resource-relationships', () => {
   });
 });
 
+// ── validateRecords — resource-assignments XOR check (T7.3) ──────────────────
+
+describe('validateRecords — resource-assignments XOR check', () => {
+  const validAssignment = {
+    resourceId:    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    principalId:   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    assignmentType: 'Direct',
+  };
+
+  it('rejects a record that carries identityId on the principal endpoint', () => {
+    const result = validateRecords([{
+      ...validAssignment,
+      identityId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    }], 'resource-assignments');
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => /resource-assignments-identity/.test(e))).toBe(true);
+  });
+
+  it('rejects a record that carries identityExternalId on the principal endpoint', () => {
+    const result = validateRecords([{
+      ...validAssignment,
+      identityExternalId: 'alice',
+    }], 'resource-assignments');
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => /resource-assignments-identity/.test(e))).toBe(true);
+  });
+
+  it('accepts a clean principal-only record (no identity side-fields)', () => {
+    const result = validateRecords([validAssignment], 'resource-assignments');
+    expect(result.valid).toBe(true);
+  });
+});
+
+// ── validateRecords — resource-assignments-identity (T7.1) ───────────────────
+
+describe('validateRecords — resource-assignments-identity', () => {
+  const validIdentityAssignment = {
+    resourceId:    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    identityId:    'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    assignmentType: 'Governed',
+  };
+
+  it('accepts a valid identity assignment with explicit identityId (T7.1)', () => {
+    const result = validateRecords([validIdentityAssignment], 'resource-assignments-identity');
+    expect(result.valid).toBe(true);
+  });
+
+  it('accepts a record using identityExternalId in place of identityId', () => {
+    const { identityId: _, ...withExternal } = validIdentityAssignment;
+    const result = validateRecords([{ ...withExternal, identityExternalId: 'alice' }], 'resource-assignments-identity');
+    expect(result.valid).toBe(true);
+  });
+
+  it('accepts a record using resourceExternalId in place of resourceId', () => {
+    const { resourceId: _, ...withExternal } = validIdentityAssignment;
+    const result = validateRecords([{ ...withExternal, resourceExternalId: 'role-123' }], 'resource-assignments-identity');
+    expect(result.valid).toBe(true);
+  });
+
+  it('requires assignmentType', () => {
+    const { assignmentType: _, ...noType } = validIdentityAssignment;
+    const result = validateRecords([noType], 'resource-assignments-identity');
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => /assignmentType/.test(e))).toBe(true);
+  });
+
+  it('requires one of resourceId / resourceExternalId', () => {
+    const { resourceId: _, ...noRes } = validIdentityAssignment;
+    const result = validateRecords([noRes], 'resource-assignments-identity');
+    expect(result.valid).toBe(false);
+  });
+
+  it('requires one of identityId / identityExternalId', () => {
+    const { identityId: _, ...noId } = validIdentityAssignment;
+    const result = validateRecords([noId], 'resource-assignments-identity');
+    expect(result.valid).toBe(false);
+  });
+
+  it('rejects an invalid assignmentType value', () => {
+    const result = validateRecords([{ ...validIdentityAssignment, assignmentType: 'NotAType' }], 'resource-assignments-identity');
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => /assignmentType/.test(e))).toBe(true);
+  });
+
+  it('rejects a malformed identityId UUID', () => {
+    const result = validateRecords([{ ...validIdentityAssignment, identityId: 'not-a-uuid' }], 'resource-assignments-identity');
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => /UUID/.test(e))).toBe(true);
+  });
+});
+
+// ── ENTITY_KEY_MAP — resource-assignments-identity key columns (T7.11) ────────
+
+describe('ENTITY_KEY_MAP — resource-assignments-identity', () => {
+  it('uses identityId as key column, not principalId', async () => {
+    const { ENTITY_KEY_MAP } = await import('./validation.js');
+    expect(ENTITY_KEY_MAP['resource-assignments-identity'])
+      .toEqual(['resourceId', 'identityId', 'assignmentType']);
+  });
+
+  it('principal endpoint still uses principalId as key column (T7.2)', async () => {
+    const { ENTITY_KEY_MAP } = await import('./validation.js');
+    expect(ENTITY_KEY_MAP['resource-assignments'])
+      .toEqual(['resourceId', 'principalId', 'assignmentType']);
+  });
+});
+
 // ── validateRecords — unknown entity type ─────────────────────────────────────
 
 describe('validateRecords — unknown entity type', () => {
