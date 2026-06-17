@@ -1,0 +1,1 @@
+- The midPoint crawler now fills the **department** field on both identities and their midPoint accounts, derived from the user's primary organizational unit (org membership).
