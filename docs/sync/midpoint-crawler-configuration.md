@@ -114,14 +114,47 @@ imported as `Service`.**
 Under **Advanced type mappings**. Two optional tables, each defaulting to a single catch-all that
 reproduces the standard behaviour.
 
+### Reading a mapping row: left side vs. right side
+
+Every row in these tables (and in the role classification of §4) has the same shape — a **left
+side** that is matched against your midPoint data, and a **right side** that is the resulting
+Identity Atlas type:
+
+- **Left = the value as it exists in midPoint.** It is matched against the object's `subtype`
+  (for users also `employeeType`). The input is a **live dropdown**: it suggests the subtype values
+  that actually occur in *your* midPoint (fetched from the server when you open the step), and you
+  can also type a value that isn't there yet. The dropdown is empty only when your midPoint uses no
+  subtypes — then you simply rely on the catch-all (a blank left side).
+- **Right = an Identity Atlas type that you assign.** This is *not* read from midPoint — these target
+  types are Identity Atlas concepts. midPoint has no notion of an Identity Atlas "context type" or
+  "principal type". You may give the right side the same name as the midPoint value (e.g. subtype
+  `department` → context type `Department`), but that is your choice, not an automatic copy.
+
+> **No automatic pass-through.** There is no mode that "uses each org's own subtype as its context
+> type". You map each subtype explicitly (one row per value), plus one catch-all row (blank left
+> side) for everything else. To turn five distinct subtypes into five different context types, add
+> five rows.
+
+The two tables differ in how *free* the right side is:
+
+| Mapping | Left side (from midPoint) | Right side (Identity Atlas type) |
+|---|---|---|
+| Org → context type | Org `subtype` — live dropdown, free-typeable | **Free text** — any label you choose (≤50 chars) |
+| User → principal type | User `subtype`/`employeeType` — live dropdown, free-typeable | **Fixed list** — must be a valid principal type (validated) |
+
+The right side of the **user** mapping is a closed dropdown because `principalType` is validated
+against Identity Atlas's known set; an arbitrary value would be rejected on import. The right side of
+the **org** mapping (`contextType`) has no such constraint, so it is a free text field and Identity
+Atlas stores whatever you type verbatim.
+
 ### Org → context type (`typeMappings.orgContextTypeMapping`)
 
 Maps an `OrgType`'s subtype to a context type. **Default:** catch-all → `OrgUnit`.
 
 | Column | Description |
 |---|---|
-| **Org subtype** | The org's `subtype` value (live-suggested). Blank = catch-all. |
-| **Context type** | The resulting `contextType` (free text, e.g. `OrgUnit`, `Department`, `Country`). |
+| **Org subtype** | *Left.* The org's `subtype` value — live dropdown from your midPoint, free-typeable. Blank = catch-all. |
+| **Context type** | *Right.* The resulting `contextType` — a free-text Identity Atlas label you choose (e.g. `OrgUnit`, `Department`, `Country`), stored verbatim. |
 
 ### User → principal type (`typeMappings.identityTypeMapping`)
 
@@ -129,8 +162,12 @@ Maps a `UserType`'s subtype/`employeeType` to a principal type. **Default:** cat
 
 | Column | Description |
 |---|---|
-| **User subtype** | The user's `subtype`/`employeeType` value (live-suggested). Blank = catch-all. |
-| **Principal type** | The resulting `principalType`. One of `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox`. |
+| **User subtype** | *Left.* The user's `subtype`/`employeeType` value — live dropdown from your midPoint, free-typeable. Blank = catch-all. |
+| **Principal type** | *Right.* The resulting `principalType`, chosen from a fixed dropdown: `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox`. |
+
+> **Note:** the same "left = midPoint subtype dropdown" applies to the **Subtype** column of the role
+> classification in §4; only the *archetype* column there is filled from midPoint's archetype catalog
+> rather than from observed subtype values.
 
 ---
 
