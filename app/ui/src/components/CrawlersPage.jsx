@@ -1,9 +1,18 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 import Stepper from './Stepper';
 import useDocsUrl from '../hooks/useDocsUrl';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
+
+// Crawler wizard components are auto-discovered by naming convention:
+//   app/ui/src/components/crawlers/{type}ConfigWizard.jsx
+// Adding a new crawler wizard never requires editing this file.
+const _wizardModules = import.meta.glob('./crawlers/*ConfigWizard.jsx');
+function getCrawlerWizard(crawlerType) {
+  const loader = _wizardModules[`./crawlers/${crawlerType}ConfigWizard.jsx`];
+  return loader ? lazy(loader) : null;
+}
 
 const SECRET_MASK = '••••••••';
 
