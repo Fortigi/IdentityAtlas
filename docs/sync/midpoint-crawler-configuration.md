@@ -75,8 +75,13 @@ phase (e.g. to do a quick roles-only run, or to skip the heavy shadows phase).
 ## 4. Role classification (`archetypeMapping`) *(default = every role → BusinessRole)*
 
 By default every `RoleType` becomes a `BusinessRole`. This table lets you override that **per role**,
-based on midPoint's own role classification. **It applies to roles only — `ServiceType` is always
-imported as `Service`.**
+based on midPoint's own role classification.
+
+> **Roles only — services are not classified.** This mapping applies exclusively to `RoleType`
+> objects. midPoint `ServiceType` objects are **always** imported as `Service` and cannot be remapped
+> here. Consequently the **Archetype** dropdown lists only archetypes that apply to *roles*
+> (`holderType = RoleType`); service archetypes and midPoint's task/report/case system archetypes are
+> deliberately left out. (If service classification is ever needed, it would be a separate addition.)
 
 **How a role is matched (in order):**
 1. **Archetype** — if the role has an archetype whose name matches a rule, that rule wins.
