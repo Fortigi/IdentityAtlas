@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { TYPE_COLORS as TYPE_COLORS_SRC, AP_COLORS } from './colors';
 import { hexToArgb, thinBorder, setHeaderCell, safeCell } from './excelHelpers';
+import { friendlyLabel } from './formatters';
 
 /**
  * Exports the matrix view to an Excel workbook matching the on-screen layout.
@@ -21,18 +22,26 @@ const TYPE_COLORS = Object.fromEntries(
   ])
 );
 
-export async function exportToExcel({ users, orderedGroups, memberships, managedApMap, apIdToIndex, activeFilters, filterFields, accessPackages = [], apGroupMap, shareUrl }) {
+export async function exportToExcel({ users, orderedGroups, memberships, managedApMap, apIdToIndex, activeFilters, filterFields, accessPackages = [], apGroupMap, shareUrl, sortAttributes = [] }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Identity Atlas';
   wb.created = new Date();
 
-  const ws = wb.addWorksheet('Role Mining Matrix', {
-    views: [{ state: 'frozen', xSplit: 3, ySplit: 2 }],
-  });
-
   const infoColCount = 3; // Resource Name | Type | GUID (matching UI left columns)
   const userCount = users.length;
   const apCount = accessPackages.length;
+
+  // One header row per sort attribute (matching the on-screen stacked headers),
+  // then the user-names row. On-screen merged spans are written as the same
+  // value repeated across each column — Excel cells are NOT merged.
+  const attrs = (Array.isArray(sortAttributes) && sortAttributes.length)
+    ? sortAttributes.map(s => s.attribute) : ['department'];
+  const headerLevels = attrs.length;
+  const namesRow = headerLevels + 1; // 1-based row of the user-names header
+
+  const ws = wb.addWorksheet('Role Mining Matrix', {
+    views: [{ state: 'frozen', xSplit: 3, ySplit: namesRow }],
+  });
 
   // AP columns sit right after users (matching on-screen layout), meta cols at the end
   const apColStart = infoColCount + userCount + 1; // 1-based
@@ -51,43 +60,22 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
   ws.getColumn(metaColStart).width = 5;     // #
   ws.getColumn(metaColStart + 1).width = 30; // Description
 
-  // ===== ROW 1: Job titles (merged) =====
-  const row1 = ws.getRow(1);
-  row1.height = 90;
-
-  // Build job title spans from ordered users
-  const jobTitleSpans = [];
-  let i = 0;
-  while (i < users.length) {
-    const title = users[i].jobTitle || '';
-    let span = 1;
-    while (i + span < users.length && (users[i + span].jobTitle || '') === title) {
-      span++;
+  // ===== Attribute header rows (one per sort attribute, no merging) =====
+  for (let L = 0; L < headerLevels; L++) {
+    const hr = ws.getRow(L + 1);
+    hr.height = 90;
+    setHeaderCell(ws.getCell(L + 1, 1), friendlyLabel(String(attrs[L]).replace(/^ext\./, '')));
+    for (let u = 0; u < userCount; u++) {
+      const cell = ws.getCell(L + 1, infoColCount + u + 1);
+      cell.value = safeCell((users[u].sortKeys && users[u].sortKeys[L]) || '(none)');
+      cell.font = { size: 11, bold: true };
+      cell.alignment = { textRotation: 90, vertical: 'bottom', horizontal: 'center' };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+      cell.border = thinBorder();
     }
-    jobTitleSpans.push({ title, span, startIndex: i });
-    i += span;
   }
 
-  // Merge & style job title header cells (neutral gray)
-  for (const jts of jobTitleSpans) {
-    const startCol = infoColCount + jts.startIndex + 1;
-    const endCol = startCol + jts.span - 1;
-    if (jts.span > 1) {
-      ws.mergeCells(1, startCol, 1, endCol);
-    }
-    const cell = ws.getCell(1, startCol);
-    cell.value = jts.title || '(no title)';
-    cell.font = { size: 11, bold: true };
-    cell.alignment = { textRotation: 90, vertical: 'bottom', horizontal: 'center' };
-    cell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFF3F4F6' },
-    };
-    cell.border = thinBorder();
-  }
-
-  // Row 1 access package banner (between users and meta)
+  // AP banner on the first header row (single label over the AP block)
   if (apCount > 0) {
     if (apCount > 1) {
       ws.mergeCells(1, apColStart, 1, apColStart + apCount - 1);
@@ -104,20 +92,16 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
     apBanner.border = thinBorder();
   }
 
-  // Row 1 meta headers (right side)
-  setHeaderCell(ws.getCell(1, metaColStart), '#', true);
-  setHeaderCell(ws.getCell(1, metaColStart + 1), 'Description', true);
+  // ===== Names row: resource info headers + user names + AP names + meta =====
+  const rowN = ws.getRow(namesRow);
+  rowN.height = 80;
 
-  // ===== ROW 2: User display names =====
-  const row2 = ws.getRow(2);
-  row2.height = 80;
-
-  setHeaderCell(ws.getCell(2, 1), 'Resource Name');
-  setHeaderCell(ws.getCell(2, 2), 'Type');
-  setHeaderCell(ws.getCell(2, 3), 'GUID');
+  setHeaderCell(ws.getCell(namesRow, 1), 'Resource Name');
+  setHeaderCell(ws.getCell(namesRow, 2), 'Type');
+  setHeaderCell(ws.getCell(namesRow, 3), 'GUID');
 
   for (let u = 0; u < userCount; u++) {
-    const cell = ws.getCell(2, infoColCount + u + 1);
+    const cell = ws.getCell(namesRow, infoColCount + u + 1);
     cell.value = safeCell(users[u].displayName);
     cell.font = { size: 11, bold: false };
     cell.alignment = { textRotation: 90, vertical: 'bottom', horizontal: 'center' };
@@ -129,9 +113,9 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
     cell.border = thinBorder();
   }
 
-  // Row 2 access package name headers (each AP gets a distinct color)
+  // AP name headers on the names row (each AP gets a distinct color)
   for (let a = 0; a < apCount; a++) {
-    const cell = ws.getCell(2, apColStart + a);
+    const cell = ws.getCell(namesRow, apColStart + a);
     cell.value = safeCell(accessPackages[a].displayName);
     cell.font = { size: 11, bold: false };
     cell.alignment = { textRotation: 90, vertical: 'bottom', horizontal: 'center' };
@@ -143,9 +127,12 @@ export async function exportToExcel({ users, orderedGroups, memberships, managed
     cell.border = thinBorder();
   }
 
-  // ===== ROW 3+: Group rows =====
+  setHeaderCell(ws.getCell(namesRow, metaColStart), '#', true);
+  setHeaderCell(ws.getCell(namesRow, metaColStart + 1), 'Description', true);
+
+  // ===== Data rows: resources =====
   orderedGroups.forEach((group, gIdx) => {
-    const rowNum = gIdx + 3;
+    const rowNum = gIdx + namesRow + 1;
     const row = ws.getRow(rowNum);
     row.height = 18;
 
