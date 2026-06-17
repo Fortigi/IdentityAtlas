@@ -124,6 +124,18 @@ try {
         Report-Result 'Midpoint/Data — user principal ingested' ($cnt -ge 1) "($cnt matching 'midpoint.citest')"
     } catch { Report-Result 'Midpoint/Data — user principal ingested' $false $_.Exception.Message }
 
+    # ── Assert: department derived from the user's org membership (parentOrgRef → org name) ──
+    # The mock user sits in 'midPoint CI Org' via parentOrgRef; Resolve-MidpointDepartment
+    # must have stamped that org's display name onto both the Identity and its focus Principal.
+    try {
+        $ident    = Invoke-RestMethod -Uri "$ApiBaseUrl/identities/$userOid" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $identDept = $ident.identity.department
+        $focus     = @($ident.members) | Where-Object { $_.principalId -eq $userOid } | Select-Object -First 1
+        $princDept = if ($focus) { $focus.department } else { $null }
+        $ok = ($identDept -eq 'midPoint CI Org') -and ($princDept -eq 'midPoint CI Org')
+        Report-Result 'Midpoint/Data — department from org membership (Identity + Principal)' $ok "(identity: '$identDept', principal: '$princDept'; expected 'midPoint CI Org')"
+    } catch { Report-Result 'Midpoint/Data — department from org membership (Identity + Principal)' $false $_.Exception.Message }
+
     # ── Assert: role resource ingested (scoped to this run's system) ──
     try {
         $sid = if ($thisSystem) { $thisSystem.id } else { 0 }
