@@ -69,9 +69,9 @@ describe('POST /ingest/classify-business-role-assignments', () => {
     expect(deleteSql).toContain('ra."principalId" IS NOT NULL');
     expect(deleteSql).toContain('ra."identityId"  IS NOT NULL');
 
-    // Old bare NULL=NULL comparison must NOT be present — it silently fails for
-    // identity rows where principalId IS NULL.
-    expect(deleteSql).not.toMatch(/AND ra2\."principalId" = ra\."principalId"/);
+    // The principalId comparison must be guarded by IS NOT NULL — without the
+    // guard, NULL = NULL evaluates to false so identity rows are never deduped.
+    expect(deleteSql).not.toMatch(/AND ra2\."principalId" = ra\."principalId"\s*\n\s+AND/);
   });
 
   it('dedup DELETE checks both key types in the EXISTS subquery (T7.9)', async () => {

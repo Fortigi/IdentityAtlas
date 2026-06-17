@@ -91,6 +91,7 @@ export async function startSession(_pool, tableName, keyColumns, records, option
     scope: options.scope || {},
     systemIdColumn: options.systemIdColumn || 'systemId',
     scopeDeleteFilter: options.scopeDeleteFilter || null,
+    conflictFilter: options.conflictFilter || null,
     startedAt: Date.now(),
     recordCount: records.length,
   });
@@ -119,6 +120,7 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
     const nonKeyCols = session.activeColumns.filter(c => !session.keyColumns.includes(c.name));
     const insertCols = session.activeColumns.map(c => `"${c.name}"`).join(', ');
     const onConflictCols = session.keyColumns.map(c => `"${c}"`).join(', ');
+    const conflictWhere = session.conflictFilter ? ` WHERE ${session.conflictFilter}` : '';
 
     let upsertSql;
     if (nonKeyCols.length > 0) {
@@ -126,14 +128,14 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       upsertSql = `
         INSERT INTO "${session.tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${session.tempTable}"
-        ON CONFLICT (${onConflictCols}) DO UPDATE SET ${updateSet}
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}
         RETURNING (xmax = 0) AS "wasInsert"
       `;
     } else {
       upsertSql = `
         INSERT INTO "${session.tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${session.tempTable}"
-        ON CONFLICT (${onConflictCols}) DO NOTHING
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO NOTHING
         RETURNING (xmax = 0) AS "wasInsert"
       `;
     }

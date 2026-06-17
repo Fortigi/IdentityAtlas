@@ -64,6 +64,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     systemIdColumn = 'systemId',
     tempTable: existingTempTable = null,
     scopeDeleteFilter = null,
+    conflictFilter = null,
   } = options;
 
   if (!records || records.length === 0) {
@@ -134,6 +135,11 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     const nonKeyCols = activeColumns.filter(c => !keyColumns.includes(c.name));
     const insertCols = activeColumns.map(c => `"${c.name}"`).join(', ');
     const onConflictCols = keyColumns.map(c => `"${c}"`).join(', ');
+    // conflictFilter supports partial unique indexes (e.g. ResourceAssignments
+    // uses two partial indexes after migration 036 replaced the composite PK).
+    // PostgreSQL requires the WHERE clause of the conflict inference to match
+    // the partial index predicate exactly.
+    const conflictWhere = conflictFilter ? ` WHERE ${conflictFilter}` : '';
 
     let upsertSql;
     if (nonKeyCols.length > 0) {
@@ -149,14 +155,14 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"
-        ON CONFLICT (${onConflictCols}) DO UPDATE SET ${updateSet}
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}
         RETURNING (xmax = 0) AS "wasInsert"
       `;
     } else {
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"
-        ON CONFLICT (${onConflictCols}) DO NOTHING
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO NOTHING
         RETURNING (xmax = 0) AS "wasInsert"
       `;
     }

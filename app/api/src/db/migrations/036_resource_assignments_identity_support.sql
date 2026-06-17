@@ -1,7 +1,7 @@
 -- Identity Atlas — add identity-level assignment support to ResourceAssignments.
 --
--- Allows IGA crawlers to assign business roles to an Identity (person) rather
--- than a specific Principal (account). Both targets remain valid simultaneously.
+-- Allows IGA crawlers to assign any access to a person rather than a specific
+-- account (Principal). Both assignment targets remain valid simultaneously.
 --
 -- Changes:
 --   1. Drop the composite PK (includes principalId which becomes nullable)

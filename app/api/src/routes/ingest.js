@@ -82,18 +82,21 @@ function createIngestHandler(entityType) {
         }
       }
 
-      // scopeDeleteFilter prevents full-sync cross-contamination: both
-      // resource-assignments endpoints write to the same table, so a
-      // principal full-sync must not delete identity rows and vice versa.
-      const scopeDeleteFilter =
+      // Both resource-assignments endpoints use partial unique indexes (migration 036
+      // replaced the composite PK). conflictFilter provides the WHERE clause required
+      // for PostgreSQL to resolve the ON CONFLICT target against the partial index.
+      // scopeDeleteFilter prevents full-sync cross-contamination between the two arms.
+      const conflictFilter =
         entityType === 'resource-assignments'          ? '"principalId" IS NOT NULL' :
         entityType === 'resource-assignments-identity' ? '"identityId" IS NOT NULL'  :
         null;
+      const scopeDeleteFilter = conflictFilter;
 
       // ── Session paths ─────────────────────────────────────────────
       if (body.syncSession === 'start') {
         const result = await startSession(null, tableName, keyColumns, normalized, {
-          systemId: body.systemId, scope, syncMode: body.syncMode || 'full', scopeDeleteFilter,
+          systemId: body.systemId, scope, syncMode: body.syncMode || 'full',
+          scopeDeleteFilter, conflictFilter,
         });
         return res.status(201).json({
           syncId: result.syncId, table: tableName,
@@ -131,6 +134,7 @@ function createIngestHandler(entityType) {
             systemId: body.systemId,
             scope,
             scopeDeleteFilter,
+            conflictFilter,
           })
         : { inserted: 0, updated: 0, deleted: 0 };
 
