@@ -82,10 +82,21 @@ function createIngestHandler(entityType) {
         }
       }
 
+      // Both resource-assignments endpoints use partial unique indexes (migration 036
+      // replaced the composite PK). conflictFilter provides the WHERE clause required
+      // for PostgreSQL to resolve the ON CONFLICT target against the partial index.
+      // scopeDeleteFilter prevents full-sync cross-contamination between the two arms.
+      const conflictFilter =
+        entityType === 'resource-assignments'          ? '"principalId" IS NOT NULL' :
+        entityType === 'resource-assignments-identity' ? '"identityId" IS NOT NULL'  :
+        null;
+      const scopeDeleteFilter = conflictFilter;
+
       // ── Session paths ─────────────────────────────────────────────
       if (body.syncSession === 'start') {
         const result = await startSession(null, tableName, keyColumns, normalized, {
           systemId: body.systemId, scope, syncMode: body.syncMode || 'full',
+          scopeDeleteFilter, conflictFilter,
         });
         return res.status(201).json({
           syncId: result.syncId, table: tableName,
@@ -122,6 +133,8 @@ function createIngestHandler(entityType) {
             syncMode: body.syncMode || 'delta',
             systemId: body.systemId,
             scope,
+            scopeDeleteFilter,
+            conflictFilter,
           })
         : { inserted: 0, updated: 0, deleted: 0 };
 
@@ -214,7 +227,8 @@ function createIngestHandler(entityType) {
 router.post('/ingest/systems',                  createIngestHandler('systems'));
 router.post('/ingest/principals',               createIngestHandler('principals'));
 router.post('/ingest/resources',                createIngestHandler('resources'));
-router.post('/ingest/resource-assignments',     createIngestHandler('resource-assignments'));
+router.post('/ingest/resource-assignments',          createIngestHandler('resource-assignments'));
+router.post('/ingest/resource-assignments-identity', createIngestHandler('resource-assignments-identity'));
 router.post('/ingest/resource-relationships',   createIngestHandler('resource-relationships'));
 router.post('/ingest/identities',               createIngestHandler('identities'));
 router.post('/ingest/identity-members',         createIngestHandler('identity-members'));
@@ -291,8 +305,12 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
          AND EXISTS (
            SELECT 1 FROM "ResourceAssignments" ra2
             WHERE ra2."resourceId" = ra."resourceId"
-              AND ra2."principalId" = ra."principalId"
               AND ra2."assignmentType" = 'Governed'
+              AND (
+                (ra."principalId" IS NOT NULL AND ra2."principalId" = ra."principalId")
+                OR
+                (ra."identityId"  IS NOT NULL AND ra2."identityId"  = ra."identityId")
+              )
          )
     `);
     const r = await db.query(`
