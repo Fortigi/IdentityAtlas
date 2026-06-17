@@ -112,7 +112,8 @@ erDiagram
     }
     ResourceAssignments {
         guid resourceId FK
-        guid principalId FK
+        guid principalId "nullable FK — XOR with identityId"
+        guid identityId "nullable FK — XOR with principalId"
         string assignmentType
         int systemId FK
         string principalType
@@ -152,7 +153,8 @@ erDiagram
     Systems ||--o{ Principals : "hosts"
     Systems ||--o{ Contexts : "scopes"
     Resources ||--o{ ResourceAssignments : "granted via"
-    Principals ||--o{ ResourceAssignments : "receives"
+    Principals |o--o{ ResourceAssignments : "receives (account-level)"
+    Identities |o--o{ ResourceAssignments : "receives (person-level)"
     Resources ||--o{ ResourceRelationships : "parent in"
     Resources ||--o{ ResourceRelationships : "child in"
     Principals ||--o{ PrincipalActivity : "has activity"
@@ -268,15 +270,18 @@ Key columns: `displayName`, `resourceType`, `systemId`, `contextId` (optional �
 
 ### ResourceAssignments
 
-Captures who has access to what, and how. The `assignmentType` column distinguishes direct membership from PIM-eligible access from governed (business-role-driven) access.
+Captures who has access to what, and how. The `assignmentType` column distinguishes direct membership from PIM-eligible access from governed (IGA-driven) access.
+
+Every row targets either a specific account (`principalId`) or a person (`identityId`) — exactly one must be set (XOR CHECK constraint). Use the principal endpoint for account-level assignments (e.g. "this AD account is in this group") and the identity endpoint for person-level assignments (e.g. "this person has been given this access" from an IGA system).
 
 | Property | Value |
 |---|---|
-| Primary Key | Composite: `resourceId` + `principalId` + `assignmentType` |
+| Uniqueness | Two partial unique indexes: `(resourceId, principalId, assignmentType)` WHERE `principalId IS NOT NULL`; `(resourceId, identityId, assignmentType)` WHERE `identityId IS NOT NULL` |
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
+| Modified by | Migration `036_resource_assignments_identity_support.sql` |
 
-Key columns: `assignmentType`, `systemId`, `principalType`, `complianceState`, `policyId`, `state`, `assignmentStatus`, `expirationDateTime`, `extendedAttributes` (JSONB).
+Key columns: `assignmentType`, `principalId` (nullable), `identityId` (nullable), `systemId`, `principalType`, `complianceState`, `policyId`, `state`, `assignmentStatus`, `expirationDateTime`, `extendedAttributes` (JSONB).
 
 ---
 
