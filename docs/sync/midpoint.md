@@ -57,6 +57,11 @@ The `ApiKey` is the worker API key shown on the **Admin → Settings** page.
 
 ## Configuration
 
+> 📖 For a full field-by-field reference with every default value, see
+> **[midPoint Crawler — Configuration Reference](midpoint-crawler-configuration.md)**.
+> In short: only the connection (base URL + auth) is mandatory; every other field has a
+> sensible default and can be left as-is.
+
 | Field | Required | Description |
 |---|---|---|
 | `baseUrl` | Yes | midPoint base URL, e.g. `https://midpoint.example.com/midpoint` or `.../midpoint/ws/rest` |

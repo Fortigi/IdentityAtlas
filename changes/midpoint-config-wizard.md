@@ -4,3 +4,4 @@
 - Added advanced type-mapping overrides to map org subtypes to a context type and user subtypes to a principal type, also populated live from the server.
 - Fixed: editing an existing midPoint crawler now opens the midPoint wizard instead of incorrectly opening the Microsoft Graph wizard.
 - midPoint crawler configurations can now be exported and re-imported like the other crawler types.
+- Added a full configuration reference for the midPoint crawler documenting every field and its default value.
