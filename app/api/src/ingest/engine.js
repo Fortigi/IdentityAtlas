@@ -63,6 +63,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     scope = {},
     systemIdColumn = 'systemId',
     tempTable: existingTempTable = null,
+    scopeDeleteFilter = null,
   } = options;
 
   if (!records || records.length === 0) {
@@ -171,14 +172,14 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     let deleted = 0;
     if (syncMode === 'full') {
       const tableColumnNames = new Set(columns.map(c => c.name));
-      deleted = await scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames);
+      deleted = await scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter);
     }
 
     return { inserted, updated, deleted };
   });
 }
 
-export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames) {
+export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter = null) {
   // Before the DELETE: create a unique index on the temp table over the
   // same key columns the NOT EXISTS uses, then ANALYZE so the planner has
   // accurate row counts. Without these the planner does a sequential scan
@@ -216,6 +217,8 @@ export async function scopedDelete(client, tableName, keyColumns, tempName, syst
   // IdentityMembers, so this is a no-op for every other table.)
   if (tableColumnNames.has('linkConfidence'))  where += ` AND t."linkConfidence" IS NULL`;
   if (tableColumnNames.has('analystOverride')) where += ` AND t."analystOverride" IS NULL`;
+
+  if (scopeDeleteFilter) where += ` AND (${scopeDeleteFilter})`;
 
   const notExistsJoin = keyColumns.map(k => `t."${k}" = src."${k}"`).join(' AND ');
   const sql = `

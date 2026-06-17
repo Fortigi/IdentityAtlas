@@ -1,0 +1,5 @@
+- Added identity-level assignment support to ResourceAssignments: business roles can now be assigned to a person (Identity) rather than a specific account (Principal), enabling IGA crawlers (e.g. MidPoint, Omada) to express the true IGA assignment model
+- Added `POST /ingest/resource-assignments-identity` endpoint for IGA crawlers to push identity-level business role assignments
+- Matrix view now expands identity-level assignments through IdentityMembers so each linked account appears in the access matrix
+- Fixed `classify-business-role-assignments` endpoint to correctly handle identity-level Direct assignments when promoting to Governed
+- Admin stats panel now shows count of identity-level assignments for post-deploy verification

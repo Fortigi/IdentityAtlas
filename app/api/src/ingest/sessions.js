@@ -90,6 +90,7 @@ export async function startSession(_pool, tableName, keyColumns, records, option
     systemId: options.systemId,
     scope: options.scope || {},
     systemIdColumn: options.systemIdColumn || 'systemId',
+    scopeDeleteFilter: options.scopeDeleteFilter || null,
     startedAt: Date.now(),
     recordCount: records.length,
   });
@@ -149,7 +150,8 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       const tableColumnNames = new Set(session.columns.map(c => c.name));
       deleted = await scopedDelete(
         session.client, session.tableName, session.keyColumns, session.tempTable,
-        session.systemId, session.scope, session.systemIdColumn, tableColumnNames
+        session.systemId, session.scope, session.systemIdColumn, tableColumnNames,
+        session.scopeDeleteFilter
       );
     }
 
