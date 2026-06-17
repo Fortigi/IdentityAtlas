@@ -208,6 +208,36 @@ In the **web container**, in-process, queued via the same job system risk-scorin
 
 This is a hard split: **crawlers ingest, plugins derive.** No more derivations in crawlers.
 
+### 4.4 Analyst curation of generated trees (survives re-runs)
+
+A generated tree is a starting point: the analyst then renames nodes, drags them
+under a different parent, adds manual children, and moves members. None of these
+edits may be lost when the plugin re-runs. The mechanisms:
+
+| Edit | How it persists | Honored by |
+|---|---|---|
+| **Rename a node** | `Contexts.userRenamed = true` (migration 033) | runner keeps the analyst name |
+| **Re-parent a node** (drag a node) | `Contexts.userReparented = true` (migration 033) | runner keeps the analyst placement |
+| **Add a manual child** | `variant='manual'` sub-tree under a generated parent | survives via `parentContextId` |
+| **Add / remove a member** | `ContextMembers.addedBy = 'analyst'` (algorithm-owned rows are wiped & recomputed each run; analyst rows are not) | runner's member reconcile |
+| **Move a member to another team** (drag a member oval) | `ManagerHierarchyOverrides` (migration 035) — an override of who that principal reports to | the **manager-hierarchy plugin** reads it and uses the override managerId instead of the source one |
+
+The last one is specific to the Manager-Hierarchy tree, where membership is
+derived from `Principals.managerId`. Dragging a person's oval onto another team in
+`ContextTreeView` calls `PATCH /api/contexts/:id/members/:memberId/move`, which:
+
+1. upserts a `ManagerHierarchyOverrides` row `(principalId → managerPrincipalId)`
+   — the target node's manager (or `NULL` to report to the root). Dropping the
+   person back on their *source* manager deletes the override.
+2. moves the `ContextMembers` row immediately (analyst-owned) so the tree updates
+   without waiting for a re-run, and recomputes member counts on both branches.
+
+On the next plugin run, `manager-hierarchy.js` loads the overrides for the scope
+system and computes each subject's *effective* manager as `override ?? managerId`,
+so the moved person is produced under the target team — the move sticks. (The
+endpoint is gated to `ManagerHierarchy` trees and requires the
+`admin.context-plugins` permission.)
+
 ## 5. Filtering by Context
 
 The matrix gains a context filter with two controls per filter:
