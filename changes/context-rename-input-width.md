@@ -1,1 +1,0 @@
-- Fixed the context rename box shrinking to a tiny width when you double-click a context to rename it — it now stays wide enough to read and edit the full name.
