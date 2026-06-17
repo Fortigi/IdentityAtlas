@@ -781,7 +781,6 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
   );
 }
 
-
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
 function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob }) {
   const cfg = config.config || {};
