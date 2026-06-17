@@ -1,4 +1,0 @@
-- Fixed resourceType documentation to match what the built-in crawlers actually produce (removed non-existent types, added Application, AppRole, DelegatedPermission, Entitlement, Resource, Service)
-- Added missing assignmentType values (AppRole, AppRoleViaGroup, OAuth2Grant) to the data model reference
-- Added AI provider configuration guide to the Risk Scoring overview, including all three supported providers (Anthropic, OpenAI, Azure OpenAI), required fields per provider, and a data privacy table showing which providers are suitable for regulated environments
-- Updated config file reference to cover Azure OpenAI and correct stale model defaults
