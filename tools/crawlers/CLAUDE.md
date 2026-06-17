@@ -7,6 +7,23 @@ Architecture internals: [`docs/architecture/crawler-architecture.md`](../../docs
 
 Drop a folder into `tools/crawlers/<type>/` with `crawler.json` + entry point. No changes to `Invoke-CrawlerJob.ps1`, `IdentityAtlas.psm1`, or `pr.yml` needed. Restart the worker to pick it up.
 
+## Folder conventions
+
+```
+tools/crawlers/<type>/
+├── crawler.json                ← required manifest
+├── Start-<Type>Crawler.ps1     ← entry point
+├── CLAUDE.md                   ← developer guide (architecture, data-model mapping, gotchas)
+├── Test-<Type>Crawler.ps1      ← CI integration test
+└── dev/                        ← development tools (not shipped, not loaded by dispatcher)
+    ├── README.md               ← run instructions and cleanup notes
+    └── Seed-<Type>*.ps1        ← load-test seeders, fixture generators, etc.
+```
+
+**`dev/` subfolder:** for scripts that support development and testing but are not part of the production image. The dispatcher ignores subdirectories entirely — nothing in `dev/` ever runs at runtime. Use it for load-test seeders, fixture generators, and migration helpers. Always include a `dev/README.md`.
+
+See `docs/sync/custom-crawlers.md` for the full authoring guide including the `dev/` folder convention.
+
 ## Rules
 
 - Every `.ps1` file must have `[CmdletBinding()]` — the Pester quality gate enforces this.
