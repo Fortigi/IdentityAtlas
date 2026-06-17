@@ -101,6 +101,55 @@ Describe 'Get-MidpointRefType' {
     }
 }
 
+# ─── Resolve-MidpointDepartment ───────────────────────────────────────────────
+Describe 'Resolve-MidpointDepartment' {
+    BeforeAll {
+        $script:orgMap = @{
+            'org-hr'    = 'HR'
+            'org-it'    = 'IT'
+            'org-board' = 'Board'
+        }
+    }
+    It 'resolves a single org membership to its display name' {
+        $u = [pscustomobject]@{ parentOrgRef = [pscustomobject]@{ oid = 'org-hr'; type = 'c:OrgType' } }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'HR'
+    }
+    It 'treats an absent relation as the default org' {
+        $u = [pscustomobject]@{ parentOrgRef = [pscustomobject]@{ oid = 'org-it' } }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'IT'
+    }
+    It 'prefers the org:default ref over a manager/meta ref' {
+        $u = [pscustomobject]@{ parentOrgRef = @(
+            [pscustomobject]@{ oid = 'org-board'; relation = 'org:manager' },
+            [pscustomobject]@{ oid = 'org-hr';    relation = 'org:default' }
+        ) }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'HR'
+    }
+    It 'matches a bare "default" relation too' {
+        $u = [pscustomobject]@{ parentOrgRef = [pscustomobject]@{ oid = 'org-it'; relation = 'default' } }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'IT'
+    }
+    It 'falls back to the first ref when no default-relation org is present' {
+        $u = [pscustomobject]@{ parentOrgRef = @(
+            [pscustomobject]@{ oid = 'org-it';    relation = 'org:manager' },
+            [pscustomobject]@{ oid = 'org-board'; relation = 'org:meta' }
+        ) }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'IT'
+    }
+    It 'returns empty when the user has no org membership' {
+        $u = [pscustomobject]@{ name = 'lonely' }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be ''
+    }
+    It 'returns empty when the org was not synced (not in the map)' {
+        $u = [pscustomobject]@{ parentOrgRef = [pscustomobject]@{ oid = 'org-unknown'; relation = 'org:default' } }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be ''
+    }
+    It 'returns empty for a null user without throwing' {
+        { Resolve-MidpointDepartment -User $null -OrgMap $script:orgMap } | Should -Not -Throw
+        Resolve-MidpointDepartment -User $null -OrgMap $script:orgMap | Should -Be ''
+    }
+}
+
 # ─── Test-MidpointEnabled ─────────────────────────────────────────────────────
 Describe 'Test-MidpointEnabled' {
     It 'returns true when activation.effectiveStatus is enabled' {

@@ -403,6 +403,41 @@ function Get-MidpointRefRelation {
     return $Fallback
 }
 
+function Resolve-MidpointDepartment {
+    <#
+    .SYNOPSIS
+        Derive a user's department from its org membership. A midPoint user can sit in
+        several orgs via parentOrgRef[], each carrying a relation (org:default,
+        org:manager, org:meta, …). The "department" is the user's PRIMARY org — the ref
+        whose relation is the default (org:default, or absent — midPoint's implied default).
+        Other relations (manager/meta/owner/approver) are ignored. Falls back to the first
+        ref when no default-relation ref is present. The chosen org OID is resolved to its
+        display name via $OrgMap (OrgType OID → display name). Returns '' when the user has
+        no org or the org wasn't synced.
+    .PARAMETER User
+        The midPoint UserType object (must expose .parentOrgRef).
+    .PARAMETER OrgMap
+        Hashtable of org OID → display name, built during the Orgs phase.
+    #>
+    [CmdletBinding()]
+    param($User, $OrgMap)
+    if ($null -eq $User -or $null -eq $OrgMap) { return '' }
+    $refs = @($User.parentOrgRef) | Where-Object { $_ }
+    if ($refs.Count -eq 0) { return '' }
+
+    $chosen = $null
+    foreach ($ref in $refs) {
+        $rel = Get-MidpointRefRelation $ref ''
+        # Default relation = empty (implied) or any QName ending in ":default" / equal to "default".
+        if (-not $rel -or $rel -eq 'default' -or $rel -match ':default$') { $chosen = $ref; break }
+    }
+    if (-not $chosen) { $chosen = $refs[0] }   # no default-relation org → first ref
+
+    $oid = Get-MidpointRefOid $chosen $null
+    if ($oid -and $OrgMap.ContainsKey($oid)) { return [string]$OrgMap[$oid] }
+    return ''
+}
+
 function Get-MidpointString {
     <#
     .SYNOPSIS

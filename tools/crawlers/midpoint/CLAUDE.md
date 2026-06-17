@@ -32,7 +32,8 @@ A crawler is a folder under `tools/crawlers/<type>/` with a `crawler.json` manif
 | `ShadowType kind=generic`/other | **Skipped** | OU/container/DB rows — no user account |
 | Account → entitlement membership | **ResourceAssignments** (`assignmentType=Direct`) | Via `association[]` or (4.9+) `referenceAttributes.<name>[]`, consolidated on the owner focus principal, `viaAccount` in `extendedAttributes` |
 | `user.assignment[]` → Role/Service | **ResourceAssignments** (`assignmentType=Governed`) | |
-| `user.parentOrgRef[]` | **ContextMembers** | |
+| `user.parentOrgRef[]` | **ContextMembers** | All org memberships |
+| `user.parentOrgRef` (default relation) | **Identity.department** + focus **Principal.department** | The user's primary org-unit name; see `Resolve-MidpointDepartment` |
 | `accessCertificationCampaigns` | **CertificationDecisions** | Requires `?include=case` |
 
 midPoint OIDs are UUIDs and are reused 1-to-1 as `id`/`externalId` — every record is traceable to the source object.
