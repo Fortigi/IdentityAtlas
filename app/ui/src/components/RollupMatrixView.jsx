@@ -218,7 +218,6 @@ export default function RollupMatrixView({
   // ── Layered drill: expand an org IN PLACE — its sub-teams appear as a new
   // header row beneath it (vs. zoom, which replaces the columns). Collapsing an
   // org clicks its (now-merged) parent header. Both just edit rollupExpanded.
-  const orgExpanded = useMemo(() => new Set(filter?.rollupExpanded || []), [filter?.rollupExpanded]);
   const expandOrg = useCallback((nodeId) => {
     const cur = filter?.rollupExpanded || [];
     if (cur.includes(nodeId)) return;
