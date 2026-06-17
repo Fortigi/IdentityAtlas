@@ -61,7 +61,7 @@ Each phase is safe-scoped by `systemId`: full-sync deletes only rows the crawler
 
 ## Live discovery
 
-The wizard's archetype/subtype dropdowns come from `POST /api/admin/midpoint/discover` (`app/api/src/routes/jobs.js` + the CodeQL-excluded `app/api/src/midpoint/discoveryProxy.js`). It connects to midPoint from Node (all 4 auth methods incl. OAuth2), mirroring the Omada `validate-metadata` pattern; edit-mode resolves the vaulted `clientSecret` via `getConfigSecret`.
+The wizard's archetype/subtype dropdowns come from `POST /api/admin/crawlers/midpoint/discover`, handled by `discover.js` in this folder and loaded dynamically by `app/api/src/routes/jobs.js`. It connects to midPoint from Node (all 4 auth methods incl. OAuth2), mirroring the Omada `validate-metadata` pattern; edit-mode resolves the vaulted `clientSecret` via `getConfigSecret`.
 
 ## Known Gotchas
 

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import ScheduleEditor from '../ScheduleEditor';
-import Stepper from '../Stepper';
-import Combobox from '../inputs/Combobox';
-import Select from '../inputs/Select';
+import ScheduleEditor from '../../../app/ui/src/components/ScheduleEditor';
+import Stepper from '../../../app/ui/src/components/Stepper';
+import Combobox from '../../../app/ui/src/components/inputs/Combobox';
+import Select from '../../../app/ui/src/components/inputs/Select';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
