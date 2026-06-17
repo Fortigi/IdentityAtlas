@@ -1,1 +1,3 @@
-- Adding a new crawler type with a step-by-step configuration wizard no longer requires editing the core Crawlers page — drop a `{type}ConfigWizard.jsx` and a `{type}CrawlerMeta.js` file in the crawlers component folder and it is picked up automatically.
+- Adding a new crawler type with a step-by-step configuration wizard no longer requires editing the core Crawlers page — drop a `ConfigWizard.jsx` and a `CrawlerMeta.js` in the crawler's folder under `tools/crawlers/{type}/` and it is picked up automatically.
+- Crawlers can now expose a live-discovery endpoint by adding a `discover.js` to their folder; the UI wizard can call it at `POST /api/admin/crawlers/{type}/discover` without any API route changes.
+- Added shared `Combobox` and `Select` input components for use in crawler wizard forms.
