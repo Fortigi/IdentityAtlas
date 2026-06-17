@@ -1,8 +1,6 @@
 # ResourceAssignments: Identity-Level Assignment Support
 
-> **Status:** CEO reviewed — ready for Eng review.
-> **Purpose:** Get sign-off on the schema change, migration strategy, and API contract
-> before any code is written.
+> **Status:** Implemented — T7 (tests) outstanding.
 > **Owner:** _TBD_ · **Reviewers:** _TBD_
 
 ---
@@ -122,10 +120,10 @@ CREATE TABLE "ResourceAssignments" (
 );
 ```
 
-### 3.2 Target schema (migration 035)
+### 3.2 Target schema (migration 036)
 
 ```sql
--- Migration 035_resource_assignments_identity_support.sql
+-- Migration 036_resource_assignments_identity_support.sql
 -- Not wrapped in a transaction: Docker deploy stops at startup on migration
 -- failure; manual cleanup via psql is acceptable given the simple, tested steps.
 
@@ -356,7 +354,7 @@ ensures the existing deduplication absorbs cross-arm duplicates (person with bot
 principal-level and an identity-level assignment to the same resource).
 
 ```sql
--- In migration 036_matrix_view_identity_support.sql
+-- In migration 037_matrix_view_identity_support.sql
 -- Rebuilds the materialized view to add the identity expansion arm.
 
 -- Drop dependent view first (matches migration 026 pattern; CASCADE would also
@@ -464,8 +462,8 @@ post-deploy verification that IGA crawlers are pushing identity-level assignment
 
 ### In scope
 
-- Migration `035_resource_assignments_identity_support.sql` — schema change
-- Migration `036_matrix_view_identity_support.sql` — matview rebuild with identity arm (DROP VIEW first)
+- Migration `036_resource_assignments_identity_support.sql` — schema change
+- Migration `037_matrix_view_identity_support.sql` — matview rebuild with identity arm (DROP VIEW first)
 - `app/api/src/ingest/validation.js` — new `resource-assignments-identity` entity type + XOR validation on `resource-assignments`
 - `app/api/src/routes/ingest.js` — new `/ingest/resource-assignments-identity` route + `scopeDeleteFilter` on both RA handlers + classify fix
 - `app/api/src/ingest/engine.js` — `scopeDeleteFilter` option in `ingest()` + `scopedDelete()`
@@ -497,7 +495,7 @@ post-deploy verification that IGA crawlers are pushing identity-level assignment
 
 | Step | Who | When |
 |---|---|---|
-| Apply migrations 035 + 036 | DB migration runner at container startup | Automatically on deploy |
+| Apply migrations 036 + 037 | DB migration runner at container startup | Automatically on deploy |
 | Existing crawlers (Entra, AD, CSV) | No change needed | — |
 | IGA crawlers (Omada, MidPoint) | Switch any assignment where the source system's subject is a person to `/ingest/resource-assignments-identity` (use `identityId` / `identityExternalId` instead of `principalId`). Account-level assignments (shadow memberships, entitlements assigned to a specific account) stay on `/ingest/resource-assignments`. | After this ships |
 
@@ -526,41 +524,25 @@ picking one account.        rows through IdentityMembers.   access per scope nod
 
 ## 10. Implementation Tasks
 
-- [ ] **T1 (P1, human: ~2h / CC: ~10min)** — DB — Write migration `035_resource_assignments_identity_support.sql`
-  - Surfaced by: Section 3 — schema change (nullable principalId, bare UUID identityId, XOR CHECK, partial indexes)
-  - Files: `app/api/src/db/migrations/035_resource_assignments_identity_support.sql`
-  - Verify: `docker compose build web && docker compose up -d web`; migration applies clean on a populated DB; existing rows satisfy CHECK constraint
+- [x] **T1 (P1)** — DB — Write migration `036_resource_assignments_identity_support.sql`
+  - Files: `app/api/src/db/migrations/036_resource_assignments_identity_support.sql`
 
-- [ ] **T2 (P1, human: ~1h / CC: ~5min)** — DB — Write migration `036_matrix_view_identity_support.sql`
-  - Surfaced by: Section 5 — DROP VIEW first + matview UNION arm inside collapsed CTE
-  - Files: `app/api/src/db/migrations/036_matrix_view_identity_support.sql`
-  - Verify: migration runs without "dependent object" error; `REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"` completes; identity assignment appears in matrix after account linking
+- [x] **T2 (P1)** — DB — Write migration `037_matrix_view_identity_support.sql`
+  - Files: `app/api/src/db/migrations/037_matrix_view_identity_support.sql`
 
-- [ ] **T3 (P1, human: ~1h / CC: ~10min)** — API — Add `resource-assignments-identity` entity type to validation.js
-  - Surfaced by: Section 4.3 — new entity type + XOR validation on existing `resource-assignments` schema
+- [x] **T3 (P1)** — API — Add `resource-assignments-identity` entity type to validation.js
   - Files: `app/api/src/ingest/validation.js`
-  - Changes: new `resource-assignments-identity` schema; add `identityId`/`identityExternalId` to `resource-assignments` for XOR check; add to `ENTITY_TABLE_MAP`, `ENTITY_KEY_MAP`, `ENTITY_SCOPE_MAP`
-  - Verify: POST `resource-assignments-identity` with both `principalId` + `identityId` → 400; with valid `identityId` → passes schema; with `identityExternalId` → passes schema
 
-- [ ] **T4 (P1, human: ~1h / CC: ~10min)** — API — Add identity route + scopeDeleteFilter + classify fix to ingest.js
-  - Surfaced by: Section 4.1 (new route), 4.5 (scopeDeleteFilter), 4.6 (classify fix)
-  - Files: `app/api/src/routes/ingest.js`
-  - Changes: new route; `scopeDeleteFilter` passed to both RA handlers; classify dedup DELETE XOR fix
-  - Verify: upsert identity assignment → re-push same record → updated not duplicated; full principal sync does not delete identity rows; classify endpoint handles identity Direct rows without constraint error
+- [x] **T4 (P1)** — API — Add identity route + scopeDeleteFilter + classify fix to ingest.js + sessions.js
+  - Files: `app/api/src/routes/ingest.js`, `app/api/src/ingest/sessions.js`
 
-- [ ] **T5 (P1, human: ~30min / CC: ~5min)** — API — Add `scopeDeleteFilter` option to engine.js
-  - Surfaced by: Section 4.5 — scopedDelete cross-contamination prevention
+- [x] **T5 (P1)** — API — Add `scopeDeleteFilter` option to engine.js
   - Files: `app/api/src/ingest/engine.js`
-  - Changes: add optional `scopeDeleteFilter` param to `scopedDelete()`; `ingest()` passes it through from options
-  - Verify: scopedDelete with `scopeDeleteFilter: '"identityId" IS NOT NULL'` only deletes identity rows; principal rows survive
 
-- [ ] **T6 (P2, human: ~30min / CC: ~3min)** — API — Add `identityAssignments` admin stat
-  - Surfaced by: E3 cherry-pick
+- [x] **T6 (P2)** — API — Add `identityAssignments` admin stat
   - Files: `app/api/src/routes/admin.js`
-  - Verify: count increments after pushing identity-level assignments
 
-- [ ] **T7 (P1, human: ~2h / CC: ~15min)** — Tests — Add ingest + matview + engine tests
-  - Surfaced by: Section 3 (test review)
+- [ ] **T7 (P1)** — Tests — Add ingest + matview + engine tests
   - Files: `app/api/src/ingest/validation.test.js`, `app/api/src/ingest/engine.test.js`, nearest ingest integration test
   - Tests:
     1. identity batch to `/resource-assignments-identity` accepted
