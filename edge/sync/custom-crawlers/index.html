@@ -868,6 +868,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Folder Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-dev-subfolder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dev/ subfolder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2713,6 +2730,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Folder Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-dev-subfolder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dev/ subfolder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2902,8 +2936,21 @@
 <h2 id="folder-structure">Folder Structure<a class="headerlink" href="#folder-structure" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>tools/crawlers/my-source/
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── crawler.json               ← required manifest
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>└── Start-MySourceCrawler.ps1  ← entry point declared in manifest
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── Start-MySourceCrawler.ps1  ← entry point declared in manifest
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>├── CLAUDE.md                  ← developer guide (architecture, data-model mapping, gotchas)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>├── Test-MySourceCrawler.ps1   ← CI integration test (optional but recommended)
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>└── dev/                       ← development and testing utilities (optional)
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    ├── README.md              ← what each tool does and how to run it
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    └── Seed-MySourceData.ps1  ← example: load-test seeder, fixture generator, etc.
 </code></pre></div>
+<h3 id="the-dev-subfolder">The <code>dev/</code> subfolder<a class="headerlink" href="#the-dev-subfolder" title="Permanent link">&para;</a></h3>
+<p>The <code>dev/</code> folder is the home for scripts that support development and testing of the crawler but are <strong>not part of the production image</strong> and not loaded by the dispatcher. Use it for:</p>
+<ul>
+<li><strong>Load-test seeders</strong> — scripts that create large volumes of test data in the source system to validate crawler performance and memory usage</li>
+<li><strong>Fixture generators</strong> — one-off scripts that seed a known, repeatable dataset for manual or exploratory testing</li>
+<li><strong>Migration helpers</strong> — scripts useful during initial setup or version upgrades of the source system</li>
+</ul>
+<p>The dispatcher ignores subdirectories, so nothing in <code>dev/</code> is ever executed at runtime. Include a <code>dev/README.md</code> that describes what each tool does, how to run it, and (for seeders) how to clean up afterwards.</p>
 <p>Restart the worker container after adding the folder. The new crawler appears in the UI under <strong>Admin → Crawlers → Add Crawler</strong> immediately.</p>
 <hr />
 <h2 id="the-manifest-crawlerjson">The Manifest (<code>crawler.json</code>)<a class="headerlink" href="#the-manifest-crawlerjson" title="Permanent link">&para;</a></h2>
