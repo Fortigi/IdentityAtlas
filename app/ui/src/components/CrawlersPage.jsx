@@ -2681,8 +2681,10 @@ export default function CrawlersPage({ onNavigate }) {
   const prevActiveJobsRef = useRef([]);
   const pollRef = useRef(null);
 
-  // Wizard state — 'select' (type picker), 'entra-wizard' (full wizard)
+  // Wizard state — 'select' (type picker), 'entra-wizard', 'crawler-wizard' (generic)
   const [wizardStep, setWizardStep] = useState(null);
+  // For 'crawler-wizard': which crawler type's wizard to render
+  const [wizardCrawlerType, setWizardCrawlerType] = useState(null);
   // When editing an existing config, holds its full data + id; null otherwise
   const [editingConfig, setEditingConfig] = useState(null);
 
@@ -2781,6 +2783,9 @@ export default function CrawlersPage({ onNavigate }) {
     } else if (type === 'omada') {
       setEditingConfig(null);
       setWizardStep('omada-wizard');
+    } else if (type === 'midpoint') {
+      setEditingConfig(null);
+      setWizardCrawlerType('midpoint'); setWizardStep('crawler-wizard');
     } else if (type === 'custom') {
       setEditingConfig(null);
       setWizardStep('custom-wizard');
@@ -2875,11 +2880,16 @@ export default function CrawlersPage({ onNavigate }) {
       displayName: config.displayName,
       ...(config.config || {}),
     });
-    setWizardStep(
-      config.crawlerType === 'csv'   ? 'csv-wizard'   :
-      config.crawlerType === 'omada' ? 'omada-wizard' :
-      'entra-wizard'
-    );
+    if (getCrawlerWizard(config.crawlerType)) {
+      setWizardCrawlerType(config.crawlerType);
+      setWizardStep('crawler-wizard');
+    } else {
+      setWizardStep(
+        config.crawlerType === 'csv'   ? 'csv-wizard'   :
+        config.crawlerType === 'omada' ? 'omada-wizard' :
+        'entra-wizard'
+      );
+    }
   };
 
   // ── Job actions ───────────────────────────────────────────────
@@ -2979,11 +2989,16 @@ export default function CrawlersPage({ onNavigate }) {
         displayName: imported.displayName || '',
         ...(imported.config || {}),
       });
-      setWizardStep(
-        imported.crawlerType === 'csv'   ? 'csv-wizard'   :
-        imported.crawlerType === 'omada' ? 'omada-wizard' :
-        'entra-wizard'
-      );
+      if (getCrawlerWizard(imported.crawlerType)) {
+        setWizardCrawlerType(imported.crawlerType);
+        setWizardStep('crawler-wizard');
+      } else {
+        setWizardStep(
+          imported.crawlerType === 'csv'   ? 'csv-wizard'   :
+          imported.crawlerType === 'omada' ? 'omada-wizard' :
+          'entra-wizard'
+        );
+      }
     } catch (err) {
       setError(`Import failed: ${err.message}`);
     } finally {
@@ -3122,6 +3137,20 @@ export default function CrawlersPage({ onNavigate }) {
           authFetch={authFetch}
         />
       )}
+      {wizardStep === 'crawler-wizard' && (() => {
+        const CrawlerWizard = getCrawlerWizard(wizardCrawlerType);
+        return CrawlerWizard ? (
+          <Suspense fallback={<div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading…</div>}>
+            <CrawlerWizard
+              onComplete={() => { setWizardStep(null); setEditingConfig(null); fetchConfigs(); }}
+              onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
+              initialConfig={editingConfig}
+              isEdit={!!editingConfig?.id}
+              authFetch={authFetch}
+            />
+          </Suspense>
+        ) : null;
+      })()}
       {wizardStep === 'custom-wizard' && (
         <CustomConnectorWizard
           onComplete={() => {
