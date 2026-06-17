@@ -1,0 +1,1 @@
+- Adding a new crawler type with a step-by-step configuration wizard no longer requires editing the core Crawlers page — drop a `{type}ConfigWizard.jsx` and a `{type}CrawlerMeta.js` file in the crawlers component folder and it is picked up automatically.
