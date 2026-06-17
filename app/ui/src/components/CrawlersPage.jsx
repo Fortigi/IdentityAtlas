@@ -2557,14 +2557,23 @@ function MidpointWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch
   const inputCls = 'w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
   const monoCls  = inputCls + ' font-mono';
 
+  const midpointSteps = [
+    { n: 1, label: 'Connection' },
+    { n: 2, label: 'Credentials' },
+    { n: 3, label: 'Objects & Mapping' },
+    { n: 4, label: 'Schedule' },
+  ];
+  // Jump to a step; ensure live discovery is loaded when entering step 3 by any path.
+  const handleStepClick = (n) => { setStep(n); if (n === 3) fetchDiscovery(); };
+
   return (
     <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">
-          {isEdit ? 'Edit midPoint Crawler' : 'Add midPoint Crawler'} — Step {step} of 4
-        </h3>
+        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit' : 'Add'} midPoint Crawler</h3>
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
+
+      <div className="mb-5"><Stepper steps={midpointSteps} current={step} onStepClick={handleStepClick} allowAll={!!isEdit} /></div>
 
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">{error}</div>}
 
