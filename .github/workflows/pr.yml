@@ -185,6 +185,28 @@ jobs:
         working-directory: app/api
         run: npm test
 
+  # ── Stage 4b: UI unit tests (Vitest) ────────────────────────────────────
+  unit-ui:
+    name: 'Unit Tests: Vitest (UI)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/ui
+        run: npm ci
+
+      - name: Run Vitest
+        working-directory: app/ui
+        run: npm test
+
   # ── Stage 5: OpenAPI spec linting ───────────────────────────────────────
   openapi:
     name: 'Lint: OpenAPI spec'
@@ -292,14 +314,14 @@ jobs:
   pr-summary:
     name: 'PR Summary'
     runs-on: ubuntu-latest
-    needs: [lint-ps, lint-js, unit-tests, unit-js, openapi, audit, hygiene]
+    needs: [lint-ps, lint-js, unit-tests, unit-js, unit-ui, openapi, audit, hygiene]
     if: always()
     steps:
       - name: Report results
         run: |
           echo "## PR Check Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          for job in lint-ps lint-js unit-tests unit-js openapi audit hygiene; do
+          for job in lint-ps lint-js unit-tests unit-js unit-ui openapi audit hygiene; do
             result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('$job', {}).get('result','unknown'))")
             if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
             echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
@@ -311,6 +333,7 @@ jobs:
           needs.lint-js.result == 'failure' ||
           needs.unit-tests.result == 'failure' ||
           needs.unit-js.result == 'failure' ||
+          needs.unit-ui.result == 'failure' ||
           needs.openapi.result == 'failure' ||
           needs.audit.result == 'failure' ||
           needs.hygiene.result == 'failure'

@@ -15,6 +15,11 @@ describe('buildSortKeys', () => {
     expect(buildSortKeys({ department: 'Eng' }, DEPT_TITLE)).toEqual(['Eng', '']);
     expect(buildSortKeys(null, DEPT)).toEqual(['']);
   });
+  it('reads ext.* keys from extendedAttributes', () => {
+    expect(buildSortKeys({ extendedAttributes: { costCenter: 'CC1' } }, [{ attribute: 'ext.costCenter', dir: 'asc' }])).toEqual(['CC1']);
+    expect(buildSortKeys({ extendedAttributes: {} }, [{ attribute: 'ext.missing' }])).toEqual(['']);
+    expect(buildSortKeys({}, [{ attribute: 'ext.x' }])).toEqual(['']);
+  });
 });
 
 describe('makeUserComparator', () => {

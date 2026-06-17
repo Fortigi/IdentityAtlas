@@ -47,6 +47,48 @@ function EmptyFilterState({ onAdjustFilter, hasData }) {
   );
 }
 
+// Marks an aggregate column's sort-key values BELOW its collapse level, so the
+// merged header renders a child-count there (and two aggregate columns never
+// fuse into one span). Picked from the private-use area so it can't collide
+// with real attribute values.
+export const AGG_SENTINEL = '@@AGG@@';
+
+// Above this many assignments, an 'auto' fold-on-load matrix opens folded.
+const FOLD_AUTO_THRESHOLD = 5000;
+
+// Short label for a manager-hierarchy node name ("A · B · C (Manager)" → "C").
+function orgShort(name) {
+  const noMgr = String(name || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const segs = noMgr.split('·').map(s => s.trim()).filter(Boolean);
+  return segs[segs.length - 1] || noMgr;
+}
+
+// Key identifying a collapsed attribute group: the level plus the sort-key
+// prefix up to and including `level`. Each segment is length-prefixed so two
+// different value sequences can never collide.
+function collapseKey(sortKeys, level) {
+  const seg = (sortKeys || []).slice(0, level + 1).map(v => `${String(v).length}:${v}`).join('|');
+  return `${level}|${seg}`;
+}
+
+// A per-account sub-column spliced in under an expanded identity (or member),
+// inheriting the parent's sort-keys so the merged attribute headers stay contiguous.
+function makeAccountCol(parent, acc, sortKeys) {
+  return {
+    id: acc.id,
+    displayName: acc.displayName || acc.id,
+    jobTitle: parent.jobTitle || '',
+    department: parent.department || '',
+    upn: '',
+    memberType: 'Principal',
+    isAccountCol: true,
+    parentId: parent.id,
+    accountType: acc.accountType || null,
+    isPrimary: !!acc.isPrimary,
+    sortKeys: [...(sortKeys || [])],
+  };
+}
+
 export default function MatrixView({
   data, accessPackageGroups = [], managedByPackages = [],
   filter,
@@ -70,6 +112,21 @@ export default function MatrixView({
   const [expandedIdentities, setExpandedIdentities] = useState(new Set());
   const [accountMatrixCache, setAccountMatrixCache] = useState(new Map()); // identityId → { accounts, memberships: Map }
   const [loadingIdentityCols, setLoadingIdentityCols] = useState(new Set());
+
+  // ─── Attribute column folding ───────────────────────────────────
+  // Collapse subject columns that share a sort-attribute value (e.g. a Division)
+  // into ONE aggregate column showing counts. Folding/unfolding behaves like a
+  // tree: unfolding a group drops to the NEXT sort level (still folded) rather
+  // than jumping straight to individual subjects. (toggleCollapse is defined
+  // below, where the sorted `users` list is available.)
+  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  // A folded aggregate column can instead be exploded into its individual member
+  // columns AT this level (rather than drilling to the next sort level): Map of
+  // collapseKey → 'all' (direct + indirect, the whole subtree) | 'direct' (only
+  // subjects whose path ends at this level). Used mainly in Manager-Hierarchy
+  // sort, where "drill" reveals the next org layer but you sometimes want to see
+  // the people sitting at the current layer.
+  const [memberExpanded, setMemberExpanded] = useState(() => new Map());
 
   const toggleIdentityColumn = useCallback(async (identityId) => {
     if (expandedIdentities.has(identityId)) {
@@ -171,10 +228,43 @@ export default function MatrixView({
 
   // Subject-axis sort order (default: department). Drives both the user sort
   // and the merged attribute header rows.
-  const sortAttrs = useMemo(
-    () => (filter?.sortAttributes?.length ? filter.sortAttributes : [{ attribute: 'department', dir: 'asc' }]),
-    [filter],
-  );
+  // ─── Sort by Manager Hierarchy ──────────────────────────────────
+  // When the filter selects a hierarchy root, fetch each subject's ancestor org
+  // path and use it as the column sort keys; the merged header rows become the
+  // org levels and the existing fold reveals one level at a time.
+  const sortHierarchyId = filter?.sortHierarchy?.contextId || null;
+  const [hierPaths, setHierPaths] = useState(null); // Map subjectId → short label[]
+  const [hierDepth, setHierDepth] = useState(0);
+  useEffect(() => {
+    if (!sortHierarchyId) { setHierPaths(null); setHierDepth(0); return; }
+    let cancelled = false;
+    authFetch('/api/matrix/hierarchy-paths', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rootContextId: sortHierarchyId, rowType: filter?.rowType }),
+    })
+      .then(r => r.ok ? r.json() : { paths: {}, depth: 0 })
+      .then(body => {
+        if (cancelled) return;
+        const m = new Map();
+        let maxD = 0;
+        for (const [sid, path] of Object.entries(body.paths || {})) {
+          const short = [];
+          for (const seg of path) { const s = orgShort(seg); if (!short.length || short[short.length - 1] !== s) short.push(s); }
+          m.set(sid, short);
+          if (short.length > maxD) maxD = short.length;
+        }
+        setHierPaths(m); setHierDepth(maxD);
+      })
+      .catch(() => { if (!cancelled) { setHierPaths(new Map()); setHierDepth(0); } });
+    return () => { cancelled = true; };
+  }, [sortHierarchyId, filter?.rowType, authFetch]);
+
+  const hierActive = !!sortHierarchyId && hierDepth > 0;
+
+  const sortAttrs = useMemo(() => {
+    if (hierActive) return Array.from({ length: hierDepth }, (_, i) => ({ attribute: `Org level ${i + 1}`, dir: 'asc' }));
+    return filter?.sortAttributes?.length ? filter.sortAttributes : [{ attribute: 'department', dir: 'asc' }];
+  }, [filter, hierActive, hierDepth]);
 
   // Build matrix data structures
   // Owner memberships are split into separate synthetic rows (id: "groupId__owner",
@@ -200,7 +290,9 @@ export default function MatrixView({
         // Precompute the sort values (attribute order) for multi-key sort +
         // merged headers. Stored under a static `sortKeys` key — the user-derived
         // attribute names are only read, never used as a write target.
-        u.sortKeys = buildSortKeys(d, sortAttrs);
+        u.sortKeys = hierActive
+          ? Array.from({ length: hierDepth }, (_, i) => (hierPaths.get(d.memberId)?.[i] ?? ''))
+          : buildSortKeys(d, sortAttrs);
         userMap.set(d.memberId, u);
       }
 
@@ -301,7 +393,27 @@ export default function MatrixView({
       });
 
     return { users, groups, memberships: membershipMap, managedMap: managed };
-  }, [filteredData, groupTagMap, sortAttrs]);
+  }, [filteredData, groupTagMap, sortAttrs, hierActive, hierDepth, hierPaths]);
+
+  // Seed the initial fold state from the wizard's foldOnLoad setting, once per
+  // matrix (storageKey) when its subjects have loaded. 'auto' folds only for
+  // large matrices so the first paint stays fast. User fold/unfold actions
+  // afterwards aren't overridden (we only seed once per filter).
+  const seededFoldRef = useRef(null);
+  useEffect(() => { seededFoldRef.current = null; setCollapsedGroups(new Set()); setMemberExpanded(new Map()); }, [storageKey]);
+  useEffect(() => {
+    if (seededFoldRef.current === storageKey || users.length === 0) return;
+    // A Manager-Hierarchy matrix has thousands of columns — always open folded.
+    // Wait for the hierarchy paths to load so we fold on the right (org) keys.
+    const wantsHierarchy = !!sortHierarchyId;
+    if (wantsHierarchy && !hierActive) return;
+    seededFoldRef.current = storageKey;
+    const fol = filter?.foldOnLoad ?? 'auto';
+    const shouldFold = wantsHierarchy
+      ? true
+      : (fol === 'auto' ? ((counts?.assignmentCount || 0) >= FOLD_AUTO_THRESHOLD) : !!fol);
+    if (shouldFold) setCollapsedGroups(new Set(users.map(u => collapseKey(u.sortKeys, 0))));
+  }, [storageKey, users, filter, counts, sortHierarchyId, hierActive]);
 
   // Build managed-by-AP map: cellKey (lowercase) -> accessPackageId[] (lowercase)
   // All keys and values normalized to lowercase for case-insensitive matching
@@ -630,8 +742,9 @@ export default function MatrixView({
       accessPackages,
       apGroupMap,
       shareUrl,
+      sortAttributes: sortAttrs,
     });
-  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl]);
+  }, [users, orderedGroups, memberships, managedApMap, apIdToIndex, accessPackages, apGroupMap, shareUrl, sortAttrs]);
 
   // Share: copy URL to clipboard
   const handleShare = useCallback(async () => {
@@ -652,37 +765,72 @@ export default function MatrixView({
   const visibleAccessPackages = managedFilter === 'unmanaged' ? [] : accessPackages;
 
   // Columns rendered = identity/principal subjects with per-account sub-columns
-  // spliced in after any expanded identity. Analytics above stay keyed on the
+  // spliced in after any expanded identity, AND collapsed attribute groups
+  // replaced by a single aggregate column. Analytics above stay keyed on the
   // identity-only `users`; only rendering uses these augmented sets.
-  const colUsers = useMemo(() => {
-    if (expandedIdentities.size === 0) return users;
+  const { cols: colUsers, userToAgg } = useMemo(() => {
+    const collapsed = collapsedGroups;
+    const nAttr = sortAttrs.length;
     const out = [];
+    const userToAgg = new Map();
+    const emitted = new Set();
     for (const u of users) {
+      // Shallowest collapsed level whose sort-key prefix covers this user.
+      let lvl = -1;
+      for (let L = 0; L < nAttr; L++) {
+        if (collapsed.has(collapseKey(u.sortKeys, L))) { lvl = L; break; }
+      }
+      if (lvl >= 0) {
+        const key = collapseKey(u.sortKeys, lvl);
+        if (!emitted.has(key)) {
+          emitted.add(key);
+          const members = users.filter(x => collapseKey(x.sortKeys, lvl) === key);
+          // Member-expanded: show the individual subjects at this level instead
+          // of one aggregate. Truncate their sort-keys to this level so they sit
+          // under the current org header and don't sprout deeper org rows.
+          const memMode = memberExpanded.get(key);
+          if (memMode) {
+            const picked = memMode === 'direct'
+              ? members.filter(m => !(m.sortKeys?.[lvl + 1])) // path ends here
+              : members;
+            for (const m of picked) {
+              const sk = [];
+              for (let i = 0; i < nAttr; i++) sk[i] = i <= lvl ? (m.sortKeys?.[i] ?? '') : '';
+              out.push({ ...m, sortKeys: sk, isMemberCol: true, aggKey: key, memberLevel: lvl });
+              if (m.memberType === 'Identity' && expandedIdentities.has(m.id)) {
+                const cache = accountMatrixCache.get(m.id);
+                for (const acc of (cache?.accounts || [])) out.push(makeAccountCol(m, acc, sk));
+              }
+            }
+            continue;
+          }
+          const aggId = `agg ${key}`;
+          // Distinct child-value count for each level below the collapse level.
+          const childCounts = {};
+          for (let i = lvl + 1; i < nAttr; i++) {
+            childCounts[i] = new Set(members.map(m => (m.sortKeys?.[i] ?? ''))).size;
+          }
+          // sortKeys: real values up to the collapse level; a unique sentinel
+          // below so the merged header spans never fuse two aggregate columns.
+          const sk = [];
+          for (let i = 0; i < nAttr; i++) sk[i] = i <= lvl ? (u.sortKeys?.[i] ?? '') : `${AGG_SENTINEL}${aggId} ${i}`;
+          out.push({
+            id: aggId, isAggregateCol: true, level: lvl,
+            value: u.sortKeys?.[lvl] ?? '', childCounts, userCount: members.length,
+            sortKeys: sk, memberType: 'Aggregate', displayName: u.sortKeys?.[lvl] || '(none)',
+          });
+          for (const m of members) userToAgg.set(m.id, aggId);
+        }
+        continue; // individual user (and its account expansion) is folded away
+      }
       out.push(u);
       if (u.memberType === 'Identity' && expandedIdentities.has(u.id)) {
         const cache = accountMatrixCache.get(u.id);
-        for (const acc of (cache?.accounts || [])) {
-          const accCol = {
-            id: acc.id,
-            displayName: acc.displayName || acc.id,
-            jobTitle: u.jobTitle || '',     // inherit so the merged title header stays contiguous
-            department: u.department || '',
-            upn: '',
-            memberType: 'Principal',
-            isAccountCol: true,
-            parentId: u.id,
-            accountType: acc.accountType || null,
-            isPrimary: !!acc.isPrimary,
-          };
-          // Inherit the parent identity's sort values so the merged attribute
-          // header rows stay contiguous across an expanded identity.
-          accCol.sortKeys = [...(u.sortKeys || [])];
-          out.push(accCol);
-        }
+        for (const acc of (cache?.accounts || [])) out.push(makeAccountCol(u, acc, u.sortKeys));
       }
     }
-    return out;
-  }, [users, expandedIdentities, accountMatrixCache, sortAttrs]);
+    return { cols: out, userToAgg };
+  }, [users, collapsedGroups, memberExpanded, sortAttrs, expandedIdentities, accountMatrixCache]);
 
   const colMemberships = useMemo(() => {
     if (expandedIdentities.size === 0) return displayMemberships;
@@ -695,6 +843,87 @@ export default function MatrixView({
     return merged;
   }, [displayMemberships, expandedIdentities, accountMatrixCache]);
 
+  // For each (resource-row, aggregate-column): how many of the folded users hold
+  // a Direct assignment — the "count of D's" shown in the collapsed cell. Keyed
+  // "<groupId> <aggColId>".
+  const aggDirectCounts = useMemo(() => {
+    if (collapsedGroups.size === 0) return null;
+    const counts = new Map();
+    for (const [k, types] of colMemberships) {
+      if (!types || !types.has('Direct')) continue;
+      const sep = k.lastIndexOf('|');
+      if (sep < 0) continue;
+      const aggId = userToAgg.get(k.slice(sep + 1));
+      if (!aggId) continue;
+      const ck = `${k.slice(0, sep)} ${aggId}`;
+      counts.set(ck, (counts.get(ck) || 0) + 1);
+    }
+    return counts;
+  }, [colMemberships, userToAgg, collapsedGroups]);
+
+  // Fold every top-level (first sort attribute) group into one aggregate column;
+  // unfold clears all collapses. There's something to fold only when the first
+  // attribute has more than one distinct value.
+  const distinctTopGroups = useMemo(() => new Set(users.map(u => collapseKey(u.sortKeys, 0))), [users]);
+  const canFoldColumns = distinctTopGroups.size > 1;
+  const foldAllColumns = useCallback(() => setCollapsedGroups(new Set(distinctTopGroups)), [distinctTopGroups]);
+  const unfoldAllColumns = useCallback(() => setCollapsedGroups(new Set()), []);
+
+  // Tree-aware fold toggle. Folding a group also clears any deeper sub-folds it
+  // now hides; UNfolding it drops to the next sort level (its child groups stay
+  // folded) unless it's already the deepest level.
+  const toggleCollapse = useCallback((sortKeys, level) => {
+    const key = collapseKey(sortKeys, level);
+    const nAttr = sortAttrs.length;
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+        if (level + 1 < nAttr) {
+          for (const u of users) {
+            if (collapseKey(u.sortKeys, level) === key) next.add(collapseKey(u.sortKeys, level + 1));
+          }
+        }
+      } else {
+        next.add(key);
+        for (const u of users) {
+          if (collapseKey(u.sortKeys, level) !== key) continue;
+          for (let L = level + 1; L < nAttr; L++) next.delete(collapseKey(u.sortKeys, L));
+        }
+      }
+      return next;
+    });
+  }, [users, sortAttrs]);
+
+  // Explode a folded aggregate column into its individual member columns at the
+  // SAME level (vs. toggleCollapse, which drills to the next level). Clicking the
+  // same mode again, or the org's own level header, collapses back to the count.
+  const toggleMembers = useCallback((sortKeys, level, mode) => {
+    const key = collapseKey(sortKeys, level);
+    setMemberExpanded(prev => {
+      const next = new Map(prev);
+      if (next.get(key) === mode) next.delete(key);
+      else if (mode) next.set(key, mode);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  // In Manager-Hierarchy sort, only show as many org-level header rows as have
+  // actually been unfolded: a folded group reaches level+1, an unfolded subject
+  // reaches its own path depth. Attribute sort always shows all chosen levels.
+  const headerDepth = useMemo(() => {
+    if (!hierActive) return sortAttrs.length;
+    let d = 1;
+    for (const c of colUsers) {
+      const cd = c.isAggregateCol
+        ? c.level + 1
+        : (c.sortKeys || []).reduce((n, v, i) => (v ? i + 1 : n), 0) || 1;
+      if (cd > d) d = cd;
+    }
+    return Math.min(d, sortAttrs.length);
+  }, [hierActive, colUsers, sortAttrs.length]);
+
   // Shared column headers element (used by both sortable and static table)
   const columnHeaders = (
     <MatrixColumnHeaders
@@ -703,10 +932,13 @@ export default function MatrixView({
       onSortByCount={handleSortByCount}
       accessPackages={visibleAccessPackages}
       sortAttributes={sortAttrs}
+      maxHeaderDepth={headerDepth}
       onOpenDetail={onOpenDetail}
       expandedIdentities={expandedIdentities}
       onToggleIdentity={toggleIdentityColumn}
       loadingIdentityCols={loadingIdentityCols}
+      onToggleCollapse={toggleCollapse}
+      onToggleMembers={toggleMembers}
     />
   );
 
@@ -716,11 +948,11 @@ export default function MatrixView({
   const filterIsApplied = filter !== null && filter !== undefined;
 
   // Cap the grid's height to the remaining viewport so ONLY the grid scrolls,
-  // never the page too. A hardcoded max-height that guesses the chrome height
-  // above the grid causes a double scrollbar when the real chrome (auth banner
-  // + scope stats + "How to read") is taller than the guess.
-  // Measure the grid's real document-top instead and re-measure on any layout
-  // change (header content loads late, panels toggle).
+  // never the page too. A fixed viewport-minus-fixed-pixels max-height guesses
+  // the chrome height; the real chrome (auth banner + scope stats + "How to
+  // read") is taller, so the grid sat too low and the page got a second
+  // scrollbar. Measure the grid's real document-top instead and re-measure on
+  // any layout change (header content loads late, panels toggle).
   const rootRef = useRef(null);
   const [gridMaxH, setGridMaxH] = useState(null);
   useLayoutEffect(() => {
@@ -771,6 +1003,10 @@ export default function MatrixView({
         hasExpandedGroups={expandedGroups.size > 0}
         onExpandAll={expandAll}
         onCollapseAll={collapseAll}
+        canFoldColumns={canFoldColumns}
+        isFolded={collapsedGroups.size > 0}
+        onFoldAllColumns={foldAllColumns}
+        onUnfoldAllColumns={unfoldAllColumns}
       />
 
       {filterIsApplied && <MatrixLegend />}
@@ -803,6 +1039,7 @@ export default function MatrixView({
               columnHeaders={columnHeaders}
               users={colUsers}
               memberships={colMemberships}
+              aggDirectCounts={aggDirectCounts}
               managedMap={managedMap}
               managedApMap={managedApMap}
               apIdToIndex={apIdToIndex}
@@ -826,6 +1063,7 @@ export default function MatrixView({
                     users={colUsers}
                     totalUsers={colUsers.length}
                     memberships={colMemberships}
+                    aggDirectCounts={aggDirectCounts}
                     managedMap={managedMap}
                     managedApMap={managedApMap}
                     apIdToIndex={apIdToIndex}

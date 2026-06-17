@@ -111,6 +111,74 @@ The wizard's "+ Context" picker is filtered by the subject row type so an analys
 
 The subject-condition step also offers an "+ Attribute" filter. When `rowType=identity`, the column list comes from `GET /api/matrix/columns?entity=Identity` (loaded lazily the first time the analyst switches to identities), so identities can be narrowed by their own attributes (department, jobTitle, companyName, city, country, employeeId, …) and by identity tag. Switching row type clears the subject conditions, since the available columns differ between principals and identities.
 
+## Sorting, folding & server-side aggregation
+
+The column axis can get very wide (one column per subject). Three mechanisms keep
+it usable at scale; which one is in play depends on the wizard's **Sort** step and
+the matrix size.
+
+### Per-subject sort + fold (client-side, small matrices)
+
+In the default per-subject grid (`MatrixView.jsx`) the columns can be **sorted by
+1–6 attributes** (`sortAttributes`, e.g. `department` then `jobTitle`). Each sort
+attribute becomes a merged header row above the subject names
+(`computeAttributeSpans` in `matrix/sortUsers.js`). A sort group can then be
+**folded** into a single aggregate count column in place (`collapsedGroups`); the
+aggregate column shows the number of child groups, the user count, and a per-row
+count of Direct assignments. `▾`/`↳` explode an aggregate back into its members
+(direct + indirect, or direct only). This is all **client-side** on the flat
+per-subject payload — it changes what is *rendered*, not what is *fetched*.
+
+### Size gate
+
+Folding does not shrink the fetch, so a flat per-subject matrix has a hard size
+limit. `MatrixFilterWizard.jsx` (`matrixIsBlocked`) blocks an oversized flat
+matrix (`> BLOCK_ASSIGNMENTS`); the server adds a backstop that returns `413`
+rather than overflowing `JSON.stringify` (V8's ~512 MB max string length) past
+`MAX_FLAT_ROWS` rows. Only **server-aggregated** views (below) are exempt — they
+return counts, never per-subject rows, so they load at any size.
+
+### Layered server-aggregated views (large matrices)
+
+Two views aggregate on the server and render through `RollupMatrixView.jsx` as a
+**stacked, expand-in-place** grid (columns = groups, cells = Direct counts). They
+share the same payload shape (`layered: true`, `nodes[]` with `pathIds`/`pathNames`
+/`depth`, `counts[]`, `maxDepth`) so they use one renderer:
+
+| View | Trigger | Tree | Default depth | Server cut |
+|---|---|---|---|---|
+| **Manager Hierarchy** | `sortHierarchy: {contextId}` | a `ManagerHierarchy` Context tree | top level (1 row); **expand to drill deeper** | `buildContextCutSql` — root's children, with any *expanded* node replaced by its children (`rollupExpanded`) |
+| **Attribute fold** | `foldAttributes` (set by the wizard for an oversized foldable matrix) | the chosen `sortAttributes` | **full depth** (all attribute rows shown); **fold to collapse** | `attributeCut.js` — each subject's visible tuple, truncated at the first *folded* prefix (`rollupCollapsed`) |
+
+Note the inverse defaults: the hierarchy starts shallow and **expands** (depth
+unknown); attribute fold starts at full depth and **collapses** (depth = the
+attributes you picked). Counts are computed only for the *visible frontier*
+(`buildContextRollupSql` / `buildAttrCutCellsSql`), so the payload stays small
+regardless of subtree size. The `sortHierarchy → context roll-up` translation
+lives in the `/api/matrix/data` handler in `matrix.js`.
+
+**Empty-branch hiding.** A column only appears if at least one in-scope resource
+has a Direct count for that node's subtree, so scoping the matrix to a few
+resources drops the org branches / attribute groups those resources aren't used
+in.
+
+**Scoped header counts.** A Manager-Hierarchy column header shows
+`direct / total` members — and both are **assignment-scoped**
+(`buildContextScopedMemberCountsSql`): only people who actually hold a shown
+resource, so the header agrees with the cells and with the member drill-down.
+
+**Sticky headers.** With many header rows, only the *deepest* (layered views) or
+the *names* row (per-subject grid) stays pinned on vertical scroll; the upper
+grouping rows scroll away.
+
+### Excel export
+
+Both renderers export an `.xlsx` that mirrors the on-screen header stack: one
+header row per shown level (every sort attribute / every org level). On-screen
+merged spans are written as the **same value repeated** across each column — cells
+are not merged in the file (`exportRollupToExcel.js`, `exportToExcel.js`). All
+externally-influenced cells route through `safeCell` (formula-injection guard).
+
 ## Related references
 
 - Crawler emits — [`tools/crawlers/entra-id/Start-EntraIDCrawler.ps1`](https://github.com/Fortigi/IdentityAtlas/blob/main/tools/crawlers/entra-id/Start-EntraIDCrawler.ps1) (phases `Assignments`, `PIM`, `Governance`, `OAuth2Grants`, `AppRoles`)

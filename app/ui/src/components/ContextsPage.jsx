@@ -85,6 +85,31 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
     } catch (e) { setEditError(e.message || 'Move failed'); }
   }
 
+  // Drag a member onto another team in the Manager-Hierarchy tree: records an
+  // override of who they report to (so it survives plugin re-runs) and moves the
+  // membership row immediately. The API validates the tree + recomputes counts.
+  async function moveMember(memberId, fromContextId, toContextId) {
+    setEditError(null);
+    try {
+      const r = await authFetch(`/api/contexts/${fromContextId}/members/${memberId}/move`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toContextId }),
+      });
+      if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.error || `HTTP ${r.status}`); }
+      await refreshAfterEdit();
+    } catch (e) { setEditError(e.message || 'Move member failed'); }
+  }
+
+  // Lazy-load a context's direct members (users) — shown nested inside a node
+  // only when the analyst expands it.
+  async function loadMembers(ctxId) {
+    const r = await authFetch(`/api/contexts/${ctxId}/members?limit=200`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const body = await r.json();
+    return { rows: body.data || [], total: body.total || 0 };
+  }
+
   // Inline rename from the tree.
   async function rename(id, displayName) {
     setEditError(null);
@@ -195,6 +220,9 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
                   onReparent={reparent}
                   onRename={rename}
                   onAddChild={addChild}
+                  onLoadMembers={loadMembers}
+                  onOpenMember={(id, name, kind) => onOpenDetail?.(kind || 'user', id, name)}
+                  onMoveMember={selectedRoot?.contextType === 'ManagerHierarchy' ? moveMember : undefined}
                 />
               ) : (
                 <ContextListView nodes={nodes} onOpenDetail={open} />
