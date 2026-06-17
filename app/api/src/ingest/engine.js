@@ -63,6 +63,8 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     scope = {},
     systemIdColumn = 'systemId',
     tempTable: existingTempTable = null,
+    scopeDeleteFilter = null,
+    conflictFilter = null,
   } = options;
 
   if (!records || records.length === 0) {
@@ -133,6 +135,11 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     const nonKeyCols = activeColumns.filter(c => !keyColumns.includes(c.name));
     const insertCols = activeColumns.map(c => `"${c.name}"`).join(', ');
     const onConflictCols = keyColumns.map(c => `"${c}"`).join(', ');
+    // conflictFilter supports partial unique indexes (e.g. ResourceAssignments
+    // uses two partial indexes after migration 036 replaced the composite PK).
+    // PostgreSQL requires the WHERE clause of the conflict inference to match
+    // the partial index predicate exactly.
+    const conflictWhere = conflictFilter ? ` WHERE ${conflictFilter}` : '';
 
     let upsertSql;
     if (nonKeyCols.length > 0) {
@@ -148,14 +155,14 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"
-        ON CONFLICT (${onConflictCols}) DO UPDATE SET ${updateSet}
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}
         RETURNING (xmax = 0) AS "wasInsert"
       `;
     } else {
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"
-        ON CONFLICT (${onConflictCols}) DO NOTHING
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO NOTHING
         RETURNING (xmax = 0) AS "wasInsert"
       `;
     }
@@ -171,14 +178,14 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     let deleted = 0;
     if (syncMode === 'full') {
       const tableColumnNames = new Set(columns.map(c => c.name));
-      deleted = await scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames);
+      deleted = await scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter);
     }
 
     return { inserted, updated, deleted };
   });
 }
 
-export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames) {
+export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter = null) {
   // Before the DELETE: create a unique index on the temp table over the
   // same key columns the NOT EXISTS uses, then ANALYZE so the planner has
   // accurate row counts. Without these the planner does a sequential scan
@@ -216,6 +223,8 @@ export async function scopedDelete(client, tableName, keyColumns, tempName, syst
   // IdentityMembers, so this is a no-op for every other table.)
   if (tableColumnNames.has('linkConfidence'))  where += ` AND t."linkConfidence" IS NULL`;
   if (tableColumnNames.has('analystOverride')) where += ` AND t."analystOverride" IS NULL`;
+
+  if (scopeDeleteFilter) where += ` AND (${scopeDeleteFilter})`;
 
   const notExistsJoin = keyColumns.map(k => `t."${k}" = src."${k}"`).join(' AND ');
   const sql = `
