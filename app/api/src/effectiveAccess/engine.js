@@ -145,7 +145,10 @@ export async function effectiveAccess(resourceId, principalId, opts = {}) {
   const started = Date.now();
   const policyName = opts.policy ?? DEFAULT_POLICY;
   const dataVersion = await getSyncVersion();
-  const key = `${resourceId}:${principalId}:${policyName}:${dataVersion}`;
+  // Unambiguous key encoding — a delimiter-joined string could collide when a node id itself
+  // contains the delimiter (e.g. a future filesystem node id like "C:\Finance"). JSON.stringify
+  // of the parts is collision-free for any id content.
+  const key = JSON.stringify([resourceId, principalId, policyName, dataVersion]);
 
   const cached = cache.get(key);
   if (cached !== undefined) {
