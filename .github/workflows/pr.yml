@@ -207,6 +207,31 @@ jobs:
         working-directory: app/ui
         run: npm test
 
+  # ── Stage 4c: Node-launcher UI build (crawler wizard bundling) ──────────
+  # The portable/desktop build (app/desktop/scripts/build-node-launcher.mjs)
+  # builds the UI from a separate pipeline than Docker's. Crawler wizards
+  # under tools/crawlers/ broke that build the moment the first wizard
+  # (midpoint, #336) shipped — caught only by this check, not by unit-ui or
+  # lint-js, because it depends on the *production build* step, not the
+  # source files. It went unnoticed on main for hours because the script
+  # otherwise only runs on a beta/release cut (cut-beta.yml etc.), not on
+  # every PR. --ui-only runs just the UI build + its own crawler-wizard
+  # bundle check, skipping the Windows-only esbuild/pglite/re2/node.exe/zip
+  # steps so this has no pwsh dependency and stays fast.
+  node-launcher-ui-build:
+    name: 'Build: Node-launcher UI (crawler wizards)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+
+      - name: Build UI via the node-launcher pipeline
+        run: node app/desktop/scripts/build-node-launcher.mjs --ui-only
+
   # ── Stage 5: OpenAPI spec linting ───────────────────────────────────────
   openapi:
     name: 'Lint: OpenAPI spec'
@@ -394,14 +419,14 @@ jobs:
   pr-summary:
     name: 'PR Summary'
     runs-on: ubuntu-latest
-    needs: [lint-ps, lint-js, unit-tests, unit-js, unit-ui, openapi, audit, hygiene, crawler-manifest, docs-nav]
+    needs: [lint-ps, lint-js, unit-tests, unit-js, unit-ui, node-launcher-ui-build, openapi, audit, hygiene, crawler-manifest, docs-nav]
     if: always()
     steps:
       - name: Report results
         run: |
           echo "## PR Check Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          for job in lint-ps lint-js unit-tests unit-js unit-ui openapi audit hygiene crawler-manifest docs-nav; do
+          for job in lint-ps lint-js unit-tests unit-js unit-ui node-launcher-ui-build openapi audit hygiene crawler-manifest docs-nav; do
             result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('$job', {}).get('result','unknown'))")
             if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
             echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
@@ -414,6 +439,7 @@ jobs:
           needs.unit-tests.result == 'failure' ||
           needs.unit-js.result == 'failure' ||
           needs.unit-ui.result == 'failure' ||
+          needs.node-launcher-ui-build.result == 'failure' ||
           needs.openapi.result == 'failure' ||
           needs.audit.result == 'failure' ||
           needs.hygiene.result == 'failure' ||

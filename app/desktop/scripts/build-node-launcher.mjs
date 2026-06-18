@@ -11,18 +11,22 @@
 //   Start-IdentityAtlas.ps1
 //
 // Usage (from repo root or app/api/):
-//   node app/desktop/scripts/build-node-launcher.mjs [--skip-ui-build]
+//   node app/desktop/scripts/build-node-launcher.mjs [--skip-ui-build] [--ui-only]
+//
+//   --ui-only builds just the React UI (incl. the crawler-wizard bundle check
+//   below) and exits — no esbuild/pglite/re2/node.exe/zip steps, so it has no
+//   pwsh dependency. Used as a fast CI regression check; see pr.yml.
 //
 // Requires: node 18+, PowerShell 7+ on PATH (for Invoke-WebRequest + Compress-Archive)
 
 import { execSync, execFileSync }                                   from 'child_process';
 import { cpSync, mkdirSync, existsSync, rmSync, copyFileSync,
          createReadStream, createWriteStream, readFileSync,
-         unlinkSync }                                               from 'fs';
+         readdirSync, unlinkSync }                                  from 'fs';
 import { createBrotliDecompress }                                  from 'zlib';
 import { pipeline }                                                from 'stream/promises';
 import { join, resolve, dirname, sep }                              from 'path';
-import { fileURLToPath }                                           from 'url';
+import { fileURLToPath, pathToFileURL }                            from 'url';
 
 const __dirname   = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT   = resolve(__dirname, '..', '..', '..');
@@ -42,6 +46,7 @@ const NODE_URL       = `https://nodejs.org/dist/v${NODE_VERSION}/win-x64/node.ex
 const NODE_SHA256    = 'b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3';
 
 const SKIP_UI   = process.argv.includes('--skip-ui-build');
+const UI_ONLY   = process.argv.includes('--ui-only');
 const ESBUILD   = process.platform === 'win32'
   ? 'node_modules\\.bin\\esbuild.cmd'
   : 'node_modules/.bin/esbuild';
@@ -55,9 +60,47 @@ function pwsh(script) {
   execFileSync('pwsh', ['-NonInteractive', '-Command', script], { stdio: 'inherit' });
 }
 
+// Every crawler that ships a UI wizard (ConfigWizard.jsx + CrawlerMeta.js)
+// must end up in the built bundle's ConfigWizard-*.js chunk(s). This catches
+// both ways that's silently not true: a hard build error (tools/crawlers'
+// own node_modules-ancestor problem — what broke here) and a *silent*
+// zero-match glob that builds fine but ships no wizard (what #342 fixed for
+// Docker). Mirrors the Docker-side regression guard (app/ui/e2e/
+// crawler-wizard-discovery.spec.js) but works on the raw bundle, no browser.
+async function checkCrawlerWizardBundles(uiRoot) {
+  console.log('  Verifying crawler wizard plugins made it into the UI bundle...');
+  const crawlersDir = join(REPO_ROOT, 'tools', 'crawlers');
+  const assetsDir = join(uiRoot, 'dist', 'assets');
+  const chunkFiles = readdirSync(assetsDir).filter(f => f.startsWith('ConfigWizard-') && f.endsWith('.js'));
+  const chunkContents = chunkFiles.map(f => readFileSync(join(assetsDir, f), 'utf8'));
+
+  let checked = 0;
+  for (const entry of readdirSync(crawlersDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const wizardPath = join(crawlersDir, entry.name, 'ConfigWizard.jsx');
+    const metaPath = join(crawlersDir, entry.name, 'CrawlerMeta.js');
+    if (!existsSync(wizardPath) || !existsSync(metaPath)) continue;
+
+    const meta = (await import(pathToFileURL(metaPath).href)).default;
+    const found = chunkContents.some(content => content.includes(meta.name));
+    if (!found) {
+      throw new Error(
+        `Crawler wizard plugin check failed: "${entry.name}" has a ConfigWizard.jsx + CrawlerMeta.js, ` +
+        `but no app/ui/dist/assets/ConfigWizard-*.js chunk contains "${meta.name}". The wizard plugin ` +
+        `discovery (import.meta.glob in CrawlersPage.jsx) likely found zero files in this build — check ` +
+        `that tools/crawlers was staged correctly for whichever pipeline ran this build.`
+      );
+    }
+    checked++;
+  }
+  console.log(`  OK — ${checked} crawler wizard plugin(s) verified in the bundle.`);
+}
+
 // ── Step 0/8 — install API node_modules ──────────────────────────────────────
-console.log('\n[1/8] Installing API dependencies...');
-run('npm install --prefer-offline', { cwd: API_ROOT });
+if (!UI_ONLY) {
+  console.log('\n[1/8] Installing API dependencies...');
+  run('npm install --prefer-offline', { cwd: API_ROOT });
+}
 
 // ── Step 1/8 — build React UI ─────────────────────────────────────────────────
 if (!SKIP_UI) {
@@ -85,8 +128,14 @@ if (!SKIP_UI) {
   run('npm --prefix app/ui run build', { cwd: UI_BUILD_ROOT });
   cpSync(join(UI_BUILD_APP_UI, 'dist'), join(UI_ROOT, 'dist'), { recursive: true });
   rmSync(UI_BUILD_ROOT, { recursive: true, force: true });
+  await checkCrawlerWizardBundles(UI_ROOT);
 } else {
   console.log('\n[2/8] Skipping UI build (--skip-ui-build)');
+}
+
+if (UI_ONLY) {
+  console.log('\n--ui-only: stopping after the UI build.');
+  process.exit(0);
 }
 
 // ── Step 2/8 — clean staging area ────────────────────────────────────────────
