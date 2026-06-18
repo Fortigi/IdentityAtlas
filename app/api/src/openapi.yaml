@@ -350,6 +350,87 @@ paths:
         '200':
           description: Paginated audit log
 
+  /effective-access/resolve:
+    get:
+      tags: [Effective Access]
+      summary: Effective access of one principal on one resource
+      description: >
+        Resolves whether a principal effectively holds a resource — direct grants plus grants
+        reached via (transitive) group membership — returning the effect and the reachability
+        badge (Direct / Indirect / Eligible).
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: resourceId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: principalId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: policy
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Effective-access result (effective, badge, decisiveAce)
+        '400':
+          description: Missing required parameter, or unknown resolution policy
+
+  /resource/{id}/effective-access:
+    get:
+      tags: [Effective Access]
+      summary: Effective capabilities a principal holds at a resource/node
+      description: >
+        Down-expansion: includes capabilities inherited from ancestor nodes via the Contains
+        hierarchy, computed on demand and never stored. One row per capability.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: principalId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: policy
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Per-capability effective access at the node
+        '400':
+          description: Missing principalId, or unknown resolution policy
+
+  /principal/{id}/effective-access:
+    get:
+      tags: [Effective Access]
+      summary: Effective capabilities a principal holds at a given node
+      description: >
+        Principal-centric form of the node down-expansion; includes inherited capabilities.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: node
+          in: query
+          required: true
+          schema: { type: string }
+        - name: policy
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Per-capability effective access at the node
+        '400':
+          description: Missing node, or unknown resolution policy
+
 components:
   securitySchemes:
     CrawlerApiKey:
