@@ -1,5 +1,0 @@
-- Adding a new crawler type with a step-by-step configuration wizard no longer requires editing the core Crawlers page — drop a `ConfigWizard.jsx` and a `CrawlerMeta.js` in the crawler's folder under `tools/crawlers/{type}/` and it is picked up automatically.
-- Crawlers can now expose a live-discovery endpoint by adding a `discover.js` to their folder; the UI wizard can call it at `POST /api/admin/crawlers/{type}/discover` without any API route changes.
-- Added shared `Combobox` and `Select` input components for use in crawler wizard forms.
-- The Vite dev server now allows serving files from outside `app/ui/` so that wizard components under `tools/crawlers/` are reachable during development.
-- Added CI, ESLint, and Pester guardrails to prevent new crawlers drifting away from the manifest-based plugin system — adding a crawler without a `CrawlerMeta.js` now fails the build.
