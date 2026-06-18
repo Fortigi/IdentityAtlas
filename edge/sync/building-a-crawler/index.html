@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/sync/custom-crawlers/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/sync/building-a-crawler/">
       
       
         <link rel="prev" href="../../architecture/omada-crawler-datamodel/">
@@ -27,7 +27,7 @@
     
     
       
-        <title>Custom Crawlers - Identity Atlas</title>
+        <title>Building a Crawler - Identity Atlas</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#building-a-custom-crawler" class="md-skip">
+        <a href="#building-a-crawler" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Custom Crawlers
+              Building a Crawler
             
           </span>
         </div>
@@ -928,7 +928,7 @@
   <span class="md-ellipsis">
     
   
-    Custom Crawlers
+    Building a Crawler
   
 
     
@@ -946,7 +946,7 @@
   <span class="md-ellipsis">
     
   
-    Custom Crawlers
+    Building a Crawler
   
 
     
@@ -1061,6 +1061,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-ingest-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Ingest API
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#building-on-the-odata-base-layer" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1079,6 +1090,100 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ui-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UI Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UI Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#crawlermetajs-required-for-the-type-picker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CrawlerMeta.js — required for the type picker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configwizardjsx-optional-step-by-step-config-form" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ConfigWizard.jsx — optional step-by-step config form
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#summaryjsx-optional-config-card-summary-panel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary.jsx — optional config-card summary panel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#discoverjs-optional-live-discovery-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        discover.js — optional live-discovery endpoint
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-uploads-only-if-operators-need-to-attach-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File uploads — only if operators need to attach files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-the-ui-side-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing the UI-side files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-rule-that-applies-to-everything-above" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One rule that applies to everything above
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2923,6 +3028,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-ingest-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Ingest API
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#building-on-the-odata-base-layer" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2941,6 +3057,100 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ui-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UI Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UI Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#crawlermetajs-required-for-the-type-picker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CrawlerMeta.js — required for the type picker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configwizardjsx-optional-step-by-step-config-form" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ConfigWizard.jsx — optional step-by-step config form
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#summaryjsx-optional-config-card-summary-panel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary.jsx — optional config-card summary panel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#discoverjs-optional-live-discovery-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        discover.js — optional live-discovery endpoint
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-uploads-only-if-operators-need-to-attach-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File uploads — only if operators need to attach files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-the-ui-side-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing the UI-side files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-rule-that-applies-to-everything-above" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One rule that applies to everything above
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3041,7 +3251,7 @@
   
 
 
-<h1 id="building-a-custom-crawler">Building a Custom Crawler<a class="headerlink" href="#building-a-custom-crawler" title="Permanent link">&para;</a></h1>
+<h1 id="building-a-crawler">Building a Crawler<a class="headerlink" href="#building-a-crawler" title="Permanent link">&para;</a></h1>
 <p>Identity Atlas crawlers are self-contained folders. Drop one into <code>tools/crawlers/&lt;type&gt;/</code> and the system picks it up automatically — no changes to the dispatcher, module loader, or CI pipelines needed.</p>
 <p>For how the system works internally, see <a href="../../architecture/crawler-architecture/"><code>docs/architecture/crawler-architecture.md</code></a>.</p>
 <hr />
@@ -3216,6 +3426,14 @@
 <a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a><span class="nb">Write-CrawlerProgress</span> <span class="s1">&#39;Complete&#39;</span> <span class="n">100</span>
 </code></pre></div>
 <hr />
+<h2 id="the-ingest-api">The Ingest API<a class="headerlink" href="#the-ingest-api" title="Permanent link">&para;</a></h2>
+<p><code>/ingest/principals</code> above is one of many ingest endpoints — the full, authoritative reference is the live OpenAPI spec the running app already serves:</p>
+<ul>
+<li><strong>Swagger UI:</strong> <code>&lt;ApiBaseUrl&gt;/docs</code> (e.g. <code>http://localhost:3001/api/docs</code>) — interactive, try-it-out enabled</li>
+<li><strong>Raw spec:</strong> <code>&lt;ApiBaseUrl&gt;/openapi.json</code></li>
+</ul>
+<p>As of this writing the ingest surface covers: <code>/ingest/systems</code>, <code>/ingest/principals</code>, <code>/ingest/resources</code>, <code>/ingest/resource-assignments</code>, <code>/ingest/resource-relationships</code>, <code>/ingest/identities</code>, <code>/ingest/identity-members</code>, <code>/ingest/contexts</code>, <code>/ingest/governance/catalogs</code>, <code>/ingest/governance/policies</code>, <code>/ingest/governance/requests</code>, <code>/ingest/governance/certifications</code>, and <code>/ingest/refresh-views</code> — see <a href="../../concepts/data-model/">Data Model</a> and <a href="../../concepts/governance-model/">Governance Model</a> for what each table represents. Don't hand-roll a request shape from memory or by copying another crawler — check the spec first (it's hand-maintained in <code>app/api/src/openapi.yaml</code>, lint-checked by Spectral in CI for internal consistency, but not auto-generated from the route handlers, so treat the live route's validation as the final authority if the two ever disagree).</p>
+<hr />
 <h2 id="building-on-the-odata-base-layer">Building on the OData Base Layer<a class="headerlink" href="#building-on-the-odata-base-layer" title="Permanent link">&para;</a></h2>
 <p>If your source exposes an OData 4.0 API, declare <code>"dependsOn": ["odata"]</code> in the manifest. The dispatcher will dot-source the OData library before your entry point runs, making <code>Connect-ODataAPI</code>, <code>Invoke-ODataPagedRequest</code>, <code>Invoke-ODataGetRequest</code>, and <code>Get-ODataAuthRoot</code> available without any imports.</p>
 <p><strong><code>crawler.json</code>:</strong>
@@ -3270,6 +3488,72 @@
 <h2 id="integration-testing">Integration Testing<a class="headerlink" href="#integration-testing" title="Permanent link">&para;</a></h2>
 <p>Every crawler should include a <code>Test-&lt;Type&gt;Crawler.ps1</code> file alongside its <code>crawler.json</code>. The PR integration CI discovers and runs all such files automatically — no YAML changes needed.</p>
 <p>See <code>tools/crawlers/CLAUDE.md</code> for the parameter contract, shared mock server usage, and examples (<code>Test-ODataCrawler.ps1</code>, <code>Test-OmadaCrawler.ps1</code>).</p>
+<hr />
+<h2 id="ui-integration">UI Integration<a class="headerlink" href="#ui-integration" title="Permanent link">&para;</a></h2>
+<p>Everything above produces a working crawler that runs from the CLI/scheduler. To make it usable from <strong>Admin → Crawlers → Add Crawler</strong> with a proper type-picker entry and configuration form, drop the matching files into the same <code>tools/crawlers/&lt;type&gt;/</code> folder. None of this requires touching any file outside that folder — <code>CrawlersPage.jsx</code> discovers all of it automatically via <code>import.meta.glob</code>.</p>
+<blockquote>
+<p><strong>This step isn't optional once your crawler is past the prototype stage.</strong> Without a <code>CrawlerMeta.js</code>, the <code>crawler-manifest</code> CI check (<code>pr.yml</code>) fails the PR — it requires every crawler type to have one, with no exception for new types (only a fixed legacy list of crawlers still mid-migration is exempt).</p>
+</blockquote>
+<h3 id="crawlermetajs-required-for-the-type-picker"><code>CrawlerMeta.js</code> — required for the type picker<a class="headerlink" href="#crawlermetajs-required-for-the-type-picker" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;my-source&#39;</span><span class="p">,</span><span class="w">           </span><span class="c1">// must match crawler.json&#39;s &quot;type&quot; and the folder name</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;My Source System&#39;</span><span class="p">,</span><span class="w">  </span><span class="c1">// shown in the &quot;Add Crawler&quot; type picker</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nx">description</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;One-line description shown below the name in the picker&#39;</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">};</span>
+</code></pre></div>
+<h3 id="configwizardjsx-optional-step-by-step-config-form"><code>ConfigWizard.jsx</code> — optional step-by-step config form<a class="headerlink" href="#configwizardjsx-optional-step-by-step-config-form" title="Permanent link">&para;</a></h3>
+<p>If omitted, the UI falls back to a generic JSON config editor — fine for a quick prototype, but a real wizard is what operators actually expect. The component receives a fixed 5-prop contract:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">useState</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;react&#39;</span><span class="p">;</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="c1">// Reach back into app/ui/src/ for shared form components:</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">import</span><span class="w"> </span><span class="nx">ScheduleEditor</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;../../../app/ui/src/components/ScheduleEditor&#39;</span><span class="p">;</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">MyConfigWizard</span><span class="p">({</span><span class="w"> </span><span class="nx">onComplete</span><span class="p">,</span><span class="w"> </span><span class="nx">onCancel</span><span class="p">,</span><span class="w"> </span><span class="nx">initialConfig</span><span class="p">,</span><span class="w"> </span><span class="nx">isEdit</span><span class="p">,</span><span class="w"> </span><span class="nx">authFetch</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="c1">// onComplete() — call with no arguments when done; the wizard saves its</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="c1">//                own config via authFetch before calling this (POST to</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span><span class="c1">//                create, PATCH .../crawler-configs/:id to update)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">  </span><span class="c1">// onCancel()    — call when the user cancels</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">  </span><span class="c1">// initialConfig — the existing config object when isEdit=true</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="c1">// isEdit        — true when editing an existing crawler</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="c1">// authFetch     — authenticated fetch helper (same signature as window.fetch)</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">baseUrl</span><span class="p">,</span><span class="w"> </span><span class="nx">setBaseUrl</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useState</span><span class="p">(</span><span class="nx">initialConfig</span><span class="o">?</span><span class="p">.</span><span class="nx">baseUrl</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">);</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">  </span><span class="c1">// ... render form fields, call authFetch(...) on save, then onComplete() ...</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="p">}</span>
+</code></pre></div>
+<p>The wizard <strong>owns saving its own config</strong> — <code>CrawlersPage.jsx</code> never builds the request body for a migrated crawler. See <code>tools/crawlers/omada/ConfigWizard.jsx</code> or <code>tools/crawlers/midpoint/ConfigWizard.jsx</code> for full multi-step examples (connection → credentials → sync options → schedule), including the credential-field round-tripping rule: only send a secret field when it's non-blank, so leaving it blank on edit means "keep the stored value."</p>
+<h3 id="summaryjsx-optional-config-card-summary-panel"><code>Summary.jsx</code> — optional config-card summary panel<a class="headerlink" href="#summaryjsx-optional-config-card-summary-panel" title="Permanent link">&para;</a></h3>
+<p>Renders crawler-specific details (e.g. base URL, sync options) inside the card on the "Configured Crawlers" list:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">Summary</span><span class="p">({</span><span class="w"> </span><span class="nx">cfg</span><span class="p">,</span><span class="w"> </span><span class="nx">config</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="c1">// cfg    — config.config, the crawler&#39;s own config blob — what most summaries need</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="c1">// config — the full config row, for the rare case something outside .config is needed</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">&lt;</span><span class="nt">div</span><span class="w"> </span><span class="na">className</span><span class="o">=</span><span class="s">&quot;text-sm text-gray-600 dark:text-gray-400&quot;</span><span class="p">&gt;{</span><span class="nx">cfg</span><span class="p">.</span><span class="nx">baseUrl</span><span class="p">}&lt;/</span><span class="nt">div</span><span class="p">&gt;;</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">}</span>
+</code></pre></div>
+<p>Don't render <code>lastRunAt</code>/<code>lastRunStatus</code> — the card already shows those generically for every crawler type below the summary panel.</p>
+<h3 id="discoverjs-optional-live-discovery-endpoint"><code>discover.js</code> — optional live-discovery endpoint<a class="headerlink" href="#discoverjs-optional-live-discovery-endpoint" title="Permanent link">&para;</a></h3>
+<p>If your wizard needs to validate credentials or populate a dropdown from the live source system (entity sets, role archetypes, available attributes, …), drop a <code>discover.js</code> and the API exposes <code>POST /api/admin/crawlers/&lt;type&gt;/discover</code> automatically — no route changes needed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">handler</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span><span class="w"> </span><span class="nx">res</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">db</span><span class="p">,</span><span class="w"> </span><span class="nx">getConfigSecret</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="c1">// req.body — whatever the wizard sent (credentials, or { configId } in edit</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="c1">//            mode when the user hasn&#39;t re-entered a secret)</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="c1">// getConfigSecret(configId) — resolves a vaulted secret in edit mode; never</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="c1">//            trust req.body.clientSecret alone, it&#39;s stripped from storage</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span><span class="c1">//            on every save (see app/api/CLAUDE.md re: secrets/vault.js)</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span><span class="c1">// db — the pg pool (via getPool())</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span><span class="nx">res</span><span class="p">.</span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="cm">/* whatever your wizard expects back */</span><span class="w"> </span><span class="p">});</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="p">}</span>
+</code></pre></div>
+<p>See <code>tools/crawlers/omada/discover.js</code> and <code>tools/crawlers/midpoint/discover.js</code> for real examples, and <code>app/api/src/routes/omadaDiscover.test.js</code> for how to test one (mock <code>fetch</code> + <code>getConfigSecret</code>, no HTTP server needed).</p>
+<h3 id="file-uploads-only-if-operators-need-to-attach-files">File uploads — only if operators need to attach files<a class="headerlink" href="#file-uploads-only-if-operators-need-to-attach-files" title="Permanent link">&para;</a></h3>
+<p>CSV-style crawlers that need the operator to upload data files (rather than pull from a live API) set two manifest fields and drop template files:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;supportsFileUploads&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">&quot;uploadFileExtensions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;.csv&quot;</span><span class="p">]</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="p">}</span>
+</code></pre></div>
+<p>This unlocks the generic <code>GET/POST /api/admin/crawler-configs/:configId/files</code> + <code>DELETE .../files/:filename</code> routes — files land in <code>/data/uploads/&lt;type&gt;-{configId}/</code>, a Docker volume shared with the worker. Drop empty, header-only template files in <code>tools/crawlers/&lt;type&gt;/schema/*.csv</code> and they're served generically too, via <code>GET /api/admin/crawlers/&lt;type&gt;/upload-schema</code>. See <code>tools/crawlers/CLAUDE.md</code> → "File uploads" for the full contract and the optional <code>&lt;type&gt;-slots.json</code> label/required-annotation file.</p>
+<h3 id="testing-the-ui-side-files">Testing the UI-side files<a class="headerlink" href="#testing-the-ui-side-files" title="Permanent link">&para;</a></h3>
+<p>This is a separate set of conventions from the PowerShell integration test above — co-located <code>vitest</code>/Playwright tests, not Pester. See <code>tools/crawlers/CLAUDE.md</code> → "JS/UI Testing" for the full guide: the render-smoke-test pattern (and why it can't catch interaction bugs), when to extract wizard logic into pure exported functions so it's unit-testable, the <code>*.e2e.mjs</code> + <code>register(test, expect)</code> pattern for real Playwright interaction tests, and how to test a <code>discover.js</code> handler.</p>
+<h3 id="one-rule-that-applies-to-everything-above">One rule that applies to everything above<a class="headerlink" href="#one-rule-that-applies-to-everything-above" title="Permanent link">&para;</a></h3>
+<p><strong>Nothing specific to your crawler type belongs outside its <code>tools/crawlers/&lt;type&gt;/</code> folder</strong> — including its tests. A file named after your crawler type (or one that hardcodes its type string) anywhere under <code>app/ui/</code> will fail the <code>crawler-manifest</code> CI check once your crawler is past <code>PENDING_MIGRATION</code>. See <code>tools/crawlers/CLAUDE.md</code> → Rules.</p>
 <hr />
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
