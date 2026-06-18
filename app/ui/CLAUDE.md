@@ -109,6 +109,12 @@ function getCrawlerWizard(crawlerType) {
   const loader = _wizardModules[`../../../../tools/crawlers/${crawlerType}/ConfigWizard.jsx`];
   return loader ? lazy(loader) : null;
 }
+
+// Eager-load optional Summary.jsx panels for the configured-crawlers card
+const _summaryModules = import.meta.glob('../../../../tools/crawlers/*/Summary.jsx', { eager: true });
+function getCrawlerSummary(crawlerType) {
+  return _summaryModules[`../../../../tools/crawlers/${crawlerType}/Summary.jsx`]?.default || null;
+}
 ```
 
 **Vite dev server:** `vite.config.js` sets `server.fs.allow` to include the repo root so wizard components under `tools/crawlers/` are served correctly during development. This is already configured — don't remove it.

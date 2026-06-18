@@ -1,0 +1,3 @@
+- Generalized the crawler file-upload mechanism so it's no longer hardcoded to the CSV crawler: any crawler type can now declare file-upload support in its manifest instead of needing changes to core API code.
+- Fixed: the CSV crawler's "Download schema templates" file was missing `ContextMembers.csv` from its column-header reference (it now reads the real template files, including the previously-missing one).
+- No user-facing change to the CSV crawler's own upload/download experience — same folder convention, same wizard behavior.

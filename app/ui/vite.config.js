@@ -6,7 +6,9 @@ import path from 'path'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   test: {
-    include: ['src/**/*.test.{js,jsx}'],
+    // Also pick up tests co-located with crawler wizard plugins, which live
+    // outside src/ (tools/crawlers/<type>/*.test.{js,jsx}).
+    include: ['src/**/*.test.{js,jsx}', '../../tools/crawlers/**/*.test.{js,jsx}'],
   },
   server: {
     fs: {

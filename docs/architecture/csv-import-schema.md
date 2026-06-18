@@ -165,12 +165,12 @@ Any column not in the schema above is silently stored as JSON in the entity's `e
 | Scenario | Files needed |
 |----------|-------------|
 | **Basic permission review** | `Resources.csv` + `Users.csv` + `Assignments.csv` |
-| **With org structure** | + `Contexts.csv` (or just `Department` column in `Users.csv`) |
+| **With org structure** | + `Contexts.csv` (or just `Department` column in `Users.csv`) + `ContextMembers.csv` for explicit membership |
 | **Multi-system** | + `Systems.csv` + `SystemName` column in other files |
 | **With identity correlation** | + `Identities.csv` + `IdentityMembers.csv` |
 | **With access reviews** | + `Certifications.csv` |
 | **With role hierarchy** | + `ResourceRelationships.csv` |
-| **Full model** | All 9 files |
+| **Full model** | All 10 files |
 
 ### Pre-import transformation
 
@@ -178,17 +178,21 @@ For each source system, the user writes a small transformation script that maps 
 
 ```
 tools/
+  crawlers/
+    csv/
+      schema/                    ← empty CSV files with just headers (the spec)
+        Systems.csv
+        Resources.csv
+        Users.csv
+        Assignments.csv
+        ResourceRelationships.csv
+        Contexts.csv
+        ContextMembers.csv
+        Identities.csv
+        IdentityMembers.csv
+        Certifications.csv
+      csv-slots.json              ← label/required metadata for the schema/ files
   csv-templates/
-    schema/                      ← empty CSV files with just headers (the spec)
-      Systems.csv
-      Resources.csv
-      Users.csv
-      Assignments.csv
-      ResourceRelationships.csv
-      Contexts.csv
-      Identities.csv
-      IdentityMembers.csv
-      Certifications.csv
     transforms/                  ← example transformation scripts
       omada-to-identityatlas.ps1
       entra-export-to-identityatlas.ps1
@@ -244,9 +248,10 @@ This is ~30 lines per source system, easily auditable, and keeps Identity Atlas 
 | **CSV crawler** (`tools/crawlers/csv/Start-CSVCrawler.ps1`) | Reads exactly the schema column names. `Assert-Columns` validates required columns upfront with clear error messages. No `Get-Col` fallback logic. |
 | **Validation** (`app/api/src/ingest/validation.js`) | `requiredOneOf` supports both UUID and ExternalId forms (e.g. `resourceId` or `resourceExternalId`). |
 | **Normalization** (`app/api/src/ingest/normalization.js`) | Converts `*ExternalId` fields to deterministic UUIDs using `${sysPrefix}-resources` / `${sysPrefix}-principals` / `${sysPrefix}-identities` prefixes. |
-| **File slots** (`app/api/src/routes/csvUploads.js`) | 9 slots matching the schema files. Schema headers embedded for the download endpoint. |
-| **UI wizard** (`app/ui/src/components/CrawlersPage.jsx`) | Updated slot labels + tooltips. "Download schema templates" link in the upload step. |
-| **Schema templates** (`tools/csv-templates/schema/*.csv`) | Header-only CSV files — the canonical spec. |
+| **File slots** (`tools/crawlers/csv/csv-slots.json`) | 10 slots matching the schema files (label, required, hint). Shared by the wizard and the generic upload-schema endpoint — single source of truth, not hand-duplicated. |
+| **Upload + schema routes** (`app/api/src/routes/crawlerFiles.js`) | Generic per-crawler-type file upload/list/delete, and `GET /api/admin/crawlers/csv/upload-schema` reading real template files (not a hardcoded header map). |
+| **UI wizard** (`tools/crawlers/csv/ConfigWizard.jsx`) | Self-contained crawler plugin (see `docs/architecture/crawler-architecture.md`). "Download schema templates" link in the upload step. |
+| **Schema templates** (`tools/crawlers/csv/schema/*.csv`) | Header-only CSV files — the canonical spec. Lives under the crawler's own folder so it's covered by the same Docker/node-launcher mirroring as the rest of `tools/crawlers/`. |
 | **Omada transform** (`tools/csv-templates/transforms/omada-to-identityatlas.ps1`) | Example transform: ~160 lines mapping Omada columns to Identity Atlas schema. |
 | **Auto-classify** (`POST /api/ingest/classify-business-role-assignments`) | Post-import: reclassifies Direct assignments to BusinessRole resources as Governed. |
 | **Backpressure fix** (`app/api/src/ingest/engine.js`, `sessions.js`) | `pg-copy-streams` COPY FROM STDIN now respects write backpressure. |
