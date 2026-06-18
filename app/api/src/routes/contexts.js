@@ -498,6 +498,70 @@ router.delete('/contexts/:id/members/:memberId', writeContexts, async (req, res)
   }
 });
 
+// ─── PATCH /api/contexts/:id/members/:memberId/move ──────────────────
+// Move a member to another team in the MANAGER HIERARCHY tree, e.g. dragging a
+// person onto a different manager's node. Body: { toContextId }.
+//
+// Because the tree is generated from Principals.managerId, the move is persisted
+// as an override of who this principal reports to (the target node's manager) so
+// it survives every plugin re-run — mirroring how a dragged context keeps its
+// place via "userReparented". The ContextMembers row is also moved immediately
+// so the tree updates without waiting for a re-run. Dropping a person back on
+// their source manager clears the override.
+router.patch('/contexts/:id/members/:memberId/move', writeContexts, async (req, res) => {
+  const { id, memberId } = req.params;
+  const { toContextId } = req.body || {};
+  if (!UUID_RE.test(id) || !UUID_RE.test(memberId) || !UUID_RE.test(toContextId || '')) {
+    return res.status(400).json({ error: 'Invalid ID format' });
+  }
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  if (toContextId === id) return res.status(400).json({ error: 'Source and target are the same' });
+
+  const from = await db.queryOne(`SELECT "contextType", "targetType" FROM "Contexts" WHERE id = $1`, [id]);
+  const to   = await db.queryOne(`SELECT "contextType", "targetType", "externalId" FROM "Contexts" WHERE id = $1`, [toContextId]);
+  if (!from || !to) return res.status(404).json({ error: 'Context not found' });
+  if (from.contextType !== 'ManagerHierarchy' || to.contextType !== 'ManagerHierarchy') {
+    return res.status(400).json({ error: 'Moving members is only supported in the Manager Hierarchy tree.' });
+  }
+
+  // The target node's externalId is the new manager's principal id; the synthetic
+  // root ('root') means "report to no manager".
+  const managerPrincipalId = UUID_RE.test(to.externalId || '') ? to.externalId : null;
+  const setBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'analyst';
+
+  try {
+    // Source managerId — if the member is dropped back on it, clear the override.
+    const principal = await db.queryOne(`SELECT "managerId" FROM "Principals" WHERE id = $1`, [memberId]);
+    if (principal && principal.managerId === managerPrincipalId) {
+      await db.query(`DELETE FROM "ManagerHierarchyOverrides" WHERE "principalId" = $1`, [memberId]);
+    } else {
+      await db.query(`
+        INSERT INTO "ManagerHierarchyOverrides" ("principalId", "managerPrincipalId", "setBy")
+        VALUES ($1, $2, $3)
+        ON CONFLICT ("principalId")
+        DO UPDATE SET "managerPrincipalId" = EXCLUDED."managerPrincipalId",
+                      "setBy" = EXCLUDED."setBy",
+                      "setAt" = (now() AT TIME ZONE 'utc')
+      `, [memberId, managerPrincipalId, setBy]);
+    }
+
+    // Move the membership row now so the tree reflects it immediately.
+    await db.query(`DELETE FROM "ContextMembers" WHERE "contextId" = $1 AND "memberId" = $2`, [id, memberId]);
+    await db.query(`
+      INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
+      VALUES ($1, 'Principal', $2, 'analyst')
+      ON CONFLICT ("contextId", "memberId") DO NOTHING
+    `, [toContextId, memberId]);
+
+    await recalcMemberCountsForChain(id);
+    await recalcMemberCountsForChain(toContextId);
+    res.json({ from: id, to: toContextId, memberId, managerPrincipalId });
+  } catch (err) {
+    console.error('PATCH /contexts/:id/members/:memberId/move failed:', err.message);
+    res.status(500).json({ error: 'Failed to move member' });
+  }
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 async function loadMembers(contextId, targetType, { limit = 100, offset = 0, search = '', withTotal = false, includeDescendants = false } = {}) {

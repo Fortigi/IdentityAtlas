@@ -51,15 +51,28 @@ When using the in-browser wizard, these permissions are validated automatically 
 
 ## Section: LLM
 
-Configures the AI provider used by `New-FGRiskProfile` and `New-FGRiskClassifiers`. Only anonymized structural data is sent to the LLM — no user names, emails, or identity data. (Account Linking does **not** use the LLM — it is deterministic.)
+!!! info "Docker deployments: configure AI in the UI"
+    In the Docker deployment the AI provider is configured at **Admin → LLM Settings**, not via a config file. The API key is stored encrypted in the built-in secrets vault. The config file approach below is only relevant when running the PowerShell risk-profile scripts outside Docker.
+
+Supported providers: `anthropic`, `openai`, `azure-openai`. Only public organisational context (domain, industry) is sent to the AI — no user names, emails, or identity data. See [Risk Scoring → Data Privacy](../risk-scoring/overview.md#data-privacy) for details.
+
+**Anthropic / OpenAI:**
 
 | Key | Type | Description |
 |---|---|---|
-| `Provider` | string | `Anthropic` or `OpenAI`. |
-| `Model` | string | Optional model override (e.g. `claude-sonnet-4-20250514`, `gpt-4o`). |
-| `ApiKey` | string | API key. |
+| `Provider` | string | `Anthropic` or `OpenAI` |
+| `Model` | string | Optional model override. Defaults: Anthropic → `claude-sonnet-4-6`, OpenAI → `gpt-4o`. |
+| `ApiKey` | string | API key. Can also be supplied via `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` env vars. |
 
-The LLM key can also be supplied via environment variables: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
+**Azure OpenAI** (additional keys):
+
+| Key | Type | Description |
+|---|---|---|
+| `Provider` | string | `azure-openai` |
+| `ApiKey` | string | Azure OpenAI resource key. |
+| `Endpoint` | string | Resource endpoint, e.g. `https://my-resource.openai.azure.com` |
+| `Deployment` | string | Deployment name as configured in Azure. |
+| `ApiVersion` | string | Optional. Defaults to `2024-08-01-preview`. |
 
 ---
 

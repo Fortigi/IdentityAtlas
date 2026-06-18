@@ -80,6 +80,8 @@ const SCHEMAS = {
       principalId: { type: 'uuid' },
       resourceExternalId: { type: 'string', maxLength: 500 },
       principalExternalId: { type: 'string', maxLength: 500 },
+      identityId: { type: 'uuid' },
+      identityExternalId: { type: 'string', maxLength: 500 },
       principalType: { type: 'string', maxLength: 50 },
       assignmentType: { type: 'string', enum: ASSIGNMENT_TYPES },
       complianceState: { type: 'string', maxLength: 50 },
@@ -88,6 +90,27 @@ const SCHEMAS = {
       assignmentStatus: { type: 'string', maxLength: 50 },
       expirationDateTime: { type: 'string' },
       extendedAttributes: { type: 'json' },
+    },
+  },
+  'resource-assignments-identity': {
+    required: ['assignmentType'],
+    requiredOneOf: [
+      { fields: ['resourceId', 'resourceExternalId'] },
+      { fields: ['identityId', 'identityExternalId'] },
+    ],
+    fields: {
+      resourceId:          { type: 'uuid' },
+      resourceExternalId:  { type: 'string', maxLength: 500 },
+      identityId:          { type: 'uuid' },
+      identityExternalId:  { type: 'string', maxLength: 500 },
+      assignmentType:      { type: 'string', enum: ASSIGNMENT_TYPES },
+      principalType:       { type: 'string', maxLength: 50 },
+      complianceState:     { type: 'string', maxLength: 50 },
+      policyId:            { type: 'string', maxLength: 255 },
+      state:               { type: 'string', maxLength: 50 },
+      assignmentStatus:    { type: 'string', maxLength: 50 },
+      expirationDateTime:  { type: 'string' },
+      extendedAttributes:  { type: 'json' },
     },
   },
   'resource-relationships': {
@@ -280,6 +303,7 @@ export const ENTITY_TABLE_MAP = {
   'principals': 'Principals',
   'resources': 'Resources',
   'resource-assignments': 'ResourceAssignments',
+  'resource-assignments-identity': 'ResourceAssignments',
   'resource-relationships': 'ResourceRelationships',
   'identities': 'Identities',
   'identity-members': 'IdentityMembers',
@@ -298,6 +322,7 @@ export const ENTITY_KEY_MAP = {
   'principals': ['id'],
   'resources': ['id'],
   'resource-assignments': ['resourceId', 'principalId', 'assignmentType'],
+  'resource-assignments-identity': ['resourceId', 'identityId', 'assignmentType'],
   'resource-relationships': ['parentResourceId', 'childResourceId', 'relationshipType'],
   'identities': ['id'],
   'identity-members': ['identityId', 'principalId'],
@@ -319,6 +344,7 @@ export const ENTITY_SCOPE_MAP = {
   'principals': ['principalType'],
   'resources': ['resourceType'],
   'resource-assignments': ['assignmentType'],
+  'resource-assignments-identity': ['assignmentType'],
   'resource-relationships': ['relationshipType'],
   'contexts': ['variant', 'contextType', 'scopeSystemId', 'sourceAlgorithmId'],
   'context-members': ['contextId'],
@@ -419,6 +445,16 @@ export function validateRecords(records, entityType, idGeneration, syncMode = 'f
         if (!hasAny) {
           errors.push(`Record ${i}: one of [${group.fields.join(', ')}] is required`);
         }
+      }
+    }
+
+    // XOR check: resource-assignments only accepts principalId-side fields.
+    // Catches accidental mixing before the DB constraint produces a cryptic error.
+    if (entityType === 'resource-assignments') {
+      const hasIdentitySide = (rec.identityId !== undefined && rec.identityId !== null && rec.identityId !== '')
+        || (rec.identityExternalId !== undefined && rec.identityExternalId !== null && rec.identityExternalId !== '');
+      if (hasIdentitySide) {
+        errors.push(`Record ${i}: identityId/identityExternalId not allowed here — use /ingest/resource-assignments-identity`);
       }
     }
 

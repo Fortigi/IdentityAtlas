@@ -82,6 +82,10 @@ nav:
           - Entra ID: sync/entra-id.md
           - CSV Import: sync/csv-import.md
           - CSV Schema Reference: architecture/csv-import-schema.md
+          - midPoint: sync/midpoint.md
+          - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
+          - Omada IGA: sync/omada.md
+          - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
           - Custom Crawlers: sync/custom-crawlers.md
       - Using Identity Atlas:
           - Role Mining UI: ui/overview.md

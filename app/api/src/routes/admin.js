@@ -607,6 +607,7 @@ router.get('/admin/dashboard-stats', async (_req, res) => {
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Identities'), 0), 0)::int             AS "identities",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'ResourceAssignments'), 0), 0)::int    AS "assignments",
         (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "assignmentType" = 'Governed')  AS "governedAssignments",
+        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "identityId" IS NOT NULL)       AS "identityAssignments",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'ResourceRelationships'), 0), 0)::int  AS "relationships",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Contexts'), 0), 0)::int               AS "contexts",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'IdentityMembers'), 0), 0)::int       AS "identityMembers",

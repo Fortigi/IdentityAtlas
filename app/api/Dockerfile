@@ -2,12 +2,21 @@
 # Usage: docker build -f app/api/Dockerfile -t fortigraph-backend .
 
 # ── Stage 1: Build frontend ───────────────────────────────────────────────────
+# Layout mirrors the repo root (app/ui/ + tools/crawlers/ as siblings) because
+# CrawlersPage.jsx discovers crawler wizards via a repo-root-relative
+# import.meta.glob('../../../../tools/crawlers/*/ConfigWizard.jsx') — vite build
+# resolves that glob against the filesystem, so tools/crawlers must be present
+# four levels up from src/components at build time, not just at dev-server time.
+# node_modules is installed at /build (not app/ui/node_modules) so Node's
+# ancestor-walk module resolution can find "react" etc. from files under
+# tools/crawlers/ too — they aren't descendants of app/ui.
 FROM node:24-slim AS frontend-build
-WORKDIR /app/frontend
+WORKDIR /build
 COPY app/ui/package*.json ./
 RUN npm ci
-COPY app/ui/ .
-RUN npm run build
+COPY app/ui/ ./app/ui/
+COPY tools/crawlers ./tools/crawlers
+RUN npm --prefix app/ui run build
 
 # ── Stage 2: Backend runtime ──────────────────────────────────────────────────
 FROM node:24-slim AS runtime
@@ -29,7 +38,7 @@ COPY tools/crawlers /app/crawlers
 RUN find /app/crawlers -name "*.ps1" -delete
 ENV CRAWLER_MANIFESTS_DIR=/app/crawlers
 # Copy the compiled frontend so Express can serve it as static files
-COPY --from=frontend-build /app/frontend/dist ../frontend/dist
+COPY --from=frontend-build /build/app/ui/dist ../frontend/dist
 
 EXPOSE 3001
 # Create the uploads directory with node ownership BEFORE switching user.

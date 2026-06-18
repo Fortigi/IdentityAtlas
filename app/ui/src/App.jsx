@@ -294,7 +294,10 @@ export default function App() {
     if (hasData === false) return; // don't lock out — DB may get data after import
     autoOpenFiredRef.current = true;
     if (defaultFilter !== null) {
-      setMatrixFilter(defaultFilter.filter); // skip wizard, apply saved default
+      // skip wizard, apply saved default — restore its managed-state toggle too
+      const { managed: savedManaged, ...f } = defaultFilter.filter || {};
+      setMatrixFilter(f);
+      if (savedManaged) setManagedFilter(savedManaged);
     } else {
       setWizardOpen(true); // no default — let user configure
     }
@@ -602,9 +605,14 @@ export default function App() {
                 <RollupMatrixView
                   rollup={rollup}
                   filter={matrixFilter}
+                  counts={counts}
+                  managedFilter={managedFilter}
+                  setManagedFilter={setManagedFilter}
+                  shareUrl={shareUrl}
                   refreshing={refreshing}
                   onOpenDetail={openDetailTab}
                   onAdjustFilter={() => setWizardOpen(true)}
+                  onFilterChange={setMatrixFilter}
                 />
               ) : matrixFilter?.orientation === 'rows-as-subjects' ? (
                 <RotatedMatrixView
@@ -639,7 +647,8 @@ export default function App() {
               <MatrixFilterWizard
                 open={wizardOpen}
                 initialFilter={matrixFilter}
-                onApply={(f) => { setMatrixFilter(f); setWizardOpen(false); }}
+                initialManaged={managedFilter}
+                onApply={(f, m) => { setMatrixFilter(f); if (m) setManagedFilter(m); setWizardOpen(false); }}
                 onClose={() => setWizardOpen(false)}
               />
             </>

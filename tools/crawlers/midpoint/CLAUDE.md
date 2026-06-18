@@ -32,7 +32,8 @@ A crawler is a folder under `tools/crawlers/<type>/` with a `crawler.json` manif
 | `ShadowType kind=generic`/other | **Skipped** | OU/container/DB rows — no user account |
 | Account → entitlement membership | **ResourceAssignments** (`assignmentType=Direct`) | Via `association[]` or (4.9+) `referenceAttributes.<name>[]`, consolidated on the owner focus principal, `viaAccount` in `extendedAttributes` |
 | `user.assignment[]` → Role/Service | **ResourceAssignments** (`assignmentType=Governed`) | |
-| `user.parentOrgRef[]` | **ContextMembers** | |
+| `user.parentOrgRef[]` | **ContextMembers** | All org memberships |
+| `user.parentOrgRef` (default relation) | **Identity.department** + focus **Principal.department** | The user's primary org-unit name; see `Resolve-MidpointDepartment` |
 | `accessCertificationCampaigns` | **CertificationDecisions** | Requires `?include=case` |
 
 midPoint OIDs are UUIDs and are reused 1-to-1 as `id`/`externalId` — every record is traceable to the source object.
@@ -51,6 +52,16 @@ midPoint OIDs are UUIDs and are reused 1-to-1 as `id`/`externalId` — every rec
 10. **`refresh-views`** — refreshes matrix materialized views
 
 Each phase is safe-scoped by `systemId`: full-sync deletes only rows the crawler owns.
+
+## Type mapping (archetypeMapping / typeMappings)
+
+`archetypeMapping` classifies roles/services into a resourceType (archetype → subtype → catch-all → per-phase default); `typeMappings.orgContextTypeMapping` and `typeMappings.identityTypeMapping` remap orgs→contextType and users→principalType. The pure helpers (`ConvertTo-MapRows`, `Resolve-MappedResourceType`, `Resolve-MappedValue`, `Get-MidpointArchetypeNames`, `Get-MidpointStringList`) live in `Invoke-MidpointApi.ps1` and are unit-tested in `test/unit/Midpoint.Tests.ps1`. Defaults reproduce the old hardcoded behaviour exactly (role→BusinessRole, service→Service, org→OrgUnit, user→User).
+
+**Bucketed reconcile (important):** because a full-sync scoped delete keys on `systemId` + the scope columns (`resourceType` for resources, `principalType` for principals), records are bucketed by their mapped type and each bucket is ingested with its own scope — never one mixed batch — or the buckets would delete each other. The Orgs phase instead keeps a single batch (the parent-before-child topo-sort needs it) and scopes its delete by `{ variant='synced', scopeSystemId }` only (not `contextType`), since the crawler owns every synced context for its own system. The archetype catalog is fetched once, lazily, only when a mapping row keys on an archetype.
+
+## Live discovery
+
+The wizard's archetype/subtype dropdowns come from `POST /api/admin/crawlers/midpoint/discover`, handled by `discover.js` in this folder and loaded dynamically by `app/api/src/routes/jobs.js`. It connects to midPoint from Node (all 4 auth methods incl. OAuth2), mirroring the Omada `validate-metadata` pattern; edit-mode resolves the vaulted `clientSecret` via `getConfigSecret`.
 
 ## Known Gotchas
 

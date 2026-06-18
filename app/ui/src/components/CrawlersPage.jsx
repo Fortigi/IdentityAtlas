@@ -1,13 +1,37 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, lazy, createElement } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 import Stepper from './Stepper';
 import useDocsUrl from '../hooks/useDocsUrl';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
 
+// Crawler wizard components and their display metadata are auto-discovered by naming convention:
+//   tools/crawlers/{type}/ConfigWizard.jsx  — the wizard form (lazy-loaded)
+//   tools/crawlers/{type}/CrawlerMeta.js    — { id, name, description } for the type picker
+// Adding a new crawler type never requires editing this file.
+const _wizardModules = import.meta.glob('../../../../tools/crawlers/*/ConfigWizard.jsx');
+function getCrawlerWizard(crawlerType) {
+  const loader = _wizardModules[`../../../../tools/crawlers/${crawlerType}/ConfigWizard.jsx`];
+  return loader ? lazy(loader) : null;
+}
+
+const _crawlerMetaModules = import.meta.glob('../../../../tools/crawlers/*/CrawlerMeta.js', { eager: true });
+const _discoveredCrawlerTypes = Object.values(_crawlerMetaModules).map(m => ({ ...m.default, available: true }));
+
+// Optional per-crawler summary panel shown on the configured-crawlers card.
+// Eager (not lazy like the wizard) — every visible card needs it immediately,
+// not on demand. Crawlers without a Summary.jsx just show the generic
+// schedule/last-run footer with no extra panel.
+const _summaryModules = import.meta.glob('../../../../tools/crawlers/*/Summary.jsx', { eager: true });
+function getCrawlerSummary(crawlerType) {
+  return _summaryModules[`../../../../tools/crawlers/${crawlerType}/Summary.jsx`]?.default || null;
+}
+
 const SECRET_MASK = '••••••••';
 
 // ─── Crawler type catalog ─────────────────────────────────────────────────────
+// Built-in types (entra-id, demo) keep their wizards inline in this file.
+// File-based crawlers under tools/crawlers/*/CrawlerMeta.js are appended automatically.
 const CRAWLER_TYPES = [
   {
     id: 'entra-id',
@@ -16,23 +40,12 @@ const CRAWLER_TYPES = [
     available: true,
   },
   {
-    id: 'csv',
-    name: 'CSV Import',
-    description: 'Upload semicolon-delimited CSV files exported from Omada, SailPoint, or other IGA systems',
-    available: true,
-  },
-  {
     id: 'demo',
     name: 'Demo Data',
     description: 'Load synthetic data to explore the platform (~30 seconds)',
     available: true, immediate: true,
   },
-  {
-    id: 'omada',
-    name: 'Omada IGA',
-    description: 'Sync business roles, identities, role assignments, and certification reviews directly from the Omada REST API',
-    available: true,
-  },
+  ..._discoveredCrawlerTypes,
   {
     id: 'custom',
     name: 'Custom Connector',
@@ -765,7 +778,6 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
   );
 }
 
-
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
 function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob }) {
   const cfg = config.config || {};
@@ -864,33 +876,10 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
         </div>
       )}
 
-      {config.crawlerType === 'csv' && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
-          <div><span className="text-gray-500 dark:text-gray-400">System:</span> <span className="font-medium dark:text-gray-200">{cfg.systemName || '—'}</span></div>
-          <div><span className="text-gray-500 dark:text-gray-400">Type:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.systemType || '—'}</span></div>
-          <div><span className="text-gray-500 dark:text-gray-400">Delimiter:</span> <code className="text-xs dark:text-gray-300">{cfg.delimiter === '\t' ? '\\t' : (cfg.delimiter || ';')}</code></div>
-        </div>
-      )}
-
-      {config.crawlerType === 'omada' && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
-          <div><span className="text-gray-500 dark:text-gray-400">Base URL:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.baseUrl || '—'}</span></div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400">Auth:</span>{' '}
-            <span className="inline-block px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded dark:bg-indigo-900/30 dark:text-indigo-300">{cfg.authMethod || '—'}</span>
-          </div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400">Version:</span>{' '}
-            <span className="inline-block px-1.5 py-0.5 bg-gray-100 text-gray-700 text-xs rounded dark:bg-gray-700 dark:text-gray-300">{cfg.apiVersion || 'v14'}</span>
-          </div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400">Syncs:</span>{' '}
-            {cfg.selectedObjects && Object.entries(cfg.selectedObjects).filter(([,v]) => v).map(([k]) =>
-              <span key={k} className="inline-block mr-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded dark:bg-indigo-900/30 dark:text-indigo-300">{k}</span>
-            )}
-          </div>
-        </div>
-      )}
+      {(() => {
+        const Summary = getCrawlerSummary(config.crawlerType);
+        return Summary ? createElement(Summary, { cfg, config }) : null;
+      })()}
 
       {/* Schedules */}
       {scheduleList.length > 0 && (
@@ -1419,945 +1408,6 @@ function GettingStarted({ onAddCrawler }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CSV Crawler Wizard
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// Expected CSV files. Must stay in sync with CSV_FILE_SLOTS in csvUploads.js and
-// the file names that Start-CSVCrawler.ps1 reads.
-// Identity Atlas canonical CSV schema. Must stay in sync with CSV_FILE_SLOTS in
-// csvUploads.js and the schema templates in tools/csv-templates/schema/.
-const CSV_SLOTS = [
-  { key: 'systems',              file: 'Systems.csv',              label: 'Systems',                required: false, hint: 'Optional. Columns: ExternalId, DisplayName, SystemType, Description' },
-  { key: 'contexts',             file: 'Contexts.csv',             label: 'Contexts',               required: false, hint: 'Optional. Columns: ExternalId, DisplayName, ContextType, TargetType, Description, ParentExternalId, SystemName, OwnerUserId' },
-  { key: 'context-members',      file: 'ContextMembers.csv',       label: 'Context Members',        required: false, hint: 'Optional. Columns: ContextExternalId, MemberExternalId, MemberType (Identity / Resource / Principal / System).' },
-  { key: 'resources',            file: 'Resources.csv',            label: 'Resources',              required: true,  hint: 'Required. Columns: ExternalId, DisplayName, ResourceType, Description, SystemName, Enabled' },
-  { key: 'resourceRelationships',file: 'ResourceRelationships.csv',label: 'Resource Relationships', required: false, hint: 'Optional. Columns: ParentExternalId, ChildExternalId, RelationshipType, SystemName' },
-  { key: 'users',                file: 'Users.csv',                label: 'Users',                  required: true,  hint: 'Required. Columns: ExternalId, DisplayName, Email, PrincipalType, JobTitle, Department, SystemName, Enabled' },
-  { key: 'assignments',          file: 'Assignments.csv',          label: 'Assignments',            required: true,  hint: 'Required. Columns: ResourceExternalId, UserExternalId, AssignmentType, SystemName' },
-  { key: 'identities',           file: 'Identities.csv',           label: 'Identities',             required: false, hint: 'Optional. Columns: ExternalId, DisplayName, Email, EmployeeId, Department, JobTitle' },
-  { key: 'identityMembers',      file: 'IdentityMembers.csv',      label: 'Identity Members',       required: false, hint: 'Optional. Columns: IdentityExternalId, UserExternalId, AccountType' },
-  { key: 'certifications',       file: 'Certifications.csv',       label: 'Certifications',         required: false, hint: 'Optional. Columns: ExternalId, ResourceExternalId, UserDisplayName, Decision, ReviewerDisplayName, ReviewedDateTime' },
-];
-
-function fmtBytes(n) {
-  if (!n) return '0 B';
-  const u = ['B','KB','MB','GB']; let i = 0; let v = n;
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${u[i]}`;
-}
-
-// Match an uploaded filename against the expected slots. Case-insensitive,
-// also tolerates "users.csv", "USERS.CSV", and minor naming variants like
-// "Org_Units.csv" or "OrgUnits.csv". Returns the slot key or null.
-function matchSlot(filename) {
-  const lower = filename.toLowerCase().replace(/[\s_-]+/g, '');
-  for (const s of CSV_SLOTS) {
-    const target = s.file.toLowerCase().replace(/[\s_-]+/g, '');
-    if (lower === target) return s.key;
-    // Check aliases (e.g. "System.csv" → systems slot)
-    for (const alias of (s.aliases || [])) {
-      if (lower === alias.toLowerCase().replace(/[\s_-]+/g, '')) return s.key;
-    }
-  }
-  // Looser fallback: contains the stem
-  for (const s of CSV_SLOTS) {
-    const stem = s.file.toLowerCase().replace('.csv', '').replace(/[\s_-]+/g, '');
-    if (lower.includes(stem)) return s.key;
-  }
-  return null;
-}
-
-function CsvWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
-  // Steps: 1=info, 2=files, 3=review
-  const [step, setStep] = useState(1);
-  const [displayName, setDisplayName] = useState(initialConfig?.displayName || 'CSV Import');
-  const [systemType, setSystemType] = useState(initialConfig?.systemType || 'CSV');
-  const [systemName, setSystemName] = useState(initialConfig?.systemName || 'CSV Import');
-  const [delimiter, setDelimiter] = useState(initialConfig?.delimiter || ';');
-
-  // Files staged in the browser before upload (only on create)
-  // and files already on the server (when editing).
-  const [stagedFiles, setStagedFiles] = useState([]);    // [{ file: File, slot: string|null }]
-  const [serverFiles, setServerFiles] = useState([]);    // [{ name, sizeBytes, modifiedAt }]
-  const [savedConfigId, setSavedConfigId] = useState(initialConfig?.id || null);
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Load existing files for edit mode
-  useEffect(() => {
-    if (!savedConfigId) return;
-    (async () => {
-      try {
-        const r = await authFetch(`/api/admin/crawler-configs/${savedConfigId}/csv-files`);
-        if (r.ok) {
-          const j = await r.json();
-          setServerFiles(j.files || []);
-        }
-      } catch { /* ignore */ }
-    })();
-  }, [savedConfigId, authFetch]);
-
-  const handleFileSelect = (e) => {
-    const files = Array.from(e.target.files || []);
-    // Filter to .csv only
-    const csv = files.filter(f => /\.csv$/i.test(f.name));
-    const mapped = csv.map(file => ({ file, slot: matchSlot(file.name) }));
-    setStagedFiles(prev => {
-      // Merge: replace files with same name, keep others
-      const byName = new Map(prev.map(s => [s.file.name, s]));
-      for (const m of mapped) byName.set(m.file.name, m);
-      return Array.from(byName.values());
-    });
-    e.target.value = ''; // allow re-selecting the same files
-  };
-
-  const removeStaged = (name) => setStagedFiles(prev => prev.filter(s => s.file.name !== name));
-  const setStagedSlot = (name, slot) => setStagedFiles(prev => prev.map(s => s.file.name === name ? { ...s, slot } : s));
-
-  const removeServerFile = async (name) => {
-    if (!savedConfigId) return;
-    if (!confirm(`Delete ${name} from the server?`)) return;
-    try {
-      await authFetch(`/api/admin/crawler-configs/${savedConfigId}/csv-files/${encodeURIComponent(name)}`, { method: 'DELETE' });
-      setServerFiles(prev => prev.filter(f => f.name !== name));
-    } catch (err) { setError(err.message); }
-  };
-
-  // Slot coverage check — used to enable/disable Save
-  const allFiles = [
-    ...serverFiles.map(f => ({ name: f.name, slot: matchSlot(f.name), source: 'server' })),
-    ...stagedFiles.map(s => ({ name: s.file.name, slot: s.slot, source: 'staged' })),
-  ];
-  const filledSlots = new Set(allFiles.map(f => f.slot).filter(Boolean));
-  const requiredSlots = CSV_SLOTS.filter(s => s.required);
-  const missingRequired = requiredSlots.filter(s => !filledSlots.has(s.key));
-  const canSave = !uploading && !saving && missingRequired.length === 0 && allFiles.length > 0;
-
-  // Step 1 → 2 validation
-  const canProceedFromInfo = displayName.trim() && systemName.trim() && systemType.trim() && delimiter;
-
-  // Save handler — creates the config if needed, then uploads files
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      // 1. Create or update the config row
-      const configPayload = { systemName, systemType, delimiter };
-      let configId = savedConfigId;
-      if (!configId) {
-        const r = await authFetch('/api/admin/crawler-configs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ crawlerType: 'csv', displayName, config: configPayload }),
-        });
-        if (!r.ok) {
-          const e = await r.json().catch(() => ({}));
-          throw new Error(e.error || `HTTP ${r.status}`);
-        }
-        const created = await r.json();
-        configId = created.id;
-        setSavedConfigId(configId);
-      } else {
-        const r = await authFetch(`/api/admin/crawler-configs/${configId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ displayName, config: configPayload }),
-        });
-        if (!r.ok) {
-          const e = await r.json().catch(() => ({}));
-          throw new Error(e.error || `HTTP ${r.status}`);
-        }
-      }
-
-      // 2. Upload any staged files
-      if (stagedFiles.length > 0) {
-        setUploading(true);
-        const fd = new FormData();
-        for (const s of stagedFiles) fd.append('files', s.file, s.file.name);
-        const r = await authFetch(`/api/admin/crawler-configs/${configId}/csv-files`, {
-          method: 'POST',
-          body: fd,
-        });
-        if (!r.ok) {
-          const e = await r.json().catch(() => ({}));
-          throw new Error(e.error || `HTTP ${r.status}`);
-        }
-        setStagedFiles([]);
-      }
-
-      onComplete();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-      setUploading(false);
-    }
-  };
-
-  const csvSteps = [
-    { n: 1, label: 'System info' },
-    { n: 2, label: 'Upload files' },
-    { n: 3, label: 'Review' },
-  ];
-
-  return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit CSV Crawler' : 'Add CSV Crawler'}</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      <div className="mb-5"><Stepper steps={csvSteps} current={step} onStepClick={setStep} allowAll={!!isEdit} /></div>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">
-          {error}
-        </div>
-      )}
-
-      {/* ── Step 1: System info ──────────────────────────────────────────── */}
-      {step === 1 && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">Display name</label>
-            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)}
-              placeholder="e.g. Omada Production"
-              className="w-full px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-            <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Shown on the configured crawlers card.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">System name</label>
-              <input type="text" value={systemName} onChange={e => setSystemName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Recorded in <code className="dark:text-gray-300">dbo.Systems.displayName</code>.</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">System type</label>
-              <input type="text" value={systemType} onChange={e => setSystemType(e.target.value)}
-                placeholder="Omada / SailPoint / Custom"
-                className="w-full px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Used for grouping in the UI.</p>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">CSV delimiter</label>
-            <select value={delimiter} onChange={e => setDelimiter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-              <option value=";">Semicolon (;)</option>
-              <option value=",">Comma (,)</option>
-              <option value="\t">Tab</option>
-              <option value="|">Pipe (|)</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setStep(2)} disabled={!canProceedFromInfo}
-              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-              Next: Upload files
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Step 2: File upload ──────────────────────────────────────────── */}
-      {step === 2 && (
-        <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300">
-            <div>Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name.</div>
-            <div className="mt-1">
-              <a href="/api/admin/csv-schema" download className="text-blue-700 underline hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-200">
-                Download schema templates
-              </a>
-              <span className="text-blue-600 ml-2 dark:text-blue-400">— empty CSVs with the expected column headers. Use a transform script to convert your source data to this format.</span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <label className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 cursor-pointer">
-              Select folder
-              <input type="file" multiple webkitdirectory="" directory="" onChange={handleFileSelect} className="hidden" />
-            </label>
-            <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 cursor-pointer dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
-              Select files
-              <input type="file" multiple accept=".csv" onChange={handleFileSelect} className="hidden" />
-            </label>
-          </div>
-
-          {/* Staged files (not yet uploaded) */}
-          {stagedFiles.length > 0 && (
-            <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-200">Staged files ({stagedFiles.length})</h4>
-              <div className="border border-gray-200 rounded divide-y dark:border-gray-600 dark:divide-gray-700">
-                {stagedFiles.map(s => (
-                  <div key={s.file.name} className="flex items-center justify-between p-2 text-sm dark:bg-gray-800">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-mono truncate dark:text-gray-200">{s.file.name}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{fmtBytes(s.file.size)}</div>
-                    </div>
-                    <select value={s.slot || ''} onChange={e => setStagedSlot(s.file.name, e.target.value || null)}
-                      className="ml-2 text-xs border border-gray-200 rounded px-1 py-0.5 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                      <option value="">— Ignore —</option>
-                      {CSV_SLOTS.map(slot => (
-                        <option key={slot.key} value={slot.key}>{slot.label}{slot.required ? ' *' : ''}</option>
-                      ))}
-                    </select>
-                    <button onClick={() => removeStaged(s.file.name)}
-                      className="ml-2 text-red-500 hover:text-red-700 text-xs dark:text-red-400 dark:hover:text-red-300">Remove</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Files already on the server (edit mode) */}
-          {serverFiles.length > 0 && (
-            <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-200">Already uploaded ({serverFiles.length})</h4>
-              <div className="border border-gray-200 rounded divide-y dark:border-gray-600 dark:divide-gray-700">
-                {serverFiles.map(f => {
-                  const slot = matchSlot(f.name);
-                  const slotLabel = CSV_SLOTS.find(s => s.key === slot)?.label || 'Unrecognized';
-                  return (
-                    <div key={f.name} className="flex items-center justify-between p-2 text-sm dark:bg-gray-800">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-mono truncate dark:text-gray-200">{f.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">{fmtBytes(f.sizeBytes)} · {new Date(f.modifiedAt).toLocaleString()}</div>
-                      </div>
-                      <span className={`ml-2 px-2 py-0.5 rounded text-xs ${slot ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>{slotLabel}</span>
-                      <button onClick={() => removeServerFile(f.name)}
-                        className="ml-2 text-red-500 hover:text-red-700 text-xs dark:text-red-400 dark:hover:text-red-300">Delete</button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Required-slot coverage */}
-          <div className="bg-gray-50 border border-gray-200 rounded p-3 dark:bg-gray-700/50 dark:border-gray-600">
-            <div className="text-xs font-semibold text-gray-700 mb-2 dark:text-gray-300">Required object types</div>
-            <div className="flex flex-wrap gap-2">
-              {CSV_SLOTS.map(slot => {
-                const filled = filledSlots.has(slot.key);
-                return (
-                  <span key={slot.key} className={`px-2 py-1 rounded text-xs ${
-                    filled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : (slot.required ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300')
-                  }`} title={slot.hint || ''}>
-                    {filled ? '✓ ' : (slot.required ? '✗ ' : '○ ')}{slot.label}{slot.required ? ' *' : ''}
-                  </span>
-                );
-              })}
-            </div>
-            {missingRequired.length > 0 && (
-              <div className="text-xs text-red-600 mt-2 dark:text-red-400">
-                Missing required: {missingRequired.map(s => s.file).join(', ')}
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-between">
-            <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={() => setStep(3)} disabled={missingRequired.length > 0 || allFiles.length === 0}
-              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-              Next: Review
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Step 3: Review ──────────────────────────────────────────────── */}
-      {step === 3 && (
-        <div className="space-y-4">
-          <div className="bg-gray-50 border border-gray-200 rounded p-4 space-y-2 text-sm dark:bg-gray-700/50 dark:border-gray-600">
-            <div><span className="text-gray-500 dark:text-gray-400">Display name:</span> <span className="font-medium dark:text-gray-200">{displayName}</span></div>
-            <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">System:</span> {systemName} ({systemType})</div>
-            <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">Delimiter:</span> <code className="dark:text-gray-200">{delimiter === '\t' ? '\\t' : delimiter}</code></div>
-            <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">Files:</span> {allFiles.length} total ({stagedFiles.length} new, {serverFiles.length} existing)</div>
-          </div>
-          <div className="flex justify-between">
-            <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={handleSave} disabled={!canSave}
-              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-              {uploading ? 'Uploading...' : saving ? 'Saving...' : (isEdit ? 'Save changes' : 'Create crawler')}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Omada Wizard
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const OMADA_AUTH_METHODS = [
-  { id: 'FormCookie',   label: 'Form / Cookie',              description: 'POST username+password to /api/authenticate (on-premise)' },
-  { id: 'OAuth2CC',     label: 'OAuth2 Client Credentials',  description: 'service-to-service bearer token (Cloud / newer on-prem)' },
-  { id: 'OAuth2ROPC',   label: 'OAuth2 ROPC',                description: 'username+password via token endpoint (on-premise with OAuth2)' },
-  { id: 'ApiToken',     label: 'API Token',                  description: 'static bearer token' },
-  { id: 'CookieString', label: 'Cookie String',              description: 'paste a pre-built session cookie (testing / restricted envs)' },
-  { id: 'BasicAuth',    label: 'HTTP Basic Auth',            description: 'Authorization: Basic header — username + password (on-premise)' },
-];
-
-const OMADA_VERSIONS = [
-  { id: 'v14', label: 'On-premise v14' },
-  { id: 'v15', label: 'On-premise v15' },
-  { id: 'cloud', label: 'Omada Cloud' },
-];
-
-const OMADA_SYNC_OPTIONS = [
-  { key: 'contexts',        label: 'Contexts',          description: 'Configured context types (OrgUnit, Country, Job titles, etc.)' },
-  { key: 'identities',      label: 'Identities',        description: 'Person records and their attributes' },
-  { key: 'accounts',        label: 'Accounts',          description: 'User and service accounts (Principals)' },
-  { key: 'contextMembers',  label: 'Context Members',   description: 'Identity-to-context memberships from Contextassignment, OUREF, Employment' },
-  { key: 'resources',       label: 'Resources',         description: 'Business roles and other permissions, grouped by connected system' },
-  { key: 'entitlements',    label: 'Entitlements',      description: 'Role-to-resource containment (ResourceRelationships)' },
-  { key: 'assignments',     label: 'Assignments',       description: 'Role assignments (Resourceassignment) and account assignments (CRA)' },
-];
-
-const SECRET_PLACEHOLDER = '••••••••';
-
-function OmadaWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
-  const [step, setStep] = useState(1);
-  const [displayName, setDisplayName]   = useState(initialConfig?.displayName || 'Omada IGA');
-  const [baseUrl, setBaseUrl]           = useState(initialConfig?.baseUrl || '');
-  const [apiVersion, setApiVersion]     = useState(initialConfig?.apiVersion || 'v14');
-  const [authMethod, setAuthMethod]     = useState(initialConfig?.authMethod || 'FormCookie');
-
-  // Credential fields
-  const [username, setUsername]         = useState(initialConfig?.username || '');
-  const [password, setPassword]         = useState('');
-  const [clientId, setClientId]         = useState(initialConfig?.clientId || '');
-  const [clientSecret, setClientSecret] = useState('');
-  const [tokenEndpoint, setTokenEndpoint] = useState(initialConfig?.tokenEndpoint || '');
-  const [apiToken, setApiToken]         = useState('');
-  const [cookieString, setCookieString] = useState('');
-  const [showCookieHelp, setShowCookieHelp] = useState(false);
-
-  // Sync options
-  const defaultObjects = { contexts: true, identities: true, accounts: true, contextMembers: true, resources: true, entitlements: true, assignments: true };
-  const [selectedObjects, setSelectedObjects] = useState({ ...defaultObjects, ...(initialConfig?.selectedObjects || {}) });
-
-  // Context object types — each entry specifies which Omada entity sets to sync as contexts.
-  // Default: Orgunit only. Operators add Country, Building, etc. as needed.
-  const defaultContextTypes = [{ entitySet: 'Orgunit', contextType: 'OrgUnit', identityField: 'OUREF' }];
-  const [contextObjectTypes, setContextObjectTypes] = useState(
-    initialConfig?.contextObjectTypes?.length
-      ? initialConfig.contextObjectTypes.map(c => ({
-          entitySet:    c.entitySet    || '',
-          contextType:  c.contextType  || '',
-          identityField: c.identityField || '',
-        }))
-      : defaultContextTypes
-  );
-  const addContextType    = () => setContextObjectTypes(prev => [...prev, { entitySet: '', contextType: '', identityField: '' }]);
-  const removeContextType = i  => setContextObjectTypes(prev => prev.filter((_, idx) => idx !== i));
-  const updateContextType = (i, field, val) =>
-    setContextObjectTypes(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
-
-  // Metadata validation — fetched once when entering Step 3
-  const [metaEntitySets,   setMetaEntitySets]   = useState(null);   // null = not fetched yet
-  const [metaIdentityProps, setMetaIdentityProps] = useState(null);
-  const [metaLoading, setMetaLoading] = useState(false);
-  const [metaError,   setMetaError]   = useState(null);
-
-  const fetchMetadata = async () => {
-    if (metaEntitySets !== null) return;
-    setMetaLoading(true); setMetaError(null);
-    try {
-      const body = initialConfig?.id
-        ? { configId: initialConfig.id }
-        : { config: { baseUrl: baseUrl.trim(), authMethod, username: username.trim(), password: password.trim(),
-                      tokenEndpoint: tokenEndpoint.trim(), clientId: clientId.trim(), clientSecret: clientSecret.trim(),
-                      apiToken: apiToken.trim(), cookieString: cookieString.trim() } };
-      const r = await authFetch('/api/admin/omada/validate-metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        setMetaEntitySets(d.entitySets || []);
-        setMetaIdentityProps(d.identityProperties || []);
-      } else {
-        setMetaError('Could not reach Omada server — validation unavailable');
-      }
-    } catch { setMetaError('Metadata fetch failed'); }
-    finally { setMetaLoading(false); }
-  };
-
-  const ctxValidation = (cot) => {
-    if (!metaEntitySets) return null;
-    const errs = [];
-    if (cot.entitySet && !metaEntitySets.includes(cot.entitySet)) {
-      // Check for a case-insensitive match and suggest the correct casing
-      const suggestion = metaEntitySets.find(s => s.toLowerCase() === cot.entitySet.toLowerCase());
-      errs.push(suggestion
-        ? `"${cot.entitySet}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
-        : `"${cot.entitySet}" is not an entity set in $metadata (names are case-sensitive)`);
-    }
-    if (cot.identityField && metaIdentityProps && !metaIdentityProps.includes(cot.identityField)) {
-      const suggestion = metaIdentityProps.find(p => p.toLowerCase() === cot.identityField.toLowerCase());
-      errs.push(suggestion
-        ? `"${cot.identityField}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
-        : `"${cot.identityField}" is not a property of the Identity entity type (names are case-sensitive)`);
-    }
-    return errs;
-  };
-
-  // Resource category mapping — maps ROLECATEGORY to Identity Atlas resourceType + optional tags
-  const RESOURCE_TYPE_OPTIONS = ['BusinessRole', 'Resource', 'AppRole', 'DelegatedPermission'];
-  const defaultCategoryMapping = [
-    { category: 'Role',       resourceType: 'BusinessRole' },
-    { category: 'Permission', resourceType: 'Resource' },
-    { category: '',           resourceType: 'Resource' },
-  ];
-  const [resCategoryMapping, setResCategoryMapping] = useState(
-    initialConfig?.resourceCategoryMapping?.length
-      ? initialConfig.resourceCategoryMapping.map(m => ({
-          category:     m.category     || '',
-          resourceType: m.resourceType || 'Resource',
-        }))
-      : defaultCategoryMapping
-  );
-  const addResMapping    = () => setResCategoryMapping(prev => [...prev, { category: '', resourceType: 'Resource' }]);
-  const removeResMapping = i  => setResCategoryMapping(prev => prev.filter((_, idx) => idx !== i));
-  const updateResMapping = (i, field, val) =>
-    setResCategoryMapping(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
-
-  // Schedule
-  const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
-
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  const canStep1 = displayName.trim() && baseUrl.trim();
-  const canStep2 = (() => {
-    if (authMethod === 'FormCookie') {
-      return username.trim() && (password.trim() || isEdit);
-    }
-    if (authMethod === 'OAuth2CC') {
-      return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit);
-    }
-    if (authMethod === 'OAuth2ROPC') {
-      return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit) && username.trim() && (password.trim() || isEdit);
-    }
-    if (authMethod === 'ApiToken') return apiToken.trim() || isEdit;
-    if (authMethod === 'CookieString') return cookieString.trim() || isEdit;
-    if (authMethod === 'BasicAuth') return username.trim() && (password.trim() || isEdit);
-    return true;
-  })();
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const configPayload = {
-        baseUrl: baseUrl.trim(),
-        apiVersion,
-        authMethod,
-        selectedObjects,
-        contextObjectTypes: contextObjectTypes
-          .filter(c => c.entitySet.trim())
-          .map(c => ({
-            entitySet:    c.entitySet.trim(),
-            contextType:  c.contextType.trim()  || c.entitySet.trim(),
-            identityField: c.identityField.trim() || undefined,
-          })),
-        resourceCategoryMapping: resCategoryMapping
-          .map(m => ({
-            category:    m.category.trim(),
-            resourceType: m.resourceType || 'Resource',
-          })),
-      };
-      if (schedules.length) configPayload.schedules = schedules;
-
-      // Only include credential fields that have values (blank = keep existing in edit mode)
-      if (authMethod === 'FormCookie' || authMethod === 'OAuth2ROPC') {
-        configPayload.username = username.trim();
-        if (password.trim()) configPayload.password = password.trim();
-      }
-      if (authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') {
-        configPayload.tokenEndpoint = tokenEndpoint.trim();
-        configPayload.clientId = clientId.trim();
-        if (clientSecret.trim()) configPayload.clientSecret = clientSecret.trim();
-      }
-      if (authMethod === 'ApiToken') {
-        if (apiToken.trim()) configPayload.apiToken = apiToken.trim();
-      }
-      if (authMethod === 'CookieString') {
-        if (cookieString.trim()) configPayload.cookieString = cookieString.trim();
-      }
-      if (authMethod === 'BasicAuth') {
-        configPayload.username = username.trim();
-        if (password.trim()) configPayload.password = password.trim();
-      }
-
-      let r;
-      if (initialConfig?.id) {
-        r = await authFetch(`/api/admin/crawler-configs/${initialConfig.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ displayName: displayName.trim(), config: configPayload }),
-        });
-      } else {
-        r = await authFetch('/api/admin/crawler-configs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ crawlerType: 'omada', displayName: displayName.trim(), config: configPayload }),
-        });
-      }
-      if (!r.ok) {
-        const e = await r.json().catch(() => ({}));
-        throw new Error(e.error || `HTTP ${r.status}`);
-      }
-      onComplete();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">
-          {isEdit ? 'Edit Omada IGA Crawler' : 'Add Omada IGA Crawler'} — Step {step} of 4
-        </h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">{error}</div>}
-
-      {/* Step 1 — Connection */}
-      {step === 1 && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Crawler Name</label>
-            <input value={displayName} onChange={e => setDisplayName(e.target.value)}
-              className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-              placeholder="Omada IGA" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Omada Base URL</label>
-            <input value={baseUrl} onChange={e => setBaseUrl(e.target.value)}
-              className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-              placeholder="https://omada.example.com" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Omada Version</label>
-            <div className="flex gap-2">
-              {OMADA_VERSIONS.map(v => (
-                <button key={v.id} onClick={() => setApiVersion(v.id)}
-                  className={`px-3 py-1.5 text-sm rounded border transition-colors ${
-                    apiVersion === v.id
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400'
-                  }`}
-                >{v.label}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Authentication Method</label>
-            <div className="space-y-2">
-              {OMADA_AUTH_METHODS.map(m => (
-                <label key={m.id} className="flex items-start gap-3 cursor-pointer">
-                  <input type="radio" name="authMethod" value={m.id} checked={authMethod === m.id}
-                    onChange={() => setAuthMethod(m.id)} className="mt-0.5" />
-                  <div>
-                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{m.label}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{m.description}</span>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <button onClick={() => setStep(2)} disabled={!canStep1}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
-              Next →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 2 — Credentials */}
-      {step === 2 && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Auth method: <span className="font-medium text-gray-700 dark:text-gray-300">{authMethod}</span>
-            {isEdit && <span className="ml-2 text-xs">(leave secret fields blank to keep the stored value)</span>}
-          </p>
-
-          {(authMethod === 'FormCookie' || authMethod === 'OAuth2ROPC') && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
-                <input value={username} onChange={e => setUsername(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder="svc-crawler" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-              </div>
-            </>
-          )}
-          {(authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Token Endpoint URL</label>
-                <input value={tokenEndpoint} onChange={e => setTokenEndpoint(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder="https://omada.example.com/oauth2/token" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client ID</label>
-                <input value={clientId} onChange={e => setClientId(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client Secret</label>
-                <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-              </div>
-            </>
-          )}
-          {authMethod === 'ApiToken' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Token</label>
-              <input type="password" value={apiToken} onChange={e => setApiToken(e.target.value)}
-                className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-            </div>
-          )}
-          {authMethod === 'BasicAuth' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
-                <input value={username} onChange={e => setUsername(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder="svc-crawler" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder={isEdit ? SECRET_PLACEHOLDER : ''} />
-              </div>
-            </>
-          )}
-          {authMethod === 'CookieString' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cookie String</label>
-              <textarea value={cookieString} onChange={e => setCookieString(e.target.value)} rows={3}
-                className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                placeholder={isEdit ? SECRET_PLACEHOLDER : 'ASP.NET_SessionId=abc123; OmadaAuth=xyz456'} />
-              <button onClick={() => setShowCookieHelp(h => !h)}
-                className="mt-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
-                {showCookieHelp ? '▲ Hide' : '▶ How to get the cookie string'}
-              </button>
-              {showCookieHelp && (
-                <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-xs space-y-2 dark:bg-gray-700/50 dark:border-gray-600 text-gray-700 dark:text-gray-300">
-                  <p><strong>Omada Cloud (oisauthtoken):</strong> Log in to Omada Cloud → F12 DevTools → Application → Cookies → find <code>oisauthtoken</code> → copy its <em>Value</em> (a long JWT starting with <code>eyJ…</code>) → enter as <code>oisauthtoken=eyJ…</code></p>
-                  <p className="text-amber-600 dark:text-amber-400 font-medium">The value must start with <code>oisauthtoken=</code> followed by the full JWT (200+ characters). A short or missing value will cause 401 errors even though the format is correct.</p>
-                  <p><strong>On-premise (multiple cookies):</strong> Log in → F12 → Application → Cookies → copy all Name=Value pairs → join with <code>; </code> (e.g. <code>ASP.NET_SessionId=abc; OmadaAuth=xyz</code>)</p>
-                  <p><strong>PowerShell direct (on-prem):</strong></p>
-                  <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">{`$s = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-Invoke-RestMethod -Uri "https://omada.example.com/api/authenticate" \\
-  -Method Post -ContentType application/json \\
-  -Body '{"Username":"svc","Password":"..."}' \\
-  -SessionVariable s | Out-Null
-$s.Cookies.GetCookies([Uri]"https://omada.example.com") |
-  ForEach-Object { "$($_.Name)=$($_.Value)" } | Join-String -Separator '; '`}</pre>
-                  <p className="text-gray-500 dark:text-gray-400">⚠️ Omada session cookies expire (typically 20–60 min). Use FormCookie or OAuth2 for unattended scheduled syncs.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-between">
-            <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
-            <button onClick={() => { setStep(3); fetchMetadata(); }} disabled={!canStep2}
-              className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
-              Next →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3 — Sync Options */}
-      {step === 3 && (
-        <div className="space-y-6">
-          {/* Sync object toggles */}
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Choose which Omada entity types to sync. All are enabled by default.</p>
-            <div className="space-y-2">
-              {OMADA_SYNC_OPTIONS.map(opt => (
-                <label key={opt.key} className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" checked={!!selectedObjects[opt.key]}
-                    onChange={e => setSelectedObjects(prev => ({ ...prev, [opt.key]: e.target.checked }))}
-                    className="mt-0.5" />
-                  <div>
-                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{opt.label}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{opt.description}</span>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Context object types */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Object Types</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Omada entity sets to sync as Identity Atlas Contexts. Each type has its own OData path.
-              <code className="ml-1 text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">identityField</code> links an identity's reference field to that context type for direct membership.
-              {' '}<span className="text-amber-600 dark:text-amber-400 font-medium">Names are case-sensitive</span> — use the exact casing from <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">$metadata</code> (e.g. <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">Job_titles</code>, not <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">job_titles</code>).
-            </p>
-            {metaLoading && (
-              <p className="text-xs text-gray-600 dark:text-gray-400 italic">Fetching $metadata for validation…</p>
-            )}
-            {metaError && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">{metaError}</p>
-            )}
-            <div className="space-y-2">
-              {contextObjectTypes.map((cot, i) => {
-                const errs = ctxValidation(cot);
-                const hasErr = errs && errs.length > 0;
-                return (
-                  <div key={i} className="space-y-1">
-                    <div className="flex gap-2 items-center">
-                      <input
-                        value={cot.entitySet}
-                        onChange={e => updateContextType(i, 'entitySet', e.target.value)}
-                        placeholder="Entity set (e.g. Orgunit)"
-                        className={`flex-1 min-w-0 text-sm border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-200
-                          ${hasErr && errs.some(e => e.includes(cot.entitySet)) ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
-                      />
-                      <input
-                        value={cot.contextType}
-                        onChange={e => updateContextType(i, 'contextType', e.target.value)}
-                        placeholder="Context type (e.g. OrgUnit)"
-                        className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                      />
-                      <input
-                        value={cot.identityField}
-                        onChange={e => updateContextType(i, 'identityField', e.target.value)}
-                        placeholder="Identity field (e.g. OUREF)"
-                        className={`flex-1 min-w-0 text-sm border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-200
-                          ${hasErr && errs.some(e => e.includes(cot.identityField)) ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
-                      />
-                      <button
-                        onClick={() => removeContextType(i)}
-                        disabled={contextObjectTypes.length === 1}
-                        className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30"
-                        title="Remove">×</button>
-                    </div>
-                    {hasErr && errs.map((e, j) => (
-                      <p key={j} className="text-xs text-red-600 dark:text-red-400 ml-1">⚠ {e}</p>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-2 flex items-center gap-3">
-              <button onClick={addContextType}
-                className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">
-                + Add context type
-              </button>
-              {metaEntitySets && (
-                <span className="text-xs text-gray-600 dark:text-gray-400">
-                  Available: {metaEntitySets.filter(s => !['Identity','User','Resource','Resourceassignment','System','Usergroup','Orgunit','Country','Employment'].includes(s)
-                    ? false : true).join(', ')}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Resource category mapping */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Resource Category Mapping</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Maps Omada <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">ROLECATEGORY</code> to an
-              Identity Atlas resource type. Leave <em>ROLECATEGORY</em> blank for the default/catch-all row (must be last).
-            </p>
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 pr-6">
-                <span>ROLECATEGORY value</span><span>Identity Atlas type</span>
-              </div>
-              {resCategoryMapping.map((m, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input value={m.category} onChange={e => updateResMapping(i, 'category', e.target.value)}
-                    placeholder="e.g. Role  (blank = default)"
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                  <select value={m.resourceType} onChange={e => updateResMapping(i, 'resourceType', e.target.value)}
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                    {RESOURCE_TYPE_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                  <button onClick={() => removeResMapping(i)} disabled={resCategoryMapping.length === 1}
-                    className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
-                </div>
-              ))}
-            </div>
-            <button onClick={addResMapping}
-              className="mt-2 text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">
-              + Add mapping row
-            </button>
-          </div>
-
-          <div className="flex justify-between">
-            <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
-            <button onClick={() => setStep(4)} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next →</button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4 — Schedule */}
-      {step === 4 && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Omada has no native delta API — each scheduled run performs a full sync.
-          </p>
-          {schedules.length === 0 && (
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-400">
-              No schedules configured. The crawler will only run when you click "Run Now".
-            </div>
-          )}
-          {schedules.map((s, i) => (
-            <ScheduleEditor key={i}
-              schedule={{ enabled: true, ...s }}
-              onChange={(updated) => setSchedules(schedules.map((x, idx) => idx === i ? { ...updated, enabled: true } : x))}
-              onRemove={() => setSchedules(schedules.filter((_, idx) => idx !== i))}
-            />
-          ))}
-          <button onClick={() => setSchedules([...schedules, { enabled: true, syncMode: 'full', frequency: 'daily', hour: 2, minute: 0 }])}
-            className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
-            + Add Schedule
-          </button>
-          <div className="flex justify-between">
-            <button onClick={() => setStep(3)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
-            <button onClick={handleSave} disabled={saving}
-              className="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50">
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Crawler'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // Custom Connector Wizard
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2672,8 +1722,10 @@ export default function CrawlersPage({ onNavigate }) {
   const prevActiveJobsRef = useRef([]);
   const pollRef = useRef(null);
 
-  // Wizard state — 'select' (type picker), 'entra-wizard' (full wizard)
+  // Wizard state — 'select' (type picker), 'entra-wizard', 'crawler-wizard' (generic)
   const [wizardStep, setWizardStep] = useState(null);
+  // For 'crawler-wizard': which crawler type's wizard to render
+  const [wizardCrawlerType, setWizardCrawlerType] = useState(null);
   // When editing an existing config, holds its full data + id; null otherwise
   const [editingConfig, setEditingConfig] = useState(null);
 
@@ -2766,12 +1818,9 @@ export default function CrawlersPage({ onNavigate }) {
     } else if (type === 'entra-id') {
       setEditingConfig(null);
       setWizardStep('entra-wizard');
-    } else if (type === 'csv') {
+    } else if (getCrawlerWizard(type)) {
       setEditingConfig(null);
-      setWizardStep('csv-wizard');
-    } else if (type === 'omada') {
-      setEditingConfig(null);
-      setWizardStep('omada-wizard');
+      setWizardCrawlerType(type); setWizardStep('crawler-wizard');
     } else if (type === 'custom') {
       setEditingConfig(null);
       setWizardStep('custom-wizard');
@@ -2866,11 +1915,12 @@ export default function CrawlersPage({ onNavigate }) {
       displayName: config.displayName,
       ...(config.config || {}),
     });
-    setWizardStep(
-      config.crawlerType === 'csv'   ? 'csv-wizard'   :
-      config.crawlerType === 'omada' ? 'omada-wizard' :
-      'entra-wizard'
-    );
+    if (getCrawlerWizard(config.crawlerType)) {
+      setWizardCrawlerType(config.crawlerType);
+      setWizardStep('crawler-wizard');
+    } else {
+      setWizardStep('entra-wizard');
+    }
   };
 
   // ── Job actions ───────────────────────────────────────────────
@@ -2961,7 +2011,7 @@ export default function CrawlersPage({ onNavigate }) {
       if (!imported.crawlerType || !imported.config) {
         throw new Error('Invalid export file (missing crawlerType or config)');
       }
-      if (!['entra-id', 'csv', 'omada'].includes(imported.crawlerType)) {
+      if (!['entra-id'].includes(imported.crawlerType) && !getCrawlerWizard(imported.crawlerType)) {
         throw new Error(`Unsupported crawlerType: ${imported.crawlerType}`);
       }
       // No id on editingConfig → wizard treats this as a new crawler;
@@ -2970,11 +2020,12 @@ export default function CrawlersPage({ onNavigate }) {
         displayName: imported.displayName || '',
         ...(imported.config || {}),
       });
-      setWizardStep(
-        imported.crawlerType === 'csv'   ? 'csv-wizard'   :
-        imported.crawlerType === 'omada' ? 'omada-wizard' :
-        'entra-wizard'
-      );
+      if (getCrawlerWizard(imported.crawlerType)) {
+        setWizardCrawlerType(imported.crawlerType);
+        setWizardStep('crawler-wizard');
+      } else {
+        setWizardStep('entra-wizard');
+      }
     } catch (err) {
       setError(`Import failed: ${err.message}`);
     } finally {
@@ -3091,28 +2142,20 @@ export default function CrawlersPage({ onNavigate }) {
           isEdit={!!editingConfig?.id}
         />
       )}
-      {wizardStep === 'csv-wizard' && (
-        <CsvWizard
-          onComplete={() => {
-            setWizardStep(null);
-            setEditingConfig(null);
-            fetchConfigs();
-          }}
-          onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
-          initialConfig={editingConfig}
-          isEdit={!!editingConfig?.id}
-          authFetch={authFetch}
-        />
-      )}
-      {wizardStep === 'omada-wizard' && (
-        <OmadaWizard
-          onComplete={() => { setWizardStep(null); setEditingConfig(null); fetchConfigs(); }}
-          onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
-          initialConfig={editingConfig}
-          isEdit={!!editingConfig?.id}
-          authFetch={authFetch}
-        />
-      )}
+      {wizardStep === 'crawler-wizard' && (() => {
+        const CrawlerWizard = getCrawlerWizard(wizardCrawlerType);
+        return CrawlerWizard ? (
+          <Suspense fallback={<div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading…</div>}>
+            <CrawlerWizard
+              onComplete={() => { setWizardStep(null); setEditingConfig(null); fetchConfigs(); }}
+              onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
+              initialConfig={editingConfig}
+              isEdit={!!editingConfig?.id}
+              authFetch={authFetch}
+            />
+          </Suspense>
+        ) : null;
+      })()}
       {wizardStep === 'custom-wizard' && (
         <CustomConnectorWizard
           onComplete={() => {

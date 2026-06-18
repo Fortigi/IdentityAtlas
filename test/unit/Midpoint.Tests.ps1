@@ -55,6 +55,96 @@ Describe 'Get-MidpointString' {
     }
 }
 
+# ─── Get-MidpointStringList ───────────────────────────────────────────────────
+Describe 'Get-MidpointStringList' {
+    It 'returns an empty array for null' {
+        ,(Get-MidpointStringList $null) | Should -BeOfType [System.Array]
+        (Get-MidpointStringList $null).Count | Should -Be 0
+    }
+    It 'returns all values of a multi-valued field (PolyString + string), dropping nulls' {
+        $r = Get-MidpointStringList @(([pscustomobject]@{ orig = 'A' }), 'B', $null)
+        $r | Should -Be @('A', 'B')
+    }
+    It 'wraps a single scalar as a one-element array' {
+        (Get-MidpointStringList 'solo') | Should -Be @('solo')
+    }
+}
+
+# ─── ConvertTo-MapRows ────────────────────────────────────────────────────────
+Describe 'ConvertTo-MapRows' {
+    It 'returns an empty array for null input' {
+        (ConvertTo-MapRows $null @('a')).Count | Should -Be 0
+    }
+    It 'normalises and trims declared keys, blanking missing ones' {
+        $rows = ConvertTo-MapRows @(@{ archetype = '  App  '; resourceType = 'Application' }) @('archetype', 'subtype', 'resourceType')
+        $rows[0].archetype    | Should -Be 'App'
+        $rows[0].subtype      | Should -Be ''
+        $rows[0].resourceType | Should -Be 'Application'
+    }
+}
+
+# ─── Resolve-MappedResourceType (role/service classification) ─────────────────
+Describe 'Resolve-MappedResourceType' {
+    BeforeAll {
+        $script:defaultRows = ConvertTo-MapRows @(@{ archetype = ''; subtype = ''; resourceType = 'BusinessRole' }) @('archetype', 'subtype', 'resourceType')
+        $script:archRows = ConvertTo-MapRows @(
+            @{ archetype = 'Application Role'; subtype = ''; resourceType = 'Application' },
+            @{ archetype = ''; subtype = 'it'; resourceType = 'Resource' },
+            @{ archetype = ''; subtype = ''; resourceType = 'BusinessRole' }
+        ) @('archetype', 'subtype', 'resourceType')
+    }
+    It 'falls back to the per-phase default when no rows match (empty rule set)' {
+        Resolve-MappedResourceType -Rows @() -ArchetypeNames @('X') -Subtypes @() -Default 'Service' | Should -Be 'Service'
+    }
+    It 'returns the catch-all resourceType for a default single-row config' {
+        Resolve-MappedResourceType -Rows $script:defaultRows -ArchetypeNames @('Whatever') -Subtypes @('any') -Default 'BusinessRole' | Should -Be 'BusinessRole'
+    }
+    It 'matches on archetype before subtype' {
+        Resolve-MappedResourceType -Rows $script:archRows -ArchetypeNames @('Application Role') -Subtypes @('it') -Default 'BusinessRole' | Should -Be 'Application'
+    }
+    It 'falls back to subtype when no archetype matches' {
+        Resolve-MappedResourceType -Rows $script:archRows -ArchetypeNames @('Business Role') -Subtypes @('it') -Default 'BusinessRole' | Should -Be 'Resource'
+    }
+    It 'uses the catch-all when neither archetype nor subtype matches' {
+        Resolve-MappedResourceType -Rows $script:archRows -ArchetypeNames @('Business Role') -Subtypes @('other') -Default 'X' | Should -Be 'BusinessRole'
+    }
+    It 'matches archetype case-insensitively' {
+        Resolve-MappedResourceType -Rows $script:archRows -ArchetypeNames @('application role') -Subtypes @() -Default 'BusinessRole' | Should -Be 'Application'
+    }
+}
+
+# ─── Resolve-MappedValue (org→contextType, user→principalType) ────────────────
+Describe 'Resolve-MappedValue' {
+    BeforeAll {
+        $script:orgRows = ConvertTo-MapRows @(
+            @{ orgSubtype = 'dept'; contextType = 'Department' },
+            @{ orgSubtype = ''; contextType = 'OrgUnit' }
+        ) @('orgSubtype', 'contextType')
+    }
+    It 'returns the value of the matching row' {
+        Resolve-MappedValue -Values @('dept') -Rows $script:orgRows -KeyName 'orgSubtype' -ValName 'contextType' -Default 'OrgUnit' | Should -Be 'Department'
+    }
+    It 'returns the catch-all (blank key) when no value matches' {
+        Resolve-MappedValue -Values @('zzz') -Rows $script:orgRows -KeyName 'orgSubtype' -ValName 'contextType' -Default 'OrgUnit' | Should -Be 'OrgUnit'
+    }
+    It 'returns the default when there is no catch-all and nothing matches' {
+        $rows = ConvertTo-MapRows @(@{ orgSubtype = 'dept'; contextType = 'Department' }) @('orgSubtype', 'contextType')
+        Resolve-MappedValue -Values @('zzz') -Rows $rows -KeyName 'orgSubtype' -ValName 'contextType' -Default 'OrgUnit' | Should -Be 'OrgUnit'
+    }
+}
+
+# ─── Get-MidpointArchetypeNames ───────────────────────────────────────────────
+Describe 'Get-MidpointArchetypeNames' {
+    It 'resolves archetypeRef oids to catalog labels' {
+        $labels = @{ 'oid-1' = @('Business Role'); 'oid-2' = @('Application Role') }
+        $obj = [pscustomobject]@{ archetypeRef = @([pscustomobject]@{ oid = 'oid-2'; type = 'ArchetypeType' }) }
+        Get-MidpointArchetypeNames -Obj $obj -LabelsByOid $labels | Should -Be @('Application Role')
+    }
+    It 'returns an empty array when the object has no archetypeRef' {
+        (Get-MidpointArchetypeNames -Obj ([pscustomobject]@{}) -LabelsByOid @{}).Count | Should -Be 0
+    }
+}
+
 # ─── Get-MidpointRefOid / Type ────────────────────────────────────────────────
 Describe 'Get-MidpointRefOid' {
     It 'extracts .oid from a reference object' {
@@ -98,6 +188,55 @@ Describe 'Get-MidpointRefType' {
     }
     It 'returns OrgType for an org reference' {
         Get-MidpointRefType -Ref ([pscustomobject]@{ oid = 'x'; type = 'OrgType' }) | Should -Be 'OrgType'
+    }
+}
+
+# ─── Resolve-MidpointDepartment ───────────────────────────────────────────────
+Describe 'Resolve-MidpointDepartment' {
+    BeforeAll {
+        $script:orgMap = @{
+            'org-hr'    = 'HR'
+            'org-it'    = 'IT'
+            'org-board' = 'Board'
+        }
+    }
+    It 'resolves a single org membership to its display name' {
+        $u = [pscustomobject]@{ parentOrgRef = [pscustomobject]@{ oid = 'org-hr'; type = 'c:OrgType' } }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'HR'
+    }
+    It 'treats an absent relation as the default org' {
+        $u = [pscustomobject]@{ parentOrgRef = [pscustomobject]@{ oid = 'org-it' } }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'IT'
+    }
+    It 'prefers the org:default ref over a manager/meta ref' {
+        $u = [pscustomobject]@{ parentOrgRef = @(
+            [pscustomobject]@{ oid = 'org-board'; relation = 'org:manager' },
+            [pscustomobject]@{ oid = 'org-hr';    relation = 'org:default' }
+        ) }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'HR'
+    }
+    It 'matches a bare "default" relation too' {
+        $u = [pscustomobject]@{ parentOrgRef = [pscustomobject]@{ oid = 'org-it'; relation = 'default' } }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'IT'
+    }
+    It 'falls back to the first ref when no default-relation org is present' {
+        $u = [pscustomobject]@{ parentOrgRef = @(
+            [pscustomobject]@{ oid = 'org-it';    relation = 'org:manager' },
+            [pscustomobject]@{ oid = 'org-board'; relation = 'org:meta' }
+        ) }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be 'IT'
+    }
+    It 'returns empty when the user has no org membership' {
+        $u = [pscustomobject]@{ name = 'lonely' }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be ''
+    }
+    It 'returns empty when the org was not synced (not in the map)' {
+        $u = [pscustomobject]@{ parentOrgRef = [pscustomobject]@{ oid = 'org-unknown'; relation = 'org:default' } }
+        Resolve-MidpointDepartment -User $u -OrgMap $script:orgMap | Should -Be ''
+    }
+    It 'returns empty for a null user without throwing' {
+        { Resolve-MidpointDepartment -User $null -OrgMap $script:orgMap } | Should -Not -Throw
+        Resolve-MidpointDepartment -User $null -OrgMap $script:orgMap | Should -Be ''
     }
 }
 

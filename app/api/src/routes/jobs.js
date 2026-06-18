@@ -6,13 +6,15 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
-import { readdirSync, readFileSync, promises as fs } from 'fs';
+import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import Ajv from 'ajv';
-import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
-import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
-import { fetchOmadaMetadata } from '../omada/metadataProxy.js';
+import { getUploadFolderPath, deleteConfigFolder } from './crawlerFiles.js';
+import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, getConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
+import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, VALID_JOB_TYPES, validateCrawlerConfig } from '../crawlerManifests.js';
+
+// Re-exported for existing consumers (scheduler.js, jobs.*.test.js) that
+// import these directly from this file rather than from crawlerManifests.js.
+export { VALID_JOB_TYPES, validateCrawlerConfig };
 
 const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
 // Pre-resolve once so path-containment checks can use a stable absolute base.
@@ -29,40 +31,6 @@ const router = Router();
 const gate = requirePermission('admin.crawlers');
 const useSql = process.env.USE_SQL === 'true';
 
-// ─── Crawler manifest registry ────────────────────────────────────────────────
-// In Docker: manifests are at /app/crawlers/ (COPY'd from tools/crawlers/).
-// In local dev: resolve relative to the repo root via IA_APP_ROOT or __dirname.
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CRAWLER_MANIFESTS_DIR = process.env.CRAWLER_MANIFESTS_DIR ||
-  (process.env.IA_APP_ROOT
-    ? path.join(process.env.IA_APP_ROOT, 'crawlers')
-    : path.resolve(__dirname, '../../../../tools/crawlers'));
-
-const _ajv = new Ajv({ allErrors: true });
-const _crawlerManifests = {};   // type → manifest object
-const _configValidators = {};   // type → compiled ajv validator (or null)
-
-try {
-  for (const dir of readdirSync(CRAWLER_MANIFESTS_DIR, { withFileTypes: true })) {
-    if (!dir.isDirectory()) continue;
-    const mPath = path.join(CRAWLER_MANIFESTS_DIR, dir.name, 'crawler.json');
-    try {
-      const manifest = JSON.parse(readFileSync(mPath, 'utf8'));
-      _crawlerManifests[manifest.type] = manifest;
-      _configValidators[manifest.type] = manifest.configSchema
-        ? _ajv.compile(manifest.configSchema) : null;
-    } catch (e) { console.warn(`Crawler manifest skipped (${mPath}): ${e.message}`); }
-  }
-} catch (e) { console.error(`Crawler manifests directory not accessible (${CRAWLER_MANIFESTS_DIR}): ${e.message}`); }
-
-export const VALID_JOB_TYPES = Object.keys(_crawlerManifests);
-
-export function validateCrawlerConfig(type, config) {
-  const validate = _configValidators[type];
-  if (!validate) return null;
-  if (validate(config ?? {})) return null;
-  return _ajv.errorsText(validate.errors, { separator: '; ' });
-}
 const MAX_RECENT_JOBS = 50;
 const SECRET_MASK = '••••••••';
 
@@ -335,11 +303,15 @@ router.delete('/admin/crawler-configs/:id', gate, async (req, res) => {
 
   try {
     const pool = await db.getPool();
+    const existing = await pool.request().input('id', id)
+      .query(`SELECT "crawlerType" FROM "CrawlerConfigs" WHERE id = @id`);
+    if (existing.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
+    const crawlerType = existing.recordset[0].crawlerType;
     const result = await pool.request().input('id', id)
       .query(`DELETE FROM "CrawlerConfigs" WHERE id = @id`);
     if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Config not found' });
-    // Best-effort cleanup of any uploaded CSV files + the vaulted secret.
-    deleteConfigFolder(id).catch(() => {});
+    // Best-effort cleanup of any uploaded files + the vaulted secret.
+    deleteConfigFolder(crawlerType, id).catch(() => {});
     deleteConfigSecret(id).catch(() => {});
     res.json({ message: 'Config removed' });
   } catch (err) {
@@ -810,16 +782,17 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     const configErr = validateCrawlerConfig(jobType, resolvedConfig);
     if (configErr) return res.status(400).json({ error: configErr });
 
-    // For CSV jobs, inject the per-config upload folder so the worker knows where
-    // to read files from. The folder must already exist and contain at least one file.
-    if (jobType === 'csv') {
+    // For crawler types that support file uploads (per their manifest), inject
+    // the per-config upload folder so the worker knows where to read files
+    // from. The folder must already exist and contain at least one file.
+    if (_crawlerManifests[jobType]?.supportsFileUploads) {
       if (!configId) {
-        return res.status(400).json({ error: 'CSV jobs require a configId — inline configs are not supported' });
+        return res.status(400).json({ error: `${jobType} jobs require a configId — inline configs are not supported` });
       }
       // Use the config's stored csvFolder if it exists and is within the
       // allowed base directory, otherwise fall back to the standard upload path.
       const configCsvFolder = resolvedConfig?.csvFolder;
-      let folder = getCsvFolderPath(configId);
+      let folder = getUploadFolderPath(jobType, configId);
       if (configCsvFolder) {
         // Derive a relative path and rebuild from the trusted base so the
         // resulting path is constructed from a constant, not raw user data.
@@ -829,11 +802,11 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
           try { readdirSync(safeCustom); folder = safeCustom; } catch { /* fall back to default */ }
         }
       }
-      // Check for CSV files — use try/catch to avoid TOCTOU (existsSync + read)
-      let csvFiles = [];
-      try { csvFiles = readdirSync(folder); } catch { /* folder missing or unreadable */ }
-      if (csvFiles.length === 0) {
-        return res.status(400).json({ error: 'No CSV files found. Upload files or configure the CSV folder path.' });
+      // Check for uploaded files — use try/catch to avoid TOCTOU (existsSync + read)
+      let uploadedFiles = [];
+      try { uploadedFiles = readdirSync(folder); } catch { /* folder missing or unreadable */ }
+      if (uploadedFiles.length === 0) {
+        return res.status(400).json({ error: 'No files found. Upload files or configure the folder path.' });
       }
       resolvedConfig = { ...(resolvedConfig || {}), csvFolder: folder };
     }
@@ -1079,83 +1052,32 @@ router.get('/admin/status', gate, async (req, res) => {
   }
 });
 
-// POST /api/admin/omada/validate-metadata — fetch $metadata from the Omada server
-// and return the available EntitySets and Identity entity property names.
-// Used by the wizard to validate contextObjectTypes entries in real time.
-router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
-  const { configId, config: inlineConfig } = req.body;
-
-  let c;
-  try {
-    if (configId != null) {
-      const id = parseInt(configId, 10);
-      if (isNaN(id)) return res.status(400).json({ error: 'configId must be a number' });
-      const pool = await db.getPool();
-      const cfg = await pool.request().input('id', id)
-        .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
-      if (!cfg.recordset.length) return res.status(404).json({ error: 'Config not found' });
-      const raw = cfg.recordset[0].config;
-      c = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    } else if (inlineConfig && typeof inlineConfig === 'object') {
-      c = inlineConfig;
-    } else {
-      return res.status(400).json({ error: 'configId or config required' });
-    }
-  } catch (err) {
-    console.error('validate-metadata config lookup error:', err.message);
-    return res.status(500).json({ error: err.message || 'Failed to load config' });
+// ─── Generic per-crawler live discovery ─────────────────────────────────────
+// Crawlers that support live discovery (e.g. populating wizard dropdowns)
+// export a default handler(req, res, ctx) from their own crawler folder
+// (tools/crawlers/<type>/discover.js, bundled into /app/crawlers at build time).
+// No core file needs to know which crawlers exist.
+router.post('/admin/crawlers/:type/discover', gate, async (req, res) => {
+  const { type } = req.params;
+  if (!/^[a-z][a-z0-9-]*$/.test(type) || !VALID_JOB_TYPES.includes(type)) {
+    return res.status(404).json({ error: `Unknown crawler type: ${type}` });
   }
-
+  let handler;
   try {
-
-    const rawBaseUrl = (c.baseUrl || '').trim();
-    if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
-
-    // Normalize to the OData service root the crawler uses.
-    // Strip trailing slashes without a user-input regex to avoid polynomial ReDoS.
-    let trimLen = rawBaseUrl.length;
-    while (trimLen > 0 && rawBaseUrl[trimLen - 1] === '/') trimLen--;
-    const u = new URL(trimLen < rawBaseUrl.length ? rawBaseUrl.slice(0, trimLen) : rawBaseUrl);
-    if (u.protocol !== 'https:' && u.protocol !== 'http:')
-      return res.status(400).json({ error: 'baseUrl must use http or https' });
-    if (!u.pathname.toLowerCase().endsWith('/odata/dataobjects')) u.pathname = '/odata/dataobjects';
-    const baseUrl = u.origin + u.pathname;
-
-    const metaUrl = `${baseUrl}/$metadata`;
-
-    // Build auth headers (best-effort).
-    const headers = {};
-    if (c.authMethod === 'BasicAuth' && c.username && c.password) {
-      const encoded = Buffer.from(`${c.username}:${c.password}`).toString('base64');
-      headers.Authorization = `Basic ${encoded}`;
-    } else if (c.authMethod === 'ApiToken' && c.apiToken) {
-      headers.Authorization = `Bearer ${c.apiToken}`;
-    } else if (c.authMethod === 'CookieString' && c.cookieString) {
-      headers.Cookie = c.cookieString;
-    }
-
-    const metaRes = await fetchOmadaMetadata(metaUrl, headers);
-    if (!metaRes.ok) {
-      return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
-    }
-    const xml = await metaRes.text();
-
-    // Parse EntitySet names
-    const entitySets = [...xml.matchAll(/EntitySet\s+Name="([^"]+)"/g)].map(m => m[1]).sort();
-
-    // Parse Identity entity type property names
-    const identityMatch = xml.match(/<EntityType\s+Name="Identity"[^>]*>([\s\S]*?)<\/EntityType>/);
-    let identityProperties = [];
-    if (identityMatch) {
-      identityProperties = [...identityMatch[1].matchAll(/(?:Property|NavigationProperty)\s+Name="([^"]+)"/g)]
-        .map(m => m[1]).sort();
-    }
-
-    res.json({ entitySets, identityProperties });
+    const discoverPath = path.join(CRAWLER_MANIFESTS_DIR, type, 'discover.js');
+    const { pathToFileURL } = await import('url');
+    const mod = await import(pathToFileURL(discoverPath).href);
+    handler = mod.default;
   } catch (err) {
-    console.error('validate-metadata error:', err.message);
-    res.status(500).json({ error: err.message || 'Failed to fetch metadata' });
+    if (err.code === 'ERR_MODULE_NOT_FOUND') {
+      return res.status(404).json({ error: `Crawler '${type}' does not support live discovery` });
+    }
+    console.error(`${type}/discover load error:`, err.message);
+    return res.status(500).json({ error: 'Failed to load discovery handler' });
   }
+  // Pass API dependencies as context — the handler must not import them directly
+  // because its path in the Docker image differs from the API source tree.
+  return handler(req, res, { db, getConfigSecret });
 });
 
 export default router;

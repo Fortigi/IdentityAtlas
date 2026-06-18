@@ -127,7 +127,13 @@ jobs:
 
       - name: Install Pester
         shell: pwsh
-        run: Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
+        run: |
+          # ubuntu-latest ships Pester pre-loaded, so a plain Install-Module -Force
+          # always warns that it can't overwrite the in-use version. Skip the install
+          # when the runner already satisfies the minimum version.
+          if (-not (Get-Module Pester -ListAvailable | Where-Object Version -ge '5.0.0')) {
+            Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
+          }
 
       - name: Run Pester tests with coverage
         shell: pwsh
@@ -184,6 +190,53 @@ jobs:
       - name: Run Vitest
         working-directory: app/api
         run: npm test
+
+  # ── Stage 4b: UI unit tests (Vitest) ────────────────────────────────────
+  unit-ui:
+    name: 'Unit Tests: Vitest (UI)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/ui
+        run: npm ci
+
+      - name: Run Vitest
+        working-directory: app/ui
+        run: npm test
+
+  # ── Stage 4c: Node-launcher UI build (crawler wizard bundling) ──────────
+  # The portable/desktop build (app/desktop/scripts/build-node-launcher.mjs)
+  # builds the UI from a separate pipeline than Docker's. Crawler wizards
+  # under tools/crawlers/ broke that build the moment the first wizard
+  # (midpoint, #336) shipped — caught only by this check, not by unit-ui or
+  # lint-js, because it depends on the *production build* step, not the
+  # source files. It went unnoticed on main for hours because the script
+  # otherwise only runs on a beta/release cut (cut-beta.yml etc.), not on
+  # every PR. --ui-only runs just the UI build + its own crawler-wizard
+  # bundle check, skipping the Windows-only esbuild/pglite/re2/node.exe/zip
+  # steps so this has no pwsh dependency and stays fast.
+  node-launcher-ui-build:
+    name: 'Build: Node-launcher UI (crawler wizards)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+
+      - name: Build UI via the node-launcher pipeline
+        run: node app/desktop/scripts/build-node-launcher.mjs --ui-only
 
   # ── Stage 5: OpenAPI spec linting ───────────────────────────────────────
   openapi:
@@ -288,18 +341,98 @@ jobs:
           fi
           echo "PR hygiene OK."
 
+  # ── Stage 8: Crawler manifest completeness ──────────────────────────────────
+  # Every user-facing crawler must have a CrawlerMeta.js. Migrated crawlers must
+  # not reappear as hardcoded strings in CrawlersPage.jsx. Library crawlers (used
+  # only as dependsOn, e.g. odata) are exempt. Crawlers listed in PENDING are
+  # allowed to be missing CrawlerMeta.js while they await migration.
+  crawler-manifest:
+    name: 'Lint: Crawler manifest completeness'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Check CrawlerMeta.js presence and no type drift in CrawlersPage.jsx
+        run: |
+          set -euo pipefail
+
+          # Library crawlers (dependsOn only) — never need CrawlerMeta.js.
+          LIBRARY_CRAWLERS="odata"
+
+          # Crawlers pending migration to the manifest-based plugin system.
+          # Remove a type from here once its CrawlerMeta.js is in place.
+          PENDING_MIGRATION="entra-id demo custom-connector"
+
+          CRAWLERS_PAGE="app/ui/src/components/CrawlersPage.jsx"
+          FAIL=0
+
+          for manifest in tools/crawlers/*/crawler.json; do
+            dir=$(dirname "$manifest")
+            type=$(node -e "process.stdout.write(require('./$manifest').type ?? '')")
+            [ -z "$type" ] && continue
+
+            # Skip library crawlers entirely.
+            if echo "$LIBRARY_CRAWLERS" | grep -qw "$type"; then continue; fi
+
+            # Check CrawlerMeta.js exists (skip if pending migration).
+            meta="$dir/CrawlerMeta.js"
+            if ! echo "$PENDING_MIGRATION" | grep -qw "$type"; then
+              if [ ! -f "$meta" ]; then
+                echo "::error file=$manifest::Crawler '$type' is missing CrawlerMeta.js — add one to $dir/ or add '$type' to PENDING_MIGRATION in pr.yml"
+                FAIL=1
+              fi
+            fi
+
+            # Migrated crawlers must not be hardcoded in CrawlersPage.jsx.
+            # (Pending-migration crawlers are still allowed to be there.)
+            if ! echo "$PENDING_MIGRATION" | grep -qw "$type"; then
+              if grep -qE "(['\"])${type}\1" "$CRAWLERS_PAGE"; then
+                echo "::error file=$CRAWLERS_PAGE::Crawler type '$type' is hardcoded in CrawlersPage.jsx — it must be discovered via CrawlerMeta.js only"
+                FAIL=1
+              fi
+            fi
+          done
+
+          if [ "$FAIL" = "1" ]; then exit 1; fi
+          echo "Crawler manifest check passed."
+
+  # ── Stage 9: Crawler docs registered in site nav ─────────────────────────
+  # Every page under docs/sync/ documents a data source / crawler and must be
+  # reachable from the docs site menu. mkdocs.yml's nav: is hand-curated, so a
+  # new page is easy to forget — this check fails the build instead of letting
+  # it go unnoticed (it happened before, see PR #292).
+  docs-nav:
+    name: 'Lint: Crawler docs registered in site nav'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Check every docs/sync/*.md page is referenced in mkdocs.yml
+        run: |
+          set -euo pipefail
+          FAIL=0
+          for f in docs/sync/*.md; do
+            rel="${f#docs/}"
+            if ! grep -qF "$rel" mkdocs.yml; then
+              echo "::error file=mkdocs.yml::docs/$rel is not referenced in mkdocs.yml — add it under nav: so it appears in the docs site menu"
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" = "1" ]; then exit 1; fi
+          echo "All crawler docs are registered in the site nav."
+
   # ── Summary ─────────────────────────────────────────────────────────────
   pr-summary:
     name: 'PR Summary'
     runs-on: ubuntu-latest
-    needs: [lint-ps, lint-js, unit-tests, unit-js, openapi, audit, hygiene]
+    needs: [lint-ps, lint-js, unit-tests, unit-js, unit-ui, node-launcher-ui-build, openapi, audit, hygiene, crawler-manifest, docs-nav]
     if: always()
     steps:
       - name: Report results
         run: |
           echo "## PR Check Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          for job in lint-ps lint-js unit-tests unit-js openapi audit hygiene; do
+          for job in lint-ps lint-js unit-tests unit-js unit-ui node-launcher-ui-build openapi audit hygiene crawler-manifest docs-nav; do
             result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('$job', {}).get('result','unknown'))")
             if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
             echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
@@ -311,7 +444,11 @@ jobs:
           needs.lint-js.result == 'failure' ||
           needs.unit-tests.result == 'failure' ||
           needs.unit-js.result == 'failure' ||
+          needs.unit-ui.result == 'failure' ||
+          needs.node-launcher-ui-build.result == 'failure' ||
           needs.openapi.result == 'failure' ||
           needs.audit.result == 'failure' ||
-          needs.hygiene.result == 'failure'
+          needs.hygiene.result == 'failure' ||
+          needs.crawler-manifest.result == 'failure' ||
+          needs.docs-nav.result == 'failure'
         run: exit 1

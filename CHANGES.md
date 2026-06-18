@@ -1,5 +1,112 @@
 ## Changes in this PR
 
+- Added automated test coverage for the generic crawler file-upload mechanism (upload/list/delete, the upload-schema templates, and the manifest-driven job-dispatch gate), which previously had none and was only verified by hand. No functional change.
+- Migrated the CSV crawler's configuration wizard to the self-contained plugin system (`tools/crawlers/csv/`), matching how midPoint already works. No user-facing change to the wizard itself.
+- Added a generic "summary panel" plugin mechanism so a crawler's configured card can show crawler-specific details (e.g. CSV's system/type/delimiter) without that crawler being hardcoded into the Crawlers page.
+- Fixed: the "Download schema templates" file on the CSV crawler's upload step was missing `ContextMembers.csv` from its file list — it now appears alongside the other supported files.
+- Added test coverage for the CSV crawler's fuzzy filename-matching logic and its configuration wizard.
+- Generalized the crawler file-upload mechanism so it's no longer hardcoded to the CSV crawler: any crawler type can now declare file-upload support in its manifest instead of needing changes to core API code.
+- Fixed: the CSV crawler's "Download schema templates" file was missing `ContextMembers.csv` from its column-header reference (it now reads the real template files, including the previously-missing one).
+- No user-facing change to the CSV crawler's own upload/download experience — same folder convention, same wizard behavior.
+
+## Changes in this PR
+
+- Fixed: the portable Windows (node-launcher) build would fail to build the UI once a crawler ships a configuration wizard, because the wizard files live outside the UI's own folder and couldn't resolve their dependencies during that build. The desktop/portable build now stages the UI together with the crawler wizard files the same way the Docker image already does, so it builds successfully again.
+- Added an automated check (now run on every pull request) that catches this exact class of regression going forward: it builds the portable UI bundle and verifies every crawler with a configuration wizard actually made it into the build output, not just that the build didn't error.
+
+## Changes in this PR
+
+- The Omada IGA crawler is now a self-contained plugin under `tools/crawlers/omada/` — its configuration wizard, type-picker entry, and live `$metadata` discovery no longer live as hardcoded logic in the core Crawlers page or API routes. Adding or changing the Omada wizard now never requires touching shared UI/API files.
+- No functional change to the Omada crawler wizard itself — same steps, same fields, same validation behavior.
+- Added a "Syncing from Omada IGA" page to the docs site, and registered the existing Omada data-model reference doc in the site menu (both previously missing or unreachable).
+
+## Changes in this PR
+
+- Cleaned up CI logs: the Pester unit-test job no longer prints a misleading "module currently in use" warning on every run.
+
+## Changes in this PR
+
+- Added architecture design note for the planned `identityType` column on the `Identities` table, capturing open questions and current workaround guidance for crawler authors.
+
+## Changes in this PR
+
+- Fixed: crawler configuration wizards (e.g. the midPoint wizard) and their type-picker entries were silently missing from the production Docker image — the frontend build stage didn't include the `tools/crawlers` folder that the wizard plugin system discovers wizards from. They now appear correctly in the deployed app, not just in local dev.
+- Added an automated check that catches this exact class of regression going forward: an E2E test that dynamically discovers every crawler with a UI wizard and verifies it actually appears in the "Add Crawler" list of the running app.
+
+## Changes in this PR
+
+- Added a dedicated midPoint (Evolveum) crawler wizard in Admin → Crawlers, so midPoint can now be added and configured fully from the UI (previously it could only be set up via raw config/import).
+- The wizard guides you through connection, authentication (Basic / API token / OAuth2 client-credentials / OAuth2 ROPC), which object types to sync, the mapping rules, and scheduling — with every field pre-filled to the crawler's existing defaults.
+- Added role classification: map midPoint roles to an Identity Atlas resource type by archetype (with subtype as a fallback). Archetypes and subtypes are discovered live from the connected midPoint server and offered as dropdown suggestions.
+- Added advanced type-mapping overrides to map org subtypes to a context type and user subtypes to a principal type, also populated live from the server.
+- Fixed: editing an existing midPoint crawler now opens the midPoint wizard instead of incorrectly opening the Microsoft Graph wizard.
+- midPoint crawler configurations can now be exported and re-imported like the other crawler types.
+- Added a full configuration reference for the midPoint crawler documenting every field and its default value.
+- Every dropdown field in the midPoint wizard now shows a consistent dropdown arrow; the archetype/subtype fields open a clickable list of values discovered live from midPoint, always offer the default value (even when midPoint has none), and still allow free text.
+- The live dropdown lists (archetypes, subtypes) are now shown in alphabetical order, with the default entry pinned at the top.
+- The archetype dropdown now lists only archetypes that apply to roles, hiding midPoint's task/report/case system archetypes that are irrelevant to role classification.
+- The midPoint wizard now uses the same numbered step indicator (Connection › Credentials › Objects & Mapping › Schedule) as the other crawler wizards.
+- The midPoint sync guide and its new configuration reference are now listed in the docs site menu (they previously existed only as unlinked pages).
+- Added a CI check that fails the build if a crawler doc page under `docs/sync/` isn't registered in the docs site's navigation, so this can't go unnoticed again.
+
+## Changes in this PR
+
+- Adding a new crawler type with a step-by-step configuration wizard no longer requires editing the core Crawlers page — drop a `ConfigWizard.jsx` and a `CrawlerMeta.js` in the crawler's folder under `tools/crawlers/{type}/` and it is picked up automatically.
+- Crawlers can now expose a live-discovery endpoint by adding a `discover.js` to their folder; the UI wizard can call it at `POST /api/admin/crawlers/{type}/discover` without any API route changes.
+- Added shared `Combobox` and `Select` input components for use in crawler wizard forms.
+- The Vite dev server now allows serving files from outside `app/ui/` so that wizard components under `tools/crawlers/` are reachable during development.
+- Added CI, ESLint, and Pester guardrails to prevent new crawlers drifting away from the manifest-based plugin system — adding a crawler without a `CrawlerMeta.js` now fails the build.
+
+## Changes in this PR
+
+- Fixed resourceType documentation to match what the built-in crawlers actually produce (removed non-existent types, added Application, AppRole, DelegatedPermission, Entitlement, Resource, Service)
+- Added missing assignmentType values (AppRole, AppRoleViaGroup, OAuth2Grant) to the data model reference
+- Added AI provider configuration guide to the Risk Scoring overview, including all three supported providers (Anthropic, OpenAI, Azure OpenAI), required fields per provider, and a data privacy table showing which providers are suitable for regulated environments
+- Updated config file reference to cover Azure OpenAI and correct stale model defaults
+
+## Changes in this PR
+
+- Added identity-level assignment support to ResourceAssignments: any access can now be assigned to a person (Identity) rather than a specific account (Principal), enabling IGA crawlers (e.g. MidPoint, Omada) to express the true IGA assignment model
+- Added `POST /ingest/resource-assignments-identity` endpoint for IGA crawlers to push identity-level business role assignments
+- Matrix view now expands identity-level assignments through IdentityMembers so each linked account appears in the access matrix
+- Fixed `classify-business-role-assignments` endpoint to correctly handle identity-level Direct assignments when promoting to Governed
+- Admin stats panel now shows count of identity-level assignments for post-deploy verification
+
+## Changes in this PR
+
+- Fixed the context rename box shrinking to a tiny width when you double-click a context to rename it — it now stays wide enough to read and edit the full name.
+- Context nodes can now show the actual users inside them on demand: each node with directly-assigned users gets a small "👤 N" toggle — click it to reveal the users as ovals nested inside that context (hidden by default to keep the tree readable). Click a user oval to open their detail.
+- Sibling context nodes that share a long name prefix (a side effect of how the Manager Hierarchy names nodes) now show only their distinctive tail in the tree, with the full name on hover.
+- The Manager Hierarchy plugin no longer repeats a name across consecutive org levels — "Commercie · Commercie" now reads just "Commercie" (existing trees also display de-duplicated without needing a re-run).
+- In the Manager Hierarchy context tree you can now drag a team's direct member (a person) onto another team to change who they report to — the same way you can drag a team to re-parent it. The move is recorded as an override of the person's manager, so it survives every plugin re-run (dropping them back on their original manager clears the override).
+- The sorted matrix can now fold a sort-attribute group into a single aggregate column: click a Division/Department header value to collapse all of its subject columns into one column showing the number of child groups, the number of users, and a count of Direct assignments per resource. Click the collapsed header again to unfold. Works at every sort level.
+- Folding a large matrix by attributes now loads efficiently at any scale, including all users: instead of being blocked, an oversized attribute fold is aggregated on the server. Every chosen attribute is shown as its own header row from the start; click a value to fold its group into a single count column, and click a folded column to unfold it again. Small matrices keep the detailed per-subject grid.
+- Removed the Orientation step from the matrix wizard.
+- Excel export now includes every header row shown on screen (all sort attributes, and every org level in the Manager Hierarchy view), instead of just one. On-screen merged header spans are written as the same value repeated across each column — cells are not merged in the file.
+- Matrix headers now keep only the lowest row pinned when you scroll vertically — in both the Manager Hierarchy / attribute views (deepest level stays) and the per-subject grid (the names row stays) — so many header rows no longer hide the matrix.
+- The Manager Hierarchy and attribute fold views now hide branches/groups that have no in-scope assignments — when you scope a matrix to a set of resources, org teams (or attribute groups) where none of those resources are used no longer clutter the column headers.
+- Sorting a matrix by Manager Hierarchy now loads efficiently at any scale, including all users: instead of fetching every per-subject assignment (which could fail to load for very large sets), the matrix aggregates per org node on the server and shows org-level counts, drilling into a branch or expanding a team's people only when you ask. This fixes the "Matrix query failed" error when loading all users by hierarchy.
+- Large per-subject (attribute-folded or unfolded) matrices that are too big to load now show a clear "too large to load as a per-subject grid" message pointing you to Manager Hierarchy sort or attribute roll-up, instead of timing out — folding only collapses the displayed columns, it doesn't reduce how much data is loaded, so only the server-aggregated views load at any size.
+- The matrix wizard no longer blocks loading a large matrix when it will open folded: since folding collapses the columns that make a big matrix slow, an oversized matrix that opens folded (the default above 5,000 assignments, and always for Manager Hierarchy sort) is now allowed with an informational note instead of being blocked. The hard "too large to load" block now applies only when you choose to load unfolded.
+- A folded column can now be exploded into its individual member columns at the current level, instead of only drilling to the next level: the ▾ control shows all members (direct + indirect) under that group, and the ↳ control shows only the direct members at that level. Click the exploded group's header to collapse it back into a count. In Manager Hierarchy sort this lets you see the people sitting at an org level without descending into its sub-orgs.
+- The matrix wizard steps were reordered for clarity: Step 1 now picks the subject type and the roll-up option, Step 4 is Sort (automatically skipped when roll-up is on, since column order is meaningless then), and Step 5 is Orientation.
+- The roll-up view now mirrors the per-subject matrix: the Scope Statistics banner (subjects, resources, governed %) and the "how to read this matrix" legend appear above the grid.
+- In roll-up mode the matrix now also shows business-role columns with a count of how many in-scope users/identities hold each resource via that business role, alongside the per-attribute Direct counts.
+- The Sort step now lets you sort by any attribute, including extended attributes.
+- The roll-up view now uses the same chrome as the regular matrix — the filter-summary bar with the Adjust matrix button, the scope banner, the All / Governed / Non-governed toggle (which adjusts the counts), Export and Share, and the legend in the same places — plus a trailing # (total) column and Description column, and a horizontal scrollbar when its columns are wider than the screen.
+- Roll-up now has a new "Content" step that chooses what the grid shows: business roles only (roles go on the rows, each cell counting the in-scope subjects in that group who hold the role — and the resource filter step is skipped), resources and business roles (the combined view), or resources only. 
+- Fixed a crash ("friendlyLabel is not defined") when advancing to the roll-up Content step.
+- The roll-up Content step now offers a "Cell value" choice: show each cell as an absolute count (the default) or as the percentage of the subjects in that group who hold the resource or role (e.g. 8 of 10 in a department shows as 80%). In percentage mode each column header also shows the group's subject total.
+- Saving a matrix now also stores the All / Governed / Non-governed toggle, so loading a saved matrix restores exactly what you saw — not just the wizard filter.
+- You can again expand a roll-up group column into its individual subjects in the "Business roles only" view — clicking a group header now shows each subject in that group and which business role they hold (this already worked in the resources views).
+- The roll-up matrix "Export to Excel" now downloads a real .xlsx workbook (it previously produced a CSV).
+
+## Changes in this PR
+
+- The midPoint crawler now fills the **department** field on both identities and their midPoint accounts, derived from the user's primary organizational unit (org membership).
+
+## Changes in this PR
+
 - The midPoint crawler now prints a performance summary at the end of each run (total wall-clock, per-read timings, and per-endpoint ingest throughput), making it easy to see where a large sync spends its time.
 - Added a load-test data generator for the midPoint crawler (`tools/crawlers/midpoint/dev/Seed-MidpointLoadData.ps1`) that seeds a large fictitious AD with a realistic, repeatable distribution for capacity testing — proven up to 1,000,000 group memberships.
 - The midPoint crawler now streams connected-system accounts, entitlements, and their memberships page by page instead of loading the entire set into memory, so it can sync very large directories (millions of group memberships) within a bounded, fixed amount of memory — and runs noticeably faster on large syncs.

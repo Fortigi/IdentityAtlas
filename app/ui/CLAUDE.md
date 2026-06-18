@@ -70,6 +70,9 @@ Before writing any utility function, helper, constant, or component — **search
 - `hooks/useDebouncedValue.js` — `useDebouncedValue(value, delay)` hook
 - `components/ConfidenceBar.jsx` — correlation confidence bar
 - `components/DetailSection.jsx` — `Section` and `CollapsibleSection` for detail pages
+- `components/inputs/Combobox.jsx` — free-text input with live-discovery dropdown; props: `value`, `onChange`, `options: string[]`, `defaultOption: {value,label}`, `placeholder`, `className`, `wrapperClassName`
+- `components/inputs/Select.jsx` — styled native `<select>` with `ChevronDown` overlay; props: `value`, `onChange`, `id`, `wrapperClassName`, children as `<option>` elements
+- `components/inputs/ChevronDown.jsx` — shared SVG chevron icon; used by both `Select` and `Combobox`
 
 If the same logic already exists in one file and you're about to write it in a second, stop and extract it instead. Three or more files with the same code is a mandatory extraction — don't leave it for later.
 
@@ -88,6 +91,37 @@ If the same logic already exists in one file and you're about to write it in a s
 **Contexts tab (v6):** Replaces the former Org Chart tab. Manager-hierarchy trees now come from the `manager-hierarchy` context-algorithm plugin.
 
 **Dashboard Trends tab:** Daily snapshots written by the scheduler to `DashboardSnapshots`. Charts are hand-rolled SVG via `components/TimeSeriesChart.jsx` — no chart library dependency. See [`docs/architecture/dashboard-trends.md`](../../docs/architecture/dashboard-trends.md).
+
+## Crawler Wizard Plugin System
+
+Crawler configuration wizards are loaded from `tools/crawlers/*/ConfigWizard.jsx` via `import.meta.glob` — `CrawlersPage.jsx` contains no crawler-specific code. To add a wizard for a new crawler type, drop a `ConfigWizard.jsx` and `CrawlerMeta.js` in its folder. No changes to `CrawlersPage.jsx` are needed.
+
+**How it works (in `CrawlersPage.jsx`):**
+
+```js
+// Eager-load all CrawlerMeta.js files for the type picker
+const _crawlerMetaModules = import.meta.glob('../../../../tools/crawlers/*/CrawlerMeta.js', { eager: true });
+const _discoveredCrawlerTypes = Object.values(_crawlerMetaModules).map(m => ({ ...m.default, available: true }));
+
+// Lazy-load ConfigWizard.jsx on demand (code-split per crawler)
+const _wizardModules = import.meta.glob('../../../../tools/crawlers/*/ConfigWizard.jsx');
+function getCrawlerWizard(crawlerType) {
+  const loader = _wizardModules[`../../../../tools/crawlers/${crawlerType}/ConfigWizard.jsx`];
+  return loader ? lazy(loader) : null;
+}
+
+// Eager-load optional Summary.jsx panels for the configured-crawlers card
+const _summaryModules = import.meta.glob('../../../../tools/crawlers/*/Summary.jsx', { eager: true });
+function getCrawlerSummary(crawlerType) {
+  return _summaryModules[`../../../../tools/crawlers/${crawlerType}/Summary.jsx`]?.default || null;
+}
+```
+
+**Vite dev server:** `vite.config.js` sets `server.fs.allow` to include the repo root so wizard components under `tools/crawlers/` are served correctly during development. This is already configured — don't remove it.
+
+**Production builds:** this glob is resolved against the literal filesystem at build time, so any pipeline that bundles the UI for production (Docker, the portable node-launcher build, ...) must stage `tools/crawlers/` as a true sibling of `app/ui/` with a shared `node_modules` — not just copy `app/ui/`. See `docs/architecture/crawler-architecture.md` → "UI Wizard Plugins and Production Build Pipelines" for why, and for the list of pipelines that already do this correctly.
+
+**Wizard component contract:** see `tools/crawlers/CLAUDE.md` → UI Integration for the props interface.
 
 ## Component Structure
 
