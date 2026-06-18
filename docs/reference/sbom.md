@@ -21,68 +21,29 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| express | ^4.21.0 | Web application framework | MIT |
-| pg | ^8.13.1 | PostgreSQL client | MIT |
+| express | ^5.2.1 | Web application framework | MIT |
+| pg | ^8.21.0 | PostgreSQL client | MIT |
 | pg-copy-streams | ^7.0.0 | High-performance bulk import | MIT |
+| ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
+| re2 | ^1.24.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
 ### Security & Authentication
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| helmet | ^8.1.0 | Security headers middleware | MIT |
+| helmet | ^8.2.0 | Security headers middleware | MIT |
 | express-rate-limit | ^8.2.1 | Rate limiting protection | MIT |
 | cors | ^2.8.5 | Cross-Origin Resource Sharing | MIT |
 | jsonwebtoken | ^9.0.2 | JWT token validation | MIT |
-| jwks-rsa | ^3.1.0 | JWKS key retrieval for Entra ID | MIT |
+| jwks-rsa | ^4.0.1 | JWKS key retrieval for Entra ID | MIT |
 
 ### File Handling & Documentation
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| multer | ^1.4.5-lts.1 | CSV upload handling | MIT |
+| multer | ^2.1.1 | CSV upload handling | MIT |
 | swagger-ui-express | ^5.0.1 | API documentation UI | Apache 2.0 |
 | yamljs | ^0.3.0 | YAML parsing for OpenAPI specs | MIT |
-
-### Development & Testing
-
-| Package | Version | Purpose | License |
-|---------|---------|---------|---------|
-| vitest | ^2.0.0 | Unit testing framework | MIT |
-
----
-
-## Frontend (React)
-
-### Core Framework
-
-| Package | Version | Purpose | License |
-|---------|---------|---------|---------|
-| react | ^19.2.0 | UI framework | MIT |
-| react-dom | ^19.2.0 | React DOM renderer | MIT |
-| vite | ^7.3.1 | Build tool and dev server | MIT |
-
-### Styling
-
-| Package | Version | Purpose | License |
-|---------|---------|---------|---------|
-| tailwindcss | ^4.1.18 | Utility-first CSS framework | MIT |
-| @tailwindcss/vite | ^4.1.18 | Vite plugin for Tailwind | MIT |
-
-### Authentication & Authorization
-
-| Package | Version | Purpose | License |
-|---------|---------|---------|---------|
-| @azure/msal-browser | ^4.12.0 | Microsoft Authentication Library | MIT |
-
-### UI Interactions
-
-| Package | Version | Purpose | License |
-|---------|---------|---------|---------|
-| @dnd-kit/core | ^6.3.1 | Drag-and-drop core | MIT |
-| @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
-| @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
-| @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.13.18 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
@@ -94,15 +55,67 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^5.1.1 | Vite React plugin | MIT |
-| eslint | ^9.39.1 | JavaScript linter | MIT |
-| eslint-plugin-react-hooks | ^7.0.1 | React hooks linting rules | MIT |
-| eslint-plugin-react-refresh | ^0.4.24 | React refresh linting | MIT |
-| @playwright/test | ^1.58.2 | End-to-end testing framework | Apache 2.0 |
-| @axe-core/playwright | ^4.11.1 | Accessibility testing | MPL 2.0 |
-| @eslint/js | ^9.39.1 | ESLint JavaScript rules | MIT |
-| globals | ^16.5.0 | Global variable definitions | MIT |
-| @types/react | ^19.2.7 | TypeScript type definitions for React | MIT |
+| vitest | ^4.1.8 | Unit testing framework | MIT |
+| supertest | ^7.2.2 | HTTP integration testing | MIT |
+| eslint | ^10.4.1 | JavaScript linter | MIT |
+| eslint-plugin-security | ^4.0.0 | Security-focused lint rules | Apache 2.0 |
+| esbuild | ^0.28.0 | Bundler for desktop launcher build | MIT |
+| patch-package | ^8.0.1 | Patch third-party packages | MIT |
+
+---
+
+## Frontend (React)
+
+### Core Framework
+
+| Package | Version | Purpose | License |
+|---------|---------|---------|---------|
+| react | ^19.2.7 | UI framework | MIT |
+| react-dom | ^19.2.7 | React DOM renderer | MIT |
+| vite | ^8.0.16 | Build tool and dev server | MIT |
+
+### Styling
+
+| Package | Version | Purpose | License |
+|---------|---------|---------|---------|
+| tailwindcss | ^4.3.0 | Utility-first CSS framework | MIT |
+| @tailwindcss/vite | ^4.3.0 | Vite plugin for Tailwind | MIT |
+
+### Authentication & Authorization
+
+| Package | Version | Purpose | License |
+|---------|---------|---------|---------|
+| @azure/msal-browser | ^5.13.0 | Microsoft Authentication Library | MIT |
+
+### UI Interactions
+
+| Package | Version | Purpose | License |
+|---------|---------|---------|---------|
+| @dnd-kit/core | ^6.3.1 | Drag-and-drop core | MIT |
+| @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
+| @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
+| @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
+| @tanstack/react-virtual | ^3.14.2 | Virtual scrolling for large tables | MIT |
+
+### Data Export
+
+| Package | Version | Purpose | License |
+|---------|---------|---------|---------|
+| exceljs | ^4.4.0 | Excel spreadsheet generation | MIT |
+
+### Development & Testing
+
+| Package | Version | Purpose | License |
+|---------|---------|---------|---------|
+| @vitejs/plugin-react | ^6.0.2 | Vite React plugin | MIT |
+| eslint | ^10.4.1 | JavaScript linter | MIT |
+| eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
+| eslint-plugin-react-refresh | ^0.5.2 | React refresh linting | MIT |
+| globals | ^17.6.0 | Global variable definitions | MIT |
+| @playwright/test | ^1.60.0 | End-to-end testing framework | Apache 2.0 |
+| @axe-core/playwright | ^4.11.3 | Accessibility testing | MPL 2.0 |
+| @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
+| @types/react | ^19.2.17 | TypeScript type definitions for React | MIT |
 | @types/react-dom | ^19.2.3 | TypeScript type definitions for React DOM | MIT |
 
 ---
@@ -114,7 +127,6 @@ This document lists all major software components, dependencies, and infrastruct
 | Property | Value |
 |----------|-------|
 | Module Name | IdentityAtlas (formerly FortigiGraph) |
-| Version | 5.0.20260415.1015 |
 | Author | Wim van den Heijkant |
 | Company | Fortigi |
 | License | MIT |
@@ -191,8 +203,9 @@ Identity Atlas distributes pre-built Docker images via GitHub Container Registry
 All direct dependencies use permissive open-source licenses:
 
 - **MIT License**: 95%+ of dependencies
-- **Apache 2.0**: swagger-ui-express, @playwright/test
+- **Apache 2.0**: swagger-ui-express, @playwright/test, eslint-plugin-security
 - **MPL 2.0**: @axe-core/playwright
+- **BSD-3-Clause**: re2
 - **PostgreSQL License**: PostgreSQL server
 
 Identity Atlas itself is licensed under the **MIT License**. See the repository `LICENSE` file for full terms.
@@ -201,9 +214,7 @@ Identity Atlas itself is licensed under the **MIT License**. See the repository 
 
 ## Version Information
 
-This SBOM reflects Identity Atlas version **5.0.20260415.1015** (April 2026).
-
-For the most current dependency versions, see:
+The module version is automatically bumped on every PR merge to `main`. For the most current dependency versions, see:
 
 - API backend: [`app/api/package.json`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/package.json)
 - Frontend: [`app/ui/package.json`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/package.json)
