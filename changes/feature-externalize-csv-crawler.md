@@ -1,0 +1,4 @@
+- Migrated the CSV crawler's configuration wizard to the self-contained plugin system (`tools/crawlers/csv/`), matching how midPoint already works. No user-facing change to the wizard itself.
+- Added a generic "summary panel" plugin mechanism so a crawler's configured card can show crawler-specific details (e.g. CSV's system/type/delimiter) without that crawler being hardcoded into the Crawlers page.
+- Fixed: the "Download schema templates" file on the CSV crawler's upload step was missing `ContextMembers.csv` from its file list — it now appears alongside the other supported files.
+- Added test coverage for the CSV crawler's fuzzy filename-matching logic and its configuration wizard.

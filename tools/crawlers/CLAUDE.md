@@ -15,6 +15,7 @@ tools/crawlers/<type>/
 ├── Start-<Type>Crawler.ps1     ← entry point
 ├── CrawlerMeta.js              ← UI type picker entry (id, name, description)
 ├── ConfigWizard.jsx            ← optional step-by-step config wizard for the UI
+├── Summary.jsx                 ← optional config-card summary panel for the UI
 ├── discover.js                 ← optional live-discovery handler (Node.js, ESM)
 ├── CLAUDE.md                   ← developer guide (architecture, data-model mapping, gotchas)
 ├── Test-<Type>Crawler.ps1      ← CI integration test
@@ -88,10 +89,11 @@ If present, the UI renders this component when the user picks this crawler type.
 
 ```jsx
 export default function MyConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
-  // onComplete(config)  — call with the final config object when done
-  // onCancel()          — call when the user cancels
-  // initialConfig       — existing config when isEdit=true
-  // isEdit              — true when editing an existing crawler
+  // onComplete()         — call with no arguments when done; the wizard saves its
+  //                        own config via authFetch before calling this
+  // onCancel()           — call when the user cancels
+  // initialConfig        — existing config when isEdit=true
+  // isEdit               — true when editing an existing crawler
   // authFetch(url, opts) — authenticated fetch helper (same as window.fetch but with auth headers)
 }
 ```
@@ -104,6 +106,19 @@ import Select from '../../../app/ui/src/components/inputs/Select';
 ```
 
 If no `ConfigWizard.jsx` is present, the UI falls back to a generic JSON config editor.
+
+### Summary.jsx — optional config-card summary panel
+
+If present, the UI renders this component inside the crawler's card on the "Configured Crawlers" list, showing the crawler-specific details at a glance (e.g. base URL, sync options). The component receives:
+
+```jsx
+export default function Summary({ cfg, config }) {
+  // cfg    — the crawler's config blob (config.config); what most summaries need
+  // config — the full config row, for the rare case something outside .config is needed
+}
+```
+
+Don't render `lastRunAt`/`lastRunStatus` here — the card already shows those generically below every summary panel, for every crawler type. If no `Summary.jsx` is present, the card just shows that generic footer with no extra panel.
 
 ### discover.js — optional live-discovery endpoint
 

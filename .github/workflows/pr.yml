@@ -361,7 +361,7 @@ jobs:
 
           # Crawlers pending migration to the manifest-based plugin system.
           # Remove a type from here once its CrawlerMeta.js is in place.
-          PENDING_MIGRATION="entra-id csv demo custom-connector"
+          PENDING_MIGRATION="entra-id demo custom-connector"
 
           CRAWLERS_PAGE="app/ui/src/components/CrawlersPage.jsx"
           FAIL=0

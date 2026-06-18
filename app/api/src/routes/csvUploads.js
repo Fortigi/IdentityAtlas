@@ -11,8 +11,9 @@ import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import multer from 'multer';
 import { mkdir, readdir, stat, unlink, rm } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join, basename } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { join, basename, dirname, resolve as resolvePath } from 'path';
+import { fileURLToPath } from 'url';
 import * as db from '../db/connection.js';
 
 const router = Router();
@@ -20,23 +21,24 @@ const gate = requirePermission('admin.csv-import');
 
 const UPLOAD_ROOT = process.env.UPLOAD_ROOT || '/data/uploads';
 
+// Same manifest-directory resolution as routes/jobs.js (CRAWLER_MANIFESTS_DIR env
+// var → IA_APP_ROOT → __dirname-relative fallback). Duplicated rather than
+// imported from jobs.js, which already imports this file — importing back would
+// be circular.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CRAWLER_MANIFESTS_DIR = process.env.CRAWLER_MANIFESTS_DIR ||
+  (process.env.IA_APP_ROOT
+    ? join(process.env.IA_APP_ROOT, 'crawlers')
+    : resolvePath(__dirname, '../../../../tools/crawlers'));
+
 // File names recognised by the CSV crawler. The wizard auto-maps uploaded files to
 // these slots based on filename match (case-insensitive). Users can manually fix
-// mismatches in the wizard before saving.
-// Identity Atlas canonical CSV schema. Each slot matches a file defined in
-// tools/csv-templates/schema/. The filenames and column names are fixed —
-// source-specific mapping happens via a pre-import transform script.
-export const CSV_FILE_SLOTS = [
-  { key: 'systems',              file: 'Systems.csv',              label: 'Systems',                required: false },
-  { key: 'contexts',             file: 'Contexts.csv',             label: 'Contexts (Org Units)',   required: false },
-  { key: 'resources',            file: 'Resources.csv',            label: 'Resources',              required: true  },
-  { key: 'resourceRelationships',file: 'ResourceRelationships.csv',label: 'Resource Relationships', required: false },
-  { key: 'users',                file: 'Users.csv',                label: 'Users',                  required: true  },
-  { key: 'assignments',          file: 'Assignments.csv',          label: 'Assignments',            required: true  },
-  { key: 'identities',           file: 'Identities.csv',           label: 'Identities',             required: false },
-  { key: 'identityMembers',      file: 'IdentityMembers.csv',      label: 'Identity Members',       required: false },
-  { key: 'certifications',       file: 'Certifications.csv',       label: 'Certifications',         required: false },
-];
+// mismatches in the wizard before saving. Single source of truth shared with the
+// CSV crawler's wizard (tools/crawlers/csv/csv-slots.json) — do not hand-edit a
+// second copy here.
+export const CSV_FILE_SLOTS = JSON.parse(
+  readFileSync(join(CRAWLER_MANIFESTS_DIR, 'csv', 'csv-slots.json'), 'utf8')
+);
 
 function configFolder(configId) {
   return join(UPLOAD_ROOT, `csv-${configId}`);
