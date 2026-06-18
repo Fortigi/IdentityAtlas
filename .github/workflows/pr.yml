@@ -330,7 +330,7 @@ jobs:
 
           # Crawlers pending migration to the manifest-based plugin system.
           # Remove a type from here once its CrawlerMeta.js is in place.
-          PENDING_MIGRATION="entra-id csv demo omada custom-connector midpoint"
+          PENDING_MIGRATION="entra-id csv demo omada custom-connector"
 
           CRAWLERS_PAGE="app/ui/src/components/CrawlersPage.jsx"
           FAIL=0
@@ -365,18 +365,43 @@ jobs:
           if [ "$FAIL" = "1" ]; then exit 1; fi
           echo "Crawler manifest check passed."
 
+  # ── Stage 9: Crawler docs registered in site nav ─────────────────────────
+  # Every page under docs/sync/ documents a data source / crawler and must be
+  # reachable from the docs site menu. mkdocs.yml's nav: is hand-curated, so a
+  # new page is easy to forget — this check fails the build instead of letting
+  # it go unnoticed (it happened before, see PR #292).
+  docs-nav:
+    name: 'Lint: Crawler docs registered in site nav'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Check every docs/sync/*.md page is referenced in mkdocs.yml
+        run: |
+          set -euo pipefail
+          FAIL=0
+          for f in docs/sync/*.md; do
+            rel="${f#docs/}"
+            if ! grep -qF "$rel" mkdocs.yml; then
+              echo "::error file=mkdocs.yml::docs/$rel is not referenced in mkdocs.yml — add it under nav: so it appears in the docs site menu"
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" = "1" ]; then exit 1; fi
+          echo "All crawler docs are registered in the site nav."
+
   # ── Summary ─────────────────────────────────────────────────────────────
   pr-summary:
     name: 'PR Summary'
     runs-on: ubuntu-latest
-    needs: [lint-ps, lint-js, unit-tests, unit-js, unit-ui, openapi, audit, hygiene, crawler-manifest]
+    needs: [lint-ps, lint-js, unit-tests, unit-js, unit-ui, openapi, audit, hygiene, crawler-manifest, docs-nav]
     if: always()
     steps:
       - name: Report results
         run: |
           echo "## PR Check Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          for job in lint-ps lint-js unit-tests unit-js unit-ui openapi audit hygiene crawler-manifest; do
+          for job in lint-ps lint-js unit-tests unit-js unit-ui openapi audit hygiene crawler-manifest docs-nav; do
             result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('$job', {}).get('result','unknown'))")
             if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
             echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
@@ -392,5 +417,6 @@ jobs:
           needs.openapi.result == 'failure' ||
           needs.audit.result == 'failure' ||
           needs.hygiene.result == 'failure' ||
-          needs.crawler-manifest.result == 'failure'
+          needs.crawler-manifest.result == 'failure' ||
+          needs.docs-nav.result == 'failure'
         run: exit 1

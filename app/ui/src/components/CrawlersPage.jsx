@@ -907,7 +907,6 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
         </div>
       )}
 
-
       {/* Schedules */}
       {scheduleList.length > 0 && (
         <div className="text-xs text-gray-500 mt-2 space-y-1 dark:text-gray-400">
@@ -2372,7 +2371,6 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
     </div>
   );
 }
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Custom Connector Wizard
 // ═══════════════════════════════════════════════════════════════════════════════
