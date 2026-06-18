@@ -11,6 +11,7 @@
 import * as db from '../db/connection.js';
 import { getPolicy, DEFAULT_POLICY, badgeForAce } from './policies.js';
 import { getSyncVersion } from '../lib/syncVersion.js';
+import { capabilityResourceId } from '../lib/capabilityId.js';
 
 export const DEFAULTS = {
   maxDepth: 50,
@@ -175,4 +176,124 @@ function logResolve({ resourceId, principalId, cacheHit, dataVersion, started, r
   } catch {
     /* logging must never break a request */
   }
+}
+
+// ── P2: containment (scope/folder/site inheritance) ──────────────────────────
+/**
+ * Walk `Contains` edges UPWARD from a focus node, collecting ancestor nodes and their distance
+ * (0 = the focus node itself). Ascent stops the moment it would cross an edge with
+ * `propagates=false` — the nearest inheritance-break boundary (spec §7). DAG-safe (a node is
+ * admitted once, by its first unblocked path), depth- and node-capped.
+ * @returns {Promise<{depthByNode: Map<string, number>, truncated: boolean}>}
+ */
+export async function getAncestorNodes(nodeId, opts = {}) {
+  const maxDepth = opts.maxDepth ?? DEFAULTS.maxDepth;
+  const maxNodes = opts.maxNodesPerExpansion ?? DEFAULTS.maxNodesPerExpansion;
+  const depthByNode = new Map([[nodeId, 0]]);
+  let frontier = [nodeId];
+  let depth = 0;
+  let truncated = false;
+
+  while (frontier.length > 0 && !truncated) {
+    if (depth >= maxDepth) {
+      truncated = true;
+      break;
+    }
+    depth++;
+    const { rows } = await db.query(
+      `SELECT DISTINCT rr."parentResourceId" AS parent
+         FROM "ResourceRelationships" rr
+        WHERE rr."relationshipType" = 'Contains'
+          AND rr."childResourceId" = ANY($1)
+          AND COALESCE((rr."extendedAttributes" ->> 'propagates')::boolean, true) = true`,
+      [frontier],
+    );
+    const next = [];
+    for (const { parent } of rows) {
+      if (depthByNode.has(parent)) continue; // already admitted via a shorter/equal path
+      if (depthByNode.size >= maxNodes) {
+        truncated = true;
+        break;
+      }
+      depthByNode.set(parent, depth);
+      next.push(parent);
+    }
+    frontier = next;
+  }
+  return { depthByNode, truncated };
+}
+
+/**
+ * Effective access of a principal AT a node, including capabilities inherited from ancestor
+ * nodes through `Contains`. The capability rides constant down the tree; an inherited
+ * `capability @ node` is SYNTHESIZED (never stored) and carries the same deterministic id as a
+ * stored grant for the same pair, so the two collapse into one row (spec §11). One row per
+ * capability the principal effectively holds at the node. P2 down-expansion.
+ * @returns {Promise<{nodeId:string, principalId:string, capabilities:object[], truncated:object|null}>}
+ */
+export async function effectiveAccessAtNode(nodeId, principalId, opts = {}) {
+  const policy = getPolicy(opts.policy ?? DEFAULT_POLICY);
+  const { holders, truncated: holdersTruncated } = await getHolders(principalId, opts);
+  const { depthByNode, truncated: ancestorsTruncated } = await getAncestorNodes(nodeId, opts);
+  const ancestorIds = [...depthByNode.keys()];
+
+  // Capability-resources targeting the focus node or any ancestor, with a grant held by the
+  // principal or one of their groups. The targetNodeId is exposed via a generated column.
+  const { rows } = await db.query(
+    `SELECT r."capabilityId" AS cap,
+            r."targetNodeId"  AS target,
+            ra."principalId"  AS holder,
+            ra."effect"       AS effect,
+            ra."propagationScope" AS scope
+       FROM "Resources" r
+       JOIN "ResourceAssignments" ra ON ra."resourceId" = r.id
+      WHERE r."capabilityId" IS NOT NULL
+        AND r."targetNodeId" = ANY($1)
+        AND ra."principalId" = ANY($2)`,
+    [ancestorIds, Array.from(holders)],
+  );
+
+  // Group ACEs by capability, honouring propagationScope + distance.
+  const byCap = new Map();
+  for (const row of rows) {
+    const distance = depthByNode.get(row.target);
+    if (distance === undefined) continue;
+    const atFocus = distance === 0;
+    const scope = row.scope ?? 'selfAndDescendants';
+    const reaches = atFocus
+      ? scope === 'self' || scope === 'selfAndDescendants'
+      : scope === 'descendants' || scope === 'selfAndDescendants';
+    if (!reaches) continue;
+
+    const ace = {
+      effect: row.effect ?? 'allow',
+      distance,
+      explicit: atFocus,
+      viaGroupId: row.holder === principalId ? null : row.holder,
+    };
+    if (!byCap.has(row.cap)) byCap.set(row.cap, []);
+    byCap.get(row.cap).push(ace);
+  }
+
+  const capabilities = [];
+  for (const [cap, aces] of byCap) {
+    const res = policy.resolve(aces);
+    if (res.effective === 'none') continue;
+    capabilities.push({
+      capabilityId: cap,
+      capabilityResourceId: capabilityResourceId(nodeId, cap),
+      effective: res.effective,
+      badge: res.decisiveAce ? badgeForAce(res.decisiveAce) : null,
+    });
+  }
+  capabilities.sort((a, b) => a.capabilityId.localeCompare(b.capabilityId)); // stable ordering
+
+  const truncated =
+    holdersTruncated || ancestorsTruncated
+      ? {
+          holders: holdersTruncated ? holders.size : undefined,
+          ancestors: ancestorsTruncated ? depthByNode.size : undefined,
+        }
+      : null;
+  return { nodeId, principalId, capabilities, truncated };
 }
