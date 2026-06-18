@@ -1,0 +1,1 @@
+- Began building the effective-access engine (computes inherited permissions on demand). First piece: a deterministic, cross-language identifier for capability-resources, shared by the API and the PowerShell crawlers, so that inherited and directly-granted access for the same target collapse into a single matrix row.
