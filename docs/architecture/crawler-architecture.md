@@ -135,5 +135,5 @@ An alias-based alternative (point `import.meta.glob` and the wizards' `react` im
 
 ## See Also
 
-- [`docs/sync/custom-crawlers.md`](../sync/custom-crawlers.md) — step-by-step guide for building a new crawler
-- [`tools/crawlers/CLAUDE.md`](../../tools/crawlers/CLAUDE.md) — dev quick-reference (rules, key files, tests)
+- [`docs/sync/building-a-crawler.md`](../sync/building-a-crawler.md) — step-by-step guide for building a new crawler
+- [`tools/crawlers/CLAUDE.md`](https://github.com/Fortigi/IdentityAtlas/blob/main/tools/crawlers/CLAUDE.md) — dev quick-reference (rules, key files, tests)

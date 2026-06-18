@@ -70,6 +70,7 @@ Before writing any utility function, helper, constant, or component — **search
 - `hooks/useDebouncedValue.js` — `useDebouncedValue(value, delay)` hook
 - `components/ConfidenceBar.jsx` — correlation confidence bar
 - `components/DetailSection.jsx` — `Section` and `CollapsibleSection` for detail pages
+- `components/ScheduleEditor.jsx` — one schedule-entry editor (frequency/hour/minute/day/syncMode), used by every crawler wizard's Schedule step and Risk Scoring; props: `schedule: {frequency, hour?, minute?, day?, syncMode}`, `onChange(updated)`, `onRemove()` — the component is uncontrolled-by-index, so the caller owns the schedules array and supplies one `schedule`/`onChange`/`onRemove` per entry (see `tools/crawlers/omada/ConfigWizard.jsx`'s Schedule step for the list-of-entries pattern)
 - `components/inputs/Combobox.jsx` — free-text input with live-discovery dropdown; props: `value`, `onChange`, `options: string[]`, `defaultOption: {value,label}`, `placeholder`, `className`, `wrapperClassName`
 - `components/inputs/Select.jsx` — styled native `<select>` with `ChevronDown` overlay; props: `value`, `onChange`, `id`, `wrapperClassName`, children as `<option>` elements
 - `components/inputs/ChevronDown.jsx` — shared SVG chevron icon; used by both `Select` and `Combobox`
@@ -122,6 +123,8 @@ function getCrawlerSummary(crawlerType) {
 **Production builds:** this glob is resolved against the literal filesystem at build time, so any pipeline that bundles the UI for production (Docker, the portable node-launcher build, ...) must stage `tools/crawlers/` as a true sibling of `app/ui/` with a shared `node_modules` — not just copy `app/ui/`. See `docs/architecture/crawler-architecture.md` → "UI Wizard Plugins and Production Build Pipelines" for why, and for the list of pipelines that already do this correctly.
 
 **Wizard component contract:** see `tools/crawlers/CLAUDE.md` → UI Integration for the props interface.
+
+**Rule: nothing crawler-specific lives in `app/ui/`.** Not just the wizard/discover/summary files — a new crawler's tests (unit, render-smoke, e2e) and any helper belong in its `tools/crawlers/<type>/` folder too, even a test file that would otherwise naturally land in `app/ui/e2e/`. See `tools/crawlers/CLAUDE.md` → Rules and → JS/UI Testing. CI partially enforces this (`crawler-manifest` job flags stray filenames/hardcoded type strings) but don't rely on it — get it right the first time.
 
 ## Component Structure
 
