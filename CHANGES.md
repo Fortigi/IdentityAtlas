@@ -1,5 +1,19 @@
 ## Changes in this PR
 
+- No user-facing change. Added end-to-end test coverage for the CSV crawler wizard's file upload step (staging files, the required-object coverage indicator, and the real upload/list/delete round trip against the server), closing a test gap that previously only covered the wizard's first step via a static render check.
+- The new test is co-located with the CSV crawler plugin (`tools/crawlers/csv/`) rather than in the core UI's e2e folder, consistent with every other crawler-specific file. Since a colocated file can't directly import Playwright's test APIs (no shared `node_modules` ancestor), it's loaded via a small generic discovery spec (`app/ui/e2e/crawler-plugin-tests.spec.js`) that contains no crawler-specific knowledge — the same pattern already used for the wizard/discover/summary plugin files.
+- The `crawler-manifest` CI check now also fails if a migrated crawler has a stray file named after it (or a hardcoded reference to its type string) anywhere under `app/ui/`, not just in `CrawlersPage.jsx` — catching the exact kind of drift this branch itself had to fix. Documented as an explicit rule in `tools/crawlers/CLAUDE.md` and `app/ui/CLAUDE.md`.
+- No user-facing change. Added unit test coverage for the Omada and midPoint crawler wizards' credential validation gating and save-payload building (the logic that decides whether a connection can be saved per auth method, and which credential fields actually get sent — blank means "keep the stored value" when editing). The previously closure-only logic was extracted into pure, exported functions to make this possible.
+- Added unit test coverage for the Omada wizard's `$metadata` entity-set/identity-field validation, including the case-insensitive "did you mean" suggestion logic — also extracted into a pure, exported function (`validateContextObjectType`).
+- Documented the project's JS/UI crawler-wizard testing conventions in `tools/crawlers/CLAUDE.md` (co-located vitest tests, the render-smoke-test pattern and its limits, when to extract pure functions, when to reach for a Playwright e2e test, and how to test a `discover.js` handler) — previously undocumented anywhere.
+- Renamed `docs/sync/custom-crawlers.md` to `docs/sync/building-a-crawler.md` (and its nav title from "Custom Crawlers" to "Building a Crawler") to avoid confusion with the unrelated `custom-connector` crawler type, and added a full "UI Integration" section covering `CrawlerMeta.js`/`ConfigWizard.jsx`/`Summary.jsx`/`discover.js`/file uploads/JS-UI-testing — previously this guide only covered the PowerShell side, so following it alone produced a crawler that fails the `crawler-manifest` CI check (missing `CrawlerMeta.js`). Also added a pointer to the live ingest API reference (Swagger UI at `/api/docs`) and documented `ScheduleEditor`'s prop contract in `app/ui/CLAUDE.md`'s shared-utilities list.
+
+## Changes in this PR
+
+- Finished generalizing the crawler upload-schema endpoints: the file-extension filter and the downloaded file's content-type are now derived from each crawler's own manifest instead of being hardcoded to CSV. No user-facing change for the CSV crawler today, but removes the last CSV-specific assumptions from an otherwise generic mechanism.
+
+## Changes in this PR
+
 - Added automated test coverage for the generic crawler file-upload mechanism (upload/list/delete, the upload-schema templates, and the manifest-driven job-dispatch gate), which previously had none and was only verified by hand. No functional change.
 - Migrated the CSV crawler's configuration wizard to the self-contained plugin system (`tools/crawlers/csv/`), matching how midPoint already works. No user-facing change to the wizard itself.
 - Added a generic "summary panel" plugin mechanism so a crawler's configured card can show crawler-specific details (e.g. CSV's system/type/delimiter) without that crawler being hardcoded into the Crawlers page.

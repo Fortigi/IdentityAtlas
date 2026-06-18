@@ -32,6 +32,40 @@ const RESOURCE_TYPE_OPTIONS  = ['BusinessRole', 'Service', 'Resource', 'Applicat
 const PRINCIPAL_TYPE_OPTIONS = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
 const FIELD_CLS = 'text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 
+// ─── Credential validation + payload helpers ───────────────────────────────────
+// Pure functions (no closure over component state) so they're independently
+// unit-testable — see credentialGating.test.js. Each auth method needs a
+// different subset of fields; isEdit relaxes the requirement for secret
+// fields only (blank in edit mode means "keep the stored value").
+
+export function canSubmitCredentials(authMethod, fields, isEdit) {
+  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken } = fields;
+  if (authMethod === 'BasicAuth')  return !!username.trim() && !!(password.trim() || isEdit);
+  if (authMethod === 'ApiToken')   return !!(apiToken.trim() || isEdit);
+  if (authMethod === 'OAuth2CC')   return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit);
+  if (authMethod === 'OAuth2ROPC') return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit) && !!username.trim() && !!(password.trim() || isEdit);
+  return true;
+}
+
+// Only includes credential fields that have a value — blank means "keep the
+// existing stored value" on edit, and is unreachable on create because
+// canSubmitCredentials already requires it there.
+export function buildCredentialFields(authMethod, fields) {
+  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken } = fields;
+  const out = {};
+  if (authMethod === 'BasicAuth' || authMethod === 'OAuth2ROPC') {
+    out.username = username.trim();
+    if (password.trim()) out.password = password.trim();
+  }
+  if (authMethod === 'ApiToken' && apiToken.trim()) out.apiToken = apiToken.trim();
+  if (authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') {
+    out.tokenEndpoint = tokenEndpoint.trim();
+    out.clientId = clientId.trim();
+    if (clientSecret.trim()) out.clientSecret = clientSecret.trim();
+  }
+  return out;
+}
+
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 
 export default function MidpointConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
@@ -116,13 +150,8 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
   const [error, setError] = useState(null);
 
   const canStep1 = displayName.trim() && baseUrl.trim();
-  const canStep2 = (() => {
-    if (authMethod === 'BasicAuth')  return username.trim() && (password.trim() || isEdit);
-    if (authMethod === 'ApiToken')   return apiToken.trim() || isEdit;
-    if (authMethod === 'OAuth2CC')   return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit);
-    if (authMethod === 'OAuth2ROPC') return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit) && username.trim() && (password.trim() || isEdit);
-    return true;
-  })();
+  const credentialFields = { username, password, clientId, clientSecret, tokenEndpoint, apiToken };
+  const canStep2 = canSubmitCredentials(authMethod, credentialFields, isEdit);
 
   const handleSave = async () => {
     setSaving(true); setError(null);
@@ -140,16 +169,7 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
       };
       if (schedules.length) configPayload.schedules = schedules;
 
-      if (authMethod === 'BasicAuth' || authMethod === 'OAuth2ROPC') {
-        configPayload.username = username.trim();
-        if (password.trim()) configPayload.password = password.trim();
-      }
-      if (authMethod === 'ApiToken' && apiToken.trim()) configPayload.apiToken = apiToken.trim();
-      if (authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') {
-        configPayload.tokenEndpoint = tokenEndpoint.trim();
-        configPayload.clientId = clientId.trim();
-        if (clientSecret.trim()) configPayload.clientSecret = clientSecret.trim();
-      }
+      Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
 
       let r;
       if (initialConfig?.id) {
