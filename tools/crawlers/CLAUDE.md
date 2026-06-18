@@ -1,6 +1,6 @@
 # Crawler Development — Quick Reference
 
-Full authoring guide: [`docs/sync/custom-crawlers.md`](../../docs/sync/custom-crawlers.md)
+Full authoring guide: [`docs/sync/building-a-crawler.md`](../../docs/sync/building-a-crawler.md)
 Architecture internals: [`docs/architecture/crawler-architecture.md`](../../docs/architecture/crawler-architecture.md)
 
 ## Adding a Crawler
@@ -29,7 +29,7 @@ tools/crawlers/<type>/
 
 **`dev/` subfolder:** for scripts that support development and testing but are not part of the production image. The dispatcher ignores subdirectories entirely — nothing in `dev/` ever runs at runtime. Use it for load-test seeders, fixture generators, and migration helpers. Always include a `dev/README.md`.
 
-See `docs/sync/custom-crawlers.md` for the full authoring guide including the `dev/` folder convention.
+See `docs/sync/building-a-crawler.md` for the full authoring guide including the `dev/` folder convention.
 
 ## PowerShell Style
 

@@ -86,7 +86,7 @@ nav:
           - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
           - Omada IGA: sync/omada.md
           - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
-          - Custom Crawlers: sync/custom-crawlers.md
+          - Building a Crawler: sync/building-a-crawler.md
       - Using Identity Atlas:
           - Role Mining UI: ui/overview.md
           - Local Development: ui/local-dev.md

@@ -70,6 +70,7 @@ Before writing any utility function, helper, constant, or component — **search
 - `hooks/useDebouncedValue.js` — `useDebouncedValue(value, delay)` hook
 - `components/ConfidenceBar.jsx` — correlation confidence bar
 - `components/DetailSection.jsx` — `Section` and `CollapsibleSection` for detail pages
+- `components/ScheduleEditor.jsx` — one schedule-entry editor (frequency/hour/minute/day/syncMode), used by every crawler wizard's Schedule step and Risk Scoring; props: `schedule: {frequency, hour?, minute?, day?, syncMode}`, `onChange(updated)`, `onRemove()` — the component is uncontrolled-by-index, so the caller owns the schedules array and supplies one `schedule`/`onChange`/`onRemove` per entry (see `tools/crawlers/omada/ConfigWizard.jsx`'s Schedule step for the list-of-entries pattern)
 - `components/inputs/Combobox.jsx` — free-text input with live-discovery dropdown; props: `value`, `onChange`, `options: string[]`, `defaultOption: {value,label}`, `placeholder`, `className`, `wrapperClassName`
 - `components/inputs/Select.jsx` — styled native `<select>` with `ChevronDown` overlay; props: `value`, `onChange`, `id`, `wrapperClassName`, children as `<option>` elements
 - `components/inputs/ChevronDown.jsx` — shared SVG chevron icon; used by both `Select` and `Combobox`
