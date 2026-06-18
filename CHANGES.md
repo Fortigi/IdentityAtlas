@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Cleaned up CI logs: the Pester unit-test job no longer prints a misleading "module currently in use" warning on every run.
+
+## Changes in this PR
+
 - Added architecture design note for the planned `identityType` column on the `Identities` table, capturing open questions and current workaround guidance for crawler authors.
 
 ## Changes in this PR
