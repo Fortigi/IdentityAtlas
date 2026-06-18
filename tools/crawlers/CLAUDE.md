@@ -153,6 +153,7 @@ If you also drop empty, header-only template files in `tools/crawlers/<type>/sch
 - Entry point filenames must be `Start-<Something>.ps1` — the dependency loader excludes `Start-*` when dot-sourcing library files.
 - Never run the `odata` type as a job — its entry point throws by design. Use it only as a `dependsOn` dependency.
 - `_syncMode` is the only reserved config key injected by the dispatcher. Don't use keys starting with `_` for your own config.
+- **Nothing specific to one crawler type belongs outside its `tools/crawlers/<type>/` folder** — not just `ConfigWizard.jsx`/`discover.js`/`Summary.jsx`/`CrawlerMeta.js`, but also that crawler's tests (unit, render-smoke, and e2e — see JS/UI Testing below) and any helper file. If a file's name or content only makes sense for one crawler type, it goes in that crawler's folder, full stop — including when the natural-feeling place would be a shared `app/ui/e2e/` or `app/ui/src/` test/helper. The `crawler-manifest` CI job enforces this for migrated crawlers (fails on a stray filename containing the type name, or a hardcoded type-string literal, anywhere under `app/ui/`) — but don't rely on CI to catch it; get it right the first time.
 
 ## Integration Tests
 

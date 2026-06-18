@@ -123,6 +123,8 @@ function getCrawlerSummary(crawlerType) {
 
 **Wizard component contract:** see `tools/crawlers/CLAUDE.md` → UI Integration for the props interface.
 
+**Rule: nothing crawler-specific lives in `app/ui/`.** Not just the wizard/discover/summary files — a new crawler's tests (unit, render-smoke, e2e) and any helper belong in its `tools/crawlers/<type>/` folder too, even a test file that would otherwise naturally land in `app/ui/e2e/`. See `tools/crawlers/CLAUDE.md` → Rules and → JS/UI Testing. CI partially enforces this (`crawler-manifest` job flags stray filenames/hardcoded type strings) but don't rely on it — get it right the first time.
+
 ## Component Structure
 
 | Component | Purpose |
