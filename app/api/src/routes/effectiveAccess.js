@@ -1,14 +1,22 @@
 // Effective-access HTTP surface.
 //
 // P1 exposes the resolution primitive: the effective access of ONE principal on ONE resource
-// (direct grants + grants reached via group membership). The richer "expand a resource / a
-// principal" forms in the spec depend on containment down-expansion (P2) and the nested-group
-// shim (slice 6); they land with those. See docs/architecture/effective-access-engine.md §12.
+// (direct grants + grants reached via group membership). P2 adds the down-expansion forms
+// (effective access AT a node, including capabilities inherited via Contains).
+// See docs/architecture/effective-access-engine.md §12.
 
 import { Router } from 'express';
 import { effectiveAccess, effectiveAccessAtNode } from '../effectiveAccess/engine.js';
 
 const router = Router();
+
+// What to log for an unexpected 500. We deliberately do NOT log err.message: a Postgres error
+// echoes the offending input (e.g. a malformed id), so the message can carry user-controlled
+// text — logging it raw would allow forged log entries (log injection). The SQLSTATE code /
+// error name classify the failure without reflecting any input.
+function errLabel(err) {
+  return err && (err.code || err.name) ? err.code || err.name : 'unknown error';
+}
 
 // Shared handler for the two down-expansion forms (resource-centric and principal-centric).
 // Returns the capabilities a principal effectively holds AT a node, including those inherited
@@ -24,7 +32,7 @@ async function handleAtNode(nodeId, principalId, policy, res) {
     if (/Unknown resolution policy/.test(err.message)) {
       return res.status(400).json({ error: err.message });
     }
-    console.error('effective-access at-node failed:', err.message);
+    console.error('effective-access at-node failed:', errLabel(err));
     return res.status(500).json({ error: 'effective-access failed' });
   }
 }
@@ -55,7 +63,7 @@ router.get('/effective-access/resolve', async (req, res) => {
     if (/Unknown resolution policy/.test(err.message)) {
       return res.status(400).json({ error: err.message });
     }
-    console.error('effective-access resolve failed:', err.message);
+    console.error('effective-access resolve failed:', errLabel(err));
     return res.status(500).json({ error: 'effective-access resolve failed' });
   }
 });
