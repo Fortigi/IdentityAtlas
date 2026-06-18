@@ -33,6 +33,83 @@ const SYNC_OPTIONS = [
 
 const RESOURCE_TYPE_OPTIONS = ['BusinessRole', 'Resource', 'AppRole', 'DelegatedPermission'];
 
+// ─── Credential validation + payload helpers ───────────────────────────────────
+// Pure functions (no closure over component state) so they're independently
+// unit-testable — see credentialGating.test.js. Each auth method needs a
+// different subset of fields; isEdit relaxes the requirement for secret
+// fields only (blank in edit mode means "keep the stored value").
+
+export function canSubmitCredentials(authMethod, fields, isEdit) {
+  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken, cookieString } = fields;
+  if (authMethod === 'FormCookie') {
+    return !!username.trim() && !!(password.trim() || isEdit);
+  }
+  if (authMethod === 'OAuth2CC') {
+    return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit);
+  }
+  if (authMethod === 'OAuth2ROPC') {
+    return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit) && !!username.trim() && !!(password.trim() || isEdit);
+  }
+  if (authMethod === 'ApiToken') return !!(apiToken.trim() || isEdit);
+  if (authMethod === 'CookieString') return !!(cookieString.trim() || isEdit);
+  if (authMethod === 'BasicAuth') return !!username.trim() && !!(password.trim() || isEdit);
+  return true;
+}
+
+// Only includes credential fields that have a value — blank means "keep the
+// existing stored value" on edit, and is unreachable on create because
+// canSubmitCredentials already requires it there.
+export function buildCredentialFields(authMethod, fields) {
+  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken, cookieString } = fields;
+  const out = {};
+  if (authMethod === 'FormCookie' || authMethod === 'OAuth2ROPC') {
+    out.username = username.trim();
+    if (password.trim()) out.password = password.trim();
+  }
+  if (authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') {
+    out.tokenEndpoint = tokenEndpoint.trim();
+    out.clientId = clientId.trim();
+    if (clientSecret.trim()) out.clientSecret = clientSecret.trim();
+  }
+  if (authMethod === 'ApiToken') {
+    if (apiToken.trim()) out.apiToken = apiToken.trim();
+  }
+  if (authMethod === 'CookieString') {
+    if (cookieString.trim()) out.cookieString = cookieString.trim();
+  }
+  if (authMethod === 'BasicAuth') {
+    out.username = username.trim();
+    if (password.trim()) out.password = password.trim();
+  }
+  return out;
+}
+
+// Validates one contextObjectTypes row's entitySet/identityField against the
+// live $metadata lists fetched from the Omada server. Pure function (no
+// closure over component state) so it's independently unit-testable — see
+// credentialGating.test.js. Returns null when metadata hasn't been fetched
+// yet (nothing to validate against), otherwise an array of error strings
+// (empty = valid). entitySet/identityField names are case-sensitive against
+// the real OData service, so a case-insensitive match is suggested as a
+// "did you mean" hint rather than silently accepted.
+export function validateContextObjectType(cot, metaEntitySets, metaIdentityProps) {
+  if (!metaEntitySets) return null;
+  const errs = [];
+  if (cot.entitySet && !metaEntitySets.includes(cot.entitySet)) {
+    const suggestion = metaEntitySets.find(s => s.toLowerCase() === cot.entitySet.toLowerCase());
+    errs.push(suggestion
+      ? `"${cot.entitySet}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
+      : `"${cot.entitySet}" is not an entity set in $metadata (names are case-sensitive)`);
+  }
+  if (cot.identityField && metaIdentityProps && !metaIdentityProps.includes(cot.identityField)) {
+    const suggestion = metaIdentityProps.find(p => p.toLowerCase() === cot.identityField.toLowerCase());
+    errs.push(suggestion
+      ? `"${cot.identityField}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
+      : `"${cot.identityField}" is not a property of the Identity entity type (names are case-sensitive)`);
+  }
+  return errs;
+}
+
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 
 export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
@@ -104,24 +181,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
     finally { setMetaLoading(false); }
   };
 
-  const ctxValidation = (cot) => {
-    if (!metaEntitySets) return null;
-    const errs = [];
-    if (cot.entitySet && !metaEntitySets.includes(cot.entitySet)) {
-      // Check for a case-insensitive match and suggest the correct casing
-      const suggestion = metaEntitySets.find(s => s.toLowerCase() === cot.entitySet.toLowerCase());
-      errs.push(suggestion
-        ? `"${cot.entitySet}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
-        : `"${cot.entitySet}" is not an entity set in $metadata (names are case-sensitive)`);
-    }
-    if (cot.identityField && metaIdentityProps && !metaIdentityProps.includes(cot.identityField)) {
-      const suggestion = metaIdentityProps.find(p => p.toLowerCase() === cot.identityField.toLowerCase());
-      errs.push(suggestion
-        ? `"${cot.identityField}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
-        : `"${cot.identityField}" is not a property of the Identity entity type (names are case-sensitive)`);
-    }
-    return errs;
-  };
+  const ctxValidation = (cot) => validateContextObjectType(cot, metaEntitySets, metaIdentityProps);
 
   // Resource category mapping — maps ROLECATEGORY to Identity Atlas resourceType + optional tags
   const defaultCategoryMapping = [
@@ -149,21 +209,8 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
   const [error, setError] = useState(null);
 
   const canStep1 = displayName.trim() && baseUrl.trim();
-  const canStep2 = (() => {
-    if (authMethod === 'FormCookie') {
-      return username.trim() && (password.trim() || isEdit);
-    }
-    if (authMethod === 'OAuth2CC') {
-      return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit);
-    }
-    if (authMethod === 'OAuth2ROPC') {
-      return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit) && username.trim() && (password.trim() || isEdit);
-    }
-    if (authMethod === 'ApiToken') return apiToken.trim() || isEdit;
-    if (authMethod === 'CookieString') return cookieString.trim() || isEdit;
-    if (authMethod === 'BasicAuth') return username.trim() && (password.trim() || isEdit);
-    return true;
-  })();
+  const credentialFields = { username, password, clientId, clientSecret, tokenEndpoint, apiToken, cookieString };
+  const canStep2 = canSubmitCredentials(authMethod, credentialFields, isEdit);
 
   const handleSave = async () => {
     setSaving(true);
@@ -189,26 +236,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
       };
       if (schedules.length) configPayload.schedules = schedules;
 
-      // Only include credential fields that have values (blank = keep existing in edit mode)
-      if (authMethod === 'FormCookie' || authMethod === 'OAuth2ROPC') {
-        configPayload.username = username.trim();
-        if (password.trim()) configPayload.password = password.trim();
-      }
-      if (authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') {
-        configPayload.tokenEndpoint = tokenEndpoint.trim();
-        configPayload.clientId = clientId.trim();
-        if (clientSecret.trim()) configPayload.clientSecret = clientSecret.trim();
-      }
-      if (authMethod === 'ApiToken') {
-        if (apiToken.trim()) configPayload.apiToken = apiToken.trim();
-      }
-      if (authMethod === 'CookieString') {
-        if (cookieString.trim()) configPayload.cookieString = cookieString.trim();
-      }
-      if (authMethod === 'BasicAuth') {
-        configPayload.username = username.trim();
-        if (password.trim()) configPayload.password = password.trim();
-      }
+      Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
 
       let r;
       if (initialConfig?.id) {
