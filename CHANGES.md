@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Finished generalizing the crawler upload-schema endpoints: the file-extension filter and the downloaded file's content-type are now derived from each crawler's own manifest instead of being hardcoded to CSV. No user-facing change for the CSV crawler today, but removes the last CSV-specific assumptions from an otherwise generic mechanism.
+
+## Changes in this PR
+
 - Added automated test coverage for the generic crawler file-upload mechanism (upload/list/delete, the upload-schema templates, and the manifest-driven job-dispatch gate), which previously had none and was only verified by hand. No functional change.
 - Migrated the CSV crawler's configuration wizard to the self-contained plugin system (`tools/crawlers/csv/`), matching how midPoint already works. No user-facing change to the wizard itself.
 - Added a generic "summary panel" plugin mechanism so a crawler's configured card can show crawler-specific details (e.g. CSV's system/type/delimiter) without that crawler being hardcoded into the Crawlers page.
