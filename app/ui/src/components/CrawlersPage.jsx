@@ -1,13 +1,28 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 import Stepper from './Stepper';
 import useDocsUrl from '../hooks/useDocsUrl';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
 
+// Crawler wizard components and their display metadata are auto-discovered by naming convention:
+//   tools/crawlers/{type}/ConfigWizard.jsx  — the wizard form (lazy-loaded)
+//   tools/crawlers/{type}/CrawlerMeta.js    — { id, name, description } for the type picker
+// Adding a new crawler type never requires editing this file.
+const _wizardModules = import.meta.glob('../../../../tools/crawlers/*/ConfigWizard.jsx');
+function getCrawlerWizard(crawlerType) {
+  const loader = _wizardModules[`../../../../tools/crawlers/${crawlerType}/ConfigWizard.jsx`];
+  return loader ? lazy(loader) : null;
+}
+
+const _crawlerMetaModules = import.meta.glob('../../../../tools/crawlers/*/CrawlerMeta.js', { eager: true });
+const _discoveredCrawlerTypes = Object.values(_crawlerMetaModules).map(m => ({ ...m.default, available: true }));
+
 const SECRET_MASK = '••••••••';
 
 // ─── Crawler type catalog ─────────────────────────────────────────────────────
+// Built-in types (entra-id, csv, demo, omada) keep their wizards inline in this file.
+// File-based crawlers under tools/crawlers/*/CrawlerMeta.js are appended automatically.
 const CRAWLER_TYPES = [
   {
     id: 'entra-id',
@@ -33,6 +48,7 @@ const CRAWLER_TYPES = [
     description: 'Sync business roles, identities, role assignments, and certification reviews directly from the Omada REST API',
     available: true,
   },
+  ..._discoveredCrawlerTypes,
   {
     id: 'custom',
     name: 'Custom Connector',
@@ -764,7 +780,6 @@ function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialCo
     </div>
   );
 }
-
 
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
 function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob }) {
@@ -2356,7 +2371,6 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
     </div>
   );
 }
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Custom Connector Wizard
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2672,8 +2686,10 @@ export default function CrawlersPage({ onNavigate }) {
   const prevActiveJobsRef = useRef([]);
   const pollRef = useRef(null);
 
-  // Wizard state — 'select' (type picker), 'entra-wizard' (full wizard)
+  // Wizard state — 'select' (type picker), 'entra-wizard', 'crawler-wizard' (generic)
   const [wizardStep, setWizardStep] = useState(null);
+  // For 'crawler-wizard': which crawler type's wizard to render
+  const [wizardCrawlerType, setWizardCrawlerType] = useState(null);
   // When editing an existing config, holds its full data + id; null otherwise
   const [editingConfig, setEditingConfig] = useState(null);
 
@@ -2772,6 +2788,9 @@ export default function CrawlersPage({ onNavigate }) {
     } else if (type === 'omada') {
       setEditingConfig(null);
       setWizardStep('omada-wizard');
+    } else if (getCrawlerWizard(type)) {
+      setEditingConfig(null);
+      setWizardCrawlerType(type); setWizardStep('crawler-wizard');
     } else if (type === 'custom') {
       setEditingConfig(null);
       setWizardStep('custom-wizard');
@@ -2866,11 +2885,16 @@ export default function CrawlersPage({ onNavigate }) {
       displayName: config.displayName,
       ...(config.config || {}),
     });
-    setWizardStep(
-      config.crawlerType === 'csv'   ? 'csv-wizard'   :
-      config.crawlerType === 'omada' ? 'omada-wizard' :
-      'entra-wizard'
-    );
+    if (getCrawlerWizard(config.crawlerType)) {
+      setWizardCrawlerType(config.crawlerType);
+      setWizardStep('crawler-wizard');
+    } else {
+      setWizardStep(
+        config.crawlerType === 'csv'   ? 'csv-wizard'   :
+        config.crawlerType === 'omada' ? 'omada-wizard' :
+        'entra-wizard'
+      );
+    }
   };
 
   // ── Job actions ───────────────────────────────────────────────
@@ -2961,7 +2985,7 @@ export default function CrawlersPage({ onNavigate }) {
       if (!imported.crawlerType || !imported.config) {
         throw new Error('Invalid export file (missing crawlerType or config)');
       }
-      if (!['entra-id', 'csv', 'omada'].includes(imported.crawlerType)) {
+      if (!['entra-id', 'csv', 'omada'].includes(imported.crawlerType) && !getCrawlerWizard(imported.crawlerType)) {
         throw new Error(`Unsupported crawlerType: ${imported.crawlerType}`);
       }
       // No id on editingConfig → wizard treats this as a new crawler;
@@ -2970,11 +2994,16 @@ export default function CrawlersPage({ onNavigate }) {
         displayName: imported.displayName || '',
         ...(imported.config || {}),
       });
-      setWizardStep(
-        imported.crawlerType === 'csv'   ? 'csv-wizard'   :
-        imported.crawlerType === 'omada' ? 'omada-wizard' :
-        'entra-wizard'
-      );
+      if (getCrawlerWizard(imported.crawlerType)) {
+        setWizardCrawlerType(imported.crawlerType);
+        setWizardStep('crawler-wizard');
+      } else {
+        setWizardStep(
+          imported.crawlerType === 'csv'   ? 'csv-wizard'   :
+          imported.crawlerType === 'omada' ? 'omada-wizard' :
+          'entra-wizard'
+        );
+      }
     } catch (err) {
       setError(`Import failed: ${err.message}`);
     } finally {
@@ -3113,6 +3142,20 @@ export default function CrawlersPage({ onNavigate }) {
           authFetch={authFetch}
         />
       )}
+      {wizardStep === 'crawler-wizard' && (() => {
+        const CrawlerWizard = getCrawlerWizard(wizardCrawlerType);
+        return CrawlerWizard ? (
+          <Suspense fallback={<div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading…</div>}>
+            <CrawlerWizard
+              onComplete={() => { setWizardStep(null); setEditingConfig(null); fetchConfigs(); }}
+              onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
+              initialConfig={editingConfig}
+              isEdit={!!editingConfig?.id}
+              authFetch={authFetch}
+            />
+          </Suspense>
+        ) : null;
+      })()}
       {wizardStep === 'custom-wizard' && (
         <CustomConnectorWizard
           onComplete={() => {

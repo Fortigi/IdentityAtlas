@@ -74,3 +74,11 @@ Crawler types and their config schemas are auto-discovered from `tools/crawlers/
 If the directory is unreachable, an error is logged and `VALID_JOB_TYPES` is empty — there is no hardcoded fallback list.
 
 **`scheduler.js`** fires scheduled crawler jobs. It imports `VALID_JOB_TYPES` and `validateCrawlerConfig` from `routes/jobs.js` — do not duplicate that logic here.
+
+**Live-discovery endpoint:** `POST /api/admin/crawlers/:type/discover` is a generic route in `routes/jobs.js` that dynamically imports `{CRAWLER_MANIFESTS_DIR}/{type}/discover.js` at request time and calls its default export. To add live discovery to a crawler, drop a `discover.js` into its folder — no route changes needed. The handler signature is:
+
+```js
+export default async function handler(req, res, { db, getConfigSecret }) { ... }
+```
+
+Types not in `VALID_JOB_TYPES` or without a `discover.js` return 404. The type slug is validated against `/^[a-z][a-z0-9-]*$/` before the filesystem lookup to prevent path traversal.

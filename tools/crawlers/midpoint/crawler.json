@@ -33,6 +33,49 @@
           "roleNesting":    { "type": "boolean", "default": true },
           "reviews":        { "type": "boolean", "default": true }
         }
+      },
+      "archetypeMapping": {
+        "type": "array",
+        "description": "Classify roles into an Identity Atlas resourceType. Each role is matched by archetype name first, then by subtype; a row with a blank archetype and subtype is the catch-all. Defaults to every role → BusinessRole. (Services are always 'Service'.)",
+        "default": [ { "archetype": "", "subtype": "", "resourceType": "BusinessRole" } ],
+        "items": {
+          "type": "object",
+          "properties": {
+            "archetype":    { "type": "string", "description": "midPoint archetype name (live-discovered)" },
+            "subtype":      { "type": "string", "description": "Role/service subtype (fallback when no archetype matches)" },
+            "resourceType": { "type": "string", "enum": ["BusinessRole", "Service", "Resource", "Application", "AppRole", "Entitlement", "DelegatedPermission"] }
+          }
+        }
+      },
+      "typeMappings": {
+        "type": "object",
+        "description": "Override how orgs and users are classified into Identity Atlas types.",
+        "properties": {
+          "orgContextTypeMapping": {
+            "type": "array",
+            "description": "Map an OrgType subtype to a context type. Blank subtype = catch-all. Defaults to every org → OrgUnit.",
+            "default": [ { "orgSubtype": "", "contextType": "OrgUnit" } ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "orgSubtype":  { "type": "string" },
+                "contextType": { "type": "string" }
+              }
+            }
+          },
+          "identityTypeMapping": {
+            "type": "array",
+            "description": "Map a UserType subtype/employeeType to a principal type. Blank = catch-all. Defaults to every user → User.",
+            "default": [ { "userType": "", "principalType": "User" } ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "userType":      { "type": "string" },
+                "principalType": { "type": "string", "enum": ["User", "ServicePrincipal", "ManagedIdentity", "WorkloadIdentity", "AIAgent", "ExternalUser", "SharedMailbox"] }
+              }
+            }
+          }
+        }
       }
     },
     "allOf": [
