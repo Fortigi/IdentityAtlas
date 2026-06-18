@@ -1,1 +1,0 @@
-- Cleaned up CI logs: the Pester unit-test job no longer prints a misleading "module currently in use" warning on every run.
