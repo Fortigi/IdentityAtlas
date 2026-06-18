@@ -3128,8 +3128,21 @@
 <td>—</td>
 <td>Named hooks the dispatcher runs after the entry point exits successfully.</td>
 </tr>
+<tr>
+<td><code>supportsFileUploads</code></td>
+<td>boolean</td>
+<td>—</td>
+<td>If <code>true</code>, this crawler type's configs may have files attached via the generic <code>POST/GET/DELETE /api/admin/crawler-configs/:configId/files</code> routes (<code>routes/crawlerFiles.js</code>). Configs of types without this flag get a 400 if something tries to attach files to them.</td>
+</tr>
+<tr>
+<td><code>uploadFileExtensions</code></td>
+<td>string[]</td>
+<td>—</td>
+<td>Allowed upload file extensions (e.g. <code>[".csv"]</code>), enforced by <code>crawlerFiles.js</code>'s multer <code>fileFilter</code>. Defaults to <code>['.csv']</code> if <code>supportsFileUploads</code> is set without this field.</td>
+</tr>
 </tbody>
 </table>
+<p>A crawler that sets <code>supportsFileUploads</code> should also drop a <code>schema/</code> folder of empty, header-only template files (e.g. <code>tools/crawlers/csv/schema/Users.csv</code>) next to its <code>crawler.json</code> — these are served generically via <code>GET /api/admin/crawlers/:type/upload-schema</code> (and <code>.../upload-schema/:filename</code> for one file at a time), the same dynamic-by-type loading pattern <code>discover.js</code> uses: no core file lists which crawlers have templates, a missing <code>schema/</code> dir just 404s. An optional <code>tools/crawlers/&lt;type&gt;/&lt;type&gt;-slots.json</code> (e.g. <code>csv-slots.json</code>) can supply per-file <code>label</code>/<code>required</code> metadata shown in the concatenated download's comments — purely cosmetic, the templates work without it.</p>
 <h3 id="postsynchooks-reference"><code>postSyncHooks</code> reference<a class="headerlink" href="#postsynchooks-reference" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
