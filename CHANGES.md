@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Adding a new crawler type with a step-by-step configuration wizard no longer requires editing the core Crawlers page — drop a `ConfigWizard.jsx` and a `CrawlerMeta.js` in the crawler's folder under `tools/crawlers/{type}/` and it is picked up automatically.
+- Crawlers can now expose a live-discovery endpoint by adding a `discover.js` to their folder; the UI wizard can call it at `POST /api/admin/crawlers/{type}/discover` without any API route changes.
+- Added shared `Combobox` and `Select` input components for use in crawler wizard forms.
+- The Vite dev server now allows serving files from outside `app/ui/` so that wizard components under `tools/crawlers/` are reachable during development.
+- Added CI, ESLint, and Pester guardrails to prevent new crawlers drifting away from the manifest-based plugin system — adding a crawler without a `CrawlerMeta.js` now fails the build.
+
+## Changes in this PR
+
 - Fixed resourceType documentation to match what the built-in crawlers actually produce (removed non-existent types, added Application, AppRole, DelegatedPermission, Entitlement, Resource, Service)
 - Added missing assignmentType values (AppRole, AppRoleViaGroup, OAuth2Grant) to the data model reference
 - Added AI provider configuration guide to the Risk Scoring overview, including all three supported providers (Anthropic, OpenAI, Azure OpenAI), required fields per provider, and a data privacy table showing which providers are suitable for regulated environments
