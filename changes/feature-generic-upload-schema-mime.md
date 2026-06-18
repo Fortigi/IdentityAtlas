@@ -1,1 +1,0 @@
-- Finished generalizing the crawler upload-schema endpoints: the file-extension filter and the downloaded file's content-type are now derived from each crawler's own manifest instead of being hardcoded to CSV. No user-facing change for the CSV crawler today, but removes the last CSV-specific assumptions from an otherwise generic mechanism.
