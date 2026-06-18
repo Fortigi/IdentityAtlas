@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed: crawler configuration wizards (e.g. the midPoint wizard) and their type-picker entries were silently missing from the production Docker image — the frontend build stage didn't include the `tools/crawlers` folder that the wizard plugin system discovers wizards from. They now appear correctly in the deployed app, not just in local dev.
+- Added an automated check that catches this exact class of regression going forward: an E2E test that dynamically discovers every crawler with a UI wizard and verifies it actually appears in the "Add Crawler" list of the running app.
+
+## Changes in this PR
+
 - Added a dedicated midPoint (Evolveum) crawler wizard in Admin → Crawlers, so midPoint can now be added and configured fully from the UI (previously it could only be set up via raw config/import).
 - The wizard guides you through connection, authentication (Basic / API token / OAuth2 client-credentials / OAuth2 ROPC), which object types to sync, the mapping rules, and scheduling — with every field pre-filled to the crawler's existing defaults.
 - Added role classification: map midPoint roles to an Identity Atlas resource type by archetype (with subtype as a fallback). Archetypes and subtypes are discovered live from the connected midPoint server and offered as dropdown suggestions.
