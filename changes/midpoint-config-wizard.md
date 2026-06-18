@@ -9,3 +9,5 @@
 - The live dropdown lists (archetypes, subtypes) are now shown in alphabetical order, with the default entry pinned at the top.
 - The archetype dropdown now lists only archetypes that apply to roles, hiding midPoint's task/report/case system archetypes that are irrelevant to role classification.
 - The midPoint wizard now uses the same numbered step indicator (Connection › Credentials › Objects & Mapping › Schedule) as the other crawler wizards.
+- The midPoint sync guide and its new configuration reference are now listed in the docs site menu (they previously existed only as unlinked pages).
+- Added a CI check that fails the build if a crawler doc page under `docs/sync/` isn't registered in the docs site's navigation, so this can't go unnoticed again.
