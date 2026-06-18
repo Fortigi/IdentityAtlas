@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Added architecture specification for the effective-access engine: a lazy, on-demand traversal engine that computes inherited permission access across containment hierarchies (Azure RM scopes, folder trees, group nesting) using the existing `Contains` relationship edges
+- Added an effective-access engine that computes inherited permissions on demand: a grant at a parent (a group, or a containment scope like an Azure subscription) is surfaced as indirect access on everything beneath it, without storing those rows.
+- New read API: `GET /api/effective-access/resolve` (one principal on one resource) and `GET /api/resource/:id/effective-access` / `GET /api/principal/:id/effective-access` (effective capabilities at a node, including those inherited through the containment hierarchy).
+- Groundwork for upcoming source crawlers (e.g. Azure Resource Manager) whose access is defined by role-at-scope inheritance.
+
+## Changes in this PR
+
 - No user-facing change. Added end-to-end test coverage for the CSV crawler wizard's file upload step (staging files, the required-object coverage indicator, and the real upload/list/delete round trip against the server), closing a test gap that previously only covered the wizard's first step via a static render check.
 - The new test is co-located with the CSV crawler plugin (`tools/crawlers/csv/`) rather than in the core UI's e2e folder, consistent with every other crawler-specific file. Since a colocated file can't directly import Playwright's test APIs (no shared `node_modules` ancestor), it's loaded via a small generic discovery spec (`app/ui/e2e/crawler-plugin-tests.spec.js`) that contains no crawler-specific knowledge — the same pattern already used for the wizard/discover/summary plugin files.
 - The `crawler-manifest` CI check now also fails if a migrated crawler has a stray file named after it (or a hardcoded reference to its type string) anywhere under `app/ui/`, not just in `CrawlersPage.jsx` — catching the exact kind of drift this branch itself had to fix. Documented as an explicit rule in `tools/crawlers/CLAUDE.md` and `app/ui/CLAUDE.md`.
