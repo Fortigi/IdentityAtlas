@@ -33,6 +33,57 @@ const SYNC_OPTIONS = [
 
 const RESOURCE_TYPE_OPTIONS = ['BusinessRole', 'Resource', 'AppRole', 'DelegatedPermission'];
 
+// ─── Credential validation + payload helpers ───────────────────────────────────
+// Pure functions (no closure over component state) so they're independently
+// unit-testable — see credentialGating.test.js. Each auth method needs a
+// different subset of fields; isEdit relaxes the requirement for secret
+// fields only (blank in edit mode means "keep the stored value").
+
+export function canSubmitCredentials(authMethod, fields, isEdit) {
+  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken, cookieString } = fields;
+  if (authMethod === 'FormCookie') {
+    return !!username.trim() && !!(password.trim() || isEdit);
+  }
+  if (authMethod === 'OAuth2CC') {
+    return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit);
+  }
+  if (authMethod === 'OAuth2ROPC') {
+    return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit) && !!username.trim() && !!(password.trim() || isEdit);
+  }
+  if (authMethod === 'ApiToken') return !!(apiToken.trim() || isEdit);
+  if (authMethod === 'CookieString') return !!(cookieString.trim() || isEdit);
+  if (authMethod === 'BasicAuth') return !!username.trim() && !!(password.trim() || isEdit);
+  return true;
+}
+
+// Only includes credential fields that have a value — blank means "keep the
+// existing stored value" on edit, and is unreachable on create because
+// canSubmitCredentials already requires it there.
+export function buildCredentialFields(authMethod, fields) {
+  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken, cookieString } = fields;
+  const out = {};
+  if (authMethod === 'FormCookie' || authMethod === 'OAuth2ROPC') {
+    out.username = username.trim();
+    if (password.trim()) out.password = password.trim();
+  }
+  if (authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') {
+    out.tokenEndpoint = tokenEndpoint.trim();
+    out.clientId = clientId.trim();
+    if (clientSecret.trim()) out.clientSecret = clientSecret.trim();
+  }
+  if (authMethod === 'ApiToken') {
+    if (apiToken.trim()) out.apiToken = apiToken.trim();
+  }
+  if (authMethod === 'CookieString') {
+    if (cookieString.trim()) out.cookieString = cookieString.trim();
+  }
+  if (authMethod === 'BasicAuth') {
+    out.username = username.trim();
+    if (password.trim()) out.password = password.trim();
+  }
+  return out;
+}
+
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 
 export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
@@ -149,21 +200,8 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
   const [error, setError] = useState(null);
 
   const canStep1 = displayName.trim() && baseUrl.trim();
-  const canStep2 = (() => {
-    if (authMethod === 'FormCookie') {
-      return username.trim() && (password.trim() || isEdit);
-    }
-    if (authMethod === 'OAuth2CC') {
-      return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit);
-    }
-    if (authMethod === 'OAuth2ROPC') {
-      return tokenEndpoint.trim() && clientId.trim() && (clientSecret.trim() || isEdit) && username.trim() && (password.trim() || isEdit);
-    }
-    if (authMethod === 'ApiToken') return apiToken.trim() || isEdit;
-    if (authMethod === 'CookieString') return cookieString.trim() || isEdit;
-    if (authMethod === 'BasicAuth') return username.trim() && (password.trim() || isEdit);
-    return true;
-  })();
+  const credentialFields = { username, password, clientId, clientSecret, tokenEndpoint, apiToken, cookieString };
+  const canStep2 = canSubmitCredentials(authMethod, credentialFields, isEdit);
 
   const handleSave = async () => {
     setSaving(true);
@@ -189,26 +227,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
       };
       if (schedules.length) configPayload.schedules = schedules;
 
-      // Only include credential fields that have values (blank = keep existing in edit mode)
-      if (authMethod === 'FormCookie' || authMethod === 'OAuth2ROPC') {
-        configPayload.username = username.trim();
-        if (password.trim()) configPayload.password = password.trim();
-      }
-      if (authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') {
-        configPayload.tokenEndpoint = tokenEndpoint.trim();
-        configPayload.clientId = clientId.trim();
-        if (clientSecret.trim()) configPayload.clientSecret = clientSecret.trim();
-      }
-      if (authMethod === 'ApiToken') {
-        if (apiToken.trim()) configPayload.apiToken = apiToken.trim();
-      }
-      if (authMethod === 'CookieString') {
-        if (cookieString.trim()) configPayload.cookieString = cookieString.trim();
-      }
-      if (authMethod === 'BasicAuth') {
-        configPayload.username = username.trim();
-        if (password.trim()) configPayload.password = password.trim();
-      }
+      Object.assign(configPayload, buildCredentialFields(authMethod, credentialFields));
 
       let r;
       if (initialConfig?.id) {

@@ -209,6 +209,59 @@ Set secrets in GitHub Actions → Settings → Secrets and variables → Actions
 - `tools/crawlers/odata/Test-ODataCrawler.ps1` — library test against a mock server (no `-ApiKey` needed)
 - `tools/crawlers/omada/Test-OmadaCrawler.ps1` — full E2E test against a mock server (requires Docker stack)
 
+## JS/UI Testing
+
+The PowerShell side has the `Test-<Type>Crawler.ps1` contract above. The `ConfigWizard.jsx`/`discover.js`/`Summary.jsx` side has its own, separate conventions:
+
+### Where the tests live and run
+
+Co-locate test files next to the plugin: `tools/crawlers/<type>/*.test.{js,jsx}`. They run under the **UI's** vitest, not the API's — `app/ui/vite.config.js`'s `test.include` explicitly adds `'../../tools/crawlers/**/*.test.{js,jsx}'` alongside `src/**/*.test.{js,jsx}`. A test file placed here without that glob entry would simply never execute, silently — there's no error, the suite just doesn't grow. Run them from `app/ui`:
+
+```bash
+cd app/ui && npx vitest run ../../tools/crawlers/<type>
+```
+
+**ESLint does not cover this folder.** `npm run lint` in `app/ui` runs `eslint .`, which only scans `app/ui`'s own tree — `tools/crawlers/*` files are never linted in CI today. Don't assume a clean `npm run lint` says anything about a wizard file's code quality.
+
+### Render smoke tests (`ConfigWizard.test.jsx`)
+
+A minimal test that renders the wizard via `react-dom/server`'s `renderToStaticMarkup` and asserts on the output HTML. This catches import/relocation mistakes (a missing back-reference to `app/ui/src/components/...`, a bad relative path to a sibling JSON file) because those throw at render time. It does **not** catch interaction bugs — `renderToStaticMarkup` never attaches event handlers, so clicking a button or typing into an input does nothing in this kind of test. See `tools/crawlers/csv/ConfigWizard.test.jsx` for the pattern:
+
+```jsx
+import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement as h } from 'react';
+import ConfigWizard from './ConfigWizard.jsx';
+
+const html = renderToStaticMarkup(h(ConfigWizard, { onComplete: () => {}, onCancel: () => {}, initialConfig: null, isEdit: false, authFetch: () => new Promise(() => {}) }));
+```
+
+### Extract non-trivial logic into pure, exported functions
+
+If a wizard has real branching logic — validation gates, payload-building, fuzzy matching — pull it out of the component closure into a top-level exported function that takes explicit arguments instead of reading `useState` values. This is the only way to unit-test it directly without rendering anything, and it's the same fix CSV needed for `matchSlot`/`fmtBytes` and omada/midpoint needed for `canSubmitCredentials`/`buildCredentialFields` (the per-auth-method "can I submit yet" gate and "which credential fields actually changed" payload builder — both were closures over component state until extracted). Test the function directly:
+
+```js
+import { canSubmitCredentials } from './ConfigWizard.jsx';
+expect(canSubmitCredentials('ApiToken', { apiToken: '', ... }, /* isEdit */ false)).toBe(false);
+```
+
+A regression in this kind of logic is easy to ship invisibly — it either silently blocks a previously-working auth method, lets an incomplete config through to save, or drops a credential field on save. Worth the extraction whenever the logic has more than one or two branches.
+
+### Real interaction tests (Playwright e2e)
+
+When the thing worth testing is an actual user interaction against the real backend — staging files, watching a coverage indicator update, an upload/list/delete round trip — a render smoke test can't reach it (no event handlers fire) and a pure-function unit test doesn't exist (there's no extractable pure function, the behavior *is* the DOM + network interaction). Reach for a Playwright spec under `app/ui/e2e/` instead. See `app/ui/e2e/csv-crawler-wizard.spec.js` (file upload step) and `app/ui/e2e/custom-connector.spec.js` (full wizard flow + real config persisted) for the pattern — both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
+
+### Testing a `discover.js` handler
+
+Call the handler function directly with a mocked `db` and a stubbed global `fetch` — no HTTP server needed. See `app/api/src/routes/omadaDiscover.test.js`:
+
+```js
+import handler from '../../../../tools/crawlers/omada/discover.js';
+vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => '<xml/>' }));
+await handler(req, res, { db: { queryOne: vi.fn().mockResolvedValue({ config: {...} }) } });
+```
+
+This lives under `app/api/src/routes/` (API-side vitest), not co-located with the crawler folder, since it's exercising the handler the same way the generic `POST /api/admin/crawlers/:type/discover` route invokes it.
+
 ## `principalType` and `identityType` Values
 
 **`Principals.principalType`** — use these values consistently across all crawlers:
