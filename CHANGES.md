@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed: the portable Windows (node-launcher) build would fail to build the UI once a crawler ships a configuration wizard, because the wizard files live outside the UI's own folder and couldn't resolve their dependencies during that build. The desktop/portable build now stages the UI together with the crawler wizard files the same way the Docker image already does, so it builds successfully again.
+- Added an automated check (now run on every pull request) that catches this exact class of regression going forward: it builds the portable UI bundle and verifies every crawler with a configuration wizard actually made it into the build output, not just that the build didn't error.
+
+## Changes in this PR
+
 - The Omada IGA crawler is now a self-contained plugin under `tools/crawlers/omada/` — its configuration wizard, type-picker entry, and live `$metadata` discovery no longer live as hardcoded logic in the core Crawlers page or API routes. Adding or changing the Omada wizard now never requires touching shared UI/API files.
 - No functional change to the Omada crawler wizard itself — same steps, same fields, same validation behavior.
 - Added a "Syncing from Omada IGA" page to the docs site, and registered the existing Omada data-model reference doc in the site menu (both previously missing or unreachable).
