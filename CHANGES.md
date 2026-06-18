@@ -1,5 +1,16 @@
 ## Changes in this PR
 
+- Added automated test coverage for the generic crawler file-upload mechanism (upload/list/delete, the upload-schema templates, and the manifest-driven job-dispatch gate), which previously had none and was only verified by hand. No functional change.
+- Migrated the CSV crawler's configuration wizard to the self-contained plugin system (`tools/crawlers/csv/`), matching how midPoint already works. No user-facing change to the wizard itself.
+- Added a generic "summary panel" plugin mechanism so a crawler's configured card can show crawler-specific details (e.g. CSV's system/type/delimiter) without that crawler being hardcoded into the Crawlers page.
+- Fixed: the "Download schema templates" file on the CSV crawler's upload step was missing `ContextMembers.csv` from its file list — it now appears alongside the other supported files.
+- Added test coverage for the CSV crawler's fuzzy filename-matching logic and its configuration wizard.
+- Generalized the crawler file-upload mechanism so it's no longer hardcoded to the CSV crawler: any crawler type can now declare file-upload support in its manifest instead of needing changes to core API code.
+- Fixed: the CSV crawler's "Download schema templates" file was missing `ContextMembers.csv` from its column-header reference (it now reads the real template files, including the previously-missing one).
+- No user-facing change to the CSV crawler's own upload/download experience — same folder convention, same wizard behavior.
+
+## Changes in this PR
+
 - Fixed: the portable Windows (node-launcher) build would fail to build the UI once a crawler ships a configuration wizard, because the wizard files live outside the UI's own folder and couldn't resolve their dependencies during that build. The desktop/portable build now stages the UI together with the crawler wizard files the same way the Docker image already does, so it builds successfully again.
 - Added an automated check (now run on every pull request) that catches this exact class of regression going forward: it builds the portable UI bundle and verifies every crawler with a configuration wizard actually made it into the build output, not just that the build didn't error.
 
