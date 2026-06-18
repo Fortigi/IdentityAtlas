@@ -10,7 +10,7 @@ import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getUploadFolderPath, deleteConfigFolder } from './crawlerFiles.js';
 import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, getConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
-import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, VALID_JOB_TYPES, validateCrawlerConfig } from '../crawlerManifests.js';
+import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, VALID_JOB_TYPES, validateCrawlerConfig, validateStoredCrawlerConfig } from '../crawlerManifests.js';
 
 // Re-exported for existing consumers (scheduler.js, jobs.*.test.js) that
 // import these directly from this file rather than from crawlerManifests.js.
@@ -171,7 +171,11 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
 
     const crawlerType = existing.recordset[0].crawlerType;
     if (config) {
-      const configErr = validateCrawlerConfig(crawlerType, mergedConfig);
+      // mergedConfig never has clientSecret (just stripped above) — use the
+      // vault-aware validator so types whose schema requires it (entra-id,
+      // omada/midPoint's OAuth2 methods) don't reject an edit that doesn't
+      // touch credentials.
+      const configErr = await validateStoredCrawlerConfig(crawlerType, mergedConfig, id);
       if (configErr) return res.status(400).json({ error: configErr });
     }
 
@@ -274,17 +278,11 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
       configNextRunMode = cfgResult.recordset[0].nextRunMode || 'delta';
     }
 
-    // Validate entra-id credentials: clientSecret may live in the vault rather
-    // than the config JSON, so we can't rely solely on the JSON Schema check.
-    if (jobType === 'entra-id') {
-      const hasSecret = configId ? await hasConfigSecret(configId) : !!resolvedConfig?.clientSecret;
-      if (!resolvedConfig?.tenantId || !resolvedConfig?.clientId || !hasSecret) {
-        return res.status(400).json({ error: 'Entra ID jobs require tenantId, clientId, and clientSecret' });
-      }
-    }
-
     // Validate config against the manifest's JSON Schema (all crawler types).
-    const configErr = validateCrawlerConfig(jobType, resolvedConfig);
+    // resolvedConfig came from a configId lookup never has clientSecret (it's
+    // vault-only) — validateStoredCrawlerConfig checks the vault instead of
+    // failing on its absence for types whose schema requires it.
+    const configErr = await validateStoredCrawlerConfig(jobType, resolvedConfig, configId);
     if (configErr) return res.status(400).json({ error: configErr });
 
     // For crawler types that support file uploads (per their manifest), inject

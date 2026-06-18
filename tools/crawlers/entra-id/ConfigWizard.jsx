@@ -121,6 +121,52 @@ const DEFAULT_GROUP_ATTRS = [
   'onPremisesSyncEnabled',
 ];
 
+// Builds the { displayName, configPayload } pair sent to POST/PATCH
+// /admin/crawler-configs from the wizard's step state. Pulled out of
+// handleSave as a pure function — this is where the "Advanced options
+// silently dropped on save" bug lived (signInLogsDays/aiNamePatterns were
+// computed in the old CrawlersPage.jsx handleWizardComplete from a config
+// object that never carried them), so it gets dedicated unit tests instead
+// of being only reachable through a full save round-trip.
+export function buildEntraConfigPayload({
+  crawlerName, organization, tenantId, clientId, clientSecret, selectedObjects,
+  identityAttrs, customUserAttrs, customGroupAttrs, schedules,
+  idFilterEnabled, idFilterAttr, idFilterCondition, idFilterValue,
+  signInLogsDays, aiNamePatterns,
+}) {
+  const displayName = crawlerName.trim() || `Entra ID — ${organization || 'Unnamed'}`;
+  const configPayload = {
+    tenantId: tenantId.trim(),
+    clientId: clientId.trim(),
+    selectedObjects,
+  };
+  // Empty secret in edit mode means "keep existing"
+  if (clientSecret.trim()) configPayload.clientSecret = clientSecret.trim();
+  if (identityAttrs.length) configPayload.identityAttributes = identityAttrs;
+  if (customUserAttrs.length) configPayload.customUserAttributes = customUserAttrs;
+  if (customGroupAttrs.length) configPayload.customGroupAttributes = customGroupAttrs;
+  if (schedules.length) configPayload.schedules = schedules;
+  if (idFilterEnabled && selectedObjects.identity) {
+    configPayload.identityFilter = { attribute: idFilterAttr, condition: idFilterCondition };
+    if (idFilterCondition === 'equals' || idFilterCondition === 'notEquals') {
+      configPayload.identityFilter.value = idFilterValue;
+    }
+    if (idFilterCondition === 'inValues') {
+      configPayload.identityFilter.values = idFilterValue.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
+  // Advanced options
+  const daysInt = parseInt(signInLogsDays, 10);
+  if (Number.isInteger(daysInt) && daysInt >= 1 && daysInt <= 30 && daysInt !== 7) {
+    configPayload.signInLogsDays = daysInt;
+  }
+  const patterns = aiNamePatterns.split('\n').map(s => s.trim()).filter(Boolean);
+  if (patterns.length > 0) {
+    configPayload.aiNamePatterns = patterns;
+  }
+  return { displayName, configPayload };
+}
+
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 //
 // Steps:
@@ -346,36 +392,12 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
     setSaving(true);
     setError(null);
     try {
-      const displayName = crawlerName.trim() || `Entra ID — ${validation?.organization || 'Unnamed'}`;
-      const configPayload = {
-        tenantId: tenantId.trim(),
-        clientId: clientId.trim(),
-        selectedObjects,
-      };
-      // Empty secret in edit mode means "keep existing"
-      if (clientSecret.trim()) configPayload.clientSecret = clientSecret.trim();
-      if (identityAttrs.length) configPayload.identityAttributes = identityAttrs;
-      if (customUserAttrs.length) configPayload.customUserAttributes = customUserAttrs;
-      if (customGroupAttrs.length) configPayload.customGroupAttributes = customGroupAttrs;
-      if (schedules.length) configPayload.schedules = schedules;
-      if (idFilterEnabled && selectedObjects.identity) {
-        configPayload.identityFilter = { attribute: idFilterAttr, condition: idFilterCondition };
-        if (idFilterCondition === 'equals' || idFilterCondition === 'notEquals') {
-          configPayload.identityFilter.value = idFilterValue;
-        }
-        if (idFilterCondition === 'inValues') {
-          configPayload.identityFilter.values = idFilterValue.split(',').map(s => s.trim()).filter(Boolean);
-        }
-      }
-      // Advanced options
-      const daysInt = parseInt(signInLogsDays, 10);
-      if (Number.isInteger(daysInt) && daysInt >= 1 && daysInt <= 30 && daysInt !== 7) {
-        configPayload.signInLogsDays = daysInt;
-      }
-      const patterns = aiNamePatterns.split('\n').map(s => s.trim()).filter(Boolean);
-      if (patterns.length > 0) {
-        configPayload.aiNamePatterns = patterns;
-      }
+      const { displayName, configPayload } = buildEntraConfigPayload({
+        crawlerName, organization: validation?.organization, tenantId, clientId, clientSecret,
+        selectedObjects, identityAttrs, customUserAttrs, customGroupAttrs, schedules,
+        idFilterEnabled, idFilterAttr, idFilterCondition, idFilterValue,
+        signInLogsDays, aiNamePatterns,
+      });
 
       let r;
       if (initialConfig?.id) {

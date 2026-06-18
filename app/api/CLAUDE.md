@@ -63,9 +63,10 @@ Migration files are numbered sequentially (`001_core_schema.sql`, `002_governanc
 
 Crawler types and their config schemas are auto-discovered from `tools/crawlers/*/crawler.json` manifests at startup. See `tools/crawlers/CLAUDE.md` for the manifest schema.
 
-**Key exports from `routes/jobs.js`:**
+**Key exports from `crawlerManifests.js`** (re-exported by `routes/jobs.js` for existing consumers):
 - `VALID_JOB_TYPES` — array of valid job type strings, built from manifests (falls back to `['demo','entra-id','csv','omada']` if manifests are unreachable)
 - `validateCrawlerConfig(type, config)` — validates a config object against the crawler's `configSchema`; returns an error string or `null`
+- `validateStoredCrawlerConfig(type, config, configId)` — same, but for a config that came from storage (an edit, a "Run Now", a scheduled run) rather than a fresh wizard submission. **Always use this one, not `validateCrawlerConfig` directly, whenever the config might be missing a vaulted `clientSecret`.** Some types' schemas declare `clientSecret` required (directly, like entra-id, or conditionally via an `authMethod` `allOf`/`if-then`, like omada/midPoint's OAuth2CC/OAuth2ROPC) — but `clientSecret` is deliberately stripped out of `CrawlerConfigs.config` once saved (it lives only in the vault, see `secrets/crawlerSecrets.js`), so a config freshly loaded from storage never has it. Calling plain `validateCrawlerConfig` on it always fails the schema's `required` check even though credentials are genuinely present — this broke editing/running/scheduling such a crawler without re-entering the secret every time, for any type whose schema requires it, until this wrapper was added. No crawler-type branching needed in the caller — it generically checks `hasConfigSecret(configId)` only when the plain validation actually failed on a missing `clientSecret`.
 - `maskConfig(config)` — redacts credential fields for safe logging/display
 
 **Manifest discovery path** (checked in order):
@@ -74,7 +75,7 @@ Crawler types and their config schemas are auto-discovered from `tools/crawlers/
 
 If the directory is unreachable, an error is logged and `VALID_JOB_TYPES` is empty — there is no hardcoded fallback list.
 
-**`scheduler.js`** fires scheduled crawler jobs. It imports `VALID_JOB_TYPES` and `validateCrawlerConfig` from `routes/jobs.js` — do not duplicate that logic here.
+**`scheduler.js`** fires scheduled crawler jobs. It imports `VALID_JOB_TYPES` from `routes/jobs.js` and `validateStoredCrawlerConfig` from `crawlerManifests.js` directly — do not duplicate that logic here.
 
 **Live-discovery endpoint:** `POST /api/admin/crawlers/:type/discover` is a generic route in `routes/jobs.js` that dynamically imports `{CRAWLER_MANIFESTS_DIR}/{type}/discover.js` at request time and calls its default export. To add live discovery to a crawler, drop a `discover.js` into its folder — no route changes needed. The handler signature is:
 
