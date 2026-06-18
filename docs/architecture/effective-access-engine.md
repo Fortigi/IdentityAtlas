@@ -411,7 +411,7 @@ crawlers → **P3**.
 ## 19. Documentation requirements *(ship with the feature)*
 
 - **Architecture doc** — this file, kept current.
-- **Crawler-author guide** — additions to `docs/sync/custom-crawlers.md`: the engine contract
+- **Crawler-author guide** — additions to `docs/sync/building-a-crawler.md`: the engine contract
   (`Contains` edges + `propagates`, `effect`, `propagationScope`, deterministic `NS_CAP` id),
   with a worked example per hierarchy type.
 - **ResolutionPolicy authoring guide** — how to add a source's precedence rules + the

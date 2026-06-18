@@ -1,6 +1,6 @@
 # Crawler Development — Quick Reference
 
-Full authoring guide: [`docs/sync/custom-crawlers.md`](../../docs/sync/custom-crawlers.md)
+Full authoring guide: [`docs/sync/building-a-crawler.md`](../../docs/sync/building-a-crawler.md)
 Architecture internals: [`docs/architecture/crawler-architecture.md`](../../docs/architecture/crawler-architecture.md)
 
 ## Adding a Crawler
@@ -29,7 +29,7 @@ tools/crawlers/<type>/
 
 **`dev/` subfolder:** for scripts that support development and testing but are not part of the production image. The dispatcher ignores subdirectories entirely — nothing in `dev/` ever runs at runtime. Use it for load-test seeders, fixture generators, and migration helpers. Always include a `dev/README.md`.
 
-See `docs/sync/custom-crawlers.md` for the full authoring guide including the `dev/` folder convention.
+See `docs/sync/building-a-crawler.md` for the full authoring guide including the `dev/` folder convention.
 
 ## PowerShell Style
 
@@ -153,6 +153,7 @@ If you also drop empty, header-only template files in `tools/crawlers/<type>/sch
 - Entry point filenames must be `Start-<Something>.ps1` — the dependency loader excludes `Start-*` when dot-sourcing library files.
 - Never run the `odata` type as a job — its entry point throws by design. Use it only as a `dependsOn` dependency.
 - `_syncMode` is the only reserved config key injected by the dispatcher. Don't use keys starting with `_` for your own config.
+- **Nothing specific to one crawler type belongs outside its `tools/crawlers/<type>/` folder** — not just `ConfigWizard.jsx`/`discover.js`/`Summary.jsx`/`CrawlerMeta.js`, but also that crawler's tests (unit, render-smoke, and e2e — see JS/UI Testing below) and any helper file. If a file's name or content only makes sense for one crawler type, it goes in that crawler's folder, full stop — including when the natural-feeling place would be a shared `app/ui/e2e/` or `app/ui/src/` test/helper. The `crawler-manifest` CI job enforces this for migrated crawlers (fails on a stray filename containing the type name, or a hardcoded type-string literal, anywhere under `app/ui/`) — but don't rely on CI to catch it; get it right the first time.
 
 ## Integration Tests
 
@@ -208,6 +209,76 @@ Set secrets in GitHub Actions → Settings → Secrets and variables → Actions
 
 - `tools/crawlers/odata/Test-ODataCrawler.ps1` — library test against a mock server (no `-ApiKey` needed)
 - `tools/crawlers/omada/Test-OmadaCrawler.ps1` — full E2E test against a mock server (requires Docker stack)
+
+## JS/UI Testing
+
+The PowerShell side has the `Test-<Type>Crawler.ps1` contract above. The `ConfigWizard.jsx`/`discover.js`/`Summary.jsx` side has its own, separate conventions:
+
+### Where the tests live and run
+
+Co-locate test files next to the plugin: `tools/crawlers/<type>/*.test.{js,jsx}`. They run under the **UI's** vitest, not the API's — `app/ui/vite.config.js`'s `test.include` explicitly adds `'../../tools/crawlers/**/*.test.{js,jsx}'` alongside `src/**/*.test.{js,jsx}`. A test file placed here without that glob entry would simply never execute, silently — there's no error, the suite just doesn't grow. Run them from `app/ui`:
+
+```bash
+cd app/ui && npx vitest run ../../tools/crawlers/<type>
+```
+
+**ESLint does not cover this folder.** `npm run lint` in `app/ui` runs `eslint .`, which only scans `app/ui`'s own tree — `tools/crawlers/*` files are never linted in CI today. Don't assume a clean `npm run lint` says anything about a wizard file's code quality.
+
+### Render smoke tests (`ConfigWizard.test.jsx`)
+
+A minimal test that renders the wizard via `react-dom/server`'s `renderToStaticMarkup` and asserts on the output HTML. This catches import/relocation mistakes (a missing back-reference to `app/ui/src/components/...`, a bad relative path to a sibling JSON file) because those throw at render time. It does **not** catch interaction bugs — `renderToStaticMarkup` never attaches event handlers, so clicking a button or typing into an input does nothing in this kind of test. See `tools/crawlers/csv/ConfigWizard.test.jsx` for the pattern:
+
+```jsx
+import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement as h } from 'react';
+import ConfigWizard from './ConfigWizard.jsx';
+
+const html = renderToStaticMarkup(h(ConfigWizard, { onComplete: () => {}, onCancel: () => {}, initialConfig: null, isEdit: false, authFetch: () => new Promise(() => {}) }));
+```
+
+### Extract non-trivial logic into pure, exported functions
+
+If a wizard has real branching logic — validation gates, payload-building, fuzzy matching — pull it out of the component closure into a top-level exported function that takes explicit arguments instead of reading `useState` values. This is the only way to unit-test it directly without rendering anything, and it's the same fix CSV needed for `matchSlot`/`fmtBytes` and omada/midpoint needed for `canSubmitCredentials`/`buildCredentialFields` (the per-auth-method "can I submit yet" gate and "which credential fields actually changed" payload builder — both were closures over component state until extracted). Test the function directly:
+
+```js
+import { canSubmitCredentials } from './ConfigWizard.jsx';
+expect(canSubmitCredentials('ApiToken', { apiToken: '', ... }, /* isEdit */ false)).toBe(false);
+```
+
+A regression in this kind of logic is easy to ship invisibly — it either silently blocks a previously-working auth method, lets an incomplete config through to save, or drops a credential field on save. Worth the extraction whenever the logic has more than one or two branches.
+
+### Real interaction tests (Playwright e2e)
+
+When the thing worth testing is an actual user interaction against the real backend — staging files, watching a coverage indicator update, an upload/list/delete round trip — a render smoke test can't reach it (no event handlers fire) and a pure-function unit test doesn't exist (there's no extractable pure function, the behavior *is* the DOM + network interaction).
+
+These specs still belong co-located with the crawler, not in `app/ui/e2e/` — but a colocated file **can't** import `{ test, expect }` from `@playwright/test` directly. `@playwright/test` is only installed under `app/ui/node_modules`, and `tools/crawlers/` isn't a descendant of `app/ui`, so Node's module resolution can't reach it (the same root cause as the Docker frontend-build's `node_modules`-hoisting fix — see `app/api/Dockerfile`'s frontend-build stage comment — except there's no equivalent hoisting trick available for local/CI test runs without restructuring how the whole project installs dependencies). The workaround:
+
+- Name the file `tools/crawlers/<type>/<Name>.e2e.mjs` (the `.mjs` extension is required — Playwright's loader doesn't apply Node's "detect module syntax" auto-detection that a plain `.js` file here would need, since there's no ancestor `package.json` declaring `"type": "module"`).
+- Export `register(test, expect)` instead of importing `@playwright/test` yourself:
+
+```js
+export function register(test, expect) {
+  test.describe('My crawler wizard — something', () => {
+    test('does the thing', async ({ page }) => { /* ... */ });
+  });
+}
+```
+
+- `app/ui/e2e/crawler-plugin-tests.spec.js` is the one generic loader that discovers every `tools/crawlers/<type>/*.e2e.mjs` file and calls `register(test, expect)` on it — no crawler-specific code needed there, same discovery style as `crawler-wizard-discovery.spec.js`. You don't need to touch it when adding a new crawler's e2e spec.
+
+See `tools/crawlers/csv/ConfigWizard.e2e.mjs` for a full example (file upload step) and `app/ui/e2e/custom-connector.spec.js` for a non-colocated wizard that doesn't need this workaround (Custom Connector isn't a `tools/crawlers/<type>` plugin). Both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
+
+### Testing a `discover.js` handler
+
+Call the handler function directly with a mocked `db` and a stubbed global `fetch` — no HTTP server needed. See `app/api/src/routes/omadaDiscover.test.js`:
+
+```js
+import handler from '../../../../tools/crawlers/omada/discover.js';
+vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => '<xml/>' }));
+await handler(req, res, { db: { queryOne: vi.fn().mockResolvedValue({ config: {...} }) } });
+```
+
+This lives under `app/api/src/routes/` (API-side vitest), not co-located with the crawler folder, since it's exercising the handler the same way the generic `POST /api/admin/crawlers/:type/discover` route invokes it.
 
 ## `principalType` and `identityType` Values
 
