@@ -1,0 +1,1 @@
+- No user-facing change. Added end-to-end test coverage for the CSV crawler wizard's file upload step (staging files, the required-object coverage indicator, and the real upload/list/delete round trip against the server), closing a test gap that previously only covered the wizard's first step via a static render check.
