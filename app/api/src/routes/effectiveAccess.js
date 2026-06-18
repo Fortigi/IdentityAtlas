@@ -6,9 +6,38 @@
 // shim (slice 6); they land with those. See docs/architecture/effective-access-engine.md §12.
 
 import { Router } from 'express';
-import { effectiveAccess } from '../effectiveAccess/engine.js';
+import { effectiveAccess, effectiveAccessAtNode } from '../effectiveAccess/engine.js';
 
 const router = Router();
+
+// Shared handler for the two down-expansion forms (resource-centric and principal-centric).
+// Returns the capabilities a principal effectively holds AT a node, including those inherited
+// from ancestor nodes via Contains (P2). One row per capability.
+async function handleAtNode(nodeId, principalId, policy, res) {
+  if (!nodeId || !principalId) {
+    return res.status(400).json({ error: 'both a node id and a principal id are required' });
+  }
+  try {
+    const result = await effectiveAccessAtNode(nodeId, principalId, policy ? { policy } : {});
+    return res.json(result);
+  } catch (err) {
+    if (/Unknown resolution policy/.test(err.message)) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error('effective-access at-node failed:', err.message);
+    return res.status(500).json({ error: 'effective-access failed' });
+  }
+}
+
+// GET /api/resource/:id/effective-access?principalId=&policy=
+router.get('/resource/:id/effective-access', (req, res) =>
+  handleAtNode(String(req.params.id), req.query.principalId ? String(req.query.principalId) : '', req.query.policy ? String(req.query.policy) : '', res),
+);
+
+// GET /api/principal/:id/effective-access?node=&policy=
+router.get('/principal/:id/effective-access', (req, res) =>
+  handleAtNode(req.query.node ? String(req.query.node) : '', String(req.params.id), req.query.policy ? String(req.query.policy) : '', res),
+);
 
 // GET /api/effective-access/resolve?resourceId=&principalId=&policy=
 router.get('/effective-access/resolve', async (req, res) => {
