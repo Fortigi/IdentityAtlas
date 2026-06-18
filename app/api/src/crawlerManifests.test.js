@@ -8,7 +8,7 @@
  * every time, because clientSecret is deliberately stripped from the stored
  * config JSON — it lives only in the secrets vault.
  *
- * Uses real manifests (omada, entra-id) the same way jobs.omada.test.js
+ * Uses real manifests (omada, entra-id) the same way jobs.configValidation.test.js
  * already does for validateCrawlerConfig — no crawler-type branching in the
  * code under test, so real schemas are the simplest fixtures.
  */

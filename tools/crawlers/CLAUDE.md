@@ -153,7 +153,7 @@ If you also drop empty, header-only template files in `tools/crawlers/<type>/sch
 - Entry point filenames must be `Start-<Something>.ps1` — the dependency loader excludes `Start-*` when dot-sourcing library files.
 - Never run the `odata` type as a job — its entry point throws by design. Use it only as a `dependsOn` dependency.
 - `_syncMode` is the only reserved config key injected by the dispatcher. Don't use keys starting with `_` for your own config.
-- **Nothing specific to one crawler type belongs outside its `tools/crawlers/<type>/` folder** — not just `ConfigWizard.jsx`/`discover.js`/`Summary.jsx`/`CrawlerMeta.js`, but also that crawler's tests (unit, render-smoke, e2e, *and* the `discover.js` handler test — see JS/UI Testing below) and any helper file. If a file's name or content only makes sense for one crawler type, it goes in that crawler's folder, full stop — including when the natural-feeling place would be a shared `app/ui/e2e/`, `app/ui/src/`, or **`app/api/src/routes/`** test/helper (a `discover.js` handler test is the one that's tempting to leave in `app/api/src/routes/` next to `jobs.js`, since that's where it's *invoked* from — it still belongs in the crawler's own folder; only the generic routing-layer test for the dispatch route itself, `jobs.discover.test.js`, stays in `app/api/src/routes/`). The `crawler-manifest` CI job enforces this for migrated crawlers under `app/ui/` (fails on a stray filename containing the type name, or a hardcoded type-string literal) — it does not yet scan `app/api/src/`, so don't rely on CI to catch a misplaced `discover.test.js`; get it right the first time.
+- **Nothing specific to one crawler type belongs outside its `tools/crawlers/<type>/` folder** — not just `ConfigWizard.jsx`/`discover.js`/`Summary.jsx`/`CrawlerMeta.js`, but also that crawler's tests (unit, render-smoke, e2e, *and* the `discover.js` handler test or a test of that crawler's `configSchema` — see JS/UI Testing below) and any helper file. If a file's name or content only makes sense for one crawler type, it goes in that crawler's folder, full stop — including when the natural-feeling place would be a shared `app/ui/e2e/`, `app/ui/src/`, or **`app/api/src/routes/`** test/helper (a `discover.js` handler test, or a detailed "which fields does auth method X require" schema test, are the ones that are tempting to leave in `app/api/src/routes/` next to `jobs.js`, since that's where they're *invoked* from — they still belong in the crawler's own folder; only generic, type-agnostic engine tests — the dispatch route itself (`jobs.discover.test.js`), or `maskConfig`/manifest discovery (`jobs.configValidation.test.js`) — stay in `app/api/src/routes/`). The `crawler-manifest` CI job enforces this for migrated crawlers under `app/ui/` (fails on a stray filename containing the type name, or a hardcoded type-string literal) — it does not yet scan `app/api/src/`, so don't rely on CI to catch a misplaced test; get it right the first time.
 
 ## Integration Tests
 
@@ -279,6 +279,17 @@ await handler(req, res, { db: { queryOne: vi.fn().mockResolvedValue({ config: {.
 ```
 
 These run under the **API's** vitest, not the UI's, since they're exercising the handler the same way the generic `POST /api/admin/crawlers/:type/discover` route invokes it (no React, no DOM). `app/api/vitest.config.js`'s `test.include` adds `'../../tools/crawlers/**/discover.test.js'` alongside `src/**/*.test.js` so these are picked up without living in `src/routes/`. (They also happen to pass under the UI's vitest, since `discover.js` files have no React dependency and the UI's broader `tools/crawlers/**/*.test.{js,jsx}` glob matches them too — harmless redundant coverage, not something to route around.) See `tools/crawlers/omada/discover.test.js` or `tools/crawlers/entra-id/discover.test.js` for full examples.
+
+### Testing a crawler's `configSchema`
+
+Detailed assertions about *one* crawler's `crawler.json` schema (e.g. "OAuth2CC requires `clientSecret` and `tokenEndpoint`") test that crawler's own schema design, not the generic engine — they belong next to that crawler, not in `app/api/src/routes/jobs.js`'s tests. Name the file `tools/crawlers/<type>/configValidation.test.js` and call the shared, manifest-driven validator directly:
+
+```js
+import { validateCrawlerConfig } from '../../../app/api/src/crawlerManifests.js';
+const validateOmada = (config) => validateCrawlerConfig('omada', config);
+```
+
+Same discovery mechanism as `discover.test.js`: `app/api/vitest.config.js`'s `test.include` also lists `'../../tools/crawlers/**/configValidation.test.js'` specifically (not a blanket `**/*.test.js`, since most other `tools/crawlers/**/*.test.js` files import their `ConfigWizard.jsx` and need the React/JSX plugin app/api's vitest doesn't have). Generic, type-agnostic engine behavior (`maskConfig`, `VALID_JOB_TYPES` manifest discovery) stays in `app/api/src/routes/jobs.configValidation.test.js`. See `tools/crawlers/omada/configValidation.test.js` for a full example.
 
 ## `principalType` and `identityType` Values
 
