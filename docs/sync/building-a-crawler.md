@@ -1,4 +1,4 @@
-# Building a Custom Crawler
+# Building a Crawler
 
 Identity Atlas crawlers are self-contained folders. Drop one into `tools/crawlers/<type>/` and the system picks it up automatically — no changes to the dispatcher, module loader, or CI pipelines needed.
 
@@ -139,6 +139,17 @@ Write-CrawlerProgress 'Complete' 100
 
 ---
 
+## The Ingest API
+
+`/ingest/principals` above is one of many ingest endpoints — the full, authoritative reference is the live OpenAPI spec the running app already serves:
+
+- **Swagger UI:** `<ApiBaseUrl>/docs` (e.g. `http://localhost:3001/api/docs`) — interactive, try-it-out enabled
+- **Raw spec:** `<ApiBaseUrl>/openapi.json`
+
+As of this writing the ingest surface covers: `/ingest/systems`, `/ingest/principals`, `/ingest/resources`, `/ingest/resource-assignments`, `/ingest/resource-relationships`, `/ingest/identities`, `/ingest/identity-members`, `/ingest/contexts`, `/ingest/governance/catalogs`, `/ingest/governance/policies`, `/ingest/governance/requests`, `/ingest/governance/certifications`, and `/ingest/refresh-views` — see [Data Model](../concepts/data-model.md) and [Governance Model](../concepts/governance-model.md) for what each table represents. Don't hand-roll a request shape from memory or by copying another crawler — check the spec first (it's hand-maintained in `app/api/src/openapi.yaml`, lint-checked by Spectral in CI for internal consistency, but not auto-generated from the route handlers, so treat the live route's validation as the final authority if the two ever disagree).
+
+---
+
 ## Building on the OData Base Layer
 
 If your source exposes an OData 4.0 API, declare `"dependsOn": ["odata"]` in the manifest. The dispatcher will dot-source the OData library before your entry point runs, making `Connect-ODataAPI`, `Invoke-ODataPagedRequest`, `Invoke-ODataGetRequest`, and `Get-ODataAuthRoot` available without any imports.
@@ -201,6 +212,101 @@ Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/principals" -Method Post -Headers $he
 Every crawler should include a `Test-<Type>Crawler.ps1` file alongside its `crawler.json`. The PR integration CI discovers and runs all such files automatically — no YAML changes needed.
 
 See `tools/crawlers/CLAUDE.md` for the parameter contract, shared mock server usage, and examples (`Test-ODataCrawler.ps1`, `Test-OmadaCrawler.ps1`).
+
+---
+
+## UI Integration
+
+Everything above produces a working crawler that runs from the CLI/scheduler. To make it usable from **Admin → Crawlers → Add Crawler** with a proper type-picker entry and configuration form, drop the matching files into the same `tools/crawlers/<type>/` folder. None of this requires touching any file outside that folder — `CrawlersPage.jsx` discovers all of it automatically via `import.meta.glob`.
+
+> **This step isn't optional once your crawler is past the prototype stage.** Without a `CrawlerMeta.js`, the `crawler-manifest` CI check (`pr.yml`) fails the PR — it requires every crawler type to have one, with no exception for new types (only a fixed legacy list of crawlers still mid-migration is exempt).
+
+### `CrawlerMeta.js` — required for the type picker
+
+```js
+export default {
+  id: 'my-source',           // must match crawler.json's "type" and the folder name
+  name: 'My Source System',  // shown in the "Add Crawler" type picker
+  description: 'One-line description shown below the name in the picker',
+};
+```
+
+### `ConfigWizard.jsx` — optional step-by-step config form
+
+If omitted, the UI falls back to a generic JSON config editor — fine for a quick prototype, but a real wizard is what operators actually expect. The component receives a fixed 5-prop contract:
+
+```jsx
+import { useState } from 'react';
+// Reach back into app/ui/src/ for shared form components:
+import ScheduleEditor from '../../../app/ui/src/components/ScheduleEditor';
+
+export default function MyConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
+  // onComplete() — call with no arguments when done; the wizard saves its
+  //                own config via authFetch before calling this (POST to
+  //                create, PATCH .../crawler-configs/:id to update)
+  // onCancel()    — call when the user cancels
+  // initialConfig — the existing config object when isEdit=true
+  // isEdit        — true when editing an existing crawler
+  // authFetch     — authenticated fetch helper (same signature as window.fetch)
+  const [baseUrl, setBaseUrl] = useState(initialConfig?.baseUrl || '');
+  // ... render form fields, call authFetch(...) on save, then onComplete() ...
+}
+```
+
+The wizard **owns saving its own config** — `CrawlersPage.jsx` never builds the request body for a migrated crawler. See `tools/crawlers/omada/ConfigWizard.jsx` or `tools/crawlers/midpoint/ConfigWizard.jsx` for full multi-step examples (connection → credentials → sync options → schedule), including the credential-field round-tripping rule: only send a secret field when it's non-blank, so leaving it blank on edit means "keep the stored value."
+
+### `Summary.jsx` — optional config-card summary panel
+
+Renders crawler-specific details (e.g. base URL, sync options) inside the card on the "Configured Crawlers" list:
+
+```jsx
+export default function Summary({ cfg, config }) {
+  // cfg    — config.config, the crawler's own config blob — what most summaries need
+  // config — the full config row, for the rare case something outside .config is needed
+  return <div className="text-sm text-gray-600 dark:text-gray-400">{cfg.baseUrl}</div>;
+}
+```
+
+Don't render `lastRunAt`/`lastRunStatus` — the card already shows those generically for every crawler type below the summary panel.
+
+### `discover.js` — optional live-discovery endpoint
+
+If your wizard needs to validate credentials or populate a dropdown from the live source system (entity sets, role archetypes, available attributes, …), drop a `discover.js` and the API exposes `POST /api/admin/crawlers/<type>/discover` automatically — no route changes needed:
+
+```js
+export default async function handler(req, res, { db, getConfigSecret }) {
+  // req.body — whatever the wizard sent (credentials, or { configId } in edit
+  //            mode when the user hasn't re-entered a secret)
+  // getConfigSecret(configId) — resolves a vaulted secret in edit mode; never
+  //            trust req.body.clientSecret alone, it's stripped from storage
+  //            on every save (see app/api/CLAUDE.md re: secrets/vault.js)
+  // db — the pg pool (via getPool())
+  res.json({ /* whatever your wizard expects back */ });
+}
+```
+
+See `tools/crawlers/omada/discover.js` and `tools/crawlers/midpoint/discover.js` for real examples, and `app/api/src/routes/omadaDiscover.test.js` for how to test one (mock `fetch` + `getConfigSecret`, no HTTP server needed).
+
+### File uploads — only if operators need to attach files
+
+CSV-style crawlers that need the operator to upload data files (rather than pull from a live API) set two manifest fields and drop template files:
+
+```json
+{
+  "supportsFileUploads": true,
+  "uploadFileExtensions": [".csv"]
+}
+```
+
+This unlocks the generic `GET/POST /api/admin/crawler-configs/:configId/files` + `DELETE .../files/:filename` routes — files land in `/data/uploads/<type>-{configId}/`, a Docker volume shared with the worker. Drop empty, header-only template files in `tools/crawlers/<type>/schema/*.csv` and they're served generically too, via `GET /api/admin/crawlers/<type>/upload-schema`. See `tools/crawlers/CLAUDE.md` → "File uploads" for the full contract and the optional `<type>-slots.json` label/required-annotation file.
+
+### Testing the UI-side files
+
+This is a separate set of conventions from the PowerShell integration test above — co-located `vitest`/Playwright tests, not Pester. See `tools/crawlers/CLAUDE.md` → "JS/UI Testing" for the full guide: the render-smoke-test pattern (and why it can't catch interaction bugs), when to extract wizard logic into pure exported functions so it's unit-testable, the `*.e2e.mjs` + `register(test, expect)` pattern for real Playwright interaction tests, and how to test a `discover.js` handler.
+
+### One rule that applies to everything above
+
+**Nothing specific to your crawler type belongs outside its `tools/crawlers/<type>/` folder** — including its tests. A file named after your crawler type (or one that hardcodes its type string) anywhere under `app/ui/` will fail the `crawler-manifest` CI check once your crawler is past `PENDING_MIGRATION`. See `tools/crawlers/CLAUDE.md` → Rules.
 
 ---
 
