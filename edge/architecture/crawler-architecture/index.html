@@ -1741,6 +1741,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ui-wizard-plugins-and-production-build-pipelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UI Wizard Plugins and Production Build Pipelines
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2925,6 +2936,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ui-wizard-plugins-and-production-build-pipelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UI Wizard Plugins and Production Build Pipelines
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3177,6 +3199,36 @@
 <li>The temp config file is deleted.</li>
 </ol>
 <p>The API (<code>routes/jobs.js</code>) reads the same manifests at startup to populate <code>VALID_JOB_TYPES</code> and to validate configs via <code>validateCrawlerConfig(type, config)</code> before a job is queued.</p>
+<hr />
+<h2 id="ui-wizard-plugins-and-production-build-pipelines">UI Wizard Plugins and Production Build Pipelines<a class="headerlink" href="#ui-wizard-plugins-and-production-build-pipelines" title="Permanent link">&para;</a></h2>
+<p>A crawler's configuration wizard (<code>tools/crawlers/&lt;type&gt;/ConfigWizard.jsx</code> + <code>CrawlerMeta.js</code>) is discovered by <code>CrawlersPage.jsx</code> via a repo-root-relative <code>import.meta.glob('../../../../tools/crawlers/*/ConfigWizard.jsx')</code> — see <code>app/ui/CLAUDE.md</code> → "Crawler Wizard Plugin System" for how that works in dev. The same auto-discovery is what makes wizards drop-in: no edits anywhere outside the crawler's own folder.</p>
+<p>That auto-discovery is also exactly what breaks if a <em>production build pipeline</em> doesn't lay files out the way the real repo does, because <code>import.meta.glob</code> is resolved against the literal filesystem at build time, not at dev-server time. Two things can go wrong independently:</p>
+<ol>
+<li><strong>Silent zero matches.</strong> If <code>tools/crawlers/</code> isn't present at all in the build's working copy, the glob just matches nothing — no error, the build succeeds, the wizard is simply missing from the shipped app. This is what broke the Docker image for the midPoint wizard (PR #342): the frontend-build stage only ever copied <code>app/ui/</code>.</li>
+<li><strong>Hard resolution failure.</strong> <code>tools/crawlers/*/ConfigWizard.jsx</code> files import <code>react</code> (a bare specifier) and may import shared <code>app/ui/src/components/*</code> via a relative path back into app/ui (e.g. midpoint's wizard imports <code>Select</code>, <code>Combobox</code>, <code>Stepper</code>, <code>ScheduleEditor</code> this way). Both kinds of import only resolve if <code>tools/crawlers</code> sits at its <em>real relative position</em> next to <code>app/ui</code> — as a true sibling, sharing a <code>node_modules</code> that's an ancestor of both. Building straight from <code>app/ui/</code> alone can't provide that, since <code>tools/crawlers</code> isn't a descendant of <code>app/ui</code>.</li>
+</ol>
+<p><strong>The fix, used identically in every pipeline that bundles the UI for production:</strong> stage <code>app/ui/</code> and <code>tools/crawlers/</code> as siblings under one throwaway root, with <code>node_modules</code> installed at that shared root (not nested under <code>app/ui/</code>), then build from inside the mirror.</p>
+<table>
+<thead>
+<tr>
+<th>Pipeline</th>
+<th>Where this lives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docker image</td>
+<td><code>app/api/Dockerfile</code>'s <code>frontend-build</code> stage — <code>WORKDIR /build</code>, <code>COPY app/ui/ ./app/ui/</code>, <code>COPY tools/crawlers ./tools/crawlers</code>, <code>npm --prefix app/ui run build</code></td>
+</tr>
+<tr>
+<td>Portable Windows build (node-launcher)</td>
+<td><code>app/desktop/scripts/build-node-launcher.mjs</code> — stages an equivalent <code>app/ui</code> + <code>tools/crawlers</code> mirror under <code>dist-node-launcher/ui-build/</code> before building</td>
+</tr>
+</tbody>
+</table>
+<p>An alias-based alternative (point <code>import.meta.glob</code> and the wizards' <code>react</code> import at a vite <code>resolve.alias</code> that's repointed per build environment) was considered and rejected: it only protects the one call site you remember to alias, and silently regresses the moment a wizard adds a new relative import (like the <code>Select</code>/<code>Combobox</code> ones above) that nobody thought to route through the alias. Mirroring the real layout protects <em>any</em> relative path a wizard author writes, by construction, with nothing to remember.</p>
+<p><strong>This bit us twice.</strong> The Docker case (#342) was caught by a Playwright e2e test against a real Docker build (<code>app/ui/e2e/crawler-wizard-discovery.spec.js</code>). The node-launcher case had no equivalent check and sat broken on <code>main</code> from the moment the first wizard (midpoint, #336) merged until it was caught by inspection — not by CI — because <code>build-node-launcher.mjs</code> only ever runs on a beta/release cut, not on every PR. The guardrail now: <code>build-node-launcher.mjs --ui-only</code> runs on every PR (see <code>pr.yml</code>'s <code>node-launcher-ui-build</code> job) and asserts every crawler with a wizard actually appears in the built bundle, not just that the build exited 0.</p>
+<p><strong>If you add a third UI-build pipeline:</strong> give it the same sibling-mirror treatment up front, and don't rely on <code>unit-ui</code> / <code>lint-js</code> to catch a regression here — those test source files, not the production build output. Add a CI job that actually runs the new pipeline's build, the same way <code>node-launcher-ui-build</code> does.</p>
 <hr />
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
