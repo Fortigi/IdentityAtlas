@@ -1,2 +1,0 @@
-- Fixed: crawler configuration wizards (e.g. the midPoint wizard) and their type-picker entries were silently missing from the production Docker image — the frontend build stage didn't include the `tools/crawlers` folder that the wizard plugin system discovers wizards from. They now appear correctly in the deployed app, not just in local dev.
-- Added an automated check that catches this exact class of regression going forward: an E2E test that dynamically discovers every crawler with a UI wizard and verifies it actually appears in the "Add Crawler" list of the running app.
