@@ -248,7 +248,24 @@ A regression in this kind of logic is easy to ship invisibly — it either silen
 
 ### Real interaction tests (Playwright e2e)
 
-When the thing worth testing is an actual user interaction against the real backend — staging files, watching a coverage indicator update, an upload/list/delete round trip — a render smoke test can't reach it (no event handlers fire) and a pure-function unit test doesn't exist (there's no extractable pure function, the behavior *is* the DOM + network interaction). Reach for a Playwright spec under `app/ui/e2e/` instead. See `app/ui/e2e/csv-crawler-wizard.spec.js` (file upload step) and `app/ui/e2e/custom-connector.spec.js` (full wizard flow + real config persisted) for the pattern — both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
+When the thing worth testing is an actual user interaction against the real backend — staging files, watching a coverage indicator update, an upload/list/delete round trip — a render smoke test can't reach it (no event handlers fire) and a pure-function unit test doesn't exist (there's no extractable pure function, the behavior *is* the DOM + network interaction).
+
+These specs still belong co-located with the crawler, not in `app/ui/e2e/` — but a colocated file **can't** import `{ test, expect }` from `@playwright/test` directly. `@playwright/test` is only installed under `app/ui/node_modules`, and `tools/crawlers/` isn't a descendant of `app/ui`, so Node's module resolution can't reach it (the same root cause as the Docker frontend-build's `node_modules`-hoisting fix — see `app/api/Dockerfile`'s frontend-build stage comment — except there's no equivalent hoisting trick available for local/CI test runs without restructuring how the whole project installs dependencies). The workaround:
+
+- Name the file `tools/crawlers/<type>/<Name>.e2e.mjs` (the `.mjs` extension is required — Playwright's loader doesn't apply Node's "detect module syntax" auto-detection that a plain `.js` file here would need, since there's no ancestor `package.json` declaring `"type": "module"`).
+- Export `register(test, expect)` instead of importing `@playwright/test` yourself:
+
+```js
+export function register(test, expect) {
+  test.describe('My crawler wizard — something', () => {
+    test('does the thing', async ({ page }) => { /* ... */ });
+  });
+}
+```
+
+- `app/ui/e2e/crawler-plugin-tests.spec.js` is the one generic loader that discovers every `tools/crawlers/<type>/*.e2e.mjs` file and calls `register(test, expect)` on it — no crawler-specific code needed there, same discovery style as `crawler-wizard-discovery.spec.js`. You don't need to touch it when adding a new crawler's e2e spec.
+
+See `tools/crawlers/csv/ConfigWizard.e2e.mjs` for a full example (file upload step) and `app/ui/e2e/custom-connector.spec.js` for a non-colocated wizard that doesn't need this workaround (Custom Connector isn't a `tools/crawlers/<type>` plugin). Both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
 
 ### Testing a `discover.js` handler
 
