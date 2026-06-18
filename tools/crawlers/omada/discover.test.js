@@ -1,11 +1,14 @@
 /**
- * Tests for the Omada live-discovery handler (tools/crawlers/omada/discover.js),
- * loaded dynamically by POST /api/admin/crawlers/omada/discover (see
- * jobs.discover.test.js for the generic routing-layer tests). These tests call
- * the handler directly with a mocked db and a stubbed global fetch.
+ * Tests for the Omada live-discovery handler (./discover.js), loaded
+ * dynamically by POST /api/admin/crawlers/omada/discover (see
+ * app/api/src/routes/jobs.discover.test.js for the generic routing-layer
+ * tests). These tests call the handler directly with a mocked db and a
+ * stubbed global fetch. Runs under the API's vitest via
+ * app/api/vitest.config.js's include glob — see tools/crawlers/CLAUDE.md →
+ * "JS/UI Testing" → "Testing a discover.js handler".
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import handler from '../../../../tools/crawlers/omada/discover.js';
+import handler from './discover.js';
 
 function makeReqRes(body) {
   const req = { body };

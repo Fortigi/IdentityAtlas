@@ -285,7 +285,7 @@ export default async function handler(req, res, { db, getConfigSecret }) {
 }
 ```
 
-See `tools/crawlers/omada/discover.js` and `tools/crawlers/midpoint/discover.js` for real examples, and `app/api/src/routes/omadaDiscover.test.js` for how to test one (mock `fetch` + `getConfigSecret`, no HTTP server needed).
+See `tools/crawlers/omada/discover.js` and `tools/crawlers/midpoint/discover.js` for real examples, and `tools/crawlers/omada/discover.test.js` for how to test one (mock `fetch` + `getConfigSecret`, no HTTP server needed — co-located with the handler, not under `app/api/src/routes/`; the API's `vitest.config.js` is what picks it up).
 
 ### File uploads — only if operators need to attach files
 

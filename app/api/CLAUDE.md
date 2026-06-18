@@ -83,3 +83,5 @@ export default async function handler(req, res, { db, getConfigSecret }) { ... }
 ```
 
 Types not in `VALID_JOB_TYPES` or without a `discover.js` return 404. The type slug is validated against `/^[a-z][a-z0-9-]*$/` before the filesystem lookup to prevent path traversal.
+
+**Testing a `discover.js` handler:** the test file does **not** live in `routes/` alongside `jobs.js` — it's co-located with the handler at `tools/crawlers/<type>/discover.test.js` (nothing crawler-specific belongs outside its own folder; see `tools/crawlers/CLAUDE.md` → Rules). `vitest.config.js`'s `test.include` adds `'../../tools/crawlers/**/discover.test.js'` alongside `src/**/*.test.js` so `npm test` here still picks these up. See `tools/crawlers/omada/discover.test.js` or `tools/crawlers/entra-id/discover.test.js`.

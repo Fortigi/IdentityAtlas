@@ -4,7 +4,7 @@
  *   - validateCrawlerConfig('omada', ...): covers all six auth methods + missing required fields
  *
  * The Omada live-discovery handler itself (tools/crawlers/omada/discover.js)
- * is tested separately in omadaDiscover.test.js.
+ * is tested separately in tools/crawlers/omada/discover.test.js.
  */
 import { describe, it, expect } from 'vitest';
 import { maskConfig, validateCrawlerConfig, VALID_JOB_TYPES } from './jobs.js';

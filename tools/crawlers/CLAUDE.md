@@ -153,7 +153,7 @@ If you also drop empty, header-only template files in `tools/crawlers/<type>/sch
 - Entry point filenames must be `Start-<Something>.ps1` — the dependency loader excludes `Start-*` when dot-sourcing library files.
 - Never run the `odata` type as a job — its entry point throws by design. Use it only as a `dependsOn` dependency.
 - `_syncMode` is the only reserved config key injected by the dispatcher. Don't use keys starting with `_` for your own config.
-- **Nothing specific to one crawler type belongs outside its `tools/crawlers/<type>/` folder** — not just `ConfigWizard.jsx`/`discover.js`/`Summary.jsx`/`CrawlerMeta.js`, but also that crawler's tests (unit, render-smoke, and e2e — see JS/UI Testing below) and any helper file. If a file's name or content only makes sense for one crawler type, it goes in that crawler's folder, full stop — including when the natural-feeling place would be a shared `app/ui/e2e/` or `app/ui/src/` test/helper. The `crawler-manifest` CI job enforces this for migrated crawlers (fails on a stray filename containing the type name, or a hardcoded type-string literal, anywhere under `app/ui/`) — but don't rely on CI to catch it; get it right the first time.
+- **Nothing specific to one crawler type belongs outside its `tools/crawlers/<type>/` folder** — not just `ConfigWizard.jsx`/`discover.js`/`Summary.jsx`/`CrawlerMeta.js`, but also that crawler's tests (unit, render-smoke, e2e, *and* the `discover.js` handler test — see JS/UI Testing below) and any helper file. If a file's name or content only makes sense for one crawler type, it goes in that crawler's folder, full stop — including when the natural-feeling place would be a shared `app/ui/e2e/`, `app/ui/src/`, or **`app/api/src/routes/`** test/helper (a `discover.js` handler test is the one that's tempting to leave in `app/api/src/routes/` next to `jobs.js`, since that's where it's *invoked* from — it still belongs in the crawler's own folder; only the generic routing-layer test for the dispatch route itself, `jobs.discover.test.js`, stays in `app/api/src/routes/`). The `crawler-manifest` CI job enforces this for migrated crawlers under `app/ui/` (fails on a stray filename containing the type name, or a hardcoded type-string literal) — it does not yet scan `app/api/src/`, so don't rely on CI to catch a misplaced `discover.test.js`; get it right the first time.
 
 ## Integration Tests
 
@@ -216,7 +216,7 @@ The PowerShell side has the `Test-<Type>Crawler.ps1` contract above. The `Config
 
 ### Where the tests live and run
 
-Co-locate test files next to the plugin: `tools/crawlers/<type>/*.test.{js,jsx}`. They run under the **UI's** vitest, not the API's — `app/ui/vite.config.js`'s `test.include` explicitly adds `'../../tools/crawlers/**/*.test.{js,jsx}'` alongside `src/**/*.test.{js,jsx}`. A test file placed here without that glob entry would simply never execute, silently — there's no error, the suite just doesn't grow. Run them from `app/ui`:
+Co-locate test files next to the plugin: `tools/crawlers/<type>/*.test.{js,jsx}`. Most of these (render smoke tests, pure-function unit tests) run under the **UI's** vitest, not the API's — `app/ui/vite.config.js`'s `test.include` explicitly adds `'../../tools/crawlers/**/*.test.{js,jsx}'` alongside `src/**/*.test.{js,jsx}`. A test file placed here without that glob entry would simply never execute, silently — there's no error, the suite just doesn't grow. Run them from `app/ui`:
 
 ```bash
 cd app/ui && npx vitest run ../../tools/crawlers/<type>
@@ -270,15 +270,15 @@ See `tools/crawlers/csv/ConfigWizard.e2e.mjs` for a full example (file upload st
 
 ### Testing a `discover.js` handler
 
-Call the handler function directly with a mocked `db` and a stubbed global `fetch` — no HTTP server needed. See `app/api/src/routes/omadaDiscover.test.js`:
+Call the handler function directly with a mocked `db` and a stubbed global `fetch` — no HTTP server needed. Name the file `tools/crawlers/<type>/discover.test.js` (co-located, like every other crawler test — never under `app/api/src/routes/`) and import the handler with a plain relative path:
 
 ```js
-import handler from '../../../../tools/crawlers/omada/discover.js';
+import handler from './discover.js';
 vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => '<xml/>' }));
 await handler(req, res, { db: { queryOne: vi.fn().mockResolvedValue({ config: {...} }) } });
 ```
 
-This lives under `app/api/src/routes/` (API-side vitest), not co-located with the crawler folder, since it's exercising the handler the same way the generic `POST /api/admin/crawlers/:type/discover` route invokes it.
+These run under the **API's** vitest, not the UI's, since they're exercising the handler the same way the generic `POST /api/admin/crawlers/:type/discover` route invokes it (no React, no DOM). `app/api/vitest.config.js`'s `test.include` adds `'../../tools/crawlers/**/discover.test.js'` alongside `src/**/*.test.js` so these are picked up without living in `src/routes/`. (They also happen to pass under the UI's vitest, since `discover.js` files have no React dependency and the UI's broader `tools/crawlers/**/*.test.{js,jsx}` glob matches them too — harmless redundant coverage, not something to route around.) See `tools/crawlers/omada/discover.test.js` or `tools/crawlers/entra-id/discover.test.js` for full examples.
 
 ## `principalType` and `identityType` Values
 
