@@ -21,7 +21,7 @@ import { cpSync, mkdirSync, existsSync, rmSync, copyFileSync,
          unlinkSync }                                               from 'fs';
 import { createBrotliDecompress }                                  from 'zlib';
 import { pipeline }                                                from 'stream/promises';
-import { join, resolve, dirname }                                  from 'path';
+import { join, resolve, dirname, sep }                              from 'path';
 import { fileURLToPath }                                           from 'url';
 
 const __dirname   = dirname(fileURLToPath(import.meta.url));
@@ -63,8 +63,28 @@ run('npm install --prefer-offline', { cwd: API_ROOT });
 if (!SKIP_UI) {
   console.log('\n[2/8] Building React UI...');
   const UI_ROOT = join(REPO_ROOT, 'app', 'ui');
-  run('npm install --prefer-offline', { cwd: UI_ROOT });
-  run('npm run build', { cwd: UI_ROOT });
+  // CrawlersPage.jsx discovers crawler wizards via a repo-root-relative
+  // import.meta.glob('../../../../tools/crawlers/*/ConfigWizard.jsx'), and
+  // wizards like midpoint's import shared app/ui/src components the same way
+  // (e.g. '../../../app/ui/src/components/inputs/Select') — both assume
+  // tools/crawlers sits at its real position relative to app/ui. Building
+  // straight from UI_ROOT can't satisfy that *and* give those wizard files a
+  // node_modules ancestor (tools/crawlers isn't a descendant of app/ui), so —
+  // same fix as app/api/Dockerfile's frontend-build stage — stage app/ui/ and
+  // tools/crawlers/ as siblings under one root with node_modules installed
+  // there too, then build from inside that mirror.
+  const UI_BUILD_ROOT = join(DIST_DIR, 'ui-build');
+  const UI_BUILD_APP_UI = join(UI_BUILD_ROOT, 'app', 'ui');
+  rmSync(UI_BUILD_ROOT, { recursive: true, force: true });
+  mkdirSync(UI_BUILD_ROOT, { recursive: true });
+  copyFileSync(join(UI_ROOT, 'package.json'), join(UI_BUILD_ROOT, 'package.json'));
+  copyFileSync(join(UI_ROOT, 'package-lock.json'), join(UI_BUILD_ROOT, 'package-lock.json'));
+  run('npm install --prefer-offline', { cwd: UI_BUILD_ROOT });
+  cpSync(UI_ROOT, UI_BUILD_APP_UI, { recursive: true, filter: src => !src.includes(`node_modules${sep}`) && !src.endsWith('node_modules') });
+  cpSync(join(REPO_ROOT, 'tools', 'crawlers'), join(UI_BUILD_ROOT, 'tools', 'crawlers'), { recursive: true });
+  run('npm --prefix app/ui run build', { cwd: UI_BUILD_ROOT });
+  cpSync(join(UI_BUILD_APP_UI, 'dist'), join(UI_ROOT, 'dist'), { recursive: true });
+  rmSync(UI_BUILD_ROOT, { recursive: true, force: true });
 } else {
   console.log('\n[2/8] Skipping UI build (--skip-ui-build)');
 }
