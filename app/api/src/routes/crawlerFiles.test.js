@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import crawlerFilesRouter, { getUploadFolderPath } from './crawlerFiles.js';
+import crawlerFilesRouter, { getUploadFolderPath, mimeTypeFor } from './crawlerFiles.js';
 
 // ─── Shared mocks ─────────────────────────────────────────────────────────────
 
@@ -103,6 +103,28 @@ describe('getUploadFolderPath', () => {
   });
 });
 
+// ─── mimeTypeFor — pure function, no I/O ───────────────────────────────────────
+// Not hardcoded to .csv — derives the type from whatever extension a future
+// crawler's template files use, falling back to a generic binary type for
+// anything unrecognized rather than mislabeling it as CSV.
+
+describe('mimeTypeFor', () => {
+  it('maps known extensions to their content type', () => {
+    expect(mimeTypeFor('Users.csv')).toBe('text/csv');
+    expect(mimeTypeFor('data.json')).toBe('application/json');
+    expect(mimeTypeFor('export.xml')).toBe('application/xml');
+    expect(mimeTypeFor('notes.txt')).toBe('text/plain');
+  });
+
+  it('is case-insensitive on the extension', () => {
+    expect(mimeTypeFor('USERS.CSV')).toBe('text/csv');
+  });
+
+  it('falls back to a generic binary type for an unrecognized extension', () => {
+    expect(mimeTypeFor('Template.xlsx')).toBe('application/octet-stream');
+  });
+});
+
 // ─── Upload schema templates ────────────────────────────────────────────────────
 
 describe('GET /admin/crawlers/:type/upload-schema', () => {
@@ -121,11 +143,13 @@ describe('GET /admin/crawlers/:type/upload-schema', () => {
     }
   });
 
-  it('serves a single real template file by name', async () => {
+  it('serves a single real template file by name with a content-type derived from its extension', async () => {
     const res = await request(makeApp()).get('/api/admin/crawlers/csv/upload-schema/ContextMembers.csv');
     expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/csv/);
     expect(res.text.trim()).toBe('ContextExternalId;MemberExternalId;MemberType');
   });
+
 
   it('404s for an unknown template filename under a real type', async () => {
     const res = await request(makeApp()).get('/api/admin/crawlers/csv/upload-schema/NotARealFile.csv');

@@ -195,7 +195,7 @@ export function getUploadFolderPath(crawlerType, configId) {
 
 // ─── Upload schema templates ─────────────────────────────────────────────────
 // GET /api/admin/crawlers/:type/upload-schema — serves a crawler's empty
-// template files (tools/crawlers/<type>/schema/*.csv) as a single concatenated
+// template files (tools/crawlers/<type>/schema/*) as a single concatenated
 // response. The UI's "Download templates" button uses this. Mirrors the
 // discover.js loading pattern: no core file lists which crawlers have
 // templates, a missing/empty schema/ dir just 404s.
@@ -215,27 +215,59 @@ function isValidType(type) {
   return /^[a-z][a-z0-9-]*$/.test(type) && VALID_JOB_TYPES.includes(type);
 }
 
+// Which extensions a crawler's schema/ folder may contain — same manifest
+// field the upload multer filter uses, so a crawler only has to declare its
+// format once. Falls back to ['.csv'] for crawlers that don't declare it
+// (today, that's just csv itself).
+function schemaExtensionsFor(type) {
+  return _crawlerManifests[type]?.uploadFileExtensions || ['.csv'];
+}
+
+// Generic extension -> MIME type lookup for serving a single template file
+// as itself, not assuming every crawler's templates are CSV. Unknown
+// extensions fall back to a generic binary type rather than guessing.
+const MIME_BY_EXTENSION = {
+  '.csv': 'text/csv',
+  '.tsv': 'text/tab-separated-values',
+  '.txt': 'text/plain',
+  '.json': 'application/json',
+  '.xml': 'application/xml',
+};
+export function mimeTypeFor(filename) {
+  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+  return MIME_BY_EXTENSION[ext] || 'application/octet-stream';
+}
+
 router.get('/admin/crawlers/:type/upload-schema', gate, (req, res) => {
   const { type } = req.params;
   if (!isValidType(type)) return res.status(404).json({ error: `Unknown crawler type: ${type}` });
 
   const schemaDir = join(CRAWLER_MANIFESTS_DIR, type, 'schema');
+  const extensions = schemaExtensionsFor(type);
   let files;
   try {
-    files = readdirSync(schemaDir).filter(f => f.toLowerCase().endsWith('.csv')).sort();
+    files = readdirSync(schemaDir)
+      .filter(f => extensions.some(ext => f.toLowerCase().endsWith(ext.toLowerCase())))
+      .sort();
   } catch {
     return res.status(404).json({ error: `Crawler '${type}' has no upload schema` });
   }
   if (files.length === 0) return res.status(404).json({ error: `Crawler '${type}' has no upload schema` });
 
+  // A human-readable digest of all templates concatenated as text — only
+  // meaningful for text-based template formats (true of every crawler with
+  // schema files today). Each template is expected to be header-only (no
+  // data rows), so including the whole trimmed file rather than "just the
+  // first line" is both more correct for a hypothetical multi-line template
+  // and produces identical output for today's single-line CSV templates.
   const slots = readSlotsManifest(type) || [];
   const lines = [];
   for (const file of files) {
     const slot = slots.find(s => s.file.toLowerCase() === file.toLowerCase());
     const label = slot ? ` — ${slot.label}${slot.required ? ' (REQUIRED)' : ' (optional)'}` : '';
-    const header = readFileSync(join(schemaDir, file), 'utf8').split('\n')[0].trim();
+    const content = readFileSync(join(schemaDir, file), 'utf8').trim();
     lines.push(`# ${file}${label}`);
-    lines.push(header);
+    lines.push(content);
     lines.push('');
   }
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -249,15 +281,17 @@ router.get('/admin/crawlers/:type/upload-schema/:filename', gate, (req, res) => 
 
   const filename = basename(req.params.filename);
   const filePath = join(CRAWLER_MANIFESTS_DIR, type, 'schema', filename);
-  let header;
+  let content;
   try {
-    header = readFileSync(filePath, 'utf8').split('\n')[0].trim();
+    // Raw bytes, no text decoding — correct for any template format, not
+    // just line-delimited text ones.
+    content = readFileSync(filePath);
   } catch {
     return res.status(404).json({ error: 'Unknown template file' });
   }
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Type', mimeTypeFor(filename));
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.send(header + '\n');
+  res.send(content);
 });
 
 export default router;
