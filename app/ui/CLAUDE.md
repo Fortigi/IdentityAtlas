@@ -113,6 +113,8 @@ function getCrawlerWizard(crawlerType) {
 
 **Vite dev server:** `vite.config.js` sets `server.fs.allow` to include the repo root so wizard components under `tools/crawlers/` are served correctly during development. This is already configured — don't remove it.
 
+**Production builds:** this glob is resolved against the literal filesystem at build time, so any pipeline that bundles the UI for production (Docker, the portable node-launcher build, ...) must stage `tools/crawlers/` as a true sibling of `app/ui/` with a shared `node_modules` — not just copy `app/ui/`. See `docs/architecture/crawler-architecture.md` → "UI Wizard Plugins and Production Build Pipelines" for why, and for the list of pipelines that already do this correctly.
+
 **Wizard component contract:** see `tools/crawlers/CLAUDE.md` → UI Integration for the props interface.
 
 ## Component Structure
