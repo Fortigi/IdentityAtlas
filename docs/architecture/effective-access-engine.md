@@ -417,9 +417,14 @@ The counter lives in the existing `WorkerConfig` table as a single row:
 `WorkerConfig('syncVersion', '0')`, incremented atomically at sync completion. Using the sync
 log max-id would advance the cache key as soon as a sync begins, causing requests during the
 sync window to cache partially-updated data. The `WorkerConfig` counter advances only after
-all sync writes are durable. **Who increments it:** the crawler (PowerShell), via a separate
-`UPDATE "WorkerConfig" SET "configValue" = ("configValue"::int + 1) WHERE "configKey" =
-'syncVersion'` committed immediately after all sync data is durable — not the API.
+all sync writes are durable. **Who increments it:** the **API**, not the crawler. Crawlers
+have no database connection — per the architecture, all persistence flows through the Node.js
+API. The crawler already signals end-of-sync by calling `POST /api/ingest/refresh-views` (and
+`POST /api/ingest/sync-log`) *after* all ingest batches are committed; the API increments the
+counter inside that handler (`UPDATE "WorkerConfig" SET "configValue" = ("configValue"::int +
+1) WHERE "configKey" = 'syncVersion'`). This advances the version only after all sync writes
+are durable — preserving the correctness rationale above — while keeping the bump API-mediated
+rather than issued as raw SQL from the worker.
 `dataVersion = 0` (no syncs completed yet on a fresh install) causes requests to run uncached,
 which is correct.
 
@@ -515,7 +520,7 @@ This matches the reasoning in §15.1 (hot-path columns must be indexable).
 | # | Question | Decision | Rationale |
 |---|---|---|---|
 | 15.1 | `effect` / `propagationScope` storage | **First-class columns + migration** | Read in the innermost resolution loop; must be indexable; JSONB can't be cleanly indexed and pays extraction on every resolve. |
-| 15.2 | Cache strategy | **In-memory LRU (`lru-cache`), `dataVersion`-keyed; `dataVersion` = `WorkerConfig('syncVersion')` counter incremented by crawler at sync completion** | Using `MAX(GraphSyncLog.id)` advances the cache key as soon as a sync begins, causing requests to cache partially-updated data for the duration of the sync. `WorkerConfig` already exists (migration 001); reusing it adds no new schema object. Redis only on scale-out. |
+| 15.2 | Cache strategy | **In-memory LRU (`lru-cache`), `dataVersion`-keyed; `dataVersion` = `WorkerConfig('syncVersion')` counter incremented by the API in the end-of-sync handler (`/ingest/refresh-views`), not by the crawler** | Using `MAX(GraphSyncLog.id)` advances the cache key as soon as a sync begins, causing requests to cache partially-updated data for the duration of the sync. Crawlers have no DB connection (all persistence is API-mediated), so the API bumps the counter when the crawler calls the end-of-sync endpoint — after all writes are durable. `WorkerConfig` already exists (migration 001); reusing it adds no new schema object. Redis only on scale-out. |
 | 15.3 | Deny vs base grid | **`contested` flag + resolve-on-demand** | Keeps the matview a fast declared projection; monotonic sources pay nothing; the grid never lies. |
 | 15.4 | DAG conflict default | **Policy-owned**; deny-wins for deny policies, union for additive | Conflict semantics belong to the source's policy, not the traversal. |
 | 15.5 | Synthesized-resource detail pages | **Matrix-only in v1** | Virtual rows carry a path but no drill-through; detail pages operate on stored resources. Revisit on demand. |
@@ -679,7 +684,7 @@ Please confirm agreement (or record objections) on each:
 - [ ] **`capabilityId` generated column** (§13.6, §15.9) — added to migration scope.
 - [ ] **DAG inheritance-break semantics** (§7) — follow all unblocked paths; confirm this matches any DAG-native source planned for the future.
 - [ ] **`holders(P)` cap** (§7, §13.3, §15.11) — `maxHoldersPerExpansion=500`, emits `truncated:{holders:N}`.
-- [ ] **Sync version counter** (§13.2, §15.2) — `WorkerConfig('syncVersion')` counter incremented by crawler at sync completion; not `MAX(GraphSyncLog.id)`.
+- [ ] **Sync version counter** (§13.2, §15.2) — `WorkerConfig('syncVersion')` counter incremented by the **API** in the end-of-sync handler (crawler calls it; no raw SQL from the worker); not `MAX(GraphSyncLog.id)`.
 - [ ] **`contested` column timing** (§13.5, §15.10) — added in P2 as `DEFAULT FALSE`; populated in P3; P3 readiness gate enforced.
 - [ ] **Shim shape contract** (§12) — golden snapshots captured from original endpoint before shim is written; shape transform specified.
 - [ ] **Pipe-free constraint** (§11) — `capabilityId` must be pipe-free; crawler-author guide to enforce.
@@ -703,7 +708,7 @@ _Approved by: ____________________  Date: ___________
 
 **Key decisions locked in Eng Review:**
 - D1: SHA256-UUID for capability-resource ids (no third-party dep; native in Node.js + PowerShell)
-- D2: `WorkerConfig('syncVersion')` counter (reuses existing table; incremented by crawler at sync completion)
+- D2: `WorkerConfig('syncVersion')` counter (reuses existing table; incremented by the API in the end-of-sync handler — crawler triggers it via `/ingest/refresh-views`, no raw SQL from the worker)
 - D3: `lru-cache` npm package for in-process LRU
 - D4: Explicit colon-delimited cache key string
 - D5: All results sorted `(nodeId, principalId, capabilityId) ASC`; truncated subsets also by `displayName`
