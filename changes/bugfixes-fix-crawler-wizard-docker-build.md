@@ -1,0 +1,1 @@
+- Fixed: crawler configuration wizards (e.g. the midPoint wizard) and their type-picker entries were silently missing from the production Docker image — the frontend build stage didn't include the `tools/crawlers` folder that the wizard plugin system discovers wizards from. They now appear correctly in the deployed app, not just in local dev.
