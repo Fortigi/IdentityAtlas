@@ -12,7 +12,6 @@ import { fileURLToPath } from 'url';
 import Ajv from 'ajv';
 import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
 import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, getConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
-import { fetchOmadaMetadata } from '../omada/metadataProxy.js';
 
 const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
 // Pre-resolve once so path-containment checks can use a stable absolute base.
@@ -1076,85 +1075,6 @@ router.get('/admin/status', gate, async (req, res) => {
   } catch (err) {
     console.error('Error fetching status:', err.message);
     res.status(500).json({ error: 'Failed to fetch status' });
-  }
-});
-
-// POST /api/admin/omada/validate-metadata — fetch $metadata from the Omada server
-// and return the available EntitySets and Identity entity property names.
-// Used by the wizard to validate contextObjectTypes entries in real time.
-router.post('/admin/omada/validate-metadata', gate, async (req, res) => {
-  const { configId, config: inlineConfig } = req.body;
-
-  let c;
-  try {
-    if (configId != null) {
-      const id = parseInt(configId, 10);
-      if (isNaN(id)) return res.status(400).json({ error: 'configId must be a number' });
-      const pool = await db.getPool();
-      const cfg = await pool.request().input('id', id)
-        .query(`SELECT config FROM "CrawlerConfigs" WHERE id = @id`);
-      if (!cfg.recordset.length) return res.status(404).json({ error: 'Config not found' });
-      const raw = cfg.recordset[0].config;
-      c = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    } else if (inlineConfig && typeof inlineConfig === 'object') {
-      c = inlineConfig;
-    } else {
-      return res.status(400).json({ error: 'configId or config required' });
-    }
-  } catch (err) {
-    console.error('validate-metadata config lookup error:', err.message);
-    return res.status(500).json({ error: err.message || 'Failed to load config' });
-  }
-
-  try {
-
-    const rawBaseUrl = (c.baseUrl || '').trim();
-    if (!rawBaseUrl) return res.status(400).json({ error: 'No baseUrl in config' });
-
-    // Normalize to the OData service root the crawler uses.
-    // Strip trailing slashes without a user-input regex to avoid polynomial ReDoS.
-    let trimLen = rawBaseUrl.length;
-    while (trimLen > 0 && rawBaseUrl[trimLen - 1] === '/') trimLen--;
-    const u = new URL(trimLen < rawBaseUrl.length ? rawBaseUrl.slice(0, trimLen) : rawBaseUrl);
-    if (u.protocol !== 'https:' && u.protocol !== 'http:')
-      return res.status(400).json({ error: 'baseUrl must use http or https' });
-    if (!u.pathname.toLowerCase().endsWith('/odata/dataobjects')) u.pathname = '/odata/dataobjects';
-    const baseUrl = u.origin + u.pathname;
-
-    const metaUrl = `${baseUrl}/$metadata`;
-
-    // Build auth headers (best-effort).
-    const headers = {};
-    if (c.authMethod === 'BasicAuth' && c.username && c.password) {
-      const encoded = Buffer.from(`${c.username}:${c.password}`).toString('base64');
-      headers.Authorization = `Basic ${encoded}`;
-    } else if (c.authMethod === 'ApiToken' && c.apiToken) {
-      headers.Authorization = `Bearer ${c.apiToken}`;
-    } else if (c.authMethod === 'CookieString' && c.cookieString) {
-      headers.Cookie = c.cookieString;
-    }
-
-    const metaRes = await fetchOmadaMetadata(metaUrl, headers);
-    if (!metaRes.ok) {
-      return res.status(502).json({ error: `Omada $metadata returned HTTP ${metaRes.status}` });
-    }
-    const xml = await metaRes.text();
-
-    // Parse EntitySet names
-    const entitySets = [...xml.matchAll(/EntitySet\s+Name="([^"]+)"/g)].map(m => m[1]).sort();
-
-    // Parse Identity entity type property names
-    const identityMatch = xml.match(/<EntityType\s+Name="Identity"[^>]*>([\s\S]*?)<\/EntityType>/);
-    let identityProperties = [];
-    if (identityMatch) {
-      identityProperties = [...identityMatch[1].matchAll(/(?:Property|NavigationProperty)\s+Name="([^"]+)"/g)]
-        .map(m => m[1]).sort();
-    }
-
-    res.json({ entitySets, identityProperties });
-  } catch (err) {
-    console.error('validate-metadata error:', err.message);
-    res.status(500).json({ error: err.message || 'Failed to fetch metadata' });
   }
 });
 

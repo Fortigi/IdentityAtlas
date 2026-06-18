@@ -1,5 +1,19 @@
 ## Changes in this PR
 
+- The Omada IGA crawler is now a self-contained plugin under `tools/crawlers/omada/` — its configuration wizard, type-picker entry, and live `$metadata` discovery no longer live as hardcoded logic in the core Crawlers page or API routes. Adding or changing the Omada wizard now never requires touching shared UI/API files.
+- No functional change to the Omada crawler wizard itself — same steps, same fields, same validation behavior.
+- Added a "Syncing from Omada IGA" page to the docs site, and registered the existing Omada data-model reference doc in the site menu (both previously missing or unreachable).
+
+## Changes in this PR
+
+- Cleaned up CI logs: the Pester unit-test job no longer prints a misleading "module currently in use" warning on every run.
+
+## Changes in this PR
+
+- Added architecture design note for the planned `identityType` column on the `Identities` table, capturing open questions and current workaround guidance for crawler authors.
+
+## Changes in this PR
+
 - Fixed: crawler configuration wizards (e.g. the midPoint wizard) and their type-picker entries were silently missing from the production Docker image — the frontend build stage didn't include the `tools/crawlers` folder that the wizard plugin system discovers wizards from. They now appear correctly in the deployed app, not just in local dev.
 - Added an automated check that catches this exact class of regression going forward: an E2E test that dynamically discovers every crawler with a UI wizard and verifies it actually appears in the "Add Crawler" list of the running app.
 

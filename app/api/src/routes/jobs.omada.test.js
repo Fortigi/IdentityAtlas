@@ -2,26 +2,12 @@
  * Unit tests for Omada-specific logic in jobs.js:
  *   - maskConfig: ensures all credential types are masked
  *   - validateCrawlerConfig('omada', ...): covers all six auth methods + missing required fields
- *   - PATCH secret preservation: existing secrets survive a no-secret PATCH
+ *
+ * The Omada live-discovery handler itself (tools/crawlers/omada/discover.js)
+ * is tested separately in omadaDiscover.test.js.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import request from 'supertest';
-import express from 'express';
-import jobsRouter, { maskConfig, validateCrawlerConfig, VALID_JOB_TYPES } from './jobs.js';
-
-// ─── Mocks for validate-metadata endpoint tests ───────────────────────────────
-
-const { mockPool, mockDbQuery } = vi.hoisted(() => {
-  const mockDbQuery = vi.fn();
-  const mockRequest = { input: vi.fn().mockReturnThis(), query: mockDbQuery };
-  const mockPool = { request: vi.fn(() => mockRequest) };
-  return { mockPool, mockDbQuery };
-});
-
-vi.mock('../db/connection.js', () => ({ getPool: async () => mockPool }));
-vi.mock('../middleware/auth.js', () => ({
-  requirePermission: () => (_req, _res, next) => next(),
-}));
+import { describe, it, expect } from 'vitest';
+import { maskConfig, validateCrawlerConfig, VALID_JOB_TYPES } from './jobs.js';
 
 const SECRET_MASK = '••••••••';
 
@@ -229,116 +215,5 @@ describe('validateCrawlerConfig (omada)', () => {
   it('returns null when authMethod is missing (no credential check fires)', () => {
     // authMethod is required per schema — should return an error
     expect(validateOmada({ baseUrl: 'https://omada.example.com' })).toMatch(/authMethod/);
-  });
-});
-
-// ─── POST /admin/omada/validate-metadata ─────────────────────────────────────
-
-const SAMPLE_XML = `<?xml version="1.0"?>
-<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
-  <edmx:DataServices>
-    <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm">
-      <EntityType Name="Identity">
-        <Property Name="Id"/>
-        <Property Name="Username"/>
-        <NavigationProperty Name="Groups"/>
-      </EntityType>
-      <EntityContainer>
-        <EntitySet Name="Users"/>
-        <EntitySet Name="Roles"/>
-      </EntityContainer>
-    </Schema>
-  </edmx:DataServices>
-</edmx:Edmx>`;
-
-function makeApp() {
-  const app = express();
-  app.use(express.json());
-  app.use(jobsRouter);
-  return app;
-}
-
-describe('POST /admin/omada/validate-metadata', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-    vi.unstubAllGlobals();
-  });
-
-  it('returns 400 when neither configId nor inline config is provided', async () => {
-    const res = await request(makeApp()).post('/admin/omada/validate-metadata').send({});
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/configId or config required/);
-  });
-
-  it('returns 400 when configId is not a number', async () => {
-    const res = await request(makeApp()).post('/admin/omada/validate-metadata').send({ configId: 'abc' });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/number/);
-  });
-
-  it('returns 404 when no matching row exists', async () => {
-    mockDbQuery.mockResolvedValue({ recordset: [] });
-    const res = await request(makeApp()).post('/admin/omada/validate-metadata').send({ configId: 99 });
-    expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/not found/i);
-  });
-
-  it('parses entitySets and identityProperties from metadata XML', async () => {
-    mockDbQuery.mockResolvedValue({
-      recordset: [{ config: { baseUrl: 'https://omada.example.com/odata/dataobjects', authMethod: 'FormCookie' } }],
-    });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => SAMPLE_XML }));
-
-    const res = await request(makeApp()).post('/admin/omada/validate-metadata').send({ configId: 1 });
-    expect(res.status).toBe(200);
-    expect(res.body.entitySets).toEqual(['Roles', 'Users']);
-    expect(res.body.identityProperties).toEqual(['Groups', 'Id', 'Username']);
-  });
-
-  it('parses config stored as a JSON string (PGlite path)', async () => {
-    mockDbQuery.mockResolvedValue({
-      recordset: [{ config: JSON.stringify({ baseUrl: 'https://omada.example.com/odata/dataobjects' }) }],
-    });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => SAMPLE_XML }));
-
-    const res = await request(makeApp()).post('/admin/omada/validate-metadata').send({ configId: 2 });
-    expect(res.status).toBe(200);
-  });
-
-  it('accepts inline config object (new-crawler wizard mode, no configId)', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => SAMPLE_XML }));
-
-    const res = await request(makeApp()).post('/admin/omada/validate-metadata').send({
-      config: { baseUrl: 'https://omada.example.com/odata/dataobjects', authMethod: 'FormCookie' },
-    });
-    expect(res.status).toBe(200);
-    expect(res.body.entitySets).toEqual(['Roles', 'Users']);
-  });
-
-  it('returns 400 when config has no baseUrl', async () => {
-    mockDbQuery.mockResolvedValue({ recordset: [{ config: { authMethod: 'FormCookie' } }] });
-
-    const res = await request(makeApp()).post('/admin/omada/validate-metadata').send({ configId: 1 });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/baseUrl/);
-  });
-
-  it('returns 502 when the Omada server returns a non-2xx status', async () => {
-    mockDbQuery.mockResolvedValue({
-      recordset: [{ config: { baseUrl: 'https://omada.example.com/odata/dataobjects' } }],
-    });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
-
-    const res = await request(makeApp()).post('/admin/omada/validate-metadata').send({ configId: 1 });
-    expect(res.status).toBe(502);
-    expect(res.body.error).toMatch(/401/);
-  });
-
-  it('returns 400 when baseUrl uses a non-http/https scheme', async () => {
-    const res = await request(makeApp()).post('/admin/omada/validate-metadata').send({
-      config: { baseUrl: 'ftp://evil.com/odata/dataobjects', authMethod: 'ApiToken', apiToken: 'tok' },
-    });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/http/);
   });
 });

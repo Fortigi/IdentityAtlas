@@ -127,7 +127,13 @@ jobs:
 
       - name: Install Pester
         shell: pwsh
-        run: Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
+        run: |
+          # ubuntu-latest ships Pester pre-loaded, so a plain Install-Module -Force
+          # always warns that it can't overwrite the in-use version. Skip the install
+          # when the runner already satisfies the minimum version.
+          if (-not (Get-Module Pester -ListAvailable | Where-Object Version -ge '5.0.0')) {
+            Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
+          }
 
       - name: Run Pester tests with coverage
         shell: pwsh
@@ -355,7 +361,7 @@ jobs:
 
           # Crawlers pending migration to the manifest-based plugin system.
           # Remove a type from here once its CrawlerMeta.js is in place.
-          PENDING_MIGRATION="entra-id csv demo omada custom-connector"
+          PENDING_MIGRATION="entra-id csv demo custom-connector"
 
           CRAWLERS_PAGE="app/ui/src/components/CrawlersPage.jsx"
           FAIL=0
