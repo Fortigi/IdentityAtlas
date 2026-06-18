@@ -50,6 +50,10 @@ The Node.js API (`app/api/src/routes/jobs.js`) reads the same manifests independ
 | `dependsOn` | string[] | — | Crawler types whose library `.ps1` files are dot-sourced before the entry point runs. |
 | `configSchema` | JSON Schema object | — | Describes config fields. The UI renders a form from this; the API validates configs against it before queueing a job. |
 | `postSyncHooks` | string[] | — | Named hooks the dispatcher runs after the entry point exits successfully. |
+| `supportsFileUploads` | boolean | — | If `true`, this crawler type's configs may have files attached via the generic `POST/GET/DELETE /api/admin/crawler-configs/:configId/files` routes (`routes/crawlerFiles.js`). Configs of types without this flag get a 400 if something tries to attach files to them. |
+| `uploadFileExtensions` | string[] | — | Allowed upload file extensions (e.g. `[".csv"]`), enforced by `crawlerFiles.js`'s multer `fileFilter`. Defaults to `['.csv']` if `supportsFileUploads` is set without this field. |
+
+A crawler that sets `supportsFileUploads` should also drop a `schema/` folder of empty, header-only template files (e.g. `tools/crawlers/csv/schema/Users.csv`) next to its `crawler.json` — these are served generically via `GET /api/admin/crawlers/:type/upload-schema` (and `.../upload-schema/:filename` for one file at a time), the same dynamic-by-type loading pattern `discover.js` uses: no core file lists which crawlers have templates, a missing `schema/` dir just 404s. An optional `tools/crawlers/<type>/<type>-slots.json` (e.g. `csv-slots.json`) can supply per-file `label`/`required` metadata shown in the concatenated download's comments — purely cosmetic, the templates work without it.
 
 ### `postSyncHooks` reference
 

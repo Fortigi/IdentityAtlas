@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Reads CSV files in the Identity Atlas canonical schema and POSTs them to the
-    Ingest API. Files must follow the schema defined in tools/csv-templates/schema/.
+    Ingest API. Files must follow the schema defined in tools/crawlers/csv/schema/.
 
     Source-specific transformation (Omada → Identity Atlas, SAP → Identity Atlas)
     happens BEFORE this script runs, via a separate transform script. This crawler

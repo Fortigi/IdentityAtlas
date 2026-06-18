@@ -15,7 +15,11 @@ tools/crawlers/<type>/
 ├── Start-<Type>Crawler.ps1     ← entry point
 ├── CrawlerMeta.js              ← UI type picker entry (id, name, description)
 ├── ConfigWizard.jsx            ← optional step-by-step config wizard for the UI
+├── Summary.jsx                 ← optional config-card summary panel for the UI
 ├── discover.js                 ← optional live-discovery handler (Node.js, ESM)
+├── schema/                     ← optional empty/header-only template files (if supportsFileUploads)
+│   └── *.csv
+├── <type>-slots.json           ← optional per-file label/required metadata for schema/ (e.g. csv-slots.json)
 ├── CLAUDE.md                   ← developer guide (architecture, data-model mapping, gotchas)
 ├── Test-<Type>Crawler.ps1      ← CI integration test
 └── dev/                        ← development tools (not shipped, not loaded by dispatcher)
@@ -88,10 +92,11 @@ If present, the UI renders this component when the user picks this crawler type.
 
 ```jsx
 export default function MyConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
-  // onComplete(config)  — call with the final config object when done
-  // onCancel()          — call when the user cancels
-  // initialConfig       — existing config when isEdit=true
-  // isEdit              — true when editing an existing crawler
+  // onComplete()         — call with no arguments when done; the wizard saves its
+  //                        own config via authFetch before calling this
+  // onCancel()           — call when the user cancels
+  // initialConfig        — existing config when isEdit=true
+  // isEdit               — true when editing an existing crawler
   // authFetch(url, opts) — authenticated fetch helper (same as window.fetch but with auth headers)
 }
 ```
@@ -104,6 +109,19 @@ import Select from '../../../app/ui/src/components/inputs/Select';
 ```
 
 If no `ConfigWizard.jsx` is present, the UI falls back to a generic JSON config editor.
+
+### Summary.jsx — optional config-card summary panel
+
+If present, the UI renders this component inside the crawler's card on the "Configured Crawlers" list, showing the crawler-specific details at a glance (e.g. base URL, sync options). The component receives:
+
+```jsx
+export default function Summary({ cfg, config }) {
+  // cfg    — the crawler's config blob (config.config); what most summaries need
+  // config — the full config row, for the rare case something outside .config is needed
+}
+```
+
+Don't render `lastRunAt`/`lastRunStatus` here — the card already shows those generically below every summary panel, for every crawler type. If no `Summary.jsx` is present, the card just shows that generic footer with no extra panel.
 
 ### discover.js — optional live-discovery endpoint
 
@@ -119,6 +137,15 @@ export default async function handler(req, res, { db, getConfigSecret }) {
 ```
 
 The handler is loaded dynamically at request time from `CRAWLER_MANIFESTS_DIR/<type>/discover.js` — it does not need to be imported anywhere.
+
+### File uploads — `supportsFileUploads` + `schema/`
+
+If a crawler type needs the user to upload files (CSV is currently the only one), set `"supportsFileUploads": true` and `"uploadFileExtensions": [".csv"]` (or whatever extensions apply) in `crawler.json`. This unlocks the generic routes in `routes/crawlerFiles.js`:
+
+- `GET/POST /api/admin/crawler-configs/:configId/files`, `DELETE .../files/:filename` — list/upload/delete files for a config of this type. Configs of other types are rejected with a 400.
+- Files land in `/data/uploads/<type>-{configId}/` (a Docker volume shared with the worker) — `routes/jobs.js` resolves this path generically via `getUploadFolderPath(type, configId)` and refuses to queue a job if the folder is empty.
+
+If you also drop empty, header-only template files in `tools/crawlers/<type>/schema/*.csv`, they're served generically too — `GET /api/admin/crawlers/<type>/upload-schema` (all templates, concatenated) and `.../upload-schema/<filename>` (one file), loaded dynamically the same way `discover.js` is — no core file needs to know which crawlers have templates. An optional `tools/crawlers/<type>/<type>-slots.json` (array of `{ key, file, label, required }`) adds label/required annotations to the concatenated download's comments; without it the templates still serve correctly, just without that annotation.
 
 ## Rules
 
