@@ -44,7 +44,7 @@ import { adminCrawlersRouter, selfServiceCrawlersRouter } from './routes/crawler
 import { crawlerAuthMiddleware } from './middleware/crawlerAuth.js';
 import ingestRouter from './routes/ingest.js';
 import jobsRouter from './routes/jobs.js';
-import csvUploadsRouter from './routes/csvUploads.js';
+import crawlerFilesRouter from './routes/crawlerFiles.js';
 import dataExportRouter from './routes/dataExport.js';
 import bulkListsRouter from './routes/bulkLists.js';
 import { isAuthEnabled, getTenantId, getClientId } from './config/authConfig.js';
@@ -329,7 +329,7 @@ export function createApp() {
   // Listing existing runs is read-only; triggering one is admin. Per-handler in the router.
   app.use('/api', authMiddleware, riskScoringRunsRouter);
   app.use('/api', authMiddleware, accountLinkingRouter);
-  app.use('/api', authMiddleware, csvUploadsRouter);
+  app.use('/api', authMiddleware, crawlerFilesRouter);
   app.use('/api', authMiddleware, governanceRouter);
   // Bulk list endpoints used by Power Query / BI tools (read API keys honoured)
   app.use('/api', authMiddleware, bulkListsRouter);

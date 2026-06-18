@@ -3,6 +3,8 @@
   "displayName": "CSV Import",
   "entryPoint": "Start-CSVCrawler.ps1",
   "dependsOn": [],
+  "supportsFileUploads": true,
+  "uploadFileExtensions": [".csv"],
   "configSchema": {
     "type": "object",
     "properties": {
