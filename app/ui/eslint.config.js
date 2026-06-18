@@ -21,7 +21,7 @@ const NATIVE_DIALOG_ALLOWLIST = [
 ];
 
 // CrawlersPage.jsx still has hardcoded CRAWLER_TYPES entries for crawlers not
-// yet migrated to the manifest-based plugin system (entra-id, csv, demo, omada,
+// yet migrated to the manifest-based plugin system (entra-id, csv, demo,
 // custom-connector). Downgrade the rule to warn so CI stays green during the
 // migration. Remove this override once all crawlers have their own CrawlerMeta.js.
 const CRAWLER_META_MIGRATION_PENDING = [

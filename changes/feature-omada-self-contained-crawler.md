@@ -1,0 +1,2 @@
+- The Omada IGA crawler is now a self-contained plugin under `tools/crawlers/omada/` — its configuration wizard, type-picker entry, and live `$metadata` discovery no longer live as hardcoded logic in the core Crawlers page or API routes. Adding or changing the Omada wizard now never requires touching shared UI/API files.
+- No functional change to the Omada crawler wizard itself — same steps, same fields, same validation behavior.
