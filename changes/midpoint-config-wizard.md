@@ -1,0 +1,13 @@
+- Added a dedicated midPoint (Evolveum) crawler wizard in Admin → Crawlers, so midPoint can now be added and configured fully from the UI (previously it could only be set up via raw config/import).
+- The wizard guides you through connection, authentication (Basic / API token / OAuth2 client-credentials / OAuth2 ROPC), which object types to sync, the mapping rules, and scheduling — with every field pre-filled to the crawler's existing defaults.
+- Added role classification: map midPoint roles to an Identity Atlas resource type by archetype (with subtype as a fallback). Archetypes and subtypes are discovered live from the connected midPoint server and offered as dropdown suggestions.
+- Added advanced type-mapping overrides to map org subtypes to a context type and user subtypes to a principal type, also populated live from the server.
+- Fixed: editing an existing midPoint crawler now opens the midPoint wizard instead of incorrectly opening the Microsoft Graph wizard.
+- midPoint crawler configurations can now be exported and re-imported like the other crawler types.
+- Added a full configuration reference for the midPoint crawler documenting every field and its default value.
+- Every dropdown field in the midPoint wizard now shows a consistent dropdown arrow; the archetype/subtype fields open a clickable list of values discovered live from midPoint, always offer the default value (even when midPoint has none), and still allow free text.
+- The live dropdown lists (archetypes, subtypes) are now shown in alphabetical order, with the default entry pinned at the top.
+- The archetype dropdown now lists only archetypes that apply to roles, hiding midPoint's task/report/case system archetypes that are irrelevant to role classification.
+- The midPoint wizard now uses the same numbered step indicator (Connection › Credentials › Objects & Mapping › Schedule) as the other crawler wizards.
+- The midPoint sync guide and its new configuration reference are now listed in the docs site menu (they previously existed only as unlinked pages).
+- Added a CI check that fails the build if a crawler doc page under `docs/sync/` isn't registered in the docs site's navigation, so this can't go unnoticed again.

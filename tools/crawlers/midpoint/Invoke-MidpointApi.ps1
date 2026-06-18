@@ -459,6 +459,90 @@ function Get-MidpointString {
     return [string]$Value
 }
 
+function Get-MidpointStringList {
+    <#
+    .SYNOPSIS
+        Coerce a (possibly multi-valued) midPoint field to a string[] of every value.
+        Unlike Get-MidpointString (which returns the first value for a single SQL column),
+        this returns all values — used when matching a record against a mapping table where
+        any of its subtype/archetype values may match a rule. Empty values are dropped.
+    #>
+    [CmdletBinding()]
+    param($Value)
+    if ($null -eq $Value) { return ,@() }
+    $out = [System.Collections.Generic.List[string]]::new()
+    foreach ($v in @($Value)) {
+        if ($null -eq $v) { continue }
+        $s = if ($v -is [string]) { $v } elseif ($v.orig) { [string]$v.orig } elseif ($v.norm) { [string]$v.norm } else { [string]$v }
+        if ($s) { $out.Add($s) }
+    }
+    return ,@($out)
+}
+
+function ConvertTo-MapRows {
+    <#
+    .SYNOPSIS
+        Normalise a raw config mapping array into PSCustomObject rows with the given keys.
+        Missing/blank values become '' (trimmed). Returns an empty array for $null input.
+    #>
+    [CmdletBinding()]
+    param($Raw, [string[]]$Keys)
+    $rows = [System.Collections.Generic.List[object]]::new()
+    foreach ($m in @($Raw)) {
+        if ($null -eq $m) { continue }
+        $row = [ordered]@{}
+        foreach ($k in $Keys) { $row[$k] = if ($m.$k) { ([string]$m.$k).Trim() } else { '' } }
+        $rows.Add([PSCustomObject]$row)
+    }
+    return ,@($rows)
+}
+
+function Get-MidpointArchetypeNames {
+    <#
+    .SYNOPSIS
+        Resolve an object's archetypeRef(s) to their friendly archetype names using a
+        catalog map (oid → string[] of labels). Returns a de-duplicated string[].
+    #>
+    [CmdletBinding()]
+    param($Obj, [hashtable]$LabelsByOid)
+    $names = [System.Collections.Generic.List[string]]::new()
+    foreach ($ar in @($Obj.archetypeRef)) {
+        if (-not $ar) { continue }
+        $aoid = Get-MidpointRefOid $ar $null
+        if ($aoid -and $LabelsByOid.ContainsKey($aoid)) {
+            foreach ($l in $LabelsByOid[$aoid]) { if (-not $names.Contains($l)) { $names.Add($l) } }
+        }
+    }
+    return ,@($names)
+}
+
+function Resolve-MappedResourceType {
+    <#
+    .SYNOPSIS
+        Classify a role/service to an Identity Atlas resourceType: archetype match first,
+        then subtype, then the catch-all row (blank archetype+subtype), then -Default.
+    #>
+    [CmdletBinding()]
+    param($Rows, [string[]]$ArchetypeNames, [string[]]$Subtypes, [string]$Default)
+    foreach ($row in @($Rows)) { if ($row.archetype -and ($ArchetypeNames -contains $row.archetype)) { return $row.resourceType } }
+    foreach ($row in @($Rows)) { if (-not $row.archetype -and $row.subtype -and ($Subtypes -contains $row.subtype)) { return $row.resourceType } }
+    foreach ($row in @($Rows)) { if (-not $row.archetype -and -not $row.subtype -and $row.resourceType) { return $row.resourceType } }
+    return $Default
+}
+
+function Resolve-MappedValue {
+    <#
+    .SYNOPSIS
+        Single-key map lookup (org→contextType, user→principalType): first row whose key value
+        matches one of -Values, else the catch-all (blank key) row, else -Default.
+    #>
+    [CmdletBinding()]
+    param([string[]]$Values, $Rows, [string]$KeyName, [string]$ValName, [string]$Default)
+    foreach ($row in @($Rows)) { $k = $row.$KeyName; if ($k -and ($Values -contains $k)) { return $row.$ValName } }
+    foreach ($row in @($Rows)) { if (-not $row.$KeyName -and $row.$ValName) { return $row.$ValName } }
+    return $Default
+}
+
 function Get-MidpointAttrValue {
     <#
     .SYNOPSIS
