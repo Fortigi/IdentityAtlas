@@ -1,0 +1,1 @@
+- Added architecture design note for the planned `identityType` column on the `Identities` table, capturing open questions and current workaround guidance for crawler authors.
