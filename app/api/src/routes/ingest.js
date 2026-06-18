@@ -11,6 +11,7 @@ import { normalizeRecords } from '../ingest/normalization.js';
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../ingest/validation.js';
 import { startSession, continueSession, endSession, hasSession } from '../ingest/sessions.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../middleware/crawlerAuth.js';
+import { bumpSyncVersion } from '../lib/syncVersion.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -413,6 +414,16 @@ router.post('/ingest/refresh-views', async (req, res) => {
       `);
     } catch (countErr) {
       console.warn('Context member count refresh failed (non-fatal):', countErr.message);
+    }
+
+    // Advance the effective-access cache version. The crawler calls this endpoint only
+    // after all ingest writes are durable, so bumping here invalidates engine cache entries
+    // exactly once per completed sync — never mid-sync. Non-fatal: a failed bump just means
+    // the cache serves slightly stale data until the next sync. See spec §13.2.
+    try {
+      await bumpSyncVersion();
+    } catch (svErr) {
+      console.warn('syncVersion bump failed (non-fatal):', svErr.message);
     }
 
     res.json({ message: 'Materialized views refreshed' });
