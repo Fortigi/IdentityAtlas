@@ -204,8 +204,46 @@ See `tools/crawlers/CLAUDE.md` for the parameter contract, shared mock server us
 
 ---
 
+## Feeding the Effective-Access Engine (hierarchical permissions)
+
+If your source has a **containment hierarchy with inherited permissions** — Azure RM scopes,
+file-system folders, SharePoint sites, DevOps projects — you do **not** materialise the
+inherited access. You emit only the *declared* grants plus the hierarchy, and the
+[effective-access engine](../architecture/effective-access-engine.md) computes inheritance
+lazily (a grant at a parent shows as `Indirect` on every descendant). You store O(declared),
+not O(declared × descendants).
+
+Emit four things through the normal ingest endpoints:
+
+1. **Container nodes** — `Resources` rows for each scope/folder/site.
+2. **`Contains` relationships** — `ingest/resource-relationships` with
+   `relationshipType='Contains'` (parent→child). Set `extendedAttributes.propagates=false` on
+   the edge to a child that **breaks inheritance** (default is `true`).
+3. **Capability-resources** — one `Resources` row per *declared* `(capability, node)` only.
+   Put `capabilityId` and `targetNodeId` in `extendedAttributes`, and use the **deterministic
+   id** so a synthesized inherited row and your stored row collapse into one:
+   ```powershell
+   . (Join-Path $PSScriptRoot '..' 'shared' 'Get-CapabilityId.ps1')
+   $id = Get-CapabilityId -TargetNodeId $scopeId -CapabilityId $roleDefId
+   ```
+4. **Grants** — `ingest/resource-assignments` to the capability-resource, with `effect`
+   (`allow` / `deny` / `eligible`, default `allow`) and `propagationScope`
+   (`self` / `descendants` / `selfAndDescendants`, default `selfAndDescendants`).
+
+**Worked example (Azure RM):** emit `Subscription` / `RG` / `VM` resources + `Contains` edges;
+one `Contributor @ Subscription` capability-resource with a grant to the user; nothing for the
+RG or VM. The engine answers `GET /api/resource/<vm>/effective-access?principalId=<u>` with
+`contributor` / `Indirect` — inherited down the tree, never stored.
+
+> Monotonic sources (Azure RM, additive SharePoint levels) just take the `effect`/
+> `propagationScope` defaults. Deny-bearing sources (NTFS, DevOps) emit `effect='deny'` and a
+> source-specific resolution policy — that path lands in engine phase P3.
+
+---
+
 ## See Also
 
+- [`docs/architecture/effective-access-engine.md`](../architecture/effective-access-engine.md) — the engine that computes inherited/effective access
 - [`docs/architecture/crawler-architecture.md`](../architecture/crawler-architecture.md) — how the registry, DFS dependency loading, and dispatch work internally
 - [`docs/sync/entra-id.md`](entra-id.md) — Entra ID crawler reference
 - [`docs/sync/csv-import.md`](csv-import.md) — CSV import reference

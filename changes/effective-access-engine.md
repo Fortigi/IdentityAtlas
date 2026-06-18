@@ -1,1 +1,3 @@
-- Began building the effective-access engine (computes inherited permissions on demand). First piece: a deterministic, cross-language identifier for capability-resources, shared by the API and the PowerShell crawlers, so that inherited and directly-granted access for the same target collapse into a single matrix row.
+- Added an effective-access engine that computes inherited permissions on demand: a grant at a parent (a group, or a containment scope like an Azure subscription) is surfaced as indirect access on everything beneath it, without storing those rows.
+- New read API: `GET /api/effective-access/resolve` (one principal on one resource) and `GET /api/resource/:id/effective-access` / `GET /api/principal/:id/effective-access` (effective capabilities at a node, including those inherited through the containment hierarchy).
+- Groundwork for upcoming source crawlers (e.g. Azure Resource Manager) whose access is defined by role-at-scope inheritance.
