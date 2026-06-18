@@ -27,6 +27,45 @@ tools/crawlers/<type>/
 
 See `docs/sync/custom-crawlers.md` for the full authoring guide including the `dev/` folder convention.
 
+## PowerShell Style
+
+**Brace style: Stroustrup** — opening brace on the same line as the statement; closing brace on its own line; blank line after every closing brace.
+
+**Formatting:**
+- Whitespace around all operators (`=`, `-eq`, `+`, etc.)
+- No aliases — always use full cmdlet names (`ForEach-Object` not `%`; `Where-Object` not `?`)
+- No semicolons as line terminators — use newlines
+- Trim whitespace around pipe characters
+
+**Regions** — use `#region` / `#endregion` blocks for non-trivial scripts:
+
+```powershell
+#region Parameters
+#endregion Parameters
+
+#region Configuration
+#endregion Configuration
+
+#region Functions
+#endregion Functions
+
+#region Main
+#endregion Main
+```
+
+Add more regions as needed (e.g. `#region Authentication`). Never nest regions more than one level deep.
+
+**Logging** — use colour-coded `Write-Host` throughout:
+
+```powershell
+Write-Host "Connected"       -ForegroundColor Green   # success
+Write-Host "Rate limited"    -ForegroundColor Yellow  # warning / non-fatal
+Write-Host "Fetching users…" -ForegroundColor Cyan    # progress
+Write-Host "ERROR: $msg"     -ForegroundColor Red     # error
+```
+
+Never use `Write-Output` for progress messages — use `return` for values only.
+
 ## UI Integration
 
 The UI auto-discovers crawlers from the `tools/crawlers/` folder via `import.meta.glob`. No changes to `CrawlersPage.jsx` are needed when adding a new crawler type.
@@ -142,6 +181,41 @@ Set secrets in GitHub Actions → Settings → Secrets and variables → Actions
 
 - `tools/crawlers/odata/Test-ODataCrawler.ps1` — library test against a mock server (no `-ApiKey` needed)
 - `tools/crawlers/omada/Test-OmadaCrawler.ps1` — full E2E test against a mock server (requires Docker stack)
+
+## `principalType` and `identityType` Values
+
+**`Principals.principalType`** — use these values consistently across all crawlers:
+
+| Value | Description |
+|-------|-------------|
+| `User` | Interactive human user account |
+| `ServicePrincipal` | App registration service principal |
+| `ManagedIdentity` | Azure resource-attached managed identity |
+| `WorkloadIdentity` | Federated credential identity (GitHub Actions, AKS) |
+| `AIAgent` | AI agent (Copilot Studio, Azure OpenAI, custom) |
+| `ExternalUser` | Guest / B2B account from another tenant |
+| `SharedMailbox` | Shared mailbox or room/equipment account |
+
+**`Identities.identityType`** — since `ResourceAssignments` now supports `identityId` alongside `principalId` (migration 036), identities can represent both humans and technical accounts modelled as identities in IGA systems. The `Identities` table does not yet have an `identityType` column — this is a planned addition. Until it lands, crawlers that write technical-account identities should store the type in `extendedAttributes`. When the column is added, use:
+
+| Value | Description |
+|-------|-------------|
+| `Person` | Human identity — the standard case |
+| `ServiceAccount` | Technical / functional / service account modelled as an identity in an IGA system |
+| `MachineAccount` | Non-human machine or device account |
+
+**Which table to use:** `principalType` describes the account; `identityType` describes the correlated entity. A technical account (`principalType=ServicePrincipal`) can have a corresponding Identity (`identityType=ServiceAccount`) when the IGA system models it that way — both tables may be populated. Pure principal-only organisations (no IGA) never write `identityId` rows.
+
+## PowerShell SDK
+
+The worker container loads `setup/IdentityAtlas.psm1` before running any crawler, which makes all functions in `tools/powershell-sdk/` available. Key categories:
+
+| Folder | Purpose | Key functions |
+|--------|---------|---------------|
+| `graph/` | Graph API wrappers + auth | `Get-FGAccessToken`, `Invoke-FGGetRequest`, `Invoke-FGPostRequest`, `Get-FGUser`, `Get-FGGroup`, `Get-FGServicePrincipal` |
+| `helpers/` | Idempotent resource helpers | `Confirm-FGGroup`, `Confirm-FGUser`, `Confirm-FGAccessPackage` |
+
+**Rule:** never call `Invoke-RestMethod` directly for Graph API — always use `Invoke-FGGetRequest` / `Invoke-FGPostRequest` etc. They handle pagination, token refresh, and retries automatically.
 
 ## Key Files
 
