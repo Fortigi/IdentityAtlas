@@ -91,16 +91,6 @@ describe('POST /api/admin/crawlers/:type/discover — routing', () => {
     expect(res.status).toBe(404);
     expect(res.body.error).toMatch(/does not support live discovery/);
   });
-
-  it('returns 404 when entra-id has no discover.js', async () => {
-    expect(VALID_JOB_TYPES).toContain('entra-id');
-    const app = makeApp();
-    const res = await request(app)
-      .post('/api/admin/crawlers/entra-id/discover')
-      .send({});
-    expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/does not support live discovery/);
-  });
 });
 
 describe('POST /api/admin/crawlers/:type/discover — VALID_JOB_TYPES coverage', () => {

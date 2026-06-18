@@ -1,0 +1,4 @@
+- Moved the Microsoft Graph (Entra ID) crawler's configuration wizard out of the core admin UI and into its own self-contained `tools/crawlers/entra-id/` folder, following the same pattern already used by the CSV, Omada, and midPoint crawlers.
+- Fixed: the "Advanced options" on the Schedule step (sign-in logs window, extra AI-agent name patterns) were silently dropped on save and never persisted — they now save and reload correctly.
+- Fixed: editing an existing Microsoft Graph crawler without re-entering the client secret could fail to load the identity/user/group attribute pickers (a 400 error), because attribute discovery looked for the secret in the stored config instead of the secrets vault. It now resolves the vaulted secret correctly, matching how every other crawler type's live discovery already worked.
+- No other functional or visual changes to the Microsoft Graph crawler's setup wizard.
