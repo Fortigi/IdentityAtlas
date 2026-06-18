@@ -310,18 +310,73 @@ jobs:
           fi
           echo "PR hygiene OK."
 
+  # ── Stage 8: Crawler manifest completeness ──────────────────────────────────
+  # Every user-facing crawler must have a CrawlerMeta.js. Migrated crawlers must
+  # not reappear as hardcoded strings in CrawlersPage.jsx. Library crawlers (used
+  # only as dependsOn, e.g. odata) are exempt. Crawlers listed in PENDING are
+  # allowed to be missing CrawlerMeta.js while they await migration.
+  crawler-manifest:
+    name: 'Lint: Crawler manifest completeness'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Check CrawlerMeta.js presence and no type drift in CrawlersPage.jsx
+        run: |
+          set -euo pipefail
+
+          # Library crawlers (dependsOn only) — never need CrawlerMeta.js.
+          LIBRARY_CRAWLERS="odata"
+
+          # Crawlers pending migration to the manifest-based plugin system.
+          # Remove a type from here once its CrawlerMeta.js is in place.
+          PENDING_MIGRATION="entra-id csv demo omada custom-connector midpoint"
+
+          CRAWLERS_PAGE="app/ui/src/components/CrawlersPage.jsx"
+          FAIL=0
+
+          for manifest in tools/crawlers/*/crawler.json; do
+            dir=$(dirname "$manifest")
+            type=$(node -e "process.stdout.write(require('./$manifest').type ?? '')")
+            [ -z "$type" ] && continue
+
+            # Skip library crawlers entirely.
+            if echo "$LIBRARY_CRAWLERS" | grep -qw "$type"; then continue; fi
+
+            # Check CrawlerMeta.js exists (skip if pending migration).
+            meta="$dir/CrawlerMeta.js"
+            if ! echo "$PENDING_MIGRATION" | grep -qw "$type"; then
+              if [ ! -f "$meta" ]; then
+                echo "::error file=$manifest::Crawler '$type' is missing CrawlerMeta.js — add one to $dir/ or add '$type' to PENDING_MIGRATION in pr.yml"
+                FAIL=1
+              fi
+            fi
+
+            # Migrated crawlers must not be hardcoded in CrawlersPage.jsx.
+            # (Pending-migration crawlers are still allowed to be there.)
+            if ! echo "$PENDING_MIGRATION" | grep -qw "$type"; then
+              if grep -qE "(['\"])${type}\1" "$CRAWLERS_PAGE"; then
+                echo "::error file=$CRAWLERS_PAGE::Crawler type '$type' is hardcoded in CrawlersPage.jsx — it must be discovered via CrawlerMeta.js only"
+                FAIL=1
+              fi
+            fi
+          done
+
+          if [ "$FAIL" = "1" ]; then exit 1; fi
+          echo "Crawler manifest check passed."
+
   # ── Summary ─────────────────────────────────────────────────────────────
   pr-summary:
     name: 'PR Summary'
     runs-on: ubuntu-latest
-    needs: [lint-ps, lint-js, unit-tests, unit-js, unit-ui, openapi, audit, hygiene]
+    needs: [lint-ps, lint-js, unit-tests, unit-js, unit-ui, openapi, audit, hygiene, crawler-manifest]
     if: always()
     steps:
       - name: Report results
         run: |
           echo "## PR Check Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          for job in lint-ps lint-js unit-tests unit-js unit-ui openapi audit hygiene; do
+          for job in lint-ps lint-js unit-tests unit-js unit-ui openapi audit hygiene crawler-manifest; do
             result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('$job', {}).get('result','unknown'))")
             if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
             echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
@@ -336,5 +391,6 @@ jobs:
           needs.unit-ui.result == 'failure' ||
           needs.openapi.result == 'failure' ||
           needs.audit.result == 'failure' ||
-          needs.hygiene.result == 'failure'
+          needs.hygiene.result == 'failure' ||
+          needs.crawler-manifest.result == 'failure'
         run: exit 1

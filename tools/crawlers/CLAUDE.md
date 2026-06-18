@@ -13,6 +13,9 @@ Drop a folder into `tools/crawlers/<type>/` with `crawler.json` + entry point. N
 tools/crawlers/<type>/
 ├── crawler.json                ← required manifest
 ├── Start-<Type>Crawler.ps1     ← entry point
+├── CrawlerMeta.js              ← UI type picker entry (id, name, description)
+├── ConfigWizard.jsx            ← optional step-by-step config wizard for the UI
+├── discover.js                 ← optional live-discovery handler (Node.js, ESM)
 ├── CLAUDE.md                   ← developer guide (architecture, data-model mapping, gotchas)
 ├── Test-<Type>Crawler.ps1      ← CI integration test
 └── dev/                        ← development tools (not shipped, not loaded by dispatcher)
@@ -23,6 +26,60 @@ tools/crawlers/<type>/
 **`dev/` subfolder:** for scripts that support development and testing but are not part of the production image. The dispatcher ignores subdirectories entirely — nothing in `dev/` ever runs at runtime. Use it for load-test seeders, fixture generators, and migration helpers. Always include a `dev/README.md`.
 
 See `docs/sync/custom-crawlers.md` for the full authoring guide including the `dev/` folder convention.
+
+## UI Integration
+
+The UI auto-discovers crawlers from the `tools/crawlers/` folder via `import.meta.glob`. No changes to `CrawlersPage.jsx` are needed when adding a new crawler type.
+
+### CrawlerMeta.js — type picker registration
+
+Every crawler that should appear in the UI's "Add Crawler" type picker must export a default object:
+
+```js
+export default {
+  id: 'my-type',           // must match the crawler.json `type` field and folder name
+  name: 'My Crawler',      // display name shown in the type picker
+  description: 'One-line description shown below the name in the picker',
+};
+```
+
+### ConfigWizard.jsx — optional step-by-step wizard
+
+If present, the UI renders this component when the user picks this crawler type. The component receives:
+
+```jsx
+export default function MyConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
+  // onComplete(config)  — call with the final config object when done
+  // onCancel()          — call when the user cancels
+  // initialConfig       — existing config when isEdit=true
+  // isEdit              — true when editing an existing crawler
+  // authFetch(url, opts) — authenticated fetch helper (same as window.fetch but with auth headers)
+}
+```
+
+Import paths from `tools/crawlers/<type>/` must traverse back to `app/ui/src/`:
+```js
+import ScheduleEditor from '../../../app/ui/src/components/ScheduleEditor';
+import Combobox from '../../../app/ui/src/components/inputs/Combobox';
+import Select from '../../../app/ui/src/components/inputs/Select';
+```
+
+If no `ConfigWizard.jsx` is present, the UI falls back to a generic JSON config editor.
+
+### discover.js — optional live-discovery endpoint
+
+If present, the API exposes `POST /api/admin/crawlers/<type>/discover` backed by this file. The file must be ESM with a default export matching:
+
+```js
+export default async function handler(req, res, { db, getConfigSecret }) {
+  // req.body contains the current wizard config (credentials, base URL, etc.)
+  // db — the pg pool (via getPool())
+  // getConfigSecret(crawlerId, key) — decrypts a stored credential
+  // respond with res.json(...)
+}
+```
+
+The handler is loaded dynamically at request time from `CRAWLER_MANIFESTS_DIR/<type>/discover.js` — it does not need to be imported anywhere.
 
 ## Rules
 
