@@ -1,9 +1,12 @@
 # Effective-Access Engine — Design Specification
 
-> **Status:** Draft for review & approval. Pre-implementation — no code exists yet.
-> **Purpose of this document:** get sign-off on the model, the data contract, and the
-> resolution semantics *before* any code is written. A reviewer should be able to
-> approve (or push back on) every decision here without reading source.
+> **Status:** **P1 + P2 implemented** (the PR that introduces this engine). The design below is
+> the reviewed spec of record; per-phase implementation status is in [§16 Phasing](#16-phased-delivery).
+> P3 (deny-aware resolution) and P4 (export) are designed here but not yet built.
+> **What's live today:** the capability-id helper, migrations 038/039, the `syncVersion` cache key,
+> the `AdditiveAllow` policy, the engine (`holders` + containment down-expansion), and the read
+> endpoints `GET /api/effective-access/resolve`, `/api/resource/:id/effective-access`,
+> `/api/principal/:id/effective-access` (documented in `app/api/src/openapi.yaml`).
 > **Owner:** _TBD_ · **Reviewers:** _TBD_
 
 ---
@@ -535,12 +538,19 @@ This matches the reasoning in §15.1 (hot-path columns must be indexable).
 
 ## 16. Phased delivery
 
-| Phase | Scope | Unblocks |
-|---|---|---|
-| **P1** | Schema migration adding `effect` and `propagationScope` columns to `ResourceAssignments` (with backfill). Engine core + `AdditiveAllow` + migrate nested-group expand onto it. Write `/group/:id/nested-groups` shim (de-virtualize is no-op in P1 — no virtual rows yet). No behavior change (golden-test parity). | The framework; Entra Owner-harmonization. |
-| **P2** | Containment down-expansion: constant-capability carry, synthesized rows, deterministic-id collapse. Adds `contested BOOLEAN DEFAULT FALSE` column to matview. Update shim to drop `virtual=true` rows. **30-day shim removal gate clock starts here.** | **Azure RM crawler.** |
-| **P3** | Deny-aware resolution + `DenyOverrides` / `NtfsCanonical` / `ClosestWins` + `contested` matview flag + path-aware explainability. | Filesystem / SharePoint / DevOps crawlers. |
-| **P4** | Export path (`POST /resolve`, async/streamed). | Full effective-access export. |
+| Phase | Status | Scope | Unblocks |
+|---|---|---|---|
+| **P1** | ✅ shipped | Schema migration adding `effect` and `propagationScope` columns to `ResourceAssignments` (with backfill). Engine core + `AdditiveAllow`. `/group/:id/nested-groups` golden baseline captured. | The framework; Entra Owner-harmonization. |
+| **P2** | ✅ shipped (core) | Containment down-expansion: constant-capability carry, synthesized rows, deterministic-id collapse. Read endpoints. | **Azure RM crawler.** |
+| **P3** | ⏳ deferred | Deny-aware resolution + `DenyOverrides` / `NtfsCanonical` / `ClosestWins` + `contested` matview flag + path-aware explainability. | Filesystem / SharePoint / DevOps crawlers. |
+| **P4** | ⏳ deferred | Export path (`POST /resolve`, async/streamed). | Full effective-access export. |
+
+> **Shipped vs. deferred within P1/P2:** the engine (holders + containment), `AdditiveAllow`,
+> migrations 038/039, `syncVersion` cache keying, and the read endpoints are live. Two spec items
+> were **deliberately deferred as non-blocking:** (a) rewriting the `/group/:id/nested-groups`
+> endpoints *onto* the engine — they work and are golden-test protected, so the rewrite is a
+> cleanup, not a dependency; and (b) the `contested` matview column — speculative until P3 deny
+> lands, and a routine migration to add then.
 
 Dependency summary: ARM crawler → **P1 + P2**; Entra Owner-harmonization → **P1**; deny-bearing
 crawlers → **P3**.
