@@ -20,6 +20,7 @@ import { authMiddleware } from './middleware/auth.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import permissionsRouter from './routes/permissions.js';
 import matrixRouter from './routes/matrix.js';
+import effectiveAccessRouter from './routes/effectiveAccess.js';
 import tagsRouter from './routes/tags.js';
 import categoriesRouter from './routes/categories.js';
 import detailsRouter from './routes/details.js';
@@ -295,6 +296,7 @@ export function createApp() {
   // Auth middleware for all other API routes
   app.use('/api', authMiddleware, permissionsRouter);
   app.use('/api', authMiddleware, matrixRouter);
+  app.use('/api', authMiddleware, effectiveAccessRouter);
   app.use('/api', authMiddleware, tagsRouter);
   app.use('/api', authMiddleware, categoriesRouter);
   app.use('/api', authMiddleware, detailsRouter);
