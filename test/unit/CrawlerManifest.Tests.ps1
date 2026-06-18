@@ -19,7 +19,7 @@
 
 BeforeDiscovery {
     $libraryCrawlers  = @('odata')
-    $pendingMigration = @('entra-id', 'csv', 'demo', 'omada', 'custom-connector')
+    $pendingMigration = @('entra-id', 'csv', 'demo', 'custom-connector')
 
     $repoRoot     = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $crawlersRoot = Join-Path $repoRoot 'tools' 'crawlers'
