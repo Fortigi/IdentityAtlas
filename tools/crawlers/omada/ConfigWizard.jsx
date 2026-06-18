@@ -84,6 +84,32 @@ export function buildCredentialFields(authMethod, fields) {
   return out;
 }
 
+// Validates one contextObjectTypes row's entitySet/identityField against the
+// live $metadata lists fetched from the Omada server. Pure function (no
+// closure over component state) so it's independently unit-testable — see
+// credentialGating.test.js. Returns null when metadata hasn't been fetched
+// yet (nothing to validate against), otherwise an array of error strings
+// (empty = valid). entitySet/identityField names are case-sensitive against
+// the real OData service, so a case-insensitive match is suggested as a
+// "did you mean" hint rather than silently accepted.
+export function validateContextObjectType(cot, metaEntitySets, metaIdentityProps) {
+  if (!metaEntitySets) return null;
+  const errs = [];
+  if (cot.entitySet && !metaEntitySets.includes(cot.entitySet)) {
+    const suggestion = metaEntitySets.find(s => s.toLowerCase() === cot.entitySet.toLowerCase());
+    errs.push(suggestion
+      ? `"${cot.entitySet}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
+      : `"${cot.entitySet}" is not an entity set in $metadata (names are case-sensitive)`);
+  }
+  if (cot.identityField && metaIdentityProps && !metaIdentityProps.includes(cot.identityField)) {
+    const suggestion = metaIdentityProps.find(p => p.toLowerCase() === cot.identityField.toLowerCase());
+    errs.push(suggestion
+      ? `"${cot.identityField}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
+      : `"${cot.identityField}" is not a property of the Identity entity type (names are case-sensitive)`);
+  }
+  return errs;
+}
+
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 
 export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
@@ -155,24 +181,7 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
     finally { setMetaLoading(false); }
   };
 
-  const ctxValidation = (cot) => {
-    if (!metaEntitySets) return null;
-    const errs = [];
-    if (cot.entitySet && !metaEntitySets.includes(cot.entitySet)) {
-      // Check for a case-insensitive match and suggest the correct casing
-      const suggestion = metaEntitySets.find(s => s.toLowerCase() === cot.entitySet.toLowerCase());
-      errs.push(suggestion
-        ? `"${cot.entitySet}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
-        : `"${cot.entitySet}" is not an entity set in $metadata (names are case-sensitive)`);
-    }
-    if (cot.identityField && metaIdentityProps && !metaIdentityProps.includes(cot.identityField)) {
-      const suggestion = metaIdentityProps.find(p => p.toLowerCase() === cot.identityField.toLowerCase());
-      errs.push(suggestion
-        ? `"${cot.identityField}" not found — names are case-sensitive. Did you mean "${suggestion}"?`
-        : `"${cot.identityField}" is not a property of the Identity entity type (names are case-sensitive)`);
-    }
-    return errs;
-  };
+  const ctxValidation = (cot) => validateContextObjectType(cot, metaEntitySets, metaIdentityProps);
 
   // Resource category mapping — maps ROLECATEGORY to Identity Atlas resourceType + optional tags
   const defaultCategoryMapping = [
