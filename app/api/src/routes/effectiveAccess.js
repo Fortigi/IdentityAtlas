@@ -12,10 +12,13 @@ const router = Router();
 
 // What to log for an unexpected 500. We deliberately do NOT log err.message: a Postgres error
 // echoes the offending input (e.g. a malformed id), so the message can carry user-controlled
-// text — logging it raw would allow forged log entries (log injection). The SQLSTATE code /
-// error name classify the failure without reflecting any input.
+// text — logging it raw would allow forged log entries (log injection). We surface only the
+// SQLSTATE code / short error name, and ONLY when it matches a strict alphanumeric shape —
+// which provably cannot contain the CR/LF that a forged log entry needs. The regex guard is
+// what makes this safe (and is recognised as a sanitizer by static analysis).
 function errLabel(err) {
-  return err && (err.code || err.name) ? err.code || err.name : 'unknown error';
+  const label = err && (err.code || err.name);
+  return typeof label === 'string' && /^[A-Za-z0-9]{1,16}$/.test(label) ? label : 'error';
 }
 
 // Shared handler for the two down-expansion forms (resource-centric and principal-centric).
