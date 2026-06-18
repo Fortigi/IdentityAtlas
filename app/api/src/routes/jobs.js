@@ -6,12 +6,15 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
-import { readdirSync, readFileSync, promises as fs } from 'fs';
+import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import Ajv from 'ajv';
-import { getCsvFolderPath, deleteConfigFolder } from './csvUploads.js';
+import { getUploadFolderPath, deleteConfigFolder } from './crawlerFiles.js';
 import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, getConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
+import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, VALID_JOB_TYPES, validateCrawlerConfig } from '../crawlerManifests.js';
+
+// Re-exported for existing consumers (scheduler.js, jobs.*.test.js) that
+// import these directly from this file rather than from crawlerManifests.js.
+export { VALID_JOB_TYPES, validateCrawlerConfig };
 
 const TRACE_DIR = process.env.TRACE_DIR || '/data/uploads/jobs';
 // Pre-resolve once so path-containment checks can use a stable absolute base.
@@ -28,40 +31,6 @@ const router = Router();
 const gate = requirePermission('admin.crawlers');
 const useSql = process.env.USE_SQL === 'true';
 
-// ─── Crawler manifest registry ────────────────────────────────────────────────
-// In Docker: manifests are at /app/crawlers/ (COPY'd from tools/crawlers/).
-// In local dev: resolve relative to the repo root via IA_APP_ROOT or __dirname.
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CRAWLER_MANIFESTS_DIR = process.env.CRAWLER_MANIFESTS_DIR ||
-  (process.env.IA_APP_ROOT
-    ? path.join(process.env.IA_APP_ROOT, 'crawlers')
-    : path.resolve(__dirname, '../../../../tools/crawlers'));
-
-const _ajv = new Ajv({ allErrors: true });
-const _crawlerManifests = {};   // type → manifest object
-const _configValidators = {};   // type → compiled ajv validator (or null)
-
-try {
-  for (const dir of readdirSync(CRAWLER_MANIFESTS_DIR, { withFileTypes: true })) {
-    if (!dir.isDirectory()) continue;
-    const mPath = path.join(CRAWLER_MANIFESTS_DIR, dir.name, 'crawler.json');
-    try {
-      const manifest = JSON.parse(readFileSync(mPath, 'utf8'));
-      _crawlerManifests[manifest.type] = manifest;
-      _configValidators[manifest.type] = manifest.configSchema
-        ? _ajv.compile(manifest.configSchema) : null;
-    } catch (e) { console.warn(`Crawler manifest skipped (${mPath}): ${e.message}`); }
-  }
-} catch (e) { console.error(`Crawler manifests directory not accessible (${CRAWLER_MANIFESTS_DIR}): ${e.message}`); }
-
-export const VALID_JOB_TYPES = Object.keys(_crawlerManifests);
-
-export function validateCrawlerConfig(type, config) {
-  const validate = _configValidators[type];
-  if (!validate) return null;
-  if (validate(config ?? {})) return null;
-  return _ajv.errorsText(validate.errors, { separator: '; ' });
-}
 const MAX_RECENT_JOBS = 50;
 const SECRET_MASK = '••••••••';
 
@@ -334,11 +303,15 @@ router.delete('/admin/crawler-configs/:id', gate, async (req, res) => {
 
   try {
     const pool = await db.getPool();
+    const existing = await pool.request().input('id', id)
+      .query(`SELECT "crawlerType" FROM "CrawlerConfigs" WHERE id = @id`);
+    if (existing.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
+    const crawlerType = existing.recordset[0].crawlerType;
     const result = await pool.request().input('id', id)
       .query(`DELETE FROM "CrawlerConfigs" WHERE id = @id`);
     if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Config not found' });
-    // Best-effort cleanup of any uploaded CSV files + the vaulted secret.
-    deleteConfigFolder(id).catch(() => {});
+    // Best-effort cleanup of any uploaded files + the vaulted secret.
+    deleteConfigFolder(crawlerType, id).catch(() => {});
     deleteConfigSecret(id).catch(() => {});
     res.json({ message: 'Config removed' });
   } catch (err) {
@@ -809,16 +782,17 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     const configErr = validateCrawlerConfig(jobType, resolvedConfig);
     if (configErr) return res.status(400).json({ error: configErr });
 
-    // For CSV jobs, inject the per-config upload folder so the worker knows where
-    // to read files from. The folder must already exist and contain at least one file.
-    if (jobType === 'csv') {
+    // For crawler types that support file uploads (per their manifest), inject
+    // the per-config upload folder so the worker knows where to read files
+    // from. The folder must already exist and contain at least one file.
+    if (_crawlerManifests[jobType]?.supportsFileUploads) {
       if (!configId) {
-        return res.status(400).json({ error: 'CSV jobs require a configId — inline configs are not supported' });
+        return res.status(400).json({ error: `${jobType} jobs require a configId — inline configs are not supported` });
       }
       // Use the config's stored csvFolder if it exists and is within the
       // allowed base directory, otherwise fall back to the standard upload path.
       const configCsvFolder = resolvedConfig?.csvFolder;
-      let folder = getCsvFolderPath(configId);
+      let folder = getUploadFolderPath(jobType, configId);
       if (configCsvFolder) {
         // Derive a relative path and rebuild from the trusted base so the
         // resulting path is constructed from a constant, not raw user data.
@@ -828,11 +802,11 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
           try { readdirSync(safeCustom); folder = safeCustom; } catch { /* fall back to default */ }
         }
       }
-      // Check for CSV files — use try/catch to avoid TOCTOU (existsSync + read)
-      let csvFiles = [];
-      try { csvFiles = readdirSync(folder); } catch { /* folder missing or unreadable */ }
-      if (csvFiles.length === 0) {
-        return res.status(400).json({ error: 'No CSV files found. Upload files or configure the CSV folder path.' });
+      // Check for uploaded files — use try/catch to avoid TOCTOU (existsSync + read)
+      let uploadedFiles = [];
+      try { uploadedFiles = readdirSync(folder); } catch { /* folder missing or unreadable */ }
+      if (uploadedFiles.length === 0) {
+        return res.status(400).json({ error: 'No files found. Upload files or configure the folder path.' });
       }
       resolvedConfig = { ...(resolvedConfig || {}), csvFolder: folder };
     }

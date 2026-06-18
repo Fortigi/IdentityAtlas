@@ -50,7 +50,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | `admin.systems` | Systems configuration | `PUT /api/systems/:id`, owners, clean-database, history-retention |
 | `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers |
 | `admin.context-plugins` | Context plugins | `/api/context-plugins…` (run/configure clustering, manager-hierarchy, etc.) |
-| `admin.csv-import` | CSV import | `/api/admin/crawler-configs/:id/csv-files`, custom-connector ingest |
+| `admin.csv-import` | CSV import | `/api/admin/crawler-configs/:id/files` (any upload-supporting crawler type), custom-connector ingest |
 | `admin.read-tokens` | Manage read API keys | `GET/DELETE /api/admin/read-tokens` (list/revoke tokens minted by others) |
 | `admin.feature-flags` | Feature flags | `POST /api/admin/features/toggle` |
 | `admin.auth` | Authentication & roles | `GET/PUT/DELETE /api/admin/roles` — edits this very mapping. A self-lockout guard prevents a save that would strip your own `admin.auth`. |

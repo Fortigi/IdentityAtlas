@@ -52,7 +52,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
     if (!savedConfigId) return;
     (async () => {
       try {
-        const r = await authFetch(`/api/admin/crawler-configs/${savedConfigId}/csv-files`);
+        const r = await authFetch(`/api/admin/crawler-configs/${savedConfigId}/files`);
         if (r.ok) {
           const j = await r.json();
           setServerFiles(j.files || []);
@@ -82,7 +82,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
     if (!savedConfigId) return;
     if (!confirm(`Delete ${name} from the server?`)) return;
     try {
-      await authFetch(`/api/admin/crawler-configs/${savedConfigId}/csv-files/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      await authFetch(`/api/admin/crawler-configs/${savedConfigId}/files/${encodeURIComponent(name)}`, { method: 'DELETE' });
       setServerFiles(prev => prev.filter(f => f.name !== name));
     } catch (err) { setError(err.message); }
   };
@@ -138,7 +138,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
         setUploading(true);
         const fd = new FormData();
         for (const s of stagedFiles) fd.append('files', s.file, s.file.name);
-        const r = await authFetch(`/api/admin/crawler-configs/${configId}/csv-files`, {
+        const r = await authFetch(`/api/admin/crawler-configs/${configId}/files`, {
           method: 'POST',
           body: fd,
         });
@@ -229,7 +229,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300">
             <div>Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name.</div>
             <div className="mt-1">
-              <a href="/api/admin/csv-schema" download className="text-blue-700 underline hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-200">
+              <a href="/api/admin/crawlers/csv/upload-schema" download className="text-blue-700 underline hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-200">
                 Download schema templates
               </a>
               <span className="text-blue-600 ml-2 dark:text-blue-400">— empty CSVs with the expected column headers. Use a transform script to convert your source data to this format.</span>

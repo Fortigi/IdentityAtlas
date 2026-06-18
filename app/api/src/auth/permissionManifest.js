@@ -29,7 +29,7 @@ export const GATED_ENDPOINTS = {
   'admin.systems':         { method: 'PUT',  path: '/api/systems/1', body: {} },
   'admin.llm':             { method: 'GET',  path: '/api/admin/llm/config' },
   'admin.context-plugins': { method: 'GET',  path: '/api/context-plugins' },
-  'admin.csv-import':      { method: 'GET',  path: '/api/admin/crawler-configs/1/csv-files' },
+  'admin.csv-import':      { method: 'GET',  path: '/api/admin/crawler-configs/1/files' },
   'admin.read-tokens':     { method: 'GET',  path: '/api/admin/read-tokens' },
   'admin.feature-flags':   { method: 'POST', path: '/api/admin/features/toggle', body: { key: 'RISK_SCORING', enabled: false } },
   'admin.auth':            { method: 'GET',  path: '/api/admin/roles' },
