@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- CI now skips all checks when a push adds only housekeeping commits (version bumps, "Update branch" merges from main)
+- Path-scoped CI gates: a UI-only change no longer triggers PowerShell lint or the 50-minute integration suite; a single-crawler change no longer runs all crawlers
+- `ci-passed` and `ci-integration-passed` gate jobs replace per-job branch protection requirements, correctly passing when jobs are legitimately skipped
+- `setup/IdentityAtlas.psd1` (version-number file) excluded from integration suite path trigger
+- `node-launcher-ui-build` now only runs when UI or crawler wizard files change
+
+## Changes in this PR
+
 - midPoint business roles that grant AD groups directly (via a `construction` inducement, the common pattern for birthright bundles) now show those groups as contained resources. Previously only role-to-role inducements were imported, so such roles appeared to grant nothing.
 - As a result, users holding such a role now correctly show access to the underlying AD groups in the matrix (governed access propagates through the business role).
 
