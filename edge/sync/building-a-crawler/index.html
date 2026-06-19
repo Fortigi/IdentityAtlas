@@ -3383,6 +3383,7 @@
 </tr>
 </tbody>
 </table>
+<p><strong>If your <code>configSchema</code> marks a secret field (<code>clientSecret</code>, or one of <code>password</code>/<code>apiToken</code>/<code>cookieString</code>) as <code>required</code></strong> — directly, or conditionally via <code>allOf</code>/<code>if</code>-<code>then</code> keyed off an auth-method property, the way <code>omada</code>'s and <code>midPoint</code>'s schemas do for <code>OAuth2CC</code>/<code>OAuth2ROPC</code> — you get correct vault-aware validation for free, with no code on your part. <code>clientSecret</code> is stripped out of the stored config JSON on every save (it lives only in the secrets vault), so a config freshly loaded from storage never has it; every place that validates such a config (an edit, a "Run Now", a scheduled run) calls <code>validateStoredCrawlerConfig(type, config, configId)</code> instead of the raw schema validator, which checks the vault before concluding the field is genuinely missing. See <code>app/api/CLAUDE.md</code> → "Crawler Job System" for the mechanism, and <code>app/api/src/crawlerManifests.test.js</code> for the test coverage.</p>
 <hr />
 <h2 id="the-entry-point-interface">The Entry Point Interface<a class="headerlink" href="#the-entry-point-interface" title="Permanent link">&para;</a></h2>
 <p>Every entry point must accept exactly these four parameters:</p>
@@ -3624,7 +3625,7 @@ source-specific resolution policy — that path lands in engine phase P3.</p>
 <a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">  </span><span class="nx">res</span><span class="p">.</span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="cm">/* whatever your wizard expects back */</span><span class="w"> </span><span class="p">});</span>
 <a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="p">}</span>
 </code></pre></div>
-<p>See <code>tools/crawlers/omada/discover.js</code> and <code>tools/crawlers/midpoint/discover.js</code> for real examples, and <code>app/api/src/routes/omadaDiscover.test.js</code> for how to test one (mock <code>fetch</code> + <code>getConfigSecret</code>, no HTTP server needed).</p>
+<p>See <code>tools/crawlers/omada/discover.js</code> and <code>tools/crawlers/midpoint/discover.js</code> for real examples, and <code>tools/crawlers/omada/discover.test.js</code> for how to test one (mock <code>fetch</code> + <code>getConfigSecret</code>, no HTTP server needed — co-located with the handler, not under <code>app/api/src/routes/</code>; the API's <code>vitest.config.js</code> is what picks it up).</p>
 <h3 id="file-uploads-only-if-operators-need-to-attach-files">File uploads — only if operators need to attach files<a class="headerlink" href="#file-uploads-only-if-operators-need-to-attach-files" title="Permanent link">&para;</a></h3>
 <p>CSV-style crawlers that need the operator to upload data files (rather than pull from a live API) set two manifest fields and drop template files:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
