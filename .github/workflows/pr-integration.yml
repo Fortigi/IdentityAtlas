@@ -149,9 +149,7 @@ jobs:
 
           # Shared infra change → must test all crawlers
           if echo "$CHANGED" | grep -qE \
-            "^tools/crawlers/shared/|^tools/powershell-sdk/|\
-^setup/docker/Invoke-CrawlerJob\.ps1|^setup/IdentityAtlas\.psm1|\
-^setup/docker/Dockerfile\.powershell"; then
+            "^tools/crawlers/shared/|^tools/powershell-sdk/|^setup/docker/Invoke-CrawlerJob\.ps1|^setup/IdentityAtlas\.psm1|^setup/docker/Dockerfile\.powershell"; then
             echo "crawlers_to_test=" >> "$GITHUB_OUTPUT"
             echo "CRAWLERS_TO_TEST: all (shared/infra change)" >> "$GITHUB_STEP_SUMMARY"
             exit 0

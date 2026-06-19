@@ -28,8 +28,9 @@
 import * as db from './db/connection.js';
 import { runScoring } from './riskscoring/engine.js';
 import { runLinking } from './accountlinking/engine.js';
-import { hasConfigSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
-import { validateCrawlerConfig, VALID_JOB_TYPES } from './routes/jobs.js';
+import { storeJobCredentials, OTHER_SECRET_FIELDS } from './secrets/crawlerSecrets.js';
+import { VALID_JOB_TYPES } from './routes/jobs.js';
+import { validateStoredCrawlerConfig } from './crawlerManifests.js';
 
 const TICK_INTERVAL_MS = 60_000;
 const FIRST_RUN_DELAY_MS = 45_000;
@@ -38,7 +39,7 @@ const FIRST_RUN_DELAY_MS = 45_000;
 // value = ISO string of the minute. Prevents double-firing within the same minute.
 const lastFired = new Map();
 
-function scheduleMatches(schedule, now) {
+export function scheduleMatches(schedule, now) {
   if (!schedule || schedule.enabled === false) return false;
   if (typeof schedule.minute !== 'number' || schedule.minute < 0 || schedule.minute > 59) return false;
 
@@ -64,7 +65,7 @@ function scheduleMatches(schedule, now) {
   return false;
 }
 
-async function recentlyQueuedJobExists(configId, jobType) {
+export async function recentlyQueuedJobExists(configId, jobType) {
   // Second safety net against double-firing (survives container restart).
   // If any job from this config was queued/running/completed in the last 55 min,
   // we skip. 55 < 60 so the next minute's tick can still fire if the schedule
@@ -80,7 +81,7 @@ async function recentlyQueuedJobExists(configId, jobType) {
   return !!r;
 }
 
-async function queueScheduledJob(configRow, scheduleIndex) {
+export async function queueScheduledJob(configRow, scheduleIndex) {
   const cfg = typeof configRow.config === 'string' ? JSON.parse(configRow.config) : configRow.config;
 
   // Resolve the effective syncMode for this scheduled run.
@@ -115,15 +116,11 @@ async function queueScheduledJob(configRow, scheduleIndex) {
     return;
   }
 
-  // Validate before queueing — the crawler will fail otherwise
-  if (jobType === 'entra-id') {
-    if (!jobConfig.tenantId || !jobConfig.clientId || !(await hasConfigSecret(configRow.id))) {
-      console.warn(`Scheduler: config ${configRow.id} missing Entra credentials — skipping scheduled run`);
-      return;
-    }
-  }
-
-  const configErr = validateCrawlerConfig(jobType, jobConfig);
+  // Validate before queueing — the crawler will fail otherwise. jobConfig
+  // never has clientSecret (deleted above) — validateStoredCrawlerConfig
+  // checks the vault instead of failing on its absence for types whose
+  // schema requires it (entra-id; omada/midPoint's OAuth2 methods).
+  const configErr = await validateStoredCrawlerConfig(jobType, jobConfig, configRow.id);
   if (configErr) {
     console.warn(`Scheduler: config ${configRow.id} invalid ${jobType} config — skipping scheduled run: ${configErr}`);
     return;
