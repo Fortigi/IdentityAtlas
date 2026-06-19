@@ -740,8 +740,18 @@ if ($Sync.assignments -and $Sync.users -and $AllUsers) {
     Write-Host "`nAssignments (Governed):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing assignments' -Pct 82
     try {
+        # Two passes per user so birthright/nested/org-inherited memberships are captured,
+        # not just the directly-assigned ones:
+        #   Pass 1 — user.assignment[]: the roles/services the user is DIRECTLY assigned.
+        #   Pass 2 — user.roleMembershipRef[]: midPoint's fully-computed membership set
+        #            (direct + inherited via role nesting, archetype/org inducements, …).
+        #            Default-relation refs only — manager/owner/approver/meta carry the
+        #            role for governance, not access, so they are excluded.
+        # Pass 1 wins ties: an OID seen as direct stays grant='direct'; only the OIDs that
+        # appear *solely* in roleMembershipRef are emitted as grant='inherited'.
         $seen = [System.Collections.Generic.HashSet[string]]::new()
         $ra   = [System.Collections.Generic.List[object]]::new()
+
         foreach ($u in $AllUsers) {
             $uoid = [string]$u.oid
             $assignments = $u.assignment
@@ -759,9 +769,32 @@ if ($Sync.assignments -and $Sync.users -and $AllUsers) {
                 # Resources.id = role/service oid and Principals.id = user oid (native-id
                 # ingest), so reference them directly by id — no externalId resolution needed.
                 $ra.Add([PSCustomObject]@{
-                    resourceId     = $targetOid
-                    principalId    = $uoid
-                    assignmentType = 'Governed'
+                    resourceId         = $targetOid
+                    principalId        = $uoid
+                    assignmentType     = 'Governed'
+                    extendedAttributes = @{ grant = 'direct' }
+                })
+            }
+        }
+
+        foreach ($u in $AllUsers) {
+            $uoid = [string]$u.oid
+            $memberships = $u.roleMembershipRef
+            if (-not $memberships) { continue }
+            foreach ($m in @($memberships)) {
+                $targetType = Get-MidpointRefType $m ''
+                $targetOid  = Get-MidpointRefOid $m $null
+                if (-not $targetOid) { continue }
+                if ($targetType -notin @('RoleType', 'ServiceType')) { continue }
+                # Only true membership (default relation); skip manager/owner/approver/meta.
+                if (-not (Test-MidpointDefaultRelation (Get-MidpointRefRelation $m ''))) { continue }
+                if (-not $SyncedResourceIds.Contains($targetOid)) { continue }
+                if (-not $seen.Add("$targetOid|$uoid")) { continue }   # already emitted as direct → keep that
+                $ra.Add([PSCustomObject]@{
+                    resourceId         = $targetOid
+                    principalId        = $uoid
+                    assignmentType     = 'Governed'
+                    extendedAttributes = @{ grant = 'inherited' }
                 })
             }
         }

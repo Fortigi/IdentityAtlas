@@ -87,7 +87,7 @@ function Get-MidpointFixtureSpec {
             identities          = 3   # Alice, Bob, Carol
             focusPrincipals     = 3   # midPoint user accounts
             shadowPrincipals    = 2   # Alice + Bob CSV accounts
-            governedAssignments = 3   # Alice→Role-A, Bob→Service-1, Carol→Role-B
+            governedAssignments = 4   # direct: Alice→Role-A, Bob→Service-1, Carol→Role-B; inherited: Alice→Role-B (Role-A induces Role-B, via roleMembershipRef)
             containsRelations   = 1   # Role-A → Role-B
             contextMembers      = 3   # Alice∈ChildA, Bob∈ChildB, Carol∈Root
             certificationDecisions = 3 # Alice/Role-A accept, Carol/Role-B revoke, Bob/Service-1 accept

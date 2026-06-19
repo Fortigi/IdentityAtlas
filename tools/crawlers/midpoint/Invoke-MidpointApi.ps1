@@ -403,6 +403,24 @@ function Get-MidpointRefRelation {
     return $Fallback
 }
 
+function Test-MidpointDefaultRelation {
+    <#
+    .SYNOPSIS
+        Test whether a midPoint relation QName denotes the *default* (full-membership) relation.
+    .DESCRIPTION
+        midPoint references (roleMembershipRef, parentOrgRef, …) carry a relation that says
+        WHY the subject is linked to the target. The default relation — an empty/absent value,
+        the bare token "default", or any namespaced QName ending in ":default" (e.g.
+        "org:default") — means an actual membership grant. All other relations (manager,
+        owner, approver, meta, …) are governance metadata, NOT access, and return $false.
+    .PARAMETER Relation
+        The relation string (e.g. from Get-MidpointRefRelation). $null/'' counts as default.
+    #>
+    [CmdletBinding()]
+    param([string]$Relation)
+    return (-not $Relation -or $Relation -eq 'default' -or $Relation -match ':default$')
+}
+
 function Resolve-MidpointDepartment {
     <#
     .SYNOPSIS
@@ -428,8 +446,7 @@ function Resolve-MidpointDepartment {
     $chosen = $null
     foreach ($ref in $refs) {
         $rel = Get-MidpointRefRelation $ref ''
-        # Default relation = empty (implied) or any QName ending in ":default" / equal to "default".
-        if (-not $rel -or $rel -eq 'default' -or $rel -match ':default$') { $chosen = $ref; break }
+        if (Test-MidpointDefaultRelation $rel) { $chosen = $ref; break }
     }
     if (-not $chosen) { $chosen = $refs[0] }   # no default-relation org → first ref
 
