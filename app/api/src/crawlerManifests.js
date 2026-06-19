@@ -9,6 +9,7 @@ import { readdirSync, readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Ajv from 'ajv';
+import { hasConfigSecret } from './secrets/crawlerSecrets.js';
 
 // In Docker: manifests are at /app/crawlers/ (COPY'd from tools/crawlers/).
 // In local dev: resolve relative to the repo root via IA_APP_ROOT or __dirname.
@@ -42,4 +43,28 @@ export function validateCrawlerConfig(type, config) {
   if (!validate) return null;
   if (validate(config ?? {})) return null;
   return _ajv.errorsText(validate.errors, { separator: '; ' });
+}
+
+// Some crawler types declare clientSecret as schema-required (directly, or
+// conditionally via an authMethod allOf/if-then — omada and midPoint both do
+// this for OAuth2CC/OAuth2ROPC). But clientSecret is deliberately stripped
+// out of CrawlerConfigs.config once saved — it lives only in the secrets
+// vault (see secrets/crawlerSecrets.js) — so a config freshly loaded from
+// storage (an edit, a "Run Now", a scheduled run) never has it, and a plain
+// validateCrawlerConfig() call on that config always fails the `required`
+// check, even though credentials are genuinely present. Any caller
+// validating a config that came from storage rather than a fresh wizard
+// submission must call this instead, passing the configId so the vault can
+// be checked. No crawler-type branching here — this generically applies to
+// whichever type's schema happens to require clientSecret.
+const VAULTED_SECRET_PLACEHOLDER = '__vaulted-secret-present__';
+export async function validateStoredCrawlerConfig(type, config, configId) {
+  const err = validateCrawlerConfig(type, config);
+  if (!err) return null;
+  // Only worth a vault round-trip if clientSecret is plausibly the reason
+  // this failed — every other type/config keeps the cheap synchronous path.
+  if (configId && config && !config.clientSecret && /clientSecret/.test(err) && await hasConfigSecret(configId)) {
+    return validateCrawlerConfig(type, { ...config, clientSecret: VAULTED_SECRET_PLACEHOLDER });
+  }
+  return err;
 }

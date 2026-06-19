@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Suspense, lazy, createElement } from 'react';
+import { useState, useEffect, useCallback, useRef, useTransition, Suspense, lazy, createElement } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 import Stepper from './Stepper';
@@ -27,18 +27,11 @@ function getCrawlerSummary(crawlerType) {
   return _summaryModules[`../../../../tools/crawlers/${crawlerType}/Summary.jsx`]?.default || null;
 }
 
-const SECRET_MASK = '••••••••';
-
 // ─── Crawler type catalog ─────────────────────────────────────────────────────
-// Built-in types (entra-id, demo) keep their wizards inline in this file.
-// File-based crawlers under tools/crawlers/*/CrawlerMeta.js are appended automatically.
+// `demo` keeps its wizard inline in this file (no persisted config — it's a
+// one-shot immediate job). File-based crawlers under tools/crawlers/*/CrawlerMeta.js
+// are appended automatically.
 const CRAWLER_TYPES = [
-  {
-    id: 'entra-id',
-    name: 'Microsoft Graph',
-    description: 'Sync users, groups, roles, and governance data from Entra ID',
-    available: true,
-  },
   {
     id: 'demo',
     name: 'Demo Data',
@@ -86,698 +79,6 @@ function SelectType({ onSelect, onCancel }) {
   );
 }
 
-// ─── Attribute Picker (used in Identity, Users & Groups pages) ────────────────
-function AttributePicker({ title, available, selected, onChange, coreAttrs = [] }) {
-  const [filter, setFilter] = useState('');
-  const coreSet = new Set(coreAttrs);
-  // Show core attrs first, then the rest
-  const sortedAvailable = [
-    ...coreAttrs.filter(a => available.includes(a)),
-    ...available.filter(a => !coreSet.has(a)),
-  ];
-  const visible = sortedAvailable.filter(a => !filter || a.toLowerCase().includes(filter.toLowerCase()));
-  const toggle = (attr) => {
-    if (coreSet.has(attr)) return; // can't toggle core attrs
-    if (selected.includes(attr)) onChange(selected.filter(a => a !== attr));
-    else onChange([...selected, attr]);
-  };
-
-  const selectAll = () => {
-    // Select all non-core attributes (respecting filter if active)
-    const visibleNonCore = visible.filter(a => !coreSet.has(a));
-    const newSelected = [...new Set([...selected, ...visibleNonCore])];
-    onChange(newSelected);
-  };
-
-  const deselectAll = () => {
-    // Deselect all non-core attributes (respecting filter if active)
-    const visibleNonCore = new Set(visible.filter(a => !coreSet.has(a)));
-    const newSelected = selected.filter(a => !visibleNonCore.has(a));
-    onChange(newSelected);
-  };
-
-  return (
-    <div className="mb-3">
-      <div className="flex items-center justify-between mb-2">
-        <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-          {title} ({selected.length} extra + {coreAttrs.length} core)
-        </h5>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={selectAll}
-            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-            type="button"
-          >
-            Select All
-          </button>
-          <button
-            onClick={deselectAll}
-            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-            type="button"
-          >
-            Deselect All
-          </button>
-          <input type="text" value={filter} onChange={e => setFilter(e.target.value)}
-            placeholder="Filter..."
-            className="px-2 py-1 text-xs border border-gray-200 rounded w-48 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-        </div>
-      </div>
-      <div className="max-h-72 overflow-y-auto border border-gray-200 rounded bg-white dark:border-gray-600 dark:bg-gray-800">
-        {visible.length === 0 ? (
-          <div className="text-xs text-gray-600 italic p-2 dark:text-gray-500">No attributes match filter</div>
-        ) : (
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {visible.map(attr => {
-              const isCore = coreSet.has(attr);
-              const isSelected = isCore || selected.includes(attr);
-              return (
-                <label key={attr}
-                  className={`flex items-center gap-2 text-xs px-2 py-1 ${
-                    isCore ? 'cursor-default bg-blue-50/40 dark:bg-blue-900/20' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                  title={isCore ? 'Core attribute (always synced)' : attr}>
-                  <input type="checkbox" checked={isSelected} disabled={isCore}
-                    onChange={() => toggle(attr)} className="rounded flex-shrink-0" />
-                  <span className="truncate">{attr}</span>
-                  {isCore && <span className="text-blue-700 text-[10px] flex-shrink-0">core</span>}
-                </label>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      <p className="text-xs text-gray-600 mt-1 dark:text-gray-500">
-        <span className="text-blue-500 dark:text-blue-400">core</span> = always synced.
-        Extras go into the extendedAttributes JSON column.
-      </p>
-    </div>
-  );
-}
-
-// ─── Schedule Editor (one schedule entry) ─────────────────────────────────────
-// Core attributes — always synced, shown in the picker as locked/checked.
-// These match the crawler's hardcoded core fields in Start-EntraIDCrawler.ps1.
-const CORE_USER_ATTRS = [
-  'displayName', 'givenName', 'surname', 'mail', 'userPrincipalName',
-  'accountEnabled', 'department', 'jobTitle', 'companyName', 'employeeId',
-  'createdDateTime',
-];
-const CORE_GROUP_ATTRS = [
-  'displayName', 'description', 'mail', 'visibility', 'createdDateTime',
-  'groupTypes', 'securityEnabled', 'mailEnabled',
-];
-
-// Default attribute presets — pre-selected (checkable) in the AttributePicker on a fresh crawler.
-// These are the "useful extras" beyond core fields. Users can deselect them.
-const DEFAULT_IDENTITY_ATTRS = [
-  'employeeType', 'employeeHireDate', 'usageLocation', 'country', 'city',
-  'officeLocation', 'mobilePhone', 'businessPhones', 'preferredLanguage',
-];
-const DEFAULT_USER_ATTRS = [
-  'employeeType', 'employeeHireDate', 'onPremisesSyncEnabled', 'usageLocation',
-  'country', 'city', 'officeLocation', 'mobilePhone', 'businessPhones',
-  'preferredLanguage', 'userType',
-];
-const DEFAULT_GROUP_ATTRS = [
-  'classification', 'membershipRule', 'membershipRuleProcessingState',
-  'isAssignableToRole', 'theme', 'preferredLanguage', 'preferredDataLocation',
-  'onPremisesSyncEnabled',
-];
-
-// ─── Entra ID Wizard (multi-step) ─────────────────────────────────────────────
-//
-// Steps:
-//   1. Name + Credentials → Validate
-//   2. Object Type Selection
-//   3. Identity (filter + attributes) — only if `identity` selected
-//   4. Users & Groups (attributes) — only if `usersGroupsMembers` selected
-//   5. Schedules (multiple)
-//
-// `initialConfig` is provided in edit mode to pre-populate all fields.
-function EntraIdWizard({ onComplete, onCancel, validateFn, discoverFn, initialConfig, isEdit }) {
-  const [step, setStep] = useState(1);
-  const totalSteps = 5;
-
-  // Wizard state
-  const [crawlerName, setCrawlerName] = useState(initialConfig?.displayName || '');
-  const [tenantId, setTenantId] = useState(initialConfig?.tenantId || '');
-  const [clientId, setClientId] = useState(initialConfig?.clientId || '');
-  const [clientSecret, setClientSecret] = useState('');
-  const [validation, setValidation] = useState(initialConfig?.validation || null);
-  const [validating, setValidating] = useState(false);
-  const [validationError, setValidationError] = useState(null);
-
-  const [selectedObjects, setSelectedObjects] = useState(initialConfig?.selectedObjects || {});
-
-  // Identity filter
-  const [idFilterEnabled, setIdFilterEnabled] = useState(!!initialConfig?.identityFilter?.attribute);
-  const [idFilterAttr, setIdFilterAttr] = useState(initialConfig?.identityFilter?.attribute || 'employeeId');
-  const [idFilterCondition, setIdFilterCondition] = useState(initialConfig?.identityFilter?.condition || 'isNotNull');
-  const [idFilterValue, setIdFilterValue] = useState(
-    initialConfig?.identityFilter?.value || (initialConfig?.identityFilter?.values || []).join(', ')
-  );
-  const [identityAttrs, setIdentityAttrs] = useState(initialConfig?.identityAttributes || []);
-
-  // User/group attributes
-  const [customUserAttrs, setCustomUserAttrs] = useState(initialConfig?.customUserAttributes || []);
-  const [customGroupAttrs, setCustomGroupAttrs] = useState(initialConfig?.customGroupAttributes || []);
-
-  // Schedules (array)
-  const [schedules, setSchedules] = useState(() => {
-    if (initialConfig?.schedules?.length) return initialConfig.schedules;
-    if (initialConfig?.schedule) return [initialConfig.schedule];
-    return [];
-  });
-
-  // Advanced options — exposed in a collapsible on step 5. These are read
-  // by the worker dispatcher but had no UI surface before.
-  // signInLogsDays: how many days of /auditLogs/signIns to pull each run
-  //                 (1-30, capped at Graph's retention). Default 7.
-  // aiNamePatterns: extra regex fragments applied to SP displayName to
-  //                 classify as AIAgent (beyond the built-in list).
-  const [signInLogsDays, setSignInLogsDays] = useState(initialConfig?.signInLogsDays ?? 7);
-  const [aiNamePatterns, setAiNamePatterns] = useState(
-    Array.isArray(initialConfig?.aiNamePatterns) ? initialConfig.aiNamePatterns.join('\n') : ''
-  );
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  // Discovery state — must be declared before the useEffect below that references userAttrCatalog
-  const [userAttrCatalog, setUserAttrCatalog] = useState(null);
-  const [groupAttrCatalog, setGroupAttrCatalog] = useState(null);
-  const [discovering, setDiscovering] = useState(false);
-
-  // When the user picks a Boolean attribute (and isn't using an empty-string
-  // operator), default the value state to 'true'. Without this the Boolean
-  // <select> displays "true" via `value={idFilterValue || 'true'}` but the
-  // underlying state stays '' — which saves as {"value": ""} and matches no
-  // rows, silently producing an empty Identities table. Discovered April 2026.
-  useEffect(() => {
-    if (idFilterCondition === 'isNotNull' || idFilterCondition === 'inValues') return;
-    const filterType = userAttrCatalog?.dataTypes?.[idFilterAttr];
-    if (filterType === 'Boolean' && (idFilterValue === '' || idFilterValue == null)) {
-      setIdFilterValue('true');
-    }
-  }, [idFilterAttr, idFilterCondition, userAttrCatalog, idFilterValue]);
-
-  const [saving, setSaving] = useState(false);
-
-  // Step visibility
-  const stepNeeded = (n) => {
-    if (n === 3) return !!selectedObjects.identity;
-    if (n === 4) return !!selectedObjects.usersGroupsMembers;
-    return true;
-  };
-  const nextStep = () => {
-    let next = step + 1;
-    while (next <= totalSteps && !stepNeeded(next)) next++;
-    setStep(next);
-  };
-  const prevStep = () => {
-    let prev = step - 1;
-    while (prev >= 1 && !stepNeeded(prev)) prev--;
-    setStep(prev);
-  };
-
-  // Step 1: Validate
-  const handleValidate = async () => {
-    if (!tenantId.trim() || !clientId.trim()) return;
-    if (!isEdit && !clientSecret.trim()) return;
-    setValidating(true);
-    setValidationError(null);
-    try {
-      // In edit mode without a new secret, skip validation entirely
-      if (isEdit && !clientSecret.trim()) {
-        setValidation(initialConfig?.validation || { organization: 'edit mode', permissions: {}, objectTypes: [] });
-        nextStep();
-        return;
-      }
-      const result = await validateFn({
-        tenantId: tenantId.trim(),
-        clientId: clientId.trim(),
-        clientSecret: clientSecret.trim(),
-      });
-      if (result.valid) {
-        setValidation(result);
-        // Pre-check object selections based on permissions
-        if (!initialConfig?.selectedObjects) {
-          const initial = {};
-          for (const ot of result.objectTypes || []) {
-            const reqPerms = Object.entries(result.permissionObjectMap || {})
-              .filter(([, types]) => types.includes(ot.key))
-              .map(([p]) => p);
-            initial[ot.key] = reqPerms.length === 0 || reqPerms.some(p => result.permissions?.[p]);
-          }
-          setSelectedObjects(initial);
-        }
-        nextStep();
-      } else {
-        setValidationError(result.error || 'Validation failed');
-      }
-    } catch (err) {
-      setValidationError(err.message);
-    } finally {
-      setValidating(false);
-    }
-  };
-
-  // Discover attributes when entering steps 3 or 4
-  const ensureUserAttrs = async () => {
-    if (userAttrCatalog || discovering) return;
-    setDiscovering(true);
-    try {
-      const result = await discoverFn({
-        tenantId: tenantId.trim(),
-        clientId: clientId.trim(),
-        clientSecret: clientSecret.trim() || undefined,
-        configId: isEdit && !clientSecret.trim() ? initialConfig?.id : undefined,
-        type: 'users',
-      });
-      setUserAttrCatalog(result);
-
-      // Pre-select default attributes if user hasn't picked any yet (fresh wizard, no initialConfig)
-      const available = new Set(result.attributes || []);
-      if (!isEdit && !initialConfig?.identityAttributes && identityAttrs.length === 0) {
-        setIdentityAttrs(DEFAULT_IDENTITY_ATTRS.filter(a => available.has(a)));
-      }
-      if (!isEdit && !initialConfig?.customUserAttributes && customUserAttrs.length === 0) {
-        setCustomUserAttrs(DEFAULT_USER_ATTRS.filter(a => available.has(a)));
-      }
-    } catch (err) {
-      setUserAttrCatalog({ attributes: [], populated: {}, error: err.message });
-    } finally {
-      setDiscovering(false);
-    }
-  };
-  const ensureGroupAttrs = async () => {
-    if (groupAttrCatalog || discovering) return;
-    setDiscovering(true);
-    try {
-      const result = await discoverFn({
-        tenantId: tenantId.trim(),
-        clientId: clientId.trim(),
-        clientSecret: clientSecret.trim() || undefined,
-        configId: isEdit && !clientSecret.trim() ? initialConfig?.id : undefined,
-        type: 'groups',
-      });
-      setGroupAttrCatalog(result);
-
-      // Pre-select default group attributes if user hasn't picked any yet
-      const available = new Set(result.attributes || []);
-      if (!isEdit && !initialConfig?.customGroupAttributes && customGroupAttrs.length === 0) {
-        setCustomGroupAttrs(DEFAULT_GROUP_ATTRS.filter(a => available.has(a)));
-      }
-    } catch (err) {
-      setGroupAttrCatalog({ attributes: [], populated: {}, error: err.message });
-    } finally {
-      setDiscovering(false);
-    }
-  };
-
-  useEffect(() => {
-    if (step === 3) ensureUserAttrs();
-    if (step === 4) { ensureUserAttrs(); ensureGroupAttrs(); }
-  }, [step]);
-
-  const toggleObject = (key) => setSelectedObjects(prev => ({ ...prev, [key]: !prev[key] }));
-
-  const canObjectBeSelected = (key) => {
-    if (!validation?.permissionObjectMap) return true;
-    const reqPerms = Object.entries(validation.permissionObjectMap)
-      .filter(([, types]) => types.includes(key))
-      .map(([p]) => p);
-    return reqPerms.length === 0 || reqPerms.some(p => validation.permissions?.[p]);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    const config = {
-      displayName: crawlerName.trim() || `Entra ID — ${validation?.organization || 'Unnamed'}`,
-      credentials: {
-        tenantId: tenantId.trim(),
-        clientId: clientId.trim(),
-        clientSecret: clientSecret.trim(), // empty string in edit mode if unchanged
-      },
-      selectedObjects,
-      identityAttributes: identityAttrs,
-      customUserAttributes: customUserAttrs,
-      customGroupAttributes: customGroupAttrs,
-      schedules,
-    };
-    if (idFilterEnabled && selectedObjects.identity) {
-      config.identityFilter = { attribute: idFilterAttr, condition: idFilterCondition };
-      if (idFilterCondition === 'equals' || idFilterCondition === 'notEquals') {
-        config.identityFilter.value = idFilterValue;
-      }
-      if (idFilterCondition === 'inValues') {
-        config.identityFilter.values = idFilterValue.split(',').map(s => s.trim()).filter(Boolean);
-      }
-    }
-    // Advanced options
-    const daysInt = parseInt(signInLogsDays, 10);
-    if (Number.isInteger(daysInt) && daysInt >= 1 && daysInt <= 30 && daysInt !== 7) {
-      config.signInLogsDays = daysInt;
-    }
-    const patterns = aiNamePatterns.split('\n').map(s => s.trim()).filter(Boolean);
-    if (patterns.length > 0) {
-      config.aiNamePatterns = patterns;
-    }
-    try {
-      await onComplete(config);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ── Render ────────────────────────────────────────────────────
-
-  const entraSteps = [
-    { n: 1, label: 'Credentials' },
-    { n: 2, label: 'Object Types' },
-    { n: 3, label: 'Identity', shown: stepNeeded(3) },
-    { n: 4, label: 'Users & Groups', shown: stepNeeded(4) },
-    { n: 5, label: 'Schedule' },
-  ];
-
-  return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit' : 'Add'} Microsoft Graph Crawler</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      <div className="mb-5"><Stepper steps={entraSteps} current={step} onStepClick={setStep} allowAll={!!isEdit} /></div>
-
-      {/* ─── Step 1: Name + Credentials ─────────────────────────── */}
-      {step === 1 && (
-        <div>
-          <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">
-            Enter a name for this crawler and your App Registration credentials. We'll validate them and check which permissions are granted.
-          </p>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1 dark:text-gray-200">Crawler Name *</label>
-            <input type="text" value={crawlerName} onChange={e => setCrawlerName(e.target.value)}
-              placeholder="e.g., Entra ID — Production"
-              className="w-full max-w-md p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium mb-1 dark:text-gray-200">Tenant ID *</label>
-              <input type="text" value={tenantId} onChange={e => setTenantId(e.target.value)}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full p-2 border border-gray-200 rounded font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 dark:text-gray-200">Client ID *</label>
-              <input type="text" value={clientId} onChange={e => setClientId(e.target.value)}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full p-2 border border-gray-200 rounded font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 dark:text-gray-200">
-                Client Secret {isEdit ? '(leave blank to keep)' : '*'}
-              </label>
-              <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)}
-                placeholder={isEdit ? '••••••••' : 'Enter client secret'}
-                className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-            </div>
-          </div>
-          {validationError && (
-            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">{validationError}</div>
-          )}
-          <div className="flex justify-end">
-            <button onClick={handleValidate}
-              disabled={validating || !tenantId.trim() || !clientId.trim() || (!isEdit && !clientSecret.trim()) || !crawlerName.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-              {validating ? 'Validating...' : (isEdit && !clientSecret.trim() ? 'Next' : 'Validate & Next')}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Step 2: Object Type Selection ──────────────────────── */}
-      {step === 2 && validation && (
-        <div>
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded dark:bg-green-900/20 dark:border-green-700">
-            <span className="font-medium text-green-800 dark:text-green-300">
-              Connected to {validation.organization || 'tenant'}
-            </span>
-          </div>
-
-          <div className="mb-5">
-            <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Granted Permissions</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-              {Object.entries(validation.permissions || {}).sort(([a], [b]) => a.localeCompare(b)).map(([perm, granted]) => (
-                <div key={perm} className="flex items-center gap-2 text-sm py-1">
-                  <span className={granted ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{granted ? '✓' : '✗'}</span>
-                  <span className={granted ? 'dark:text-gray-200' : 'text-gray-600 line-through dark:text-gray-500'}>{perm}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-5">
-            <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Object Types to Sync</h4>
-            <div className="space-y-2">
-              {(validation.objectTypes || []).map(ot => {
-                const canSelect = canObjectBeSelected(ot.key);
-                return (
-                  <label key={ot.key} className={`flex items-start gap-3 p-2 rounded ${canSelect ? '' : 'opacity-40'}`}>
-                    <input type="checkbox" checked={selectedObjects[ot.key] || false}
-                      onChange={() => canSelect && toggleObject(ot.key)} disabled={!canSelect}
-                      className="mt-0.5 rounded" />
-                    <div>
-                      <span className="text-sm font-medium dark:text-gray-200">{ot.label}</span>
-                      <span className="text-xs text-gray-500 ml-2 dark:text-gray-400">{ot.description}</span>
-                      {!canSelect && <span className="text-xs text-red-600 ml-2">(missing permissions)</span>}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex justify-between">
-            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={nextStep} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Next</button>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Step 3: Identity Configuration ─────────────────────── */}
-      {step === 3 && (
-        <div>
-          <h4 className="text-sm font-semibold mb-3 dark:text-gray-200">Identity Configuration</h4>
-
-          {/* Identity filter */}
-          <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
-            <div className="flex items-center gap-3 mb-3">
-              <input type="checkbox" checked={idFilterEnabled} onChange={e => setIdFilterEnabled(e.target.checked)} className="rounded" />
-              <h5 className="text-sm font-semibold dark:text-gray-200">Identity Filter</h5>
-            </div>
-            <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Select which users should be synced as identities. Users not matching the filter will be skipped from the identities table.</p>
-
-            {idFilterEnabled && (
-              <div className="ml-6 grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1 dark:text-gray-300">Attribute</label>
-                  {discovering ? (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Discovering...</div>
-                  ) : userAttrCatalog?.attributes?.length > 0 ? (
-                    <select value={idFilterAttr} onChange={e => setIdFilterAttr(e.target.value)}
-                      className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                      {userAttrCatalog.attributes.map(a => (
-                        <option key={a} value={a}>{a}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input type="text" value={idFilterAttr} onChange={e => setIdFilterAttr(e.target.value)}
-                      className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1 dark:text-gray-300">Condition</label>
-                  <select value={idFilterCondition} onChange={e => setIdFilterCondition(e.target.value)}
-                    className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                    <option value="isNotNull">Is not empty</option>
-                    <option value="equals">Equals</option>
-                    <option value="notEquals">Not equals</option>
-                    <option value="inValues">In values (comma-separated)</option>
-                  </select>
-                </div>
-                {idFilterCondition !== 'isNotNull' && (() => {
-                  const filterType = userAttrCatalog?.dataTypes?.[idFilterAttr];
-                  const isBool = filterType === 'Boolean';
-                  return (
-                    <div>
-                      <label className="block text-xs font-medium mb-1 dark:text-gray-300">
-                        Value{filterType && <span className="ml-1 text-gray-600 dark:text-gray-500">({filterType})</span>}
-                      </label>
-                      {isBool && idFilterCondition !== 'inValues' ? (
-                        <select value={idFilterValue || 'true'} onChange={e => setIdFilterValue(e.target.value)}
-                          className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                          <option value="true">true</option>
-                          <option value="false">false</option>
-                        </select>
-                      ) : (
-                        <input type="text" value={idFilterValue} onChange={e => setIdFilterValue(e.target.value)}
-                          placeholder={idFilterCondition === 'inValues' ? 'a, b, c' : 'value'}
-                          className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-
-          {/* Identity attributes to sync */}
-          <div className="mb-5 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
-            <h5 className="text-sm font-semibold mb-2 dark:text-gray-200">Identity Attributes to Sync</h5>
-            <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Pick which user attributes get stored in extendedAttributes JSON for identities. Core fields (displayName, email, employeeId) are always included.</p>
-            {discovering && !userAttrCatalog && <div className="text-sm text-gray-500 dark:text-gray-400">Discovering attributes from Microsoft Graph...</div>}
-            {userAttrCatalog?.error && <div className="text-sm text-red-500 dark:text-red-400">Discovery failed: {userAttrCatalog.error}</div>}
-            {userAttrCatalog?.attributes && (
-              <AttributePicker
-                title="Identity attributes"
-                available={userAttrCatalog.attributes}
-                selected={identityAttrs}
-                onChange={setIdentityAttrs}
-                coreAttrs={CORE_USER_ATTRS}
-              />
-            )}
-          </div>
-
-          <div className="flex justify-between">
-            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={nextStep} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Next</button>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Step 4: Users & Groups Attributes ──────────────────── */}
-      {step === 4 && (
-        <div>
-          <h4 className="text-sm font-semibold mb-3 dark:text-gray-200">User & Group Attributes</h4>
-          <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Pick which attributes to fetch. Core fields (displayName, givenName, surname, mail, etc.) are always synced and shown locked.</p>
-
-          {discovering && (!userAttrCatalog || !groupAttrCatalog) && (
-            <div className="text-sm text-gray-500 mb-3 dark:text-gray-400">Discovering attributes from Microsoft Graph...</div>
-          )}
-          {userAttrCatalog?.attributes && (
-            <div className="mb-4 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
-              <AttributePicker
-                title="User attributes"
-                available={userAttrCatalog.attributes}
-                selected={customUserAttrs}
-                onChange={setCustomUserAttrs}
-                coreAttrs={CORE_USER_ATTRS}
-              />
-            </div>
-          )}
-          {groupAttrCatalog?.attributes && (
-            <div className="mb-4 p-4 bg-gray-50 rounded border border-gray-200 dark:bg-gray-700/50 dark:border-gray-600">
-              <AttributePicker
-                title="Group attributes"
-                available={groupAttrCatalog.attributes}
-                selected={customGroupAttrs}
-                onChange={setCustomGroupAttrs}
-                coreAttrs={CORE_GROUP_ATTRS}
-              />
-            </div>
-          )}
-
-          <div className="flex justify-between">
-            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={nextStep} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Next</button>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Step 5: Schedules ──────────────────────────────────── */}
-      {step === 5 && (
-        <div>
-          <h4 className="text-sm font-semibold mb-3 dark:text-gray-200">Schedule</h4>
-          <p className="text-xs text-gray-500 mb-3 dark:text-gray-400">Configure when this crawler runs automatically. You can add multiple schedules (e.g., a hourly delta + a daily full sync).</p>
-
-          {schedules.length === 0 && (
-            <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-400">
-              No schedules configured. The crawler will only run when you click "Run Now".
-            </div>
-          )}
-
-          {schedules.map((s, i) => (
-            <ScheduleEditor key={i}
-              schedule={{ enabled: true, ...s }}
-              onChange={(updated) => setSchedules(schedules.map((x, idx) => idx === i ? { ...updated, enabled: true } : x))}
-              onRemove={() => setSchedules(schedules.filter((_, idx) => idx !== i))}
-            />
-          ))}
-
-          <button onClick={() => setSchedules([...schedules, { enabled: true, frequency: 'daily', hour: 2, minute: 0 }])}
-            className="mb-4 px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
-            + Add Schedule
-          </button>
-
-          {/* ─── Advanced options ──────────────────────────────── */}
-          <div className="mt-4 mb-4 border-t pt-4 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-sm text-gray-700 hover:text-gray-900 flex items-center gap-1 dark:text-gray-300 dark:hover:text-white"
-            >
-              <span className={`inline-block transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
-              Advanced options
-            </button>
-            {showAdvanced && (
-              <div className="mt-3 space-y-4 p-4 bg-gray-50 border border-gray-200 rounded dark:bg-gray-800 dark:border-gray-700">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1 dark:text-gray-300">
-                    Sign-in logs window (days)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="30"
-                    value={signInLogsDays}
-                    onChange={e => setSignInLogsDays(e.target.value)}
-                    className="w-24 px-2 py-1 text-sm border border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                  <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                    How many days of <code>/auditLogs/signIns</code> to fetch per run. Graph retains events for up to 30 days; default is 7 so daily runs overlap a day.
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1 dark:text-gray-300">
-                    Extra AI-agent name patterns (one regex per line)
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={aiNamePatterns}
-                    onChange={e => setAiNamePatterns(e.target.value)}
-                    placeholder="e.g. mycustom.*copilot&#10;\bassistant\b"
-                    className="w-full px-2 py-1 text-sm font-mono border border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                  <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                    Combined with the built-in list (copilot, openai, bot, azure-ai, gpt, …). Case-insensitive. Matches on <code>servicePrincipal.displayName</code>. Leave empty to use the default set.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-between border-t pt-4 dark:border-gray-700">
-            <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={handleSave} disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-              {saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Deploy to Worker')}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
 function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob }) {
   const cfg = config.config || {};
@@ -786,13 +87,6 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
   // on this card, or per-schedule via the Mode dropdown on each schedule
   // entry. The old `nextRunMode` column on CrawlerConfigs still works as
   // a server-side scheduler fallback but has no UI surface anymore.
-
-  const objectLabels = [];
-  if (cfg.selectedObjects?.identity) objectLabels.push('Identity');
-  if (cfg.selectedObjects?.usersGroupsMembers) objectLabels.push('Users & Groups');
-  if (cfg.selectedObjects?.identityGovernance) objectLabels.push('Governance');
-  if (cfg.selectedObjects?.appsAppRoles) objectLabels.push('Apps');
-  if (cfg.selectedObjects?.directoryRoles) objectLabels.push('Dir Roles');
 
   const isRunning = runningJob && ['queued', 'running'].includes(runningJob.status);
 
@@ -861,21 +155,6 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
         </div>
       </div>
 
-      {config.crawlerType === 'entra-id' && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
-          <div><span className="text-gray-500 dark:text-gray-400">Tenant ID:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.tenantId || '—'}</span></div>
-          <div><span className="text-gray-500 dark:text-gray-400">Client ID:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.clientId || '—'}</span></div>
-          <div><span className="text-gray-500 dark:text-gray-400">Secret:</span> <span className="text-gray-600 dark:text-gray-500">{SECRET_MASK}</span></div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400">Objects:</span>{' '}
-            {objectLabels.length > 0
-              ? objectLabels.map(l => <span key={l} className="inline-block mr-1 px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded dark:bg-blue-900/30 dark:text-blue-300">{l}</span>)
-              : <span className="text-gray-600 text-xs dark:text-gray-500">none</span>
-            }
-          </div>
-        </div>
-      )}
-
       {(() => {
         const Summary = getCrawlerSummary(config.crawlerType);
         return Summary ? createElement(Summary, { cfg, config }) : null;
@@ -894,36 +173,6 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
         </div>
       )}
 
-      {/* Identity filter badge */}
-      {cfg.identityFilter?.attribute && (
-        <div className="text-xs text-gray-500 mt-1 dark:text-gray-400">
-          <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded dark:bg-purple-900/30 dark:text-purple-300">
-            Identity filter: {cfg.identityFilter.attribute} {cfg.identityFilter.condition}
-            {cfg.identityFilter.value && ` "${cfg.identityFilter.value}"`}
-            {cfg.identityFilter.values?.length > 0 && ` ${JSON.stringify(cfg.identityFilter.values)}`}
-          </span>
-        </div>
-      )}
-      {/* Custom attribute counts */}
-      {(cfg.customUserAttributes?.length > 0 || cfg.customGroupAttributes?.length > 0 || cfg.identityAttributes?.length > 0) && (
-        <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-1 dark:text-gray-400">
-          {cfg.identityAttributes?.length > 0 && (
-            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded dark:bg-amber-900/30 dark:text-amber-300">
-              +{cfg.identityAttributes.length} identity attr{cfg.identityAttributes.length > 1 ? 's' : ''}
-            </span>
-          )}
-          {cfg.customUserAttributes?.length > 0 && (
-            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded dark:bg-amber-900/30 dark:text-amber-300">
-              +{cfg.customUserAttributes.length} user attr{cfg.customUserAttributes.length > 1 ? 's' : ''}
-            </span>
-          )}
-          {cfg.customGroupAttributes?.length > 0 && (
-            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded dark:bg-amber-900/30 dark:text-amber-300">
-              +{cfg.customGroupAttributes.length} group attr{cfg.customGroupAttributes.length > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-      )}
       {config.lastRunAt && (
         <div className="text-xs text-gray-500 mt-2 dark:text-gray-400">
           Last run: {new Date(config.lastRunAt).toLocaleString()}
@@ -947,7 +196,7 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
     if (!job || ['completed','failed','cancelled'].includes(job.status)) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [job?.status]);
+  }, [job]);
 
   if (!job) return null;
   const progress = job.progress ? (typeof job.progress === 'string' ? JSON.parse(job.progress) : job.progress) : {};
@@ -958,8 +207,8 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
   const secondsSince = updatedAt ? Math.max(0, Math.round((now - updatedAt.getTime()) / 1000)) : null;
 
   // Header label on every card so two running crawlers are distinguishable
-  // at a glance. Falls back to the bare job type (e.g. "entra-id") if the
-  // config name isn't known (manual jobs without a source config, demo jobs).
+  // at a glance. Falls back to the bare job type string if the config name
+  // isn't known (manual jobs without a source config, demo jobs).
   const header = configLabel || job.jobType;
 
   if (job.status === 'completed') {
@@ -1102,7 +351,7 @@ function JobPhasesModal({ job, onClose }) {
     };
     poll();
     return () => { cancelled = true; if (timerId) clearTimeout(timerId); };
-  }, [job?.id, activeTab, isRunning, authFetch]);
+  }, [job, activeTab, isRunning, authFetch]);
 
   // Auto-scroll the trace pane to the bottom when new bytes arrive, but only
   // if the user hadn't scrolled up to read history.
@@ -1703,6 +952,7 @@ function ExampleTabs({ examples, onCopy, copied }) {
 
 export default function CrawlersPage({ onNavigate }) {
   const { authFetch } = useAuth();
+  const [, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -1722,7 +972,7 @@ export default function CrawlersPage({ onNavigate }) {
   const prevActiveJobsRef = useRef([]);
   const pollRef = useRef(null);
 
-  // Wizard state — 'select' (type picker), 'entra-wizard', 'crawler-wizard' (generic)
+  // Wizard state — 'select' (type picker), 'crawler-wizard' (generic), 'custom-wizard'
   const [wizardStep, setWizardStep] = useState(null);
   // For 'crawler-wizard': which crawler type's wizard to render
   const [wizardCrawlerType, setWizardCrawlerType] = useState(null);
@@ -1793,9 +1043,11 @@ export default function CrawlersPage({ onNavigate }) {
   }, [activeJobs, fetchStatus, fetchConfigs]);
 
   useEffect(() => {
-    Promise.all([fetchCrawlers(), fetchConfigs(), fetchStatus(), fetchJobs()])
-      .finally(() => setLoading(false));
-  }, []);
+    startTransition(() => {
+      Promise.all([fetchCrawlers(), fetchConfigs(), fetchStatus(), fetchJobs()])
+        .finally(() => setLoading(false));
+    });
+  }, [fetchCrawlers, fetchConfigs, fetchStatus, fetchJobs, startTransition]);
 
   useEffect(() => {
     // Keep polling as long as ANY tracked job is still active. As soon as
@@ -1815,95 +1067,12 @@ export default function CrawlersPage({ onNavigate }) {
     if (type === 'demo') {
       submitJob('demo');
       setWizardStep(null);
-    } else if (type === 'entra-id') {
-      setEditingConfig(null);
-      setWizardStep('entra-wizard');
     } else if (getCrawlerWizard(type)) {
       setEditingConfig(null);
       setWizardCrawlerType(type); setWizardStep('crawler-wizard');
     } else if (type === 'custom') {
       setEditingConfig(null);
       setWizardStep('custom-wizard');
-    }
-  };
-
-  // Wizard helper: validate credentials
-  const validateCredentials = async (creds) => {
-    const r = await authFetch('/api/admin/validate-graph-credentials', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(creds),
-    });
-    return await r.json();
-  };
-
-  // Wizard helper: discover Graph attributes
-  const discoverAttributes = async ({ tenantId, clientId, clientSecret, configId, type }) => {
-    const body = { type };
-    if (clientSecret) Object.assign(body, { tenantId, clientId, clientSecret });
-    else if (configId) body.configId = configId;
-    const r = await authFetch('/api/admin/discover-graph-attributes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      throw new Error(err.error || `HTTP ${r.status}`);
-    }
-    return await r.json();
-  };
-
-  // Wizard completion: create or update a CrawlerConfig
-  const handleWizardComplete = async (wizardConfig) => {
-    try {
-      const { displayName, credentials, selectedObjects, identityAttributes,
-              customUserAttributes, customGroupAttributes, identityFilter, schedules } = wizardConfig;
-
-      const configPayload = {
-        tenantId: credentials.tenantId,
-        clientId: credentials.clientId,
-        // Empty secret in edit mode means "keep existing"
-        clientSecret: credentials.clientSecret || undefined,
-        selectedObjects,
-      };
-      if (identityAttributes?.length) configPayload.identityAttributes = identityAttributes;
-      if (customUserAttributes?.length) configPayload.customUserAttributes = customUserAttributes;
-      if (customGroupAttributes?.length) configPayload.customGroupAttributes = customGroupAttributes;
-      if (identityFilter?.attribute) configPayload.identityFilter = identityFilter;
-      if (schedules?.length) configPayload.schedules = schedules;
-
-      // Strip undefined clientSecret to avoid wiping it server-side
-      if (configPayload.clientSecret === undefined) delete configPayload.clientSecret;
-
-      let r;
-      if (editingConfig?.id) {
-        r = await authFetch(`/api/admin/crawler-configs/${editingConfig.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ displayName, config: configPayload }),
-        });
-      } else {
-        r = await authFetch('/api/admin/crawler-configs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            crawlerType: 'entra-id',
-            displayName,
-            config: configPayload,
-          }),
-        });
-      }
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${r.status}`);
-      }
-      setWizardStep(null);
-      setEditingConfig(null);
-      fetchConfigs();
-    } catch (err) {
-      setError(err.message);
-      throw err; // re-throw so wizard can stop the saving spinner
     }
   };
 
@@ -1915,12 +1084,8 @@ export default function CrawlersPage({ onNavigate }) {
       displayName: config.displayName,
       ...(config.config || {}),
     });
-    if (getCrawlerWizard(config.crawlerType)) {
-      setWizardCrawlerType(config.crawlerType);
-      setWizardStep('crawler-wizard');
-    } else {
-      setWizardStep('entra-wizard');
-    }
+    setWizardCrawlerType(config.crawlerType);
+    setWizardStep('crawler-wizard');
   };
 
   // ── Job actions ───────────────────────────────────────────────
@@ -2011,7 +1176,7 @@ export default function CrawlersPage({ onNavigate }) {
       if (!imported.crawlerType || !imported.config) {
         throw new Error('Invalid export file (missing crawlerType or config)');
       }
-      if (!['entra-id'].includes(imported.crawlerType) && !getCrawlerWizard(imported.crawlerType)) {
+      if (!getCrawlerWizard(imported.crawlerType)) {
         throw new Error(`Unsupported crawlerType: ${imported.crawlerType}`);
       }
       // No id on editingConfig → wizard treats this as a new crawler;
@@ -2020,12 +1185,8 @@ export default function CrawlersPage({ onNavigate }) {
         displayName: imported.displayName || '',
         ...(imported.config || {}),
       });
-      if (getCrawlerWizard(imported.crawlerType)) {
-        setWizardCrawlerType(imported.crawlerType);
-        setWizardStep('crawler-wizard');
-      } else {
-        setWizardStep('entra-wizard');
-      }
+      setWizardCrawlerType(imported.crawlerType);
+      setWizardStep('crawler-wizard');
     } catch (err) {
       setError(`Import failed: ${err.message}`);
     } finally {
@@ -2131,16 +1292,6 @@ export default function CrawlersPage({ onNavigate }) {
       {/* Wizard steps */}
       {wizardStep === 'select' && (
         <SelectType onSelect={handleSelectType} onCancel={() => setWizardStep(null)} />
-      )}
-      {wizardStep === 'entra-wizard' && (
-        <EntraIdWizard
-          onComplete={handleWizardComplete}
-          onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
-          validateFn={validateCredentials}
-          discoverFn={discoverAttributes}
-          initialConfig={editingConfig}
-          isEdit={!!editingConfig?.id}
-        />
       )}
       {wizardStep === 'crawler-wizard' && (() => {
         const CrawlerWizard = getCrawlerWizard(wizardCrawlerType);
