@@ -191,6 +191,26 @@ Describe 'Get-MidpointRefType' {
     }
 }
 
+# ─── Test-MidpointDefaultRelation ─────────────────────────────────────────────
+Describe 'Test-MidpointDefaultRelation' {
+    It 'treats an absent/empty relation as default (full membership)' {
+        Test-MidpointDefaultRelation '' | Should -BeTrue
+        Test-MidpointDefaultRelation $null | Should -BeTrue
+    }
+    It 'treats the bare token "default" as default' {
+        Test-MidpointDefaultRelation 'default' | Should -BeTrue
+    }
+    It 'treats any QName ending in :default as default' {
+        Test-MidpointDefaultRelation 'org:default' | Should -BeTrue
+    }
+    It 'rejects governance relations (manager/owner/approver/meta)' {
+        Test-MidpointDefaultRelation 'org:manager'  | Should -BeFalse
+        Test-MidpointDefaultRelation 'org:owner'    | Should -BeFalse
+        Test-MidpointDefaultRelation 'org:approver' | Should -BeFalse
+        Test-MidpointDefaultRelation 'org:meta'     | Should -BeFalse
+    }
+}
+
 # ─── Resolve-MidpointDepartment ───────────────────────────────────────────────
 Describe 'Resolve-MidpointDepartment' {
     BeforeAll {
