@@ -1,3 +1,4 @@
 - Extracted the Demo Data crawler into its own plugin folder (`tools/crawlers/demo/`) with a `CrawlerMeta.js` and a `ConfigWizard.jsx` info page, removing the last hardcoded crawler type from `CrawlersPage.jsx`
 - The Demo wizard now shows what data gets imported before loading, so users can cancel before committing
 - Removed the `no-hardcoded-crawler-meta` ESLint warning carve-out for `CrawlersPage.jsx` — the rule is now a hard error for all UI files with no exceptions
+- Removed the `PENDING_MIGRATION` exemption list from the `crawler-manifest` CI check — all crawler types now unconditionally require `CrawlerMeta.js` (except `odata` which is library-only)
