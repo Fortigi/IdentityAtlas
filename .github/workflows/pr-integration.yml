@@ -158,10 +158,12 @@ jobs:
           fi
 
           # Extract changed crawler type names from the diff.
+          # Require trailing slash to match subdirectories only —
+          # tools/crawlers/CLAUDE.md (a file) must not be treated as a type.
           # tools/crawlers/<type>/... → <type>
           LIST=$(echo "$CHANGED" \
-            | grep -oE "^tools/crawlers/[^/]+" \
-            | sed 's|tools/crawlers/||' \
+            | grep -oE "^tools/crawlers/[^/]+/" \
+            | sed 's|tools/crawlers/||;s|/$||' \
             | grep -v '^shared$' \
             | sort -u \
             | tr '\n' ',' \
