@@ -1,9 +1,7 @@
-import { useState, useEffect, useCallback, useRef, Suspense, lazy, createElement } from 'react';
+import { useState, useEffect, useCallback, useRef, useTransition, Suspense, lazy, createElement } from 'react';
 import { useAuth } from '../auth/AuthGate';
-import ScheduleEditor from './ScheduleEditor';
-import Stepper from './Stepper';
-import useDocsUrl from '../hooks/useDocsUrl';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
+import { Modal } from './contexts/ModalPrimitives';
 
 // Crawler wizard components and their display metadata are auto-discovered by naming convention:
 //   tools/crawlers/{type}/ConfigWizard.jsx  — the wizard form (lazy-loaded)
@@ -39,12 +37,6 @@ const CRAWLER_TYPES = [
     available: true, immediate: true,
   },
   ..._discoveredCrawlerTypes,
-  {
-    id: 'custom',
-    name: 'Custom Connector',
-    description: 'Build your own crawler using the Ingest API — register an API key, download the OpenAPI spec, start pushing data',
-    available: true,
-  },
 ];
 
 // ─── Step 1: Select Type ──────────────────────────────────────────────────────
@@ -80,7 +72,7 @@ function SelectType({ onSelect, onCancel }) {
 }
 
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
-function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob }) {
+function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob, authFetch }) {
   const cfg = config.config || {};
 
   // Sync mode is now chosen per-run: two buttons (Run Delta / Run Full)
@@ -89,6 +81,15 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
   // a server-side scheduler fallback but has no UI surface anymore.
 
   const isRunning = runningJob && ['queued', 'running'].includes(runningJob.status);
+
+  // Push-mode types (e.g. Custom Connector — data arrives via the Ingest API,
+  // there's no scheduled job, no editable config, nothing meaningful to
+  // export) opt out of these generic actions via CrawlerMeta.js. Defaults to
+  // true so existing types need no changes.
+  const meta = CRAWLER_TYPES.find(t => t.id === config.crawlerType);
+  const supportsRun = meta?.supportsRun !== false;
+  const supportsConfigure = meta?.supportsConfigure !== false;
+  const supportsExport = meta?.supportsExport !== false;
 
   // Build schedule list (supports both `schedules` array and legacy `schedule` single)
   const scheduleList = cfg.schedules?.length ? cfg.schedules : (cfg.schedule ? [cfg.schedule] : []);
@@ -114,7 +115,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
           <span className="text-xs text-gray-500 dark:text-gray-400">{config.crawlerType}</span>
         </div>
         <div className="flex gap-1">
-          {isRunning ? (
+          {supportsRun && (isRunning ? (
             <button
               onClick={() => onForceStop(runningJob.id)}
               className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
@@ -138,16 +139,20 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
                 Run Full
               </button>
             </>
+          ))}
+          {supportsConfigure && (
+            <button onClick={() => onEdit(config)}
+              className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
+              Configure
+            </button>
           )}
-          <button onClick={() => onEdit(config)}
-            className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
-            Configure
-          </button>
-          <button onClick={() => onExport(config)}
-            title="Download this crawler's configuration as JSON (client secret is stripped)"
-            className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">
-            Export
-          </button>
+          {supportsExport && (
+            <button onClick={() => onExport(config)}
+              title="Download this crawler's configuration as JSON (client secret is stripped)"
+              className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">
+              Export
+            </button>
+          )}
           <button onClick={() => onRemove(config.id)}
             className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">
             Remove
@@ -157,7 +162,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
 
       {(() => {
         const Summary = getCrawlerSummary(config.crawlerType);
-        return Summary ? createElement(Summary, { cfg, config }) : null;
+        return Summary ? createElement(Summary, { cfg, config, authFetch }) : null;
       })()}
 
       {/* Schedules */}
@@ -196,7 +201,7 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
     if (!job || ['completed','failed','cancelled'].includes(job.status)) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [job?.status]);
+  }, [job]);
 
   if (!job) return null;
   const progress = job.progress ? (typeof job.progress === 'string' ? JSON.parse(job.progress) : job.progress) : {};
@@ -351,7 +356,7 @@ function JobPhasesModal({ job, onClose }) {
     };
     poll();
     return () => { cancelled = true; if (timerId) clearTimeout(timerId); };
-  }, [job?.id, activeTab, isRunning, authFetch]);
+  }, [job, activeTab, isRunning, authFetch]);
 
   // Auto-scroll the trace pane to the bottom when new bytes arrive, but only
   // if the user hadn't scrolled up to read history.
@@ -574,75 +579,6 @@ function RecentJobs({ jobs, onForceStop }) {
   );
 }
 
-// ─── Custom Connectors Table (API key crawlers) ──────────────────────────────
-function ExternalCrawlers({ crawlers, onToggle, onResetKey, onRemove, newKey, onDismissKey, onCopy, expandedAudit, auditData, onToggleAudit }) {
-  const visible = crawlers.filter(c => c.displayName !== 'Built-in Worker');
-  if (visible.length === 0) return null;
-
-  const formatDate = (d) => d ? new Date(d).toLocaleString() : '—';
-
-  return (
-    <div className="mb-6">
-      <h3 className="text-lg font-semibold mb-3 dark:text-white">Custom Connectors</h3>
-
-      {newKey && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold text-green-800 dark:text-green-300">API Key Generated</span>
-            <button onClick={onDismissKey} className="text-green-600 hover:text-green-800 text-sm dark:text-green-400 dark:hover:text-green-200">Dismiss</button>
-          </div>
-          <p className="text-sm text-green-700 mb-2 dark:text-green-400">Store this key securely. It will not be shown again.</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 p-2 bg-white border border-gray-200 rounded font-mono text-sm break-all dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">{newKey}</code>
-            <button onClick={() => onCopy(newKey)} className="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700">Copy</button>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden dark:bg-gray-800 dark:border-gray-700">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-700/50">
-            <tr>
-              <th className="text-left p-3 font-medium dark:text-gray-300">Name</th>
-              <th className="text-left p-3 font-medium dark:text-gray-300">Key Prefix</th>
-              <th className="text-left p-3 font-medium dark:text-gray-300">Status</th>
-              <th className="text-left p-3 font-medium dark:text-gray-300">Last Used</th>
-              <th className="text-right p-3 font-medium dark:text-gray-300">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y dark:divide-gray-700">
-            {visible.map(c => (
-              <tr key={c.id}>
-                <td className="p-3">
-                  <div className="font-medium dark:text-gray-200">{c.displayName}</div>
-                  {c.description && <div className="text-xs text-gray-500 dark:text-gray-400">{c.description}</div>}
-                </td>
-                <td className="p-3 font-mono text-xs dark:text-gray-300">{c.apiKeyPrefix}...</td>
-                <td className="p-3">
-                  <button onClick={() => onToggle(c)}
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'}`}>
-                    {c.enabled ? 'Enabled' : 'Disabled'}
-                  </button>
-                </td>
-                <td className="p-3 text-gray-500 dark:text-gray-400">{formatDate(c.lastUsedAt)}</td>
-                <td className="p-3 text-right">
-                  <div className="flex gap-1 justify-end">
-                    <button onClick={() => onToggleAudit(c.id)} className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
-                      {expandedAudit === c.id ? 'Hide' : 'Log'}
-                    </button>
-                    <button onClick={() => onResetKey(c)} className="px-2 py-1 text-xs bg-amber-100 text-amber-800 rounded hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50">Reset Key</button>
-                    <button onClick={() => onRemove(c)} className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">Remove</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 // ─── Getting Started Card ─────────────────────────────────────────────────────
 function GettingStarted({ onAddCrawler }) {
   return (
@@ -657,306 +593,17 @@ function GettingStarted({ onAddCrawler }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Custom Connector Wizard
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function CustomConnectorWizard({ onComplete, onCancel, authFetch }) {
-  const docsLink = useDocsUrl();
-  const [step, setStep] = useState(1);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [registering, setRegistering] = useState(false);
-  const [apiKey, setApiKey] = useState(null);
-  const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(null); // track which field was copied
-
-  const apiBaseUrl = `${window.location.origin}/api`;
-
-  const handleRegister = async () => {
-    if (!name.trim()) return;
-    setRegistering(true);
-    setError(null);
-    try {
-      const r = await authFetch('/api/admin/crawlers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          displayName: name.trim(),
-          description: description.trim() || null,
-        }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${r.status}`);
-      }
-      const data = await r.json();
-      setApiKey(data.apiKey);
-      setStep(2);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setRegistering(false);
-    }
-  };
-
-  const copyToClipboard = (text, field) => {
-    navigator.clipboard.writeText(text);
-    setCopied(field);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const curlExample = `curl -X POST ${apiBaseUrl}/ingest/systems \\
-  -H "Authorization: Bearer ${apiKey || '<your-api-key>'}" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "syncMode": "delta",
-    "records": [{
-      "displayName": "My System",
-      "systemType": "Custom",
-      "enabled": true,
-      "syncEnabled": true
-    }]
-  }'`;
-
-  const pythonExample = `import requests
-
-API = "${apiBaseUrl}"
-KEY = "${apiKey || '<your-api-key>'}"
-headers = {"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
-
-# 1. Register a system
-r = requests.post(f"{API}/ingest/systems", headers=headers, json={
-    "syncMode": "delta",
-    "records": [{"displayName": "My System", "systemType": "Custom",
-                 "enabled": True, "syncEnabled": True}]
-})
-system_id = r.json()["systemIds"][0]
-
-# 2. Push users
-requests.post(f"{API}/ingest/principals", headers=headers, json={
-    "systemId": system_id, "syncMode": "delta",
-    "records": [{"externalId": "user-1", "displayName": "Alice",
-                 "principalType": "User", "accountEnabled": True}]
-})
-
-# 3. Push resources
-requests.post(f"{API}/ingest/resources", headers=headers, json={
-    "systemId": system_id, "syncMode": "delta",
-    "records": [{"externalId": "role-1", "displayName": "Admin Role",
-                 "resourceType": "Role", "enabled": True}]
-})
-
-# 4. Push assignments (who has access to what)
-requests.post(f"{API}/ingest/resource-assignments", headers=headers, json={
-    "systemId": system_id, "syncMode": "delta",
-    "records": [{"principalExternalId": "user-1",
-                 "resourceExternalId": "role-1",
-                 "assignmentType": "Direct"}]
-})`;
-
-  const powershellExample = `$api = "${apiBaseUrl}"
-$key = "${apiKey || '<your-api-key>'}"
-$headers = @{ Authorization = "Bearer $key"; 'Content-Type' = 'application/json' }
-
-# 1. Register a system
-$r = Invoke-RestMethod -Uri "$api/ingest/systems" -Method Post -Headers $headers -Body (@{
-    syncMode = 'delta'; records = @(@{
-        displayName = 'My System'; systemType = 'Custom'; enabled = $true; syncEnabled = $true
-    })
-} | ConvertTo-Json -Depth 5)
-$systemId = $r.systemIds[0]
-
-# 2. Push users
-Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -Body (@{
-    systemId = $systemId; syncMode = 'delta'; records = @(@{
-        externalId = 'user-1'; displayName = 'Alice'; principalType = 'User'; accountEnabled = $true
-    })
-} | ConvertTo-Json -Depth 5)`;
-
-  const connectorSteps = [
-    { n: 1, label: 'Register' },
-    { n: 2, label: 'API Key' },
-    { n: 3, label: 'Getting started' },
-  ];
-
-  return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">Custom Connector</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      <div className="mb-5"><Stepper steps={connectorSteps} current={step} /></div>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">{error}</div>
-      )}
-
-      {/* Step 1: Name + register */}
-      {step === 1 && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Register a custom connector to push data from any system into Identity Atlas using the Ingest API.
-            You'll get an API key to authenticate your requests.
-          </p>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">Connector name *</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder="e.g. SAP HR Export, ServiceNow CMDB, Okta Sync"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">Description (optional)</label>
-            <input type="text" value={description} onChange={e => setDescription(e.target.value)}
-              placeholder="What system does this connector pull data from?"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-          </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={onCancel} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Cancel</button>
-            <button onClick={handleRegister} disabled={!name.trim() || registering}
-              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-              {registering ? 'Registering...' : 'Register Connector'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 2: Show API key (one-time) */}
-      {step === 2 && apiKey && (
-        <div className="space-y-4">
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg dark:bg-amber-900/20 dark:border-amber-700">
-            <p className="text-sm font-medium text-amber-800 mb-2 dark:text-amber-300">
-              Save this API key now — it will not be shown again.
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded text-sm font-mono break-all dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">{apiKey}</code>
-              <button onClick={() => copyToClipboard(apiKey, 'key')}
-                className="px-3 py-2 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 whitespace-nowrap">
-                {copied === 'key' ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">API Base URL</label>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm font-mono dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-200">{apiBaseUrl}</code>
-              <button onClick={() => copyToClipboard(apiBaseUrl, 'url')}
-                className="px-3 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
-                {copied === 'url' ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <button onClick={() => setStep(3)}
-              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-              Next: Getting Started
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Docs, spec download, code examples */}
-      {step === 3 && (
-        <div className="space-y-5">
-          {/* Quick links */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <a href={`${apiBaseUrl}/docs`} target="_blank" rel="noopener noreferrer"
-              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-blue-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-blue-500">
-              <span className="text-2xl mb-1">📖</span>
-              <span className="font-medium text-sm dark:text-gray-200">Swagger UI</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">Interactive API explorer</span>
-            </a>
-            <a href={`${apiBaseUrl}/openapi.json`} download="identity-atlas-openapi.json"
-              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-blue-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-blue-500">
-              <span className="text-2xl mb-1">📄</span>
-              <span className="font-medium text-sm dark:text-gray-200">Download OpenAPI Spec</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">JSON format</span>
-            </a>
-            <a href={docsLink('/architecture/csv-import-schema/')} target="_blank" rel="noopener noreferrer"
-              className="flex flex-col items-center p-4 border-2 rounded-lg hover:border-blue-400 hover:shadow-md transition-all text-center dark:border-gray-700 dark:hover:border-blue-500">
-              <span className="text-2xl mb-1">📋</span>
-              <span className="font-medium text-sm dark:text-gray-200">CSV Schema Reference</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">Field definitions for all entity types</span>
-            </a>
-          </div>
-
-          {/* Code examples */}
-          <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-200">Quick Start Examples</h4>
-            <ExampleTabs examples={[
-              { label: 'curl', code: curlExample },
-              { label: 'Python', code: pythonExample },
-              { label: 'PowerShell', code: powershellExample },
-            ]} onCopy={copyToClipboard} copied={copied} />
-          </div>
-
-          {/* Ingest flow explanation */}
-          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 space-y-2 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-300">
-            <p className="font-medium dark:text-gray-200">How the Ingest API works:</p>
-            <ol className="list-decimal list-inside space-y-1 text-gray-600 dark:text-gray-400">
-              <li><strong>Systems</strong> — register your source system (once)</li>
-              <li><strong>Principals</strong> — push user accounts (with systemId from step 1)</li>
-              <li><strong>Resources</strong> — push groups, roles, apps, or any permission-granting entity</li>
-              <li><strong>Resource Assignments</strong> — push who has access to what</li>
-              <li><strong>Resource Relationships</strong> — push role-to-resource nesting (optional)</li>
-              <li><strong>Identities + Identity Members</strong> — push cross-system account correlation (optional)</li>
-              <li><strong>Refresh Views</strong> — call <code className="dark:text-gray-300">POST /ingest/refresh-views</code> after a full sync to update the matrix</li>
-            </ol>
-            <p className="mt-2">
-              Use <code className="dark:text-gray-300">syncMode: "full"</code> to replace all data for a system, or <code className="dark:text-gray-300">"delta"</code> to upsert incrementally.
-            </p>
-          </div>
-
-          <div className="flex justify-end">
-            <button onClick={onComplete}
-              className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-              Done
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Tab switcher for code examples
-function ExampleTabs({ examples, onCopy, copied }) {
-  const [active, setActive] = useState(0);
-  return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
-      <div className="flex border-b bg-gray-50 dark:bg-gray-700/50 dark:border-gray-700">
-        {examples.map((ex, i) => (
-          <button key={ex.label} onClick={() => setActive(i)}
-            className={`px-4 py-2 text-sm font-medium ${
-              i === active ? 'bg-white border-b-2 border-blue-500 text-blue-700 dark:bg-gray-800 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}>
-            {ex.label}
-          </button>
-        ))}
-        <div className="flex-1" />
-        <button onClick={() => onCopy(examples[active].code, `example-${active}`)}
-          className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 self-center mr-2 dark:text-gray-400 dark:hover:text-gray-200">
-          {copied === `example-${active}` ? 'Copied!' : 'Copy'}
-        </button>
-      </div>
-      <pre className="p-4 text-xs font-mono overflow-x-auto bg-gray-900 text-gray-100 max-h-80">
-        {examples[active].code}
-      </pre>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // Main CrawlersPage
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function CrawlersPage({ onNavigate }) {
   const { authFetch } = useAuth();
+  const [, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Data
-  const [crawlers, setCrawlers] = useState([]);
   const [configs, setConfigs] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [status, setStatus] = useState(null);
@@ -971,17 +618,12 @@ export default function CrawlersPage({ onNavigate }) {
   const prevActiveJobsRef = useRef([]);
   const pollRef = useRef(null);
 
-  // Wizard state — 'select' (type picker), 'crawler-wizard' (generic), 'custom-wizard'
+  // Wizard state — 'select' (type picker), 'crawler-wizard' (generic)
   const [wizardStep, setWizardStep] = useState(null);
   // For 'crawler-wizard': which crawler type's wizard to render
   const [wizardCrawlerType, setWizardCrawlerType] = useState(null);
   // When editing an existing config, holds its full data + id; null otherwise
   const [editingConfig, setEditingConfig] = useState(null);
-
-  // External crawler state
-  const [newKey, setNewKey] = useState(null);
-  const [expandedAudit, setExpandedAudit] = useState(null);
-  const [auditData, setAuditData] = useState({ data: [], total: 0 });
 
   // ── Fetchers ──────────────────────────────────────────────────
 
@@ -991,13 +633,6 @@ export default function CrawlersPage({ onNavigate }) {
 
   const fetchConfigs = useCallback(async () => {
     try { const r = await authFetch('/api/admin/crawler-configs'); if (r.ok) setConfigs(await r.json()); } catch {}
-  }, [authFetch]);
-
-  const fetchCrawlers = useCallback(async () => {
-    try {
-      const r = await authFetch('/api/admin/crawlers');
-      if (r.ok) setCrawlers(await r.json());
-    } catch {}
   }, [authFetch]);
 
   const fetchJobs = useCallback(async () => {
@@ -1042,9 +677,11 @@ export default function CrawlersPage({ onNavigate }) {
   }, [activeJobs, fetchStatus, fetchConfigs]);
 
   useEffect(() => {
-    Promise.all([fetchCrawlers(), fetchConfigs(), fetchStatus(), fetchJobs()])
-      .finally(() => setLoading(false));
-  }, []);
+    startTransition(() => {
+      Promise.all([fetchConfigs(), fetchStatus(), fetchJobs()])
+        .finally(() => setLoading(false));
+    });
+  }, [fetchConfigs, fetchStatus, fetchJobs, startTransition]);
 
   useEffect(() => {
     // Keep polling as long as ANY tracked job is still active. As soon as
@@ -1067,9 +704,6 @@ export default function CrawlersPage({ onNavigate }) {
     } else if (getCrawlerWizard(type)) {
       setEditingConfig(null);
       setWizardCrawlerType(type); setWizardStep('crawler-wizard');
-    } else if (type === 'custom') {
-      setEditingConfig(null);
-      setWizardStep('custom-wizard');
     }
   };
 
@@ -1115,24 +749,34 @@ export default function CrawlersPage({ onNavigate }) {
     if (cfg) submitJob(cfg.crawlerType, null, configId, syncMode);
   };
 
-  const handleForceStop = async (jobId) => {
-    if (!confirm('Force-stop this running job? Any partially imported data will remain.')) return;
-    try {
-      await authFetch(`/api/admin/crawler-jobs/${jobId}/force-stop`, { method: 'POST' });
-      fetchJobs();
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleForceStop = (jobId) => {
+    setConfirmDialog({
+      message: 'Force-stop this running job? Any partially imported data will remain.',
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await authFetch(`/api/admin/crawler-jobs/${jobId}/force-stop`, { method: 'POST' });
+          fetchJobs();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   };
 
-  const handleRemoveConfig = async (configId) => {
-    if (!confirm('Remove this crawler configuration?')) return;
-    try {
-      await authFetch(`/api/admin/crawler-configs/${configId}`, { method: 'DELETE' });
-      fetchConfigs();
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleRemoveConfig = (configId) => {
+    setConfirmDialog({
+      message: 'Remove this crawler configuration?',
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await authFetch(`/api/admin/crawler-configs/${configId}`, { method: 'DELETE' });
+          fetchConfigs();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   };
 
   // ── Export / Import ───────────────────────────────────────────
@@ -1190,39 +834,6 @@ export default function CrawlersPage({ onNavigate }) {
       // Reset so re-selecting the same file still fires onChange.
       e.target.value = '';
     }
-  };
-
-  // ── External crawler actions ──────────────────────────────────
-
-  const handleToggleEnabled = async (c) => {
-    try {
-      await authFetch(`/api/admin/crawlers/${c.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !c.enabled }) });
-      fetchCrawlers();
-    } catch (err) { setError(err.message); }
-  };
-
-  const handleResetKey = async (c) => {
-    if (!confirm(`Reset API key for "${c.displayName}"?`)) return;
-    try {
-      const r = await authFetch(`/api/admin/crawlers/${c.id}/reset`, { method: 'POST' });
-      if (r.ok) { const d = await r.json(); setNewKey(d.apiKey); fetchCrawlers(); }
-    } catch (err) { setError(err.message); }
-  };
-
-  const handleRemoveCrawler = async (c) => {
-    if (!confirm(`Remove crawler "${c.displayName}"?`)) return;
-    try {
-      await authFetch(`/api/admin/crawlers/${c.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ permanent: true }) });
-      fetchCrawlers();
-    } catch (err) { setError(err.message); }
-  };
-
-  const toggleAudit = async (id) => {
-    if (expandedAudit === id) { setExpandedAudit(null); return; }
-    try {
-      const r = await authFetch(`/api/admin/crawlers/${id}/audit?limit=20`);
-      if (r.ok) { setAuditData(await r.json()); setExpandedAudit(id); }
-    } catch (err) { setError(err.message); }
   };
 
   // ── Render ────────────────────────────────────────────────────
@@ -1304,16 +915,6 @@ export default function CrawlersPage({ onNavigate }) {
           </Suspense>
         ) : null;
       })()}
-      {wizardStep === 'custom-wizard' && (
-        <CustomConnectorWizard
-          onComplete={() => {
-            setWizardStep(null);
-            fetchCrawlers();
-          }}
-          onCancel={() => setWizardStep(null)}
-          authFetch={authFetch}
-        />
-      )}
 
       {/* Configured crawlers */}
       {configs.length > 0 && (
@@ -1329,6 +930,7 @@ export default function CrawlersPage({ onNavigate }) {
                 onExport={handleExportConfig}
                 onRemove={handleRemoveConfig}
                 onForceStop={handleForceStop}
+                authFetch={authFetch}
                 runningJob={
                   // Match THIS config's running job by _scheduledByConfigId
                   // (stamped by both the scheduler and the manual-run path).
@@ -1349,19 +951,25 @@ export default function CrawlersPage({ onNavigate }) {
       {/* Recent jobs */}
       <RecentJobs jobs={jobs} onForceStop={handleForceStop} />
 
-      {/* External crawlers (API key-based, excluding Built-in Worker) */}
-      <ExternalCrawlers
-        crawlers={crawlers}
-        onToggle={handleToggleEnabled}
-        onResetKey={handleResetKey}
-        onRemove={handleRemoveCrawler}
-        newKey={newKey}
-        onDismissKey={() => setNewKey(null)}
-        onCopy={(t) => navigator.clipboard.writeText(t)}
-        expandedAudit={expandedAudit}
-        auditData={auditData}
-        onToggleAudit={toggleAudit}
-      />
+      {confirmDialog && (
+        <Modal title="Confirm" onClose={() => setConfirmDialog(null)} width={360} dismissOnBackdrop={false}>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">{confirmDialog.message}</p>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setConfirmDialog(null)}
+              className="px-3 py-1 text-xs rounded bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDialog.onConfirm}
+              className="px-3 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+            >
+              Confirm
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
