@@ -69,12 +69,14 @@ jobs:
           fi
 
           # Count commits added by this push that are not housekeeping.
-          # Filter blank lines so an empty range doesn't produce a false positive.
+          # Use wc -l (always exits 0) instead of grep -cvE (exits 1 on empty
+          # input, causing || echo 0 to fire and produce "0\n0").
           NON_HOUSEKEEPING=$(
             git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
               | grep -v '^$' \
-              | grep -cvE "^chore: bump version|^Merge branch 'main'" \
-              || echo 0
+              | grep -vE "^chore: bump version|^Merge branch 'main'" \
+              | wc -l \
+              | tr -d ' '
           )
           if [ "$NON_HOUSEKEEPING" -gt 0 ]; then
             echo "result=true" >> "$GITHUB_OUTPUT"
