@@ -1,5 +1,36 @@
 ## Changes in this PR
 
+- Fixed `bump-version` workflow failing to push to `main` by updating the deprecated `app-id` parameter to `client-id` in `actions/create-github-app-token`, matching `cut-release` and `cut-hotfix`
+- Fixed CSV crawler rejecting large upload files (Assignments, Certifications) with "File too large". The per-file upload limit is raised from 200 MB to 1 GB.
+- The CSV upload wizard now shows the file size limit in the upload step and flags any selected file that exceeds it before the save is attempted.
+- Extracted the Demo Data crawler into its own plugin folder (`tools/crawlers/demo/`) with a `CrawlerMeta.js` and a `ConfigWizard.jsx` info page, removing the last hardcoded crawler type from `CrawlersPage.jsx`
+- The Demo wizard now shows what data gets imported before loading, so users can cancel before committing
+- Removed the `no-hardcoded-crawler-meta` ESLint warning carve-out for `CrawlersPage.jsx` — the rule is now a hard error for all UI files with no exceptions
+- Removed the `PENDING_MIGRATION` exemption list from the `crawler-manifest` CI check — all crawler types now unconditionally require `CrawlerMeta.js` (except `odata` which is library-only)
+- A PR touching only one crawler's files now runs only that crawler's integration test (plus any crawlers that transitively depend on it), not the full suite — a single-crawler change drops from ~20 min to ~3 min of integration testing
+- Crawlers that must run for data setup (e.g. odata when omada changed) run without assertions so their exit code doesn't block the PR
+- `::group::` log markers added to the crawler test runner — each crawler's output is now collapsible in the GitHub Actions log with pass/fail annotations in the PR summary
+- Moved the Custom Connector's setup wizard and management UI out of the core admin UI and into their own self-contained `tools/crawlers/custom-connector/` folder, following the same pattern already used by the CSV, Omada, midPoint, and Microsoft Graph crawlers.
+- Custom Connectors now appear as cards in the "Configured Crawlers" list, alongside every other crawler type, instead of in a separate table below the recent-jobs list. Each card shows the API key prefix, an enabled/disabled toggle, a "Reset Key" action, and an activity log (which now actually displays entries — previously it fetched them but never rendered anything).
+- No other functional changes: registering, disabling, resetting, and removing a Custom Connector all behave the same as before.
+- Moved the Microsoft Graph (Entra ID) crawler's configuration wizard out of the core admin UI and into its own self-contained `tools/crawlers/entra-id/` folder, following the same pattern already used by the CSV, Omada, and midPoint crawlers.
+- Fixed: the "Advanced options" on the Schedule step (sign-in logs window, extra AI-agent name patterns) were silently dropped on save and never persisted — they now save and reload correctly.
+- Fixed: editing an existing Microsoft Graph crawler without re-entering the client secret could fail to load the identity/user/group attribute pickers (a 400 error), because attribute discovery looked for the secret in the stored config instead of the secrets vault. It now resolves the vaulted secret correctly, matching how every other crawler type's live discovery already worked.
+- Fixed: saving an edit to a Microsoft Graph, Omada, or midPoint (OAuth2 Client Credentials / OAuth2 ROPC auth) crawler without re-entering the client secret could fail with a 400 error ("required property clientSecret"). The same applied to clicking "Run Now" and to scheduled syncs, which failed silently (logged only to the container console). All three paths now correctly resolve the secret from the vault instead of expecting it in the stored config.
+- No other functional or visual changes to the Microsoft Graph, Omada, or midPoint crawlers' setup wizards.
+- Fixed CI: the UI unit-test job failed to load because it picked up the Omada crawler's new `configValidation.test.js`, which pulls in the database driver package that's only installed for the API — that test now correctly runs only under the API's test job.
+- Fixed CI crawler scope detection incorrectly treating `tools/crawlers/CLAUDE.md` as a crawler type — only subdirectory paths are now matched
+- Fixed YAML parse error in `pr-integration.yml` that caused all integration test runs to fail immediately with "workflow file issue", blocking every open PR from merging.
+- The Omada-to-IdentityAtlas transform script now processes `Employment.csv` and `Jobtitle.csv`. Job titles are imported as `JobTitle` contexts, unique org unit + job title combinations as `Position` contexts, and each employment row generates identity memberships to its org unit, job title, and position context. All employments are included regardless of `ValidFrom`/`ValidTo`.
+- Replaced all `'../../'` and `'../../../app/ui/src/'` relative import paths in the UI source and crawler wizard files with the `@ui/` alias (e.g. `import { useAuth } from '@ui/auth/AuthGate'`), making imports stable regardless of where a file sits in the directory tree
+- Added a `jsconfig.json` at the repo root so VS Code and JetBrains resolve `@ui/` and `@crawlers/` aliases without red underlines
+- Added the `local/no-relative-package-imports` ESLint rule and a companion Vitest test to prevent `'../'` traversal from creeping back into `src/` or crawler wizard files
+- Fixed "PR Summary expected" ghost check appearing on all PRs after Phase 1 renamed the gate job; a stub job now emits the completed check name the Claude GitHub App expects.
+- Fixed scheduled crawler runs silently skipping for Omada and midPoint configurations that use OAuth2 auth methods — the scheduler now validates stored configs via the vault-aware validator instead of always failing on a missing `clientSecret`
+- Added unit tests for scheduler schedule-matching logic and job-queuing behaviour
+
+## Changes in this PR
+
 - CI now skips all checks when a push adds only housekeeping commits (version bumps, "Update branch" merges from main)
 - Path-scoped CI gates: a UI-only change no longer triggers PowerShell lint or the 50-minute integration suite; a single-crawler change no longer runs all crawlers
 - `ci-passed` and `ci-integration-passed` gate jobs replace per-job branch protection requirements, correctly passing when jobs are legitimately skipped
