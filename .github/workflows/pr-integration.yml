@@ -39,6 +39,7 @@ on:
       - 'changes/**'
       - 'docs/**'
       - 'mkdocs.yml'
+      - 'setup/IdentityAtlas.psd1'
       - '**.md'
 
 env:
@@ -49,14 +50,149 @@ env:
 # Each job builds its own Docker stack. GHA layer cache keeps rebuilds fast.
 
 jobs:
+  # ── Commit-range skip ───────────────────────────────────────────────────────
+  # Same logic as pr.yml — skips the entire integration suite when this push
+  # added only housekeeping commits (chore: bump version / Merge branch 'main').
+  changes:
+    name: 'Detect: product changes in this push'
+    runs-on: ubuntu-latest
+    outputs:
+      has_product_changes: ${{ steps.check.outputs.result }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - id: check
+        run: |
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            echo "result=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if ! git merge-base --is-ancestor "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null; then
+            echo "result=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          NON_HOUSEKEEPING=$(
+            git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
+              | grep -v '^$' \
+              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
+              | wc -l \
+              | tr -d ' '
+          )
+          if [ "$NON_HOUSEKEEPING" -gt 0 ]; then
+            echo "result=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=false" >> "$GITHUB_OUTPUT"
+            printf "Integration CI skipped — no product code changes in this push.\n" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # ── Path-scope filter ──────────────────────────────────────────────────────
+  # Scopes integration, e2e, and load-soak via dorny/paths-filter (Phase 1).
+  # Per-crawler scoping uses a separate git-diff step (Phase 2) so it stays
+  # fully dynamic — adding a new crawler requires no YAML changes.
+  filter:
+    name: 'Detect: integration path scopes'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      integration:       ${{ steps.f.outputs.integration }}
+      e2e:               ${{ steps.f.outputs.e2e }}
+      load_soak:         ${{ steps.f.outputs.load_soak }}
+      crawlers_to_test:  ${{ steps.scope.outputs.crawlers_to_test }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        id: f
+        with:
+          filters: |
+            integration:
+              - 'app/api/src/**'
+              - 'tools/crawlers/**/*.ps1'
+              - 'tools/crawlers/**/*.js'
+              - 'tools/crawlers/shared/**'
+              - 'tools/powershell-sdk/**'
+              - 'setup/docker/Invoke-CrawlerJob.ps1'
+              - 'setup/IdentityAtlas.psm1'
+              - 'app/api/Dockerfile'
+              - 'setup/docker/Dockerfile.powershell'
+              - 'docker-compose*.yml'
+            e2e:
+              - 'app/ui/src/**'
+              - 'tools/crawlers/**/*.jsx'
+              - 'app/api/src/**'
+              - 'app/api/Dockerfile'
+            load_soak:
+              - 'app/api/src/**'
+              - 'tools/crawlers/shared/**'
+              - 'tools/powershell-sdk/**'
+              - 'tools/crawlers/*/Start-*.ps1'
+              - 'setup/docker/Invoke-CrawlerJob.ps1'
+              - 'setup/docker/Dockerfile.powershell'
+              - 'docker-compose*.yml'
+
+      # Dynamically detect which crawler types changed from the git diff.
+      # No hardcoded type list — new crawlers are picked up automatically.
+      #
+      # Logic:
+      #   1. If shared infra changed (shared/, powershell-sdk/, Invoke-CrawlerJob,
+      #      IdentityAtlas.psm1, Dockerfile.powershell) → full run (empty output).
+      #   2. Otherwise extract type names from tools/crawlers/<type>/ paths in the
+      #      diff. Empty list means integration was triggered by non-crawler paths
+      #      (e.g. app/api/src/) → full run.
+      #   3. Empty crawlers_to_test → PS runner asserts all crawlers (unchanged).
+      - id: scope
+        run: |
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+
+          # Shared infra change → must test all crawlers
+          if echo "$CHANGED" | grep -qE \
+            "^tools/crawlers/shared/|^tools/powershell-sdk/|\
+^setup/docker/Invoke-CrawlerJob\.ps1|^setup/IdentityAtlas\.psm1|\
+^setup/docker/Dockerfile\.powershell"; then
+            echo "crawlers_to_test=" >> "$GITHUB_OUTPUT"
+            echo "CRAWLERS_TO_TEST: all (shared/infra change)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Extract changed crawler type names from the diff.
+          # Require trailing slash to match subdirectories only —
+          # tools/crawlers/CLAUDE.md (a file) must not be treated as a type.
+          # tools/crawlers/<type>/... → <type>
+          LIST=$(echo "$CHANGED" \
+            | grep -oE "^tools/crawlers/[^/]+/" \
+            | sed 's|tools/crawlers/||;s|/$||' \
+            | grep -v '^shared$' \
+            | sort -u \
+            | tr '\n' ',' \
+            | sed 's/,$//')
+
+          echo "crawlers_to_test=$LIST" >> "$GITHUB_OUTPUT"
+          if [ -n "$LIST" ]; then
+            echo "CRAWLERS_TO_TEST: $LIST" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "CRAWLERS_TO_TEST: all (integration triggered by non-crawler paths)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   # ═══════════════════════════════════════════════════════════════════
   # JOB 1: Core Integration Tests
   # ═══════════════════════════════════════════════════════════════════
   integration:
     name: Integration Tests
+    needs: [filter]
+    if: |
+      needs.filter.outputs.integration == 'true' ||
+      needs.filter.result == 'failure' ||
+      contains(github.event.pull_request.labels.*.name, 'integration-test')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      # CRAWLERS_TO_TEST: comma-separated list of crawler types to assert.
+      # Empty = test everything (current behaviour). Set by the filter/scope job.
+      # The integration-test label forces a full run regardless of paths.
+      CRAWLERS_TO_TEST: ${{ contains(github.event.pull_request.labels.*.name, 'integration-test') && '' || needs.filter.outputs.crawlers_to_test }}
       TEST_GRAPH_TENANT_ID:     ${{ secrets.TEST_GRAPH_TENANT_ID }}
       TEST_GRAPH_CLIENT_ID:     ${{ secrets.TEST_GRAPH_CLIENT_ID }}
       TEST_GRAPH_CLIENT_SECRET: ${{ secrets.TEST_GRAPH_CLIENT_SECRET }}
@@ -333,11 +469,17 @@ jobs:
             -ApiBaseUrl http://localhost:3001/api
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      # ── Crawler-colocated integration tests (topology-aware) ────
+      # ── Crawler-colocated integration tests (topology-aware, scope-aware) ──
       # Discovers all Test-*.ps1 files in tools/crawlers/<type>/ and runs them
       # in topological dependency order (dependency crawlers first, dependents after).
       # Same level runs in parallel. Adding a new crawler with a Test-*.ps1 file
       # automatically adds it here — no YAML changes needed.
+      #
+      # CRAWLERS_TO_TEST (env var, comma-separated):
+      #   empty → test everything (full run, current behaviour)
+      #   set   → testSet = given types + transitive dependents (assert these)
+      #           runSet  = testSet + transitive dependencies (run for data setup)
+      #   Types in runSet but not testSet run without assertions (exit code ignored).
       - name: 'Test: Crawler-colocated integration tests'
         shell: pwsh
         run: |
@@ -346,7 +488,63 @@ jobs:
           $apiBase   = 'http://localhost:3001/api'
           $apiKey    = '${{ steps.apikey.outputs.key }}'
 
-          # Compute dependency depth for each crawler type
+          # ── Scope resolution ────────────────────────────────────────────────
+          # Parse CRAWLERS_TO_TEST env var. Empty = full run.
+          $scopeRaw = $env:CRAWLERS_TO_TEST
+          $fullRun  = [string]::IsNullOrWhiteSpace($scopeRaw)
+
+          # Traverse dependsOn upward (find all types that transitively depend on $T).
+          # Used to expand the initial set: if odata changed, omada must also be tested.
+          function Get-Dependents([string]$T, [hashtable]$reg) {
+            $reg.Keys | Where-Object {
+              $deps = $reg[$_].Manifest['dependsOn'] ?? @()
+              $T -in $deps
+            }
+          }
+
+          # Traverse dependsOn downward (find all dependencies of $T recursively).
+          # Used to build runSet: types that must run first to seed data.
+          function Get-Dependencies([string]$T, [hashtable]$reg, [System.Collections.Generic.HashSet[string]]$visited) {
+            if ($visited.Contains($T)) { return }
+            $null = $visited.Add($T)
+            foreach ($dep in ($reg[$T].Manifest['dependsOn'] ?? @())) {
+              Get-Dependencies $dep $reg $visited
+            }
+          }
+
+          if (-not $fullRun) {
+            # Seed testSet with the directly changed types.
+            $testSet = [System.Collections.Generic.HashSet[string]]::new(
+              [string[]]($scopeRaw -split ','), [System.StringComparer]::OrdinalIgnoreCase)
+
+            # Expand testSet upward: add any type that (transitively) depends on a changed type.
+            $changed = @($testSet)  # snapshot to avoid modifying while iterating
+            foreach ($changedType in $changed) {
+              $queue = [System.Collections.Queue]::new()
+              $queue.Enqueue($changedType)
+              while ($queue.Count -gt 0) {
+                $current = $queue.Dequeue()
+                foreach ($dep in (Get-Dependents $current $registry)) {
+                  if ($testSet.Add($dep)) { $queue.Enqueue($dep) }
+                }
+              }
+            }
+
+            # Build runSet: testSet + all their transitive dependencies (data setup).
+            $runSet = [System.Collections.Generic.HashSet[string]]::new($testSet, [System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($type in @($testSet)) {
+              $deps = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+              Get-Dependencies $type $registry $deps
+              foreach ($d in $deps) { $null = $runSet.Add($d) }
+            }
+
+            Write-Host "Scope: testSet=[$($testSet -join ', ')] runSet=[$($runSet -join ', ')]" -ForegroundColor Cyan
+          } else {
+            Write-Host "Scope: full run (CRAWLERS_TO_TEST not set)" -ForegroundColor Cyan
+          }
+
+          # ── Topology sort ────────────────────────────────────────────────────
+          # Compute dependency depth for all types; run depth-0 first (no deps).
           $depths = @{}
           function Get-Depth([string]$T) {
             if ($depths.ContainsKey($T)) { return $depths[$T] }
@@ -358,29 +556,52 @@ jobs:
           foreach ($type in $registry.Keys) { $null = Get-Depth $type }
           $maxDepth = ($depths.Values | Measure-Object -Max).Maximum
 
+          # ── Run ──────────────────────────────────────────────────────────────
           $totalFailed = 0
           for ($depth = 0; $depth -le $maxDepth; $depth++) {
             $typesAtDepth = @($depths.GetEnumerator() | Where-Object Value -eq $depth | Select-Object -ExpandProperty Key)
             $jobs = @()
+            $jobMeta = @{}  # job name → type (for scope check after Wait-Job)
             foreach ($type in $typesAtDepth) {
+              # Skip types not in runSet (when scoped run).
+              if (-not $fullRun -and -not $runSet.Contains($type)) { continue }
+
               $testFile = Get-ChildItem "tools/crawlers/$type/Test-*.ps1" -ErrorAction SilentlyContinue | Select-Object -First 1
               if (-not $testFile) { continue }
-              Write-Host "Starting: $($testFile.Name) (depth $depth)" -ForegroundColor Cyan
-              $jobs += Start-Job -ScriptBlock {
+
+              $asserting = $fullRun -or $testSet.Contains($type)
+              $label = if ($asserting) { "ASSERT" } else { "setup-only" }
+              Write-Host "::group::Crawler: $type (depth $depth, $label)"
+              Write-Host "::notice title=${type}::Starting at $(Get-Date -Format 'HH:mm:ss')"
+
+              $job = Start-Job -ScriptBlock {
                 param($path, $url, $key)
                 & pwsh -NoProfile -File $path -ApiBaseUrl $url -ApiKey $key
                 if ($LASTEXITCODE -ne 0) { throw "Test script exited with code $LASTEXITCODE" }
               } -ArgumentList $testFile.FullName, $apiBase, $apiKey
+              $jobs += $job
+              $jobMeta[$job.Name] = $type
             }
             if ($jobs.Count -eq 0) { continue }
             $jobs | Wait-Job | ForEach-Object {
-              Receive-Job -Job $_ -Keep
+              $type = $jobMeta[$_.Name]
+              $output = Receive-Job -Job $_ -Keep
+              $output | ForEach-Object { Write-Host $_ }
               $failed = $_.State -ne 'Completed' -or ($_.ChildJobs[0].State -ne 'Completed')
-              if ($failed) {
-                Write-Host "FAILED: $($_.Name)" -ForegroundColor Red
-                $totalFailed++
-              }
               Remove-Job $_ -Force -ErrorAction SilentlyContinue
+
+              $asserting = $fullRun -or $testSet.Contains($type)
+              if ($failed) {
+                if ($asserting) {
+                  Write-Host "::error title=${type}::Test FAILED — see log above"
+                  $totalFailed++
+                } else {
+                  Write-Host "::warning title=${type}::Setup-only run failed (not asserting — continuing)"
+                }
+              } else {
+                Write-Host "::notice title=${type}::Passed"
+              }
+              Write-Host "::endgroup::"
             }
           }
           if ($totalFailed -gt 0) {
@@ -426,15 +647,16 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════
   e2e:
     name: Playwright E2E
+    needs: [filter]
+    if: |
+      (needs.filter.outputs.e2e == 'true' || needs.filter.result == 'failure') &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-e2e')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Non-blocking for now: many E2E specs were written for local dev (mock
     # backend, interactive browser) and need adaptation for the Docker CI
     # environment (accessibility violations, visual regression baselines,
     # optional tabs hidden by default). Filed as follow-up work.
-    # Escape hatch: apply the 'skip-e2e' label to skip on PRs that only
-    # change test infrastructure and don't need Playwright validation.
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-e2e') }}
     continue-on-error: true
 
     steps:
@@ -534,11 +756,16 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════
   load-soak:
     name: Load & Soak Tests
+    needs: [filter]
+    if: |
+      (
+        needs.filter.outputs.load_soak == 'true' ||
+        needs.filter.result == 'failure' ||
+        contains(github.event.pull_request.labels.*.name, 'load-soak')
+      ) &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-load-soak')
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    # Escape hatch: apply the 'skip-load-soak' label to skip on PRs that
-    # only change test infrastructure and don't need soak validation.
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-load-soak') }}
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -632,26 +859,43 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════
   # Summary — blocks merge if any job failed
-  # ═══════════════════════════════════════════════════════════════════
-  pr-integration-summary:
-    name: Integration Summary
+  # ── Gate: single required check for branch protection ───────────────────────
+  # Replaces per-job branch protection requirements. After Phase 3 lands, this
+  # gate wraps the crawler-tests matrix too — individual matrix job names can't
+  # be required in branch protection, but this wrapper can.
+  #
+  # Migration: add ci-integration-passed alongside old requirements first,
+  # verify on 2-3 PRs, then remove old requirements. See ci-scope-testing.md.
+  ci-integration-passed:
+    name: 'Integration CI Passed'
     runs-on: ubuntu-latest
-    needs: [integration, e2e, load-soak]
+    needs: [changes, filter, integration, e2e, load-soak]
     if: always()
     steps:
-      - name: Report results
+      - name: Check results
         run: |
-          echo "## PR Integration Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          FAILED=$(echo '${{ toJSON(needs) }}' \
+            | jq -r 'to_entries | .[] | select(.value.result == "failure" or .value.result == "cancelled") | .key')
+          if [ -n "$FAILED" ]; then
+            echo "## Integration CI Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "The following jobs failed or were cancelled:" >> "$GITHUB_STEP_SUMMARY"
+            echo "$FAILED" | while read -r job; do
+              echo "- $job" >> "$GITHUB_STEP_SUMMARY"
+            done
+            exit 1
+          fi
+          # Emit a summary even when everything was skipped (housekeeping push).
+          echo "## PR Integration Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
           for job in integration e2e load-soak; do
-            result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('${job}', d.get('$job', {})).get('result','unknown'))")
-            if [ "$result" = "success" ]; then icon="✅"; elif [ "$result" = "skipped" ]; then icon="⏭️"; else icon="❌"; fi
-            echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
+            result=$(echo '${{ toJSON(needs) }}' | jq -r --arg j "$job" '.[$j].result // "skipped"')
+            case "$result" in
+              success) icon="✅" ;;
+              skipped) icon="⏭️" ;;
+              *) icon="❌" ;;
+            esac
+            echo "- ${icon} ${job}: ${result}" >> "$GITHUB_STEP_SUMMARY"
           done
-
-      - name: Fail if any check failed
-        if: |
-          needs.integration.result == 'failure' ||
-          needs.e2e.result == 'failure' ||
-          needs.load-soak.result == 'failure'
-        run: exit 1
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "All integration checks passed or were legitimately skipped."
