@@ -1,13 +1,27 @@
 # ─── Pull Request Pipeline ────────────────────────────────────────────────────
 # Fast checks that run on every PR. No Docker, no Azure credentials needed.
 #
-# Stages:
+# Scope-aware pipeline (see docs/architecture/ci-scope-testing.md):
+#   changes  — detects whether this push added non-housekeeping commits.
+#              Skips everything when only chore: bump version / Merge branch
+#              commits were pushed (e.g. "Update branch" housekeeping).
+#   filter   — uses dorny/paths-filter to scope jobs to what actually changed.
+#              Falls back to running all jobs if the filter step itself errors.
+#   ci-passed — single gate job required by branch protection. Passes when
+#               every job either succeeded or was legitimately skipped.
+#
+# Jobs:
 #   1. lint-ps    — PSScriptAnalyzer on all PowerShell files
 #   2. lint-js    — ESLint on the frontend (app/ui)
 #   3. unit-tests — Pester tests with code coverage report
 #   4. unit-js    — Vitest tests for the API (validation, middleware)
-#   5. openapi    — Spectral lint on app/api/src/openapi.yaml
-#   6. audit      — npm audit on frontend and API packages
+#   5. unit-ui    — Vitest tests for the UI
+#   6. node-launcher-ui-build — crawler wizard bundle check
+#   7. openapi    — Spectral lint on app/api/src/openapi.yaml
+#   8. audit      — npm audit on frontend and API packages
+#   9. hygiene    — tests + changelog fragment required for code changes
+#  10. crawler-manifest — CrawlerMeta.js completeness check
+#  11. docs-nav   — crawler docs registered in mkdocs.yml nav
 #
 # Target branches: PRs into main or dev
 # ─────────────────────────────────────────────────────────────────────────────
@@ -26,9 +40,103 @@ env:
   POWERSHELL_TELEMETRY_OPTOUT: 1
 
 jobs:
+  # ── Commit-range skip ────────────────────────────────────────────────────
+  # Detects whether this push added non-housekeeping commits. If every new
+  # commit is "chore: bump version" or "Merge branch 'main'", CI skips.
+  # This fixes the "Update branch" re-run problem: after merging main, the
+  # PR diff still shows product files but no new product commits were added.
+  changes:
+    name: 'Detect: product changes in this push'
+    runs-on: ubuntu-latest
+    outputs:
+      has_product_changes: ${{ steps.check.outputs.result }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - id: check
+        run: |
+          # First push to a new branch: before is all-zeros. Always run CI.
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            echo "result=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          # After a rebase or force-push, event.before may no longer be in
+          # the rewritten history. Treat this as a real change (safe default).
+          if ! git merge-base --is-ancestor "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null; then
+            echo "result=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          # Count commits added by this push that are not housekeeping.
+          # Use wc -l (always exits 0) instead of grep -cvE (exits 1 on empty
+          # input, causing || echo 0 to fire and produce "0\n0").
+          NON_HOUSEKEEPING=$(
+            git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
+              | grep -v '^$' \
+              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
+              | wc -l \
+              | tr -d ' '
+          )
+          if [ "$NON_HOUSEKEEPING" -gt 0 ]; then
+            echo "result=true" >> "$GITHUB_OUTPUT"
+            echo "Found $NON_HOUSEKEEPING non-housekeeping commit(s) — running CI." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "result=false" >> "$GITHUB_OUTPUT"
+            printf "CI skipped — no product code changes in this push.\n\nOnly housekeeping commits detected (chore: bump version / Merge branch 'main').\nIf this is wrong, push a real commit or add the \`integration-test\` label.\n" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # ── Path-scope filter ────────────────────────────────────────────────────
+  # Scopes jobs to what actually changed. The fallback-to-run-all (outcome ==
+  # 'failure') ensures a dorny/paths-filter outage doesn't silently skip jobs
+  # and produce a false green.
+  filter:
+    name: 'Detect: changed path scopes'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      ps:      ${{ steps.f.outputs.ps }}
+      pester:  ${{ steps.f.outputs.pester }}
+      api:     ${{ steps.f.outputs.api }}
+      ui:      ${{ steps.f.outputs.ui }}
+      openapi: ${{ steps.f.outputs.openapi }}
+      outcome: ${{ steps.f.outcome }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        id: f
+        with:
+          filters: |
+            ps:
+              - 'tools/crawlers/**/*.ps1'
+              - 'tools/powershell-sdk/**'
+              - 'setup/**/*.ps1'
+              - 'setup/IdentityAtlas.psm1'
+            pester:
+              - 'tools/powershell-sdk/**'
+              - 'tools/crawlers/shared/**'
+              - 'setup/docker/Invoke-CrawlerJob.ps1'
+              - 'setup/IdentityAtlas.psm1'
+              - 'test/unit/**'
+            api:
+              - 'app/api/src/**'
+            ui:
+              - 'app/ui/src/**'
+              - 'tools/crawlers/**/*.jsx'
+              - 'tools/crawlers/**/*.test.js'
+              - 'tools/crawlers/**/*.test.jsx'
+            openapi:
+              - 'app/api/src/openapi.yaml'
+
   # ── Stage 1: PowerShell linting ──────────────────────────────────────────
   lint-ps:
     name: 'Lint: PSScriptAnalyzer'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.ps == 'true' ||
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -91,6 +199,10 @@ jobs:
   # ── Stage 2: JavaScript linting ──────────────────────────────────────────
   lint-js:
     name: 'Lint: ESLint'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.ui == 'true' ||
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -121,6 +233,10 @@ jobs:
   # ── Stage 3: Pester unit tests ───────────────────────────────────────────
   unit-tests:
     name: 'Unit Tests: Pester'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.pester == 'true' ||
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -172,6 +288,10 @@ jobs:
   # ── Stage 4: API unit tests (Vitest) ────────────────────────────────────
   unit-js:
     name: 'Unit Tests: Vitest (API)'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.api == 'true' ||
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -194,6 +314,10 @@ jobs:
   # ── Stage 4b: UI unit tests (Vitest) ────────────────────────────────────
   unit-ui:
     name: 'Unit Tests: Vitest (UI)'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.ui == 'true' ||
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -226,6 +350,10 @@ jobs:
   # steps so this has no pwsh dependency and stays fast.
   node-launcher-ui-build:
     name: 'Build: Node-launcher UI (crawler wizards)'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.ui == 'true' ||
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -241,6 +369,10 @@ jobs:
   # ── Stage 5: OpenAPI spec linting ───────────────────────────────────────
   openapi:
     name: 'Lint: OpenAPI spec'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.openapi == 'true' ||
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -259,6 +391,8 @@ jobs:
   # ── Stage 6: Dependency audit ────────────────────────────────────────────
   audit:
     name: 'Audit: npm audit'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -283,8 +417,11 @@ jobs:
   # skips the job entirely (job-level if, so it is never even scheduled).
   hygiene:
     name: 'PR Hygiene'
+    needs: [changes]
+    if: |
+      needs.changes.outputs.has_product_changes == 'true' &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-hygiene')
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-hygiene') }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -348,6 +485,8 @@ jobs:
   # allowed to be missing CrawlerMeta.js while they await migration.
   crawler-manifest:
     name: 'Lint: Crawler manifest completeness'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -413,6 +552,8 @@ jobs:
   # it go unnoticed (it happened before, see PR #292).
   docs-nav:
     name: 'Lint: Crawler docs registered in site nav'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -431,34 +572,45 @@ jobs:
           if [ "$FAIL" = "1" ]; then exit 1; fi
           echo "All crawler docs are registered in the site nav."
 
-  # ── Summary ─────────────────────────────────────────────────────────────
-  pr-summary:
-    name: 'PR Summary'
-    runs-on: ubuntu-latest
-    needs: [lint-ps, lint-js, unit-tests, unit-js, unit-ui, node-launcher-ui-build, openapi, audit, hygiene, crawler-manifest, docs-nav]
+  # ── Gate: single required check for branch protection ───────────────────
+  # Replaces the individual job requirements in branch protection. Update branch
+  # protection to require only "ci-passed" — not each individual job name.
+  #
+  # Migration: add ci-passed as a NEW branch protection requirement alongside
+  # the old ones, verify on 2-3 PRs, then remove the old individual requirements.
+  # Never remove + add in the same step (creates a window where PRs can merge unprotected).
+  #
+  # Passing on a housekeeping push (all jobs skipped) is INTENTIONAL.
+  ci-passed:
+    name: 'CI Passed'
+    needs:
+      - changes
+      - filter
+      - lint-ps
+      - lint-js
+      - unit-tests
+      - unit-js
+      - unit-ui
+      - node-launcher-ui-build
+      - openapi
+      - audit
+      - hygiene
+      - crawler-manifest
+      - docs-nav
     if: always()
+    runs-on: ubuntu-latest
     steps:
-      - name: Report results
+      - name: Check results
         run: |
-          echo "## PR Check Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          for job in lint-ps lint-js unit-tests unit-js unit-ui node-launcher-ui-build openapi audit hygiene crawler-manifest docs-nav; do
-            result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('$job', {}).get('result','unknown'))")
-            if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; fi
-            echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
-          done
-
-      - name: Fail if any check failed
-        if: |
-          needs.lint-ps.result == 'failure' ||
-          needs.lint-js.result == 'failure' ||
-          needs.unit-tests.result == 'failure' ||
-          needs.unit-js.result == 'failure' ||
-          needs.unit-ui.result == 'failure' ||
-          needs.node-launcher-ui-build.result == 'failure' ||
-          needs.openapi.result == 'failure' ||
-          needs.audit.result == 'failure' ||
-          needs.hygiene.result == 'failure' ||
-          needs.crawler-manifest.result == 'failure' ||
-          needs.docs-nav.result == 'failure'
-        run: exit 1
+          FAILED=$(echo '${{ toJSON(needs) }}' \
+            | jq -r 'to_entries | .[] | select(.value.result == "failure" or .value.result == "cancelled") | .key')
+          if [ -n "$FAILED" ]; then
+            echo "## CI Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "The following jobs failed or were cancelled:" >> "$GITHUB_STEP_SUMMARY"
+            echo "$FAILED" | while read -r job; do
+              echo "- $job" >> "$GITHUB_STEP_SUMMARY"
+            done
+            exit 1
+          fi
+          echo "All checks passed or were legitimately skipped." >> "$GITHUB_STEP_SUMMARY"
