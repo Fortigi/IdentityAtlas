@@ -74,7 +74,7 @@ jobs:
           NON_HOUSEKEEPING=$(
             git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
               | grep -v '^$' \
-              | grep -vE "^chore: bump version|^Merge branch 'main'" \
+              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
               | wc -l \
               | tr -d ' '
           )
@@ -137,7 +137,7 @@ jobs:
     needs: [filter]
     if: |
       needs.filter.outputs.integration == 'true' ||
-      needs.filter.outputs.outcome == 'failure' ||
+      needs.filter.result == 'failure' ||
       contains(github.event.pull_request.labels.*.name, 'integration-test')
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -513,17 +513,14 @@ jobs:
     name: Playwright E2E
     needs: [filter]
     if: |
-      needs.filter.outputs.e2e == 'true' ||
-      needs.filter.outputs.outcome == 'failure'
+      (needs.filter.outputs.e2e == 'true' || needs.filter.result == 'failure') &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-e2e')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Non-blocking for now: many E2E specs were written for local dev (mock
     # backend, interactive browser) and need adaptation for the Docker CI
     # environment (accessibility violations, visual regression baselines,
     # optional tabs hidden by default). Filed as follow-up work.
-    # Escape hatch: apply the 'skip-e2e' label to skip on PRs that only
-    # change test infrastructure and don't need Playwright validation.
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-e2e') }}
     continue-on-error: true
 
     steps:
@@ -627,7 +624,7 @@ jobs:
     if: |
       (
         needs.filter.outputs.load_soak == 'true' ||
-        needs.filter.outputs.outcome == 'failure' ||
+        needs.filter.result == 'failure' ||
         contains(github.event.pull_request.labels.*.name, 'load-soak')
       ) &&
       !contains(github.event.pull_request.labels.*.name, 'skip-load-soak')
@@ -742,11 +739,11 @@ jobs:
       - name: Check results
         run: |
           FAILED=$(echo '${{ toJSON(needs) }}' \
-            | jq -r 'to_entries | .[] | select(.value.result == "failure") | .key')
+            | jq -r 'to_entries | .[] | select(.value.result == "failure" or .value.result == "cancelled") | .key')
           if [ -n "$FAILED" ]; then
             echo "## Integration CI Failed" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "The following jobs failed:" >> "$GITHUB_STEP_SUMMARY"
+            echo "The following jobs failed or were cancelled:" >> "$GITHUB_STEP_SUMMARY"
             echo "$FAILED" | while read -r job; do
               echo "- $job" >> "$GITHUB_STEP_SUMMARY"
             done

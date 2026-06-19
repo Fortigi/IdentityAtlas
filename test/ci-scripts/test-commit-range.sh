@@ -55,7 +55,7 @@ run_check() {
       NON_HOUSEKEEPING=$(
         echo "$MOCK_LOG" \
           | grep -v '^$' \
-          | grep -vE "^chore: bump version|^Merge branch 'main'" \
+          | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
           | wc -l \
           | tr -d ' '
       )
@@ -147,6 +147,18 @@ assert "commit mentioning bump version mid-message: runs" \
 assert "Merge branch other than main: runs" \
   "true" \
   "$(run_check "Merge branch 'feature/other' into feature/my-feature")"
+
+assert "bypass attempt — bump version prefix with extra text: runs (not exact match)" \
+  "true" \
+  "$(run_check "chore: bump version — also deletes auth middleware")"
+
+assert "bypass attempt — bump version without 'to N': runs (not exact match)" \
+  "true" \
+  "$(run_check "chore: bump version")"
+
+assert "bypass attempt — Merge branch main without 'into': runs (not exact match)" \
+  "true" \
+  "$(run_check "Merge branch 'main'")"
 
 echo ""
 echo "── Rebase / force-push ──"

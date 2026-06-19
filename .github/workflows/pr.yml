@@ -74,7 +74,7 @@ jobs:
           NON_HOUSEKEEPING=$(
             git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
               | grep -v '^$' \
-              | grep -vE "^chore: bump version|^Merge branch 'main'" \
+              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
               | wc -l \
               | tr -d ' '
           )
@@ -136,7 +136,7 @@ jobs:
     needs: [filter]
     if: |
       needs.filter.outputs.ps == 'true' ||
-      needs.filter.outputs.outcome == 'failure'
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -202,7 +202,7 @@ jobs:
     needs: [filter]
     if: |
       needs.filter.outputs.ui == 'true' ||
-      needs.filter.outputs.outcome == 'failure'
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -236,7 +236,7 @@ jobs:
     needs: [filter]
     if: |
       needs.filter.outputs.pester == 'true' ||
-      needs.filter.outputs.outcome == 'failure'
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -291,7 +291,7 @@ jobs:
     needs: [filter]
     if: |
       needs.filter.outputs.api == 'true' ||
-      needs.filter.outputs.outcome == 'failure'
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -317,7 +317,7 @@ jobs:
     needs: [filter]
     if: |
       needs.filter.outputs.ui == 'true' ||
-      needs.filter.outputs.outcome == 'failure'
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -353,7 +353,7 @@ jobs:
     needs: [filter]
     if: |
       needs.filter.outputs.ui == 'true' ||
-      needs.filter.outputs.outcome == 'failure'
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -372,7 +372,7 @@ jobs:
     needs: [filter]
     if: |
       needs.filter.outputs.openapi == 'true' ||
-      needs.filter.outputs.outcome == 'failure'
+      needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -391,6 +391,8 @@ jobs:
   # ── Stage 6: Dependency audit ────────────────────────────────────────────
   audit:
     name: 'Audit: npm audit'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -415,8 +417,11 @@ jobs:
   # skips the job entirely (job-level if, so it is never even scheduled).
   hygiene:
     name: 'PR Hygiene'
+    needs: [changes]
+    if: |
+      needs.changes.outputs.has_product_changes == 'true' &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-hygiene')
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-hygiene') }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -480,6 +485,8 @@ jobs:
   # allowed to be missing CrawlerMeta.js while they await migration.
   crawler-manifest:
     name: 'Lint: Crawler manifest completeness'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -545,6 +552,8 @@ jobs:
   # it go unnoticed (it happened before, see PR #292).
   docs-nav:
     name: 'Lint: Crawler docs registered in site nav'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -594,11 +603,11 @@ jobs:
       - name: Check results
         run: |
           FAILED=$(echo '${{ toJSON(needs) }}' \
-            | jq -r 'to_entries | .[] | select(.value.result == "failure") | .key')
+            | jq -r 'to_entries | .[] | select(.value.result == "failure" or .value.result == "cancelled") | .key')
           if [ -n "$FAILED" ]; then
             echo "## CI Failed" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "The following jobs failed:" >> "$GITHUB_STEP_SUMMARY"
+            echo "The following jobs failed or were cancelled:" >> "$GITHUB_STEP_SUMMARY"
             echo "$FAILED" | while read -r job; do
               echo "- $job" >> "$GITHUB_STEP_SUMMARY"
             done
