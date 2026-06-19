@@ -291,6 +291,8 @@ const validateOmada = (config) => validateCrawlerConfig('omada', config);
 
 Same discovery mechanism as `discover.test.js`: `app/api/vitest.config.js`'s `test.include` also lists `'../../tools/crawlers/**/configValidation.test.js'` specifically (not a blanket `**/*.test.js`, since most other `tools/crawlers/**/*.test.js` files import their `ConfigWizard.jsx` and need the React/JSX plugin app/api's vitest doesn't have). Generic, type-agnostic engine behavior (`maskConfig`, `VALID_JOB_TYPES` manifest discovery) stays in `app/api/src/routes/jobs.configValidation.test.js`. See `tools/crawlers/omada/configValidation.test.js` for a full example.
 
+Unlike `discover.test.js`, this one is **not** harmless under the UI's vitest too: `crawlerManifests.js` imports `secrets/crawlerSecrets.js` → `secrets/vault.js` → `db/connection.js`, which requires the `pg` package — only installed under `app/api/node_modules`, not `app/ui/node_modules`. The UI's broader `tools/crawlers/**/*.test.{js,jsx}` glob would otherwise pick this file up and fail with `ERR_MODULE_NOT_FOUND`. `app/ui/vite.config.js`'s `test.exclude` carves it back out for exactly this reason — don't remove that exclude when adding a new crawler's `configValidation.test.js`.
+
 ## `principalType` and `identityType` Values
 
 **`Principals.principalType`** — use these values consistently across all crawlers:
