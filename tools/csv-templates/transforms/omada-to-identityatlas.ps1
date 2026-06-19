@@ -11,6 +11,21 @@
     This is the ONLY place where Omada-specific column knowledge lives. The
     Identity Atlas crawler itself reads exactly the canonical column names.
 
+    Supported input files:
+      System.csv / Systems.csv       → Systems.csv
+      Orgunits.csv                   ┐
+      Jobtitle.csv                   ├→ Contexts.csv  (OrgUnit / JobTitle / Position)
+      Employment.csv                 ┘
+      Employment.csv                 → ContextMembers.csv
+      Permission-full-details.csv
+        / Permissions.csv            → Resources.csv
+      Permission-Nesting.csv         → ResourceRelationships.csv
+      Users.csv                      → Users.csv
+      Account-Permission.csv         → Assignments.csv
+      Identities.csv                 → Identities.csv
+      Identities.csv + Users.csv     → IdentityMembers.csv
+      CRAs.csv                       → Certifications.csv
+
 .PARAMETER SourceFolder
     Folder containing the original Omada CSV exports.
 
@@ -67,19 +82,100 @@ if ($sys) {
     })
 }
 
-# ─── Contexts (from Orgunits.csv) ────────────────────────────────
+# ─── Contexts ────────────────────────────────────────────────────
+# Collects OrgUnit (Orgunits.csv), JobTitle (Jobtitle.csv), and Position
+# (derived from Employment.csv as unique OrgUnit+JobTitle combinations) into a
+# single Contexts.csv. All three sections are optional — any missing source file
+# just contributes zero rows.
 Write-Host "Contexts:" -ForegroundColor Cyan
+$allContexts = [System.Collections.Generic.List[object]]::new()
+
 $ou = Read-Src 'Orgunits.csv'
 if ($ou) {
-    Write-Out 'Contexts.csv' @($ou | ForEach-Object {
-        [PSCustomObject]@{
-            ExternalId       = $_.OU_KEY
-            DisplayName      = $_.OU_Name
+    foreach ($r in $ou) {
+        $allContexts.Add([PSCustomObject]@{
+            ExternalId       = $r.OU_KEY
+            DisplayName      = $r.OU_Name
             ContextType      = 'OrgUnit'
-            Description      = $_.OU_Description
-            ParentExternalId = $_.Parent_OU_Key
+            Description      = $r.OU_Description
+            ParentExternalId = $r.Parent_OU_Key
+        })
+    }
+}
+
+$jt = Read-Src 'Jobtitle.csv'
+if ($jt) {
+    foreach ($r in $jt) {
+        $allContexts.Add([PSCustomObject]@{
+            ExternalId       = $r.JOBTITLE_ID
+            DisplayName      = $r.JobTitleName
+            ContextType      = 'JobTitle'
+            Description      = $r.DESCRIPTION
+            ParentExternalId = ''
+        })
+    }
+}
+
+# Employment.csv drives both Position contexts and ContextMembers.
+# Read once here so we can iterate twice without re-parsing.
+$emp = Read-Src 'Employment.csv'
+if ($emp) {
+    $seen = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($e in $emp) {
+        if (-not $e.OUREF_ID -or -not $e.JOBTITLE_REF_ID) { continue }
+        $posId = "$($e.OUREF_ID)|$($e.JOBTITLE_REF_ID)"
+        if ($seen.Add($posId)) {
+            $allContexts.Add([PSCustomObject]@{
+                ExternalId       = $posId
+                DisplayName      = "$($e.OUREF_VALUE) — $($e.JOBTITLE_REF_VALUE)"
+                ContextType      = 'Position'
+                Description      = ''
+                ParentExternalId = $e.OUREF_ID
+            })
         }
-    })
+    }
+}
+
+Write-Out 'Contexts.csv' $allContexts.ToArray()
+
+# ─── Context Members (from Employment.csv) ────────────────────────
+# Each employment row produces up to three memberships per identity:
+#   Identity → OrgUnit   (via OUREF_ID)
+#   Identity → JobTitle  (via JOBTITLE_REF_ID)
+#   Identity → Position  (via the derived OrgUnit|JobTitle key)
+# All employments are included regardless of ValidFrom/ValidTo.
+Write-Host "Context members:" -ForegroundColor Cyan
+if ($emp) {
+    $members = [System.Collections.Generic.List[object]]::new()
+    foreach ($e in $emp) {
+        $identId = $e.IDENTITYREF_ID
+        if (-not $identId) { continue }
+
+        if ($e.OUREF_ID) {
+            $members.Add([PSCustomObject]@{
+                ContextExternalId = $e.OUREF_ID
+                MemberExternalId  = $identId
+                MemberType        = 'Identity'
+            })
+        }
+        if ($e.JOBTITLE_REF_ID) {
+            $members.Add([PSCustomObject]@{
+                ContextExternalId = $e.JOBTITLE_REF_ID
+                MemberExternalId  = $identId
+                MemberType        = 'Identity'
+            })
+        }
+        if ($e.OUREF_ID -and $e.JOBTITLE_REF_ID) {
+            $members.Add([PSCustomObject]@{
+                ContextExternalId = "$($e.OUREF_ID)|$($e.JOBTITLE_REF_ID)"
+                MemberExternalId  = $identId
+                MemberType        = 'Identity'
+            })
+        }
+    }
+    Write-Out 'ContextMembers.csv' $members.ToArray()
+} else {
+    Write-Host "  Skipped (Employment.csv not found)" -ForegroundColor Yellow
 }
 
 # ─── Resources (from Permission-full-details.csv or Permissions.csv) ──
