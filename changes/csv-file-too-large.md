@@ -1,2 +1,0 @@
-- Fixed CSV crawler rejecting large upload files (Assignments, Certifications) with "File too large". The per-file upload limit is raised from 200 MB to 1 GB.
-- The CSV upload wizard now shows the file size limit in the upload step and flags any selected file that exceeds it before the save is attempted.
