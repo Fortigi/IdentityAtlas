@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- midPoint crawler now imports **inherited** role and service memberships, not just directly-assigned ones. Birthright roles (assigned via an archetype), nested roles, and org-inherited roles now show all their members in Identity Atlas instead of appearing nearly empty.
+- Each governed assignment now records whether it was granted directly or inherited (`grant=direct` / `grant=inherited`).
+- Governance metadata relations (manager, owner, approver, meta) are correctly excluded — only true membership is imported as access.
+
+## Changes in this PR
+
 - Added architecture specification for the effective-access engine: a lazy, on-demand traversal engine that computes inherited permission access across containment hierarchies (Azure RM scopes, folder trees, group nesting) using the existing `Contains` relationship edges
 - Added an effective-access engine that computes inherited permissions on demand: a grant at a parent (a group, or a containment scope like an Azure subscription) is surfaced as indirect access on everything beneath it, without storing those rows.
 - New read API: `GET /api/effective-access/resolve` (one principal on one resource) and `GET /api/resource/:id/effective-access` / `GET /api/principal/:id/effective-access` (effective capabilities at a node, including those inherited through the containment hierarchy).
