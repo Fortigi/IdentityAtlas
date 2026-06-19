@@ -68,7 +68,21 @@ $mockObjects = @{
     resources = @(@{ oid = $resOid; name = 'midpoint-ci-resource' })
     orgs      = @(@{ oid = $orgOid; name = 'midpoint-ci-org'; displayName = 'midPoint CI Org' })
     roles     = @(
-        @{ oid = $roleOid;    name = 'midpoint-ci-role';          displayName = 'midPoint CI Role' }
+        # The main role grants two AD groups via construction inducements — one resolved by
+        # an associationTargetSearch DN filter, one by a literal shadowRef — so both
+        # construction → Contains code paths are exercised.
+        @{ oid = $roleOid;    name = 'midpoint-ci-role';          displayName = 'midPoint CI Role'
+           inducement = @(
+               @{ construction = @{
+                   resourceRef = @{ oid = $resOid; type = 'ResourceType' }; kind = 'account'; intent = 'default'
+                   association = @{ ref = 'ri:group'; outbound = @{ expression = @{
+                       associationTargetSearch = @{ filter = @{ equal = @{ path = 'attributes/ri:dn'; value = 'CN=midPoint CI Entitlement,OU=Groups' } } } } } }
+               } }
+               @{ construction = @{
+                   resourceRef = @{ oid = $resOid; type = 'ResourceType' }; kind = 'account'; intent = 'default'
+                   association = @{ ref = 'ri:group'; shadowRef = @{ oid = $entOid2; type = 'ShadowType' } }
+               } }
+           ) }
         @{ oid = $inhRoleOid; name = 'midpoint-ci-inherited-role'; displayName = 'midPoint CI Inherited Role' }
         @{ oid = $mgrRoleOid; name = 'midpoint-ci-manager-role';   displayName = 'midPoint CI Manager Role' }
     )
@@ -185,6 +199,19 @@ try {
         $ok = ($inhHit.Count -ge 1) -and ($mgrHit.Count -eq 0)
         Report-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $ok "(inherited: $($inhHit.Count) Governed; manager: $($mgrHit.Count) — expected inherited>=1, manager=0)"
     } catch { Report-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $false $_.Exception.Message }
+
+    # ── Assert: construction inducements became Contains edges (role → entitlements) ──
+    # The role grants two AD groups via construction: $entOid by associationTargetSearch DN
+    # filter, $entOid2 by literal shadowRef. Both must surface as a BusinessRole that the
+    # entitlement belongs to (vw → /resources/:id/business-roles).
+    try {
+        $brSearch = Invoke-RestMethod -Uri "$ApiBaseUrl/resources/$entOid/business-roles"  -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $brLiteral = Invoke-RestMethod -Uri "$ApiBaseUrl/resources/$entOid2/business-roles" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $searchHit  = @($brSearch)  | Where-Object { $_.businessRoleId -eq $roleOid }
+        $literalHit = @($brLiteral) | Where-Object { $_.businessRoleId -eq $roleOid }
+        $ok = ($searchHit.Count -ge 1) -and ($literalHit.Count -ge 1)
+        Report-Result 'Midpoint/Data — construction inducements → Contains edges (associationTargetSearch + shadowRef)' $ok "(targetSearch: $($searchHit.Count), shadowRef: $($literalHit.Count) — both expected >= 1)"
+    } catch { Report-Result 'Midpoint/Data — construction inducements → Contains edges (associationTargetSearch + shadowRef)' $false $_.Exception.Message }
 
 } catch {
     Write-Host "  Fatal test error: $($_.Exception.Message)" -ForegroundColor Red
