@@ -1,0 +1,1 @@
+- Fixed "PR Summary expected" ghost check appearing on all PRs after Phase 1 renamed the gate job; a stub job now emits the completed check name the Claude GitHub App expects.
