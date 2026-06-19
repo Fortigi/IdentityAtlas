@@ -500,7 +500,7 @@ jobs:
 
           # Crawlers pending migration to the manifest-based plugin system.
           # Remove a type from here once its CrawlerMeta.js is in place.
-          PENDING_MIGRATION="demo custom-connector"
+          PENDING_MIGRATION="demo"
 
           FAIL=0
 
