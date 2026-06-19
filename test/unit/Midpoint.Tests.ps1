@@ -191,6 +191,80 @@ Describe 'Get-MidpointRefType' {
     }
 }
 
+# ─── Test-MidpointDefaultRelation ─────────────────────────────────────────────
+Describe 'Test-MidpointDefaultRelation' {
+    It 'treats an absent/empty relation as default (full membership)' {
+        Test-MidpointDefaultRelation '' | Should -BeTrue
+        Test-MidpointDefaultRelation $null | Should -BeTrue
+    }
+    It 'treats the bare token "default" as default' {
+        Test-MidpointDefaultRelation 'default' | Should -BeTrue
+    }
+    It 'treats any QName ending in :default as default' {
+        Test-MidpointDefaultRelation 'org:default' | Should -BeTrue
+    }
+    It 'rejects governance relations (manager/owner/approver/meta)' {
+        Test-MidpointDefaultRelation 'org:manager'  | Should -BeFalse
+        Test-MidpointDefaultRelation 'org:owner'    | Should -BeFalse
+        Test-MidpointDefaultRelation 'org:approver' | Should -BeFalse
+        Test-MidpointDefaultRelation 'org:meta'     | Should -BeFalse
+    }
+}
+
+# ─── ConvertTo-MidpointDnKey ──────────────────────────────────────────────────
+Describe 'ConvertTo-MidpointDnKey' {
+    It 'lower-cases and trims a DN so case/whitespace differences still match' {
+        ConvertTo-MidpointDnKey '  CN=DM - Read Documents,OU=Groups,DC=corporate,DC=com  ' |
+            Should -Be 'cn=dm - read documents,ou=groups,dc=corporate,dc=com'
+    }
+    It 'returns empty for null/blank' {
+        ConvertTo-MidpointDnKey $null | Should -Be ''
+        ConvertTo-MidpointDnKey '   ' | Should -Be ''
+    }
+}
+
+# ─── Get-MidpointConstructionTargets ──────────────────────────────────────────
+Describe 'Get-MidpointConstructionTargets' {
+    It 'extracts an associationTargetSearch DN filter as a normalised search key' {
+        $con = [pscustomobject]@{ association = [pscustomobject]@{
+            ref = 'ri:group'
+            outbound = [pscustomobject]@{ expression = [pscustomobject]@{
+                associationTargetSearch = [pscustomobject]@{ filter = [pscustomobject]@{
+                    equal = [pscustomobject]@{ path = 'attributes/ri:dn'; value = 'CN=DM - Read Documents,OU=Groups,DC=corporate,DC=com' }
+                } }
+            } }
+        } }
+        $t = @(Get-MidpointConstructionTargets -Construction $con)
+        $t.Count | Should -Be 1
+        $t[0].shadowOid | Should -Be ''
+        $t[0].searchKey | Should -Be 'cn=dm - read documents,ou=groups,dc=corporate,dc=com'
+    }
+    It 'extracts a literal shadowRef oid' {
+        $con = [pscustomobject]@{ association = [pscustomobject]@{
+            ref = 'ri:group'; shadowRef = [pscustomobject]@{ oid = 'ent-9'; type = 'c:ShadowType' }
+        } }
+        $t = @(Get-MidpointConstructionTargets -Construction $con)
+        $t.Count | Should -Be 1
+        $t[0].shadowOid | Should -Be 'ent-9'
+        $t[0].searchKey | Should -Be ''
+    }
+    It 'handles multiple associations (array)' {
+        $con = [pscustomobject]@{ association = @(
+            [pscustomobject]@{ ref = 'ri:group'; shadowRef = [pscustomobject]@{ oid = 'ent-a' } }
+            [pscustomobject]@{ ref = 'ri:group'; outbound = [pscustomobject]@{ expression = [pscustomobject]@{
+                associationTargetSearch = [pscustomobject]@{ filter = [pscustomobject]@{ equal = [pscustomobject]@{ path = 'attributes/ri:dn'; value = 'CN=B,DC=x' } } } } } }
+        ) }
+        $t = @(Get-MidpointConstructionTargets -Construction $con)
+        $t.Count | Should -Be 2
+        $t[0].shadowOid | Should -Be 'ent-a'
+        $t[1].searchKey | Should -Be 'cn=b,dc=x'
+    }
+    It 'returns an empty list for a null construction or one with no association' {
+        (Get-MidpointConstructionTargets -Construction $null).Count | Should -Be 0
+        (Get-MidpointConstructionTargets -Construction ([pscustomobject]@{ kind = 'account' })).Count | Should -Be 0
+    }
+}
+
 # ─── Resolve-MidpointDepartment ───────────────────────────────────────────────
 Describe 'Resolve-MidpointDepartment' {
     BeforeAll {
