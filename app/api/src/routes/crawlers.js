@@ -69,6 +69,11 @@ adminCrawlersRouter.post('/admin/crawlers', gate, async (req, res) => {
     const prefix = apiKey.slice(0, 8);
     const createdBy = req.user?.preferred_username || req.user?.name || 'system';
 
+    // Also creates a paired CrawlerConfigs row (crawlerType='custom-connector',
+    // config={crawlerId}) in the same statement, so this connector shows up as
+    // a normal card in the "Configured Crawlers" grid instead of needing its
+    // own UI surface. See tools/crawlers/CLAUDE.md -> "Crawlers vs
+    // CrawlerConfigs" for why these are two tables instead of one.
     const result = await pool.request()
       .input('displayName', displayName.trim().slice(0, 255))
       .input('description', (description || '').slice(0, 4000))
@@ -80,10 +85,17 @@ adminCrawlersRouter.post('/admin/crawlers', gate, async (req, res) => {
       .input('createdBy', createdBy)
       .input('expiresAt', expiresAt || null)
       .input('rateLimit', rateLimit || 100)
-      .query(`INSERT INTO "Crawlers"
-              ("displayName", "description", "apiKeyHash", "apiKeySalt", "apiKeyPrefix", "systemIds", "permissions", "createdBy", "expiresAt", "rateLimit")
-              VALUES (@displayName, @description, @apiKeyHash, @apiKeySalt, @apiKeyPrefix, @systemIds::jsonb, @permissions::jsonb, @createdBy, @expiresAt, @rateLimit)
-              RETURNING id, "displayName", "apiKeyPrefix", "createdAt"`);
+      .query(`WITH new_crawler AS (
+                INSERT INTO "Crawlers"
+                ("displayName", "description", "apiKeyHash", "apiKeySalt", "apiKeyPrefix", "systemIds", "permissions", "createdBy", "expiresAt", "rateLimit")
+                VALUES (@displayName, @description, @apiKeyHash, @apiKeySalt, @apiKeyPrefix, @systemIds::jsonb, @permissions::jsonb, @createdBy, @expiresAt, @rateLimit)
+                RETURNING id, "displayName", "apiKeyPrefix", "createdAt"
+              ), new_config AS (
+                INSERT INTO "CrawlerConfigs" ("crawlerType", "displayName", config)
+                SELECT 'custom-connector', "displayName", jsonb_build_object('crawlerId', id) FROM new_crawler
+                RETURNING id
+              )
+              SELECT * FROM new_crawler`);
 
     const crawler = result.recordset[0];
 
@@ -164,9 +176,17 @@ adminCrawlersRouter.delete('/admin/crawlers/:id', gate, async (req, res) => {
     const pool = await db.getPool();
 
     if (permanent) {
-      // CrawlerAuditLog has ON DELETE CASCADE so deleting the parent is enough
+      // CrawlerAuditLog has ON DELETE CASCADE so deleting the parent is enough.
+      // Also deletes the paired CrawlerConfigs row created at registration
+      // (see POST handler above) so the card disappears from the UI too —
+      // mirrors the same cleanup DELETE /admin/crawler-configs/:id does in
+      // the other direction (routes/jobs.js).
       const result = await pool.request().input('id', id)
-        .query('DELETE FROM "Crawlers" WHERE id = @id');
+        .query(`WITH del_config AS (
+                  DELETE FROM "CrawlerConfigs"
+                  WHERE "crawlerType" = 'custom-connector' AND (config->>'crawlerId')::int = @id
+                )
+                DELETE FROM "Crawlers" WHERE id = @id`);
       if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Crawler not found' });
       res.json({ message: 'Crawler permanently removed' });
     } else {

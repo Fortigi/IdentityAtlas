@@ -115,13 +115,34 @@ If no `ConfigWizard.jsx` is present, the UI falls back to a generic JSON config 
 If present, the UI renders this component inside the crawler's card on the "Configured Crawlers" list, showing the crawler-specific details at a glance (e.g. base URL, sync options). The component receives:
 
 ```jsx
-export default function Summary({ cfg, config }) {
-  // cfg    — the crawler's config blob (config.config); what most summaries need
-  // config — the full config row, for the rare case something outside .config is needed
+export default function Summary({ cfg, config, authFetch }) {
+  // cfg       — the crawler's config blob (config.config); what most summaries need
+  // config    — the full config row, for the rare case something outside .config is needed
+  // authFetch — authenticated fetch helper. Only needed by a type whose summary
+  //             self-manages something beyond what the generic card offers (see
+  //             "Push-mode crawler types" below) — most Summary.jsx files ignore it.
 }
 ```
 
 Don't render `lastRunAt`/`lastRunStatus` here — the card already shows those generically below every summary panel, for every crawler type. If no `Summary.jsx` is present, the card just shows that generic footer with no extra panel.
+
+### Push-mode crawler types (`Crawlers` vs `CrawlerConfigs`, and capability flags)
+
+Every crawler type renders as a card in the "Configured Crawlers" grid, backed by one `CrawlerConfigs` row per instance — except the data model has a second table, `Crawlers`, for API-key authentication (the Built-in Worker, and Custom Connector). That table exists because push-mode auth material (key hash/salt/prefix, rate limit, rotation/audit history) is a genuinely different concern from a pull-job's settings blob — bolting API-key columns onto every CSV/Omada config, or schedule columns onto every API key, would be worse than two tables. A type that's push-mode (data arrives via the Ingest API rather than a scheduled job) still gets a `CrawlerConfigs` row so it shows up as a normal card — `routes/crawlers.js`'s `POST /admin/crawlers` creates the `Crawlers` row and a paired `CrawlerConfigs` row (`crawlerType` for this type, `config: { crawlerId: <Crawlers.id> }`) in one statement; either delete path (`DELETE /admin/crawlers/:id` or `DELETE /admin/crawler-configs/:id`) cascades to clean up the other row too. See `tools/crawlers/custom-connector/` for the only current example: its `Summary.jsx` fetches its own `Crawlers` row by `cfg.crawlerId` to show the key prefix, drive the enable toggle and key reset, and render the audit log — none of which exist on a normal `CrawlerConfigs` row.
+
+Because Run/Configure/Export assume a scheduled, editable, exportable `CrawlerConfigs`-driven job, a push-mode type opts out of whichever don't apply via `CrawlerMeta.js`:
+
+```js
+export default {
+  id: 'custom-connector',
+  // ...
+  supportsRun: false,       // no scheduled job — pushed via the Ingest API instead
+  supportsConfigure: false, // no edit wizard — manage via Summary.jsx instead
+  supportsExport: false,    // nothing meaningful to export (no secrets, no settings)
+};
+```
+
+All three default to `true` when omitted — existing types need no changes.
 
 ### discover.js — optional live-discovery endpoint
 
@@ -266,7 +287,7 @@ export function register(test, expect) {
 
 - `app/ui/e2e/crawler-plugin-tests.spec.js` is the one generic loader that discovers every `tools/crawlers/<type>/*.e2e.mjs` file and calls `register(test, expect)` on it — no crawler-specific code needed there, same discovery style as `crawler-wizard-discovery.spec.js`. You don't need to touch it when adding a new crawler's e2e spec.
 
-See `tools/crawlers/csv/ConfigWizard.e2e.mjs` for a full example (file upload step) and `app/ui/e2e/custom-connector.spec.js` for a non-colocated wizard that doesn't need this workaround (Custom Connector isn't a `tools/crawlers/<type>` plugin). Both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
+See `tools/crawlers/csv/ConfigWizard.e2e.mjs` for a full example (file upload step) and `tools/crawlers/custom-connector/ConfigWizard.e2e.mjs` for a simpler one (no file uploads, just the register → API key → getting-started flow). Both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
 
 ### Testing a `discover.js` handler
 

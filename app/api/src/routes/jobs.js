@@ -213,15 +213,26 @@ router.delete('/admin/crawler-configs/:id', gate, async (req, res) => {
   try {
     const pool = await db.getPool();
     const existing = await pool.request().input('id', id)
-      .query(`SELECT "crawlerType" FROM "CrawlerConfigs" WHERE id = @id`);
+      .query(`SELECT "crawlerType", config FROM "CrawlerConfigs" WHERE id = @id`);
     if (existing.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
-    const crawlerType = existing.recordset[0].crawlerType;
+    const { crawlerType, config: existingConfig } = existing.recordset[0];
     const result = await pool.request().input('id', id)
       .query(`DELETE FROM "CrawlerConfigs" WHERE id = @id`);
     if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Config not found' });
     // Best-effort cleanup of any uploaded files + the vaulted secret.
     deleteConfigFolder(crawlerType, id).catch(() => {});
     deleteConfigSecret(id).catch(() => {});
+    // Custom Connector's card is a CrawlerConfigs row paired with a Crawlers
+    // row (the API key) created together in routes/crawlers.js's POST
+    // handler — clean up the other side too so removing the card doesn't
+    // orphan a still-live API key.
+    if (crawlerType === 'custom-connector') {
+      const crawlerId = (typeof existingConfig === 'string' ? JSON.parse(existingConfig) : existingConfig)?.crawlerId;
+      if (crawlerId) {
+        pool.request().input('crawlerId', crawlerId)
+          .query(`DELETE FROM "Crawlers" WHERE id = @crawlerId`).catch(() => {});
+      }
+    }
     res.json({ message: 'Config removed' });
   } catch (err) {
     console.error('Error removing crawler config:', err.message);
