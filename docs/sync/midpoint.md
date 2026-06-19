@@ -10,7 +10,7 @@ Identity Atlas can pull authorization and IGA data from a **midPoint** instance 
 |---|---|
 | `ResourceType` (connected systems with accounts) | **Systems** |
 | `OrgType` | **Contexts** (type `OrgUnit`, with hierarchy) |
-| `RoleType` | **Resources** (type `BusinessRole`); role inducements → `ResourceRelationships` (`Contains`) |
+| `RoleType` | **Resources** (type `BusinessRole`); role inducements → `ResourceRelationships` (`Contains`) — both role-to-role (`targetRef`) and role-to-AD-group (`construction`, e.g. birthright bundles) |
 | `ServiceType` | **Resources** (type `Service`) |
 | `UserType` (persons/focuses) | **Identities** + a focus Principal + `IdentityMembers` |
 | `ShadowType` `kind=account` | **Principals** (accounts on connected systems) |
