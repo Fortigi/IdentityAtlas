@@ -498,10 +498,6 @@ jobs:
           # Library crawlers (dependsOn only) — never need CrawlerMeta.js.
           LIBRARY_CRAWLERS="odata"
 
-          # Crawlers pending migration to the manifest-based plugin system.
-          # Remove a type from here once its CrawlerMeta.js is in place.
-          PENDING_MIGRATION="demo"
-
           FAIL=0
 
           for manifest in tools/crawlers/*/crawler.json; do
@@ -512,33 +508,27 @@ jobs:
             # Skip library crawlers entirely.
             if echo "$LIBRARY_CRAWLERS" | grep -qw "$type"; then continue; fi
 
-            # Check CrawlerMeta.js exists (skip if pending migration).
+            # Check CrawlerMeta.js exists.
             meta="$dir/CrawlerMeta.js"
-            if ! echo "$PENDING_MIGRATION" | grep -qw "$type"; then
-              if [ ! -f "$meta" ]; then
-                echo "::error file=$manifest::Crawler '$type' is missing CrawlerMeta.js — add one to $dir/ or add '$type' to PENDING_MIGRATION in pr.yml"
-                FAIL=1
-              fi
+            if [ ! -f "$meta" ]; then
+              echo "::error file=$manifest::Crawler '$type' is missing CrawlerMeta.js — add one to $dir/"
+              FAIL=1
             fi
 
-            # Migrated crawlers must not have crawler-specific files or
-            # hardcoded type strings anywhere under app/ui/ — everything
-            # about a migrated crawler belongs in tools/crawlers/<type>/.
-            # (Pending-migration crawlers are still allowed to be there.)
-            if ! echo "$PENDING_MIGRATION" | grep -qw "$type"; then
-              stray_files=$(find app/ui/src app/ui/e2e -iname "*${type}*" 2>/dev/null || true)
-              if [ -n "$stray_files" ]; then
-                echo "::error::Found file(s) named after crawler type '$type' outside tools/crawlers/$type/ — move them there:"
-                echo "$stray_files"
-                FAIL=1
-              fi
+            # Crawler-specific files and hardcoded type strings must not appear
+            # anywhere under app/ui/ — everything belongs in tools/crawlers/<type>/.
+            stray_files=$(find app/ui/src app/ui/e2e -iname "*${type}*" 2>/dev/null || true)
+            if [ -n "$stray_files" ]; then
+              echo "::error::Found file(s) named after crawler type '$type' outside tools/crawlers/$type/ — move them there:"
+              echo "$stray_files"
+              FAIL=1
+            fi
 
-              hits=$(grep -rlE "(['\"])${type}\1" app/ui/src app/ui/e2e 2>/dev/null || true)
-              if [ -n "$hits" ]; then
-                echo "::error::Crawler type '$type' is hardcoded as a string outside tools/crawlers/$type/ — it must be discovered via CrawlerMeta.js only:"
-                echo "$hits"
-                FAIL=1
-              fi
+            hits=$(grep -rlE "(['\"])${type}\1" app/ui/src app/ui/e2e 2>/dev/null || true)
+            if [ -n "$hits" ]; then
+              echo "::error::Crawler type '$type' is hardcoded as a string outside tools/crawlers/$type/ — it must be discovered via CrawlerMeta.js only:"
+              echo "$hits"
+              FAIL=1
             fi
           done
 
