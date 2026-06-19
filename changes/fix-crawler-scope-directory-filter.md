@@ -1,0 +1,1 @@
+- Fixed CI crawler scope detection incorrectly treating `tools/crawlers/CLAUDE.md` as a crawler type — only subdirectory paths are now matched
