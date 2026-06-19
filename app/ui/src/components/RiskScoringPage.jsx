@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { TIER_STYLES } from '../utils/tierStyles';
+import { useAuth } from '@ui/auth/AuthGate';
+import { TIER_STYLES } from '@ui/utils/tierStyles';
 
 function TierBadge({ tier }) {
   const s = TIER_STYLES[tier] || TIER_STYLES.None;

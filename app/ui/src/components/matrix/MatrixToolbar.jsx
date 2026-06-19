@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useCanExportUi } from '../../auth/usePermissions';
+import { useCanExportUi } from '@ui/auth/usePermissions';
 
 // Simplified Matrix toolbar (post-wizard redesign).
 //

@@ -1,16 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
-import { formatDate } from '../utils/formatters';
+import { formatDate } from '@ui/utils/formatters';
 import EntityGraph from './EntityGraph';
 import { AttributesTable } from './EntityDetailLayout';
-import { buildAttributeEntries } from '../utils/attributeEntries';
+import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
-import useExpandableGraph from '../hooks/useExpandableGraph';
-import useTimeline from '../hooks/useTimeline';
-import useFeatures from '../hooks/useFeatures';
+import useExpandableGraph from '@ui/hooks/useExpandableGraph';
+import useTimeline from '@ui/hooks/useTimeline';
+import useFeatures from '@ui/hooks/useFeatures';
 import { getRootNodes } from './entityGraphShape';
 
 const ACCOUNT_TYPE_COLORS = {

@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { TIER_STYLES } from '../utils/tierStyles';
+import { TIER_STYLES } from '@ui/utils/tierStyles';
 
 function TierBadge({ tier }) {
   const s = TIER_STYLES[tier] || TIER_STYLES.None;

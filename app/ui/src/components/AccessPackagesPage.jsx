@@ -1,10 +1,10 @@
 ﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { useCanExportUi } from '../auth/usePermissions';
-import { TAG_COLORS } from '../utils/colors';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { formatDateOnly as formatDate } from '../utils/formatters';
-import { ASSIGNMENT_TYPE_STYLES } from '../utils/accessPackageStyles';
+import { useAuth } from '@ui/auth/AuthGate';
+import { useCanExportUi } from '@ui/auth/usePermissions';
+import { TAG_COLORS } from '@ui/utils/colors';
+import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
+import { formatDateOnly as formatDate } from '@ui/utils/formatters';
+import { ASSIGNMENT_TYPE_STYLES } from '@ui/utils/accessPackageStyles';
 
 const PAGE_SIZE = 100;
 

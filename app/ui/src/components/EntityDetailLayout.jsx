@@ -1,5 +1,5 @@
-﻿import { friendlyLabel } from '../utils/formatters';
-import { renderAttributeValue } from '../utils/renderAttribute';
+﻿import { friendlyLabel } from '@ui/utils/formatters';
+import { renderAttributeValue } from '@ui/utils/renderAttribute';
 
 // ─── EntityDetailLayout ────────────────────────────────────────────────
 // Two-column layout shared by User/Identity/Resource detail pages.

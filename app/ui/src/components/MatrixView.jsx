@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { useMatrixRowOrder } from '../hooks/useMatrixRowOrder';
+import { useAuth } from '@ui/auth/AuthGate';
+import { useMatrixRowOrder } from '@ui/hooks/useMatrixRowOrder';
 import MatrixToolbar from './matrix/MatrixToolbar';
 import MatrixLegend from './matrix/MatrixLegend';
 import MatrixFilterSummary from './matrix/MatrixFilterSummary';

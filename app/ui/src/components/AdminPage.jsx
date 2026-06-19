@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 import { ADMIN_TABS, visibleAdminTabs } from './admin/adminTabs';
 import ScheduleEditor from './ScheduleEditor';
 

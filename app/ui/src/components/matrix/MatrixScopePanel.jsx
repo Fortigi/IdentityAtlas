@@ -11,9 +11,9 @@
 //   POST /api/matrix/scope-breakdown    — per-department breakdown
 
 import { Fragment, useEffect, useMemo, useState, useCallback } from 'react';
-import { useAuth } from '../../auth/AuthGate';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import TimeSeriesChart from '../TimeSeriesChart';
+import { useAuth } from '@ui/auth/AuthGate';
+import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
+import TimeSeriesChart from '@ui/components/TimeSeriesChart';
 
 // Aligned with the Dashboard Trends palette (TimeSeriesChart colours):
 //   governed → emerald, principals → blue, resources → violet, assignments → amber.

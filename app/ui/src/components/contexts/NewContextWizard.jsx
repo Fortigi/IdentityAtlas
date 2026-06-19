@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 import { Modal, Field, ErrorBox, PrimaryButton, SecondaryButton } from './ModalPrimitives';
-import Stepper from '../Stepper';
-import { targetTypeMeta } from '../../utils/contextStyles';
+import Stepper from '@ui/components/Stepper';
+import { targetTypeMeta } from '@ui/utils/contextStyles';
 
 // ─── Unified "New context tree" wizard ────────────────────────────────────────
 // One stepped flow (matching the matrix / crawler wizards via the shared

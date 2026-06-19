@@ -3,7 +3,7 @@
 // and the tree/list view both consume its output.
 
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 
 export function useContextRoots() {
   const { authFetch } = useAuth();

@@ -1,6 +1,6 @@
 ﻿import MatrixCell from './MatrixCell';
-import { getAccessPackageColor } from '../../utils/colors';
-import { useIsDark } from '../../contexts/ThemeContext';
+import { getAccessPackageColor } from '@ui/utils/colors';
+import { useIsDark } from '@ui/contexts/ThemeContext';
 
 // Map AP resource role names to the same badge style used in user/group cells.
 // roleDisplayName from Graph can be "Member", "Owner", "Eligible Member", etc.

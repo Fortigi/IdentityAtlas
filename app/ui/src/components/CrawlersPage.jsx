@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useTransition, Suspense, lazy, createElement } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
+import { useAuth } from '@ui/auth/AuthGate';
+import { formatDurationSeconds as formatDurationHMS } from '@ui/utils/formatters';
 import { Modal } from './contexts/ModalPrimitives';
 
 // Crawler wizard components and their display metadata are auto-discovered by naming convention:

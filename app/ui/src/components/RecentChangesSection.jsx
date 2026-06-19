@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { formatDate } from '../utils/formatters';
+import { formatDate } from '@ui/utils/formatters';
 
 // ─── RecentChangesSection ────────────────────────────────────────────
 // Collapsible timeline of relationship-level changes for the entity
