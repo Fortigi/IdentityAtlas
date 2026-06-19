@@ -1,0 +1,5 @@
+- CI now skips all checks when a push adds only housekeeping commits (version bumps, "Update branch" merges from main)
+- Path-scoped CI gates: a UI-only change no longer triggers PowerShell lint or the 50-minute integration suite; a single-crawler change no longer runs all crawlers
+- `ci-passed` and `ci-integration-passed` gate jobs replace per-job branch protection requirements, correctly passing when jobs are legitimately skipped
+- `setup/IdentityAtlas.psd1` (version-number file) excluded from integration suite path trigger
+- `node-launcher-ui-build` now only runs when UI or crawler wizard files change
