@@ -3,7 +3,7 @@
 // tools/crawlers/ imports from app/ui/src/ via '../../../' chains.
 // Use '@ui/' instead — see app/ui/CLAUDE.md → Import path aliases.
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
