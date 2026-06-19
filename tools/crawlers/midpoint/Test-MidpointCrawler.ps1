@@ -61,17 +61,31 @@ $resOid  = 'aaaa1111-0000-4000-8000-000000000005'
 $acctOid = 'aaaa1111-0000-4000-8000-000000000006'
 $entOid  = 'aaaa1111-0000-4000-8000-000000000007'   # reached via legacy association[]
 $entOid2 = 'aaaa1111-0000-4000-8000-000000000009'   # reached via 4.9 referenceAttributes.group[]
+$inhRoleOid = 'aaaa1111-0000-4000-8000-00000000000a' # NOT directly assigned — only via roleMembershipRef
+$mgrRoleOid = 'aaaa1111-0000-4000-8000-00000000000b' # only a manager-relation membership → must be ignored
 
 $mockObjects = @{
     resources = @(@{ oid = $resOid; name = 'midpoint-ci-resource' })
     orgs      = @(@{ oid = $orgOid; name = 'midpoint-ci-org'; displayName = 'midPoint CI Org' })
-    roles     = @(@{ oid = $roleOid; name = 'midpoint-ci-role'; displayName = 'midPoint CI Role' })
+    roles     = @(
+        @{ oid = $roleOid;    name = 'midpoint-ci-role';          displayName = 'midPoint CI Role' }
+        @{ oid = $inhRoleOid; name = 'midpoint-ci-inherited-role'; displayName = 'midPoint CI Inherited Role' }
+        @{ oid = $mgrRoleOid; name = 'midpoint-ci-manager-role';   displayName = 'midPoint CI Manager Role' }
+    )
     services  = @(@{ oid = $svcOid; name = 'midpoint-ci-service'; displayName = 'midPoint CI Service' })
     users     = @(@{
         oid = $userOid; name = 'midpoint.citest'; fullName = 'midPoint CITest'
         givenName = 'midPoint'; familyName = 'CITest'; emailAddress = 'midpoint.citest@example.com'
         activation = @{ effectiveStatus = 'enabled' }
         assignment   = @( @{ targetRef = @{ oid = $roleOid; type = 'RoleType' } } )
+        # midPoint's fully-computed membership set: the directly-assigned role plus an
+        # INHERITED role (e.g. via nesting/archetype) — both default relation — and a
+        # manager-relation entry that grants the role for governance, not access.
+        roleMembershipRef = @(
+            @{ oid = $roleOid;    relation = 'org:default'; type = 'RoleType' }   # = direct (also in assignment[])
+            @{ oid = $inhRoleOid; relation = 'org:default'; type = 'RoleType' }   # inherited → grant=inherited
+            @{ oid = $mgrRoleOid; relation = 'org:manager'; type = 'RoleType' }   # manager → excluded
+        )
         parentOrgRef = @{ oid = $orgOid; type = 'OrgType' }
         linkRef      = @{ oid = $acctOid; type = 'ShadowType' }
     })
@@ -157,6 +171,20 @@ try {
         # referenceAttributes.group[]. Both code paths must have produced a resource.
         Report-Result 'Midpoint/Data — entitlements mapped as resources (assoc + referenceAttributes)' ($ents.Count -ge 2) "($($ents.Count) Entitlement resource(s) in system $resSid; expected >= 2)"
     } catch { Report-Result 'Midpoint/Data — entitlement mapped as resource' $false $_.Exception.Message }
+
+    # ── Assert: inherited role membership imported as a Governed assignment ──
+    # The user is only DIRECTLY assigned $roleOid, but midPoint's roleMembershipRef also
+    # lists $inhRoleOid (default relation, inherited) and $mgrRoleOid (manager relation).
+    # The crawler's two-pass Assignments phase must import the inherited role as a Governed
+    # assignment, while excluding the manager-relation one.
+    try {
+        $inhAssign = Invoke-RestMethod -Uri "$ApiBaseUrl/resources/$inhRoleOid/assignments" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $mgrAssign = Invoke-RestMethod -Uri "$ApiBaseUrl/resources/$mgrRoleOid/assignments" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
+        $inhHit = @($inhAssign) | Where-Object { $_.principalId -eq $userOid -and $_.assignmentType -eq 'Governed' }
+        $mgrHit = @($mgrAssign) | Where-Object { $_.principalId -eq $userOid }
+        $ok = ($inhHit.Count -ge 1) -and ($mgrHit.Count -eq 0)
+        Report-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $ok "(inherited: $($inhHit.Count) Governed; manager: $($mgrHit.Count) — expected inherited>=1, manager=0)"
+    } catch { Report-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $false $_.Exception.Message }
 
 } catch {
     Write-Host "  Fatal test error: $($_.Exception.Message)" -ForegroundColor Red

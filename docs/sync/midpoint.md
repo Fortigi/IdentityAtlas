@@ -16,7 +16,8 @@ Identity Atlas can pull authorization and IGA data from a **midPoint** instance 
 | `ShadowType` `kind=account` | **Principals** (accounts on connected systems) |
 | `ShadowType` `kind=entitlement` | **Resources** (type `Entitlement`, e.g. AD groups) |
 | Account → entitlement membership | **ResourceAssignments** (type `Direct`) |
-| `user.assignment[]` → Role/Service | **ResourceAssignments** (type `Governed`) |
+| `user.assignment[]` → Role/Service | **ResourceAssignments** (type `Governed`, `grant=direct`) |
+| `user.roleMembershipRef[]` → Role/Service | **ResourceAssignments** (type `Governed`, `grant=inherited`) — captures birthright / nested / archetype-inherited memberships, not just directly-assigned ones |
 | `user.parentOrgRef[]` | **ContextMembers** (org unit membership) |
 | Access certification campaigns | **CertificationDecisions** |
 
