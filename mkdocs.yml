@@ -132,6 +132,7 @@ nav:
       - About Identity Atlas: about.md
       - History: history.md
       - Contributing:
+          - CI Pipeline: contributing/ci-pipeline.md
           - UI Style Guide: contributing/style-guide.md
       - User Experience:
           - Assessment & Remediation: ux/assessment.md
