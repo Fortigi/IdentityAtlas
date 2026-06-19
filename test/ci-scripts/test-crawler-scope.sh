@@ -45,8 +45,8 @@ detect_scope() {
 
   local list
   list=$(echo "$changed" \
-    | grep -oE "^tools/crawlers/[^/]+" \
-    | sed 's|tools/crawlers/||' \
+    | grep -oE "^tools/crawlers/[^/]+/" \
+    | sed 's|tools/crawlers/||;s|/$||' \
     | grep -v '^shared$' \
     | sort -u \
     | tr '\n' ',' \
@@ -116,6 +116,17 @@ assert "app/api/src/ → empty (PS runner tests all)" \
 assert "docker-compose.yml → empty" \
   "" \
   "$(detect_scope "docker-compose.ci.yml")"
+
+echo ""
+echo "── Files directly in tools/crawlers/ must not be treated as types ──"
+assert "tools/crawlers/CLAUDE.md → ignored (file, not dir)" \
+  "" \
+  "$(detect_scope "tools/crawlers/CLAUDE.md")"
+
+assert "CLAUDE.md + omada change → only omada detected" \
+  "omada" \
+  "$(detect_scope "tools/crawlers/CLAUDE.md
+tools/crawlers/omada/Start-OmadaCrawler.ps1")"
 
 echo ""
 echo "── New crawler type (future-proofing) ──"
