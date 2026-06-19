@@ -24,7 +24,7 @@ A crawler is a folder under `tools/crawlers/<type>/` with a `crawler.json` manif
 |---|---|---|
 | `ResourceType` | **Systems** | Only resources with account/entitlement shadows |
 | `OrgType` | **Contexts** (`contextType=OrgUnit`) | Hierarchy via `parentOrgRef`, topo-sorted |
-| `RoleType` | **Resources** (`resourceType=BusinessRole`) | `inducement[]` → `ResourceRelationships` (`Contains`) |
+| `RoleType` | **Resources** (`resourceType=BusinessRole`) | `inducement[]` → `ResourceRelationships` (`Contains`): `targetRef` inducements → contained Role/Service; `construction` inducements (`associationTargetSearch` DN filter or literal `shadowRef`) → contained Entitlement resource |
 | `ServiceType` | **Resources** (`resourceType=Service`) | |
 | `UserType` | **Identities** + focus **Principal** + **IdentityMembers** | One Principal per user (the midPoint focus account) |
 | `ShadowType kind=account` | **Principals** | Linked to the identity via `user.linkRef` |
@@ -48,7 +48,7 @@ midPoint OIDs are UUIDs and are reused 1-to-1 as `id`/`externalId` — every rec
 5. **Shadows** — `ShadowType` → account Principals + entitlement Resources + memberships (ResourceAssignments `Direct`)
 6. **Org membership** — `user.parentOrgRef[]` → ContextMembers
 7. **Assignments** — `user.assignment[]` (`grant=direct`) + `user.roleMembershipRef[]` (`grant=inherited`) → ResourceAssignments `Governed`. Two passes so birthright / nested / archetype-inherited memberships are captured, not just direct ones; default-relation refs only
-8. **Role nesting** — `RoleType.inducement[]` → ResourceRelationships `Contains`
+8. **Role nesting** — `RoleType.inducement[]` → ResourceRelationships `Contains`. `targetRef` inducements link to a Role/Service; `construction` inducements link to the Entitlement(s) they grant (the `associationTargetSearch` DN filter is resolved against the entitlement shadows from phase 5 via `$EntitlementByDn`, or a literal `shadowRef` is used directly). Needs the Shadows phase to have run for construction targets to resolve
 9. **Reviews** — certification campaigns → CertificationDecisions
 10. **`refresh-views`** — refreshes matrix materialized views
 
@@ -69,6 +69,8 @@ The wizard's archetype/subtype dropdowns come from `POST /api/admin/crawlers/mid
 **AD group memberships (midPoint 4.9+):** 4.9 stores account→group relationships as `shadow.referenceAttributes.group[]` (direct refs), not the legacy `association[]`. The crawler reads both forms. Shadow search requires `?options=raw`; `include=association` returns both as well.
 
 **`Invoke-MidpointSearchStream` vs `Invoke-MidpointSearch`:** Use `SearchStream` for large result sets (Shadows phase). It invokes a per-page callback and never accumulates the full result in memory. `Search` accumulates — fine for small types (Roles, Orgs), but will OOM on 300k+ shadows.
+
+**Construction inducements → Contains (birthright roles):** roles that grant AD groups via `construction` + `association` (rather than a `targetRef` to another role) are common for birthright bundles. The association target is either a literal `shadowRef` or an `associationTargetSearch` equal-filter on the group DN (`attributes/ri:dn`). The crawler resolves the DN against `$EntitlementByDn` (built during the Shadows phase, keyed by the normalised entitlement shadow name + `ri:dn`), so **the Shadows phase must run** for construction targets to resolve. `Get-MidpointConstructionTargets` + `ConvertTo-MidpointDnKey` (in `Invoke-MidpointApi.ps1`) are the pure helpers; unresolved targets are counted in the phase summary, not silently dropped.
 
 **`New-StableGuid`:** Used to derive stable UUIDs for synthetic records (e.g. the midPoint-itself system). Same input always produces the same UUID — safe for idempotent re-runs.
 
