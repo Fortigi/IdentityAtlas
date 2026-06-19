@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { useIsAdmin } from '../auth/usePermissions';
+import { useAuth } from '@ui/auth/AuthGate';
+import { useIsAdmin } from '@ui/auth/usePermissions';
 import RolesPermissionsSection from './RolesPermissionsSection';
 
 function CopyableCommand({ command }) {

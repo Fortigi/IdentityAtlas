@@ -1,19 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
-import { formatDate } from '../utils/formatters';
+import { formatDate } from '@ui/utils/formatters';
 import EntityGraph from './EntityGraph';
 import { AttributesTable } from './EntityDetailLayout';
-import { buildAttributeEntries } from '../utils/attributeEntries';
+import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
 import AccessPackageGovernance from './AccessPackageGovernance';
-import useExpandableGraph from '../hooks/useExpandableGraph';
-import useTimeline from '../hooks/useTimeline';
-import useFeatures from '../hooks/useFeatures';
+import useExpandableGraph from '@ui/hooks/useExpandableGraph';
+import useTimeline from '@ui/hooks/useTimeline';
+import useFeatures from '@ui/hooks/useFeatures';
 import { getRootNodes } from './entityGraphShape';
-import { ASSIGNMENT_TYPE_STYLES, COMPLIANCE_STYLES } from '../utils/accessPackageStyles';
+import { ASSIGNMENT_TYPE_STYLES, COMPLIANCE_STYLES } from '@ui/utils/accessPackageStyles';
 
 const HEADER_FIELDS = ['catalogName', 'catalogId', 'description'];
 const HIDDEN_FIELDS = new Set([

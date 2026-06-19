@@ -1,8 +1,8 @@
 ﻿import { useMemo } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import useEntityPage from '../hooks/useEntityPage';
+import { useAuth } from '@ui/auth/AuthGate';
+import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
-import { TAG_COLORS } from '../utils/colors';
+import { TAG_COLORS } from '@ui/utils/colors';
 
 // Identities list — intentionally a stripped-down Resources-style table.
 // Account-correlation controls (verify / confirm / reject, correlation

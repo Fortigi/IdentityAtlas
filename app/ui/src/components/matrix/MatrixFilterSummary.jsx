@@ -6,7 +6,7 @@
 // editing.
 
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 
 // Canonical stringify: stable key order so two semantically-equal filters
 // produced via different paths (UI builder vs. JSONB round-trip from the DB)

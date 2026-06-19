@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, useCallback, useRef } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { formatDurationMs } from '../utils/formatters';
+import { useAuth } from '@ui/auth/AuthGate';
+import { formatDurationMs } from '@ui/utils/formatters';
 
 // ─── Plugin Run Detail Page ───────────────────────────────────────────────────
 // Opens in a detail tab via hash #run:<uuid>. Polls

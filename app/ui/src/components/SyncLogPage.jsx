@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { formatRelativeTime as formatTimeAgo, formatDurationSeconds as formatDuration } from '../utils/formatters';
+import { useAuth } from '@ui/auth/AuthGate';
+import { formatRelativeTime as formatTimeAgo, formatDurationSeconds as formatDuration } from '@ui/utils/formatters';
 
 function formatDateTime(dateStr) {
   const d = new Date(dateStr);

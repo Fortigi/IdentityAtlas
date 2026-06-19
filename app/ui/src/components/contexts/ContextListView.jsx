@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
-import { flattenTree } from '../../hooks/useContextTrees';
+import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import { flattenTree } from '@ui/hooks/useContextTrees';
 
 // Flat list rendering of the same subtree — useful for large trees (AD OUs
 // with thousands of nodes) where the tree view is too dense. Columns are

@@ -9,7 +9,7 @@
  * app/api/src/routes/jobs.configValidation.test.js.
  */
 import { describe, it, expect } from 'vitest';
-import { validateCrawlerConfig } from '../../../app/api/src/crawlerManifests.js';
+import { validateCrawlerConfig } from '@api/crawlerManifests.js';
 
 const validateOmada = (config) => validateCrawlerConfig('omada', config);
 

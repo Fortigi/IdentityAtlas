@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { TIER_STYLES } from '../utils/tierStyles';
+import { useAuth } from '@ui/auth/AuthGate';
+import { TIER_STYLES } from '@ui/utils/tierStyles';
 
 const TIER_ORDER = { Critical: 5, High: 4, Medium: 3, Low: 2, Minimal: 1, None: 0 };
 const TIER_DISPLAY = ['Critical', 'High', 'Medium', 'Low', 'Minimal'];

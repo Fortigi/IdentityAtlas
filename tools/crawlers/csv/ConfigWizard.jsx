@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Stepper from '../../../app/ui/src/components/Stepper';
+import Stepper from '@ui/components/Stepper';
 import CSV_SLOTS from './csv-slots.json';
 
 export const MAX_FILE_BYTES = 1024 * 1024 * 1024; // 1 GB — must match crawlerFiles.js

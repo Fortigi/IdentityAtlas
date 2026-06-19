@@ -1,6 +1,16 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // '@api/X' → app/api/src/X  (use in tools/crawlers/ tests that import API utilities)
+      '@api': path.resolve(__dirname, 'src'),
+    },
+  },
   test: {
     // Also pick up tests co-located with their crawler plugin that exercise
     // core Node logic (discover.js handlers, crawler.json schema validation)

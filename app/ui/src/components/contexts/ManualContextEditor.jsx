@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 import ContextPicker from './ContextPicker';
 
 // ─── Manual-context inline editor ─────────────────────────────────────────────

@@ -10,7 +10,7 @@
 // Platform-specific guidance (the Docker CLI walkthrough) is hidden inside
 // AuthSettingsPage instead, leaving Roles & Permissions reachable everywhere.
 
-import { hasPermission } from '../../auth/usePermissions';
+import { hasPermission } from '@ui/auth/usePermissions';
 
 export const ADMIN_TABS = [
   { key: 'crawlers',        label: 'Crawlers',         description: 'Add, configure and run identity data crawlers',                        requires: ['admin.crawlers'] },

@@ -8,7 +8,7 @@
 // rest.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 
 function fmt(d) {

@@ -17,7 +17,7 @@
 //      back to the seed without manual ticks.
 
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 
 export default function RolesPermissionsSection() {
   const { authFetch, refreshPermissions } = useAuth();
