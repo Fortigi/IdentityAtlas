@@ -16,6 +16,7 @@ tools/crawlers/<type>/
 ├── CrawlerMeta.js              ← UI type picker entry (id, name, description)
 ├── ConfigWizard.jsx            ← optional step-by-step config wizard for the UI
 ├── Summary.jsx                 ← optional config-card summary panel for the UI
+├── Table.jsx                   ← optional standalone management table for non-CrawlerConfigs crawler types
 ├── discover.js                 ← optional live-discovery handler (Node.js, ESM)
 ├── schema/                     ← optional empty/header-only template files (if supportsFileUploads)
 │   └── *.csv
@@ -122,6 +123,20 @@ export default function Summary({ cfg, config }) {
 ```
 
 Don't render `lastRunAt`/`lastRunStatus` here — the card already shows those generically below every summary panel, for every crawler type. If no `Summary.jsx` is present, the card just shows that generic footer with no extra panel.
+
+### Table.jsx — optional standalone management table
+
+Use this instead of `Summary.jsx` when the crawler type isn't a `CrawlerConfigs` row at all — Custom Connector's API-key registrations are a separate entity, rendered as a flat list of N independent items rather than a per-config card. If present, the UI eager-loads and renders it once, unconditionally, below the "Configured Crawlers" grid (not per-card, not on demand). The component receives only:
+
+```jsx
+export default function Table({ authFetch }) {
+  // Fully self-contained: owns its own data fetching, local state, and
+  // error display. Unlike ConfigWizard.jsx, it has no onComplete/onCancel —
+  // there's no wizard flow here, just a persistent management view.
+}
+```
+
+Because it owns its data privately, the page can't tell it to refresh directly when something elsewhere changes it (e.g. a new connector registered via this crawler's own `ConfigWizard.jsx`). `CrawlersPage.jsx` works around this by bumping a `tableRefreshKey` counter whenever *any* wizard completes and passing it as part of the table's React `key`, forcing a remount (and therefore a refetch) — a harmless extra fetch for every other crawler type. See `tools/crawlers/custom-connector/Table.jsx` for the only current example.
 
 ### discover.js — optional live-discovery endpoint
 
@@ -266,7 +281,7 @@ export function register(test, expect) {
 
 - `app/ui/e2e/crawler-plugin-tests.spec.js` is the one generic loader that discovers every `tools/crawlers/<type>/*.e2e.mjs` file and calls `register(test, expect)` on it — no crawler-specific code needed there, same discovery style as `crawler-wizard-discovery.spec.js`. You don't need to touch it when adding a new crawler's e2e spec.
 
-See `tools/crawlers/csv/ConfigWizard.e2e.mjs` for a full example (file upload step) and `app/ui/e2e/custom-connector.spec.js` for a non-colocated wizard that doesn't need this workaround (Custom Connector isn't a `tools/crawlers/<type>` plugin). Both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
+See `tools/crawlers/csv/ConfigWizard.e2e.mjs` for a full example (file upload step) and `tools/crawlers/custom-connector/ConfigWizard.e2e.mjs` for a simpler one (no file uploads, just the register → API key → getting-started flow). Both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
 
 ### Testing a `discover.js` handler
 

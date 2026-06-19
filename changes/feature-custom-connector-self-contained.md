@@ -1,0 +1,2 @@
+- Internal refactor: moved the Custom Connector's setup wizard and its "Custom Connectors" management table out of the core admin UI and into their own self-contained `tools/crawlers/custom-connector/` folder, following the same pattern already used by the CSV, Omada, midPoint, and Microsoft Graph crawlers.
+- No functional or visual changes to the Custom Connector wizard or the Custom Connectors table.
