@@ -10,13 +10,14 @@ Identity Atlas can pull authorization and IGA data from a **midPoint** instance 
 |---|---|
 | `ResourceType` (connected systems with accounts) | **Systems** |
 | `OrgType` | **Contexts** (type `OrgUnit`, with hierarchy) |
-| `RoleType` | **Resources** (type `BusinessRole`); role inducements → `ResourceRelationships` (`Contains`) |
+| `RoleType` | **Resources** (type `BusinessRole`); role inducements → `ResourceRelationships` (`Contains`) — both role-to-role (`targetRef`) and role-to-AD-group (`construction`, e.g. birthright bundles) |
 | `ServiceType` | **Resources** (type `Service`) |
 | `UserType` (persons/focuses) | **Identities** + a focus Principal + `IdentityMembers` |
 | `ShadowType` `kind=account` | **Principals** (accounts on connected systems) |
 | `ShadowType` `kind=entitlement` | **Resources** (type `Entitlement`, e.g. AD groups) |
 | Account → entitlement membership | **ResourceAssignments** (type `Direct`) |
-| `user.assignment[]` → Role/Service | **ResourceAssignments** (type `Governed`) |
+| `user.assignment[]` → Role/Service | **ResourceAssignments** (type `Governed`, `grant=direct`) |
+| `user.roleMembershipRef[]` → Role/Service | **ResourceAssignments** (type `Governed`, `grant=inherited`) — captures birthright / nested / archetype-inherited memberships, not just directly-assigned ones |
 | `user.parentOrgRef[]` | **ContextMembers** (org unit membership) |
 | Access certification campaigns | **CertificationDecisions** |
 

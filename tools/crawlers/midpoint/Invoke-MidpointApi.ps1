@@ -403,6 +403,82 @@ function Get-MidpointRefRelation {
     return $Fallback
 }
 
+function Test-MidpointDefaultRelation {
+    <#
+    .SYNOPSIS
+        Test whether a midPoint relation QName denotes the *default* (full-membership) relation.
+    .DESCRIPTION
+        midPoint references (roleMembershipRef, parentOrgRef, …) carry a relation that says
+        WHY the subject is linked to the target. The default relation — an empty/absent value,
+        the bare token "default", or any namespaced QName ending in ":default" (e.g.
+        "org:default") — means an actual membership grant. All other relations (manager,
+        owner, approver, meta, …) are governance metadata, NOT access, and return $false.
+    .PARAMETER Relation
+        The relation string (e.g. from Get-MidpointRefRelation). $null/'' counts as default.
+    #>
+    [CmdletBinding()]
+    param([string]$Relation)
+    return (-not $Relation -or $Relation -eq 'default' -or $Relation -match ':default$')
+}
+
+function ConvertTo-MidpointDnKey {
+    <#
+    .SYNOPSIS
+        Normalise an LDAP DN (or any identifier) to a stable lookup key.
+    .DESCRIPTION
+        AD distinguished names are case-insensitive and may carry incidental whitespace,
+        so a construction's associationTargetSearch filter value and an entitlement shadow's
+        name/dn are compared on their trimmed, lower-cased form. Returns '' for null/empty.
+    #>
+    [CmdletBinding()]
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
+    return $Value.Trim().ToLowerInvariant()
+}
+
+function Get-MidpointConstructionTargets {
+    <#
+    .SYNOPSIS
+        Extract the entitlement targets a construction inducement grants.
+    .DESCRIPTION
+        A midPoint role can grant an AD group two ways inside an inducement's
+        `construction.association[]`:
+          • a literal `shadowRef` (the entitlement shadow OID) — resolved directly, or
+          • an `outbound.expression.associationTargetSearch` equal-filter on an identifier
+            attribute (typically `attributes/ri:dn`) — resolved later by matching the filter
+            value against the entitlement shadows the crawler imported.
+        Returns a list of hashtables @{ shadowOid = <oid|''>; searchKey = <normalised value|''> }
+        — `shadowOid` set for the literal case, `searchKey` set for the search case. The caller
+        resolves `searchKey` against a DN→oid map. Returns an empty list when there is no
+        construction or it grants nothing resolvable.
+    .PARAMETER Construction
+        The `inducement.construction` object.
+    #>
+    [CmdletBinding()]
+    param($Construction)
+    $out = [System.Collections.Generic.List[object]]::new()
+    if ($null -eq $Construction) { return $out }
+    $assocs = $Construction.association
+    if (-not $assocs) { return $out }
+    foreach ($a in @($assocs)) {
+        $sref = Get-MidpointRefOid $a.shadowRef ''
+        if ($sref) { $out.Add(@{ shadowOid = $sref; searchKey = '' }); continue }
+        # associationTargetSearch → expression on the association's outbound mapping
+        $ats = $a.outbound.expression.associationTargetSearch
+        if (-not $ats) { continue }
+        foreach ($t in @($ats)) {
+            foreach ($f in @($t.filter)) {
+                $eq = $f.equal
+                if ($eq -and $null -ne $eq.value) {
+                    $key = ConvertTo-MidpointDnKey ([string]$eq.value)
+                    if ($key) { $out.Add(@{ shadowOid = ''; searchKey = $key }) }
+                }
+            }
+        }
+    }
+    return $out
+}
+
 function Resolve-MidpointDepartment {
     <#
     .SYNOPSIS
@@ -428,8 +504,7 @@ function Resolve-MidpointDepartment {
     $chosen = $null
     foreach ($ref in $refs) {
         $rel = Get-MidpointRefRelation $ref ''
-        # Default relation = empty (implied) or any QName ending in ":default" / equal to "default".
-        if (-not $rel -or $rel -eq 'default' -or $rel -match ':default$') { $chosen = $ref; break }
+        if (Test-MidpointDefaultRelation $rel) { $chosen = $ref; break }
     }
     if (-not $chosen) { $chosen = $refs[0] }   # no default-relation org → first ref
 
