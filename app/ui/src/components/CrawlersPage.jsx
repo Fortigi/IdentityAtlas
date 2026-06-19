@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useTransition, Suspense, lazy, createElement } from 'react';
 import { useAuth } from '../auth/AuthGate';
-import ScheduleEditor from './ScheduleEditor';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
 
 // Crawler wizard components and their display metadata are auto-discovered by naming convention:
