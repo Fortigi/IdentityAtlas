@@ -1,1 +1,0 @@
-- Fixed `bump-version` workflow failing to push to `main` by updating the deprecated `app-id` parameter to `client-id` in `actions/create-github-app-token`, matching `cut-release` and `cut-hotfix`

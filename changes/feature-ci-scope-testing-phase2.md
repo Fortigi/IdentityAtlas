@@ -1,3 +1,0 @@
-- A PR touching only one crawler's files now runs only that crawler's integration test (plus any crawlers that transitively depend on it), not the full suite — a single-crawler change drops from ~20 min to ~3 min of integration testing
-- Crawlers that must run for data setup (e.g. odata when omada changed) run without assertions so their exit code doesn't block the PR
-- `::group::` log markers added to the crawler test runner — each crawler's output is now collapsible in the GitHub Actions log with pass/fail annotations in the PR summary

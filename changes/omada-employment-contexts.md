@@ -1,1 +1,0 @@
-- The Omada-to-IdentityAtlas transform script now processes `Employment.csv` and `Jobtitle.csv`. Job titles are imported as `JobTitle` contexts, unique org unit + job title combinations as `Position` contexts, and each employment row generates identity memberships to its org unit, job title, and position context. All employments are included regardless of `ValidFrom`/`ValidTo`.
