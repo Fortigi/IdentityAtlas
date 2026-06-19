@@ -3109,7 +3109,11 @@
 </tr>
 <tr>
 <td><code>user.assignment[]</code> → Role/Service</td>
-<td><strong>ResourceAssignments</strong> (type <code>Governed</code>)</td>
+<td><strong>ResourceAssignments</strong> (type <code>Governed</code>, <code>grant=direct</code>)</td>
+</tr>
+<tr>
+<td><code>user.roleMembershipRef[]</code> → Role/Service</td>
+<td><strong>ResourceAssignments</strong> (type <code>Governed</code>, <code>grant=inherited</code>) — captures birthright / nested / archetype-inherited memberships, not just directly-assigned ones</td>
 </tr>
 <tr>
 <td><code>user.parentOrgRef[]</code></td>
