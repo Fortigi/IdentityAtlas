@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useTransition, Suspense, lazy, createElement } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
+import { Modal } from './contexts/ModalPrimitives';
 
 // Crawler wizard components and their display metadata are auto-discovered by naming convention:
 //   tools/crawlers/{type}/ConfigWizard.jsx  — the wizard form (lazy-loaded)
@@ -600,6 +601,7 @@ export default function CrawlersPage({ onNavigate }) {
   const [, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Data
   const [configs, setConfigs] = useState([]);
@@ -747,24 +749,34 @@ export default function CrawlersPage({ onNavigate }) {
     if (cfg) submitJob(cfg.crawlerType, null, configId, syncMode);
   };
 
-  const handleForceStop = async (jobId) => {
-    if (!confirm('Force-stop this running job? Any partially imported data will remain.')) return;
-    try {
-      await authFetch(`/api/admin/crawler-jobs/${jobId}/force-stop`, { method: 'POST' });
-      fetchJobs();
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleForceStop = (jobId) => {
+    setConfirmDialog({
+      message: 'Force-stop this running job? Any partially imported data will remain.',
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await authFetch(`/api/admin/crawler-jobs/${jobId}/force-stop`, { method: 'POST' });
+          fetchJobs();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   };
 
-  const handleRemoveConfig = async (configId) => {
-    if (!confirm('Remove this crawler configuration?')) return;
-    try {
-      await authFetch(`/api/admin/crawler-configs/${configId}`, { method: 'DELETE' });
-      fetchConfigs();
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleRemoveConfig = (configId) => {
+    setConfirmDialog({
+      message: 'Remove this crawler configuration?',
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await authFetch(`/api/admin/crawler-configs/${configId}`, { method: 'DELETE' });
+          fetchConfigs();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   };
 
   // ── Export / Import ───────────────────────────────────────────
@@ -938,6 +950,26 @@ export default function CrawlersPage({ onNavigate }) {
 
       {/* Recent jobs */}
       <RecentJobs jobs={jobs} onForceStop={handleForceStop} />
+
+      {confirmDialog && (
+        <Modal title="Confirm" onClose={() => setConfirmDialog(null)} width={360} dismissOnBackdrop={false}>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">{confirmDialog.message}</p>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setConfirmDialog(null)}
+              className="px-3 py-1 text-xs rounded bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDialog.onConfirm}
+              className="px-3 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+            >
+              Confirm
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
