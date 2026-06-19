@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { formatDate } from '../../../app/ui/src/utils/formatters';
+import { formatDate } from '@ui/utils/formatters';
 
 // Custom Connector's card is a CrawlerConfigs row paired with a Crawlers row
 // (the API key) — see routes/crawlers.js's POST /admin/crawlers. This panel

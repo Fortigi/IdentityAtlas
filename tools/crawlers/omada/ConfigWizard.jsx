@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import ScheduleEditor from '../../../app/ui/src/components/ScheduleEditor';
-import Stepper from '../../../app/ui/src/components/Stepper';
+import ScheduleEditor from '@ui/components/ScheduleEditor';
+import Stepper from '@ui/components/Stepper';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

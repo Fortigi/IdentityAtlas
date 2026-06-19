@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { formatDate, formatDateOnly, friendlyLabel } from '../utils/formatters';
+import { formatDate, formatDateOnly, friendlyLabel } from '@ui/utils/formatters';
 import { OP_STYLES, KIND_TO_TAB, renderSummaryWithLink } from './RecentChangesSection';
 
 // ─── EntityTimeline ────────────────────────────────────────────────────

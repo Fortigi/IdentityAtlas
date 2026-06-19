@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../../auth/AuthGate';
-import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
-import ContextPicker from '../contexts/ContextPicker';
+import { useAuth } from '@ui/auth/AuthGate';
+import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import ContextPicker from '@ui/components/contexts/ContextPicker';
 
 // ─── Matrix context-filter chip widget ────────────────────────────────────────
 // Small chip bar that displays active context filters and lets the analyst add

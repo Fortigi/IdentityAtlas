@@ -14,12 +14,12 @@
 // backward compat; the user-facing term is "matrix").
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { useAuth } from '../../auth/AuthGate';
-import Stepper from '../Stepper';
-import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '../contexts/ModalPrimitives';
-import ContextPicker from '../contexts/ContextPicker';
-import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
-import { friendlyLabel } from '../../utils/formatters';
+import { useAuth } from '@ui/auth/AuthGate';
+import Stepper from '@ui/components/Stepper';
+import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '@ui/components/contexts/ModalPrimitives';
+import ContextPicker from '@ui/components/contexts/ContextPicker';
+import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import { friendlyLabel } from '@ui/utils/formatters';
 
 // ─── Constants ──────────────────────────────────────────────────────
 

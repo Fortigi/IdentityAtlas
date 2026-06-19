@@ -1,9 +1,9 @@
 import { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { friendlyLabel } from '../utils/formatters';
-import { getAccessPackageColor } from '../utils/colors';
-import { exportRollupToExcel } from '../utils/exportRollupToExcel';
-import { useIsDark } from '../contexts/ThemeContext';
+import { useAuth } from '@ui/auth/AuthGate';
+import { friendlyLabel } from '@ui/utils/formatters';
+import { getAccessPackageColor } from '@ui/utils/colors';
+import { exportRollupToExcel } from '@ui/utils/exportRollupToExcel';
+import { useIsDark } from '@ui/contexts/ThemeContext';
 import MatrixCell from './matrix/MatrixCell';
 import MatrixScopePanel from './matrix/MatrixScopePanel';
 import MatrixLegend from './matrix/MatrixLegend';

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { formatDate, formatDateOnly } from '../utils/formatters';
+import { formatDate, formatDateOnly } from '@ui/utils/formatters';
 
 // ─── AccessPackageGovernance ──────────────────────────────────────────
 // Surfaces the records behind a Business Role's governance overview, in the

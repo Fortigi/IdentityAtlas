@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 
 const API_BASE = '/api';
 

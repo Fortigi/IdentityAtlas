@@ -2,13 +2,13 @@
 // See docs/architecture/context-redesign-ui.md for the design.
 
 import { useMemo, useState } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { useContextRoots, useContextSubtree } from '../hooks/useContextTrees';
+import { useAuth } from '@ui/auth/AuthGate';
+import { useContextRoots, useContextSubtree } from '@ui/hooks/useContextTrees';
 import ContextTreeSelector from './contexts/ContextTreeSelector';
 import ContextTreeView from './contexts/ContextTreeView';
 import ContextListView from './contexts/ContextListView';
 import NewContextWizard from './contexts/NewContextWizard';
-import { variantMeta, targetTypeMeta } from '../utils/contextStyles';
+import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 
 export default function ContextsPage({ onOpenDetail, onNavigate }) {
   const { authFetch } = useAuth();

@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { TYPE_COLORS } from '../../utils/colors';
+import { TYPE_COLORS } from '@ui/utils/colors';
 
 function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNames, provisioningGap, gapExpected }) {
   const hasMembership = membershipTypes && membershipTypes.size > 0;

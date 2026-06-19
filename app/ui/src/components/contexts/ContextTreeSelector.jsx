@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState } from 'react';
-import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
+import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 
 function renderMemberCounts(n) {
   const d = typeof n.directMemberCount === 'number' ? n.directMemberCount : null;

@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { formatDate } from '../utils/formatters';
+import { useAuth } from '@ui/auth/AuthGate';
+import { formatDate } from '@ui/utils/formatters';
 
 function formatNum(n) {
   if (n == null) return '0';

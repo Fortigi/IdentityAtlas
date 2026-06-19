@@ -1,13 +1,13 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import ManualContextEditor from './contexts/ManualContextEditor';
 import ContextMemberPicker from './contexts/ContextMemberPicker';
 import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
-import useTimeline from '../hooks/useTimeline';
-import useFeatures from '../hooks/useFeatures';
-import { variantMeta, targetTypeMeta } from '../utils/contextStyles';
+import useTimeline from '@ui/hooks/useTimeline';
+import useFeatures from '@ui/hooks/useFeatures';
+import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 
 // ─── Context Detail Page ──────────────────────────────────────────────────────
 // Shows details for a single Context (v6 shape): header with variant /

@@ -12,7 +12,7 @@
 // `useIsDark` hook so colors track the theme without re-rendering.
 
 import { useMemo } from 'react';
-import { useIsDark } from '../contexts/ThemeContext';
+import { useIsDark } from '@ui/contexts/ThemeContext';
 
 const PADDING = { top: 16, right: 16, bottom: 28, left: 44 };
 

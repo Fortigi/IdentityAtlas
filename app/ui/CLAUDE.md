@@ -54,6 +54,32 @@ const isDark = useIsDark();
 style={{ color: isDark ? AP_COLORS_DARK[i] : AP_COLORS[i] }}
 ```
 
+## Import path aliases
+
+All cross-directory imports inside `src/` **must** use the `@ui/` alias rather than relative `'../'` traversal. Same-folder imports (`'./'`) are fine.
+
+| Alias | Resolves to | Use for |
+|-------|------------|---------|
+| `@ui/X` | `app/ui/src/X` | Anything in `src/` referenced from within `src/` or from `tools/crawlers/` |
+| `@crawlers/X` | `tools/crawlers/X` | Crawler plugins referenced from within `tools/crawlers/` |
+
+```js
+// ✓ Correct — use @ui/ alias
+import { useAuth } from '@ui/auth/AuthGate';
+import { formatDate } from '@ui/utils/formatters';
+import Stepper from '@ui/components/Stepper';
+
+// ✗ Wrong — relative traversal
+import { useAuth } from '../../auth/AuthGate';
+import { formatDate } from '../../../app/ui/src/utils/formatters';
+```
+
+**Enforcement:** The ESLint rule `local/no-relative-package-imports` (in `eslint-rules/no-relative-package-imports.js`) blocks `'../'` imports in `src/**` at lint time. The Vitest test `src/__tests__/import-conventions.test.js` enforces the same at test time — it also covers crawler wizard files under `tools/crawlers/`.
+
+**Editor support:** `jsconfig.json` at the repo root maps both aliases so VS Code / WebStorm resolve them without errors.
+
+**`import.meta.glob` exception:** Vite's `import.meta.glob()` calls in `CrawlersPage.jsx` still use relative paths (`../../../../tools/crawlers/*/...`) because glob key lookup depends on the literal string matching. Do not change these.
+
 ## No Duplicate Code
 
 Before writing any utility function, helper, constant, or component — **search first**. If equivalent logic already exists, use or extend it. Only create something new when nothing suitable exists.

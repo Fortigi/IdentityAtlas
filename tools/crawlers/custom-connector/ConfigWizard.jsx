@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import Stepper from '../../../app/ui/src/components/Stepper';
-import useDocsUrl from '../../../app/ui/src/hooks/useDocsUrl';
+import Stepper from '@ui/components/Stepper';
+import useDocsUrl from '@ui/hooks/useDocsUrl';
 
 export default function ConfigWizard({ onComplete, onCancel, authFetch }) {
   const docsLink = useDocsUrl();

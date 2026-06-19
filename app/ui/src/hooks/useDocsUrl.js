@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { docsUrl } from '../utils/docsUrl';
+import { docsUrl } from '@ui/utils/docsUrl';
 
 // Returns a `(path) => url` builder that points at the docs version matching
 // the running build (edge vs stable). Fetches /api/version once (public, like
