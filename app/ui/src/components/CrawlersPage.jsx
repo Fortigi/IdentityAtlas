@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Suspense, lazy, createElement } from 'react';
+import { useState, useEffect, useCallback, useRef, useTransition, Suspense, lazy, createElement } from 'react';
 import { useAuth } from '../auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 import Stepper from './Stepper';
@@ -196,7 +196,7 @@ function JobProgress({ job, configLabel, onNavigateToMatrix, onDismiss }) {
     if (!job || ['completed','failed','cancelled'].includes(job.status)) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [job?.status]);
+  }, [job]);
 
   if (!job) return null;
   const progress = job.progress ? (typeof job.progress === 'string' ? JSON.parse(job.progress) : job.progress) : {};
@@ -351,7 +351,7 @@ function JobPhasesModal({ job, onClose }) {
     };
     poll();
     return () => { cancelled = true; if (timerId) clearTimeout(timerId); };
-  }, [job?.id, activeTab, isRunning, authFetch]);
+  }, [job, activeTab, isRunning, authFetch]);
 
   // Auto-scroll the trace pane to the bottom when new bytes arrive, but only
   // if the user hadn't scrolled up to read history.
@@ -952,6 +952,7 @@ function ExampleTabs({ examples, onCopy, copied }) {
 
 export default function CrawlersPage({ onNavigate }) {
   const { authFetch } = useAuth();
+  const [, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -1042,9 +1043,11 @@ export default function CrawlersPage({ onNavigate }) {
   }, [activeJobs, fetchStatus, fetchConfigs]);
 
   useEffect(() => {
-    Promise.all([fetchCrawlers(), fetchConfigs(), fetchStatus(), fetchJobs()])
-      .finally(() => setLoading(false));
-  }, []);
+    startTransition(() => {
+      Promise.all([fetchCrawlers(), fetchConfigs(), fetchStatus(), fetchJobs()])
+        .finally(() => setLoading(false));
+    });
+  }, [fetchCrawlers, fetchConfigs, fetchStatus, fetchJobs, startTransition]);
 
   useEffect(() => {
     // Keep polling as long as ANY tracked job is still active. As soon as
