@@ -12,10 +12,10 @@
 // "Configure a crawler" pointing at Admin → Crawlers.
 
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { useAuth } from '../auth/AuthGate';
-import { useIsDark } from '../contexts/ThemeContext';
-import { formatCompactNumber as formatNumber, formatRelativeTime } from '../utils/formatters';
-import { docsUrl } from '../utils/docsUrl';
+import { useAuth } from '@ui/auth/AuthGate';
+import { useIsDark } from '@ui/contexts/ThemeContext';
+import { formatCompactNumber as formatNumber, formatRelativeTime } from '@ui/utils/formatters';
+import { docsUrl } from '@ui/utils/docsUrl';
 
 // Lazy-load Trends — keeps the dashboard's first paint cheap (chart code +
 // data hook are only needed when the user clicks the tab).

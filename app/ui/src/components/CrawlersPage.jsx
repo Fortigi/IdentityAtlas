@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef, Suspense, lazy, createElement } from 'react';
-import { useAuth } from '../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 import ScheduleEditor from './ScheduleEditor';
 import Stepper from './Stepper';
-import useDocsUrl from '../hooks/useDocsUrl';
-import { formatDurationSeconds as formatDurationHMS } from '../utils/formatters';
+import useDocsUrl from '@ui/hooks/useDocsUrl';
+import { formatDurationSeconds as formatDurationHMS } from '@ui/utils/formatters';
 
 // Crawler wizard components and their display metadata are auto-discovered by naming convention:
 //   tools/crawlers/{type}/ConfigWizard.jsx  — the wizard form (lazy-loaded)

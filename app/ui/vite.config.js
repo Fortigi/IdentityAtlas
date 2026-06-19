@@ -5,6 +5,14 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      // '@ui/X' → app/ui/src/X  (use in import statements within src/ and tools/crawlers/)
+      '@ui': path.resolve(__dirname, 'src'),
+      // '@crawlers/X' → tools/crawlers/X  (use in import statements within tools/crawlers/)
+      '@crawlers': path.resolve(__dirname, '../../tools/crawlers'),
+    },
+  },
   test: {
     // Also pick up tests co-located with crawler wizard plugins, which live
     // outside src/ (tools/crawlers/<type>/*.test.{js,jsx}).

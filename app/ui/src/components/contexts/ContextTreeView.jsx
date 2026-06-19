@@ -3,7 +3,7 @@ import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   useDraggable, useDroppable, closestCenter,
 } from '@dnd-kit/core';
-import { variantMeta, targetTypeMeta, editedMeta } from '../../utils/contextStyles';
+import { variantMeta, targetTypeMeta, editedMeta } from '@ui/utils/contextStyles';
 
 // Recursive tree renderer. Each node is a rounded pill with a variant-colored
 // bubble; connector lines between parent and child make the hierarchy

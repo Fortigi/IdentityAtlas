@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useAuth } from '../../auth/AuthGate';
+import { useAuth } from '@ui/auth/AuthGate';
 import { Modal, SecondaryButton } from './ModalPrimitives';
-import { variantMeta, targetTypeMeta } from '../../utils/contextStyles';
+import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 
 // ─── ContextPicker ────────────────────────────────────────────────────────────
 // Reusable modal for selecting a single Context. Mirrors the look of

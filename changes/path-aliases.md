@@ -1,0 +1,3 @@
+- Replaced all `'../../'` and `'../../../app/ui/src/'` relative import paths in the UI source and crawler wizard files with the `@ui/` alias (e.g. `import { useAuth } from '@ui/auth/AuthGate'`), making imports stable regardless of where a file sits in the directory tree
+- Added a `jsconfig.json` at the repo root so VS Code and JetBrains resolve `@ui/` and `@crawlers/` aliases without red underlines
+- Added the `local/no-relative-package-imports` ESLint rule and a companion Vitest test to prevent `'../'` traversal from creeping back into `src/` or crawler wizard files

@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@ui/*": ["app/ui/src/*"],
+      "@crawlers/*": ["tools/crawlers/*"]
+    }
+  },
+  "include": ["app/ui/src/**/*", "tools/crawlers/**/*"]
+}

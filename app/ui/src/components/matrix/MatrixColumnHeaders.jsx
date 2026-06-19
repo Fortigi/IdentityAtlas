@@ -1,7 +1,7 @@
-import { getAccessPackageColor } from '../../utils/colors';
-import { useIsDark } from '../../contexts/ThemeContext';
+import { getAccessPackageColor } from '@ui/utils/colors';
+import { useIsDark } from '@ui/contexts/ThemeContext';
 import { computeAttributeSpans } from './sortUsers';
-import { friendlyLabel } from '../../utils/formatters';
+import { friendlyLabel } from '@ui/utils/formatters';
 
 export default function MatrixColumnHeaders({
   users,

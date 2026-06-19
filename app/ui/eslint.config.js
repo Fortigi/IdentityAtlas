@@ -5,6 +5,7 @@ import noLowContrastText from './eslint-rules/no-low-contrast-text.js';
 import noNativeDialogs from './eslint-rules/no-native-dialogs.js';
 import noLegacyJargon from './eslint-rules/no-legacy-jargon.js';
 import noHardcodedCrawlerMeta from './eslint-rules/no-hardcoded-crawler-meta.js';
+import noRelativePackageImports from './eslint-rules/no-relative-package-imports.js';
 
 // Files that still use native confirm()/alert()/prompt() (the pre-existing
 // backlog). They're downgraded to a warning so CI stays green while new code
@@ -50,6 +51,7 @@ export default [
           'no-native-dialogs': noNativeDialogs,
           'no-legacy-jargon': noLegacyJargon,
           'no-hardcoded-crawler-meta': noHardcodedCrawlerMeta,
+          'no-relative-package-imports': noRelativePackageImports,
         },
       },
     },
@@ -69,6 +71,14 @@ export default [
         { allowConstantExport: true },
       ],
     },
+  },
+  {
+    // Enforce '@ui/' path aliases in src/ — relative traversal ('../X') is a
+    // fragile import style that breaks when files move. See app/ui/CLAUDE.md.
+    // Test files are exempt: they may import ESLint rules from outside src/.
+    files: ['src/**/*.{js,jsx}'],
+    ignores: ['src/**/*.test.{js,jsx}', 'src/__tests__/**'],
+    rules: { 'local/no-relative-package-imports': 'error' },
   },
   {
     // Pre-existing native-dialog offenders: warn (don't fail CI) until migrated.

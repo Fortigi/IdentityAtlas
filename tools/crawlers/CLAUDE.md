@@ -101,12 +101,17 @@ export default function MyConfigWizard({ onComplete, onCancel, initialConfig, is
 }
 ```
 
-Import paths from `tools/crawlers/<type>/` must traverse back to `app/ui/src/`:
+Import UI components via the `@ui/` alias — never use `'../../../app/ui/src/'` traversal:
 ```js
-import ScheduleEditor from '../../../app/ui/src/components/ScheduleEditor';
-import Combobox from '../../../app/ui/src/components/inputs/Combobox';
-import Select from '../../../app/ui/src/components/inputs/Select';
+import ScheduleEditor from '@ui/components/ScheduleEditor';
+import Combobox from '@ui/components/inputs/Combobox';
+import Select from '@ui/components/inputs/Select';
+import Stepper from '@ui/components/Stepper';
+import useDocsUrl from '@ui/hooks/useDocsUrl';
+import { formatDate } from '@ui/utils/formatters';
 ```
+
+The `@ui` alias is resolved by the Vite config in `app/ui/vite.config.js` (which also runs the vitest suite for crawlers). Editor support comes from `jsconfig.json` at the repo root.
 
 If no `ConfigWizard.jsx` is present, the UI falls back to a generic JSON config editor.
 

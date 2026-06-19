@@ -6,7 +6,7 @@ import {
   isExpandableItem,
   extrasFromCore,
   capItems,
-} from '../components/entityGraphShape';
+} from '@ui/components/entityGraphShape';
 
 // ─── useExpandableGraph ──────────────────────────────────────────────
 // Drives the fanout-on-click behaviour shared by every entity detail

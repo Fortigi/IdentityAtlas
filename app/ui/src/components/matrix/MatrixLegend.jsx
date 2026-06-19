@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TYPE_COLORS } from '../../utils/colors';
+import { TYPE_COLORS } from '@ui/utils/colors';
 
 // On-screen key for the matrix. The grid encodes everything as single colored
 // letters (D/I/E/O), AP-tinted backgrounds, a count bubble, and a gap marker —
