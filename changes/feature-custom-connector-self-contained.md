@@ -1,2 +1,3 @@
-- Internal refactor: moved the Custom Connector's setup wizard and its "Custom Connectors" management table out of the core admin UI and into their own self-contained `tools/crawlers/custom-connector/` folder, following the same pattern already used by the CSV, Omada, midPoint, and Microsoft Graph crawlers.
-- No functional or visual changes to the Custom Connector wizard or the Custom Connectors table.
+- Moved the Custom Connector's setup wizard and management UI out of the core admin UI and into their own self-contained `tools/crawlers/custom-connector/` folder, following the same pattern already used by the CSV, Omada, midPoint, and Microsoft Graph crawlers.
+- Custom Connectors now appear as cards in the "Configured Crawlers" list, alongside every other crawler type, instead of in a separate table below the recent-jobs list. Each card shows the API key prefix, an enabled/disabled toggle, a "Reset Key" action, and an activity log (which now actually displays entries — previously it fetched them but never rendered anything).
+- No other functional changes: registering, disabling, resetting, and removing a Custom Connector all behave the same as before.

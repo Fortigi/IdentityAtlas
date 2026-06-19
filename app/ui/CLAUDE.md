@@ -116,11 +116,6 @@ const _summaryModules = import.meta.glob('../../../../tools/crawlers/*/Summary.j
 function getCrawlerSummary(crawlerType) {
   return _summaryModules[`../../../../tools/crawlers/${crawlerType}/Summary.jsx`]?.default || null;
 }
-
-// Eager-load optional Table.jsx panels — for crawler types that aren't
-// CrawlerConfigs rows at all (e.g. Custom Connector), rendered once below
-// the configured-crawlers grid instead of per-card like Summary.jsx
-const _tableModules = import.meta.glob('../../../../tools/crawlers/*/Table.jsx', { eager: true });
 ```
 
 **Vite dev server:** `vite.config.js` sets `server.fs.allow` to include the repo root so wizard components under `tools/crawlers/` are served correctly during development. This is already configured — don't remove it.

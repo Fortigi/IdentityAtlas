@@ -16,7 +16,6 @@ tools/crawlers/<type>/
 ├── CrawlerMeta.js              ← UI type picker entry (id, name, description)
 ├── ConfigWizard.jsx            ← optional step-by-step config wizard for the UI
 ├── Summary.jsx                 ← optional config-card summary panel for the UI
-├── Table.jsx                   ← optional standalone management table for non-CrawlerConfigs crawler types
 ├── discover.js                 ← optional live-discovery handler (Node.js, ESM)
 ├── schema/                     ← optional empty/header-only template files (if supportsFileUploads)
 │   └── *.csv
@@ -116,27 +115,34 @@ If no `ConfigWizard.jsx` is present, the UI falls back to a generic JSON config 
 If present, the UI renders this component inside the crawler's card on the "Configured Crawlers" list, showing the crawler-specific details at a glance (e.g. base URL, sync options). The component receives:
 
 ```jsx
-export default function Summary({ cfg, config }) {
-  // cfg    — the crawler's config blob (config.config); what most summaries need
-  // config — the full config row, for the rare case something outside .config is needed
+export default function Summary({ cfg, config, authFetch }) {
+  // cfg       — the crawler's config blob (config.config); what most summaries need
+  // config    — the full config row, for the rare case something outside .config is needed
+  // authFetch — authenticated fetch helper. Only needed by a type whose summary
+  //             self-manages something beyond what the generic card offers (see
+  //             "Push-mode crawler types" below) — most Summary.jsx files ignore it.
 }
 ```
 
 Don't render `lastRunAt`/`lastRunStatus` here — the card already shows those generically below every summary panel, for every crawler type. If no `Summary.jsx` is present, the card just shows that generic footer with no extra panel.
 
-### Table.jsx — optional standalone management table
+### Push-mode crawler types (`Crawlers` vs `CrawlerConfigs`, and capability flags)
 
-Use this instead of `Summary.jsx` when the crawler type isn't a `CrawlerConfigs` row at all — Custom Connector's API-key registrations are a separate entity, rendered as a flat list of N independent items rather than a per-config card. If present, the UI eager-loads and renders it once, unconditionally, below the "Configured Crawlers" grid (not per-card, not on demand). The component receives only:
+Every crawler type renders as a card in the "Configured Crawlers" grid, backed by one `CrawlerConfigs` row per instance — except the data model has a second table, `Crawlers`, for API-key authentication (the Built-in Worker, and Custom Connector). That table exists because push-mode auth material (key hash/salt/prefix, rate limit, rotation/audit history) is a genuinely different concern from a pull-job's settings blob — bolting API-key columns onto every CSV/Omada config, or schedule columns onto every API key, would be worse than two tables. A type that's push-mode (data arrives via the Ingest API rather than a scheduled job) still gets a `CrawlerConfigs` row so it shows up as a normal card — `routes/crawlers.js`'s `POST /admin/crawlers` creates the `Crawlers` row and a paired `CrawlerConfigs` row (`crawlerType` for this type, `config: { crawlerId: <Crawlers.id> }`) in one statement; either delete path (`DELETE /admin/crawlers/:id` or `DELETE /admin/crawler-configs/:id`) cascades to clean up the other row too. See `tools/crawlers/custom-connector/` for the only current example: its `Summary.jsx` fetches its own `Crawlers` row by `cfg.crawlerId` to show the key prefix, drive the enable toggle and key reset, and render the audit log — none of which exist on a normal `CrawlerConfigs` row.
 
-```jsx
-export default function Table({ authFetch }) {
-  // Fully self-contained: owns its own data fetching, local state, and
-  // error display. Unlike ConfigWizard.jsx, it has no onComplete/onCancel —
-  // there's no wizard flow here, just a persistent management view.
-}
+Because Run/Configure/Export assume a scheduled, editable, exportable `CrawlerConfigs`-driven job, a push-mode type opts out of whichever don't apply via `CrawlerMeta.js`:
+
+```js
+export default {
+  id: 'custom-connector',
+  // ...
+  supportsRun: false,       // no scheduled job — pushed via the Ingest API instead
+  supportsConfigure: false, // no edit wizard — manage via Summary.jsx instead
+  supportsExport: false,    // nothing meaningful to export (no secrets, no settings)
+};
 ```
 
-Because it owns its data privately, the page can't tell it to refresh directly when something elsewhere changes it (e.g. a new connector registered via this crawler's own `ConfigWizard.jsx`). `CrawlersPage.jsx` works around this by bumping a `tableRefreshKey` counter whenever *any* wizard completes and passing it as part of the table's React `key`, forcing a remount (and therefore a refetch) — a harmless extra fetch for every other crawler type. See `tools/crawlers/custom-connector/Table.jsx` for the only current example.
+All three default to `true` when omitted — existing types need no changes.
 
 ### discover.js — optional live-discovery endpoint
 

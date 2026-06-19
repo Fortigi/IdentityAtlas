@@ -25,15 +25,6 @@ function getCrawlerSummary(crawlerType) {
   return _summaryModules[`../../../../tools/crawlers/${crawlerType}/Summary.jsx`]?.default || null;
 }
 
-// Optional standalone management table for crawler types that aren't
-// CrawlerConfigs rows at all (e.g. Custom Connector's API-key registrations) —
-// a list of N independent items rather than a per-config card. Eager-loaded
-// and rendered unconditionally once per page, not per card.
-const _tableModules = import.meta.glob('../../../../tools/crawlers/*/Table.jsx', { eager: true });
-function getCrawlerTables() {
-  return Object.values(_tableModules).map(m => m.default);
-}
-
 // ─── Crawler type catalog ─────────────────────────────────────────────────────
 // `demo` keeps its wizard inline in this file (no persisted config — it's a
 // one-shot immediate job). File-based crawlers under tools/crawlers/*/CrawlerMeta.js
@@ -81,7 +72,7 @@ function SelectType({ onSelect, onCancel }) {
 }
 
 // ─── Configured Crawler Card (display-only — Configure opens wizard in edit mode) ──
-function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob }) {
+function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onForceStop, runningJob, authFetch }) {
   const cfg = config.config || {};
 
   // Sync mode is now chosen per-run: two buttons (Run Delta / Run Full)
@@ -90,6 +81,15 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
   // a server-side scheduler fallback but has no UI surface anymore.
 
   const isRunning = runningJob && ['queued', 'running'].includes(runningJob.status);
+
+  // Push-mode types (e.g. Custom Connector — data arrives via the Ingest API,
+  // there's no scheduled job, no editable config, nothing meaningful to
+  // export) opt out of these generic actions via CrawlerMeta.js. Defaults to
+  // true so existing types need no changes.
+  const meta = CRAWLER_TYPES.find(t => t.id === config.crawlerType);
+  const supportsRun = meta?.supportsRun !== false;
+  const supportsConfigure = meta?.supportsConfigure !== false;
+  const supportsExport = meta?.supportsExport !== false;
 
   // Build schedule list (supports both `schedules` array and legacy `schedule` single)
   const scheduleList = cfg.schedules?.length ? cfg.schedules : (cfg.schedule ? [cfg.schedule] : []);
@@ -115,7 +115,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
           <span className="text-xs text-gray-500 dark:text-gray-400">{config.crawlerType}</span>
         </div>
         <div className="flex gap-1">
-          {isRunning ? (
+          {supportsRun && (isRunning ? (
             <button
               onClick={() => onForceStop(runningJob.id)}
               className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
@@ -139,16 +139,20 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
                 Run Full
               </button>
             </>
+          ))}
+          {supportsConfigure && (
+            <button onClick={() => onEdit(config)}
+              className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
+              Configure
+            </button>
           )}
-          <button onClick={() => onEdit(config)}
-            className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
-            Configure
-          </button>
-          <button onClick={() => onExport(config)}
-            title="Download this crawler's configuration as JSON (client secret is stripped)"
-            className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">
-            Export
-          </button>
+          {supportsExport && (
+            <button onClick={() => onExport(config)}
+              title="Download this crawler's configuration as JSON (client secret is stripped)"
+              className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">
+              Export
+            </button>
+          )}
           <button onClick={() => onRemove(config.id)}
             className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">
             Remove
@@ -158,7 +162,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
 
       {(() => {
         const Summary = getCrawlerSummary(config.crawlerType);
-        return Summary ? createElement(Summary, { cfg, config }) : null;
+        return Summary ? createElement(Summary, { cfg, config, authFetch }) : null;
       })()}
 
       {/* Schedules */}
@@ -620,12 +624,6 @@ export default function CrawlersPage({ onNavigate }) {
   // When editing an existing config, holds its full data + id; null otherwise
   const [editingConfig, setEditingConfig] = useState(null);
 
-  // Bumped whenever a wizard completes, to force-remount the discovered
-  // Table.jsx plugins (e.g. Custom Connector's) so they refetch their own
-  // data — they own their list privately, so the page can't refresh them
-  // directly. A no-op extra fetch for crawler types without a Table.jsx.
-  const [tableRefreshKey, setTableRefreshKey] = useState(0);
-
   // ── Fetchers ──────────────────────────────────────────────────
 
   const fetchStatus = useCallback(async () => {
@@ -897,7 +895,7 @@ export default function CrawlersPage({ onNavigate }) {
         return CrawlerWizard ? (
           <Suspense fallback={<div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading…</div>}>
             <CrawlerWizard
-              onComplete={() => { setWizardStep(null); setEditingConfig(null); fetchConfigs(); setTableRefreshKey(k => k + 1); }}
+              onComplete={() => { setWizardStep(null); setEditingConfig(null); fetchConfigs(); }}
               onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
               initialConfig={editingConfig}
               isEdit={!!editingConfig?.id}
@@ -921,6 +919,7 @@ export default function CrawlersPage({ onNavigate }) {
                 onExport={handleExportConfig}
                 onRemove={handleRemoveConfig}
                 onForceStop={handleForceStop}
+                authFetch={authFetch}
                 runningJob={
                   // Match THIS config's running job by _scheduledByConfigId
                   // (stamped by both the scheduler and the manual-run path).
@@ -940,11 +939,6 @@ export default function CrawlersPage({ onNavigate }) {
 
       {/* Recent jobs */}
       <RecentJobs jobs={jobs} onForceStop={handleForceStop} />
-
-      {/* Standalone management tables contributed by crawler plugins (e.g. Custom Connector's) */}
-      {getCrawlerTables().map((TableComp, i) => (
-        <TableComp key={`${i}-${tableRefreshKey}`} authFetch={authFetch} />
-      ))}
     </div>
   );
 }
