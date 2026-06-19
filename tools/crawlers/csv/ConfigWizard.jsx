@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import Stepper from '../../../app/ui/src/components/Stepper';
 import CSV_SLOTS from './csv-slots.json';
 
+export const MAX_FILE_BYTES = 1024 * 1024 * 1024; // 1 GB — must match crawlerFiles.js
+
 export function fmtBytes(n) {
   if (!n) return '0 B';
   const u = ['B','KB','MB','GB']; let i = 0; let v = n;
@@ -95,7 +97,8 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   const filledSlots = new Set(allFiles.map(f => f.slot).filter(Boolean));
   const requiredSlots = CSV_SLOTS.filter(s => s.required);
   const missingRequired = requiredSlots.filter(s => !filledSlots.has(s.key));
-  const canSave = !uploading && !saving && missingRequired.length === 0 && allFiles.length > 0;
+  const oversizedFiles = stagedFiles.filter(s => s.file.size > MAX_FILE_BYTES);
+  const canSave = !uploading && !saving && missingRequired.length === 0 && allFiles.length > 0 && oversizedFiles.length === 0;
 
   // Step 1 → 2 validation
   const canProceedFromInfo = displayName.trim() && systemName.trim() && systemType.trim() && delimiter;
@@ -227,7 +230,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
       {step === 2 && (
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300">
-            <div>Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name.</div>
+            <div>Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name. Maximum <strong>{fmtBytes(MAX_FILE_BYTES)}</strong> per file.</div>
             <div className="mt-1">
               <a href="/api/admin/crawlers/csv/upload-schema" download className="text-blue-700 underline hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-200">
                 Download schema templates
@@ -235,6 +238,17 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
               <span className="text-blue-600 ml-2 dark:text-blue-400">— empty CSVs with the expected column headers. Use a transform script to convert your source data to this format.</span>
             </div>
           </div>
+
+          {oversizedFiles.length > 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">
+              The following {oversizedFiles.length === 1 ? 'file exceeds' : 'files exceed'} the {fmtBytes(MAX_FILE_BYTES)} upload limit and cannot be saved. Remove {oversizedFiles.length === 1 ? 'it' : 'them'} to continue, or mount the files directly into the Docker volume.
+              <ul className="mt-1 list-disc list-inside">
+                {oversizedFiles.map(s => (
+                  <li key={s.file.name}><span className="font-mono">{s.file.name}</span> ({fmtBytes(s.file.size)})</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <label className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 cursor-pointer">

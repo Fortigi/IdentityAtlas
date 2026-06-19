@@ -1,81 +1,16 @@
 /**
- * Unit tests for Omada-specific logic in jobs.js:
- *   - maskConfig: ensures all credential types are masked
- *   - validateCrawlerConfig('omada', ...): covers all six auth methods + missing required fields
+ * Tests for Omada's crawler.json configSchema — which fields each auth
+ * method (FormCookie, OAuth2CC, OAuth2ROPC, ApiToken, CookieString,
+ * BasicAuth) requires — exercised through the generic, manifest-driven
+ * validateCrawlerConfig() engine in app/api/src/crawlerManifests.js.
  *
- * The Omada live-discovery handler itself (tools/crawlers/omada/discover.js)
- * is tested separately in omadaDiscover.test.js.
+ * The engine itself (maskConfig, manifest discovery) has no Omada-specific
+ * behavior and is tested separately in
+ * app/api/src/routes/jobs.configValidation.test.js.
  */
 import { describe, it, expect } from 'vitest';
-import { maskConfig, validateCrawlerConfig, VALID_JOB_TYPES } from './jobs.js';
+import { validateCrawlerConfig } from '../../../app/api/src/crawlerManifests.js';
 
-const SECRET_MASK = '••••••••';
-
-describe('VALID_JOB_TYPES — manifest discovery', () => {
-  it('contains all baseline crawler types', () => {
-    expect(VALID_JOB_TYPES).toEqual(expect.arrayContaining(['demo', 'entra-id', 'csv', 'omada']));
-  });
-
-  it('contains odata (proves manifests loaded — odata is not in the hardcoded fallback)', () => {
-    expect(VALID_JOB_TYPES).toContain('odata');
-  });
-});
-
-describe('validateCrawlerConfig — type coverage', () => {
-  it('returns null for an unknown/unregistered type (no schema = no validation)', () => {
-    expect(validateCrawlerConfig('unknown-type', {})).toBeNull();
-  });
-
-  it('returns null for a type with no configSchema (csv has none)', () => {
-    expect(validateCrawlerConfig('csv', {})).toBeNull();
-  });
-});
-
-describe('maskConfig', () => {
-  it('returns null for null input', () => {
-    expect(maskConfig(null)).toBeNull();
-  });
-
-  it('masks clientSecret', () => {
-    const out = maskConfig({ clientSecret: 'super-secret' });
-    expect(out.clientSecret).toBe(SECRET_MASK);
-  });
-
-  it('masks password', () => {
-    const out = maskConfig({ password: 'hunter2' });
-    expect(out.password).toBe(SECRET_MASK);
-  });
-
-  it('masks apiToken', () => {
-    const out = maskConfig({ apiToken: 'tok_abc123' });
-    expect(out.apiToken).toBe(SECRET_MASK);
-  });
-
-  it('masks cookieString', () => {
-    const out = maskConfig({ cookieString: 'session=abc; auth=xyz' });
-    expect(out.cookieString).toBe(SECRET_MASK);
-  });
-
-  it('does not mask non-secret fields', () => {
-    const out = maskConfig({ baseUrl: 'https://omada.example.com', authMethod: 'FormCookie' });
-    expect(out.baseUrl).toBe('https://omada.example.com');
-    expect(out.authMethod).toBe('FormCookie');
-  });
-
-  it('accepts a JSON string as input', () => {
-    const out = maskConfig(JSON.stringify({ clientSecret: 'secret', baseUrl: 'http://x' }));
-    expect(out.clientSecret).toBe(SECRET_MASK);
-    expect(out.baseUrl).toBe('http://x');
-  });
-
-  it('leaves absent secret fields absent', () => {
-    const out = maskConfig({ baseUrl: 'http://x' });
-    expect('password' in out).toBe(false);
-    expect('apiToken' in out).toBe(false);
-  });
-});
-
-// Helper: call validateCrawlerConfig for the 'omada' type
 const validateOmada = (config) => validateCrawlerConfig('omada', config);
 
 describe('validateCrawlerConfig (omada)', () => {

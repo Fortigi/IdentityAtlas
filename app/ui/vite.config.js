@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
@@ -9,6 +10,12 @@ export default defineConfig({
     // Also pick up tests co-located with crawler wizard plugins, which live
     // outside src/ (tools/crawlers/<type>/*.test.{js,jsx}).
     include: ['src/**/*.test.{js,jsx}', '../../tools/crawlers/**/*.test.{js,jsx}'],
+    // configValidation.test.js imports app/api/src/crawlerManifests.js, which
+    // transitively requires the 'pg' package — only installed under
+    // app/api/node_modules. Those tests run under app/api's vitest instead
+    // (see app/api/vitest.config.js); exclude here so the UI run doesn't
+    // fail trying to load a dependency it doesn't have.
+    exclude: [...configDefaults.exclude, '../../tools/crawlers/**/configValidation.test.js'],
   },
   server: {
     fs: {

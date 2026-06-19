@@ -115,13 +115,34 @@ If no `ConfigWizard.jsx` is present, the UI falls back to a generic JSON config 
 If present, the UI renders this component inside the crawler's card on the "Configured Crawlers" list, showing the crawler-specific details at a glance (e.g. base URL, sync options). The component receives:
 
 ```jsx
-export default function Summary({ cfg, config }) {
-  // cfg    — the crawler's config blob (config.config); what most summaries need
-  // config — the full config row, for the rare case something outside .config is needed
+export default function Summary({ cfg, config, authFetch }) {
+  // cfg       — the crawler's config blob (config.config); what most summaries need
+  // config    — the full config row, for the rare case something outside .config is needed
+  // authFetch — authenticated fetch helper. Only needed by a type whose summary
+  //             self-manages something beyond what the generic card offers (see
+  //             "Push-mode crawler types" below) — most Summary.jsx files ignore it.
 }
 ```
 
 Don't render `lastRunAt`/`lastRunStatus` here — the card already shows those generically below every summary panel, for every crawler type. If no `Summary.jsx` is present, the card just shows that generic footer with no extra panel.
+
+### Push-mode crawler types (`Crawlers` vs `CrawlerConfigs`, and capability flags)
+
+Every crawler type renders as a card in the "Configured Crawlers" grid, backed by one `CrawlerConfigs` row per instance — except the data model has a second table, `Crawlers`, for API-key authentication (the Built-in Worker, and Custom Connector). That table exists because push-mode auth material (key hash/salt/prefix, rate limit, rotation/audit history) is a genuinely different concern from a pull-job's settings blob — bolting API-key columns onto every CSV/Omada config, or schedule columns onto every API key, would be worse than two tables. A type that's push-mode (data arrives via the Ingest API rather than a scheduled job) still gets a `CrawlerConfigs` row so it shows up as a normal card — `routes/crawlers.js`'s `POST /admin/crawlers` creates the `Crawlers` row and a paired `CrawlerConfigs` row (`crawlerType` for this type, `config: { crawlerId: <Crawlers.id> }`) in one statement; either delete path (`DELETE /admin/crawlers/:id` or `DELETE /admin/crawler-configs/:id`) cascades to clean up the other row too. See `tools/crawlers/custom-connector/` for the only current example: its `Summary.jsx` fetches its own `Crawlers` row by `cfg.crawlerId` to show the key prefix, drive the enable toggle and key reset, and render the audit log — none of which exist on a normal `CrawlerConfigs` row.
+
+Because Run/Configure/Export assume a scheduled, editable, exportable `CrawlerConfigs`-driven job, a push-mode type opts out of whichever don't apply via `CrawlerMeta.js`:
+
+```js
+export default {
+  id: 'custom-connector',
+  // ...
+  supportsRun: false,       // no scheduled job — pushed via the Ingest API instead
+  supportsConfigure: false, // no edit wizard — manage via Summary.jsx instead
+  supportsExport: false,    // nothing meaningful to export (no secrets, no settings)
+};
+```
+
+All three default to `true` when omitted — existing types need no changes.
 
 ### discover.js — optional live-discovery endpoint
 
@@ -153,7 +174,7 @@ If you also drop empty, header-only template files in `tools/crawlers/<type>/sch
 - Entry point filenames must be `Start-<Something>.ps1` — the dependency loader excludes `Start-*` when dot-sourcing library files.
 - Never run the `odata` type as a job — its entry point throws by design. Use it only as a `dependsOn` dependency.
 - `_syncMode` is the only reserved config key injected by the dispatcher. Don't use keys starting with `_` for your own config.
-- **Nothing specific to one crawler type belongs outside its `tools/crawlers/<type>/` folder** — not just `ConfigWizard.jsx`/`discover.js`/`Summary.jsx`/`CrawlerMeta.js`, but also that crawler's tests (unit, render-smoke, and e2e — see JS/UI Testing below) and any helper file. If a file's name or content only makes sense for one crawler type, it goes in that crawler's folder, full stop — including when the natural-feeling place would be a shared `app/ui/e2e/` or `app/ui/src/` test/helper. The `crawler-manifest` CI job enforces this for migrated crawlers (fails on a stray filename containing the type name, or a hardcoded type-string literal, anywhere under `app/ui/`) — but don't rely on CI to catch it; get it right the first time.
+- **Nothing specific to one crawler type belongs outside its `tools/crawlers/<type>/` folder** — not just `ConfigWizard.jsx`/`discover.js`/`Summary.jsx`/`CrawlerMeta.js`, but also that crawler's tests (unit, render-smoke, e2e, *and* the `discover.js` handler test or a test of that crawler's `configSchema` — see JS/UI Testing below) and any helper file. If a file's name or content only makes sense for one crawler type, it goes in that crawler's folder, full stop — including when the natural-feeling place would be a shared `app/ui/e2e/`, `app/ui/src/`, or **`app/api/src/routes/`** test/helper (a `discover.js` handler test, or a detailed "which fields does auth method X require" schema test, are the ones that are tempting to leave in `app/api/src/routes/` next to `jobs.js`, since that's where they're *invoked* from — they still belong in the crawler's own folder; only generic, type-agnostic engine tests — the dispatch route itself (`jobs.discover.test.js`), or `maskConfig`/manifest discovery (`jobs.configValidation.test.js`) — stay in `app/api/src/routes/`). The `crawler-manifest` CI job enforces this for migrated crawlers under `app/ui/` (fails on a stray filename containing the type name, or a hardcoded type-string literal) — it does not yet scan `app/api/src/`, so don't rely on CI to catch a misplaced test; get it right the first time.
 
 ## Integration Tests
 
@@ -216,7 +237,7 @@ The PowerShell side has the `Test-<Type>Crawler.ps1` contract above. The `Config
 
 ### Where the tests live and run
 
-Co-locate test files next to the plugin: `tools/crawlers/<type>/*.test.{js,jsx}`. They run under the **UI's** vitest, not the API's — `app/ui/vite.config.js`'s `test.include` explicitly adds `'../../tools/crawlers/**/*.test.{js,jsx}'` alongside `src/**/*.test.{js,jsx}`. A test file placed here without that glob entry would simply never execute, silently — there's no error, the suite just doesn't grow. Run them from `app/ui`:
+Co-locate test files next to the plugin: `tools/crawlers/<type>/*.test.{js,jsx}`. Most of these (render smoke tests, pure-function unit tests) run under the **UI's** vitest, not the API's — `app/ui/vite.config.js`'s `test.include` explicitly adds `'../../tools/crawlers/**/*.test.{js,jsx}'` alongside `src/**/*.test.{js,jsx}`. A test file placed here without that glob entry would simply never execute, silently — there's no error, the suite just doesn't grow. Run them from `app/ui`:
 
 ```bash
 cd app/ui && npx vitest run ../../tools/crawlers/<type>
@@ -266,19 +287,32 @@ export function register(test, expect) {
 
 - `app/ui/e2e/crawler-plugin-tests.spec.js` is the one generic loader that discovers every `tools/crawlers/<type>/*.e2e.mjs` file and calls `register(test, expect)` on it — no crawler-specific code needed there, same discovery style as `crawler-wizard-discovery.spec.js`. You don't need to touch it when adding a new crawler's e2e spec.
 
-See `tools/crawlers/csv/ConfigWizard.e2e.mjs` for a full example (file upload step) and `app/ui/e2e/custom-connector.spec.js` for a non-colocated wizard that doesn't need this workaround (Custom Connector isn't a `tools/crawlers/<type>` plugin). Both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
+See `tools/crawlers/csv/ConfigWizard.e2e.mjs` for a full example (file upload step) and `tools/crawlers/custom-connector/ConfigWizard.e2e.mjs` for a simpler one (no file uploads, just the register → API key → getting-started flow). Both assume `AUTH_ENABLED=false` and a real running backend (either the local mock-mode dev server or, for CI, the full Docker stack via `playwright.ci.config.js`).
 
 ### Testing a `discover.js` handler
 
-Call the handler function directly with a mocked `db` and a stubbed global `fetch` — no HTTP server needed. See `app/api/src/routes/omadaDiscover.test.js`:
+Call the handler function directly with a mocked `db` and a stubbed global `fetch` — no HTTP server needed. Name the file `tools/crawlers/<type>/discover.test.js` (co-located, like every other crawler test — never under `app/api/src/routes/`) and import the handler with a plain relative path:
 
 ```js
-import handler from '../../../../tools/crawlers/omada/discover.js';
+import handler from './discover.js';
 vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => '<xml/>' }));
 await handler(req, res, { db: { queryOne: vi.fn().mockResolvedValue({ config: {...} }) } });
 ```
 
-This lives under `app/api/src/routes/` (API-side vitest), not co-located with the crawler folder, since it's exercising the handler the same way the generic `POST /api/admin/crawlers/:type/discover` route invokes it.
+These run under the **API's** vitest, not the UI's, since they're exercising the handler the same way the generic `POST /api/admin/crawlers/:type/discover` route invokes it (no React, no DOM). `app/api/vitest.config.js`'s `test.include` adds `'../../tools/crawlers/**/discover.test.js'` alongside `src/**/*.test.js` so these are picked up without living in `src/routes/`. (They also happen to pass under the UI's vitest, since `discover.js` files have no React dependency and the UI's broader `tools/crawlers/**/*.test.{js,jsx}` glob matches them too — harmless redundant coverage, not something to route around.) See `tools/crawlers/omada/discover.test.js` or `tools/crawlers/entra-id/discover.test.js` for full examples.
+
+### Testing a crawler's `configSchema`
+
+Detailed assertions about *one* crawler's `crawler.json` schema (e.g. "OAuth2CC requires `clientSecret` and `tokenEndpoint`") test that crawler's own schema design, not the generic engine — they belong next to that crawler, not in `app/api/src/routes/jobs.js`'s tests. Name the file `tools/crawlers/<type>/configValidation.test.js` and call the shared, manifest-driven validator directly:
+
+```js
+import { validateCrawlerConfig } from '../../../app/api/src/crawlerManifests.js';
+const validateOmada = (config) => validateCrawlerConfig('omada', config);
+```
+
+Same discovery mechanism as `discover.test.js`: `app/api/vitest.config.js`'s `test.include` also lists `'../../tools/crawlers/**/configValidation.test.js'` specifically (not a blanket `**/*.test.js`, since most other `tools/crawlers/**/*.test.js` files import their `ConfigWizard.jsx` and need the React/JSX plugin app/api's vitest doesn't have). Generic, type-agnostic engine behavior (`maskConfig`, `VALID_JOB_TYPES` manifest discovery) stays in `app/api/src/routes/jobs.configValidation.test.js`. See `tools/crawlers/omada/configValidation.test.js` for a full example.
+
+Unlike `discover.test.js`, this one is **not** harmless under the UI's vitest too: `crawlerManifests.js` imports `secrets/crawlerSecrets.js` → `secrets/vault.js` → `db/connection.js`, which requires the `pg` package — only installed under `app/api/node_modules`, not `app/ui/node_modules`. The UI's broader `tools/crawlers/**/*.test.{js,jsx}` glob would otherwise pick this file up and fail with `ERR_MODULE_NOT_FOUND`. `app/ui/vite.config.js`'s `test.exclude` carves it back out for exactly this reason — don't remove that exclude when adding a new crawler's `configValidation.test.js`.
 
 ## `principalType` and `identityType` Values
 
