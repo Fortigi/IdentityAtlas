@@ -5,7 +5,7 @@
   "dependsOn": [],
   "configSchema": {
     "type": "object",
-    "required": ["tenantId", "clientId"],
+    "required": ["tenantId", "clientId", "clientSecret"],
     "properties": {
       "tenantId":     { "type": "string" },
       "clientId":     { "type": "string" },
