@@ -1,0 +1,1 @@
+- Fixed `bump-version` workflow repeatedly failing to push to `main` by switching back to `VERSION_BUMP_PAT` (repository admin PAT) instead of the GitHub App token whose bypass was misconfigured
