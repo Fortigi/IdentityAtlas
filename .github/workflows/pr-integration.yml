@@ -86,17 +86,19 @@ jobs:
           fi
 
   # ── Path-scope filter ──────────────────────────────────────────────────────
-  # Scopes integration, e2e, and load-soak to what actually changed.
+  # Scopes integration, e2e, load-soak, and individual crawler types to what
+  # actually changed. The scope step builds CRAWLERS_TO_TEST from per-type
+  # outputs — empty string means "run and assert everything" (current behaviour).
   filter:
     name: 'Detect: integration path scopes'
     needs: [changes]
     if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     outputs:
-      integration: ${{ steps.f.outputs.integration }}
-      e2e:         ${{ steps.f.outputs.e2e }}
-      load_soak:   ${{ steps.f.outputs.load_soak }}
-      outcome:     ${{ steps.f.outcome }}
+      integration:       ${{ steps.f.outputs.integration }}
+      e2e:               ${{ steps.f.outputs.e2e }}
+      load_soak:         ${{ steps.f.outputs.load_soak }}
+      crawlers_to_test:  ${{ steps.scope.outputs.crawlers_to_test }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
@@ -128,6 +130,52 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/docker/Dockerfile.powershell'
               - 'docker-compose*.yml'
+            # Per-crawler type filters. Keys use underscores; the scope step maps
+            # them to the hyphenated type names used by the PS runner.
+            # Extend this list when a new crawler is added to tools/crawlers/.
+            crawler_csv:              ['tools/crawlers/csv/**']
+            crawler_entra_id:         ['tools/crawlers/entra-id/**']
+            crawler_omada:            ['tools/crawlers/omada/**']
+            crawler_midpoint:         ['tools/crawlers/midpoint/**']
+            crawler_demo:             ['tools/crawlers/demo/**']
+            crawler_custom_connector: ['tools/crawlers/custom-connector/**']
+            # Shared paths that affect all crawlers — forces full test run
+            crawlers_all:
+              - 'tools/crawlers/shared/**'
+              - 'tools/powershell-sdk/**'
+              - 'setup/docker/Invoke-CrawlerJob.ps1'
+              - 'setup/IdentityAtlas.psm1'
+              - 'setup/docker/Dockerfile.powershell'
+
+      # Build CRAWLERS_TO_TEST from per-type filter outputs.
+      # Uses direct GHA expression comparison per type (not jq parsing of toJSON)
+      # so the step is robust to future type names with special characters.
+      # Empty crawlers_to_test → PS runner tests everything (unchanged behaviour).
+      - id: scope
+        run: |
+          if [ "${{ steps.f.outputs.crawlers_all }}" = "true" ] || \
+             [ "${{ steps.f.outputs.integration }}" = "true" -a \
+               "${{ steps.f.outputs.crawler_csv }}" = "false" -a \
+               "${{ steps.f.outputs.crawler_entra_id }}" = "false" -a \
+               "${{ steps.f.outputs.crawler_omada }}" = "false" -a \
+               "${{ steps.f.outputs.crawler_midpoint }}" = "false" -a \
+               "${{ steps.f.outputs.crawler_demo }}" = "false" -a \
+               "${{ steps.f.outputs.crawler_custom_connector }}" = "false" ]; then
+            # Shared infra changed, or integration triggered but no specific crawler
+            # identified (e.g. Dockerfile, docker-compose) — test everything.
+            echo "crawlers_to_test=" >> "$GITHUB_OUTPUT"
+            echo "CRAWLERS_TO_TEST: all (shared/infra change)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            LIST=""
+            [ "${{ steps.f.outputs.crawler_csv }}"              = "true" ] && LIST="${LIST:+$LIST,}csv"
+            [ "${{ steps.f.outputs.crawler_entra_id }}"         = "true" ] && LIST="${LIST:+$LIST,}entra-id"
+            [ "${{ steps.f.outputs.crawler_omada }}"            = "true" ] && LIST="${LIST:+$LIST,}omada"
+            [ "${{ steps.f.outputs.crawler_midpoint }}"         = "true" ] && LIST="${LIST:+$LIST,}midpoint"
+            [ "${{ steps.f.outputs.crawler_demo }}"             = "true" ] && LIST="${LIST:+$LIST,}demo"
+            [ "${{ steps.f.outputs.crawler_custom_connector }}" = "true" ] && LIST="${LIST:+$LIST,}custom-connector"
+            echo "crawlers_to_test=$LIST" >> "$GITHUB_OUTPUT"
+            echo "CRAWLERS_TO_TEST: ${LIST:-(none — integration triggered by non-crawler paths)}" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   # ═══════════════════════════════════════════════════════════════════
   # JOB 1: Core Integration Tests
@@ -142,6 +190,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      # CRAWLERS_TO_TEST: comma-separated list of crawler types to assert.
+      # Empty = test everything (current behaviour). Set by the filter/scope job.
+      # The integration-test label forces a full run regardless of paths.
+      CRAWLERS_TO_TEST: ${{ contains(github.event.pull_request.labels.*.name, 'integration-test') && '' || needs.filter.outputs.crawlers_to_test }}
       TEST_GRAPH_TENANT_ID:     ${{ secrets.TEST_GRAPH_TENANT_ID }}
       TEST_GRAPH_CLIENT_ID:     ${{ secrets.TEST_GRAPH_CLIENT_ID }}
       TEST_GRAPH_CLIENT_SECRET: ${{ secrets.TEST_GRAPH_CLIENT_SECRET }}
@@ -418,11 +470,17 @@ jobs:
             -ApiBaseUrl http://localhost:3001/api
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      # ── Crawler-colocated integration tests (topology-aware) ────
+      # ── Crawler-colocated integration tests (topology-aware, scope-aware) ──
       # Discovers all Test-*.ps1 files in tools/crawlers/<type>/ and runs them
       # in topological dependency order (dependency crawlers first, dependents after).
       # Same level runs in parallel. Adding a new crawler with a Test-*.ps1 file
       # automatically adds it here — no YAML changes needed.
+      #
+      # CRAWLERS_TO_TEST (env var, comma-separated):
+      #   empty → test everything (full run, current behaviour)
+      #   set   → testSet = given types + transitive dependents (assert these)
+      #           runSet  = testSet + transitive dependencies (run for data setup)
+      #   Types in runSet but not testSet run without assertions (exit code ignored).
       - name: 'Test: Crawler-colocated integration tests'
         shell: pwsh
         run: |
@@ -431,7 +489,63 @@ jobs:
           $apiBase   = 'http://localhost:3001/api'
           $apiKey    = '${{ steps.apikey.outputs.key }}'
 
-          # Compute dependency depth for each crawler type
+          # ── Scope resolution ────────────────────────────────────────────────
+          # Parse CRAWLERS_TO_TEST env var. Empty = full run.
+          $scopeRaw = $env:CRAWLERS_TO_TEST
+          $fullRun  = [string]::IsNullOrWhiteSpace($scopeRaw)
+
+          # Traverse dependsOn upward (find all types that transitively depend on $T).
+          # Used to expand the initial set: if odata changed, omada must also be tested.
+          function Get-Dependents([string]$T, [hashtable]$reg) {
+            $reg.Keys | Where-Object {
+              $deps = $reg[$_].Manifest['dependsOn'] ?? @()
+              $T -in $deps
+            }
+          }
+
+          # Traverse dependsOn downward (find all dependencies of $T recursively).
+          # Used to build runSet: types that must run first to seed data.
+          function Get-Dependencies([string]$T, [hashtable]$reg, [System.Collections.Generic.HashSet[string]]$visited) {
+            if ($visited.Contains($T)) { return }
+            $null = $visited.Add($T)
+            foreach ($dep in ($reg[$T].Manifest['dependsOn'] ?? @())) {
+              Get-Dependencies $dep $reg $visited
+            }
+          }
+
+          if (-not $fullRun) {
+            # Seed testSet with the directly changed types.
+            $testSet = [System.Collections.Generic.HashSet[string]]::new(
+              [string[]]($scopeRaw -split ','), [System.StringComparer]::OrdinalIgnoreCase)
+
+            # Expand testSet upward: add any type that (transitively) depends on a changed type.
+            $changed = @($testSet)  # snapshot to avoid modifying while iterating
+            foreach ($changedType in $changed) {
+              $queue = [System.Collections.Queue]::new()
+              $queue.Enqueue($changedType)
+              while ($queue.Count -gt 0) {
+                $current = $queue.Dequeue()
+                foreach ($dep in (Get-Dependents $current $registry)) {
+                  if ($testSet.Add($dep)) { $queue.Enqueue($dep) }
+                }
+              }
+            }
+
+            # Build runSet: testSet + all their transitive dependencies (data setup).
+            $runSet = [System.Collections.Generic.HashSet[string]]::new($testSet, [System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($type in @($testSet)) {
+              $deps = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+              Get-Dependencies $type $registry $deps
+              foreach ($d in $deps) { $null = $runSet.Add($d) }
+            }
+
+            Write-Host "Scope: testSet=[$($testSet -join ', ')] runSet=[$($runSet -join ', ')]" -ForegroundColor Cyan
+          } else {
+            Write-Host "Scope: full run (CRAWLERS_TO_TEST not set)" -ForegroundColor Cyan
+          }
+
+          # ── Topology sort ────────────────────────────────────────────────────
+          # Compute dependency depth for all types; run depth-0 first (no deps).
           $depths = @{}
           function Get-Depth([string]$T) {
             if ($depths.ContainsKey($T)) { return $depths[$T] }
@@ -443,29 +557,52 @@ jobs:
           foreach ($type in $registry.Keys) { $null = Get-Depth $type }
           $maxDepth = ($depths.Values | Measure-Object -Max).Maximum
 
+          # ── Run ──────────────────────────────────────────────────────────────
           $totalFailed = 0
           for ($depth = 0; $depth -le $maxDepth; $depth++) {
             $typesAtDepth = @($depths.GetEnumerator() | Where-Object Value -eq $depth | Select-Object -ExpandProperty Key)
             $jobs = @()
+            $jobMeta = @{}  # job name → type (for scope check after Wait-Job)
             foreach ($type in $typesAtDepth) {
+              # Skip types not in runSet (when scoped run).
+              if (-not $fullRun -and -not $runSet.Contains($type)) { continue }
+
               $testFile = Get-ChildItem "tools/crawlers/$type/Test-*.ps1" -ErrorAction SilentlyContinue | Select-Object -First 1
               if (-not $testFile) { continue }
-              Write-Host "Starting: $($testFile.Name) (depth $depth)" -ForegroundColor Cyan
-              $jobs += Start-Job -ScriptBlock {
+
+              $asserting = $fullRun -or $testSet.Contains($type)
+              $label = if ($asserting) { "ASSERT" } else { "setup-only" }
+              Write-Host "::group::Crawler: $type (depth $depth, $label)"
+              Write-Host "::notice title=${type}::Starting at $(Get-Date -Format 'HH:mm:ss')"
+
+              $job = Start-Job -ScriptBlock {
                 param($path, $url, $key)
                 & pwsh -NoProfile -File $path -ApiBaseUrl $url -ApiKey $key
                 if ($LASTEXITCODE -ne 0) { throw "Test script exited with code $LASTEXITCODE" }
               } -ArgumentList $testFile.FullName, $apiBase, $apiKey
+              $jobs += $job
+              $jobMeta[$job.Name] = $type
             }
             if ($jobs.Count -eq 0) { continue }
             $jobs | Wait-Job | ForEach-Object {
-              Receive-Job -Job $_ -Keep
+              $type = $jobMeta[$_.Name]
+              $output = Receive-Job -Job $_ -Keep
+              $output | ForEach-Object { Write-Host $_ }
               $failed = $_.State -ne 'Completed' -or ($_.ChildJobs[0].State -ne 'Completed')
-              if ($failed) {
-                Write-Host "FAILED: $($_.Name)" -ForegroundColor Red
-                $totalFailed++
-              }
               Remove-Job $_ -Force -ErrorAction SilentlyContinue
+
+              $asserting = $fullRun -or $testSet.Contains($type)
+              if ($failed) {
+                if ($asserting) {
+                  Write-Host "::error title=${type}::Test FAILED — see log above"
+                  $totalFailed++
+                } else {
+                  Write-Host "::warning title=${type}::Setup-only run failed (not asserting — continuing)"
+                }
+              } else {
+                Write-Host "::notice title=${type}::Passed"
+              }
+              Write-Host "::endgroup::"
             }
           }
           if ($totalFailed -gt 0) {
