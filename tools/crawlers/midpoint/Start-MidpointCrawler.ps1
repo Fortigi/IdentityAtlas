@@ -274,9 +274,10 @@ $ResourceOidToName       = @{}                                                  
 $UserOidToName           = @{}                                                   # user OID → display name (for readable shadow labels)
 $SyncedOrgIds            = [System.Collections.Generic.HashSet[string]]::new()  # OrgType OIDs synced as Contexts
 $OrgOidToName            = @{}                                                   # OrgType OID → display name (for the user's department)
-$SyncedResourceIds       = [System.Collections.Generic.HashSet[string]]::new()  # Role/Service OIDs synced as Resources
+$SyncedResourceIds       = [System.Collections.Generic.HashSet[string]]::new()  # Role/Service + Entitlement OIDs synced as Resources
 $AllUsers                = $null
 $ShadowOidToUserOid      = @{}                                                   # shadow OID → owning user OID (from user.linkRef)
+$EntitlementByDn         = @{}                                                   # normalised DN/name → entitlement shadow OID (for construction → Contains)
 
 # ─── Phase: Systems ──────────────────────────────────────────────────────────
 # midPoint itself + each ResourceType become Identity Atlas Systems.
@@ -633,6 +634,13 @@ if ($Sync.shadows -and $Sync.users) {
                         }
                     })
                     [void]$SyncedResourceIds.Add($shadowOid)
+                    # Index by DN so construction/associationTargetSearch inducements (which
+                    # filter on attributes/ri:dn) can later be resolved to this entitlement's
+                    # OID and emitted as Contains edges (Role nesting phase).
+                    $dnNameKey = ConvertTo-MidpointDnKey (Get-MidpointString $s.name '')
+                    if ($dnNameKey) { $EntitlementByDn[$dnNameKey] = $shadowOid }
+                    $riDnKey = ConvertTo-MidpointDnKey ([string](Get-MidpointAttrValue -Shadow $s -Keys @('dn')))
+                    if ($riDnKey) { $EntitlementByDn[$riDnKey] = $shadowOid }
                 }
                 else { if ($kind -eq 'generic') { $skipped.generic++ } else { $skipped.other++ } }
             }
@@ -810,27 +818,43 @@ if ($Sync.roleNesting -and $AllRoles) {
     try {
         $seen = [System.Collections.Generic.HashSet[string]]::new()
         $rr   = [System.Collections.Generic.List[object]]::new()
+        $nTargetRef = 0; $nConstruction = 0; $nUnresolved = 0
         foreach ($r in $AllRoles) {
             $parentOid = [string]$r.oid
             $inducements = $r.inducement
             if (-not $inducements) { continue }
             foreach ($ind in @($inducements)) {
+                # (1) targetRef inducement → Contains another Role/Service resource.
                 $tr = $ind.targetRef
-                if (-not $tr) { continue }
-                $tt = Get-MidpointRefType $tr ''
-                $childOid = Get-MidpointRefOid $tr $null
-                if (-not $childOid -or $tt -notin @('RoleType', 'ServiceType')) { continue }
-                if (-not $SyncedResourceIds.Contains($childOid)) { continue }
-                if (-not $seen.Add("$parentOid|$childOid")) { continue }
-                $rr.Add([PSCustomObject]@{
-                    parentResourceId = $parentOid
-                    childResourceId  = $childOid
-                    relationshipType = 'Contains'
-                })
+                if ($tr) {
+                    $tt = Get-MidpointRefType $tr ''
+                    $childOid = Get-MidpointRefOid $tr $null
+                    if (-not $childOid -or $tt -notin @('RoleType', 'ServiceType')) { continue }
+                    if (-not $SyncedResourceIds.Contains($childOid)) { continue }
+                    if (-not $seen.Add("$parentOid|$childOid")) { continue }
+                    $rr.Add([PSCustomObject]@{ parentResourceId = $parentOid; childResourceId = $childOid; relationshipType = 'Contains' })
+                    $nTargetRef++
+                    continue
+                }
+                # (2) construction inducement → Contains the entitlement(s) it grants (e.g. AD
+                # groups). The target is a literal shadowRef or an associationTargetSearch filter
+                # on the group DN, resolved against the entitlements imported in the Shadows phase.
+                $con = $ind.construction
+                if (-not $con) { continue }
+                foreach ($t in (Get-MidpointConstructionTargets -Construction $con)) {
+                    $entOid = if ($t.shadowOid) { $t.shadowOid }
+                              elseif ($t.searchKey -and $EntitlementByDn.ContainsKey($t.searchKey)) { $EntitlementByDn[$t.searchKey] }
+                              else { '' }
+                    if (-not $entOid) { $nUnresolved++; continue }
+                    if (-not $SyncedResourceIds.Contains($entOid)) { $nUnresolved++; continue }
+                    if (-not $seen.Add("$parentOid|$entOid")) { continue }
+                    $rr.Add([PSCustomObject]@{ parentResourceId = $parentOid; childResourceId = $entOid; relationshipType = 'Contains' })
+                    $nConstruction++
+                }
             }
         }
         $R = Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $MidpointSystemId -Scope @{ relationshipType = 'Contains' } -Records @($rr)
-        Write-Host "  ResourceRelationships (Contains): +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($rr.Count) links)" -ForegroundColor Green
+        Write-Host "  ResourceRelationships (Contains): +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($rr.Count) links — $nTargetRef role/service, $nConstruction construction; $nUnresolved unresolved)" -ForegroundColor Green
     } catch { Add-PhaseError 'RoleNesting' $_.Exception.Message }
 }
 
