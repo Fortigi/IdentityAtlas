@@ -39,6 +39,7 @@ on:
       - 'changes/**'
       - 'docs/**'
       - 'mkdocs.yml'
+      - 'setup/IdentityAtlas.psd1'
       - '**.md'
 
 env:
@@ -49,11 +50,95 @@ env:
 # Each job builds its own Docker stack. GHA layer cache keeps rebuilds fast.
 
 jobs:
+  # ── Commit-range skip ───────────────────────────────────────────────────────
+  # Same logic as pr.yml — skips the entire integration suite when this push
+  # added only housekeeping commits (chore: bump version / Merge branch 'main').
+  changes:
+    name: 'Detect: product changes in this push'
+    runs-on: ubuntu-latest
+    outputs:
+      has_product_changes: ${{ steps.check.outputs.result }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - id: check
+        run: |
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            echo "result=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if ! git merge-base --is-ancestor "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null; then
+            echo "result=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          NON_HOUSEKEEPING=$(
+            git log "${{ github.event.before }}..${{ github.sha }}" --format="%s" \
+              | grep -v '^$' \
+              | grep -vE "^chore: bump version to [0-9]|^Merge branch 'main' into " \
+              | wc -l \
+              | tr -d ' '
+          )
+          if [ "$NON_HOUSEKEEPING" -gt 0 ]; then
+            echo "result=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=false" >> "$GITHUB_OUTPUT"
+            printf "Integration CI skipped — no product code changes in this push.\n" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # ── Path-scope filter ──────────────────────────────────────────────────────
+  # Scopes integration, e2e, and load-soak to what actually changed.
+  filter:
+    name: 'Detect: integration path scopes'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      integration: ${{ steps.f.outputs.integration }}
+      e2e:         ${{ steps.f.outputs.e2e }}
+      load_soak:   ${{ steps.f.outputs.load_soak }}
+      outcome:     ${{ steps.f.outcome }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        id: f
+        with:
+          filters: |
+            integration:
+              - 'app/api/src/**'
+              - 'tools/crawlers/**/*.ps1'
+              - 'tools/crawlers/**/*.js'
+              - 'tools/crawlers/shared/**'
+              - 'tools/powershell-sdk/**'
+              - 'setup/docker/Invoke-CrawlerJob.ps1'
+              - 'setup/IdentityAtlas.psm1'
+              - 'app/api/Dockerfile'
+              - 'setup/docker/Dockerfile.powershell'
+              - 'docker-compose*.yml'
+            e2e:
+              - 'app/ui/src/**'
+              - 'tools/crawlers/**/*.jsx'
+              - 'app/api/src/**'
+              - 'app/api/Dockerfile'
+            load_soak:
+              - 'app/api/src/**'
+              - 'tools/crawlers/shared/**'
+              - 'tools/powershell-sdk/**'
+              - 'tools/crawlers/*/Start-*.ps1'
+              - 'setup/docker/Invoke-CrawlerJob.ps1'
+              - 'setup/docker/Dockerfile.powershell'
+              - 'docker-compose*.yml'
+
   # ═══════════════════════════════════════════════════════════════════
   # JOB 1: Core Integration Tests
   # ═══════════════════════════════════════════════════════════════════
   integration:
     name: Integration Tests
+    needs: [filter]
+    if: |
+      needs.filter.outputs.integration == 'true' ||
+      needs.filter.result == 'failure' ||
+      contains(github.event.pull_request.labels.*.name, 'integration-test')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -426,15 +511,16 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════
   e2e:
     name: Playwright E2E
+    needs: [filter]
+    if: |
+      (needs.filter.outputs.e2e == 'true' || needs.filter.result == 'failure') &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-e2e')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Non-blocking for now: many E2E specs were written for local dev (mock
     # backend, interactive browser) and need adaptation for the Docker CI
     # environment (accessibility violations, visual regression baselines,
     # optional tabs hidden by default). Filed as follow-up work.
-    # Escape hatch: apply the 'skip-e2e' label to skip on PRs that only
-    # change test infrastructure and don't need Playwright validation.
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-e2e') }}
     continue-on-error: true
 
     steps:
@@ -534,11 +620,16 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════
   load-soak:
     name: Load & Soak Tests
+    needs: [filter]
+    if: |
+      (
+        needs.filter.outputs.load_soak == 'true' ||
+        needs.filter.result == 'failure' ||
+        contains(github.event.pull_request.labels.*.name, 'load-soak')
+      ) &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-load-soak')
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    # Escape hatch: apply the 'skip-load-soak' label to skip on PRs that
-    # only change test infrastructure and don't need soak validation.
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-load-soak') }}
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -632,26 +723,43 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════
   # Summary — blocks merge if any job failed
-  # ═══════════════════════════════════════════════════════════════════
-  pr-integration-summary:
-    name: Integration Summary
+  # ── Gate: single required check for branch protection ───────────────────────
+  # Replaces per-job branch protection requirements. After Phase 3 lands, this
+  # gate wraps the crawler-tests matrix too — individual matrix job names can't
+  # be required in branch protection, but this wrapper can.
+  #
+  # Migration: add ci-integration-passed alongside old requirements first,
+  # verify on 2-3 PRs, then remove old requirements. See ci-scope-testing.md.
+  ci-integration-passed:
+    name: 'Integration CI Passed'
     runs-on: ubuntu-latest
-    needs: [integration, e2e, load-soak]
+    needs: [changes, filter, integration, e2e, load-soak]
     if: always()
     steps:
-      - name: Report results
+      - name: Check results
         run: |
-          echo "## PR Integration Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          FAILED=$(echo '${{ toJSON(needs) }}' \
+            | jq -r 'to_entries | .[] | select(.value.result == "failure" or .value.result == "cancelled") | .key')
+          if [ -n "$FAILED" ]; then
+            echo "## Integration CI Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "The following jobs failed or were cancelled:" >> "$GITHUB_STEP_SUMMARY"
+            echo "$FAILED" | while read -r job; do
+              echo "- $job" >> "$GITHUB_STEP_SUMMARY"
+            done
+            exit 1
+          fi
+          # Emit a summary even when everything was skipped (housekeeping push).
+          echo "## PR Integration Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
           for job in integration e2e load-soak; do
-            result=$(echo '${{ toJSON(needs) }}' | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('${job}', d.get('$job', {})).get('result','unknown'))")
-            if [ "$result" = "success" ]; then icon="✅"; elif [ "$result" = "skipped" ]; then icon="⏭️"; else icon="❌"; fi
-            echo "- ${icon} ${job}: ${result}" >> $GITHUB_STEP_SUMMARY
+            result=$(echo '${{ toJSON(needs) }}' | jq -r --arg j "$job" '.[$j].result // "skipped"')
+            case "$result" in
+              success) icon="✅" ;;
+              skipped) icon="⏭️" ;;
+              *) icon="❌" ;;
+            esac
+            echo "- ${icon} ${job}: ${result}" >> "$GITHUB_STEP_SUMMARY"
           done
-
-      - name: Fail if any check failed
-        if: |
-          needs.integration.result == 'failure' ||
-          needs.e2e.result == 'failure' ||
-          needs.load-soak.result == 'failure'
-        run: exit 1
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "All integration checks passed or were legitimately skipped."
