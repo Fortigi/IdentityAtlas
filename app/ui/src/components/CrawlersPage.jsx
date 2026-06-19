@@ -25,20 +25,6 @@ function getCrawlerSummary(crawlerType) {
   return _summaryModules[`../../../../tools/crawlers/${crawlerType}/Summary.jsx`]?.default || null;
 }
 
-// ─── Crawler type catalog ─────────────────────────────────────────────────────
-// `demo` keeps its wizard inline in this file (no persisted config — it's a
-// one-shot immediate job). File-based crawlers under tools/crawlers/*/CrawlerMeta.js
-// are appended automatically.
-const CRAWLER_TYPES = [
-  {
-    id: 'demo',
-    name: 'Demo Data',
-    description: 'Load synthetic data to explore the platform (~30 seconds)',
-    available: true, immediate: true,
-  },
-  ..._discoveredCrawlerTypes,
-];
-
 // ─── Step 1: Select Type ──────────────────────────────────────────────────────
 function SelectType({ onSelect, onCancel }) {
   return (
@@ -48,7 +34,7 @@ function SelectType({ onSelect, onCancel }) {
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {CRAWLER_TYPES.map(t => (
+        {_discoveredCrawlerTypes.map(t => (
           <button
             key={t.id}
             onClick={() => t.available && onSelect(t.id)}
@@ -86,7 +72,7 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
   // there's no scheduled job, no editable config, nothing meaningful to
   // export) opt out of these generic actions via CrawlerMeta.js. Defaults to
   // true so existing types need no changes.
-  const meta = CRAWLER_TYPES.find(t => t.id === config.crawlerType);
+  const meta = _discoveredCrawlerTypes.find(t => t.id === config.crawlerType);
   const supportsRun = meta?.supportsRun !== false;
   const supportsConfigure = meta?.supportsConfigure !== false;
   const supportsExport = meta?.supportsExport !== false;
@@ -698,10 +684,7 @@ export default function CrawlersPage({ onNavigate }) {
   // ── Wizard actions ────────────────────────────────────────────
 
   const handleSelectType = (type) => {
-    if (type === 'demo') {
-      submitJob('demo');
-      setWizardStep(null);
-    } else if (getCrawlerWizard(type)) {
+    if (getCrawlerWizard(type)) {
       setEditingConfig(null);
       setWizardCrawlerType(type); setWizardStep('crawler-wizard');
     }
@@ -906,7 +889,7 @@ export default function CrawlersPage({ onNavigate }) {
         return CrawlerWizard ? (
           <Suspense fallback={<div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading…</div>}>
             <CrawlerWizard
-              onComplete={() => { setWizardStep(null); setEditingConfig(null); fetchConfigs(); }}
+              onComplete={() => { setWizardStep(null); setEditingConfig(null); fetchConfigs(); fetchJobs(); }}
               onCancel={() => { setWizardStep(null); setEditingConfig(null); }}
               initialConfig={editingConfig}
               isEdit={!!editingConfig?.id}

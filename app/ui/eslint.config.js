@@ -14,20 +14,10 @@ import noRelativePackageImports from './eslint-rules/no-relative-package-imports
 const NATIVE_DIALOG_ALLOWLIST = [
   '**/components/AccessPackagesPage.jsx',
   '**/components/AdminPage.jsx',
-  '**/components/CrawlersPage.jsx',
   '**/components/RiskProfileWizard.jsx',
   '**/components/RolesPermissionsSection.jsx',
   '**/components/matrix/MatrixFilterWizard.jsx',
   '**/hooks/useEntityPage.js',
-];
-
-// CrawlersPage.jsx still has hardcoded CRAWLER_TYPES entries for crawlers that
-// will never get a manifest-based CrawlerMeta.js: `demo` (no persisted config —
-// it's a one-shot immediate job) and `custom` (the custom-connector API-key
-// flow, a different management surface entirely). Downgrade the rule to warn
-// so CI stays green for these two permanent exceptions.
-const CRAWLER_META_MIGRATION_PENDING = [
-  '**/components/CrawlersPage.jsx',
 ];
 
 export default [
@@ -85,12 +75,6 @@ export default [
     // Pre-existing native-dialog offenders: warn (don't fail CI) until migrated.
     files: NATIVE_DIALOG_ALLOWLIST,
     rules: { 'local/no-native-dialogs': 'warn' },
-  },
-  {
-    // CrawlersPage.jsx has pre-existing hardcoded CRAWLER_TYPES entries — warn
-    // until each crawler is migrated to its own CrawlerMeta.js.
-    files: CRAWLER_META_MIGRATION_PENDING,
-    rules: { 'local/no-hardcoded-crawler-meta': 'warn' },
   },
   {
     // The jargon rule definition, tests, and e2e specs legitimately contain the
