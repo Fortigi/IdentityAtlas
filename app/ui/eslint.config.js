@@ -20,10 +20,11 @@ const NATIVE_DIALOG_ALLOWLIST = [
   '**/hooks/useEntityPage.js',
 ];
 
-// CrawlersPage.jsx still has hardcoded CRAWLER_TYPES entries for crawlers not
-// yet migrated to the manifest-based plugin system (entra-id, csv, demo,
-// custom-connector). Downgrade the rule to warn so CI stays green during the
-// migration. Remove this override once all crawlers have their own CrawlerMeta.js.
+// CrawlersPage.jsx still has hardcoded CRAWLER_TYPES entries for crawlers that
+// will never get a manifest-based CrawlerMeta.js: `demo` (no persisted config —
+// it's a one-shot immediate job) and `custom` (the custom-connector API-key
+// flow, a different management surface entirely). Downgrade the rule to warn
+// so CI stays green for these two permanent exceptions.
 const CRAWLER_META_MIGRATION_PENDING = [
   '**/components/CrawlersPage.jsx',
 ];

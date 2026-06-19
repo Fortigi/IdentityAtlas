@@ -62,6 +62,8 @@ Restart the worker container after adding the folder. The new crawler appears in
 | `configSchema` | — | [JSON Schema](https://json-schema.org/) object. The UI renders a form from it; the API validates configs against it before queueing. |
 | `postSyncHooks` | — | `"buildContexts"` derives org-unit contexts after a sync. Most user-syncing crawlers should include it. The historical `"accountCorrelation"` hook is now a **no-op** — account-to-identity matching moved to the scheduler-driven [Account Linking](../architecture/account-linking.md) engine — so new crawlers should omit it. |
 
+**If your `configSchema` marks a secret field (`clientSecret`, or one of `password`/`apiToken`/`cookieString`) as `required`** — directly, or conditionally via `allOf`/`if`-`then` keyed off an auth-method property, the way `omada`'s and `midPoint`'s schemas do for `OAuth2CC`/`OAuth2ROPC` — you get correct vault-aware validation for free, with no code on your part. `clientSecret` is stripped out of the stored config JSON on every save (it lives only in the secrets vault), so a config freshly loaded from storage never has it; every place that validates such a config (an edit, a "Run Now", a scheduled run) calls `validateStoredCrawlerConfig(type, config, configId)` instead of the raw schema validator, which checks the vault before concluding the field is genuinely missing. See `app/api/CLAUDE.md` → "Crawler Job System" for the mechanism, and `app/api/src/crawlerManifests.test.js` for the test coverage.
+
 ---
 
 ## The Entry Point Interface
@@ -322,7 +324,7 @@ export default async function handler(req, res, { db, getConfigSecret }) {
 }
 ```
 
-See `tools/crawlers/omada/discover.js` and `tools/crawlers/midpoint/discover.js` for real examples, and `app/api/src/routes/omadaDiscover.test.js` for how to test one (mock `fetch` + `getConfigSecret`, no HTTP server needed).
+See `tools/crawlers/omada/discover.js` and `tools/crawlers/midpoint/discover.js` for real examples, and `tools/crawlers/omada/discover.test.js` for how to test one (mock `fetch` + `getConfigSecret`, no HTTP server needed — co-located with the handler, not under `app/api/src/routes/`; the API's `vitest.config.js` is what picks it up).
 
 ### File uploads — only if operators need to attach files
 

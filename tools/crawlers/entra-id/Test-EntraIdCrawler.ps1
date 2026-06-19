@@ -5,7 +5,7 @@
 .DESCRIPTION
     Runs a series of scenarios that hit different code paths through the crawler:
 
-      1. Validate-Only       — POST /admin/validate-graph-credentials only.
+      1. Validate-Only       — POST /admin/crawlers/entra-id/discover (type: validate) only.
                                Confirms creds + permission detection work.
       2. Identity-Only       — selectedObjects = { identity: true }.
                                Smallest possible sync (users + identities).
@@ -314,15 +314,19 @@ function Invoke-Scenario {
 #
 # Under -StrictPermissions (default), every permission in the wizard's
 # GRAPH_PERMISSION_MAP must come back as granted. This catches GUID-mapping
-# bugs in jobs.js where a permission is granted on the app registration but
-# the wizard reports it missing because it's checking the wrong app-role id
-# (April 2026 regression for DelegatedPermissionGrant.Read.All).
+# bugs in tools/crawlers/entra-id/discover.js where a permission is granted
+# on the app registration but the wizard reports it missing because it's
+# checking the wrong app-role id (April 2026 regression for
+# DelegatedPermissionGrant.Read.All).
 Write-Host "  Pre-flight: validating credentials..." -ForegroundColor Gray
 try {
-    $vr = Invoke-LocalApi -Path '/admin/validate-graph-credentials' -Method POST -Body @{
-        tenantId     = $creds.tenantId
-        clientId     = $creds.clientId
-        clientSecret = $creds.clientSecret
+    $vr = Invoke-LocalApi -Path '/admin/crawlers/entra-id/discover' -Method POST -Body @{
+        type   = 'validate'
+        config = @{
+            tenantId     = $creds.tenantId
+            clientId     = $creds.clientId
+            clientSecret = $creds.clientSecret
+        }
     }
     if (-not $vr.valid) {
         Report-Result 'EntraID/Validate-Only' $false ($vr.error ?? 'validation returned valid=false')
@@ -621,8 +625,8 @@ foreach ($scenario in $Scenarios) {
             # Every object type in ENTRA_OBJECT_TYPES is enabled here so the
             # scenario proves that every permission on the demo app
             # registration does something useful. If a new object type is
-            # added to jobs.js, add it here too — a partial full-sync
-            # defeats the point of this test.
+            # added to tools/crawlers/entra-id/discover.js, add it here too —
+            # a partial full-sync defeats the point of this test.
             Invoke-Scenario -Name 'Full-Sync' `
                 -SelectedObjects @{
                     identity           = $true
