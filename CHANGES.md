@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- midPoint business roles that grant AD groups directly (via a `construction` inducement, the common pattern for birthright bundles) now show those groups as contained resources. Previously only role-to-role inducements were imported, so such roles appeared to grant nothing.
+- As a result, users holding such a role now correctly show access to the underlying AD groups in the matrix (governed access propagates through the business role).
+
+## Changes in this PR
+
 - midPoint crawler now imports **inherited** role and service memberships, not just directly-assigned ones. Birthright roles (assigned via an archetype), nested roles, and org-inherited roles now show all their members in Identity Atlas instead of appearing nearly empty.
 - Each governed assignment now records whether it was granted directly or inherited (`grant=direct` / `grant=inherited`).
 - Governance metadata relations (manager, owner, approver, meta) are correctly excluded — only true membership is imported as access.
