@@ -1,0 +1,2 @@
+- Fixed scheduled crawler runs silently skipping for Omada and midPoint configurations that use OAuth2 auth methods — the scheduler now validates stored configs via the vault-aware validator instead of always failing on a missing `clientSecret`
+- Added unit tests for scheduler schedule-matching logic and job-queuing behaviour

@@ -39,7 +39,7 @@ const FIRST_RUN_DELAY_MS = 45_000;
 // value = ISO string of the minute. Prevents double-firing within the same minute.
 const lastFired = new Map();
 
-function scheduleMatches(schedule, now) {
+export function scheduleMatches(schedule, now) {
   if (!schedule || schedule.enabled === false) return false;
   if (typeof schedule.minute !== 'number' || schedule.minute < 0 || schedule.minute > 59) return false;
 
@@ -65,7 +65,7 @@ function scheduleMatches(schedule, now) {
   return false;
 }
 
-async function recentlyQueuedJobExists(configId, jobType) {
+export async function recentlyQueuedJobExists(configId, jobType) {
   // Second safety net against double-firing (survives container restart).
   // If any job from this config was queued/running/completed in the last 55 min,
   // we skip. 55 < 60 so the next minute's tick can still fire if the schedule
@@ -81,7 +81,7 @@ async function recentlyQueuedJobExists(configId, jobType) {
   return !!r;
 }
 
-async function queueScheduledJob(configRow, scheduleIndex) {
+export async function queueScheduledJob(configRow, scheduleIndex) {
   const cfg = typeof configRow.config === 'string' ? JSON.parse(configRow.config) : configRow.config;
 
   // Resolve the effective syncMode for this scheduled run.
