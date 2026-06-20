@@ -1,0 +1,116 @@
+<#
+.SYNOPSIS
+    Azure Resource Manager REST helpers — auth + paged GET.
+
+.DESCRIPTION
+    Azure RM is a plain JSON REST API (not OData), so this crawler does not depend on the
+    `odata` base layer. Authentication reuses the worker's Graph SDK: Get-FGAccessToken already
+    supports -Resource "https://management.azure.com/" (client-credentials), so no new auth code
+    is needed. These helpers add ARM-specific paging (follow `nextLink`) and throttling handling
+    (honour 429 + Retry-After, the ARM read-limit response).
+
+    Dot-source from the crawler entry point:
+        . (Join-Path $PSScriptRoot 'Get-AzureRMHelpers.ps1')
+#>
+
+$script:ARMSession = $null
+$script:ARMBaseUrl = 'https://management.azure.com'
+
+function Connect-AzureRM {
+    [Diagnostics.CodeAnalysis.SuppressMessage('PSAvoidUsingPlainTextForPassword', '')]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$TenantId,
+        [Parameter(Mandatory)] [string]$ClientId,
+        [Parameter(Mandatory)] [string]$ClientSecret
+    )
+    # Stored so the token can be refreshed mid-crawl (ARM tokens last ~60-90 min; a deep crawl
+    # of many scopes can outlast that).
+    $script:ARMSession = @{
+        TenantId     = $TenantId
+        ClientId     = $ClientId
+        ClientSecret = $ClientSecret
+        AcquiredAt   = [datetime]::UtcNow
+    }
+    Get-FGAccessToken -ClientId $ClientId -ClientSecret $ClientSecret -TenantId $TenantId `
+        -Resource 'https://management.azure.com/'
+    if (-not $Global:AccessToken) {
+        throw "Azure RM: failed to acquire a management.azure.com access token"
+    }
+    Write-Host "  Azure RM: authenticated to management.azure.com (tenant $TenantId)" -ForegroundColor Green
+}
+
+function Update-ARMTokenIfNeeded {
+    [CmdletBinding()]
+    param()
+    if (-not $script:ARMSession) { throw "Azure RM: not connected. Call Connect-AzureRM first." }
+    if (([datetime]::UtcNow - $script:ARMSession.AcquiredAt).TotalMinutes -ge 45) {
+        Get-FGAccessToken -ClientId $script:ARMSession.ClientId -ClientSecret $script:ARMSession.ClientSecret `
+            -TenantId $script:ARMSession.TenantId -Resource 'https://management.azure.com/'
+        $script:ARMSession.AcquiredAt = [datetime]::UtcNow
+    }
+}
+
+# Internal: GET one URI with retry on 429/5xx (honouring Retry-After).
+function Invoke-ARMRequestRaw {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string]$Uri, [int]$MaxRetries = 5)
+    $attempt = 0
+    while ($true) {
+        $attempt++
+        Update-ARMTokenIfNeeded
+        try {
+            return Invoke-RestMethod -Uri $Uri -Method Get -TimeoutSec 120 `
+                -Headers @{ Authorization = "Bearer $Global:AccessToken" }
+        } catch {
+            $status = $null
+            try { $status = [int]$_.Exception.Response.StatusCode } catch {}
+            $transient = ($status -eq 429) -or ($status -ge 500 -and $status -lt 600) -or (-not $status)
+            if ($transient -and $attempt -le $MaxRetries) {
+                $retryAfter = 0
+                try { $retryAfter = [int]($_.Exception.Response.Headers['Retry-After']) } catch {}
+                $wait = if ($retryAfter -gt 0) { $retryAfter } else { [Math]::Min(60, [int][Math]::Pow(2, $attempt)) }
+                Write-Host "    ARM ${status}: retry $attempt/$MaxRetries in ${wait}s" -ForegroundColor DarkYellow
+                Start-Sleep -Seconds $wait
+                continue
+            }
+            throw
+        }
+    }
+}
+
+# Resolve a path (or absolute URL) against the ARM base.
+function Resolve-ARMUri {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string]$Path)
+    if ($Path -match '^https?://') { return $Path }
+    return $script:ARMBaseUrl + $Path
+}
+
+<#
+.SYNOPSIS
+    GET an ARM list endpoint, following `nextLink` across all pages; returns a flat array of the
+    `value` items.
+#>
+function Invoke-ARMList {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string]$Path, [int]$MaxRetries = 5)
+    $uri = Resolve-ARMUri -Path $Path
+    $items = [System.Collections.Generic.List[object]]::new()
+    while ($uri) {
+        $resp = Invoke-ARMRequestRaw -Uri $uri -MaxRetries $MaxRetries
+        if ($null -ne $resp.value) { foreach ($v in $resp.value) { [void]$items.Add($v) } }
+        $uri = $resp.nextLink
+    }
+    return $items
+}
+
+<#
+.SYNOPSIS
+    GET a single ARM resource (no paging).
+#>
+function Invoke-ARMGet {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string]$Path, [int]$MaxRetries = 5)
+    return Invoke-ARMRequestRaw -Uri (Resolve-ARMUri -Path $Path) -MaxRetries $MaxRetries
+}
