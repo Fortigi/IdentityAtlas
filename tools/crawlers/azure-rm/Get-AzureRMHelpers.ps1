@@ -14,7 +14,11 @@
 #>
 
 $script:ARMSession = $null
-$script:ARMBaseUrl = 'https://management.azure.com'
+
+# Base URL is a constant — inlined in Resolve-ARMUri rather than held in a top-level $script:
+# var, because the dispatcher dot-sources crawler libraries inside a ForEach-Object block, where
+# a top-level $script: assignment does not reach the scope the functions read at call time.
+$ARM_BASE_URL = 'https://management.azure.com'
 
 function Connect-AzureRM {
     [Diagnostics.CodeAnalysis.SuppressMessage('PSAvoidUsingPlainTextForPassword', '')]
@@ -84,7 +88,7 @@ function Resolve-ARMUri {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [string]$Path)
     if ($Path -match '^https?://') { return $Path }
-    return $script:ARMBaseUrl + $Path
+    return 'https://management.azure.com' + $Path
 }
 
 <#
