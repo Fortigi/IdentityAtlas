@@ -161,6 +161,11 @@ if ($ManagementGroupId) {
 }
 
 Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Contains edges" -ForegroundColor Gray
+# Dedup by primary key — the ingest engine's ON CONFLICT can't touch the same row twice in one batch.
+$sSeen = [System.Collections.Generic.HashSet[string]]::new()
+$ScopeResources = @($ScopeResources | Where-Object { $sSeen.Add([string]$_.id) })
+$eSeen = [System.Collections.Generic.HashSet[string]]::new()
+$ContainsEdges = @($ContainsEdges | Where-Object { $eSeen.Add("$($_.parentResourceId)|$($_.childResourceId)|$($_.relationshipType)") })
 Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = 'AzureScope' } -Records $ScopeResources | Out-Null
 Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ relationshipType = 'Contains' } -Records $ContainsEdges | Out-Null
 
@@ -242,10 +247,16 @@ foreach ($pt in $PrincipalStubs.Keys) {
     }
 }
 Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = 'AzureRoleAssignment' } -Records $RoleResources | Out-Null
+# Dedup grants on their PK (resourceId, principalId, assignmentType) — Azure can declare the same
+# principal+role at one scope more than once, which would touch the same upsert row twice.
+$gSeen = [System.Collections.Generic.HashSet[string]]::new()
+$Grants = @($Grants | Where-Object { $gSeen.Add("$($_.resourceId)|$($_.principalId)|$($_.assignmentType)") })
 Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ assignmentType = 'Direct' } -Records $Grants | Out-Null
 
 # ─── Phase: Contexts ─────────────────────────────────────────────
 Update-CrawlerProgress -Step 'Syncing contexts' -Pct 80
+$ctxSeen = [System.Collections.Generic.HashSet[string]]::new()
+$ScopeContexts = @($ScopeContexts | Where-Object { $ctxSeen.Add([string]$_.id) })
 Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ variant = 'synced' } -Records $ScopeContexts | Out-Null
 # Deduplicate context members (a scope can be touched by multiple assignments).
 $cmSeen = [System.Collections.Generic.HashSet[string]]::new()
