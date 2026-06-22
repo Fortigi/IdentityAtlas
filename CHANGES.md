@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Crawler-type-specific behaviour no longer lives hardcoded in the API core: the demo "one run at a time" rule and the Custom Connector's paired-API-key handling are now driven by `singletonJob` / `pushMode` flags in each crawler's manifest, so adding or changing such behaviour stays inside the crawler's own folder.
+- The crawler-isolation CI check now also scans the API source (`app/api/src`), not just the UI, and fails a build if a crawler type is hardcoded or a type-named file drifts into core.
+
+## Changes in this PR
+
 - Fixed a database deadlock that could occur when upgrading to a newer version: the application now applies all pending SQL migrations before it starts accepting any requests, so a crawler can no longer run against a half-migrated schema.
 - If migrations fail on startup, the application now stops instead of serving with an outdated schema (the container restarts and retries automatically).
 

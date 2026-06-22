@@ -1,2 +1,0 @@
-- Crawler-type-specific behaviour no longer lives hardcoded in the API core: the demo "one run at a time" rule and the Custom Connector's paired-API-key handling are now driven by `singletonJob` / `pushMode` flags in each crawler's manifest, so adding or changing such behaviour stays inside the crawler's own folder.
-- The crawler-isolation CI check now also scans the API source (`app/api/src`), not just the UI, and fails a build if a crawler type is hardcoded or a type-named file drifts into core.
