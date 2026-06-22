@@ -3,6 +3,56 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import net from 'node:net';
 
+// Shared recorder + mock fns for the startup-ordering test. vi.hoisted runs
+// before the vi.mock factories below (which are themselves hoisted above the
+// imports), so the factories can safely close over these.
+const startup = vi.hoisted(() => {
+  const calls = [];
+  return {
+    calls,
+    // migrateDatabase deliberately yields to the event loop before recording,
+    // so if a regression ever called app.listen() WITHOUT awaiting migrations
+    // first, 'listen' would be recorded before 'migrate' and the test fails.
+    migrateDatabase: vi.fn(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      calls.push('migrate');
+    }),
+    bootstrapWorker: vi.fn(async () => { calls.push('bootstrap'); }),
+    listen: vi.fn((_port, _host, cb) => {
+      calls.push('listen');
+      if (cb) cb();
+      return { on: vi.fn() };
+    }),
+  };
+});
+
+vi.mock('./app.js', () => ({ createApp: () => ({ listen: startup.listen }) }));
+vi.mock('./bootstrap.js', () => ({
+  migrateDatabase: startup.migrateDatabase,
+  bootstrapWorker: startup.bootstrapWorker,
+}));
+vi.mock('./perf/collector.js', () => ({ enable: vi.fn(), isEnabled: () => false }));
+vi.mock('./config/authConfig.js', () => ({
+  loadAuthConfig: vi.fn(async () => {}),
+  isAuthEnabled: () => false,
+}));
+
+describe('startup ordering — migrations run first', () => {
+  it('applies migrations before the server binds its port', async () => {
+    // Importing index.js runs its top-level startup sequence. The dynamic
+    // import resolves only after index.js's top-level `await migrateDatabase()`
+    // settles, so by the time this await returns the ordering is final.
+    await import('./index.js');
+
+    // Migrations must have run, and must be the very first recorded step —
+    // guards against someone dropping `await migrateDatabase()` from index.js
+    // (the fn would never be called) or moving it after app.listen().
+    expect(startup.migrateDatabase).toHaveBeenCalledTimes(1);
+    expect(startup.calls[0]).toBe('migrate');
+    expect(startup.calls.indexOf('migrate')).toBeLessThan(startup.calls.indexOf('listen'));
+  });
+});
+
 describe('server EADDRINUSE handler', () => {
   afterEach(() => vi.restoreAllMocks());
 
