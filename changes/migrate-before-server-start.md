@@ -1,2 +1,0 @@
-- Fixed a database deadlock that could occur when upgrading to a newer version: the application now applies all pending SQL migrations before it starts accepting any requests, so a crawler can no longer run against a half-migrated schema.
-- If migrations fail on startup, the application now stops instead of serving with an outdated schema (the container restarts and retries automatically).

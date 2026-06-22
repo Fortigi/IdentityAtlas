@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed a database deadlock that could occur when upgrading to a newer version: the application now applies all pending SQL migrations before it starts accepting any requests, so a crawler can no longer run against a half-migrated schema.
+- If migrations fail on startup, the application now stops instead of serving with an outdated schema (the container restarts and retries automatically).
+
+## Changes in this PR
+
 - Fixed `bump-version` workflow failing to push to `main` by updating the deprecated `app-id` parameter to `client-id` in `actions/create-github-app-token`, matching `cut-release` and `cut-hotfix`
 - Fixed CSV crawler rejecting large upload files (Assignments, Certifications) with "File too large". The per-file upload limit is raised from 200 MB to 1 GB.
 - The CSV upload wizard now shows the file size limit in the upload step and flags any selected file that exceeds it before the save is attempted.
