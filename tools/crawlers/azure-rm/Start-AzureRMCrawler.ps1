@@ -168,14 +168,11 @@ if ($ManagementGroupId) {
     }
 }
 
-Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Contains edges" -ForegroundColor Gray
-# Dedup by primary key — the ingest engine's ON CONFLICT can't touch the same row twice in one batch.
-$sSeen = [System.Collections.Generic.HashSet[string]]::new()
-$ScopeResources = @($ScopeResources | Where-Object { $sSeen.Add([string]$_.id) })
-$eSeen = [System.Collections.Generic.HashSet[string]]::new()
-$ContainsEdges = @($ContainsEdges | Where-Object { $eSeen.Add("$($_.parentResourceId)|$($_.childResourceId)|$($_.relationshipType)") })
-Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = 'AzureScope' } -Records $ScopeResources | Out-Null
-Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ relationshipType = 'Contains' } -Records $ContainsEdges | Out-Null
+Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Contains edges (pre-assignment)" -ForegroundColor Gray
+# Scope nodes + Contains edges are deduped and ingested AFTER the assignment phase below: that phase
+# adds management-group / resource scope nodes on demand, because an assignment's real declared scope
+# can sit above (a management group / tenant root) or below (an individual resource) what we
+# enumerated here.
 
 # ─── Phase: Role definitions ─────────────────────────────────────
 Update-CrawlerProgress -Step 'Fetching role definitions' -Pct 35
@@ -210,17 +207,89 @@ function Get-OwningContextNodeId { param([string]$ArmPath)
     return $null
 }
 
-foreach ($scopePath in $ScopePaths) {
-    $scopeNodeId = Get-ScopeNodeId -ArmScopePath $scopePath
-    # atScope() returns ONLY assignments declared at this scope (not inherited) — exactly what
-    # we store; inheritance is computed by the engine.
-    $assignments = Invoke-ARMList -Path "$scopePath/providers/Microsoft.Authorization/roleAssignments?api-version=$API_AUTH&`$filter=atScope()"
+# Scope paths we already built a node for during discovery. Ensure-AssignmentScope adds to this.
+$KnownPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($p in $ScopePaths) { [void]$KnownPaths.Add($p) }
+
+function Add-ContainsEdge { param([string]$ParentPath, [string]$ChildPath)
+    $ContainsEdges.Add(@{
+        parentResourceId = (Get-ScopeNodeId -ArmScopePath $ParentPath)
+        childResourceId  = (Get-ScopeNodeId -ArmScopePath $ChildPath)
+        relationshipType = 'Contains'; extendedAttributes = @{ propagates = $true }
+    })
+}
+
+# Parent of a sub-subscription scope: a resource → its resource group, a resource group → its
+# subscription, a subscription-level resource → its subscription. $null for subscription / management
+# group / tenant-root scopes (those are handled as "above the subscription").
+function Get-ParentScopePath { param([string]$ScopePath)
+    if ($ScopePath -match '^(/subscriptions/[^/]+/resourceGroups/[^/]+)/providers/') { return $matches[1] }
+    if ($ScopePath -match '^(/subscriptions/[^/]+)/resourceGroups/[^/]+$')           { return $matches[1] }
+    if ($ScopePath -match '^(/subscriptions/[^/]+)/providers/')                       { return $matches[1] }
+    return $null
+}
+
+# Ensure a scope node exists for an assignment's declared scope, creating it (and any missing
+# ancestors) so the effective-access engine can inherit through the Contains hierarchy. Management
+# groups / the tenant root sit above the subscription, so we link them down to the owning
+# subscription. Returns the scope node id.
+function Ensure-AssignmentScope { param([string]$ScopePath, [string]$OwningSubPath)
+    $aboveSub = ($ScopePath -eq '/' -or $ScopePath -match '^/providers/Microsoft\.Management/managementGroups/')
+    if (-not $KnownPaths.Contains($ScopePath)) {
+        if ($aboveSub) {
+            $isRoot = ($ScopePath -eq '/')
+            $ScopeResources.Add(@{
+                id = (Get-ScopeNodeId -ArmScopePath $ScopePath)
+                displayName = $(if ($isRoot) { 'Tenant Root' } else { ($ScopePath -split '/')[-1] })
+                resourceType = $(if ($isRoot) { 'AzureScope' } else { 'AzureManagementGroup' })
+                externalId = $ScopePath
+                extendedAttributes = @{ armPath = $ScopePath; scopeKind = $(if ($isRoot) { 'Root' } else { 'ManagementGroup' }) }
+            })
+        } else {
+            $parentPath = Get-ParentScopePath -ScopePath $ScopePath
+            $isRg = ($ScopePath -match '^/subscriptions/[^/]+/resourceGroups/[^/]+$')
+            $ScopeResources.Add(@{
+                id = (Get-ScopeNodeId -ArmScopePath $ScopePath)
+                displayName = ($ScopePath -split '/')[-1]
+                resourceType = $(if ($isRg) { 'AzureResourceGroup' } else { 'AzureResource' })
+                externalId = $ScopePath
+                extendedAttributes = @{ armPath = $ScopePath; scopeKind = $(if ($isRg) { 'ResourceGroup' } else { 'Resource' }) }
+            })
+            if ($parentPath) {
+                [void](Ensure-AssignmentScope -ScopePath $parentPath -OwningSubPath $OwningSubPath)
+                Add-ContainsEdge -ParentPath $parentPath -ChildPath $ScopePath
+            }
+        }
+        [void]$KnownPaths.Add($ScopePath)
+    }
+    # Always (re)link a management group / tenant root to the owning subscription so its assignments
+    # inherit into every crawled subscription beneath it (edges are deduped before ingest).
+    if ($aboveSub -and $OwningSubPath) { Add-ContainsEdge -ParentPath $ScopePath -ChildPath $OwningSubPath }
+    return Get-ScopeNodeId -ArmScopePath $ScopePath
+}
+
+# One un-filtered roleAssignments list per subscription returns every assignment in that
+# subscription's subtree PLUS those inherited from above (management groups / tenant root). We store
+# each at its OWN declared scope (properties.scope) and let the engine compute inheritance — never
+# materialising an inherited assignment as Direct on the scopes below it. (atScope() is NOT used: it
+# means "effective at this scope", i.e. this scope AND everything inherited from above.)
+$assignSeen = [System.Collections.Generic.HashSet[string]]::new()
+foreach ($sub in $subs) {
+    $subPath = "/subscriptions/$($sub.subscriptionId)"
+    $assignments = Invoke-ARMList -Path "$subPath/providers/Microsoft.Authorization/roleAssignments?api-version=$API_AUTH"
     foreach ($a in $assignments) {
+        $declaredScope = [string]$a.properties.scope
+        if (-not $declaredScope) { continue }
         $roleDefId = ($a.properties.roleDefinitionId -split '/')[-1]
         if (-not $roleDefs.ContainsKey($roleDefId)) { continue }   # filtered (e.g. custom role with includeCustomRoles=false)
+
+        # Ensure the scope node exists for THIS subscription's view (re-adds management-group → sub
+        # edges even when the assignment itself was already processed via another subscription).
+        $scopeNodeId = Ensure-AssignmentScope -ScopePath $declaredScope -OwningSubPath $subPath
+        if (-not $assignSeen.Add([string]$a.name)) { continue }   # same Azure assignment seen via another sub
+
         $roleName = $roleDefs[$roleDefId].name
         $capResId = Get-CapabilityId -TargetNodeId $scopeNodeId -CapabilityId $roleDefId
-
         if ($RoleResSeen.Add($capResId)) {
             $scopeName = ($ScopeResources | Where-Object { $_.id -eq $scopeNodeId } | Select-Object -First 1).displayName
             $RoleResources.Add(@{
@@ -228,7 +297,7 @@ foreach ($scopePath in $ScopePaths) {
                 extendedAttributes = @{ capabilityId = $roleDefId; targetNodeId = $scopeNodeId; roleName = $roleName; isCustom = $roleDefs[$roleDefId].isCustom }
             })
             # Role@Scope resources count toward the owning subscription/MG context.
-            $ctxNode = Get-OwningContextNodeId -ArmPath $scopePath
+            $ctxNode = Get-OwningContextNodeId -ArmPath $declaredScope
             if ($ctxNode) { $ContextMembers.Add(@{ contextId = $ctxNode; memberId = $capResId; memberType = 'Resource'; addedBy = 'sync' }) }
         }
 
@@ -247,6 +316,17 @@ foreach ($scopePath in $ScopePaths) {
     }
 }
 Write-Host "  $($RoleResources.Count) role-at-scope resources, $($Grants.Count) assignments" -ForegroundColor Gray
+
+# The assignment phase may have added management-group / resource scope nodes on demand, so dedup and
+# ingest the scope nodes + Contains edges now — before the capability-resources and grants below that
+# reference them. Dedup by primary key — the ingest engine's ON CONFLICT can't touch a row twice.
+$sSeen = [System.Collections.Generic.HashSet[string]]::new()
+$ScopeResources = @($ScopeResources | Where-Object { $sSeen.Add([string]$_.id) })
+$eSeen = [System.Collections.Generic.HashSet[string]]::new()
+$ContainsEdges = @($ContainsEdges | Where-Object { $eSeen.Add("$($_.parentResourceId)|$($_.childResourceId)|$($_.relationshipType)") })
+Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Contains edges (final)" -ForegroundColor Gray
+Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = 'AzureScope' } -Records $ScopeResources | Out-Null
+Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ relationshipType = 'Contains' } -Records $ContainsEdges | Out-Null
 
 # Stubs use delta (upsert-only) so they never scoped-delete principals the Entra crawler owns.
 foreach ($pt in $PrincipalStubs.Keys) {
