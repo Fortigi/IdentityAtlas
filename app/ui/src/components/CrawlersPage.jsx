@@ -95,12 +95,12 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
 
   return (
     <div className="p-4 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-start justify-between mb-3">
-        <div>
+      <div className="mb-3">
+        <div className="mb-2">
           <h4 className="font-semibold text-gray-900 dark:text-white">{config.displayName}</h4>
           <span className="text-xs text-gray-500 dark:text-gray-400">{config.crawlerType}</span>
         </div>
-        <div className="flex flex-wrap justify-end gap-1">
+        <div className="flex flex-wrap gap-1">
           {supportsRun && (isRunning ? (
             <button
               onClick={() => onForceStop(runningJob.id)}

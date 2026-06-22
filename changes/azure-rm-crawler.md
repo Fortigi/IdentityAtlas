@@ -1,5 +1,5 @@
 - Added an Azure Resource Manager crawler: syncs Azure RBAC — management groups, subscriptions, resource groups, role assignments and role definitions — so Azure scope access appears in Identity Atlas, with role-at-scope inheritance computed by the effective-access engine.
 - Added the Azure Resource Manager crawler to the **Add Crawler** picker, with a guided setup wizard (service principal, scope, options, schedule) and a summary card in the configured-crawlers list.
 - The Azure RM wizard now discovers your environment live: pick subscriptions from a checklist and choose a management group from the nested hierarchy, instead of typing IDs by hand (with a manual fallback if discovery can't reach Azure).
-- Made the crawler action buttons (Run Delta, Run Full, Configure, Export, Remove) a uniform height — they no longer wrap onto two lines in narrow cards.
+- Made the crawler action buttons (Run Delta, Run Full, Configure, Export, Remove) a uniform height and moved them to their own row beneath the crawler name, so they always line up consistently instead of pushing "Remove" onto a second line when the name is long.
 - Fixed an Azure RM crawl failure when "Include individual resources" was enabled: resource IDs containing a "|" character no longer break scope-id generation.
