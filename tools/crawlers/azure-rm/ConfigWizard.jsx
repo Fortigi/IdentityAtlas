@@ -11,6 +11,7 @@ export function canSubmitAzureCredentials({ tenantId, clientId, clientSecret }, 
 }
 
 // Parse a comma/space/newline-separated list of subscription IDs into a clean array.
+// Used for the manual fallback when live discovery can't reach Azure.
 export function parseSubscriptionIds(raw) {
   return (raw || '')
     .split(/[\s,]+/)
@@ -26,17 +27,57 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
   const [clientSecret, setClientSecret] = useState('');
 
   const [managementGroupId, setManagementGroupId] = useState(initialConfig?.managementGroupId || '');
-  const [subscriptionIds, setSubscriptionIds] = useState((initialConfig?.subscriptionIds || []).join(', '));
+  const [selectedSubs, setSelectedSubs] = useState(initialConfig?.subscriptionIds || []);
+  const [manualSubs, setManualSubs] = useState((initialConfig?.subscriptionIds || []).join(', '));
   const [includeResourceLevel, setIncludeResourceLevel] = useState(!!initialConfig?.includeResourceLevel);
   const [includeCustomRoles, setIncludeCustomRoles] = useState(
     initialConfig?.includeCustomRoles !== undefined ? !!initialConfig.includeCustomRoles : true,
   );
+
+  // Live discovery (subscriptions + nested management groups)
+  const [availableSubs, setAvailableSubs] = useState([]);
+  const [availableMGs, setAvailableMGs] = useState([]);
+  const [scopeLoaded, setScopeLoaded] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [discoverError, setDiscoverError] = useState(null);
 
   const [schedules, setSchedules] = useState(initialConfig?.schedules || []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
   const canStep1 = canSubmitAzureCredentials({ tenantId, clientId, clientSecret }, isEdit);
+
+  const fetchScope = async (force = false) => {
+    if ((scopeLoaded && !force) || discovering) return;
+    setDiscovering(true);
+    setDiscoverError(null);
+    try {
+      // On edit without a freshly-typed secret, let the server use the stored one.
+      const body = initialConfig?.id && !clientSecret.trim()
+        ? { configId: initialConfig.id }
+        : { config: { tenantId: tenantId.trim(), clientId: clientId.trim(), clientSecret: clientSecret.trim() } };
+      const r = await authFetch('/api/admin/crawlers/azure-rm/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      setAvailableSubs(d.subscriptions || []);
+      setAvailableMGs(d.managementGroups || []);
+      setScopeLoaded(true);
+    } catch (err) {
+      setDiscoverError(err.message);
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  const goToStep = (n) => { setStep(n); if (n === 2) fetchScope(); };
+  const toggleSub = (id) =>
+    setSelectedSubs((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const mgSelected = !!managementGroupId;
 
   const handleSave = async () => {
     setSaving(true);
@@ -49,9 +90,13 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
         includeCustomRoles,
       };
       if (clientSecret.trim()) config.clientSecret = clientSecret.trim();
-      if (managementGroupId.trim()) config.managementGroupId = managementGroupId.trim();
-      const subs = parseSubscriptionIds(subscriptionIds);
-      if (subs.length) config.subscriptionIds = subs;
+      if (managementGroupId) {
+        config.managementGroupId = managementGroupId;
+      } else {
+        // Selected from the discovered list, or parsed from the manual fallback.
+        const subs = availableSubs.length ? selectedSubs : parseSubscriptionIds(manualSubs);
+        if (subs.length) config.subscriptionIds = subs;
+      }
       if (schedules.length) config.schedules = schedules;
 
       let r;
@@ -96,7 +141,7 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
         <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
       </div>
 
-      <div className="mb-5"><Stepper steps={steps} current={step} onStepClick={setStep} allowAll={!!isEdit} /></div>
+      <div className="mb-5"><Stepper steps={steps} current={step} onStepClick={goToStep} allowAll={!!isEdit} /></div>
 
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">{error}</div>}
 
@@ -126,7 +171,7 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
             {isEdit && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Leave blank to keep the stored secret.</p>}
           </div>
           <div className="flex justify-end">
-            <button onClick={() => setStep(2)} disabled={!canStep1}
+            <button onClick={() => goToStep(2)} disabled={!canStep1}
               className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Next →</button>
           </div>
         </div>
@@ -134,29 +179,74 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
 
       {/* Step 2 — Scope & Options */}
       {step === 2 && (
-        <div className="space-y-4">
+        <div className="space-y-5">
+          {/* Management groups (nested) */}
           <div>
-            <label className={labelCls}>Management Group ID <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input value={managementGroupId} onChange={(e) => setManagementGroupId(e.target.value)} className={`${inputCls} font-mono`} placeholder="crawl the whole hierarchy beneath this MG" />
-          </div>
-          <div>
-            <label className={labelCls}>Subscription IDs <span className="text-gray-400 font-normal">(optional, comma-separated)</span></label>
-            <input value={subscriptionIds} onChange={(e) => setSubscriptionIds(e.target.value)} className={`${inputCls} font-mono`} placeholder="leave blank to auto-discover all accessible subscriptions" />
-          </div>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input type="checkbox" checked={includeCustomRoles} onChange={(e) => setIncludeCustomRoles(e.target.checked)} className="mt-0.5" />
-            <div>
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Include custom role definitions</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">resolve tenant custom roles, not just built-in ones</span>
+            <div className="flex items-center justify-between mb-1">
+              <label className={labelCls + ' mb-0'}>Management Group <span className="text-gray-400 font-normal">(optional — crawls the whole subtree)</span></label>
+              <button onClick={() => fetchScope(true)} disabled={discovering}
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50">
+                {discovering ? 'Loading…' : '↻ Refresh'}
+              </button>
             </div>
-          </label>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input type="checkbox" checked={includeResourceLevel} onChange={(e) => setIncludeResourceLevel(e.target.checked)} className="mt-0.5" />
-            <div>
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Include individual resources</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">enumerate every resource (high volume; off by default)</span>
-            </div>
-          </label>
+            {discovering && <p className="text-xs text-gray-500 dark:text-gray-400 italic">Discovering subscriptions and management groups…</p>}
+            {discoverError && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">Live discovery unavailable ({discoverError}). You can still enter subscription IDs manually below.</p>
+            )}
+            {availableMGs.length > 0 && (
+              <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2">
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                  <input type="radio" name="mg" checked={!managementGroupId} onChange={() => setManagementGroupId('')} />
+                  <span className="italic text-gray-500 dark:text-gray-400">None — select subscriptions instead</span>
+                </label>
+                {availableMGs.map((mg) => (
+                  <label key={mg.name} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300"
+                    style={{ paddingLeft: `${mg.depth * 1.25}rem` }}>
+                    <input type="radio" name="mg" checked={managementGroupId === mg.name} onChange={() => setManagementGroupId(mg.name)} />
+                    <span>{mg.displayName} <span className="text-xs text-gray-400 font-mono">{mg.name}</span></span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Subscriptions (checkable) */}
+          <div className={mgSelected ? 'opacity-40 pointer-events-none' : ''}>
+            <label className={labelCls}>Subscriptions {mgSelected && <span className="text-gray-400 font-normal">(ignored — a management group is selected)</span>}</label>
+            {availableSubs.length > 0 ? (
+              <div className="space-y-1 max-h-56 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Leave all unchecked to crawl every accessible subscription.</p>
+                {availableSubs.map((s) => (
+                  <label key={s.id} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" checked={selectedSubs.includes(s.id)} onChange={() => toggleSub(s.id)} />
+                    <span>{s.name} <span className="text-xs text-gray-400 font-mono">{s.id}</span></span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <input value={manualSubs} onChange={(e) => setManualSubs(e.target.value)} className={`${inputCls} font-mono`}
+                placeholder="comma-separated subscription IDs — or leave blank for all accessible subscriptions" />
+            )}
+          </div>
+
+          {/* Options */}
+          <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={includeCustomRoles} onChange={(e) => setIncludeCustomRoles(e.target.checked)} className="mt-0.5" />
+              <div>
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Include custom role definitions</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">resolve tenant custom roles, not just built-in ones</span>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={includeResourceLevel} onChange={(e) => setIncludeResourceLevel(e.target.checked)} className="mt-0.5" />
+              <div>
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Include individual resources</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">enumerate every resource (high volume; off by default)</span>
+              </div>
+            </label>
+          </div>
+
           <div className="flex justify-between">
             <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300">← Back</button>
             <button onClick={() => setStep(3)} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Next →</button>
