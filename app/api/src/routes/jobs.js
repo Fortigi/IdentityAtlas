@@ -10,7 +10,7 @@ import { readdirSync, promises as fs } from 'fs';
 import path from 'path';
 import { getUploadFolderPath, deleteConfigFolder } from './crawlerFiles.js';
 import { storeConfigSecret, hasConfigSecret, deleteConfigSecret, getConfigSecret, storeJobSecret, storeJobCredentials, OTHER_SECRET_FIELDS } from '../secrets/crawlerSecrets.js';
-import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, VALID_JOB_TYPES, validateCrawlerConfig, validateStoredCrawlerConfig } from '../crawlerManifests.js';
+import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, VALID_JOB_TYPES, validateCrawlerConfig, validateStoredCrawlerConfig, isSingletonJob, isPushModeType } from '../crawlerManifests.js';
 
 // Re-exported for existing consumers (scheduler.js, jobs.*.test.js) that
 // import these directly from this file rather than from crawlerManifests.js.
@@ -222,11 +222,11 @@ router.delete('/admin/crawler-configs/:id', gate, async (req, res) => {
     // Best-effort cleanup of any uploaded files + the vaulted secret.
     deleteConfigFolder(crawlerType, id).catch(() => {});
     deleteConfigSecret(id).catch(() => {});
-    // Custom Connector's card is a CrawlerConfigs row paired with a Crawlers
+    // A push-mode type's card is a CrawlerConfigs row paired with a Crawlers
     // row (the API key) created together in routes/crawlers.js's POST
     // handler — clean up the other side too so removing the card doesn't
     // orphan a still-live API key.
-    if (crawlerType === 'custom-connector') {
+    if (isPushModeType(crawlerType)) {
       const crawlerId = (typeof existingConfig === 'string' ? JSON.parse(existingConfig) : existingConfig)?.crawlerId;
       if (crawlerId) {
         pool.request().input('crawlerId', crawlerId)
@@ -264,13 +264,14 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
     const pool = await db.getPool();
     const createdBy = req.user?.preferred_username || req.user?.name || 'ui';
 
-    // Prevent duplicate demo jobs
-    if (jobType === 'demo') {
-      const dup = await pool.request().query(
-        `SELECT 1 FROM "CrawlerJobs" WHERE "jobType" = 'demo' AND status IN ('queued', 'running')`
+    // Singleton-job types (manifest `singletonJob: true`) allow only one
+    // queued/running job at a time — a second concurrent run is meaningless.
+    if (isSingletonJob(jobType)) {
+      const dup = await pool.request().input('jobType', jobType).query(
+        `SELECT 1 FROM "CrawlerJobs" WHERE "jobType" = @jobType AND status IN ('queued', 'running')`
       );
       if (dup.recordset.length > 0) {
-        return res.status(409).json({ error: 'A demo data job is already queued or running' });
+        return res.status(409).json({ error: `A ${jobType} job is already queued or running` });
       }
     }
 

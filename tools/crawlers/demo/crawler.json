@@ -2,6 +2,7 @@
   "type": "demo",
   "displayName": "Demo Dataset",
   "entryPoint": "Start-DemoCrawler.ps1",
+  "singletonJob": true,
   "dependsOn": [],
   "configSchema": {
     "type": "object",

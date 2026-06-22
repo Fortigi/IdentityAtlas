@@ -17,7 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('./secrets/crawlerSecrets.js', () => ({ hasConfigSecret: vi.fn() }));
 
 import { hasConfigSecret } from './secrets/crawlerSecrets.js';
-import { validateCrawlerConfig, validateStoredCrawlerConfig } from './crawlerManifests.js';
+import { validateCrawlerConfig, validateStoredCrawlerConfig, isSingletonJob, isPushModeType, getPushModeType } from './crawlerManifests.js';
 
 describe('validateStoredCrawlerConfig', () => {
   beforeEach(() => {
@@ -78,5 +78,29 @@ describe('validateStoredCrawlerConfig', () => {
     const config = { tenantId: 't', clientId: 'c', clientSecret: 'real-value' };
     expect(await validateStoredCrawlerConfig('entra-id', config, 11)).toBeNull();
     expect(hasConfigSecret).not.toHaveBeenCalled();
+  });
+});
+
+// Manifest-driven capability flags. These let core code (routes/jobs.js,
+// routes/crawlers.js) avoid hardcoded `=== '<type>'` checks — the drift the
+// crawler-manifest CI check now blocks in app/api/src. Asserted against the
+// real manifests so the flags staying set in crawler.json is part of the test.
+describe('capability flags', () => {
+  it('isSingletonJob is true for the demo dataset, false for a normal pull crawler', () => {
+    expect(isSingletonJob('demo')).toBe(true);
+    expect(isSingletonJob('entra-id')).toBe(false);
+  });
+
+  it('isSingletonJob is false for an unknown type (no manifest)', () => {
+    expect(isSingletonJob('does-not-exist')).toBe(false);
+  });
+
+  it('isPushModeType is true for the custom connector, false for a pull crawler', () => {
+    expect(isPushModeType('custom-connector')).toBe(true);
+    expect(isPushModeType('omada')).toBe(false);
+  });
+
+  it('getPushModeType resolves to the single push-mode crawler', () => {
+    expect(getPushModeType()).toBe('custom-connector');
   });
 });

@@ -479,10 +479,11 @@ jobs:
           echo "PR hygiene OK."
 
   # ── Stage 8: Crawler manifest completeness ──────────────────────────────────
-  # Every user-facing crawler must have a CrawlerMeta.js. Migrated crawlers must
-  # not reappear as hardcoded strings in CrawlersPage.jsx. Library crawlers (used
-  # only as dependsOn, e.g. odata) are exempt. Crawlers listed in PENDING are
-  # allowed to be missing CrawlerMeta.js while they await migration.
+  # Every user-facing crawler must have a CrawlerMeta.js. A crawler type must
+  # not appear as a hardcoded string or a stray type-named file anywhere in core
+  # — neither app/ui/ nor app/api/src/ — everything type-specific lives in
+  # tools/crawlers/<type>/ and core discovers it via the manifest (see #368).
+  # Library crawlers (used only as dependsOn, e.g. odata) are exempt.
   crawler-manifest:
     name: 'Lint: Crawler manifest completeness'
     needs: [changes]
@@ -491,7 +492,7 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - name: Check CrawlerMeta.js presence and no crawler-specific drift into app/ui
+      - name: Check CrawlerMeta.js presence and no crawler-specific drift into app/ui or app/api
         run: |
           set -euo pipefail
 
@@ -528,6 +529,26 @@ jobs:
             if [ -n "$hits" ]; then
               echo "::error::Crawler type '$type' is hardcoded as a string outside tools/crawlers/$type/ — it must be discovered via CrawlerMeta.js only:"
               echo "$hits"
+              FAIL=1
+            fi
+
+            # Same rule for the API core. Crawler-specific behaviour in the API
+            # must be manifest-driven (capability flags read via
+            # crawlerManifests.js), never a hardcoded type string. Exclusions:
+            # app-bundle.mjs is a gitignored generated bundle (vendored deps
+            # like mime-db legitimately contain type-like substrings), and test
+            # files are excluded the same way the UI side excludes its own.
+            api_files=$(find app/api/src -iname "*${type}*" ! -name 'app-bundle.mjs' ! -name '*.test.js' 2>/dev/null || true)
+            if [ -n "$api_files" ]; then
+              echo "::error::Found file(s) named after crawler type '$type' in app/api/src — move them to tools/crawlers/$type/:"
+              echo "$api_files"
+              FAIL=1
+            fi
+
+            api_hits=$(grep -rlE "(['\"])${type}\1" app/api/src --include='*.js' --include='*.mjs' --exclude='app-bundle.mjs' --exclude='*.test.js' 2>/dev/null || true)
+            if [ -n "$api_hits" ]; then
+              echo "::error::Crawler type '$type' is hardcoded as a string in app/api/src — core must discover behaviour via crawler.json manifest flags (see crawlerManifests.js), not type literals:"
+              echo "$api_hits"
               FAIL=1
             fi
           done

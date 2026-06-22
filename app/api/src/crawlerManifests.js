@@ -38,6 +38,34 @@ try {
 
 export const VALID_JOB_TYPES = Object.keys(_crawlerManifests);
 
+// ── Manifest-driven type behaviours ─────────────────────────────────────────
+// Core code (routes/jobs.js, routes/crawlers.js) must never branch on a
+// hardcoded crawler-type string — a crawler stays fully described by its own
+// tools/crawlers/<type>/crawler.json. These helpers read capability flags from
+// the manifest so the core carries no per-type knowledge. (See issue #368.)
+
+// A "singleton job" type may have at most one queued/running job at a time —
+// a second concurrent run is meaningless (the demo data generator sets this).
+// Manifest: `"singletonJob": true`.
+export function isSingletonJob(type) {
+  return !!_crawlerManifests[type]?.singletonJob;
+}
+
+// A "push-mode" type receives data via the Ingest API instead of a scheduled
+// pull job. It is registered by issuing a Crawlers API-key row paired with a
+// CrawlerConfigs card; either delete path unwinds the other row. Manifest:
+// `"pushMode": true`. See tools/crawlers/CLAUDE.md → "Push-mode crawler types".
+export function isPushModeType(type) {
+  return !!_crawlerManifests[type]?.pushMode;
+}
+
+// The crawler type that backs API-key registrations (POST /admin/crawlers).
+// Resolved from the manifest flag so the endpoint carries no hardcoded type.
+// Returns null if no push-mode crawler is installed.
+export function getPushModeType() {
+  return Object.keys(_crawlerManifests).find(t => _crawlerManifests[t].pushMode) ?? null;
+}
+
 export function validateCrawlerConfig(type, config) {
   const validate = _configValidators[type];
   if (!validate) return null;
