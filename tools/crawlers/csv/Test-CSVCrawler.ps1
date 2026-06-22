@@ -263,6 +263,37 @@ try {
     }
 }
 
+# ─── Context-member externalId resolution ───────────────────────
+# Regression test: a ContextMember referenced by contextExternalId /
+# memberExternalId (the shape the CSV crawler sends) must resolve to the same
+# deterministic UUIDs the contexts/identities endpoints generate. This used to
+# 500 with 'null value in column "contextId"' because the ingest never resolved
+# those external IDs. The context key deliberately contains a pipe to prove the
+# pipe is hashed, not split.
+try {
+    $posKey = 'edge-OU1|edge-JT1'
+    Invoke-LocalApi -Path '/ingest/contexts' -Method Post -Body @{
+        systemId = $testSystemId; idGeneration = 'deterministic'; idPrefix = 'CSVTest-contexts'
+        records  = @(@{ externalId = $posKey; displayName = 'Edge Position'; contextType = 'Position'; targetType = 'Identity'; variant = 'synced' })
+    } | Out-Null
+    Invoke-LocalApi -Path '/ingest/identities' -Method Post -Body @{
+        systemId = $testSystemId; idGeneration = 'deterministic'; idPrefix = 'CSVTest-identities'
+        records  = @(@{ externalId = 'edge-ID1'; displayName = 'Edge Person' })
+    } | Out-Null
+    $r = Invoke-LocalApi -Path '/ingest/context-members' -Method Post -Body @{
+        systemId = $testSystemId; idGeneration = 'deterministic'; idPrefix = 'CSVTest-context-members'
+        records  = @(@{ contextExternalId = $posKey; memberExternalId = 'edge-ID1'; memberType = 'Identity'; addedBy = 'sync' })
+    }
+    if ($r.inserted -ge 1 -or $r.updated -ge 1) {
+        Report-Result 'CSV/ContextMemberExternalId' $true "context-member resolved by externalId (inserted=$($r.inserted) updated=$($r.updated))"
+    } else {
+        Report-Result 'CSV/ContextMemberExternalId' $false "call succeeded but nothing written: $($r | ConvertTo-Json -Compress)"
+    }
+} catch {
+    $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+    Report-Result 'CSV/ContextMemberExternalId' $false "context-member by externalId failed (status $statusCode) — externalId resolution regression: $($_.Exception.Message)"
+}
+
 # ─── Cleanup ─────────────────────────────────────────────────────
 # Best-effort removal of temp CSV files
 try {

@@ -244,7 +244,13 @@ function Send-GroupedBySystem {
                     [void]$sb.Append([string]$r['parentExternalId']).Append('|')
                     [void]$sb.Append([string]$r['childExternalId']).Append('|')
                     [void]$sb.Append([string]$r['identityExternalId']).Append('|')
-                    [void]$sb.Append([string]$r['userExternalId'])
+                    [void]$sb.Append([string]$r['userExternalId']).Append('|')
+                    # Context-member rows key on (contextExternalId, memberExternalId,
+                    # memberType) — without these every membership row hashes to the
+                    # same empty key and the whole batch collapses to one record.
+                    [void]$sb.Append([string]$r['contextExternalId']).Append('|')
+                    [void]$sb.Append([string]$r['memberExternalId']).Append('|')
+                    [void]$sb.Append([string]$r['memberType'])
                     $k = $sb.ToString()
                 }
                 $seen[$k] = $r

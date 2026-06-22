@@ -108,6 +108,21 @@ export function normalizeRecords(records, coreColumns, options = {}) {
       if (rec.principalExternalId && !normalized.principalId) {
         normalized.principalId = deterministicGuid(`${sysPrefix}-principals`, String(rec.principalExternalId));
       }
+      // Context-member references (ingest/context-members). The context endpoint
+      // generates context IDs under "<sys>-contexts" and each member entity under
+      // "<sys>-<entity>", so re-derive the same namespaces here to make the FKs
+      // line up. The CSV crawler sends these externalIds expecting resolution
+      // here — see tools/crawlers/csv/Start-CSVCrawler.ps1 → ContextMembers.csv.
+      if (rec.contextExternalId && !normalized.contextId) {
+        normalized.contextId = deterministicGuid(`${sysPrefix}-contexts`, String(rec.contextExternalId));
+      }
+      if (rec.memberExternalId && !normalized.memberId) {
+        // memberId's namespace depends on what kind of entity the member is.
+        const memberNs = { Identity: 'identities', Principal: 'principals', Resource: 'resources' }[rec.memberType];
+        if (memberNs) {
+          normalized.memberId = deterministicGuid(`${sysPrefix}-${memberNs}`, String(rec.memberExternalId));
+        }
+      }
     }
 
     // Set systemId if provided, the record doesn't override it, AND the table has the column
