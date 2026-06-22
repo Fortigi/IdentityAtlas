@@ -26,6 +26,7 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
   const [clientId, setClientId] = useState(initialConfig?.clientId || '');
   const [clientSecret, setClientSecret] = useState('');
 
+  const [scopeMode, setScopeMode] = useState(initialConfig?.managementGroupId ? 'mg' : 'subscriptions');
   const [managementGroupId, setManagementGroupId] = useState(initialConfig?.managementGroupId || '');
   const [selectedSubs, setSelectedSubs] = useState(initialConfig?.subscriptionIds || []);
   const [manualSubs, setManualSubs] = useState((initialConfig?.subscriptionIds || []).join(', '));
@@ -77,8 +78,6 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
   const toggleSub = (id) =>
     setSelectedSubs((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
-  const mgSelected = !!managementGroupId;
-
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -90,9 +89,9 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
         includeCustomRoles,
       };
       if (clientSecret.trim()) config.clientSecret = clientSecret.trim();
-      if (managementGroupId) {
+      if (scopeMode === 'mg' && managementGroupId) {
         config.managementGroupId = managementGroupId;
-      } else {
+      } else if (scopeMode === 'subscriptions') {
         // Selected from the discovered list, or parsed from the manual fallback.
         const subs = availableSubs.length ? selectedSubs : parseSubscriptionIds(manualSubs);
         if (subs.length) config.subscriptionIds = subs;
@@ -180,54 +179,79 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
       {/* Step 2 — Scope & Options */}
       {step === 2 && (
         <div className="space-y-5">
-          {/* Management groups (nested) */}
+          {/* Scope mode toggle */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className={labelCls + ' mb-0'}>Management Group <span className="text-gray-400 font-normal">(optional — crawls the whole subtree)</span></label>
+            <div className="flex items-center justify-between mb-2">
+              <label className={labelCls + ' mb-0'}>What should this crawler cover?</label>
               <button onClick={() => fetchScope(true)} disabled={discovering}
                 className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50">
                 {discovering ? 'Loading…' : '↻ Refresh'}
               </button>
             </div>
-            {discovering && <p className="text-xs text-gray-500 dark:text-gray-400 italic">Discovering subscriptions and management groups…</p>}
-            {discoverError && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">Live discovery unavailable ({discoverError}). You can still enter subscription IDs manually below.</p>
-            )}
-            {availableMGs.length > 0 && (
-              <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2">
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
-                  <input type="radio" name="mg" checked={!managementGroupId} onChange={() => setManagementGroupId('')} />
-                  <span className="italic text-gray-500 dark:text-gray-400">None — select subscriptions instead</span>
-                </label>
-                {availableMGs.map((mg) => (
-                  <label key={mg.name} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300"
-                    style={{ paddingLeft: `${mg.depth * 1.25}rem` }}>
-                    <input type="radio" name="mg" checked={managementGroupId === mg.name} onChange={() => setManagementGroupId(mg.name)} />
-                    <span>{mg.displayName} <span className="text-xs text-gray-400 font-mono">{mg.name}</span></span>
-                  </label>
-                ))}
-              </div>
-            )}
+            <div className="flex gap-2">
+              <button type="button"
+                onClick={() => setScopeMode('subscriptions')}
+                className={`flex-1 px-3 py-2 text-sm rounded border transition-colors ${
+                  scopeMode === 'subscriptions'
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400'
+                }`}>Specific subscriptions</button>
+              <button type="button"
+                onClick={() => { setScopeMode('mg'); if (!managementGroupId && availableMGs[0]) setManagementGroupId(availableMGs[0].name); }}
+                className={`flex-1 px-3 py-2 text-sm rounded border transition-colors ${
+                  scopeMode === 'mg'
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400'
+                }`}>A management group</button>
+            </div>
           </div>
 
+          {discovering && <p className="text-xs text-gray-500 dark:text-gray-400 italic">Discovering subscriptions and management groups…</p>}
+          {discoverError && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">Live discovery unavailable ({discoverError}). You can still enter subscription IDs manually below.</p>
+          )}
+
           {/* Subscriptions (checkable) */}
-          <div className={mgSelected ? 'opacity-40 pointer-events-none' : ''}>
-            <label className={labelCls}>Subscriptions {mgSelected && <span className="text-gray-400 font-normal">(ignored — a management group is selected)</span>}</label>
-            {availableSubs.length > 0 ? (
-              <div className="space-y-1 max-h-56 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Leave all unchecked to crawl every accessible subscription.</p>
-                {availableSubs.map((s) => (
-                  <label key={s.id} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
-                    <input type="checkbox" checked={selectedSubs.includes(s.id)} onChange={() => toggleSub(s.id)} />
-                    <span>{s.name} <span className="text-xs text-gray-400 font-mono">{s.id}</span></span>
-                  </label>
-                ))}
-              </div>
-            ) : (
-              <input value={manualSubs} onChange={(e) => setManualSubs(e.target.value)} className={`${inputCls} font-mono`}
-                placeholder="comma-separated subscription IDs — or leave blank for all accessible subscriptions" />
-            )}
-          </div>
+          {scopeMode === 'subscriptions' && (
+            <div>
+              <label className={labelCls}>Subscriptions</label>
+              {availableSubs.length > 0 ? (
+                <div className="space-y-1 max-h-56 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Leave all unchecked to crawl every accessible subscription.</p>
+                  {availableSubs.map((s) => (
+                    <label key={s.id} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                      <input type="checkbox" checked={selectedSubs.includes(s.id)} onChange={() => toggleSub(s.id)} />
+                      <span>{s.name} <span className="text-xs text-gray-400 font-mono">{s.id}</span></span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <input value={manualSubs} onChange={(e) => setManualSubs(e.target.value)} className={`${inputCls} font-mono`}
+                  placeholder="comma-separated subscription IDs — or leave blank for all accessible subscriptions" />
+              )}
+            </div>
+          )}
+
+          {/* Management groups (nested) */}
+          {scopeMode === 'mg' && (
+            <div>
+              <label className={labelCls}>Management Group <span className="text-gray-400 font-normal">(crawls the whole subtree)</span></label>
+              {availableMGs.length > 0 ? (
+                <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2">
+                  {availableMGs.map((mg) => (
+                    <label key={mg.name} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300"
+                      style={{ paddingLeft: `${mg.depth * 1.25}rem` }}>
+                      <input type="radio" name="mg" checked={managementGroupId === mg.name} onChange={() => setManagementGroupId(mg.name)} />
+                      <span>{mg.displayName} <span className="text-xs text-gray-400 font-mono">{mg.name}</span></span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <input value={managementGroupId} onChange={(e) => setManagementGroupId(e.target.value)} className={`${inputCls} font-mono`}
+                  placeholder="management group ID" />
+              )}
+            </div>
+          )}
 
           {/* Options */}
           <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4">
