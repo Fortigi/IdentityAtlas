@@ -89,12 +89,15 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
         includeCustomRoles,
       };
       if (clientSecret.trim()) config.clientSecret = clientSecret.trim();
-      if (scopeMode === 'mg' && managementGroupId) {
+      // The two scope modes are mutually exclusive. Always send both keys (one
+      // cleared) so a PATCH merge can't leave a stale value from the other mode.
+      if (scopeMode === 'mg') {
         config.managementGroupId = managementGroupId;
-      } else if (scopeMode === 'subscriptions') {
+        config.subscriptionIds = [];
+      } else {
+        config.managementGroupId = '';
         // Selected from the discovered list, or parsed from the manual fallback.
-        const subs = availableSubs.length ? selectedSubs : parseSubscriptionIds(manualSubs);
-        if (subs.length) config.subscriptionIds = subs;
+        config.subscriptionIds = availableSubs.length ? selectedSubs : parseSubscriptionIds(manualSubs);
       }
       if (schedules.length) config.schedules = schedules;
 

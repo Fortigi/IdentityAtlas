@@ -46,7 +46,15 @@ $API_MG      = '2021-04-01'
 $API_AUTH    = '2022-04-01'   # roleAssignments + roleDefinitions
 
 # A scope's stable Identity Atlas node id = deterministic UUID of its ARM path.
-function Get-ScopeNodeId { param([string]$ArmScopePath) Get-CapabilityId -TargetNodeId $ArmScopePath -CapabilityId 'azure-scope' }
+# ARM resource IDs can legitimately contain '|' (e.g. some Insights / alert resources), which
+# Get-CapabilityId reserves as its field separator. Percent-encode '%' then '|' so the id-hash
+# input stays injective (no two distinct ARM paths collide) and pipe-free. Only the hash input
+# is encoded — the raw armPath / externalId is stored unchanged. Subscription/RG/MG paths never
+# contain either character, so their ids are unaffected.
+function Get-ScopeNodeId { param([string]$ArmScopePath)
+    $safe = $ArmScopePath -replace '%', '%25' -replace '\|', '%7C'
+    Get-CapabilityId -TargetNodeId $safe -CapabilityId 'azure-scope'
+}
 
 function Send-IngestBatch {
     param(
