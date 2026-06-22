@@ -3,6 +3,7 @@ import { requirePermission } from '../middleware/auth.js';
 import crypto from 'crypto';
 import * as db from '../db/connection.js';
 import { injectJobSecret, deleteJobSecret } from '../secrets/crawlerSecrets.js';
+import { getPushModeType } from '../crawlerManifests.js';
 
 const adminCrawlersRouter = Router();
 const gate = requirePermission('admin.crawlers');
@@ -69,11 +70,13 @@ adminCrawlersRouter.post('/admin/crawlers', gate, async (req, res) => {
     const prefix = apiKey.slice(0, 8);
     const createdBy = req.user?.preferred_username || req.user?.name || 'system';
 
-    // Also creates a paired CrawlerConfigs row (crawlerType='custom-connector',
-    // config={crawlerId}) in the same statement, so this connector shows up as
+    // Also creates a paired CrawlerConfigs row for the push-mode crawler type
+    // (config={crawlerId}) in the same statement, so this connector shows up as
     // a normal card in the "Configured Crawlers" grid instead of needing its
-    // own UI surface. See tools/crawlers/CLAUDE.md -> "Crawlers vs
-    // CrawlerConfigs" for why these are two tables instead of one.
+    // own UI surface. The type is resolved from the manifest (pushMode flag),
+    // not hardcoded, so core carries no per-type knowledge (see issue #368).
+    // See tools/crawlers/CLAUDE.md -> "Push-mode crawler types" for why these
+    // are two tables instead of one.
     const result = await pool.request()
       .input('displayName', displayName.trim().slice(0, 255))
       .input('description', (description || '').slice(0, 4000))
@@ -85,6 +88,7 @@ adminCrawlersRouter.post('/admin/crawlers', gate, async (req, res) => {
       .input('createdBy', createdBy)
       .input('expiresAt', expiresAt || null)
       .input('rateLimit', rateLimit || 100)
+      .input('connectorType', getPushModeType())
       .query(`WITH new_crawler AS (
                 INSERT INTO "Crawlers"
                 ("displayName", "description", "apiKeyHash", "apiKeySalt", "apiKeyPrefix", "systemIds", "permissions", "createdBy", "expiresAt", "rateLimit")
@@ -92,7 +96,7 @@ adminCrawlersRouter.post('/admin/crawlers', gate, async (req, res) => {
                 RETURNING id, "displayName", "apiKeyPrefix", "createdAt"
               ), new_config AS (
                 INSERT INTO "CrawlerConfigs" ("crawlerType", "displayName", config)
-                SELECT 'custom-connector', "displayName", jsonb_build_object('crawlerId', id) FROM new_crawler
+                SELECT @connectorType, "displayName", jsonb_build_object('crawlerId', id) FROM new_crawler
                 RETURNING id
               )
               SELECT * FROM new_crawler`);
@@ -182,9 +186,10 @@ adminCrawlersRouter.delete('/admin/crawlers/:id', gate, async (req, res) => {
       // mirrors the same cleanup DELETE /admin/crawler-configs/:id does in
       // the other direction (routes/jobs.js).
       const result = await pool.request().input('id', id)
+        .input('connectorType', getPushModeType())
         .query(`WITH del_config AS (
                   DELETE FROM "CrawlerConfigs"
-                  WHERE "crawlerType" = 'custom-connector' AND (config->>'crawlerId')::int = @id
+                  WHERE "crawlerType" = @connectorType AND (config->>'crawlerId')::int = @id
                 )
                 DELETE FROM "Crawlers" WHERE id = @id`);
       if (result.rowsAffected[0] === 0) return res.status(404).json({ error: 'Crawler not found' });

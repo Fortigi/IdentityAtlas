@@ -59,7 +59,11 @@ describe('POST /admin/crawlers', () => {
     expect(sql).toContain('WITH new_crawler AS');
     expect(sql).toContain('INSERT INTO "Crawlers"');
     expect(sql).toContain('INSERT INTO "CrawlerConfigs"');
-    expect(sql).toContain("'custom-connector'");
+    // The paired-config type is parameterized (resolved from the pushMode
+    // manifest flag), never hardcoded — see issue #368.
+    expect(sql).toContain('@connectorType');
+    expect(sql).not.toContain("'custom-connector'");
+    expect(mockInput).toHaveBeenCalledWith('connectorType', 'custom-connector');
     expect(sql).toContain('jsonb_build_object');
   });
 });
@@ -79,7 +83,10 @@ describe('DELETE /admin/crawlers/:id', () => {
     const sql = mockDbQuery.mock.calls[0][0];
     expect(sql).toContain('WITH del_config AS');
     expect(sql).toContain('DELETE FROM "CrawlerConfigs"');
-    expect(sql).toContain("'custom-connector'");
+    // Parameterized push-mode type, not a hardcoded literal (issue #368).
+    expect(sql).toContain('@connectorType');
+    expect(sql).not.toContain("'custom-connector'");
+    expect(mockInput).toHaveBeenCalledWith('connectorType', 'custom-connector');
     expect(sql).toContain('crawlerId');
     expect(sql).toContain('DELETE FROM "Crawlers"');
   });
