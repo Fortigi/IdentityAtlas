@@ -10,7 +10,7 @@
 import { createApp } from './app.js';
 import { enable as enablePerf, isEnabled as isPerfEnabled } from './perf/collector.js';
 import { loadAuthConfig, isAuthEnabled } from './config/authConfig.js';
-import { bootstrapWorker } from './bootstrap.js';
+import { bootstrapWorker, migrateDatabase } from './bootstrap.js';
 
 const port       = process.env.PORT || 3001;
 // Desktop mode binds to 127.0.0.1 only — the portable is a local app and should
@@ -52,6 +52,19 @@ loadAuthConfig().catch(err => {
 });
 
 const app = createApp();
+
+// Apply database migrations BEFORE binding the port (see migrateDatabase). The
+// worker container starts polling for crawler jobs as soon as the web port is
+// up, so the schema must be fully upgraded first — otherwise a crawler can run
+// against a mid-migration schema and deadlock against the migration's locks.
+// On failure, exit non-zero: Docker restarts the container and retries, and
+// because the port never opened, no crawler ever ran against a broken schema.
+try {
+  await migrateDatabase();
+} catch (err) {
+  console.error('Database migration failed — refusing to start:', err.message);
+  process.exit(1);
+}
 
 const server = app.listen(port, host, async () => {
   console.log(`Identity Atlas running on http://localhost:${port}`);
