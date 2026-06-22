@@ -31,6 +31,20 @@ async function loadBootstrapWithExistingRoots(existing) {
       return { rowCount: 0 };
     }),
   }));
+
+  // Stub bootstrap's heavy sibling imports. getOrCreateTagRoot only needs the
+  // db mock above; these modules are pulled in solely by bootstrapWorker (which
+  // this test never calls) and importing their real graphs — scheduler →
+  // crawler manifests → jobs, every context plugin via seedAlgorithms, the
+  // vault, the migration runner — is what made importing bootstrap.js exceed
+  // the 5s test timeout under parallel suite load (it passed in isolation).
+  // Mocking them keeps the import cheap and the test deterministic.
+  vi.doMock('./db/migrate.js', () => ({ runMigrations: vi.fn() }));
+  vi.doMock('./secrets/vault.js', () => ({ selfTest: vi.fn(() => true) }));
+  vi.doMock('./scheduler.js', () => ({ startScheduler: vi.fn() }));
+  vi.doMock('./contexts/seedAlgorithms.js', () => ({ seedContextAlgorithms: vi.fn() }));
+  vi.doMock('./secrets/migrateCrawlerSecrets.js', () => ({ migrateCrawlerSecretsToVault: vi.fn() }));
+
   // Don't actually run runMigrations / ensureBuiltinCrawler etc. — load the
   // module fresh, then call the named export. ensureTagRoots is internal but
   // getOrCreateTagRoot is exported.
