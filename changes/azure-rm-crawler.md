@@ -2,3 +2,4 @@
 - Added the Azure Resource Manager crawler to the **Add Crawler** picker, with a guided setup wizard (service principal, scope, options, schedule) and a summary card in the configured-crawlers list.
 - The Azure RM wizard now discovers your environment live: pick subscriptions from a checklist and choose a management group from the nested hierarchy, instead of typing IDs by hand (with a manual fallback if discovery can't reach Azure).
 - Made the crawler action buttons (Run Delta, Run Full, Configure, Export, Remove) a uniform height — they no longer wrap onto two lines in narrow cards.
+- Fixed an Azure RM crawl failure when "Include individual resources" was enabled: resource IDs containing a "|" character no longer break scope-id generation.
