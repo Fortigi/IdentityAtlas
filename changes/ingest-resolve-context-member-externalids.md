@@ -1,2 +1,0 @@
-- Fixed Context Member import from CSV (e.g. the Omada→Identity Atlas conversion script): memberships that reference their context and member by external id now import correctly instead of failing with a database error. Affected any context membership imported via CSV, including Omada Positions (whose keys contain a pipe character — the pipe was never the cause).
-- Fixed the CSV crawler collapsing all context-member rows into a single record before upload, so every membership is now imported rather than just one.

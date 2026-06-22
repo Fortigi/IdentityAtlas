@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed Context Member import from CSV (e.g. the Omada→Identity Atlas conversion script): memberships that reference their context and member by external id now import correctly instead of failing with a database error. Affected any context membership imported via CSV, including Omada Positions (whose keys contain a pipe character — the pipe was never the cause).
+- Fixed the CSV crawler collapsing all context-member rows into a single record before upload, so every membership is now imported rather than just one.
+
+## Changes in this PR
+
 - Crawler-type-specific behaviour no longer lives hardcoded in the API core: the demo "one run at a time" rule and the Custom Connector's paired-API-key handling are now driven by `singletonJob` / `pushMode` flags in each crawler's manifest, so adding or changing such behaviour stays inside the crawler's own folder.
 - The crawler-isolation CI check now also scans the API source (`app/api/src`), not just the UI, and fails a build if a crawler type is hardcoded or a type-named file drifts into core.
 
