@@ -102,3 +102,59 @@ describe('normalizeRecords — boolean fields', () => {
     expect(result[0].enabled).not.toBe(1);
   });
 });
+
+describe('normalizeRecords — context-member externalId resolution', () => {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // The CSV crawler sends context-members with idPrefix "<sys>-context-members".
+  const memberOpts  = { idGeneration: 'deterministic', idPrefix: 'Omada-context-members', systemId: 1 };
+  const memberCols  = ['contextId', 'memberId', 'memberType', 'addedBy'];
+
+  it('resolves contextExternalId to a deterministic UUID in contextId', () => {
+    const r = normalizeRecords(
+      [{ contextExternalId: 'OU123|JT456', memberExternalId: 'alice', memberType: 'Identity', addedBy: 'sync' }],
+      memberCols, memberOpts
+    );
+    expect(r[0].contextId).toMatch(UUID_RE);
+    expect(r[0].memberId).toMatch(UUID_RE);
+  });
+
+  it('a pipe in the context key is handled (it is hashed, not split)', () => {
+    const piped  = normalizeRecords([{ contextExternalId: 'OU|JT', memberExternalId: 'a', memberType: 'Identity' }], memberCols, memberOpts);
+    const plain  = normalizeRecords([{ contextExternalId: 'OUJT',  memberExternalId: 'a', memberType: 'Identity' }], memberCols, memberOpts);
+    expect(piped[0].contextId).toMatch(UUID_RE);
+    // Different keys → different ids (no truncation/collision on the pipe).
+    expect(piped[0].contextId).not.toBe(plain[0].contextId);
+  });
+
+  it('member contextId matches the id the Contexts endpoint generates for the same key (incl. a pipe)', () => {
+    // This is the FK that was broken: a ContextMember must resolve to the exact
+    // UUID the Position context got. Contexts are sent with idPrefix "<sys>-contexts".
+    const posKey = 'OU123|JT456';
+    const contextOpts = { idGeneration: 'deterministic', idPrefix: 'Omada-contexts', systemId: 1 };
+    const ctx = normalizeRecords(
+      [{ externalId: posKey, displayName: 'Pos', variant: 'synced', targetType: 'Identity', contextType: 'Position' }],
+      ['id', 'externalId', 'displayName', 'variant', 'targetType', 'contextType', 'systemId'], contextOpts
+    );
+    const mem = normalizeRecords(
+      [{ contextExternalId: posKey, memberExternalId: 'alice', memberType: 'Identity' }],
+      memberCols, memberOpts
+    );
+    expect(mem[0].contextId).toBe(ctx[0].id);
+  });
+
+  it('memberId namespace depends on memberType (Identity → identities)', () => {
+    const member   = normalizeRecords([{ contextExternalId: 'c', memberExternalId: 'alice', memberType: 'Identity' }], memberCols, memberOpts);
+    // An identity sent to ingest/identities (idPrefix "<sys>-identities") gets this id.
+    const identity = normalizeRecords([{ externalId: 'alice', displayName: 'A' }], ['id', 'externalId', 'displayName'], { idGeneration: 'deterministic', idPrefix: 'Omada-identities', systemId: 1 });
+    expect(member[0].memberId).toBe(identity[0].id);
+  });
+
+  it('does not overwrite an explicit contextId', () => {
+    const explicit = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+    const r = normalizeRecords(
+      [{ contextId: explicit, contextExternalId: 'OU|JT', memberExternalId: 'a', memberType: 'Identity' }],
+      memberCols, memberOpts
+    );
+    expect(r[0].contextId).toBe(explicit);
+  });
+});
