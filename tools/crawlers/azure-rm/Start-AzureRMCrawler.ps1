@@ -211,6 +211,12 @@ function Get-OwningContextNodeId { param([string]$ArmPath)
 $KnownPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 foreach ($p in $ScopePaths) { [void]$KnownPaths.Add($p) }
 
+# Contexts exist only for scopes we discovered (subscriptions, plus management groups in MG mode).
+# A Role@Scope resource at an on-demand management-group node has no context, so gate membership on
+# the context actually existing — otherwise ContextMembers hits a foreign-key violation.
+$ContextIds = [System.Collections.Generic.HashSet[string]]::new()
+foreach ($c in $ScopeContexts) { [void]$ContextIds.Add([string]$c.id) }
+
 function Add-ContainsEdge { param([string]$ParentPath, [string]$ChildPath)
     $ContainsEdges.Add(@{
         parentResourceId = (Get-ScopeNodeId -ArmScopePath $ParentPath)
@@ -298,7 +304,7 @@ foreach ($sub in $subs) {
             })
             # Role@Scope resources count toward the owning subscription/MG context.
             $ctxNode = Get-OwningContextNodeId -ArmPath $declaredScope
-            if ($ctxNode) { $ContextMembers.Add(@{ contextId = $ctxNode; memberId = $capResId; memberType = 'Resource'; addedBy = 'sync' }) }
+            if ($ctxNode -and $ContextIds.Contains($ctxNode)) { $ContextMembers.Add(@{ contextId = $ctxNode; memberId = $capResId; memberType = 'Resource'; addedBy = 'sync' }) }
         }
 
         $pType = [string]$a.properties.principalType
