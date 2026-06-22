@@ -1,1 +1,2 @@
-- Added an Azure Resource Manager crawler (work in progress): syncs Azure RBAC — management groups, subscriptions, resource groups, role assignments and role definitions — so Azure scope access appears in Identity Atlas, with role-at-scope inheritance computed by the effective-access engine.
+- Added an Azure Resource Manager crawler: syncs Azure RBAC — management groups, subscriptions, resource groups, role assignments and role definitions — so Azure scope access appears in Identity Atlas, with role-at-scope inheritance computed by the effective-access engine.
+- Added the Azure Resource Manager crawler to the **Add Crawler** picker, with a guided setup wizard (service principal, scope, options, schedule) and a summary card in the configured-crawlers list.
