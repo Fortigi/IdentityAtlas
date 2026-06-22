@@ -235,6 +235,20 @@ function Get-ParentScopePath { param([string]$ScopePath)
     return $null
 }
 
+# Resolve a management group's friendly display name (cached). On-demand MG nodes would otherwise
+# show only their bare id (a GUID for the tenant root), which is opaque in the matrix.
+$mgNameCache = @{}
+function Get-MgDisplayName { param([string]$MgId)
+    if ($mgNameCache.ContainsKey($MgId)) { return $mgNameCache[$MgId] }
+    $name = $MgId
+    try {
+        $mg = Invoke-ARMGet -Path "/providers/Microsoft.Management/managementGroups/$MgId`?api-version=$API_MG"
+        if ($mg.properties.displayName) { $name = [string]$mg.properties.displayName }
+    } catch { }
+    $mgNameCache[$MgId] = $name
+    return $name
+}
+
 # Ensure a scope node exists for an assignment's declared scope, creating it (and any missing
 # ancestors) so the effective-access engine can inherit through the Contains hierarchy. Management
 # groups / the tenant root sit above the subscription, so we link them down to the owning
@@ -246,7 +260,7 @@ function Ensure-AssignmentScope { param([string]$ScopePath, [string]$OwningSubPa
             $isRoot = ($ScopePath -eq '/')
             $ScopeResources.Add(@{
                 id = (Get-ScopeNodeId -ArmScopePath $ScopePath)
-                displayName = $(if ($isRoot) { 'Tenant Root' } else { ($ScopePath -split '/')[-1] })
+                displayName = $(if ($isRoot) { 'Tenant Root' } else { Get-MgDisplayName -MgId (($ScopePath -split '/')[-1]) })
                 resourceType = $(if ($isRoot) { 'AzureScope' } else { 'AzureManagementGroup' })
                 externalId = $ScopePath
                 extendedAttributes = @{ armPath = $ScopePath; scopeKind = $(if ($isRoot) { 'Root' } else { 'ManagementGroup' }) }
