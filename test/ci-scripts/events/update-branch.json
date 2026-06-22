@@ -1,0 +1,15 @@
+{
+  "action": "synchronize",
+  "pull_request": {
+    "number": 999,
+    "head": { "ref": "feature/ci-scope-testing", "sha": "HEAD" },
+    "base": { "ref": "main", "sha": "main" },
+    "labels": []
+  },
+  "before": "PREV_SHA",
+  "after": "HEAD_SHA",
+  "repository": {
+    "name": "IdentityAtlas",
+    "full_name": "Fortigi/IdentityAtlas"
+  }
+}

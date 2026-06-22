@@ -293,12 +293,23 @@ export async function getOrCreateTagRoot(targetType) {
   return id;
 }
 
+// Run database migrations as a hard startup prerequisite. This MUST complete
+// before the HTTP server binds its port: the worker container starts polling
+// the job-claim endpoint the moment the web port is up, and a crawler running
+// against a mid-migration schema deadlocks against the migration's DDL locks
+// (this is what hit a customer during a version upgrade). Migrating first
+// guarantees a newer version always upgrades the schema before anything else
+// touches the database.
+export async function migrateDatabase() {
+  if (process.env.USE_SQL !== 'true') return;
+  const pool = await db.getPool();
+  await runMigrations(pool);
+}
+
 export async function bootstrapWorker() {
   if (process.env.USE_SQL !== 'true') return;
   try {
     ensureVaultKey();
-    const pool = await db.getPool();
-    await runMigrations(pool);
     await ensureBuiltinCrawler();
     // Move any legacy plaintext crawler clientSecrets into the encrypted vault.
     try {
