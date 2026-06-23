@@ -91,13 +91,25 @@ $ContainsEdges  = [System.Collections.Generic.List[object]]::new()   # scope →
 $ScopeContexts  = [System.Collections.Generic.List[object]]::new()   # MG/Subscription contexts
 $ScopePaths     = [System.Collections.Generic.List[string]]::new()   # all ARM scope paths to read assignments at
 
+# Short type label shown in capability names ("Owner @ RG: name") and stored on the scope node so
+# the effective-access engine labels synthesized inherited rows the same way.
+function Get-ScopeTypeLabel { param([string]$ScopeKind)
+    switch ($ScopeKind) {
+        'ManagementGroup' { 'MG' }
+        'Subscription'    { 'Sub' }
+        'ResourceGroup'   { 'RG' }
+        'Resource'        { 'Res' }
+        default { '' }
+    }
+}
+
 # helper to register a scope node + (optional) parent edge
 function Add-Scope {
     param([string]$ArmPath, [string]$DisplayName, [string]$ResourceType, [string]$ParentArmPath, [string]$ScopeKind)
     $nodeId = Get-ScopeNodeId -ArmScopePath $ArmPath
     $ScopeResources.Add(@{
         id = $nodeId; displayName = $DisplayName; resourceType = $ResourceType; externalId = $ArmPath
-        extendedAttributes = @{ armPath = $ArmPath; scopeKind = $ScopeKind }
+        extendedAttributes = @{ armPath = $ArmPath; scopeKind = $ScopeKind; scopeTypeLabel = (Get-ScopeTypeLabel -ScopeKind $ScopeKind) }
     })
     if ($ParentArmPath) {
         $ContainsEdges.Add(@{
@@ -263,7 +275,7 @@ function Ensure-AssignmentScope { param([string]$ScopePath, [string]$OwningSubPa
                 displayName = $(if ($isRoot) { 'Tenant Root' } else { Get-MgDisplayName -MgId (($ScopePath -split '/')[-1]) })
                 resourceType = $(if ($isRoot) { 'AzureScope' } else { 'AzureManagementGroup' })
                 externalId = $ScopePath
-                extendedAttributes = @{ armPath = $ScopePath; scopeKind = $(if ($isRoot) { 'Root' } else { 'ManagementGroup' }) }
+                extendedAttributes = @{ armPath = $ScopePath; scopeKind = $(if ($isRoot) { 'Root' } else { 'ManagementGroup' }); scopeTypeLabel = $(if ($isRoot) { 'Root' } else { 'MG' }) }
             })
         } else {
             $parentPath = Get-ParentScopePath -ScopePath $ScopePath
@@ -273,7 +285,7 @@ function Ensure-AssignmentScope { param([string]$ScopePath, [string]$OwningSubPa
                 displayName = ($ScopePath -split '/')[-1]
                 resourceType = $(if ($isRg) { 'AzureResourceGroup' } else { 'AzureResource' })
                 externalId = $ScopePath
-                extendedAttributes = @{ armPath = $ScopePath; scopeKind = $(if ($isRg) { 'ResourceGroup' } else { 'Resource' }) }
+                extendedAttributes = @{ armPath = $ScopePath; scopeKind = $(if ($isRg) { 'ResourceGroup' } else { 'Resource' }); scopeTypeLabel = $(if ($isRg) { 'RG' } else { 'Res' }) }
             })
             if ($parentPath) {
                 [void](Ensure-AssignmentScope -ScopePath $parentPath -OwningSubPath $OwningSubPath)
@@ -311,9 +323,12 @@ foreach ($sub in $subs) {
         $roleName = $roleDefs[$roleDefId].name
         $capResId = Get-CapabilityId -TargetNodeId $scopeNodeId -CapabilityId $roleDefId
         if ($RoleResSeen.Add($capResId)) {
-            $scopeName = ($ScopeResources | Where-Object { $_.id -eq $scopeNodeId } | Select-Object -First 1).displayName
+            $scopeRes = $ScopeResources | Where-Object { $_.id -eq $scopeNodeId } | Select-Object -First 1
+            $scopeName = $scopeRes.displayName
+            $scopeLabel = $scopeRes.extendedAttributes.scopeTypeLabel
+            $dn = if ($scopeLabel) { "$roleName @ ${scopeLabel}: $scopeName" } else { "$roleName @ $scopeName" }
             $RoleResources.Add(@{
-                id = $capResId; displayName = "$roleName @ $scopeName"; resourceType = 'AzureRoleAssignment'; enabled = $true
+                id = $capResId; displayName = $dn; resourceType = 'AzureRoleAssignment'; enabled = $true
                 extendedAttributes = @{ capabilityId = $roleDefId; targetNodeId = $scopeNodeId; roleName = $roleName; isCustom = $roleDefs[$roleDefId].isCustom }
             })
             # Role@Scope resources count toward the owning subscription/MG context.

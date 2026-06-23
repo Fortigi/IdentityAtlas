@@ -387,21 +387,36 @@ export async function expandCapabilityDown(focusResourceId, opts = {}) {
   );
   const holders = holderRows.map((h) => h.holder);
 
+  // Scope node display names + an optional short type label the source set (e.g. MG / Sub / RG /
+  // Res) so the synthesized row reads "Owner @ RG: name". Generic: the engine just uses whatever
+  // label the crawler stored on the node.
   const { rows: nameRows } = await db.query(
-    `SELECT id, "displayName" AS name FROM "Resources" WHERE id = ANY($1)`,
+    `SELECT id, "displayName" AS name, "extendedAttributes" ->> 'scopeTypeLabel' AS label
+       FROM "Resources" WHERE id = ANY($1)`,
     [descendants],
   );
-  const nameById = new Map(nameRows.map((r) => [r.id, r.name]));
+  const metaById = new Map(nameRows.map((r) => [r.id, r]));
   const roleLabel = focus.rolename || focus.cap;
+
+  // A synthesized child id has no stored row (so its detail page would 404). Navigate the row to a
+  // resolvable resource: the separately-declared capability-resource if one exists at that node,
+  // otherwise the underlying (stored) scope node. The cell-keying id (groupId) stays the synthesized
+  // capability id so it collapses with a declared row.
+  const childIds = descendants.map((n) => capabilityResourceId(n, focus.cap));
+  const { rows: storedRows } = await db.query(`SELECT id FROM "Resources" WHERE id = ANY($1)`, [childIds]);
+  const storedIds = new Set(storedRows.map((r) => r.id));
 
   const groups = [];
   const memberships = [];
   for (const node of descendants) {
     const childId = capabilityResourceId(node, focus.cap);
+    const meta = metaById.get(node);
+    const scopeName = meta?.name || node;
+    const displayName = meta?.label ? `${roleLabel} @ ${meta.label}: ${scopeName}` : `${roleLabel} @ ${scopeName}`;
     groups.push({
       groupId: childId,
-      resourceId: childId,
-      displayName: `${roleLabel} @ ${nameById.get(node) || node}`,
+      resourceId: storedIds.has(childId) ? childId : node,
+      displayName,
       resourceType: focus.rtype,
     });
     for (const h of holders) {
