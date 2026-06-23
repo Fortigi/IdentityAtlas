@@ -481,7 +481,7 @@ export async function effectiveAccessForNodes(focusNodeIds, opts = {}) {
         ? scope === 'self' || scope === 'selfAndDescendants'
         : scope === 'descendants' || scope === 'selfAndDescendants';
       if (!reaches) continue;
-      const key = `${g.cap} ${g.holder}`;
+      const key = `${g.cap} ${g.holder}`;
       if (!byCapHolder.has(key)) byCapHolder.set(key, { cap: g.cap, rolename: g.rolename, rtype: g.rtype, holder: g.holder, aces: [] });
       byCapHolder.get(key).aces.push({ effect: g.effect ?? 'allow', distance, explicit: atFocus, viaGroupId: null });
     }

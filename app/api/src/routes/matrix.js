@@ -34,7 +34,7 @@ import {
   getResourceColumnValues,
 } from '../db/columnCache.js';
 import { resolveAttrExpr } from '../matrix/attrExpr.js';
-import { buildInheritedFlatRows } from '../matrix/inheritedAccess.js';
+import { buildInheritedFlatRows, explainInheritance } from '../matrix/inheritedAccess.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
@@ -790,6 +790,23 @@ router.post('/matrix/hierarchy-paths', async (req, res) => {
 });
 
 // ─── POST /api/matrix/data ──────────────────────────────────────────
+// Explain one inherited (Indirect) cell — "how did this principal get this access
+// at this scope?". Lazy: called on hover / click of an I badge in the flat grid.
+router.post('/matrix/inheritance-path', async (req, res) => {
+  if (!useSql) return res.json({ sources: [], chain: [] });
+  const { nodeId, capabilityId, principalId } = req.body || {};
+  if (!UUID_RE.test(nodeId || '') || !UUID_RE.test(principalId || '')
+      || typeof capabilityId !== 'string' || !capabilityId) {
+    return res.status(400).json({ error: 'nodeId, capabilityId and principalId are required' });
+  }
+  try {
+    return res.json(await explainInheritance(nodeId, capabilityId, principalId));
+  } catch (err) {
+    console.error('inheritance-path error:', err.message);
+    return res.status(500).json({ error: 'Failed to compute inheritance path' });
+  }
+});
+
 router.post('/matrix/data', async (req, res) => {
   if (!useSql) {
     return res.json({

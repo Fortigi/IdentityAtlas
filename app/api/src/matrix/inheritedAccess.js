@@ -102,6 +102,9 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
       membershipType: e.membershipType,
       extendedAttributes: u.extendedAttributes ?? null,
       managedByAccessPackage: false,
+      // Carried so the UI can explain an inherited (Indirect) cell on demand
+      // (POST /matrix/inheritance-path) — the path that produced the badge.
+      inheritedNodeId: e.nodeId, inheritedCapabilityId: e.capabilityId,
     };
     for (const n of dynCols) row[n] = u[n] ?? null;
     out.push(row);
@@ -119,4 +122,54 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
     }
   }
   return out;
+}
+
+// Explain a single inherited cell: "how did this principal get this capability
+// at this scope?". Walks the containment chain from the focus node up to the
+// root, marking which ancestors actually carry a (capability, principal) grant
+// that propagates down — those are the SOURCE(s) of the inheritance. Returns the
+// chain (source at top → focus at bottom) for a breadcrumb, plus the source
+// rows for the headline ("Owner on Subscription X").
+export async function explainInheritance(focusNodeId, capabilityId, principalId) {
+  const { rows } = await db.query(
+    `WITH RECURSIVE up(id, name, label, depth) AS (
+       SELECT id, "displayName", "extendedAttributes" ->> 'scopeTypeLabel', 0
+         FROM "Resources" WHERE id = $1
+       UNION ALL
+       SELECT pr.id, pr."displayName", pr."extendedAttributes" ->> 'scopeTypeLabel', up.depth + 1
+         FROM up
+         JOIN "ResourceRelationships" rr
+           ON rr."childResourceId"::text = up.id::text
+          AND rr."relationshipType" = 'Contains'
+          AND COALESCE((rr."extendedAttributes" ->> 'propagates')::boolean, true) = true
+         JOIN "Resources" pr ON pr.id = rr."parentResourceId"
+     )
+     SELECT up.id, up.name, up.label, up.depth,
+            cap."extendedAttributes" ->> 'roleName' AS rolename,
+            ra."effect"            AS effect,
+            ra."propagationScope"  AS scope,
+            (ra.id IS NOT NULL)    AS "isSource"
+       FROM up
+       LEFT JOIN "Resources" cap
+         ON cap."capabilityId" = $2 AND cap."targetNodeId" = up.id::text
+       LEFT JOIN "ResourceAssignments" ra
+         ON ra."resourceId" = cap.id AND ra."principalId" = $3
+      ORDER BY up.depth ASC`,
+    [focusNodeId, capabilityId, principalId],
+  );
+
+  const reaches = (r) => r.depth === 0
+    ? (!r.scope || r.scope === 'self' || r.scope === 'selfAndDescendants')
+    : (!r.scope || r.scope === 'descendants' || r.scope === 'selfAndDescendants');
+  const sources = rows.filter((r) => r.isSource && reaches(r));
+  const maxDepth = sources.length ? Math.max(...sources.map((s) => s.depth)) : 0;
+  const chain = rows
+    .filter((r) => r.depth <= maxDepth)
+    .map((r) => ({ id: r.id, name: r.name, label: r.label, depth: r.depth, isSource: r.isSource && reaches(r) }))
+    .sort((a, b) => b.depth - a.depth); // source (top) → focus (bottom)
+
+  return {
+    sources: sources.map((s) => ({ id: s.id, name: s.name, label: s.label, depth: s.depth, role: s.rolename, effect: s.effect })),
+    chain,
+  };
 }
