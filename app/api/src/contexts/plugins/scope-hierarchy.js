@@ -46,9 +46,11 @@ export default {
       (Array.isArray(params.leafResourceTypes) ? params.leafResourceTypes : []).filter((t) => typeof t === 'string'),
     );
 
+    // Scope nodes only. Capability-resources ("<role> @ <scope>") live in the same system but are
+    // not part of the containment hierarchy — they carry a capabilityId, so exclude them.
     const nodes = (await db.query(
       `SELECT id::text AS id, "displayName" AS name, "resourceType" AS rtype
-         FROM "Resources" WHERE "systemId" = $1`,
+         FROM "Resources" WHERE "systemId" = $1 AND "capabilityId" IS NULL`,
       [scopeSystemId],
     )).rows;
     if (nodes.length === 0) {
