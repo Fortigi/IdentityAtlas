@@ -88,7 +88,6 @@ Write-Host "  System ID: $SystemId" -ForegroundColor Green
 # Accumulators
 $ScopeResources = [System.Collections.Generic.List[object]]::new()   # scope nodes
 $ContainsEdges  = [System.Collections.Generic.List[object]]::new()   # scope → child scope
-$ScopeContexts  = [System.Collections.Generic.List[object]]::new()   # MG/Subscription contexts
 $ScopePaths     = [System.Collections.Generic.List[string]]::new()   # all ARM scope paths to read assignments at
 
 # Short type label shown in capability names ("Owner @ RG: name") and stored on the scope node so
@@ -151,11 +150,6 @@ Write-Host "  $($subs.Count) subscription(s)" -ForegroundColor Gray
 foreach ($sub in $subs) {
     $subPath = "/subscriptions/$($sub.subscriptionId)"
     Add-Scope -ArmPath $subPath -DisplayName $sub.displayName -ResourceType 'AzureSubscription' -ParentArmPath $null -ScopeKind 'Subscription' | Out-Null
-    # Subscription as a Context (filterable dimension).
-    $ScopeContexts.Add(@{
-        id = (Get-ScopeNodeId -ArmScopePath $subPath); externalId = $subPath; displayName = $sub.displayName
-        contextType = 'AzureSubscription'; variant = 'synced'; targetType = 'Resource'
-    })
 
     # Resource groups.
     $rgs = Invoke-ARMList -Path "$subPath/resourcegroups?api-version=$API_RG"
@@ -183,7 +177,6 @@ if ($ManagementGroupId) {
         if ($node.type -eq 'Microsoft.Management/managementGroups' -or $node.type -eq '/providers/Microsoft.Management/managementGroups') {
             $name = if ($node.properties.displayName) { $node.properties.displayName } else { $node.name }
             Add-Scope -ArmPath $path -DisplayName $name -ResourceType 'AzureManagementGroup' -ParentArmPath $cur.parentPath -ScopeKind 'ManagementGroup' | Out-Null
-            $ScopeContexts.Add(@{ id = (Get-ScopeNodeId -ArmScopePath $path); externalId = $path; displayName = $name; contextType = 'AzureManagementGroup'; variant = 'synced'; targetType = 'Resource' })
             foreach ($child in @($node.properties.children)) { $stack.Push(@{ node = $child; parentPath = $path }) }
         } elseif ($node.type -match 'subscriptions') {
             # Link an already-discovered subscription to this MG parent (edge only).
@@ -225,24 +218,10 @@ $RoleResSeen     = [System.Collections.Generic.HashSet[string]]::new()
 $Grants          = [System.Collections.Generic.List[object]]::new()
 $PrincipalStubs  = @{ User = [System.Collections.Generic.List[object]]::new(); ServicePrincipal = [System.Collections.Generic.List[object]]::new() }
 $StubSeen        = [System.Collections.Generic.HashSet[string]]::new()
-$ContextMembers  = [System.Collections.Generic.List[object]]::new()
-
-# Map a scope ARM path to the subscription/MG context it belongs to (for ContextMembers).
-function Get-OwningContextNodeId { param([string]$ArmPath)
-    if ($ArmPath -match '^(/providers/Microsoft\.Management/managementGroups/[^/]+)') { return Get-ScopeNodeId -ArmScopePath $matches[1] }
-    if ($ArmPath -match '^(/subscriptions/[^/]+)') { return Get-ScopeNodeId -ArmScopePath $matches[1] }
-    return $null
-}
 
 # Scope paths we already built a node for during discovery. Ensure-AssignmentScope adds to this.
 $KnownPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 foreach ($p in $ScopePaths) { [void]$KnownPaths.Add($p) }
-
-# Contexts exist only for scopes we discovered (subscriptions, plus management groups in MG mode).
-# A Role@Scope resource at an on-demand management-group node has no context, so gate membership on
-# the context actually existing — otherwise ContextMembers hits a foreign-key violation.
-$ContextIds = [System.Collections.Generic.HashSet[string]]::new()
-foreach ($c in $ScopeContexts) { [void]$ContextIds.Add([string]$c.id) }
 
 function Add-ContainsEdge { param([string]$ParentPath, [string]$ChildPath)
     $ContainsEdges.Add(@{
@@ -348,9 +327,6 @@ foreach ($sub in $subs) {
                 id = $capResId; displayName = $dn; resourceType = 'AzureRoleAssignment'; enabled = $true
                 extendedAttributes = @{ capabilityId = $roleDefId; targetNodeId = $scopeNodeId; roleName = $roleName; isCustom = $roleDefs[$roleDefId].isCustom }
             })
-            # Role@Scope resources count toward the owning subscription/MG context.
-            $ctxNode = Get-OwningContextNodeId -ArmPath $declaredScope
-            if ($ctxNode -and $ContextIds.Contains($ctxNode)) { $ContextMembers.Add(@{ contextId = $ctxNode; memberId = $capResId; memberType = 'Resource'; addedBy = 'sync' }) }
         }
 
         $pType = [string]$a.properties.principalType
@@ -393,15 +369,9 @@ $gSeen = [System.Collections.Generic.HashSet[string]]::new()
 $Grants = @($Grants | Where-Object { $gSeen.Add("$($_.resourceId)|$($_.principalId)|$($_.assignmentType)") })
 Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ assignmentType = 'Direct' } -Records $Grants | Out-Null
 
-# ─── Phase: Contexts ─────────────────────────────────────────────
-Update-CrawlerProgress -Step 'Syncing contexts' -Pct 80
-$ctxSeen = [System.Collections.Generic.HashSet[string]]::new()
-$ScopeContexts = @($ScopeContexts | Where-Object { $ctxSeen.Add([string]$_.id) })
-Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ variant = 'synced' } -Records $ScopeContexts | Out-Null
-# Deduplicate context members (a scope can be touched by multiple assignments).
-$cmSeen = [System.Collections.Generic.HashSet[string]]::new()
-$cmDedup = @($ContextMembers | Where-Object { $cmSeen.Add("$($_.contextId)|$($_.memberId)") })
-Send-IngestBatch -Endpoint 'ingest/context-members' -SystemId $SystemId -SyncMode $SyncMode -Records $cmDedup | Out-Null
+# Contexts are NOT emitted here — they are derived data. Context trees (scope hierarchy, resource
+# type) are generated by context-algorithm plugins from the scope Resources + Contains edges this
+# crawler emits, keeping the crawler to source data only.
 
 # ─── Refresh views (also bumps the effective-access cache version) ──
 Update-CrawlerProgress -Step 'Refreshing views' -Pct 95
