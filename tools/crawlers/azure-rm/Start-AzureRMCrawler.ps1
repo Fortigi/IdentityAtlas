@@ -335,61 +335,7 @@ foreach ($sub in $subs) {
         }
     }
 }
-Write-Host "  $($RoleResources.Count) declared role-at-scope resources, $($Grants.Count) direct assignments" -ForegroundColor Gray
-
-# ─── Materialize scope inheritance ───────────────────────────────────────────────
-# The matrix reads stored grants (not the on-demand engine), so — exactly like the Entra crawler
-# expands group membership via /transitiveMembers to surface indirect access — we walk each declared
-# (Direct) grant down the Contains hierarchy and store an Indirect grant on a synthesized
-# Role@<descendant> resource. This is what makes inherited access show in the matrix: an Owner at a
-# subscription / management group appears as Indirect Owner on every resource beneath it.
-Update-CrawlerProgress -Step 'Expanding scope inheritance' -Pct 72
-$childrenByParent = @{}                              # parent scope node id → child scope node ids (propagating edges only)
-foreach ($e in $ContainsEdges) {
-    if ($e.extendedAttributes.propagates -eq $false) { continue }
-    $parentId = [string]$e.parentResourceId
-    if (-not $childrenByParent.ContainsKey($parentId)) { $childrenByParent[$parentId] = [System.Collections.Generic.List[string]]::new() }
-    $childrenByParent[$parentId].Add([string]$e.childResourceId)
-}
-$capInfoById = @{}                                   # capability-resource id → its extendedAttributes (O(1) lookup)
-foreach ($cr in $RoleResources) { $capInfoById[[string]$cr.id] = $cr.extendedAttributes }
-$scopeNameById = @{}
-foreach ($sr in $ScopeResources) { $scopeNameById[[string]$sr.id] = [string]$sr.displayName }
-$directPairs = [System.Collections.Generic.HashSet[string]]::new()
-foreach ($g in $Grants) { [void]$directPairs.Add("$($g.principalId)|$($g.resourceId)") }
-
-foreach ($g in @($Grants)) {                         # snapshot — only the declared Direct grants
-    if ($g.effect -eq 'deny' -or $g.propagationScope -eq 'self') { continue }
-    $info = $capInfoById[[string]$g.resourceId]
-    if (-not $info) { continue }
-    $roleDefId = [string]$info.capabilityId; $roleName = [string]$info.roleName; $isCustom = $info.isCustom
-    $startNode = [string]$info.targetNodeId
-
-    $queue = [System.Collections.Generic.Queue[string]]::new(); $queue.Enqueue($startNode)
-    $visited = [System.Collections.Generic.HashSet[string]]::new(); [void]$visited.Add($startNode)
-    while ($queue.Count -gt 0) {
-        $cur = $queue.Dequeue()
-        if (-not $childrenByParent.ContainsKey($cur)) { continue }
-        foreach ($child in $childrenByParent[$cur]) {
-            if (-not $visited.Add($child)) { continue }
-            $queue.Enqueue($child)
-            $childCapId = Get-CapabilityId -TargetNodeId $child -CapabilityId $roleDefId
-            if ($RoleResSeen.Add($childCapId)) {
-                $RoleResources.Add(@{
-                    id = $childCapId; displayName = "$roleName @ $($scopeNameById[$child])"; resourceType = 'AzureRoleAssignment'; enabled = $true
-                    extendedAttributes = @{ capabilityId = $roleDefId; targetNodeId = $child; roleName = $roleName; isCustom = $isCustom; inherited = $true }
-                })
-            }
-            if ($directPairs.Contains("$($g.principalId)|$childCapId")) { continue }   # a direct grant already covers this scope
-            $Grants.Add(@{
-                resourceId = $childCapId; principalId = $g.principalId; assignmentType = 'Indirect'
-                effect = 'allow'; propagationScope = 'selfAndDescendants'; principalType = $g.principalType
-                extendedAttributes = @{ inheritedFromNodeId = $startNode }
-            })
-        }
-    }
-}
-Write-Host "  $($RoleResources.Count) role-at-scope resources, $($Grants.Count) assignments after inheritance expansion" -ForegroundColor Gray
+Write-Host "  $($RoleResources.Count) role-at-scope resources, $($Grants.Count) assignments" -ForegroundColor Gray
 
 # The assignment phase may have added management-group / resource scope nodes on demand, so dedup and
 # ingest the scope nodes + Contains edges now — before the capability-resources and grants below that
@@ -413,12 +359,7 @@ Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $Syn
 # principal+role at one scope more than once, which would touch the same upsert row twice.
 $gSeen = [System.Collections.Generic.HashSet[string]]::new()
 $Grants = @($Grants | Where-Object { $gSeen.Add("$($_.resourceId)|$($_.principalId)|$($_.assignmentType)") })
-# Direct (declared) and Indirect (inherited) grants reconcile under their own assignmentType scope,
-# so a full sync replaces the previous run's grants of each type cleanly.
-$directGrants   = @($Grants | Where-Object { $_.assignmentType -eq 'Direct' })
-$indirectGrants = @($Grants | Where-Object { $_.assignmentType -eq 'Indirect' })
-Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ assignmentType = 'Direct' }   -Records $directGrants   | Out-Null
-Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ assignmentType = 'Indirect' } -Records $indirectGrants | Out-Null
+Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ assignmentType = 'Direct' } -Records $Grants | Out-Null
 
 # ─── Phase: Contexts ─────────────────────────────────────────────
 Update-CrawlerProgress -Step 'Syncing contexts' -Pct 80
