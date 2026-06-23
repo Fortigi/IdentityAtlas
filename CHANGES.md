@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The matrix can now expand a **scope-based permission** — e.g. an Azure role at a subscription or management group, and in future Azure DevOps, file shares or SharePoint — with the `>` control, revealing the resources beneath it that inherit that access (the same drill-down nested groups already offer). Inherited access is computed on demand by the effective-access engine, so it works for any system with scope inheritance without the crawler storing every inherited row.
+
+## Changes in this PR
+
 - Fixed FK violation in Omada → Identity Atlas transform: context-member rows for org units or job titles that don't appear in the exported Orgunits/Jobtitle files are now silently skipped instead of causing the import to fail with a `ContextMembers_contextId_fkey` constraint error.
 
 ## Changes in this PR
