@@ -802,7 +802,8 @@ router.post('/matrix/data', async (req, res) => {
   // Opt-in: fold access inherited from higher scopes (Owner@subscription ⇒
   // Indirect on resources beneath) into the result, computed on demand by the
   // effective-access engine. Bounded-scope only (see inheritedAccess.js).
-  const includeInherited = req.body?.includeInheritedAccess === true;
+  const includeInherited = req.body?.includeInheritedAccess === true
+    || req.body?.filter?.includeInheritedAccess === true;
 
   // Manager-Hierarchy sort is served as a context roll-up: aggregate per org
   // node on the server rather than ship every per-subject row (which overflows

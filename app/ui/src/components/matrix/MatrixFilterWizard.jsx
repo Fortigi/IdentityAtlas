@@ -465,13 +465,31 @@ export default function MatrixFilterWizard({
         />
       )}
       {activeStep === 'content' && (
-        <Step2Content
-          rollupContent={filter.rollupContent}
-          rollupMetric={filter.rollupMetric}
-          rollup={filter.rollup}
-          onChange={(rollupContent) => setFilter(prev => ({ ...prev, rollupContent }))}
-          onMetricChange={(rollupMetric) => setFilter(prev => ({ ...prev, rollupMetric }))}
-        />
+        <>
+          <Step2Content
+            rollupContent={filter.rollupContent}
+            rollupMetric={filter.rollupMetric}
+            rollup={filter.rollup}
+            onChange={(rollupContent) => setFilter(prev => ({ ...prev, rollupContent }))}
+            onMetricChange={(rollupMetric) => setFilter(prev => ({ ...prev, rollupMetric }))}
+          />
+          <label className="mt-5 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+              checked={!!filter.includeInheritedAccess}
+              onChange={(e) => setFilter(prev => ({ ...prev, includeInheritedAccess: e.target.checked }))}
+            />
+            <span>
+              Include inherited access
+              <span className="block text-xs text-gray-500 dark:text-gray-400">
+                Also show access inherited from higher scopes — e.g. Owner on a subscription appears as
+                an <strong>Indirect</strong> grant on every resource beneath it. Computed on demand, so
+                it's slower; only applies when you've scoped to a set of resources.
+              </span>
+            </span>
+          </label>
+        </>
       )}
       {activeStep === 'subjects' && (
         <Step2Subject
