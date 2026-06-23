@@ -5,6 +5,7 @@ import { ensureCategoryTables } from './categories.js';
 import { getGroupColumns, getResourceColumns, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues } from '../db/columnCache.js';
 import { timedRequest } from '../perf/sqlTimer.js';
 import { buildContextFilterSql, parseAndResolveContextFilters } from '../contexts/contextFilters.js';
+import { expandCapabilityDown } from '../effectiveAccess/engine.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -694,13 +695,28 @@ router.get('/groups-with-nested', async (req, res) => {
   try {
     if (!useSql) return res.json({ groupIds: [] });
     const p = await db.getPool();
-    // Any group that appears as a principal in ResourceAssignments — group
-    // membership (Direct → parent group), app role assignment (AppRole →
-    // AppRole resource), or any future group-as-principal type — qualifies.
+    // Two kinds of expandable rows:
+    //  1. A group that appears as a principal in ResourceAssignments (membership /
+    //     app-role / any future group-as-principal type) — expands UP via membership.
+    //  2. A capability-resource (a capability @ a node, e.g. an Azure role at a
+    //     subscription) whose node has propagating Contains children — expands DOWN
+    //     the containment tree via the effective-access engine. This is generic:
+    //     Azure RM, DevOps, FileShares, SharePoint all qualify with no per-source code.
     const result = await timedRequest(p, 'groups-with-nested', res).query(`
       SELECT DISTINCT "principalId"::text AS "groupId"
         FROM "ResourceAssignments"
        WHERE "principalType" ILIKE '%group%'
+      UNION
+      SELECT DISTINCT r.id::text AS "groupId"
+        FROM "Resources" r
+       WHERE r."capabilityId" IS NOT NULL
+         AND r."targetNodeId" IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM "ResourceRelationships" rr
+            WHERE rr."relationshipType" = 'Contains'
+              AND rr."parentResourceId" = r."targetNodeId"
+              AND COALESCE((rr."extendedAttributes"->>'propagates')::boolean, true) = true
+         )
     `);
     return res.json({ groupIds: result.recordset.map(r => r.groupId) });
   } catch (err) {
@@ -717,6 +733,13 @@ router.get('/groups-with-nested', async (req, res) => {
 router.get('/group/:groupId/nested-groups', async (req, res) => {
   try {
     if (!useSql) return res.json({ groups: [], memberships: [] });
+
+    // Scope / containment resources (a capability @ a node) fan DOWN the Contains tree via the
+    // effective-access engine. Returns null for a plain group, which falls through to the
+    // group-membership expansion below.
+    const containment = await expandCapabilityDown(req.params.groupId);
+    if (containment) return res.json({ groups: containment.groups, memberships: containment.memberships });
+
     const p = await db.getPool();
 
     const request = timedRequest(p, 'nested-groups-data', res);
