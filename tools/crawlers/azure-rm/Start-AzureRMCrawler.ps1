@@ -115,12 +115,36 @@ function Get-AzureResourceType { param([string]$ArmPath)
     return ''
 }
 
+# Governance/filtering attributes lifted off an ARM resource object (from the /resources list):
+#   azureLocation              – region, e.g. "westeurope"  -> "access to any resource in West Europe"
+#   tag.<Key>                  – each portal tag as its own key -> "access to anything tagged Prio High"
+#   managedIdentity            – identity type (SystemAssigned/UserAssigned) when the resource has one
+#                                -> the "resources that have a managed identity" context
+#   managedIdentityPrincipalId – the system-assigned identity's principal id, soft-linking the resource
+#                                to its managed-identity principal (no model change; attribute only)
+# Everything here is generic extendedAttributes the context plugins group by — no new core needed.
+function Get-ResourceAttributes { param($Resource)
+    $ext = @{}
+    if ($Resource.location) { $ext['azureLocation'] = [string]$Resource.location }
+    if ($Resource.tags) {
+        foreach ($p in $Resource.tags.PSObject.Properties) {
+            if ($p.Name) { $ext["tag.$($p.Name)"] = [string]$p.Value }
+        }
+    }
+    if ($Resource.identity -and $Resource.identity.type -and $Resource.identity.type -ne 'None') {
+        $ext['managedIdentity'] = [string]$Resource.identity.type
+        if ($Resource.identity.principalId) { $ext['managedIdentityPrincipalId'] = [string]$Resource.identity.principalId }
+    }
+    return $ext
+}
+
 # helper to register a scope node + (optional) parent edge
 function Add-Scope {
-    param([string]$ArmPath, [string]$DisplayName, [string]$ResourceType, [string]$ParentArmPath, [string]$ScopeKind)
+    param([string]$ArmPath, [string]$DisplayName, [string]$ResourceType, [string]$ParentArmPath, [string]$ScopeKind, [hashtable]$ExtraExt)
     $nodeId = Get-ScopeNodeId -ArmScopePath $ArmPath
     $ext = @{ armPath = $ArmPath; scopeKind = $ScopeKind; scopeTypeLabel = (Get-ScopeTypeLabel -ScopeKind $ScopeKind) }
     if ($ResourceType -eq 'AzureResource') { $ext['azureResourceType'] = (Get-AzureResourceType -ArmPath $ArmPath) }
+    if ($ExtraExt) { foreach ($k in $ExtraExt.Keys) { $ext[$k] = $ExtraExt[$k] } }
     $ScopeResources.Add(@{
         id = $nodeId; displayName = $DisplayName; resourceType = $ResourceType; externalId = $ArmPath
         extendedAttributes = $ext
@@ -158,7 +182,7 @@ foreach ($sub in $subs) {
         if ($IncludeResourceLevel) {
             $resources = Invoke-ARMList -Path "$($rg.id)/resources?api-version=$API_RES"
             foreach ($r in $resources) {
-                Add-Scope -ArmPath $r.id -DisplayName $r.name -ResourceType 'AzureResource' -ParentArmPath $rg.id -ScopeKind 'Resource' | Out-Null
+                Add-Scope -ArmPath $r.id -DisplayName $r.name -ResourceType 'AzureResource' -ParentArmPath $rg.id -ScopeKind 'Resource' -ExtraExt (Get-ResourceAttributes -Resource $r) | Out-Null
             }
         }
     }
@@ -330,16 +354,31 @@ foreach ($sub in $subs) {
         }
 
         $pType = [string]$a.properties.principalType
+        # Assignment-level governance attributes: the ABAC condition (so a conditional grant reads as
+        # conditional, not blanket access) and provenance (who created the assignment, and when).
+        $aExt = @{ roleAssignmentId = $a.name }
+        if ($a.properties.condition) {
+            $aExt['condition'] = [string]$a.properties.condition
+            if ($a.properties.conditionVersion) { $aExt['conditionVersion'] = [string]$a.properties.conditionVersion }
+        }
+        if ($a.properties.createdOn) { $aExt['createdOn'] = [string]$a.properties.createdOn }
+        if ($a.properties.createdBy) { $aExt['createdBy'] = [string]$a.properties.createdBy }
         $Grants.Add(@{
             resourceId = $capResId; principalId = [string]$a.properties.principalId; assignmentType = 'Direct'
             effect = 'allow'; propagationScope = 'selfAndDescendants'; principalType = $pType
-            extendedAttributes = @{ roleAssignmentId = $a.name }
+            extendedAttributes = $aExt
         })
 
         # Thin principal stubs for User / ServicePrincipal. Groups are Resources (synced by the
         # Entra crawler) — referenced by id, not stubbed here.
         if ($pType -in @('User', 'ServicePrincipal') -and $StubSeen.Add([string]$a.properties.principalId)) {
-            $PrincipalStubs[$pType].Add(@{ id = [string]$a.properties.principalId; principalType = $pType; accountEnabled = $true })
+            $stub = @{ id = [string]$a.properties.principalId; accountEnabled = $true }
+            # Only assert principalType for Users. Azure RBAC labels every workload identity
+            # 'ServicePrincipal', so asserting it on a delta upsert would overwrite the Entra crawler's
+            # finer ManagedIdentity / AIAgent classification (COALESCE keeps the incoming non-null) and
+            # break the Managed Identities context. Leave workload-identity typing to the Entra crawler.
+            if ($pType -eq 'User') { $stub['principalType'] = 'User' }
+            $PrincipalStubs[$pType].Add($stub)
         }
     }
 }
