@@ -103,13 +103,28 @@ function Get-ScopeTypeLabel { param([string]$ScopeKind)
     }
 }
 
+# The Azure resource type (provider namespace + type) parsed out of an ARM resource id, e.g.
+# /subscriptions/../resourceGroups/../providers/Microsoft.Compute/virtualMachines/vm1
+#   -> "Microsoft.Compute/virtualMachines". Lets the UI/matrix answer "who can touch any VM?".
+function Get-AzureResourceType { param([string]$ArmPath)
+    if ($ArmPath -match '/providers/(.+)$') {
+        $segs = $matches[1] -split '/'              # ns / type / name [ / subtype / subname ... ]
+        $parts = @($segs[0])
+        for ($i = 1; $i -lt $segs.Count; $i += 2) { $parts += $segs[$i] }   # type segments only
+        return ($parts -join '/')
+    }
+    return ''
+}
+
 # helper to register a scope node + (optional) parent edge
 function Add-Scope {
     param([string]$ArmPath, [string]$DisplayName, [string]$ResourceType, [string]$ParentArmPath, [string]$ScopeKind)
     $nodeId = Get-ScopeNodeId -ArmScopePath $ArmPath
+    $ext = @{ armPath = $ArmPath; scopeKind = $ScopeKind; scopeTypeLabel = (Get-ScopeTypeLabel -ScopeKind $ScopeKind) }
+    if ($ResourceType -eq 'AzureResource') { $ext['azureResourceType'] = (Get-AzureResourceType -ArmPath $ArmPath) }
     $ScopeResources.Add(@{
         id = $nodeId; displayName = $DisplayName; resourceType = $ResourceType; externalId = $ArmPath
-        extendedAttributes = @{ armPath = $ArmPath; scopeKind = $ScopeKind; scopeTypeLabel = (Get-ScopeTypeLabel -ScopeKind $ScopeKind) }
+        extendedAttributes = $ext
     })
     if ($ParentArmPath) {
         $ContainsEdges.Add(@{
@@ -280,12 +295,14 @@ function Ensure-AssignmentScope { param([string]$ScopePath, [string]$OwningSubPa
         } else {
             $parentPath = Get-ParentScopePath -ScopePath $ScopePath
             $isRg = ($ScopePath -match '^/subscriptions/[^/]+/resourceGroups/[^/]+$')
+            $ext = @{ armPath = $ScopePath; scopeKind = $(if ($isRg) { 'ResourceGroup' } else { 'Resource' }); scopeTypeLabel = $(if ($isRg) { 'RG' } else { 'Res' }) }
+            if (-not $isRg) { $ext['azureResourceType'] = (Get-AzureResourceType -ArmPath $ScopePath) }
             $ScopeResources.Add(@{
                 id = (Get-ScopeNodeId -ArmScopePath $ScopePath)
                 displayName = ($ScopePath -split '/')[-1]
                 resourceType = $(if ($isRg) { 'AzureResourceGroup' } else { 'AzureResource' })
                 externalId = $ScopePath
-                extendedAttributes = @{ armPath = $ScopePath; scopeKind = $(if ($isRg) { 'ResourceGroup' } else { 'Resource' }); scopeTypeLabel = $(if ($isRg) { 'RG' } else { 'Res' }) }
+                extendedAttributes = $ext
             })
             if ($parentPath) {
                 [void](Ensure-AssignmentScope -ScopePath $parentPath -OwningSubPath $OwningSubPath)
