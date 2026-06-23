@@ -148,7 +148,7 @@ export async function explainInheritance(focusNodeId, capabilityId, principalId)
             cap."extendedAttributes" ->> 'roleName' AS rolename,
             ra."effect"            AS effect,
             ra."propagationScope"  AS scope,
-            (ra.id IS NOT NULL)    AS "isSource"
+            (ra."resourceId" IS NOT NULL) AS "isSource"
        FROM up
        LEFT JOIN "Resources" cap
          ON cap."capabilityId" = $2 AND cap."targetNodeId" = up.id::text
