@@ -13,6 +13,7 @@ import departmentFromPrincipal from './department-from-principal.js';
 import orphanedAccounts       from './orphaned-accounts.js';
 import scopeHierarchy        from './scope-hierarchy.js';
 import resourceTypeTree      from './resource-type-tree.js';
+import principalTypeTree     from './principal-type-tree.js';
 
 /** @type {import('./types.js').ContextPlugin[]} */
 export const REGISTERED_PLUGINS = [
@@ -23,6 +24,7 @@ export const REGISTERED_PLUGINS = [
   orphanedAccounts,
   scopeHierarchy,
   resourceTypeTree,
+  principalTypeTree,
 ];
 
 export function getPlugin(name) {
