@@ -300,3 +300,113 @@ export async function effectiveAccessAtNode(nodeId, principalId, opts = {}) {
       : null;
   return { nodeId, principalId, capabilities, truncated };
 }
+
+// ── P2 down-expansion: descendants + container fanout ─────────────────────────
+/**
+ * Walk `Contains` edges DOWNWARD from a focus node — the mirror of getAncestorNodes. Collects
+ * descendant nodes and their distance (0 = the focus node). Descent stops the moment it would
+ * cross an edge with `propagates=false`. DAG-safe (a node is admitted once), depth- and node-capped.
+ * @returns {Promise<{depthByNode: Map<string, number>, truncated: boolean}>}
+ */
+export async function getDescendantNodes(nodeId, opts = {}) {
+  const maxDepth = opts.maxDepth ?? DEFAULTS.maxDepth;
+  const maxNodes = opts.maxNodesPerExpansion ?? DEFAULTS.maxNodesPerExpansion;
+  const depthByNode = new Map([[nodeId, 0]]);
+  let frontier = [nodeId];
+  let depth = 0;
+  let truncated = false;
+
+  while (frontier.length > 0 && !truncated) {
+    if (depth >= maxDepth) {
+      truncated = true;
+      break;
+    }
+    depth++;
+    const { rows } = await db.query(
+      `SELECT DISTINCT rr."childResourceId" AS child
+         FROM "ResourceRelationships" rr
+        WHERE rr."relationshipType" = 'Contains'
+          AND rr."parentResourceId" = ANY($1)
+          AND COALESCE((rr."extendedAttributes" ->> 'propagates')::boolean, true) = true`,
+      [frontier],
+    );
+    const next = [];
+    for (const { child } of rows) {
+      if (depthByNode.has(child)) continue; // already admitted via a shorter/equal path
+      if (depthByNode.size >= maxNodes) {
+        truncated = true;
+        break;
+      }
+      depthByNode.set(child, depth);
+      next.push(child);
+    }
+    frontier = next;
+  }
+  return { depthByNode, truncated };
+}
+
+/**
+ * Fan a capability-resource OUT over its containment subtree, for the matrix `>` expand. Given a
+ * focus capability-resource (`capabilityId` @ `targetNodeId`), returns one synthesized child
+ * capability-resource per descendant node plus the principals who inherit it (the focus row's own
+ * holders, badged `Indirect` — the capability rides constant down the tree). The synthesized child
+ * ids are deterministic (capabilityResourceId(node, cap)), so a child that IS separately declared
+ * collapses onto the same row. Returns the matrix `{ groups, memberships }` shape, or `null` when
+ * the id is not a capability-resource (the caller then falls back to group-membership expansion).
+ *
+ * This is the generic containment fanout — it serves Azure RM, DevOps, FileShares and SharePoint
+ * identically; nothing is source-specific.
+ * @returns {Promise<{groups: object[], memberships: object[], truncated: object|null}|null>}
+ */
+export async function expandCapabilityDown(focusResourceId, opts = {}) {
+  const { rows: focusRows } = await db.query(
+    `SELECT r."capabilityId" AS cap,
+            r."targetNodeId"  AS node,
+            r."resourceType"  AS rtype,
+            r."extendedAttributes" ->> 'roleName' AS rolename
+       FROM "Resources" r
+      WHERE r.id = $1`,
+    [focusResourceId],
+  );
+  const focus = focusRows[0];
+  if (!focus || !focus.cap || !focus.node) return null; // not a capability-resource
+
+  const { depthByNode, truncated } = await getDescendantNodes(focus.node, opts);
+  const descendants = [...depthByNode.keys()].filter((n) => n !== focus.node);
+  const truncInfo = truncated ? { nodes: depthByNode.size } : null;
+  if (descendants.length === 0) return { groups: [], memberships: [], truncated: truncInfo };
+
+  // The focus row's own holders (principals or groups directly granted this capability-resource).
+  // They inherit the capability to every descendant node, shown as Indirect. Group holders are
+  // expanded to their members by the existing group-membership fanout, orthogonally.
+  const { rows: holderRows } = await db.query(
+    `SELECT DISTINCT ra."principalId" AS holder
+       FROM "ResourceAssignments" ra
+      WHERE ra."resourceId" = $1 AND ra."principalId" IS NOT NULL`,
+    [focusResourceId],
+  );
+  const holders = holderRows.map((h) => h.holder);
+
+  const { rows: nameRows } = await db.query(
+    `SELECT id, "displayName" AS name FROM "Resources" WHERE id = ANY($1)`,
+    [descendants],
+  );
+  const nameById = new Map(nameRows.map((r) => [r.id, r.name]));
+  const roleLabel = focus.rolename || focus.cap;
+
+  const groups = [];
+  const memberships = [];
+  for (const node of descendants) {
+    const childId = capabilityResourceId(node, focus.cap);
+    groups.push({
+      groupId: childId,
+      resourceId: childId,
+      displayName: `${roleLabel} @ ${nameById.get(node) || node}`,
+      resourceType: focus.rtype,
+    });
+    for (const h of holders) {
+      memberships.push({ groupId: childId, resourceId: childId, memberId: h, membershipType: 'Indirect' });
+    }
+  }
+  return { groups, memberships, truncated: truncInfo };
+}
