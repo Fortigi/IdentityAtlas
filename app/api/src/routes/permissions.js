@@ -714,7 +714,7 @@ router.get('/groups-with-nested', async (req, res) => {
          AND EXISTS (
            SELECT 1 FROM "ResourceRelationships" rr
             WHERE rr."relationshipType" = 'Contains'
-              AND rr."parentResourceId" = r."targetNodeId"
+              AND rr."parentResourceId"::text = r."targetNodeId"
               AND COALESCE((rr."extendedAttributes"->>'propagates')::boolean, true) = true
          )
     `);
