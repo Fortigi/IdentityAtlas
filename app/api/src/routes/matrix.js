@@ -34,6 +34,7 @@ import {
   getResourceColumnValues,
 } from '../db/columnCache.js';
 import { resolveAttrExpr } from '../matrix/attrExpr.js';
+import { buildInheritedFlatRows } from '../matrix/inheritedAccess.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
@@ -798,6 +799,10 @@ router.post('/matrix/data', async (req, res) => {
   }
   const filter = parseFilter(req.body);
   if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
+  // Opt-in: fold access inherited from higher scopes (Owner@subscription ⇒
+  // Indirect on resources beneath) into the result, computed on demand by the
+  // effective-access engine. Bounded-scope only (see inheritedAccess.js).
+  const includeInherited = req.body?.includeInheritedAccess === true;
 
   // Manager-Hierarchy sort is served as a context roll-up: aggregate per org
   // node on the server rather than ship every per-subject row (which overflows
@@ -1342,6 +1347,23 @@ router.post('/matrix/data', async (req, res) => {
       WHERE ${where.join(' AND ')}
     `;
     const result = await dataReq.query(dataSql);
+
+    // ── Inherited (effective) access fold ──────────────────────────────────
+    // Additive: the declared query above is empty for scope-node scopes (key
+    // vaults, a region) because Azure access lives on capability-resources, not
+    // the nodes. The engine returns the effective capabilities AT those nodes.
+    if (includeInherited) {
+      try {
+        const effFlat = await buildInheritedFlatRows(p, built, rowType, subjectCols);
+        const seen = new Set(result.recordset.map((r) => `${r.resourceId}|${r.memberId}`));
+        for (const er of effFlat) {
+          const k = `${er.resourceId}|${er.memberId}`;
+          if (!seen.has(k)) { seen.add(k); result.recordset.push(er); } // declared wins
+        }
+      } catch (err) {
+        built.warnings.push('inherited-access fold failed: ' + err.message);
+      }
+    }
 
     // Backstop: a flat per-subject grid serializes every assignment row into one
     // JSON string. Past ~half a million rows that string can exceed V8's max
