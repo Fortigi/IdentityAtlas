@@ -144,21 +144,29 @@ Write-Out 'Contexts.csv' $allContexts.ToArray()
 #   Identity → JobTitle  (via JOBTITLE_REF_ID)
 #   Identity → Position  (via the derived OrgUnit|JobTitle key)
 # All employments are included regardless of ValidFrom/ValidTo.
+#
+# Guard: only emit a membership row when the referenced ContextExternalId is
+# actually present in Contexts.csv. Employment records can reference org units
+# or job titles that were archived or excluded from the Omada export; sending
+# those would cause a FK violation (ContextMembers_contextId_fkey) in the API.
 Write-Host "Context members:" -ForegroundColor Cyan
 if ($emp) {
+    $knownContextIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($c in $allContexts) { if ($c.ExternalId) { [void]$knownContextIds.Add($c.ExternalId) } }
+
     $members = [System.Collections.Generic.List[object]]::new()
     foreach ($e in $emp) {
         $identId = $e.IDENTITYREF_ID
         if (-not $identId) { continue }
 
-        if ($e.OUREF_ID) {
+        if ($e.OUREF_ID -and $knownContextIds.Contains($e.OUREF_ID)) {
             $members.Add([PSCustomObject]@{
                 ContextExternalId = $e.OUREF_ID
                 MemberExternalId  = $identId
                 MemberType        = 'Identity'
             })
         }
-        if ($e.JOBTITLE_REF_ID) {
+        if ($e.JOBTITLE_REF_ID -and $knownContextIds.Contains($e.JOBTITLE_REF_ID)) {
             $members.Add([PSCustomObject]@{
                 ContextExternalId = $e.JOBTITLE_REF_ID
                 MemberExternalId  = $identId
@@ -166,11 +174,14 @@ if ($emp) {
             })
         }
         if ($e.OUREF_ID -and $e.JOBTITLE_REF_ID) {
-            $members.Add([PSCustomObject]@{
-                ContextExternalId = "$($e.OUREF_ID)|$($e.JOBTITLE_REF_ID)"
-                MemberExternalId  = $identId
-                MemberType        = 'Identity'
-            })
+            $posId = "$($e.OUREF_ID)|$($e.JOBTITLE_REF_ID)"
+            if ($knownContextIds.Contains($posId)) {
+                $members.Add([PSCustomObject]@{
+                    ContextExternalId = $posId
+                    MemberExternalId  = $identId
+                    MemberType        = 'Identity'
+                })
+            }
         }
     }
     Write-Out 'ContextMembers.csv' $members.ToArray()
