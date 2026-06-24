@@ -211,7 +211,7 @@ export default function SyncLogPage({ navigate, onOpenDetail }) {
                     <td className="px-3 py-2"><Badge value={e.status} map={statusColors} /></td>
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-400 tabular-nums whitespace-nowrap">
                       {formatDateTime(e.time)}
-                      <span className="block text-xs text-gray-400">{e.time ? formatTimeAgo(e.time) : ''}</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">{e.time ? formatTimeAgo(e.time) : ''}</span>
                     </td>
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs">{e.triggeredBy}</td>
                     <td className="px-3 py-2">

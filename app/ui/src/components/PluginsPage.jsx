@@ -213,7 +213,7 @@ export default function PluginsPage() {
           <span className="text-gray-500 dark:text-gray-400">Contexts: <span className="text-gray-800 dark:text-gray-200 font-medium tabular-nums">{selected.contextCount}</span></span>
           <span className="text-gray-500 dark:text-gray-400">Last run: {selected.lastStatus
             ? <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusColors[selected.lastStatus] || 'bg-gray-100 dark:bg-gray-700'}`}>{selected.lastStatus}</span>
-            : '—'} {selected.lastRunAt && <span className="text-gray-400">{formatTimeAgo(selected.lastRunAt)}{selected.lastRunBy ? ` · ${selected.lastRunBy}` : ''}</span>}
+            : '—'} {selected.lastRunAt && <span className="text-gray-500 dark:text-gray-400">{formatTimeAgo(selected.lastRunAt)}{selected.lastRunBy ? ` · ${selected.lastRunBy}` : ''}</span>}
           </span>
         </div>
 
@@ -311,8 +311,8 @@ export default function PluginsPage() {
                     <td className="px-3 py-2 whitespace-nowrap">
                       {t.lastStatus
                         ? <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusColors[t.lastStatus] || 'bg-gray-100 dark:bg-gray-700'}`}>{t.lastStatus}</span>
-                        : <span className="text-gray-400">—</span>}
-                      <span className="block text-xs text-gray-400 mt-0.5">
+                        : <span className="text-gray-500 dark:text-gray-400">—</span>}
+                      <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                         {t.lastRunAt ? formatTimeAgo(t.lastRunAt) : ''}{t.lastRunBy ? ` · ${t.lastRunBy}` : ''}
                       </span>
                     </td>

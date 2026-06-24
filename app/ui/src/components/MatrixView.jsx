@@ -1137,7 +1137,7 @@ export default function MatrixView({
               </h3>
               <button
                 onClick={() => setPathExplain(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none"
                 aria-label="Close"
               >×</button>
             </div>
@@ -1159,7 +1159,7 @@ export default function MatrixView({
               <ol className="space-y-1">
                 {pathExplain.chain.map((c, i) => (
                   <li key={c.id} className="flex items-center gap-2 text-sm" style={{ paddingLeft: `${i * 18}px` }}>
-                    <span className="text-gray-400 dark:text-gray-500">{i === 0 ? '•' : '└'}</span>
+                    <span className="text-gray-500 dark:text-gray-500">{i === 0 ? '•' : '└'}</span>
                     <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{c.label}</span>
                     <span className={c.isSource ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}>{c.name}</span>
                     {c.isSource && <span className="text-[10px] text-amber-600 dark:text-amber-400">← granted here</span>}
