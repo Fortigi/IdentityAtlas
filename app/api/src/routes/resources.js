@@ -412,11 +412,22 @@ router.get('/resources/:id/members', async (req, res) => {
       .query(`
         SELECT p."resourceId", p."principalId" AS "memberId",
                u."displayName" AS "memberDisplayName", u."email" AS "memberUPN",
-               p."membershipType", p."managedByAccessPackage"
+               p."membershipType", p."managedByAccessPackage", false AS "deleted"
           FROM ${table} p
           LEFT JOIN "Principals" u ON p."principalId" = u.id
          WHERE p."resourceId"::text = @id
-         ORDER BY u."displayName", p."membershipType"
+        UNION ALL
+        -- Historical holders: the assignment or the holder is soft-deleted, so the
+        -- matview hid it. Surface them flagged so the resource keeps its history.
+        SELECT ra."resourceId", ra."principalId" AS "memberId",
+               u."displayName" AS "memberDisplayName", u."email" AS "memberUPN",
+               ra."assignmentType" AS "membershipType", false AS "managedByAccessPackage", true AS "deleted"
+          FROM "ResourceAssignments" ra
+          JOIN "Principals" u ON u.id = ra."principalId"
+         WHERE ra."resourceId"::text = @id
+           AND ra."principalId" IS NOT NULL
+           AND (ra."deletedAt" IS NOT NULL OR u."deletedAt" IS NOT NULL)
+         ORDER BY "memberDisplayName", "membershipType"
       `);
     res.json(r.recordset);
   } catch (err) {
