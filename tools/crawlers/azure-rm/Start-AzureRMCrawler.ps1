@@ -221,7 +221,7 @@ Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Cont
 # ─── Phase: Role definitions ─────────────────────────────────────
 Update-CrawlerProgress -Step 'Fetching role definitions' -Pct 35
 # Role definitions are visible at any subscription scope; fetch once per subscription and merge.
-$roleDefs = @{}   # roleDefId (GUID) → @{ name; isCustom }
+$roleDefs = @{}   # roleDefId (GUID) → @{ name; isCustom; plane }
 foreach ($sub in $subs) {
     $defs = Invoke-ARMList -Path "/subscriptions/$($sub.subscriptionId)/providers/Microsoft.Authorization/roleDefinitions?api-version=$API_AUTH"
     foreach ($d in $defs) {
@@ -229,7 +229,15 @@ foreach ($sub in $subs) {
         if (-not $roleDefs.ContainsKey($guid)) {
             $isCustom = ($d.properties.type -eq 'CustomRole')
             if ($isCustom -and -not $IncludeCustomRoles) { continue }
-            $roleDefs[$guid] = @{ name = $d.properties.roleName; isCustom = $isCustom }
+            # Plane classification: control-plane `actions` (manage the resource) vs
+            # data-plane `dataActions` (read/write the data inside it). Owner/Contributor
+            # are control; "Storage Blob Data Reader", "Key Vault Secrets User" etc. are
+            # data. A role can grant both. Lets you ask "who has any data-plane access?".
+            $ctlActions  = @($d.properties.permissions | ForEach-Object { $_.actions }     | Where-Object { $_ })
+            $dataActions = @($d.properties.permissions | ForEach-Object { $_.dataActions } | Where-Object { $_ })
+            $plane = if ($dataActions.Count -gt 0 -and $ctlActions.Count -gt 0) { 'both' }
+                     elseif ($dataActions.Count -gt 0) { 'data' } else { 'control' }
+            $roleDefs[$guid] = @{ name = $d.properties.roleName; isCustom = $isCustom; plane = $plane }
         }
     }
 }
@@ -349,7 +357,7 @@ foreach ($sub in $subs) {
             $dn = if ($scopeLabel) { "$roleName @ ${scopeLabel}: $scopeName" } else { "$roleName @ $scopeName" }
             $RoleResources.Add(@{
                 id = $capResId; displayName = $dn; resourceType = 'AzureRoleAssignment'; enabled = $true
-                extendedAttributes = @{ capabilityId = $roleDefId; targetNodeId = $scopeNodeId; roleName = $roleName; isCustom = $roleDefs[$roleDefId].isCustom }
+                extendedAttributes = @{ capabilityId = $roleDefId; targetNodeId = $scopeNodeId; roleName = $roleName; isCustom = $roleDefs[$roleDefId].isCustom; plane = $roleDefs[$roleDefId].plane }
             })
         }
 
