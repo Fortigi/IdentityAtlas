@@ -4,8 +4,7 @@ import crypto from 'crypto';
 import * as db from '../db/connection.js';
 import { injectJobSecret, deleteJobSecret } from '../secrets/crawlerSecrets.js';
 import { getPushModeType } from '../crawlerManifests.js';
-import { refreshGeneratedContexts } from '../contexts/plugins/runner.js';
-import { startAccountLinkingRun } from '../accountlinking/engine.js';
+import { runPostCrawlJobs } from '../postCrawlJobs.js';
 
 const adminCrawlersRouter = Router();
 const gate = requirePermission('admin.crawlers');
@@ -586,14 +585,10 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', async (req, res) =
       [id, result ? JSON.stringify(result) : null]
     );
     deleteJobSecret(id).catch(() => {}); // best-effort cleanup of any inline-job secret
-    // Generated contexts are derived from the crawled data — refresh them now that
-    // a crawl finished (and views were refreshed), so they never go stale. Fire-and-
-    // forget; opt a tree out via its run parameters' autoRefresh:false.
-    refreshGeneratedContexts('crawl-complete').catch((e) => console.error('[context-refresh]', e.message));
-    // Account linking is also derived from crawled accounts — re-link after a crawl
-    // (only when configured, so it doesn't surprise installs that don't use it).
-    startAccountLinkingRun('crawl-complete', { onlyIfConfigured: true })
-      .catch((e) => console.error('[account-linking auto-run]', e.message));
+    // Run the post-crawl derived-data jobs (account linking → context plugins → risk
+    // scoring) in order, each to completion before the next — see postCrawlJobs.js.
+    // Fire-and-forget so /complete returns immediately; the pipeline is ordered.
+    runPostCrawlJobs('crawl-complete').catch((e) => console.error('[post-crawl]', e.message));
     res.json({ ok: true });
   } catch (err) {
     console.error('Job complete failed:', err.message);

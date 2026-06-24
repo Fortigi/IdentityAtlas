@@ -12,6 +12,7 @@ import * as db from '../db/connection.js';
 import { REGISTERED_PLUGINS, getPlugin } from '../contexts/plugins/registry.js';
 import { enqueueRun, dryRun, getRun, listRuns } from '../contexts/plugins/runner.js';
 import { getPrincipalColumns } from '../db/columnCache.js';
+import { getJobsWithStatus, setJobConfig } from '../postCrawlJobs.js';
 
 const router = Router();
 const gate = requirePermission('admin.context-plugins');
@@ -199,6 +200,33 @@ router.post('/context-plugins/trees/auto-refresh', gate, async (req, res) => {
   } catch (err) {
     console.error('POST /context-plugins/trees/auto-refresh failed:', err.message);
     res.status(500).json({ error: 'Failed to update auto-refresh' });
+  }
+});
+
+// GET /api/post-crawl-jobs — the post-crawl pipeline (account linking → context
+// plugins → risk scoring): order, enabled state, and last run. Powers Admin → Automation.
+router.get('/post-crawl-jobs', gate, async (req, res) => {
+  if (!useSql) return res.json({ data: [] });
+  try {
+    res.json({ data: await getJobsWithStatus() });
+  } catch (err) {
+    console.error('GET /post-crawl-jobs failed:', err.message);
+    res.status(500).json({ error: 'Failed to load jobs' });
+  }
+});
+
+// POST /api/post-crawl-jobs/:id — set whether a job runs after a crawl and/or its order.
+router.post('/post-crawl-jobs/:id', gate, async (req, res) => {
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const { enabled, order } = req.body || {};
+  try {
+    await setJobConfig(req.params.id, {
+      enabled: typeof enabled === 'boolean' ? enabled : undefined,
+      order: Number.isInteger(order) ? order : undefined,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(String(err.message).startsWith('Unknown job') ? 404 : 500).json({ error: err.message });
   }
 });
 

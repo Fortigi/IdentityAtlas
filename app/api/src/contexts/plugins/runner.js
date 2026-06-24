@@ -21,7 +21,7 @@ import * as db from '../../db/connection.js';
 import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
 
-export async function enqueueRun(pluginName, params, triggeredBy) {
+export async function enqueueRun(pluginName, params, triggeredBy, opts = {}) {
   const plugin = getPlugin(pluginName);
   if (!plugin) throw new Error(`Unknown plugin: ${pluginName}`);
 
@@ -48,12 +48,18 @@ export async function enqueueRun(pluginName, params, triggeredBy) {
     VALUES ($1, $2, $3, $4, 'queued', $5)
   `, [runId, algoRow.id, params, scopeSystemId, triggeredBy || null]);
 
-  // Fire-and-forget async execution. The run row is the only persisted state.
-  setImmediate(() => {
-    executeRun(runId, plugin, algoRow.id, params, instanceKey).catch(err => {
-      console.error(`[context-plugin] ${pluginName} run ${runId} crashed:`, err);
+  // Fire-and-forget async execution by default. The run row is the only persisted
+  // state. The post-crawl pipeline passes awaitCompletion to run jobs in order.
+  if (opts.awaitCompletion) {
+    try { await executeRun(runId, plugin, algoRow.id, params, instanceKey); }
+    catch (err) { console.error(`[context-plugin] ${pluginName} run ${runId} crashed:`, err); }
+  } else {
+    setImmediate(() => {
+      executeRun(runId, plugin, algoRow.id, params, instanceKey).catch(err => {
+        console.error(`[context-plugin] ${pluginName} run ${runId} crashed:`, err);
+      });
     });
-  });
+  }
 
   return runId;
 }
@@ -65,7 +71,7 @@ export async function enqueueRun(pluginName, params, triggeredBy) {
 // is re-run with its original parameters + instanceKey, so reconcile updates it
 // in place (no duplicates, analyst edits preserved). Opt a tree out by setting
 // its run parameters' `autoRefresh` to false.
-export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh') {
+export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh', { awaitCompletion = false } = {}) {
   const trees = (await db.query(`
     SELECT a.name AS algo,
            c."sourceInstanceKey" AS ikey,
@@ -82,7 +88,7 @@ export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh') {
     if (!t.params) continue;                       // no recoverable parameters
     if (t.params.autoRefresh === false) continue;  // opted out
     try {
-      await enqueueRun(t.algo, { ...t.params, instanceKey: t.ikey || undefined }, triggeredBy);
+      await enqueueRun(t.algo, { ...t.params, instanceKey: t.ikey || undefined }, triggeredBy, { awaitCompletion });
       started++;
     } catch (err) {
       console.error(`[context-refresh] ${t.algo} (${t.ikey || 'no-key'}) failed:`, err.message);

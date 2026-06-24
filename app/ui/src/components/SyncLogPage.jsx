@@ -16,6 +16,7 @@ const KINDS = {
   crawler: { label: 'Crawler sync',    color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300' },
   plugin:  { label: 'Plugin run',      color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
   linking: { label: 'Account linking', color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
+  scoring: { label: 'Risk scoring',    color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
 };
 
 const statusColors = {
@@ -44,6 +45,7 @@ export default function SyncLogPage({ navigate, onOpenDetail }) {
   const [logs, setLogs] = useState([]);
   const [runs, setRuns] = useState([]);
   const [linkRuns, setLinkRuns] = useState([]);
+  const [riskRuns, setRiskRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [kind, setKind] = useState('all');
@@ -53,18 +55,19 @@ export default function SyncLogPage({ navigate, onOpenDetail }) {
     let cancelled = false;
     (async () => {
       try {
-        const [logRes, runRes, linkRes] = await Promise.all([
+        const [logRes, runRes, linkRes, riskRes] = await Promise.all([
           authFetch('/api/sync-log?limit=200'),
           authFetch('/api/context-plugins/runs?limit=200').catch(() => null),
           authFetch('/api/account-linking/runs').catch(() => null),
+          authFetch('/api/risk-scoring/runs').catch(() => null),
         ]);
         if (!logRes.ok) throw new Error(`HTTP ${logRes.status}`);
         const logData = await logRes.json();
-        let runData = [];
-        if (runRes && runRes.ok) { const r = await runRes.json(); runData = Array.isArray(r) ? r : (r.data || r.runs || []); }
-        let linkData = [];
-        if (linkRes && linkRes.ok) { const l = await linkRes.json(); linkData = Array.isArray(l) ? l : (l.data || l.runs || []); }
-        if (!cancelled) { setLogs(logData); setRuns(runData); setLinkRuns(linkData); }
+        const arr = (x) => (Array.isArray(x) ? x : (x?.data || x?.runs || []));
+        const runData = runRes && runRes.ok ? arr(await runRes.json()) : [];
+        const linkData = linkRes && linkRes.ok ? arr(await linkRes.json()) : [];
+        const riskData = riskRes && riskRes.ok ? arr(await riskRes.json()) : [];
+        if (!cancelled) { setLogs(logData); setRuns(runData); setLinkRuns(linkData); setRiskRuns(riskData); }
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -105,12 +108,21 @@ export default function SyncLogPage({ navigate, onOpenDetail }) {
         link: { label: 'Account Linking', go: () => navigate?.('admin?sub=account-linking') },
       });
     }
+    for (const r of riskRuns) {
+      out.push({
+        id: `s:${r.id}`, kind: 'scoring',
+        title: 'Risk scoring',
+        subtitle: r.errorMessage || (r.scoredEntities != null ? `${r.scoredEntities}/${r.totalEntities ?? '?'} scored` : (r.step || '')),
+        status: r.status, time: r.startedAt, triggeredBy: r.triggeredBy || '—',
+        link: { label: 'Risk Scoring', go: () => navigate?.('admin?sub=risk-scoring') },
+      });
+    }
     out.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
     return out;
-  }, [logs, runs, linkRuns, navigate, onOpenDetail]);
+  }, [logs, runs, linkRuns, riskRuns, navigate, onOpenDetail]);
 
   const counts = useMemo(() => {
-    const c = { all: entries.length, crawler: 0, plugin: 0, linking: 0 };
+    const c = { all: entries.length, crawler: 0, plugin: 0, linking: 0, scoring: 0 };
     for (const e of entries) c[e.kind]++;
     return c;
   }, [entries]);
@@ -128,6 +140,7 @@ export default function SyncLogPage({ navigate, onOpenDetail }) {
     { key: 'crawler', label: 'Crawler syncs' },
     { key: 'plugin', label: 'Plugin runs' },
     { key: 'linking', label: 'Account linking' },
+    { key: 'scoring', label: 'Risk scoring' },
   ];
   const th = 'text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 sticky top-0 bg-gray-50 dark:bg-gray-700 z-10';
 

@@ -189,7 +189,7 @@ async function countOrphans() {
 // POST /account-linking/runs). Shared by the route and the post-crawl auto-run.
 // `onlyIfConfigured` skips when no active config exists, so the crawl hook does
 // not run linking on installs that don't use it.
-export async function startAccountLinkingRun(triggeredBy = 'system', { onlyIfConfigured = false } = {}) {
+export async function startAccountLinkingRun(triggeredBy = 'system', { onlyIfConfigured = false, awaitCompletion = false } = {}) {
   const cfg = await db.queryOne(
     `SELECT id FROM "AccountLinkingConfig" WHERE "isActive" = true ORDER BY "updatedAt" DESC LIMIT 1`);
   if (onlyIfConfigured && !cfg) return null;
@@ -198,8 +198,12 @@ export async function startAccountLinkingRun(triggeredBy = 'system', { onlyIfCon
     `INSERT INTO "AccountLinkingRuns" ("configId", status, step, pct, "triggeredBy")
      VALUES ($1, 'pending', 'Queued', 0, $2) RETURNING *`,
     [configId, triggeredBy]);
-  runLinking(run.id, configId).catch((err) =>
-    console.error(`Background account-linking run ${run.id} crashed:`, err));
+  if (awaitCompletion) {
+    try { await runLinking(run.id, configId); } catch (err) { console.error(`account-linking run ${run.id} failed:`, err.message); }
+  } else {
+    runLinking(run.id, configId).catch((err) =>
+      console.error(`Background account-linking run ${run.id} crashed:`, err));
+  }
   return run;
 }
 
