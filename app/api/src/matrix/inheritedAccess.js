@@ -14,8 +14,33 @@
 // matrix, so "include inherited" can't accidentally fan inheritance over
 // everything.
 
+import { createHash } from 'crypto';
 import * as db from '../db/connection.js';
 import { effectiveAccessForNodes } from '../effectiveAccess/engine.js';
+import { getSyncVersion } from '../lib/syncVersion.js';
+import { resolveAttrExpr } from './attrExpr.js';
+
+// ── Effective-access cache (Phase 3: cache-by-sync) ─────────────────────────
+// Effective access can only change on a crawl, so we cache the engine's full
+// rows for a scope keyed by (sync-version, scope-hash). A crawl bumps the
+// sync-version → old keys become unreachable and age out. The subject filter is
+// applied per-request *after* the cache, so different subject scopes over the
+// same resource scope share one entry. Bounded FIFO so memory can't grow.
+const EFF_CACHE = new Map();
+const EFF_CACHE_MAX = 256;
+
+async function cachedEffectiveAccess(nodeIds) {
+  const hash = createHash('sha1').update([...nodeIds].sort().join(',')).digest('hex');
+  let version = 0;
+  try { version = await getSyncVersion(); } catch { /* fall back to a single bucket */ }
+  const key = `${version}|${hash}`;
+  const hit = EFF_CACHE.get(key);
+  if (hit) return hit;
+  const { rows } = await effectiveAccessForNodes(nodeIds);
+  if (EFF_CACHE.size >= EFF_CACHE_MAX) EFF_CACHE.delete(EFF_CACHE.keys().next().value);
+  EFF_CACHE.set(key, rows);
+  return rows;
+}
 
 // The scope-node ids inside the current resource scope. `built.resourceSql` is a
 // parenthesised "(SELECT id FROM "Resources" WHERE …)" carrying @-bindings.
@@ -50,7 +75,7 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
   const nodeIds = await scopedNodeIds(p, built);
   if (!nodeIds.length) return [];
 
-  const { rows: eff } = await effectiveAccessForNodes(nodeIds);
+  const eff = await cachedEffectiveAccess(nodeIds);
   if (!eff.length) return [];
 
   const subjScope = await scopedPrincipalIds(p, built, rowType);
@@ -122,6 +147,71 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
     }
   }
   return out;
+}
+
+// Folded effective counts (Phase 2): the attribute-rollup count cells, but for
+// inherited access. Reuses the cached engine rows for the scope and aggregates
+// distinct holders per (synthesized capability-resource, group-value), shaped to
+// merge into the attribute-rollup response. Bounded-scope + principal rowType.
+export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, principalCols) {
+  if (!built.resourceSql) return null;
+  const nodeIds = await scopedNodeIds(p, built);
+  if (!nodeIds.length) return null;
+  const eff = await cachedEffectiveAccess(nodeIds);
+  if (!eff.length) return null;
+  const subjScope = await scopedPrincipalIds(p, built, rowType);
+  const rows = subjScope ? eff.filter((e) => subjScope.has(e.principalId)) : eff;
+  if (!rows.length) return null;
+
+  const pids = [...new Set(rows.map((r) => r.principalId))];
+
+  // group-value per holder = the roll-up attribute on the principal (COALESCE
+  // empty → '(none)', matching buildRollupSql). Plus principalType to drop groups.
+  let gvBy = new Map();
+  const { attrExpr, error } = rollupAttr ? resolveAttrExpr(rollupAttr, 'pr', principalCols) : { error: true };
+  const gvSel = error ? `'(none)'` : `COALESCE(NULLIF((${attrExpr})::text, ''), '(none)')`;
+  const { rows: pr } = await db.query(
+    `SELECT id, "principalType" AS pt, ${gvSel} AS gv FROM "Principals" pr WHERE id = ANY($1)`, [pids]);
+  gvBy = new Map(pr.map((r) => [r.id, r]));
+
+  const { rows: nodeMeta } = await db.query(
+    `SELECT r.id, r."systemId", s."displayName" AS "systemName"
+       FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId" WHERE r.id = ANY($1)`, [nodeIds]);
+  const nodeById = new Map(nodeMeta.map((n) => [n.id, n]));
+
+  const resources = new Map();           // resourceId -> meta
+  const cells = new Map();               // resourceId -> Map(gv -> Set principal)
+  const groupSets = new Map();           // gv -> Set principal
+  for (const e of rows) {
+    const meta = gvBy.get(e.principalId);
+    if (!meta || meta.pt === '#microsoft.graph.group') continue;
+    const gv = meta.gv || '(none)';
+    if (!resources.has(e.resourceId)) {
+      const node = nodeById.get(e.nodeId) || {};
+      resources.set(e.resourceId, {
+        resourceId: e.resourceId, resourceDisplayName: e.displayName,
+        resourceType: e.resourceType, resourceDescription: null,
+        systemId: node.systemId ?? null, systemName: node.systemName ?? null,
+      });
+    }
+    let m = cells.get(e.resourceId); if (!m) { m = new Map(); cells.set(e.resourceId, m); }
+    let s = m.get(gv); if (!s) { s = new Set(); m.set(gv, s); }
+    s.add(e.principalId);
+    let gs = groupSets.get(gv); if (!gs) { gs = new Set(); groupSets.set(gv, gs); }
+    gs.add(e.principalId);
+  }
+  if (!resources.size) return null;
+
+  const counts = [];
+  for (const [resourceId, m] of cells) {
+    for (const [gv, set] of m) counts.push({ resourceId, groupValue: gv, directCount: set.size, governedCount: 0 });
+  }
+  return {
+    resources: [...resources.values()],
+    counts,
+    groupValues: [...groupSets.keys()],
+    groupTotals: [...groupSets.entries()].map(([gv, set]) => ({ groupValue: gv, total: set.size })),
+  };
 }
 
 // Explain a single inherited cell: "how did this principal get this capability

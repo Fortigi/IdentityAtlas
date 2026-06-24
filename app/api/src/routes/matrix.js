@@ -34,7 +34,7 @@ import {
   getResourceColumnValues,
 } from '../db/columnCache.js';
 import { resolveAttrExpr } from '../matrix/attrExpr.js';
-import { buildInheritedFlatRows, explainInheritance } from '../matrix/inheritedAccess.js';
+import { buildInheritedFlatRows, explainInheritance, buildInheritedRollupCounts } from '../matrix/inheritedAccess.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
@@ -1283,6 +1283,23 @@ router.post('/matrix/data', async (req, res) => {
         groupSet.add(row.groupValue);
       }
 
+      // Fold inherited (effective) access into the count cells (Phase 2). The
+      // declared rollup above is empty for scope-node scopes; the engine yields
+      // the effective counts per (synthesized capability, group-value).
+      let inhCounts = [];
+      let inhGroupTotals = [];
+      if (includeInherited) {
+        try {
+          const inh = await buildInheritedRollupCounts(p, built, rowType, filter.rollup, built.principalCols);
+          if (inh) {
+            for (const r of inh.resources) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+            for (const gv of inh.groupValues) groupSet.add(gv);
+            inhCounts = inh.counts;
+            inhGroupTotals = inh.groupTotals;
+          }
+        } catch (err) { built.warnings.push('inherited rollup fold failed: ' + err.message); }
+      }
+
       // Business-role (SOLL) counts: how many in-scope subjects hold each
       // resource via each business role. Mirrors the SOLL columns of the
       // per-subject matrix, but aggregated to a count.
@@ -1308,17 +1325,28 @@ router.post('/matrix/data', async (req, res) => {
         } catch { /* business-role view may be absent */ }
       }
 
+      const mergedGroupTotals = inhGroupTotals.length
+        ? (() => {
+            const m = new Map(groupTotals.map(t => [t.groupValue, t.total]));
+            for (const t of inhGroupTotals) m.set(t.groupValue, (m.get(t.groupValue) || 0) + t.total);
+            return [...m.entries()].map(([groupValue, total]) => ({ groupValue, total }));
+          })()
+        : groupTotals;
+
       return res.json({
         rollup: filter.rollup,
         rollupContent: filter.rollupContent,
         rowType,
         resources: [...resMap.values()],
         groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
-        groupTotals,
-        counts: rollupResult.recordset.map(r => ({
-          resourceId: r.resourceId, groupValue: r.groupValue,
-          directCount: r.directCount, governedCount: r.governedCount,
-        })),
+        groupTotals: mergedGroupTotals,
+        counts: [
+          ...rollupResult.recordset.map(r => ({
+            resourceId: r.resourceId, groupValue: r.groupValue,
+            directCount: r.directCount, governedCount: r.governedCount,
+          })),
+          ...inhCounts,
+        ],
         businessRoles,
         roleCounts,
         ...counts,
