@@ -58,6 +58,40 @@ export async function enqueueRun(pluginName, params, triggeredBy) {
   return runId;
 }
 
+// Re-run every generated context tree against current data. Called after a crawl
+// so plugin-derived contexts (Managed Identities, Resource Types, scope trees…)
+// never go stale — they're derived data, so a crawl is exactly when they should
+// refresh (this removes any need for separate per-plugin scheduling). Each tree
+// is re-run with its original parameters + instanceKey, so reconcile updates it
+// in place (no duplicates, analyst edits preserved). Opt a tree out by setting
+// its run parameters' `autoRefresh` to false.
+export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh') {
+  const trees = (await db.query(`
+    SELECT a.name AS algo,
+           c."sourceInstanceKey" AS ikey,
+           (array_agg(r.parameters ORDER BY r."createdAt" DESC))[1] AS params
+      FROM "Contexts" c
+      JOIN "ContextAlgorithms" a ON a.id = c."sourceAlgorithmId"
+      LEFT JOIN "ContextAlgorithmRuns" r ON r.id = c."sourceRunId"
+     WHERE c.variant = 'generated' AND c."sourceAlgorithmId" IS NOT NULL
+     GROUP BY a.name, c."sourceAlgorithmId", c."scopeSystemId", c."sourceInstanceKey"
+  `)).rows;
+
+  let started = 0;
+  for (const t of trees) {
+    if (!t.params) continue;                       // no recoverable parameters
+    if (t.params.autoRefresh === false) continue;  // opted out
+    try {
+      await enqueueRun(t.algo, { ...t.params, instanceKey: t.ikey || undefined }, triggeredBy);
+      started++;
+    } catch (err) {
+      console.error(`[context-refresh] ${t.algo} (${t.ikey || 'no-key'}) failed:`, err.message);
+    }
+  }
+  if (started) console.log(`[context-refresh] refreshing ${started} generated context tree(s) after ${triggeredBy}`);
+  return started;
+}
+
 export async function dryRun(pluginName, params) {
   const plugin = getPlugin(pluginName);
   if (!plugin) throw new Error(`Unknown plugin: ${pluginName}`);

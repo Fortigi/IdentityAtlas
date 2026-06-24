@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import * as db from '../db/connection.js';
 import { injectJobSecret, deleteJobSecret } from '../secrets/crawlerSecrets.js';
 import { getPushModeType } from '../crawlerManifests.js';
+import { refreshGeneratedContexts } from '../contexts/plugins/runner.js';
 
 const adminCrawlersRouter = Router();
 const gate = requirePermission('admin.crawlers');
@@ -584,6 +585,10 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', async (req, res) =
       [id, result ? JSON.stringify(result) : null]
     );
     deleteJobSecret(id).catch(() => {}); // best-effort cleanup of any inline-job secret
+    // Generated contexts are derived from the crawled data — refresh them now that
+    // a crawl finished (and views were refreshed), so they never go stale. Fire-and-
+    // forget; opt a tree out via its run parameters' autoRefresh:false.
+    refreshGeneratedContexts('crawl-complete').catch((e) => console.error('[context-refresh]', e.message));
     res.json({ ok: true });
   } catch (err) {
     console.error('Job complete failed:', err.message);
