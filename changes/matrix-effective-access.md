@@ -3,3 +3,4 @@
 - Inherited access is computed on demand and **cached per sync**, so repeat and large views are fast and it never needs materialising.
 - **Resource Type Tree** plugin can now add, under each type, **Data plane access / Control plane access** groups and a leaf per role — so you can ask "who has any data-plane access to a storage account?" or "who has Owner on any storage account?" (needs the crawler's per-role plane classification).
 - **Generated contexts now refresh automatically after every crawl**, so plugin-derived contexts (Managed Identities, Resource Types, scope trees…) never go stale — no separate plugin scheduling needed. Opt a tree out via its run's `autoRefresh: false`.
+- The **Sync Log** tab is now **Logs** and shows **context plugin runs** alongside crawler syncs — which plugin ran, against which tree, its status, when, and what triggered it (manual vs the post-crawl auto-refresh).

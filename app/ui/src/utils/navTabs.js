@@ -17,7 +17,7 @@ export const ALL_NAV_TABS = [
   { key: 'resources',        label: 'Resources' },
   { key: 'systems',          label: 'Systems',      optional: true },
   { key: 'access-packages',  label: 'Business Roles' },
-  { key: 'sync-log',         label: 'Sync Log',     optional: true },
+  { key: 'sync-log',         label: 'Logs',         optional: true },
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring',    optional: true },
   { key: 'identities',       label: 'Identities',   feature: 'accountLinking', optional: true },
   { key: 'contexts',         label: 'Contexts' },
