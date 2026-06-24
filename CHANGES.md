@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added automation that, whenever a merged PR changes a dependency manifest, lockfile, Dockerfile, or the compose file, regenerates the machine-readable SPDX SBOM (`sbom-edge.spdx.json`) and refreshes the version data on the Software Bill of Materials documentation page (npm package versions plus the PostgreSQL, PowerShell, and Node base-image versions), keeping both in sync with what actually ships.
+
+## Changes in this PR
+
 - Fixed the matrix scope-expand control (`>`) failing to appear on real PostgreSQL: a uuid/text type mismatch in the query that decides which rows are expandable caused it to error and silently render no expand affordance at all — which also suppressed nested-group expansion. Added a Postgres-backed CI check so this class of bug (SQL type errors hidden by database-mocked unit tests) is caught going forward.
 
 ## Changes in this PR
