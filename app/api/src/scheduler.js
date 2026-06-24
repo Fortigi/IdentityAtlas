@@ -285,5 +285,5 @@ export function startScheduler() {
       tick().catch(err => console.error('Scheduler tick failed:', err.message));
     }, TICK_INTERVAL_MS);
   }, FIRST_RUN_DELAY_MS);
-  console.log('Scheduler started (crawlers + risk scoring, ticks every 60s)');
+  console.log('Scheduler started (crawlers, ticks every 60s)');
 }
