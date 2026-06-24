@@ -28,6 +28,7 @@ export default function MatrixGroupRow({
   apGroupMap,
   managedFilter,
   onOpenDetail,
+  onExplainInherited,
   // Nested group expansion props
   groupsWithNested,
   expandedGroups,
@@ -188,6 +189,7 @@ export default function MatrixGroupRow({
             apNames={apNames}
             provisioningGap={provisioningGap}
             gapExpected={gapExpected}
+            onExplainInherited={onExplainInherited}
           />
         );
       })}

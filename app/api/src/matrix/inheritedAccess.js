@@ -104,7 +104,7 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
       managedByAccessPackage: false,
       // Carried so the UI can explain an inherited (Indirect) cell on demand
       // (POST /matrix/inheritance-path) — the path that produced the badge.
-      inheritedNodeId: e.nodeId, inheritedCapabilityId: e.capabilityId,
+      inheritedNodeId: e.nodeId, inheritedCapabilityId: e.capabilityId, inheritedPrincipalId: e.principalId,
     };
     for (const n of dynCols) row[n] = u[n] ?? null;
     out.push(row);
