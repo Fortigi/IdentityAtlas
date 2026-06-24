@@ -46,19 +46,6 @@ export default function PluginsPage() {
 
   const key = (t) => `${t.algorithmId}:${t.instanceKey}`;
 
-  const toggleAutoRefresh = async (t) => {
-    setBusy(key(t));
-    try {
-      const res = await authFetch('/api/context-plugins/trees/auto-refresh', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ algorithmId: t.algorithmId, instanceKey: t.instanceKey, enabled: !t.autoRefresh }),
-      });
-      if (res.ok) setTrees((prev) => prev.map((x) => key(x) === key(t) ? { ...x, autoRefresh: !x.autoRefresh } : x));
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const runNow = async (t) => {
     setBusy(key(t));
     try {
@@ -79,7 +66,7 @@ export default function PluginsPage() {
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">Context plugins</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 max-w-2xl">
             Each generated context tree, its configuration, and its last run. Trees refresh automatically after
-            every crawl unless you turn that off here. Create new ones in Contexts → New.
+            every crawl; use Run now for an ad-hoc rebuild. Create new ones in Contexts → New.
           </p>
         </div>
         <button onClick={() => { setLoading(true); load(); }} className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -102,7 +89,6 @@ export default function PluginsPage() {
                 <th className={th}>Tree / configuration</th>
                 <th className={`${th} text-right`}>Contexts</th>
                 <th className={th}>Last run</th>
-                <th className={th}>Run after every crawl</th>
                 <th className={th}>Actions</th>
               </tr>
             </thead>
@@ -126,21 +112,6 @@ export default function PluginsPage() {
                       <span className="block text-xs text-gray-400 mt-0.5">
                         {t.lastRunAt ? formatTimeAgo(t.lastRunAt) : ''}{t.lastRunBy ? ` · ${t.lastRunBy}` : ''}
                       </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <button
-                        onClick={() => toggleAutoRefresh(t)}
-                        disabled={isBusy}
-                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border disabled:opacity-50 ${
-                          t.autoRefresh
-                            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700'
-                            : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600'
-                        }`}
-                        title="Toggle whether this tree re-runs automatically after each crawl"
-                      >
-                        <span className={`w-2 h-2 rounded-full ${t.autoRefresh ? 'bg-green-500' : 'bg-gray-400'}`} />
-                        {t.autoRefresh ? 'On' : 'Off'}
-                      </button>
                     </td>
                     <td className="px-3 py-2">
                       <button

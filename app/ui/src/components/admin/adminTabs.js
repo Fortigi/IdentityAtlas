@@ -14,8 +14,7 @@ import { hasPermission } from '@ui/auth/usePermissions';
 
 export const ADMIN_TABS = [
   { key: 'crawlers',        label: 'Crawlers',         description: 'Add, configure and run identity data crawlers',                        requires: ['admin.crawlers'] },
-  { key: 'plugins',         label: 'Plugins',          description: 'Context plugins: configured trees, run, and refresh-after-crawl',      requires: ['admin.context-plugins'] },
-  { key: 'automation',      label: 'Automation',       description: 'Post-crawl jobs: what runs after each crawl, in what order',           requires: ['admin.context-plugins'] },
+  { key: 'plugins',         label: 'Plugins',          description: 'Context plugins: configured trees and ad-hoc runs',                    requires: ['admin.context-plugins'] },
   { key: 'account-linking', label: 'Account Linking',  description: 'Rules for linking orphan accounts to existing identities',             requires: ['admin.crawlers'] },
   { key: 'risk-scoring',    label: 'Risk Scoring',     description: 'Risk profile, classifiers and feature toggle',                         requires: ['admin.llm', 'admin.crawlers'] },
   { key: 'llm',             label: 'LLM Settings',     description: 'Configure the LLM provider used by risk scoring',                      requires: ['admin.llm'] },

@@ -9,7 +9,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import ScheduleEditor from './ScheduleEditor';
 
 function fmt(d) {
   if (!d) return '—';
@@ -27,7 +26,6 @@ export default function AccountLinkingSettings() {
   const { authFetch } = useAuth();
   const [config, setConfig] = useState(null);
   const [rulesText, setRulesText] = useState('');
-  const [schedules, setSchedules] = useState([]);
   const [isActive, setIsActive] = useState(true);
   const [threshold, setThreshold] = useState(50);
   const [loading, setLoading] = useState(true);
@@ -45,7 +43,6 @@ export default function AccountLinkingSettings() {
       .then(d => {
         setConfig(d);
         setRulesText(JSON.stringify(d.rules ?? {}, null, 2));
-        setSchedules(Array.isArray(d.schedules) ? d.schedules : []);
         setIsActive(d.isActive !== false);
         setThreshold(Number(d.rules?.linkThreshold ?? 50));
       })
@@ -78,7 +75,7 @@ export default function AccountLinkingSettings() {
       const r = await authFetch('/api/account-linking/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules, schedules, isActive }),
+        body: JSON.stringify({ rules, schedules: [], isActive }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
       setNotice('Saved.');
@@ -120,9 +117,6 @@ export default function AccountLinkingSettings() {
     }
   };
 
-  const addSchedule = () => setSchedules(s => [...s, { enabled: true, frequency: 'daily', hour: 3, minute: 0 }]);
-  const updateSchedule = (i, next) => setSchedules(s => s.map((x, idx) => (idx === i ? next : x)));
-  const removeSchedule = (i) => setSchedules(s => s.filter((_, idx) => idx !== i));
 
   if (loading) return <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading…</p>;
 
@@ -186,22 +180,18 @@ export default function AccountLinkingSettings() {
         <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1">Saved with the rules below.</p>
       </div>
 
-      {/* Schedule */}
+      {/* Active */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Schedule</h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Active</h3>
+            <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1">When active, account linking runs automatically after every crawl. Use Run now for an ad-hoc run.</p>
+          </div>
           <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
             <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} />
             Active
           </label>
         </div>
-        {schedules.length === 0 && <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">No schedule — linking runs only when triggered manually or after a crawl.</p>}
-        {schedules.map((s, i) => (
-          <ScheduleEditor key={i} schedule={s} onChange={next => updateSchedule(i, next)} onRemove={() => removeSchedule(i)} />
-        ))}
-        <button onClick={addSchedule} className="text-xs px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-          + Add schedule
-        </button>
       </div>
 
       {/* Rules editor */}
