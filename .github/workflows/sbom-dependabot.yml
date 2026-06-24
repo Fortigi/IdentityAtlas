@@ -1,0 +1,80 @@
+# ─── Regenerate SBOM on Dependabot merge ─────────────────────────────────────
+# When a Dependabot PR is merged into main this workflow regenerates the
+# machine-readable SPDX SBOM (sbom-edge.spdx.json) so it always reflects the
+# current dependency set, then commits it back to main.
+#
+# Notes:
+#   * Pushing to the protected main branch requires the GitHub App token
+#     (same bot as bump-version.yml) — GITHUB_TOKEN cannot bypass branch
+#     protection and would not trigger downstream events.
+#   * bump-version.yml also pushes to main on every PR merge, so the commit
+#     step rebases and retries to absorb that concurrent commit.
+#   * The commit carries [skip ci] — an SBOM-only change should not kick off
+#     a fresh CI / Docker build.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Update SBOM on Dependabot merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+# Serialize with any other run of this workflow so concurrent Dependabot
+# merges don't race each other on the push to main.
+concurrency:
+  group: sbom-update
+  cancel-in-progress: false  # queue them, don't drop
+
+permissions:
+  contents: write
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    # Gate on the PR *author* — github.actor on a closed event is whoever
+    # merged the PR (a human reviewer or auto-merge), not Dependabot.
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: main
+          token: ${{ steps.bot-token.outputs.token }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          format: spdx-json
+          output-file: sbom-edge.spdx.json
+          upload-artifact: false
+
+      - name: Commit updated SBOM
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sbom-edge.spdx.json
+          if git diff --cached --quiet; then
+            echo "SBOM unchanged — nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore: update SBOM after ${{ github.event.pull_request.title }} [skip ci]"
+          # bump-version.yml pushes to main on the same merge — rebase & retry.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "Push failed (attempt $attempt) — rebasing onto latest main"
+            git pull --rebase origin main
+          done
+          echo "::error::Could not push SBOM update after 5 attempts"
+          exit 1

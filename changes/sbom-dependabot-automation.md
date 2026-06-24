@@ -1,0 +1,1 @@
+- Added automation that regenerates the SPDX SBOM (`sbom-edge.spdx.json`) whenever a Dependabot dependency update is merged, keeping the published bill of materials in sync with the current dependency set.
