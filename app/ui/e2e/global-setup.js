@@ -2,7 +2,7 @@
 /**
  * Global setup for Playwright E2E tests.
  *
- * Runs once before all specs. Enables all optional tabs (Systems, Sync Log,
+ * Runs once before all specs. Enables all optional tabs (Systems, Logs,
  * Identities, Org Chart, Risk Scores, Performance, Admin) via the preferences
  * API so every spec can navigate to every page without skipping.
  */
