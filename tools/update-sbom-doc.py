@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
-"""Refresh the dependency versions in docs/reference/sbom.md.
+"""Refresh the dependency / infrastructure versions in docs/reference/sbom.md.
 
 The SBOM page is hand-curated: its sections, package selection, purpose text
-and license columns are all maintained by humans. The only thing that goes
-stale is the **Version** column, which must track the declared versions in the
-npm manifests. This script rewrites just that column in place, leaving every
-heading, row order, purpose and license untouched.
+and license columns are all maintained by humans. What goes stale is version
+data, which must track the real sources of truth. This script rewrites just the
+version cells in place, leaving every heading, row order, purpose and license
+untouched.
 
-Scope: only the npm dependency tables under the "API Backend (Node.js)" and
-"Frontend (React)" sections are touched. Infrastructure, Docker image, External
-API and PowerShell sections are left fully curated.
+Sources of truth, by section:
+  * "API Backend (Node.js)" / "Frontend (React)" — Version column from the npm
+    manifests (app/api/package.json, app/ui/package.json).
+  * "Infrastructure Components" — Version column from the Docker base images and
+    compose file (Postgres, PowerShell, Node).
+  * "Docker Images" — Base column from the Dockerfiles.
+External API and PowerShell-module sections are left fully curated.
 
 Run from the repo root:  python3 tools/update-sbom-doc.py
 Exits 0 whether or not anything changed.
 """
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -22,6 +27,9 @@ REPO = Path(__file__).resolve().parent.parent
 DOC = REPO / "docs" / "reference" / "sbom.md"
 API_PKG = REPO / "app" / "api" / "package.json"
 UI_PKG = REPO / "app" / "ui" / "package.json"
+API_DOCKERFILE = REPO / "app" / "api" / "Dockerfile"
+PWSH_DOCKERFILE = REPO / "setup" / "docker" / "Dockerfile.powershell"
+COMPOSE = REPO / "docker-compose.yml"
 
 
 def load_versions(pkg_path):
@@ -33,50 +41,118 @@ def load_versions(pkg_path):
     return versions
 
 
-def section_map(header, api, ui):
-    """Pick the manifest that backs the current H2 section, or None."""
-    if "API Backend" in header:
-        return api
-    if "Frontend" in header:
-        return ui
+def node_runtime_ref():
+    """Final runtime node image, e.g. 'node:24-slim'."""
+    text = API_DOCKERFILE.read_text()
+    m = re.search(r"^FROM\s+(\S+)\s+AS\s+runtime", text, re.MULTILINE | re.IGNORECASE)
+    if not m:
+        m = re.search(r"^FROM\s+(node:\S+)", text, re.MULTILINE | re.IGNORECASE)
+    return m.group(1) if m else None
+
+
+def powershell_ref():
+    """Worker base image, e.g. 'mcr.microsoft.com/powershell:7.5-ubuntu-24.04'."""
+    m = re.search(r"^FROM\s+(\S+)", PWSH_DOCKERFILE.read_text(),
+                  re.MULTILINE | re.IGNORECASE)
+    return m.group(1) if m else None
+
+
+def postgres_tag():
+    """Postgres image tag from compose, e.g. '16-alpine'."""
+    m = re.search(r"image:\s*postgres:(\S+)", COMPOSE.read_text())
+    return m.group(1) if m else None
+
+
+def build_infra():
+    """Return (component_versions, image_bases) maps derived from Docker config."""
+    node_ref = node_runtime_ref()          # node:24-slim
+    pwsh_ref = powershell_ref()            # mcr.../powershell:7.5-ubuntu-24.04
+    pg_tag = postgres_tag()                # 16-alpine
+
+    components = {}                        # Infrastructure Components: Version cell
+    if pg_tag:
+        components["PostgreSQL"] = pg_tag
+    if pwsh_ref:
+        # tag '7.5-ubuntu-24.04' -> '7.5 (ubuntu-24.04)'
+        tag = pwsh_ref.split(":", 1)[1]
+        ver, _, os_ = tag.partition("-")
+        components["PowerShell"] = f"{ver} ({os_})" if os_ else ver
+    if node_ref:
+        components["Node.js"] = node_ref.split(":", 1)[1]  # 24-slim
+
+    images = {}                            # Docker Images: Base cell, keyed by substring
+    if node_ref:
+        images["web"] = node_ref
+    if pwsh_ref:
+        images["worker"] = pwsh_ref
+    return components, images
+
+
+def update_npm_row(cells, npm_map, missing):
+    name = cells[0]
+    if name not in npm_map:
+        missing.append(name)
+        return None
+    return npm_map[name]
+
+
+def update_infra_component(cells, components):
+    return components.get(cells[0])
+
+
+def update_docker_image(cells, images):
+    # Image name lives in col0 (may be backtick-wrapped); Base lives in col1.
+    name = cells[0]
+    if "worker" in name:
+        return images.get("worker")
+    if "identity-atlas" in name:
+        return images.get("web")
     return None
 
 
 def main():
     api = load_versions(API_PKG)
     ui = load_versions(UI_PKG)
+    components, images = build_infra()
 
     lines = DOC.read_text().splitlines()
-    active = None
+    section = None
     changed = []
     missing = []
 
     for i, line in enumerate(lines):
-        # H2 headers switch which manifest backs the tables below them.
         if line.startswith("## "):
-            active = section_map(line, api, ui)
+            section = line.lstrip("# ").strip()
             continue
 
-        # Only touch markdown table rows while inside a versioned section.
-        if active is None or not line.startswith("|"):
+        if not line.startswith("|"):
             continue
 
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) < 2:
             continue
 
-        name = cells[0]
-        # Skip header / separator rows and rows for packages we don't track.
-        if name in ("Package", "") or set(cells[1]) <= {"-", " "}:
-            continue
-        if name not in active:
-            missing.append(name)
+        # Skip header / separator rows.
+        if cells[0] in ("Package", "Component", "Image", "") or \
+                set(cells[1]) <= {"-", " "}:
             continue
 
-        new_version = active[name]
-        if cells[1] != new_version:
-            changed.append(f"{name}: {cells[1]} -> {new_version}")
-            cells[1] = new_version
+        # Dispatch by section to the right source of truth. Each updater returns
+        # the new value for the version/base cell (col1), or None to leave it.
+        if section and "API Backend" in section:
+            new_value = update_npm_row(cells, api, missing)
+        elif section and "Frontend" in section:
+            new_value = update_npm_row(cells, ui, missing)
+        elif section == "Infrastructure Components":
+            new_value = update_infra_component(cells, components)
+        elif section == "Docker Images":
+            new_value = update_docker_image(cells, images)
+        else:
+            new_value = None
+
+        if new_value and cells[1] != new_value:
+            changed.append(f"{cells[0]}: {cells[1]} -> {new_value}")
+            cells[1] = new_value
             lines[i] = "| " + " | ".join(cells) + " |"
 
     if changed:
@@ -89,7 +165,7 @@ def main():
 
     if missing:
         # Not fatal: a listed package may be intentionally curated or renamed.
-        print(f"Note: {len(missing)} table row(s) had no matching manifest "
+        print(f"Note: {len(missing)} dependency row(s) had no matching manifest "
               f"entry and were left as-is: {', '.join(sorted(set(missing)))}",
               file=sys.stderr)
 

@@ -32,6 +32,7 @@ on:
       - app/api/Dockerfile
       - app/ui/Dockerfile
       - setup/docker/Dockerfile.powershell
+      - docker-compose.yml
 
 # Serialize with any other run of this workflow so concurrent merges
 # don't race each other on the push to main.
