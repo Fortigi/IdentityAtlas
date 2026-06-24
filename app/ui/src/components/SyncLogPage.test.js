@@ -8,8 +8,16 @@ const src = readFileSync(join(here, 'SyncLogPage.jsx'), 'utf8');
 
 describe('Sync Log record count', () => {
   it('guards a null/undefined RecordCount so a single bad row cannot crash the page', () => {
-    // Must not call .toLocaleString() directly on the possibly-null field.
-    expect(src).not.toMatch(/log\.RecordCount\.toLocaleString\(\)/);
-    expect(src).toContain('(log.RecordCount ?? 0).toLocaleString()');
+    // RecordCount can be null on a partial row; calling .toLocaleString() on it
+    // directly would crash the whole page. Every line that formats RecordCount
+    // must also null-guard it on the same statement (`!= null` or `?? 0`).
+    // Implementation-agnostic so it survives refactors of the page.
+    const unguarded = src
+      .split('\n')
+      .filter((line) => /RecordCount\.toLocaleString\(\)/.test(line)
+        && !/RecordCount != null/.test(line)
+        && !/RecordCount \?\? 0/.test(line)
+        && !/RecordCount \|\| 0/.test(line));
+    expect(unguarded).toEqual([]);
   });
 });

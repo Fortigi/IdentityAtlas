@@ -9,7 +9,7 @@ const pages = [
   { name: 'Users', hash: '#users' },
   { name: 'Resources', hash: '#resources' },
   { name: 'Systems', hash: '#systems' },
-  { name: 'Sync Log', hash: '#sync-log' },
+  { name: 'Logs', hash: '#sync-log' },
 ];
 
 // Skipped: the lime-on-white theme has color-contrast issues and search
