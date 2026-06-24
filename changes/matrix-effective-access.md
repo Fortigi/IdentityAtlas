@@ -7,3 +7,5 @@
 - The **Sync Log** tab is now **Logs** (moved next to Admin) — a single time-sorted activity stream of crawler syncs, context-plugin runs, account-linking runs and risk-scoring runs, with filter chips per type, a search box, and a **link back to the source** of each entry.
 - **Account linking, context-plugin refresh and risk scoring now run automatically after every crawl** (when configured) as one ordered pipeline — each completes before the next, so contexts rebuild *after* account linking and risk scoring runs *after* contexts. Links and scores always reflect the latest crawled data.
 - **Simplified scheduling:** account linking and risk scoring no longer have their own schedules to configure — they run after each crawl, with a **Run now** button for ad-hoc runs. Removes the per-tree, per-job and cron scheduling controls in favour of good defaults.
+- Added a **Run now** button to the Risk Scoring admin page to re-score the active classifier on demand.
+- Removed the **Recent runs** table from the Account Linking page — run history now lives in the Logs tab; Run now reports its result inline.

@@ -382,7 +382,7 @@ function ClassifiersSection() {
         {data.isActive && (
           <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              While active, risk scoring runs automatically after every crawl. Use Run scoring above for an ad-hoc run.
+              While active, risk scoring runs automatically after every crawl. Use Run now above for an ad-hoc run.
             </p>
           </div>
         )}
@@ -1450,6 +1450,9 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
   const [features, setFeatures] = useState(null);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [runMsg, setRunMsg] = useState(null);
+  const [runErr, setRunErr] = useState(null);
 
   const fetchFeatures = async () => {
     try {
@@ -1480,6 +1483,22 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
     } catch (err) {
       setError(err.message);
       setToggling(false);
+    }
+  };
+
+  const runNow = async () => {
+    setRunning(true); setRunMsg(null); setRunErr(null);
+    try {
+      const r = await authFetch('/api/risk-scoring/runs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+      setRunMsg('Risk scoring started — follow progress in the Logs tab.');
+      if (onRiskScoresRefresh) setTimeout(onRiskScoresRefresh, 4000);
+    } catch (e) {
+      setRunErr(e.message);
+    } finally {
+      setRunning(false);
     }
   };
 
@@ -1528,6 +1547,28 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
       {enabled ? (
         <>
           <NewRiskProfileLauncher onRiskScoresRefresh={onRiskScoresRefresh} />
+
+          {/* Run now */}
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Run risk scoring</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Scoring runs automatically after every crawl. Use this to re-score the active classifier on demand.
+                </p>
+                {runMsg && <div className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{runMsg}</div>}
+                {runErr && <div className="mt-2 text-sm text-red-700 dark:text-red-300">{runErr}</div>}
+              </div>
+              <button
+                onClick={runNow}
+                disabled={running}
+                className="flex-shrink-0 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {running ? 'Starting…' : 'Run now'}
+              </button>
+            </div>
+          </div>
+
           <RiskProfileSection />
           <ClassifiersSection />
         </>

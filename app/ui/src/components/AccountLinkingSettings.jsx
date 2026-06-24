@@ -2,25 +2,12 @@
 //
 // Deterministic, no-LLM replacement for the old correlation wizard. Lets an
 // admin review/edit the linking dictionary (signals + account-type patterns +
-// threshold), set a schedule, run linking on demand, and see run history.
-// Account linking attaches orphan accounts (admin / guest / secondary) to the
-// Identity they belong to, and emits the "Orphaned Accounts" context for the
-// rest.
+// threshold) and run linking on demand. Account linking attaches orphan accounts
+// (admin / guest / secondary) to the Identity they belong to, and emits the
+// "Orphaned Accounts" context for the rest.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-
-function fmt(d) {
-  if (!d) return '—';
-  try { return new Date(d).toLocaleString(); } catch { return String(d); }
-}
-
-const STATUS_STYLES = {
-  completed: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300',
-  running:   'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
-  pending:   'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
-  failed:    'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300',
-};
 
 export default function AccountLinkingSettings() {
   const { authFetch } = useAuth();
@@ -33,7 +20,6 @@ export default function AccountLinkingSettings() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [runs, setRuns] = useState([]);
   const pollRef = useRef(null);
 
   const loadConfig = useCallback(() => {
@@ -50,14 +36,7 @@ export default function AccountLinkingSettings() {
       .finally(() => setLoading(false));
   }, [authFetch]);
 
-  const loadRuns = useCallback(() => {
-    authFetch('/api/account-linking/runs')
-      .then(r => r.json())
-      .then(d => setRuns(d.data || []))
-      .catch(() => {});
-  }, [authFetch]);
-
-  useEffect(() => { loadConfig(); loadRuns(); }, [loadConfig, loadRuns]);
+  useEffect(() => { loadConfig(); }, [loadConfig]);
   useEffect(() => () => clearInterval(pollRef.current), []);
 
   const save = async () => {
@@ -93,11 +72,16 @@ export default function AccountLinkingSettings() {
       try {
         const r = await authFetch(`/api/account-linking/runs/${id}`);
         const run = await r.json();
-        setRuns(prev => [run, ...prev.filter(x => x.id !== run.id)]);
         if (run.status === 'completed' || run.status === 'failed') {
           clearInterval(pollRef.current);
           setRunning(false);
-          loadRuns();
+          if (run.status === 'completed') {
+            setNotice(`Linking complete — ${run.linksCreated ?? 0} linked, ${run.linksUpdated ?? 0} updated, ${run.orphansRemaining ?? '—'} orphans remaining.`);
+          } else {
+            setError(`Linking failed: ${run.errorMessage || run.step || 'unknown error'}`);
+          }
+        } else {
+          setNotice(`Linking running… ${run.step || ''}${run.pct ? ` (${run.pct}%)` : ''}`);
         }
       } catch { /* keep polling */ }
     }, 1500);
@@ -109,7 +93,7 @@ export default function AccountLinkingSettings() {
       const r = await authFetch('/api/account-linking/runs', { method: 'POST' });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
       const run = await r.json();
-      setRuns(prev => [run, ...prev]);
+      setNotice('Linking started…');
       pollRun(run.id);
     } catch (e) {
       setError(`Could not start run: ${e.message}`);
@@ -217,49 +201,6 @@ export default function AccountLinkingSettings() {
             Reset
           </button>
         </div>
-      </div>
-
-      {/* Run history */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Recent runs</h3>
-        {runs.length === 0 ? (
-          <p className="text-xs text-gray-600 dark:text-gray-400">No runs yet.</p>
-        ) : (
-          <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-gray-700/50 text-left text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                  <th className="px-3 py-2 font-semibold">Started</th>
-                  <th className="px-3 py-2 font-semibold">Status</th>
-                  <th className="px-3 py-2 font-semibold">Step</th>
-                  <th className="px-3 py-2 font-semibold">Linked</th>
-                  <th className="px-3 py-2 font-semibold">Updated</th>
-                  <th className="px-3 py-2 font-semibold">Skipped</th>
-                  <th className="px-3 py-2 font-semibold">Orphans left</th>
-                  <th className="px-3 py-2 font-semibold">By</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {runs.slice(0, 15).map(run => (
-                  <tr key={run.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{fmt(run.startedAt)}</td>
-                    <td className="px-3 py-2">
-                      <span className={`px-1.5 py-0.5 rounded font-medium ${STATUS_STYLES[run.status] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
-                        {run.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{run.step || '—'}{run.status === 'running' ? ` (${run.pct}%)` : ''}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{run.linksCreated ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{run.linksUpdated ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{run.skippedAnalystOverride ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{run.orphansRemaining ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{run.triggeredBy || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );
