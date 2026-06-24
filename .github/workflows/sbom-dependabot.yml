@@ -1,7 +1,8 @@
-# ─── Regenerate SBOM on Dependabot merge ─────────────────────────────────────
-# When a Dependabot PR is merged into main this workflow regenerates the
-# machine-readable SPDX SBOM (sbom-edge.spdx.json) so it always reflects the
-# current dependency set, then commits it back to main.
+# ─── Regenerate SBOM on dependency change ────────────────────────────────────
+# When a PR that touches dependency manifests, lockfiles, or Dockerfiles is
+# merged into main, this workflow regenerates the machine-readable SPDX SBOM
+# (sbom-edge.spdx.json) so it always reflects the current dependency set, then
+# commits it back to main. Covers both Dependabot and manual dependency bumps.
 #
 # Notes:
 #   * Pushing to the protected main branch requires the GitHub App token
@@ -13,15 +14,23 @@
 #     a fresh CI / Docker build.
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Update SBOM on Dependabot merge
+name: Update SBOM on dependency change
 
 on:
   pull_request:
     types: [closed]
     branches: [main]
+    paths:
+      - app/api/package.json
+      - app/api/package-lock.json
+      - app/ui/package.json
+      - app/ui/package-lock.json
+      - app/api/Dockerfile
+      - app/ui/Dockerfile
+      - setup/docker/Dockerfile.powershell
 
-# Serialize with any other run of this workflow so concurrent Dependabot
-# merges don't race each other on the push to main.
+# Serialize with any other run of this workflow so concurrent merges
+# don't race each other on the push to main.
 concurrency:
   group: sbom-update-main
   cancel-in-progress: false  # queue them, don't drop
@@ -32,11 +41,9 @@ permissions:
 jobs:
   sbom:
     runs-on: ubuntu-latest
-    # Gate on the PR *author* — github.actor on a closed event is whoever
-    # merged the PR (a human reviewer or auto-merge), not Dependabot.
-    if: |
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.user.login == 'dependabot[bot]'
+    # Only act on actual merges; the paths filter above already scoped this to
+    # PRs that changed dependency files.
+    if: github.event.pull_request.merged == true
     steps:
       - name: Generate bot token
         id: bot-token
