@@ -21,7 +21,7 @@ test.describe('App Navigation', () => {
 
   test('all always-visible tabs are present', async ({ page }) => {
     // Optional tabs (Risk Scores, Identities, Org Chart, Performance, Admin) are hidden by default
-    const tabs = ['Matrix', 'Users', 'Resources', 'Systems', 'Business Roles', 'Sync Log'];
+    const tabs = ['Matrix', 'Users', 'Resources', 'Systems', 'Business Roles', 'Logs'];
 
     for (const tab of tabs) {
       await expect(page.getByRole('button', { name: tab, exact: true })).toBeVisible();
@@ -37,9 +37,9 @@ test.describe('App Navigation', () => {
     await page.getByRole('button', { name: 'Resources', exact: true }).click();
     await expect(page.locator('h2')).toContainText('Resources');
 
-    // Navigate to Sync Log
-    await page.getByRole('button', { name: 'Sync Log', exact: true }).click();
-    await expect(page.locator('h2')).toContainText('Sync Log');
+    // Navigate to Logs (formerly Sync Log)
+    await page.getByRole('button', { name: 'Logs', exact: true }).click();
+    await expect(page.locator('h2')).toContainText('Logs');
   });
 
   test('hash-based routing works', async ({ page }) => {
@@ -51,7 +51,7 @@ test.describe('App Navigation', () => {
     await expect(page.locator('h2')).toContainText('Resources');
 
     await page.goto('/#sync-log');
-    await expect(page.locator('h2')).toContainText('Sync Log');
+    await expect(page.locator('h2')).toContainText('Logs');
 
     // Matrix is the default / fallback route
     await page.goto('/');

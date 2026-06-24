@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { ADMIN_TABS, visibleAdminTabs } from './admin/adminTabs';
-import ScheduleEditor from './ScheduleEditor';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
+const PluginsPage = lazy(() => import('./PluginsPage'));
 const AuthSettingsPage = lazy(() => import('./AuthSettingsPage'));
 const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
@@ -312,43 +312,15 @@ function ClassifiersSection() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('groups');
-  const [schedules, setSchedules] = useState([]);
-  const [savingSchedules, setSavingSchedules] = useState(false);
-  const [scheduleError, setScheduleError] = useState(null);
   const { authFetch } = useAuth();
 
   useEffect(() => {
     authFetch('/api/admin/classifiers')
       .then(r => r.json())
-      .then(d => {
-        setData(d);
-        // Load schedules if classifier is active
-        if (d?.isActive && d?.schedules) {
-          setSchedules(d.schedules);
-        }
-      })
+      .then(d => { setData(d); })
       .catch(() => setData({ available: false }))
       .finally(() => setLoading(false));
   }, [authFetch]);
-
-  const handleSaveSchedules = async () => {
-    if (!data?.id) return;
-    setSavingSchedules(true);
-    setScheduleError(null);
-    try {
-      const res = await authFetch(`/api/risk-classifiers/${data.id}/schedules`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schedules }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      alert('Schedules saved successfully');
-    } catch (err) {
-      setScheduleError(err.message);
-    } finally {
-      setSavingSchedules(false);
-    }
-  };
 
   const content = () => {
     if (loading) return <p className="mt-4 text-sm text-gray-600 dark:text-gray-500">Loading...</p>;
@@ -407,39 +379,11 @@ function ClassifiersSection() {
         {activeTab === 'users'  && <ClassifierTable rules={userRules}  emptyMsg="No user classifiers." />}
         {activeTab === 'agents' && <ClassifierTable rules={agentRules} emptyMsg="No agent classifiers." />}
 
-        {/* Schedules section (only show for active classifier) */}
         {data.isActive && (
           <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-semibold mb-2 dark:text-white">Automatic Scoring Schedules</h4>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Configure when risk scoring runs automatically. Schedules re-run the active classifiers over the latest data.
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              While active, risk scoring runs automatically after every crawl. Use Run now above for an ad-hoc run.
             </p>
-
-            {schedules.length === 0 && (
-              <div className="mb-3 p-4 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded text-center text-sm text-gray-500 dark:text-gray-400">
-                No schedules configured. Scoring will only run when triggered manually.
-              </div>
-            )}
-
-            {schedules.map((s, i) => (
-              <ScheduleEditor key={i}
-                schedule={{ enabled: true, ...s }}
-                onChange={(updated) => setSchedules(schedules.map((x, idx) => idx === i ? { ...updated, enabled: true } : x))}
-                onRemove={() => setSchedules(schedules.filter((_, idx) => idx !== i))}
-              />
-            ))}
-
-            <div className="flex gap-2 items-center">
-              <button onClick={() => setSchedules([...schedules, { enabled: true, frequency: 'daily', hour: 2, minute: 0 }])}
-                className="px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
-                + Add Schedule
-              </button>
-              <button onClick={handleSaveSchedules} disabled={savingSchedules}
-                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
-                {savingSchedules ? 'Saving...' : 'Save Schedules'}
-              </button>
-              {scheduleError && <span className="text-xs text-red-600 dark:text-red-400">{scheduleError}</span>}
-            </div>
           </div>
         )}
 
@@ -1506,6 +1450,9 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
   const [features, setFeatures] = useState(null);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [runMsg, setRunMsg] = useState(null);
+  const [runErr, setRunErr] = useState(null);
 
   const fetchFeatures = async () => {
     try {
@@ -1536,6 +1483,22 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
     } catch (err) {
       setError(err.message);
       setToggling(false);
+    }
+  };
+
+  const runNow = async () => {
+    setRunning(true); setRunMsg(null); setRunErr(null);
+    try {
+      const r = await authFetch('/api/risk-scoring/runs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+      setRunMsg('Risk scoring started — follow progress in the Logs tab.');
+      if (onRiskScoresRefresh) setTimeout(onRiskScoresRefresh, 4000);
+    } catch (e) {
+      setRunErr(e.message);
+    } finally {
+      setRunning(false);
     }
   };
 
@@ -1584,6 +1547,28 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
       {enabled ? (
         <>
           <NewRiskProfileLauncher onRiskScoresRefresh={onRiskScoresRefresh} />
+
+          {/* Run now */}
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Run risk scoring</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Scoring runs automatically after every crawl. Use this to re-score the active classifier on demand.
+                </p>
+                {runMsg && <div className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{runMsg}</div>}
+                {runErr && <div className="mt-2 text-sm text-red-700 dark:text-red-300">{runErr}</div>}
+              </div>
+              <button
+                onClick={runNow}
+                disabled={running}
+                className="flex-shrink-0 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {running ? 'Starting…' : 'Run now'}
+              </button>
+            </div>
+          </div>
+
           <RiskProfileSection />
           <ClassifiersSection />
         </>
@@ -1688,6 +1673,12 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
         {activeTab === 'crawlers' && (
           <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
             <CrawlersPage onNavigate={onNavigate} />
+          </Suspense>
+        )}
+
+        {activeTab === 'plugins' && (
+          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
+            <PluginsPage onNavigate={onNavigate} />
           </Suspense>
         )}
 

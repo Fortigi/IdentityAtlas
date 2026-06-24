@@ -460,6 +460,7 @@ export async function effectiveAccessForNodes(focusNodeIds, opts = {}) {
       `SELECT r."capabilityId" AS cap,
               r."targetNodeId" AS target,
               r."extendedAttributes" ->> 'roleName' AS rolename,
+              r."resourceType"  AS rtype,
               ra."principalId" AS holder,
               ra."effect" AS effect,
               ra."propagationScope" AS scope
@@ -480,14 +481,14 @@ export async function effectiveAccessForNodes(focusNodeIds, opts = {}) {
         ? scope === 'self' || scope === 'selfAndDescendants'
         : scope === 'descendants' || scope === 'selfAndDescendants';
       if (!reaches) continue;
-      const key = `${g.cap} ${g.holder}`;
-      if (!byCapHolder.has(key)) byCapHolder.set(key, { cap: g.cap, rolename: g.rolename, holder: g.holder, aces: [] });
+      const key = `${g.cap} ${g.holder}`;
+      if (!byCapHolder.has(key)) byCapHolder.set(key, { cap: g.cap, rolename: g.rolename, rtype: g.rtype, holder: g.holder, aces: [] });
       byCapHolder.get(key).aces.push({ effect: g.effect ?? 'allow', distance, explicit: atFocus, viaGroupId: null });
     }
 
     const meta = metaById.get(node);
     const scopeName = meta?.name || node;
-    for (const { cap, rolename, holder, aces } of byCapHolder.values()) {
+    for (const { cap, rolename, rtype, holder, aces } of byCapHolder.values()) {
       const res = policy.resolve(aces);
       if (res.effective === 'none') continue;
       const roleLabel = rolename || cap;
@@ -495,6 +496,7 @@ export async function effectiveAccessForNodes(focusNodeIds, opts = {}) {
         resourceId: capabilityResourceId(node, cap),
         nodeId: node,
         capabilityId: cap,
+        resourceType: rtype,
         displayName: meta?.label ? `${roleLabel} @ ${meta.label}: ${scopeName}` : `${roleLabel} @ ${scopeName}`,
         principalId: holder,
         membershipType: res.decisiveAce ? badgeForAce(res.decisiveAce) : 'Indirect',
