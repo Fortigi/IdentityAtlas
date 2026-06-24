@@ -34,7 +34,7 @@ import {
   getResourceColumnValues,
 } from '../db/columnCache.js';
 import { resolveAttrExpr } from '../matrix/attrExpr.js';
-import { buildInheritedFlatRows, explainInheritance, buildInheritedRollupCounts } from '../matrix/inheritedAccess.js';
+import { buildInheritedFlatRows, explainInheritance, buildInheritedRollupCounts, buildInheritedContextCounts } from '../matrix/inheritedAccess.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
@@ -1004,16 +1004,26 @@ router.post('/matrix/data', async (req, res) => {
           subjectSql: built.subjectSql, resourceSql: built.resourceSql,
         }))).recordset.map(r => [r.groupValue, { total: r.total, direct: r.direct }]));
 
+        // Fold inherited (effective) access into the org-rollup cells.
+        let inhCtx = null;
+        if (includeInherited) {
+          try { inhCtx = await buildInheritedContextCounts(p, built, rowType, cutNodes.map(n => n.id)); }
+          catch (err) { built.warnings.push('inherited context fold failed: ' + err.message); }
+        }
+        const inhTotByNode = new Map((inhCtx?.groupTotals || []).map(t => [t.groupValue, t.total]));
+        for (const r of (inhCtx?.resources || [])) if (!layerResMap.has(r.resourceId)) layerResMap.set(r.resourceId, r);
+
         // Hide org branches with no in-scope assignments: a column only shows if
-        // some resource has a Direct count for that node's subtree. Keeps the
-        // header focused on where the selected resources are actually used. Each
-        // surviving node gets its scoped direct/total counts.
-        const cellNodeIds = new Set(layerCells.map(c => c.groupValue));
+        // some resource has a Direct (or inherited) count for that node's subtree.
+        const cellNodeIds = new Set([...layerCells.map(c => c.groupValue), ...(inhCtx?.groupValues || [])]);
         const visibleNodes = cutNodes
           .filter(n => cellNodeIds.has(n.id))
           .map(n => {
             const sc = scMap.get(n.id);
-            return sc ? { ...n, total: sc.total, directMembers: sc.direct } : n;
+            const inhT = inhTotByNode.get(n.id) || 0;
+            if (sc) return { ...n, total: sc.total + inhT, directMembers: sc.direct };
+            if (inhT) return { ...n, total: inhT, directMembers: 0 };
+            return n;
           });
 
         const layerCounts = await scopeCounts(p, res, rowType, built);
@@ -1026,10 +1036,13 @@ router.post('/matrix/data', async (req, res) => {
           groupValues: visibleNodes.map(n => n.id),
           groupTotals: visibleNodes.map(n => ({ groupValue: n.id, total: n.total })),
           resources: [...layerResMap.values()],
-          counts: layerCells.map(r => ({
-            resourceId: r.resourceId, groupValue: r.groupValue,
-            directCount: r.directCount, governedCount: r.governedCount,
-          })),
+          counts: [
+            ...layerCells.map(r => ({
+              resourceId: r.resourceId, groupValue: r.groupValue,
+              directCount: r.directCount, governedCount: r.governedCount,
+            })),
+            ...(inhCtx?.counts || []),
+          ],
           ...layerCounts, totalUsers: layerCounts.subjectTotal, warnings: built.warnings,
         });
       }
@@ -1141,6 +1154,15 @@ router.post('/matrix/data', async (req, res) => {
         });
       }
 
+      // Fold inherited (effective) access into the org-rollup cells (zoom view).
+      // The frontier columns already exist, so we only add resources + counts.
+      let inhCtx2 = null;
+      if (includeInherited) {
+        try { inhCtx2 = await buildInheritedContextCounts(p, built, rowType, frontier); }
+        catch (err) { built.warnings.push('inherited context fold failed: ' + err.message); }
+      }
+      for (const r of (inhCtx2?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+
       let businessRoles = [];
       const roleCounts = [];
       if (filter.rollupContent !== 'resources-only') {
@@ -1161,13 +1183,25 @@ router.post('/matrix/data', async (req, res) => {
         } catch { /* business-role view may be absent */ }
       }
 
+      const mergedCtxTotals = inhCtx2?.groupTotals?.length
+        ? (() => {
+            const m = new Map(ctxTotals.map(t => [t.groupValue, t.total]));
+            for (const t of inhCtx2.groupTotals) m.set(t.groupValue, (m.get(t.groupValue) || 0) + t.total);
+            return [...m.entries()].map(([groupValue, total]) => ({ groupValue, total }));
+          })()
+        : ctxTotals;
+
       return res.json({
         ...shared,
+        groupTotals: mergedCtxTotals,
         resources: [...resMap.values()],
-        counts: cellRows.map(r => ({
-          resourceId: r.resourceId, groupValue: r.groupValue,
-          directCount: r.directCount, governedCount: r.governedCount,
-        })),
+        counts: [
+          ...cellRows.map(r => ({
+            resourceId: r.resourceId, groupValue: r.groupValue,
+            directCount: r.directCount, governedCount: r.governedCount,
+          })),
+          ...(inhCtx2?.counts || []),
+        ],
         businessRoles,
         roleCounts,
       });

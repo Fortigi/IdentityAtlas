@@ -214,6 +214,74 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
   };
 }
 
+// Folded effective counts for the CONTEXT (org-hierarchy) rollup. Same idea as
+// buildInheritedRollupCounts, but the group-value of a holder is the frontier
+// context node whose subtree contains them (a holder can map to more than one
+// when frontier nodes nest). `frontierIds` are the visible cut's node ids.
+export async function buildInheritedContextCounts(p, built, rowType, frontierIds) {
+  if (!built.resourceSql || !Array.isArray(frontierIds) || !frontierIds.length) return null;
+  const nodeIds = await scopedNodeIds(p, built);
+  if (!nodeIds.length) return null;
+  const eff = await cachedEffectiveAccess(nodeIds);
+  if (!eff.length) return null;
+  const subjScope = await scopedPrincipalIds(p, built, rowType);
+  const rows = subjScope ? eff.filter((e) => subjScope.has(e.principalId)) : eff;
+  if (!rows.length) return null;
+  const pids = [...new Set(rows.map((r) => r.principalId))];
+
+  const { rows: fm } = await db.query(
+    `WITH RECURSIVE frontier(fid) AS (SELECT unnest($1::uuid[])),
+       subtree(fid, ctx) AS (
+         SELECT fid, fid FROM frontier
+         UNION ALL
+         SELECT s.fid, c.id FROM "Contexts" c JOIN subtree s ON c."parentContextId" = s.ctx)
+     SELECT DISTINCT s.fid::text AS gv, cm."memberId" AS pid
+       FROM subtree s JOIN "ContextMembers" cm ON cm."contextId" = s.ctx
+      WHERE cm."memberType" = 'Principal' AND cm."memberId" = ANY($2::uuid[])`,
+    [frontierIds, pids],
+  );
+  const gvBy = new Map();
+  for (const r of fm) { let a = gvBy.get(r.pid); if (!a) { a = []; gvBy.set(r.pid, a); } a.push(r.gv); }
+
+  const { rows: pt } = await db.query(`SELECT id, "principalType" AS pt FROM "Principals" WHERE id = ANY($1)`, [pids]);
+  const isGroup = new Set(pt.filter((r) => r.pt === '#microsoft.graph.group').map((r) => r.id));
+  const { rows: nodeMeta } = await db.query(
+    `SELECT r.id, r."systemId", s."displayName" AS "systemName"
+       FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId" WHERE r.id = ANY($1)`, [nodeIds]);
+  const nodeById = new Map(nodeMeta.map((n) => [n.id, n]));
+
+  const resources = new Map(), cells = new Map(), groupSets = new Map();
+  for (const e of rows) {
+    if (isGroup.has(e.principalId)) continue;
+    const gvs = gvBy.get(e.principalId);
+    if (!gvs) continue;
+    if (!resources.has(e.resourceId)) {
+      const node = nodeById.get(e.nodeId) || {};
+      resources.set(e.resourceId, {
+        resourceId: e.resourceId, resourceDisplayName: e.displayName,
+        resourceType: e.resourceType, resourceDescription: null,
+        systemId: node.systemId ?? null, systemName: node.systemName ?? null,
+      });
+    }
+    for (const gv of gvs) {
+      let m = cells.get(e.resourceId); if (!m) { m = new Map(); cells.set(e.resourceId, m); }
+      let s = m.get(gv); if (!s) { s = new Set(); m.set(gv, s); }
+      s.add(e.principalId);
+      let gs = groupSets.get(gv); if (!gs) { gs = new Set(); groupSets.set(gv, gs); }
+      gs.add(e.principalId);
+    }
+  }
+  if (!resources.size) return null;
+  const counts = [];
+  for (const [resourceId, m] of cells) for (const [gv, set] of m) counts.push({ resourceId, groupValue: gv, directCount: set.size, governedCount: 0 });
+  return {
+    resources: [...resources.values()],
+    counts,
+    groupValues: [...groupSets.keys()],
+    groupTotals: [...groupSets.entries()].map(([gv, set]) => ({ groupValue: gv, total: set.size })),
+  };
+}
+
 // Explain a single inherited cell: "how did this principal get this capability
 // at this scope?". Walks the containment chain from the focus node up to the
 // root, marking which ancestors actually carry a (capability, principal) grant
