@@ -177,6 +177,28 @@ router.get('/context-plugins/trees', gate, async (req, res) => {
   }
 });
 
+// DELETE /api/context-plugins/trees — remove a configured plugin tree, i.e. all
+// the generated contexts produced by one (algorithm, instanceKey). The plugin
+// itself stays registered; re-running it re-creates the tree. ON DELETE CASCADE
+// takes care of ContextMembers and any child contexts.
+router.delete('/context-plugins/trees', gate, async (req, res) => {
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const { algorithmId, instanceKey } = req.body || {};
+  if (!UUID_RE.test(algorithmId || '')) return res.status(400).json({ error: 'algorithmId is required' });
+  try {
+    const { rowCount } = await db.query(`
+      DELETE FROM "Contexts"
+       WHERE variant = 'generated'
+         AND "sourceAlgorithmId" = $1
+         AND COALESCE("sourceInstanceKey", '') = COALESCE($2, '')
+    `, [algorithmId, instanceKey || '']);
+    res.json({ ok: true, deleted: rowCount });
+  } catch (err) {
+    console.error('DELETE /context-plugins/trees failed:', err.message);
+    res.status(500).json({ error: 'Failed to remove tree' });
+  }
+});
+
 function stripPlugin(p) {
   return {
     name: p.name, displayName: p.displayName, description: p.description,

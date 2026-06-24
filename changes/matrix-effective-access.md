@@ -9,3 +9,4 @@
 - **Simplified scheduling:** account linking and risk scoring no longer have their own schedules to configure — they run after each crawl, with a **Run now** button for ad-hoc runs. Removes the per-tree, per-job and cron scheduling controls in favour of good defaults.
 - Added a **Run now** button to the Risk Scoring admin page to re-score the active classifier on demand.
 - Removed the **Recent runs** table from the Account Linking page — run history now lives in the Logs tab; Run now reports its result inline.
+- **Plugin details page:** click any row on Admin → Plugins to open a details view showing what the plugin does, its full configuration, context count and last run. From there you can **edit the configuration and re-run** it in place, re-run it unchanged, or **remove** the tree (deletes its generated contexts).

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { formatRelativeTime as formatTimeAgo } from '@ui/utils/formatters';
 
@@ -9,31 +9,110 @@ const statusColors = {
   queued: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
 };
 
-// Summarise the non-meta plugin parameters for display.
+// Keys we manage outside the parameter form (they aren't plugin config).
+const META_KEYS = new Set(['rootName', 'instanceKey', 'autoRefresh']);
+
+// Summarise the non-meta plugin parameters for the list row.
 function paramsSummary(params) {
   if (!params) return '';
-  const skip = new Set(['rootName', 'instanceKey', 'autoRefresh']);
   return Object.entries(params)
-    .filter(([k, v]) => !skip.has(k) && v !== '' && v != null && !(Array.isArray(v) && v.length === 0))
+    .filter(([k, v]) => !META_KEYS.has(k) && v !== '' && v != null && !(Array.isArray(v) && v.length === 0))
     .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
     .join('  ·  ');
 }
 
 const th = 'text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300';
 
+// One editable input for a single JSON-schema property.
+function FieldInput({ prop, value, onChange }) {
+  const cls = 'w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100';
+  if (Array.isArray(prop.enum)) {
+    return (
+      <select className={cls} value={value ?? ''} onChange={(e) => onChange(e.target.value || undefined)}>
+        <option value="">— none —</option>
+        {prop.enum.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+  if (prop.type === 'boolean') {
+    return (
+      <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+        {value ? 'On' : 'Off'}
+      </label>
+    );
+  }
+  if (prop.type === 'integer' || prop.type === 'number') {
+    return (
+      <input type="number" className={cls} value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))} />
+    );
+  }
+  if (prop.type === 'array') {
+    const text = Array.isArray(value) ? value.join(', ') : (value || '');
+    return (
+      <input type="text" className={cls} placeholder="comma, separated, values" value={text}
+        onChange={(e) => onChange(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))} />
+    );
+  }
+  return (
+    <input type="text" className={cls} value={value ?? ''}
+      onChange={(e) => onChange(e.target.value || undefined)} />
+  );
+}
+
+// Editable form rendered from a plugin's parametersSchema, pre-filled with the
+// tree's current parameters.
+function ConfigForm({ schema, params, onChange }) {
+  const props = schema?.properties || {};
+  const keys = Object.keys(props);
+  if (keys.length === 0) {
+    return <p className="text-sm text-gray-500 dark:text-gray-400">This plugin has no configurable parameters.</p>;
+  }
+  return (
+    <div className="space-y-3 max-w-xl">
+      {keys.map((k) => {
+        const p = props[k];
+        return (
+          <div key={k}>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">{p.title || k}</label>
+            {p.description && <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">{p.description}</p>}
+            <FieldInput prop={p} value={params[k]} onChange={(nv) => onChange({ ...params, [k]: nv })} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function PluginsPage() {
   const { authFetch } = useAuth();
   const [trees, setTrees] = useState([]);
+  const [plugins, setPlugins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
 
+  // Detail view — keyed by tree so it survives reloads; draft holds edits.
+  const [selKey, setSelKey] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [detailNotice, setDetailNotice] = useState(null);
+  const [detailError, setDetailError] = useState(null);
+
+  const key = (t) => `${t.algorithmId}:${t.instanceKey}`;
+
   const load = useCallback(async () => {
     try {
-      const res = await authFetch('/api/context-plugins/trees');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json();
-      setTrees(body.data || []);
+      const [tr, pr] = await Promise.all([
+        authFetch('/api/context-plugins/trees'),
+        authFetch('/api/context-plugins').catch(() => null),
+      ]);
+      if (!tr.ok) throw new Error(`HTTP ${tr.status}`);
+      setTrees((await tr.json()).data || []);
+      if (pr && pr.ok) setPlugins((await pr.json()).data || []);
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -44,8 +123,19 @@ export default function PluginsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const key = (t) => `${t.algorithmId}:${t.instanceKey}`;
+  const selected = useMemo(() => trees.find((t) => key(t) === selKey) || null, [trees, selKey]);
+  const meta = useMemo(() => plugins.find((p) => p.name === selected?.algo) || null, [plugins, selected]);
 
+  const openDetail = (t) => {
+    setSelKey(key(t));
+    setDraft({ ...t.params });
+    setConfirmRemove(false);
+    setDetailNotice(null);
+    setDetailError(null);
+  };
+  const closeDetail = () => { setSelKey(null); setConfirmRemove(false); };
+
+  // Quick run from the list (unchanged params).
   const runNow = async (t) => {
     setBusy(key(t));
     try {
@@ -59,14 +149,126 @@ export default function PluginsPage() {
     }
   };
 
+  // Re-run the selected tree with a given parameter set, reconciling in place
+  // (same instanceKey → the runner updates the existing tree, keeping its id).
+  const rerun = async (paramsToUse, label) => {
+    setSaving(true); setDetailError(null); setDetailNotice(null);
+    try {
+      const res = await authFetch(`/api/context-plugins/${encodeURIComponent(selected.algo)}/run`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...paramsToUse, instanceKey: selected.instanceKey }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+      setDetailNotice(`${label} — rebuilding the tree, refreshing shortly.`);
+      setTimeout(load, 1600);
+    } catch (e) {
+      setDetailError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeTree = async () => {
+    setRemoving(true); setDetailError(null);
+    try {
+      const res = await authFetch('/api/context-plugins/trees', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ algorithmId: selected.algorithmId, instanceKey: selected.instanceKey }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+      closeDetail();
+      load();
+    } catch (e) {
+      setDetailError(e.message);
+      setRemoving(false);
+    }
+  };
+
+  // ─── Detail view ───────────────────────────────────────────────────────────
+  if (selected) {
+    return (
+      <div>
+        <button onClick={closeDetail} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-3">← Back to plugins</button>
+
+        <div className="flex items-start justify-between gap-4 mb-1">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{selected.rootName}</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{meta?.displayName || selected.algoDisplayName}</p>
+          </div>
+          {selected.targetType && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 whitespace-nowrap">{selected.targetType}</span>
+          )}
+        </div>
+
+        {/* What it does */}
+        {meta?.description && (
+          <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">What it does</h4>
+            <p className="text-sm text-gray-700 dark:text-gray-300">{meta.description}</p>
+          </div>
+        )}
+
+        {/* Stats */}
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+          <span className="text-gray-500 dark:text-gray-400">Contexts: <span className="text-gray-800 dark:text-gray-200 font-medium tabular-nums">{selected.contextCount}</span></span>
+          <span className="text-gray-500 dark:text-gray-400">Last run: {selected.lastStatus
+            ? <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusColors[selected.lastStatus] || 'bg-gray-100 dark:bg-gray-700'}`}>{selected.lastStatus}</span>
+            : '—'} {selected.lastRunAt && <span className="text-gray-400">{formatTimeAgo(selected.lastRunAt)}{selected.lastRunBy ? ` · ${selected.lastRunBy}` : ''}</span>}
+          </span>
+        </div>
+
+        {/* Configuration */}
+        <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Configuration</h4>
+          <ConfigForm schema={meta?.parametersSchema} params={draft} onChange={setDraft} />
+        </div>
+
+        {detailNotice && <div className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">{detailNotice}</div>}
+        {detailError && <div className="mt-3 text-sm text-red-700 dark:text-red-300">{detailError}</div>}
+
+        {/* Actions */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button onClick={() => rerun(draft, 'Configuration saved')} disabled={saving || removing}
+            className="px-3 py-1.5 text-sm rounded text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save & re-run'}
+          </button>
+          <button onClick={() => rerun(selected.params, 'Re-run started')} disabled={saving || removing}
+            className="px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+            Run now (unchanged)
+          </button>
+          <div className="flex-1" />
+          {confirmRemove ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Remove this tree and its {selected.contextCount} contexts?</span>
+              <button onClick={removeTree} disabled={removing}
+                className="px-3 py-1.5 text-sm rounded text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                {removing ? 'Removing…' : 'Confirm remove'}
+              </button>
+              <button onClick={() => setConfirmRemove(false)} disabled={removing}
+                className="px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmRemove(true)} disabled={saving}
+              className="px-3 py-1.5 text-sm rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20">
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── List view ───────────────────────────────────────────────────────────
   return (
     <div>
       <div className="flex items-start justify-between mb-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">Context plugins</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 max-w-2xl">
-            Each generated context tree, its configuration, and its last run. Trees refresh automatically after
-            every crawl; use Run now for an ad-hoc rebuild. Create new ones in Contexts → New.
+            Each generated context tree, its configuration, and its last run. Click a row to see what the plugin
+            does and adjust or remove it. Trees refresh automatically after every crawl. Create new ones in Contexts → New.
           </p>
         </div>
         <button onClick={() => { setLoading(true); load(); }} className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -96,7 +298,8 @@ export default function PluginsPage() {
               {trees.map((t) => {
                 const isBusy = busy === key(t);
                 return (
-                  <tr key={key(t)} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 align-top">
+                  <tr key={key(t)} onClick={() => openDetail(t)}
+                      className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 align-top cursor-pointer">
                     <td className="px-3 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap">{t.algoDisplayName}</td>
                     <td className="px-3 py-2">
                       <span className="font-medium text-gray-800 dark:text-gray-200">{t.rootName}</span>
@@ -115,7 +318,7 @@ export default function PluginsPage() {
                     </td>
                     <td className="px-3 py-2">
                       <button
-                        onClick={() => runNow(t)}
+                        onClick={(e) => { e.stopPropagation(); runNow(t); }}
                         disabled={isBusy}
                         className="text-xs px-2 py-1 rounded text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
                       >
