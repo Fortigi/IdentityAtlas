@@ -20,6 +20,8 @@ const statusColors = {
   running: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   queued: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
   cancelled: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+  completed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  pending: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
 };
 
 function StatusBadge({ status }) {
@@ -36,6 +38,7 @@ export default function SyncLogPage() {
   const { authFetch } = useAuth();
   const [logs, setLogs] = useState([]);
   const [runs, setRuns] = useState([]);
+  const [linkRuns, setLinkRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -43,9 +46,10 @@ export default function SyncLogPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [logRes, runRes] = await Promise.all([
+        const [logRes, runRes, linkRes] = await Promise.all([
           authFetch('/api/sync-log?limit=50'),
           authFetch('/api/context-plugins/runs?limit=50').catch(() => null),
+          authFetch('/api/account-linking/runs').catch(() => null),
         ]);
         if (!logRes.ok) throw new Error(`HTTP ${logRes.status}`);
         const logData = await logRes.json();
@@ -54,7 +58,12 @@ export default function SyncLogPage() {
           const r = await runRes.json();
           runData = Array.isArray(r) ? r : (r.runs || []);
         }
-        if (!cancelled) { setLogs(logData); setRuns(runData); }
+        let linkData = [];
+        if (linkRes && linkRes.ok) {
+          const l = await linkRes.json();
+          linkData = Array.isArray(l) ? l : (l.data || l.runs || []);
+        }
+        if (!cancelled) { setLogs(logData); setRuns(runData); setLinkRuns(linkData); }
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -153,6 +162,43 @@ export default function SyncLogPage() {
                         <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
                         <td className="px-3 py-2 text-gray-600 dark:text-gray-400 tabular-nums">{formatDateTime(r.startedAt)}</td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{r.startedAt ? formatTimeAgo(r.startedAt) : ''}</td>
+                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs">{r.triggeredBy || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {/* ── Account linking runs ── */}
+          <section>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Account linking runs <span className="font-normal text-gray-400">(last 50)</span>
+            </h3>
+            {linkRuns.length === 0 ? (
+              <div className="text-sm text-gray-500 dark:text-gray-400 py-4">
+                No account-linking runs yet. Configure it in Admin → Account Linking; runs then appear here, including after each crawl.
+              </div>
+            ) : (
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
+                      <th className={th}>Status</th>
+                      <th className={th}>Started</th>
+                      <th className={th}>Time Ago</th>
+                      <th className={th}>Step / result</th>
+                      <th className={th}>Triggered by</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {linkRuns.map((r) => (
+                      <tr key={r.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
+                        <td className="px-3 py-2 text-gray-600 dark:text-gray-400 tabular-nums">{formatDateTime(r.startedAt)}</td>
+                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{r.startedAt ? formatTimeAgo(r.startedAt) : ''}</td>
+                        <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs max-w-xs truncate" title={r.errorMessage || r.step || ''}>{r.errorMessage || r.step || ''}</td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs">{r.triggeredBy || '—'}</td>
                       </tr>
                     ))}

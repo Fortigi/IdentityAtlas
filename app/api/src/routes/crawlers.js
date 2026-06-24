@@ -5,6 +5,7 @@ import * as db from '../db/connection.js';
 import { injectJobSecret, deleteJobSecret } from '../secrets/crawlerSecrets.js';
 import { getPushModeType } from '../crawlerManifests.js';
 import { refreshGeneratedContexts } from '../contexts/plugins/runner.js';
+import { startAccountLinkingRun } from '../accountlinking/engine.js';
 
 const adminCrawlersRouter = Router();
 const gate = requirePermission('admin.crawlers');
@@ -589,6 +590,10 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', async (req, res) =
     // a crawl finished (and views were refreshed), so they never go stale. Fire-and-
     // forget; opt a tree out via its run parameters' autoRefresh:false.
     refreshGeneratedContexts('crawl-complete').catch((e) => console.error('[context-refresh]', e.message));
+    // Account linking is also derived from crawled accounts — re-link after a crawl
+    // (only when configured, so it doesn't surprise installs that don't use it).
+    startAccountLinkingRun('crawl-complete', { onlyIfConfigured: true })
+      .catch((e) => console.error('[account-linking auto-run]', e.message));
     res.json({ ok: true });
   } catch (err) {
     console.error('Job complete failed:', err.message);
