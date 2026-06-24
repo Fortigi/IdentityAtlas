@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { TYPE_COLORS } from '@ui/utils/colors';
 
-function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNames, provisioningGap, gapExpected }) {
+function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNames, provisioningGap, gapExpected, onExplainInherited }) {
   const hasMembership = membershipTypes && membershipTypes.size > 0;
 
   // Background: AP color for managed cells only; unmanaged cells stay white
@@ -54,16 +54,20 @@ function MatrixCell({ cellKey, membershipTypes, managed, apColor, apCount, apNam
         <>
           {[...membershipTypes].map(type => {
             const ind = TYPE_COLORS[type];
-            return ind ? (
+            if (!ind) return <span key={type} className="text-[7px] font-bold text-green-800">?</span>;
+            const clickable = type === 'Indirect' && !!onExplainInherited;
+            return (
               <span
                 key={type}
-                className={`inline-block rounded-sm text-center font-bold ${membershipTypes.size === 1 ? 'w-4 h-4 text-[9px] leading-4' : 'w-[9px] h-[14px] text-[7px] leading-[14px]'}`}
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? (e) => { e.stopPropagation(); onExplainInherited(cellKey); } : undefined}
+                title={clickable ? 'Show how this inherited access was derived' : undefined}
+                className={`inline-block rounded-sm text-center font-bold ${membershipTypes.size === 1 ? 'w-4 h-4 text-[9px] leading-4' : 'w-[9px] h-[14px] text-[7px] leading-[14px]'} ${clickable ? 'cursor-pointer ring-1 ring-white/50 hover:ring-2 hover:ring-white' : ''}`}
                 style={{ backgroundColor: ind.bg, color: ind.text }}
               >
                 {ind.letter}
               </span>
-            ) : (
-              <span key={type} className="text-[7px] font-bold text-green-800">?</span>
             );
           })}
         </>
@@ -96,6 +100,7 @@ export default memo(MatrixCell, (prev, next) => {
     prev.apCount === next.apCount &&
     prev.apNames === next.apNames &&
     prev.provisioningGap === next.provisioningGap &&
-    prev.gapExpected === next.gapExpected
+    prev.gapExpected === next.gapExpected &&
+    prev.onExplainInherited === next.onExplainInherited
   );
 });

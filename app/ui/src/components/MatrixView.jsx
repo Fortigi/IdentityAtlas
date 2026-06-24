@@ -103,6 +103,44 @@ export default function MatrixView({
 }) {
   // ─── Nested group expansion ─────────────────────────────────────
   const { authFetch } = useAuth();
+
+  // ─── Inherited-access path explainer ────────────────────────────
+  // Per-cell {nodeId, capabilityId, principalId} for engine-derived inherited
+  // (Indirect) rows, so clicking the I badge can explain how it was inherited.
+  const inheritedByCell = useMemo(() => {
+    const m = new Map();
+    for (const d of (data || [])) {
+      if (d.inheritedNodeId && d.membershipType === 'Indirect') {
+        m.set(`${d.resourceId}|${d.memberId}`, {
+          nodeId: d.inheritedNodeId,
+          capabilityId: d.inheritedCapabilityId,
+          principalId: d.inheritedPrincipalId || d.memberId,
+          resourceName: d.resourceDisplayName || d.groupDisplayName || '',
+          memberName: d.memberDisplayName || d.memberId,
+        });
+      }
+    }
+    return m;
+  }, [data]);
+  const [pathExplain, setPathExplain] = useState(null);
+  const onExplainInherited = useCallback(async (cellKey) => {
+    const info = inheritedByCell.get(cellKey);
+    if (!info) return;
+    setPathExplain({ loading: true, resourceName: info.resourceName, memberName: info.memberName });
+    try {
+      const res = await authFetch('/api/matrix/inheritance-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeId: info.nodeId, capabilityId: info.capabilityId, principalId: info.principalId }),
+      });
+      const body = await res.json();
+      setPathExplain({ loading: false, resourceName: info.resourceName, memberName: info.memberName, sources: body.sources || [], chain: body.chain || [] });
+    } catch (e) {
+      setPathExplain({ loading: false, error: e.message || 'Failed to load path', resourceName: info.resourceName, memberName: info.memberName });
+    }
+  }, [inheritedByCell, authFetch]);
+  const explainHandler = inheritedByCell.size > 0 ? onExplainInherited : undefined;
+
   const [groupsWithNested, setGroupsWithNested] = useState(new Set());
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [nestedDataCache, setNestedDataCache] = useState(new Map());
@@ -1047,6 +1085,7 @@ export default function MatrixView({
               apGroupMap={apGroupMap}
               managedFilter={managedFilter}
               onOpenDetail={onOpenDetail}
+              onExplainInherited={explainHandler}
               groupsWithNested={groupsWithNested}
               expandedGroups={expandedGroups}
               onToggleExpand={toggleExpand}
@@ -1071,6 +1110,7 @@ export default function MatrixView({
                     apGroupMap={apGroupMap}
                     managedFilter={managedFilter}
                     onOpenDetail={onOpenDetail}
+                    onExplainInherited={explainHandler}
                     groupsWithNested={groupsWithNested}
                     expandedGroups={expandedGroups}
                     onToggleExpand={toggleExpand}
@@ -1080,6 +1120,57 @@ export default function MatrixView({
               </tbody>
             </table>
           )}
+        </div>
+      )}
+      {pathExplain && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+          onClick={() => setPathExplain(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                How this inherited access arose
+              </h3>
+              <button
+                onClick={() => setPathExplain(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none"
+                aria-label="Close"
+              >×</button>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+              <strong>{pathExplain.memberName}</strong> reaches <strong>{pathExplain.resourceName}</strong> through a
+              grant higher in the scope hierarchy:
+            </p>
+            {pathExplain.loading && <p className="text-sm text-gray-500">Computing path…</p>}
+            {pathExplain.error && <p className="text-sm text-red-600">{pathExplain.error}</p>}
+            {pathExplain.sources?.length > 0 && (
+              <div className="mb-3 text-sm rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2">
+                <span className="font-medium text-amber-800 dark:text-amber-300">Granted: </span>
+                {pathExplain.sources.map((s, i) => (
+                  <span key={i}>{i > 0 ? ', ' : ''}{s.role} on {s.label}:<strong> {s.name}</strong></span>
+                ))}
+              </div>
+            )}
+            {pathExplain.chain?.length > 0 && (
+              <ol className="space-y-1">
+                {pathExplain.chain.map((c, i) => (
+                  <li key={c.id} className="flex items-center gap-2 text-sm" style={{ paddingLeft: `${i * 18}px` }}>
+                    <span className="text-gray-400 dark:text-gray-500">{i === 0 ? '•' : '└'}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{c.label}</span>
+                    <span className={c.isSource ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}>{c.name}</span>
+                    {c.isSource && <span className="text-[10px] text-amber-600 dark:text-amber-400">← granted here</span>}
+                  </li>
+                ))}
+              </ol>
+            )}
+            {!pathExplain.loading && !pathExplain.error && !(pathExplain.sources?.length) && (
+              <p className="text-sm text-gray-500">No scope-inheritance path found — this may be a directly-declared indirect grant.</p>
+            )}
+          </div>
         </div>
       )}
     </div>

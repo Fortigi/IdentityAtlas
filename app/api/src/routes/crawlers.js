@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import * as db from '../db/connection.js';
 import { injectJobSecret, deleteJobSecret } from '../secrets/crawlerSecrets.js';
 import { getPushModeType } from '../crawlerManifests.js';
+import { runPostCrawlJobs } from '../postCrawlJobs.js';
 
 const adminCrawlersRouter = Router();
 const gate = requirePermission('admin.crawlers');
@@ -584,6 +585,10 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', async (req, res) =
       [id, result ? JSON.stringify(result) : null]
     );
     deleteJobSecret(id).catch(() => {}); // best-effort cleanup of any inline-job secret
+    // Run the post-crawl derived-data jobs (account linking → context plugins → risk
+    // scoring) in order, each to completion before the next — see postCrawlJobs.js.
+    // Fire-and-forget so /complete returns immediately; the pipeline is ordered.
+    runPostCrawlJobs('crawl-complete').catch((e) => console.error('[post-crawl]', e.message));
     res.json({ ok: true });
   } catch (err) {
     console.error('Job complete failed:', err.message);
