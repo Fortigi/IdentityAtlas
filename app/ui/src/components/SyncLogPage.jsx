@@ -32,7 +32,7 @@ function StatusBadge({ status }) {
   );
 }
 
-const th = 'text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300';
+const th = 'text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 sticky top-0 bg-gray-50 dark:bg-gray-700 z-10';
 
 export default function SyncLogPage() {
   const { authFetch } = useAuth();
@@ -77,7 +77,7 @@ export default function SyncLogPage() {
     <div className="max-w-6xl mx-auto space-y-10">
       <div className="flex items-center gap-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Logs</h2>
-        <span className="text-sm text-gray-500 dark:text-gray-400">Crawler syncs &amp; context plugin runs</span>
+        <span className="text-sm text-gray-500 dark:text-gray-400">Crawler syncs, context plugin runs &amp; account linking</span>
       </div>
 
       {loading && <div className="text-center text-gray-500 dark:text-gray-400 py-12">Loading…</div>}
@@ -99,7 +99,7 @@ export default function SyncLogPage() {
                 No sync log entries yet. Add a crawler in Admin → Crawlers to get started.
               </div>
             ) : (
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto max-h-80">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
@@ -142,7 +142,7 @@ export default function SyncLogPage() {
                 No plugin runs yet. Generate a context in Contexts → New, or they'll appear here automatically after each crawl.
               </div>
             ) : (
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto max-h-80">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
@@ -181,7 +181,7 @@ export default function SyncLogPage() {
                 No account-linking runs yet. Configure it in Admin → Account Linking; runs then appear here, including after each crawl.
               </div>
             ) : (
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto max-h-80">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
