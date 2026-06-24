@@ -69,7 +69,7 @@ export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh') {
   const trees = (await db.query(`
     SELECT a.name AS algo,
            c."sourceInstanceKey" AS ikey,
-           (array_agg(r.parameters ORDER BY r."createdAt" DESC))[1] AS params
+           (array_agg(r.parameters ORDER BY c."createdAt" DESC))[1] AS params
       FROM "Contexts" c
       JOIN "ContextAlgorithms" a ON a.id = c."sourceAlgorithmId"
       LEFT JOIN "ContextAlgorithmRuns" r ON r.id = c."sourceRunId"
