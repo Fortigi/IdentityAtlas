@@ -56,7 +56,7 @@ export default function SyncLogPage() {
         let runData = [];
         if (runRes && runRes.ok) {
           const r = await runRes.json();
-          runData = Array.isArray(r) ? r : (r.runs || []);
+          runData = Array.isArray(r) ? r : (r.data || r.runs || []);
         }
         let linkData = [];
         if (linkRes && linkRes.ok) {
