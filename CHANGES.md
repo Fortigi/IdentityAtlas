@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the matrix scope-expand control (`>`) failing to appear on real PostgreSQL: a uuid/text type mismatch in the query that decides which rows are expandable caused it to error and silently render no expand affordance at all — which also suppressed nested-group expansion. Added a Postgres-backed CI check so this class of bug (SQL type errors hidden by database-mocked unit tests) is caught going forward.
+
+## Changes in this PR
+
 - Added an Azure Resource Manager crawler: syncs Azure RBAC — management groups, subscriptions, resource groups, role assignments and role definitions — so Azure scope access appears in Identity Atlas, with role-at-scope inheritance computed by the effective-access engine.
 - Added the Azure Resource Manager crawler to the **Add Crawler** picker, with a guided setup wizard (service principal, scope, options, schedule) and a summary card in the configured-crawlers list.
 - The Azure RM wizard now discovers your environment live: pick subscriptions from a checklist and choose a management group from the nested hierarchy, instead of typing IDs by hand (with a manual fallback if discovery can't reach Azure).
