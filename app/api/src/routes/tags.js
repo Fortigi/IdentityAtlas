@@ -490,6 +490,8 @@ router.get('/users', async (req, res) => {
     const filterWhere = buildFilterWhere(request, attrFilters, colNames, 'u');
 
     let where = '1=1';
+    // Hide soft-deleted principals by default; ?includeDeleted=true reveals them.
+    if (req.query.includeDeleted !== 'true') where += ` AND u."deletedAt" IS NULL`;
     if (search) {
       where += ` AND (u."displayName" ILIKE @search OR u."email" ILIKE @search)`;
       request.input('search', `%${search}%`);
@@ -519,7 +521,7 @@ router.get('/users', async (req, res) => {
              u."principalType", u."systemId", u."externalId",
              u."givenName", u."surname", u."employeeId", u."managerId",
              u."createdDateTime", u."extendedAttributes",
-             u."riskScore", u."riskTier",
+             u."riskScore", u."riskTier", u."deletedAt",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" = 'user'

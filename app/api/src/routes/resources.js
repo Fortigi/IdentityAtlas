@@ -81,6 +81,8 @@ router.get('/resources', async (req, res) => {
     const filterWhere = buildFilterWhere(request, attrFilters, colNames, 'r');
 
     let where = '1=1';
+    // Hide soft-deleted resources by default; ?includeDeleted=true reveals them.
+    if (req.query.includeDeleted !== 'true') where += ` AND r."deletedAt" IS NULL`;
     if (search) {
       where += ` AND (r."displayName" ILIKE @search OR r."description" ILIKE @search)`;
       request.input('search', `%${search}%`);
@@ -122,7 +124,7 @@ router.get('/resources', async (req, res) => {
              r."createdDateTime", r."extendedAttributes",
              r."mail", r."visibility", r."externalId",
              r."catalogId", r."isHidden", r."modifiedDateTime",
-             r."riskScore", r."riskTier",
+             r."riskScore", r."riskTier", r."deletedAt",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" IN ('resource', 'group')

@@ -1,0 +1,3 @@
+- Entities deleted in a source system (e.g. a user removed from Entra ID, or a deleted resource) are now **soft-deleted** instead of being erased: the record is kept and stamped as deleted, so leavers and removed resources stay auditable and cross-system references don't dangle. A later sync that re-sees the entity automatically restores it.
+- Soft-deleted principals, resources, and their assignments are **hidden by default** from the access matrix and the Users/Resources lists. Add `?includeDeleted=true` to reveal them.
+- Detail pages keep the history: a person still shows that they had access to a now-deleted resource (and a resource shows the now-deleted people who held it), each marked as deleted.
