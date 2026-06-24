@@ -14,7 +14,7 @@ const childrenOf = {
 };
 const focusRow = { cap: 'Owner', node: 'sub', rtype: 'AzureRoleAssignment', rolename: 'Owner' };
 const holders = ['u1', 'g1'];
-const names = { rg: 'My RG', vm: 'My VM' };
+const names = { rg: { name: 'My RG', label: 'RG' }, vm: { name: 'My VM', label: 'Res' } };
 
 function wire() {
   db.query.mockImplementation((sql, params) => {
@@ -32,8 +32,10 @@ function wire() {
     }
     if (sql.includes('AS name')) {
       const ids = params[0];
-      return Promise.resolve({ rows: ids.filter((id) => names[id]).map((id) => ({ id, name: names[id] })) });
+      return Promise.resolve({ rows: ids.filter((id) => names[id]).map((id) => ({ id, name: names[id].name, label: names[id].label })) });
     }
+    // SELECT id FROM "Resources" WHERE id = ANY($1) — which synthesized child ids are stored.
+    // None are in this fixture, so synthesized rows navigate to the underlying scope node.
     return Promise.resolve({ rows: [] });
   });
 }
@@ -60,11 +62,16 @@ describe('expandCapabilityDown', () => {
 
   it('fans the capability out to every propagating descendant, holders badged Indirect', async () => {
     const r = await expandCapabilityDown('owner-at-sub');
-    expect(r.groups.map((g) => g.displayName).sort()).toEqual(['Owner @ My RG', 'Owner @ My VM']);
+    // Scope-type label is prefixed into the name.
+    expect(r.groups.map((g) => g.displayName).sort()).toEqual(['Owner @ RG: My RG', 'Owner @ Res: My VM']);
 
     const rgId = capabilityResourceId('rg', 'Owner');
     const vmId = capabilityResourceId('vm', 'Owner');
     expect(r.groups.map((g) => g.groupId).sort()).toEqual([rgId, vmId].sort());
+
+    // Synthesized rows have no stored detail page, so they navigate to the underlying scope node.
+    expect(r.groups.find((g) => g.displayName.includes('My RG')).resourceId).toBe('rg');
+    expect(r.groups.find((g) => g.displayName.includes('My VM')).resourceId).toBe('vm');
 
     const forRg = r.memberships.filter((m) => m.groupId === rgId);
     expect(forRg.map((m) => m.memberId).sort()).toEqual(['g1', 'u1']);

@@ -1,0 +1,20 @@
+{
+  "type": "azure-rm",
+  "displayName": "Azure Resource Manager",
+  "entryPoint": "Start-AzureRMCrawler.ps1",
+  "dependsOn": [],
+  "configSchema": {
+    "type": "object",
+    "required": ["tenantId", "clientId", "clientSecret"],
+    "properties": {
+      "tenantId":     { "type": "string", "description": "Azure AD tenant (directory) ID" },
+      "clientId":     { "type": "string", "description": "Service principal application (client) ID" },
+      "clientSecret": { "type": "string", "description": "Service principal client secret" },
+      "managementGroupId":    { "type": "string", "description": "Optional: crawl only the hierarchy beneath this management group" },
+      "subscriptionIds":      { "type": "array", "items": { "type": "string" }, "description": "Optional: limit the crawl to these subscription IDs" },
+      "includeResourceLevel": { "type": "boolean", "default": false, "description": "Also enumerate individual resources (high volume) — off by default" },
+      "includeCustomRoles":   { "type": "boolean", "default": true, "description": "Resolve tenant custom role definitions, not just built-in roles" }
+    }
+  },
+  "postSyncHooks": []
+}

@@ -11,6 +11,8 @@ import adOuFromDn            from './ad-ou-from-dn.js';
 import { plugin as resourceCluster } from './resource-cluster/index.js';
 import departmentFromPrincipal from './department-from-principal.js';
 import orphanedAccounts       from './orphaned-accounts.js';
+import scopeHierarchy        from './scope-hierarchy.js';
+import resourceTypeTree      from './resource-type-tree.js';
 
 /** @type {import('./types.js').ContextPlugin[]} */
 export const REGISTERED_PLUGINS = [
@@ -19,6 +21,8 @@ export const REGISTERED_PLUGINS = [
   resourceCluster,
   departmentFromPrincipal,
   orphanedAccounts,
+  scopeHierarchy,
+  resourceTypeTree,
 ];
 
 export function getPlugin(name) {
