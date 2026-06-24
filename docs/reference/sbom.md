@@ -25,7 +25,7 @@ This document lists all major software components, dependencies, and infrastruct
 | pg | ^8.21.0 | PostgreSQL client | MIT |
 | pg-copy-streams | ^7.0.0 | High-performance bulk import | MIT |
 | ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
-| re2 | ^1.24.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
+| re2 | ^1.25.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
 ### Security & Authentication
 
@@ -55,10 +55,10 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| vitest | ^4.1.8 | Unit testing framework | MIT |
+| vitest | ^4.1.9 | Unit testing framework | MIT |
 | supertest | ^7.2.2 | HTTP integration testing | MIT |
-| eslint | ^10.4.1 | JavaScript linter | MIT |
-| eslint-plugin-security | ^4.0.0 | Security-focused lint rules | Apache 2.0 |
+| eslint | ^10.5.0 | JavaScript linter | MIT |
+| eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.0 | Bundler for desktop launcher build | MIT |
 | patch-package | ^8.0.1 | Patch third-party packages | MIT |
 
@@ -79,13 +79,13 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | tailwindcss | ^4.3.0 | Utility-first CSS framework | MIT |
-| @tailwindcss/vite | ^4.3.0 | Vite plugin for Tailwind | MIT |
+| @tailwindcss/vite | ^4.3.1 | Vite plugin for Tailwind | MIT |
 
 ### Authentication & Authorization
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.13.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.14.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -95,7 +95,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.2 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.3 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
@@ -108,9 +108,9 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | @vitejs/plugin-react | ^6.0.2 | Vite React plugin | MIT |
-| eslint | ^10.4.1 | JavaScript linter | MIT |
+| eslint | ^10.5.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
-| eslint-plugin-react-refresh | ^0.5.2 | React refresh linting | MIT |
+| eslint-plugin-react-refresh | ^0.5.3 | React refresh linting | MIT |
 | globals | ^17.6.0 | Global variable definitions | MIT |
 | @playwright/test | ^1.60.0 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.11.3 | Accessibility testing | MPL 2.0 |

@@ -1,8 +1,10 @@
 # ─── Regenerate SBOM on dependency change ────────────────────────────────────
 # When a PR that touches dependency manifests, lockfiles, or Dockerfiles is
-# merged into main, this workflow regenerates the machine-readable SPDX SBOM
-# (sbom-edge.spdx.json) so it always reflects the current dependency set, then
-# commits it back to main. Covers both Dependabot and manual dependency bumps.
+# merged into main, this workflow:
+#   1. Regenerates the machine-readable SPDX SBOM (sbom-edge.spdx.json).
+#   2. Refreshes the version column of the curated docs page
+#      (docs/reference/sbom.md) from the npm manifests.
+# Both are then committed back to main. Covers Dependabot and manual bumps.
 #
 # Notes:
 #   * Pushing to the protected main branch requires the GitHub App token
@@ -10,8 +12,10 @@
 #     protection and would not trigger downstream events.
 #   * bump-version.yml also pushes to main on every PR merge, so the commit
 #     step rebases and retries to absorb that concurrent commit.
-#   * The commit carries [skip ci] — an SBOM-only change should not kick off
-#     a fresh CI / Docker build.
+#   * The commit is NOT marked [skip ci]: it touches docs/reference/sbom.md, so
+#     docs.yml must run to redeploy the published SBOM page. (No Docker rebuild
+#     results — docker-publish.yml is gated on bump-version, not arbitrary
+#     pushes.)
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Update SBOM on dependency change
@@ -64,16 +68,19 @@ jobs:
           output-file: sbom-edge.spdx.json
           upload-artifact: false
 
+      - name: Refresh SBOM docs page
+        run: python3 tools/update-sbom-doc.py
+
       - name: Commit updated SBOM
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add sbom-edge.spdx.json
+          git add sbom-edge.spdx.json docs/reference/sbom.md
           if git diff --cached --quiet; then
             echo "SBOM unchanged — nothing to commit"
             exit 0
           fi
-          git commit -m "chore: update SBOM after ${{ github.event.pull_request.title }} [skip ci]"
+          git commit -m "chore: update SBOM after ${{ github.event.pull_request.title }}"
           # bump-version.yml pushes to main on the same merge — rebase & retry.
           for attempt in 1 2 3 4 5; do
             if git push; then

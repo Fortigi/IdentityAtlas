@@ -1,1 +1,1 @@
-- Added automation that regenerates the SPDX SBOM (`sbom-edge.spdx.json`) whenever a merged PR changes a dependency manifest, lockfile, or Dockerfile, keeping the published bill of materials in sync with the current dependency set.
+- Added automation that, whenever a merged PR changes a dependency manifest, lockfile, or Dockerfile, regenerates the machine-readable SPDX SBOM (`sbom-edge.spdx.json`) and refreshes the dependency versions on the Software Bill of Materials documentation page, keeping both in sync with the current dependency set.
