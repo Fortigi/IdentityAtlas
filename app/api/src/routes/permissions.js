@@ -5,7 +5,7 @@ import { ensureCategoryTables } from './categories.js';
 import { getGroupColumns, getResourceColumns, getPrincipalOrUserColumns, getPrincipalOrUserColumnValues } from '../db/columnCache.js';
 import { timedRequest } from '../perf/sqlTimer.js';
 import { buildContextFilterSql, parseAndResolveContextFilters } from '../contexts/contextFilters.js';
-import { expandCapabilityDown } from '../effectiveAccess/engine.js';
+import { expandCapabilityDown, effectiveAccessForNodes } from '../effectiveAccess/engine.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -174,6 +174,57 @@ router.get('/permissions', async (req, res) => {
       const ctxInnerWhere =
         (ctxInnerPrincipalClauses.length ? ' AND ' + ctxInnerPrincipalClauses.join(' AND ') : '') +
         (ctxInnerResourceClauses.length  ? ' AND ' + ctxInnerResourceClauses.join(' AND ')  : '');
+
+      // ── Effective access at scopes (engine path) ──────────────────────────
+      // When the matrix is filtered by a Resource context whose members are SCOPE NODES (e.g. an
+      // "all key vaults" or "all VMs" context), the declared-only matview shows nothing — the access
+      // is inherited. Ask the engine for the EFFECTIVE access AT those scopes (declared + inherited)
+      // and return those rows. Generic — any source with Contains + capability-resources. Falls
+      // through to the normal declared-grant path when the members aren't scope nodes (no engine rows).
+      const resourceCtxFilters = resolvedContextFilters.filter((f) => f.targetType === 'Resource');
+      if (resourceCtxFilters.length > 0) {
+        const memberIds = new Set();
+        for (const f of resourceCtxFilters) {
+          const memQ = f.includeChildren
+            ? `WITH RECURSIVE st AS (
+                 SELECT id FROM "Contexts" WHERE id = $1
+                 UNION SELECT c.id FROM "Contexts" c JOIN st ON c."parentContextId" = st.id)
+               SELECT DISTINCT "memberId" FROM "ContextMembers" WHERE "contextId" IN (SELECT id FROM st)`
+            : `SELECT DISTINCT "memberId" FROM "ContextMembers" WHERE "contextId" = $1`;
+          for (const row of (await db.query(memQ, [f.id])).rows) memberIds.add(row.memberId);
+        }
+        if (memberIds.size > 0) {
+          const { rows: effRows } = await effectiveAccessForNodes([...memberIds]);
+          if (effRows.length > 0) {
+            const fmt = await db.query(`
+              WITH eff AS (
+                SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::text[], $4::text[], $5::text[])
+                  AS t("resourceId", "memberId", "membershipType", "displayName", "resourceType")
+              )
+              SELECT e."resourceId", e."resourceId" AS "groupId",
+                     e."displayName" AS "resourceDisplayName", e."displayName" AS "groupDisplayName",
+                     e."resourceType", e."resourceType" AS "groupTypeCalculated",
+                     NULL AS "resourceDescription", NULL AS "groupDescription",
+                     NULL::int AS "systemId", NULL AS "systemName",
+                     e."memberId", u."displayName" AS "memberDisplayName", u."email" AS "memberUPN",
+                     u."principalType" AS "memberType", e."membershipType",
+                     ${dynamicUserCols} false AS "managedByAccessPackage"
+                FROM eff e LEFT JOIN "Principals" u ON e."memberId" = u.id
+               WHERE (u."principalType" IS NULL OR u."principalType" != '#microsoft.graph.group')
+            `, [
+              effRows.map((r) => r.resourceId),
+              effRows.map((r) => r.principalId),
+              effRows.map((r) => r.membershipType),
+              effRows.map((r) => r.displayName),
+              effRows.map((r) => r.resourceType),
+            ]);
+            const totalResult = await db.query(
+              `SELECT COUNT(*)::int AS "totalUsers" FROM "Principals" WHERE "principalType" IS NULL OR "principalType" != '#microsoft.graph.group'`,
+            );
+            return res.json({ data: fmt.rows, totalUsers: totalResult.rows[0].totalUsers, managedByPackages: [] });
+          }
+        }
+      }
 
       // Extract special tag filters before regular validation
       let userTagFilter = null;

@@ -34,6 +34,7 @@ import {
   getResourceColumnValues,
 } from '../db/columnCache.js';
 import { resolveAttrExpr } from '../matrix/attrExpr.js';
+import { buildInheritedFlatRows, explainInheritance, buildInheritedRollupCounts, buildInheritedContextCounts, buildInheritedFoldCounts } from '../matrix/inheritedAccess.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
@@ -789,6 +790,23 @@ router.post('/matrix/hierarchy-paths', async (req, res) => {
 });
 
 // ─── POST /api/matrix/data ──────────────────────────────────────────
+// Explain one inherited (Indirect) cell — "how did this principal get this access
+// at this scope?". Lazy: called on hover / click of an I badge in the flat grid.
+router.post('/matrix/inheritance-path', async (req, res) => {
+  if (!useSql) return res.json({ sources: [], chain: [] });
+  const { nodeId, capabilityId, principalId } = req.body || {};
+  if (!UUID_RE.test(nodeId || '') || !UUID_RE.test(principalId || '')
+      || typeof capabilityId !== 'string' || !capabilityId) {
+    return res.status(400).json({ error: 'nodeId, capabilityId and principalId are required' });
+  }
+  try {
+    return res.json(await explainInheritance(nodeId, capabilityId, principalId));
+  } catch (err) {
+    console.error('inheritance-path error:', err.message);
+    return res.status(500).json({ error: 'Failed to compute inheritance path' });
+  }
+});
+
 router.post('/matrix/data', async (req, res) => {
   if (!useSql) {
     return res.json({
@@ -798,6 +816,11 @@ router.post('/matrix/data', async (req, res) => {
   }
   const filter = parseFilter(req.body);
   if (!filter) return res.status(400).json({ error: 'Invalid filter body' });
+  // Opt-in: fold access inherited from higher scopes (Owner@subscription ⇒
+  // Indirect on resources beneath) into the result, computed on demand by the
+  // effective-access engine. Bounded-scope only (see inheritedAccess.js).
+  const includeInherited = req.body?.includeInheritedAccess === true
+    || req.body?.filter?.includeInheritedAccess === true;
 
   // Manager-Hierarchy sort is served as a context roll-up: aggregate per org
   // node on the server rather than ship every per-subject row (which overflows
@@ -882,9 +905,17 @@ router.post('/matrix/data', async (req, res) => {
         excludeGroups: rowType !== 'identity',
       }))).recordset;
 
+      // Fold inherited (effective) access into the layered attribute fold. Holder
+      // tuple keys match the fold's visible key, so they reuse existing columns.
+      let inhFold = null;
+      if (includeInherited) {
+        try { inhFold = await buildInheritedFoldCounts(p, built, rowType, filter.sortAttributes, built.principalCols, filter.rollupCollapsed); }
+        catch (err) { built.warnings.push('inherited fold failed: ' + err.message); }
+      }
+
       // Hide attribute groups with no in-scope assignments — a column only shows
-      // if some resource has a Direct count for it.
-      const attrCellIds = new Set(cellRows.map(c => c.groupValue));
+      // if some resource has a Direct (or inherited) count for it.
+      const attrCellIds = new Set([...cellRows.map(c => c.groupValue), ...(inhFold?.groupValues || [])]);
       const nodes = nodeRows
         .filter(r => attrCellIds.has(r.groupValue))
         .map(r => tupleToNode(r.groupValue, r.total, r.childCount))
@@ -899,6 +930,7 @@ router.post('/matrix/data', async (req, res) => {
           systemId: row.systemId, systemName: row.systemName,
         });
       }
+      for (const r of (inhFold?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
 
       const counts = await scopeCounts(p, res, rowType, built);
       // Always show one header row per chosen attribute (folded groups occupy
@@ -912,10 +944,13 @@ router.post('/matrix/data', async (req, res) => {
         groupValues: nodes.map(n => n.id),
         groupTotals: nodes.map(n => ({ groupValue: n.id, total: n.total })),
         resources: [...resMap.values()],
-        counts: cellRows.map(r => ({
-          resourceId: r.resourceId, groupValue: r.groupValue,
-          directCount: r.directCount, governedCount: r.governedCount,
-        })),
+        counts: [
+          ...cellRows.map(r => ({
+            resourceId: r.resourceId, groupValue: r.groupValue,
+            directCount: r.directCount, governedCount: r.governedCount,
+          })),
+          ...(inhFold?.counts || []),
+        ],
         ...counts, totalUsers: counts.subjectTotal, warnings: built.warnings,
       });
     }
@@ -981,16 +1016,26 @@ router.post('/matrix/data', async (req, res) => {
           subjectSql: built.subjectSql, resourceSql: built.resourceSql,
         }))).recordset.map(r => [r.groupValue, { total: r.total, direct: r.direct }]));
 
+        // Fold inherited (effective) access into the org-rollup cells.
+        let inhCtx = null;
+        if (includeInherited) {
+          try { inhCtx = await buildInheritedContextCounts(p, built, rowType, cutNodes.map(n => n.id)); }
+          catch (err) { built.warnings.push('inherited context fold failed: ' + err.message); }
+        }
+        const inhTotByNode = new Map((inhCtx?.groupTotals || []).map(t => [t.groupValue, t.total]));
+        for (const r of (inhCtx?.resources || [])) if (!layerResMap.has(r.resourceId)) layerResMap.set(r.resourceId, r);
+
         // Hide org branches with no in-scope assignments: a column only shows if
-        // some resource has a Direct count for that node's subtree. Keeps the
-        // header focused on where the selected resources are actually used. Each
-        // surviving node gets its scoped direct/total counts.
-        const cellNodeIds = new Set(layerCells.map(c => c.groupValue));
+        // some resource has a Direct (or inherited) count for that node's subtree.
+        const cellNodeIds = new Set([...layerCells.map(c => c.groupValue), ...(inhCtx?.groupValues || [])]);
         const visibleNodes = cutNodes
           .filter(n => cellNodeIds.has(n.id))
           .map(n => {
             const sc = scMap.get(n.id);
-            return sc ? { ...n, total: sc.total, directMembers: sc.direct } : n;
+            const inhT = inhTotByNode.get(n.id) || 0;
+            if (sc) return { ...n, total: sc.total + inhT, directMembers: sc.direct };
+            if (inhT) return { ...n, total: inhT, directMembers: 0 };
+            return n;
           });
 
         const layerCounts = await scopeCounts(p, res, rowType, built);
@@ -1003,10 +1048,13 @@ router.post('/matrix/data', async (req, res) => {
           groupValues: visibleNodes.map(n => n.id),
           groupTotals: visibleNodes.map(n => ({ groupValue: n.id, total: n.total })),
           resources: [...layerResMap.values()],
-          counts: layerCells.map(r => ({
-            resourceId: r.resourceId, groupValue: r.groupValue,
-            directCount: r.directCount, governedCount: r.governedCount,
-          })),
+          counts: [
+            ...layerCells.map(r => ({
+              resourceId: r.resourceId, groupValue: r.groupValue,
+              directCount: r.directCount, governedCount: r.governedCount,
+            })),
+            ...(inhCtx?.counts || []),
+          ],
           ...layerCounts, totalUsers: layerCounts.subjectTotal, warnings: built.warnings,
         });
       }
@@ -1118,6 +1166,15 @@ router.post('/matrix/data', async (req, res) => {
         });
       }
 
+      // Fold inherited (effective) access into the org-rollup cells (zoom view).
+      // The frontier columns already exist, so we only add resources + counts.
+      let inhCtx2 = null;
+      if (includeInherited) {
+        try { inhCtx2 = await buildInheritedContextCounts(p, built, rowType, frontier); }
+        catch (err) { built.warnings.push('inherited context fold failed: ' + err.message); }
+      }
+      for (const r of (inhCtx2?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+
       let businessRoles = [];
       const roleCounts = [];
       if (filter.rollupContent !== 'resources-only') {
@@ -1138,13 +1195,25 @@ router.post('/matrix/data', async (req, res) => {
         } catch { /* business-role view may be absent */ }
       }
 
+      const mergedCtxTotals = inhCtx2?.groupTotals?.length
+        ? (() => {
+            const m = new Map(ctxTotals.map(t => [t.groupValue, t.total]));
+            for (const t of inhCtx2.groupTotals) m.set(t.groupValue, (m.get(t.groupValue) || 0) + t.total);
+            return [...m.entries()].map(([groupValue, total]) => ({ groupValue, total }));
+          })()
+        : ctxTotals;
+
       return res.json({
         ...shared,
+        groupTotals: mergedCtxTotals,
         resources: [...resMap.values()],
-        counts: cellRows.map(r => ({
-          resourceId: r.resourceId, groupValue: r.groupValue,
-          directCount: r.directCount, governedCount: r.governedCount,
-        })),
+        counts: [
+          ...cellRows.map(r => ({
+            resourceId: r.resourceId, groupValue: r.groupValue,
+            directCount: r.directCount, governedCount: r.governedCount,
+          })),
+          ...(inhCtx2?.counts || []),
+        ],
         businessRoles,
         roleCounts,
       });
@@ -1260,6 +1329,23 @@ router.post('/matrix/data', async (req, res) => {
         groupSet.add(row.groupValue);
       }
 
+      // Fold inherited (effective) access into the count cells (Phase 2). The
+      // declared rollup above is empty for scope-node scopes; the engine yields
+      // the effective counts per (synthesized capability, group-value).
+      let inhCounts = [];
+      let inhGroupTotals = [];
+      if (includeInherited) {
+        try {
+          const inh = await buildInheritedRollupCounts(p, built, rowType, filter.rollup, built.principalCols);
+          if (inh) {
+            for (const r of inh.resources) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+            for (const gv of inh.groupValues) groupSet.add(gv);
+            inhCounts = inh.counts;
+            inhGroupTotals = inh.groupTotals;
+          }
+        } catch (err) { built.warnings.push('inherited rollup fold failed: ' + err.message); }
+      }
+
       // Business-role (SOLL) counts: how many in-scope subjects hold each
       // resource via each business role. Mirrors the SOLL columns of the
       // per-subject matrix, but aggregated to a count.
@@ -1285,17 +1371,28 @@ router.post('/matrix/data', async (req, res) => {
         } catch { /* business-role view may be absent */ }
       }
 
+      const mergedGroupTotals = inhGroupTotals.length
+        ? (() => {
+            const m = new Map(groupTotals.map(t => [t.groupValue, t.total]));
+            for (const t of inhGroupTotals) m.set(t.groupValue, (m.get(t.groupValue) || 0) + t.total);
+            return [...m.entries()].map(([groupValue, total]) => ({ groupValue, total }));
+          })()
+        : groupTotals;
+
       return res.json({
         rollup: filter.rollup,
         rollupContent: filter.rollupContent,
         rowType,
         resources: [...resMap.values()],
         groupValues: [...groupSet].sort((a, b) => String(a).localeCompare(String(b))),
-        groupTotals,
-        counts: rollupResult.recordset.map(r => ({
-          resourceId: r.resourceId, groupValue: r.groupValue,
-          directCount: r.directCount, governedCount: r.governedCount,
-        })),
+        groupTotals: mergedGroupTotals,
+        counts: [
+          ...rollupResult.recordset.map(r => ({
+            resourceId: r.resourceId, groupValue: r.groupValue,
+            directCount: r.directCount, governedCount: r.governedCount,
+          })),
+          ...inhCounts,
+        ],
         businessRoles,
         roleCounts,
         ...counts,
@@ -1342,6 +1439,23 @@ router.post('/matrix/data', async (req, res) => {
       WHERE ${where.join(' AND ')}
     `;
     const result = await dataReq.query(dataSql);
+
+    // ── Inherited (effective) access fold ──────────────────────────────────
+    // Additive: the declared query above is empty for scope-node scopes (key
+    // vaults, a region) because Azure access lives on capability-resources, not
+    // the nodes. The engine returns the effective capabilities AT those nodes.
+    if (includeInherited) {
+      try {
+        const effFlat = await buildInheritedFlatRows(p, built, rowType, subjectCols);
+        const seen = new Set(result.recordset.map((r) => `${r.resourceId}|${r.memberId}`));
+        for (const er of effFlat) {
+          const k = `${er.resourceId}|${er.memberId}`;
+          if (!seen.has(k)) { seen.add(k); result.recordset.push(er); } // declared wins
+        }
+      } catch (err) {
+        built.warnings.push('inherited-access fold failed: ' + err.message);
+      }
+    }
 
     // Backstop: a flat per-subject grid serializes every assignment row into one
     // JSON string. Past ~half a million rows that string can exceed V8's max

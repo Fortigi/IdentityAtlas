@@ -250,6 +250,23 @@ export function scoreOne(textFields, classifiers) {
 // batches, and updates progress as it goes. Returns when complete.
 //
 // classifierId: id of the RiskClassifiers row to use. If null, the active set is loaded.
+// Start a scoring run: insert the run row + run the engine. Shared by the route and
+// the post-crawl pipeline. onlyIfConfigured skips when no active classifier exists.
+export async function startRiskScoringRun(triggeredBy = 'system', { onlyIfConfigured = false, awaitCompletion = false } = {}) {
+  const active = await db.queryOne(`SELECT id FROM "RiskClassifiers" WHERE "isActive" = true LIMIT 1`);
+  if (!active) { if (onlyIfConfigured) return null; throw new Error('No active classifier set'); }
+  const run = await db.queryOne(
+    `INSERT INTO "ScoringRuns" ("classifierId", status, step, pct, "triggeredBy")
+     VALUES ($1, 'pending', 'Queued', 0, $2) RETURNING *`,
+    [active.id, triggeredBy]);
+  if (awaitCompletion) {
+    try { await runScoring(run.id, active.id); } catch (err) { console.error(`scoring run ${run.id} failed:`, err.message); }
+  } else {
+    runScoring(run.id, active.id).catch((err) => console.error(`Background scoring run ${run.id} crashed:`, err));
+  }
+  return run;
+}
+
 export async function runScoring(runId, classifierId = null) {
   const updateRun = async (fields) => {
     const setClauses = Object.keys(fields).map((k, i) => `"${k}" = $${i + 2}`).join(', ');
