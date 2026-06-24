@@ -241,6 +241,45 @@ router.post('/ingest/governance/requests',      createIngestHandler('governance/
 router.post('/ingest/governance/certifications', createIngestHandler('governance/certifications'));
 router.post('/ingest/principal-activity',       createIngestHandler('principal-activity'));
 
+// POST /api/ingest/principals-in-directory — given a set of Azure AD objectIds and a
+// tenantId, return which of them are present in our crawled Entra ID directory (as a
+// Principal, or as a Resource such as a group). The Azure RM crawler uses this to
+// filter or flag role-assignment holders that don't exist in Entra ID — deleted SPs
+// with dangling assignments, or principals outside a scoped (e.g. admins-only) Entra
+// crawl. `directoryAvailable=false` means we have no Entra data for that tenant yet,
+// so the caller must NOT treat everything as orphaned.
+router.post('/ingest/principals-in-directory', async (req, res) => {
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  if (!crawlerHasPermission(req, 'ingest')) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  const tenantId = typeof req.body?.tenantId === 'string' ? req.body.tenantId : null;
+  if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((x) => typeof x === 'string') : [];
+  try {
+    const avail = await db.queryOne(`
+      SELECT (
+        EXISTS (SELECT 1 FROM "Principals" p JOIN "Systems" s ON s.id = p."systemId" WHERE s."systemType" = 'EntraID' AND s."tenantId" = $1)
+        OR EXISTS (SELECT 1 FROM "Resources" r JOIN "Systems" s ON s.id = r."systemId" WHERE s."systemType" = 'EntraID' AND s."tenantId" = $1)
+      ) AS available`, [tenantId]);
+    let present = [];
+    if (ids.length > 0) {
+      const { rows } = await db.query(`
+        SELECT p.id::text AS id FROM "Principals" p JOIN "Systems" s ON s.id = p."systemId"
+          WHERE s."systemType" = 'EntraID' AND s."tenantId" = $2 AND p.id::text = ANY($1::text[])
+        UNION
+        SELECT r.id::text AS id FROM "Resources" r JOIN "Systems" s ON s.id = r."systemId"
+          WHERE s."systemType" = 'EntraID' AND s."tenantId" = $2 AND r.id::text = ANY($1::text[])
+      `, [ids, tenantId]);
+      present = rows.map((x) => x.id);
+    }
+    res.json({ present, directoryAvailable: !!avail?.available });
+  } catch (err) {
+    console.error('principals-in-directory lookup failed:', err.message);
+    res.status(500).json({ error: 'Lookup failed' });
+  }
+});
+
 // POST /api/ingest/refresh-views — no-op in v5.
 //
 // In v4 we had a materialised table `mat_UserPermissionAssignments` that the

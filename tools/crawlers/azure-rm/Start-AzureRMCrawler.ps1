@@ -30,6 +30,7 @@ $Cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $SyncMode = if ($Cfg._syncMode -in @('full', 'delta')) { $Cfg._syncMode } else { 'full' }
 $IncludeResourceLevel = [bool]$Cfg.includeResourceLevel
 $IncludeCustomRoles   = if ($null -ne $Cfg.includeCustomRoles) { [bool]$Cfg.includeCustomRoles } else { $true }
+$OnlyEntraPrincipals  = if ($null -ne $Cfg.onlyEntraPrincipals) { [bool]$Cfg.onlyEntraPrincipals } else { $true }
 $SubscriptionFilter   = if ($Cfg.subscriptionIds) { @($Cfg.subscriptionIds) } else { @() }
 $ManagementGroupId    = if ($Cfg.managementGroupId) { [string]$Cfg.managementGroupId } else { $null }
 
@@ -402,6 +403,54 @@ $ContainsEdges = @($ContainsEdges | Where-Object { $eSeen.Add("$($_.parentResour
 Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Contains edges (final)" -ForegroundColor Gray
 Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = 'AzureScope' } -Records $ScopeResources | Out-Null
 Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ relationshipType = 'Contains' } -Records $ContainsEdges | Out-Null
+
+# ─── Orphan handling: principals not present in the Entra ID directory ──────────
+# Azure RBAC assignments can reference principals absent from the Entra directory —
+# deleted SPs with dangling assignments, or (when the Entra crawl is scoped, e.g. to
+# admins) principals intentionally out of scope. Resolve each holder against our Entra
+# data; ON (default) drops them so they don't surface, OFF keeps them but flags the
+# principal as orphaned. A tenant with no Entra data yet is left untouched.
+$distinctPids = @($Grants | ForEach-Object { [string]$_.principalId } | Sort-Object -Unique)
+if ($distinctPids.Count -gt 0) {
+    $lookup = Invoke-IngestAPI -Endpoint 'ingest/principals-in-directory' -Body @{ tenantId = [string]$Cfg.tenantId; ids = $distinctPids }
+    if (-not $lookup.directoryAvailable) {
+        Write-Host "  No Entra ID directory data for this tenant yet — skipping orphan handling (run the Entra ID crawler first)." -ForegroundColor Yellow
+    } else {
+        $present = [System.Collections.Generic.HashSet[string]]::new([string[]]@($lookup.present), [System.StringComparer]::OrdinalIgnoreCase)
+        $orphanCount = 0
+        foreach ($objId in $distinctPids) { if (-not $present.Contains($objId)) { $orphanCount++ } }
+
+        if ($OnlyEntraPrincipals) {
+            # Drop grants + stubs for principals not in the directory, then prune the
+            # role-at-scope resources nobody holds anymore. The full sync removes any
+            # previously-loaded orphan assignments from the database.
+            $before = $Grants.Count
+            $Grants = @($Grants | Where-Object { $present.Contains([string]$_.principalId) })
+            foreach ($pt in @($PrincipalStubs.Keys)) {
+                $kept = [System.Collections.Generic.List[object]]::new()
+                foreach ($stub in $PrincipalStubs[$pt]) { if ($present.Contains([string]$stub.id)) { $kept.Add($stub) } }
+                $PrincipalStubs[$pt] = $kept
+            }
+            $keptCaps = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($g in $Grants) { [void]$keptCaps.Add([string]$g.resourceId) }
+            $RoleResources = @($RoleResources | Where-Object { $keptCaps.Contains([string]$_.id) })
+            Write-Host "  Orphan filter ON: dropped $($before - $Grants.Count) assignment(s) for $orphanCount principal(s) not in Entra ID." -ForegroundColor Gray
+        } else {
+            # Flag the orphan stubs; leave assignments as-is.
+            $tagged = 0
+            foreach ($pt in $PrincipalStubs.Keys) {
+                foreach ($stub in $PrincipalStubs[$pt]) {
+                    if (-not $present.Contains([string]$stub.id)) {
+                        if (-not $stub.ContainsKey('extendedAttributes')) { $stub['extendedAttributes'] = @{} }
+                        $stub['extendedAttributes']['directoryStatus'] = 'orphaned'
+                        $tagged++
+                    }
+                }
+            }
+            Write-Host "  Orphan flag OFF: tagged $tagged principal(s) not in Entra ID as 'orphaned' (assignments kept)." -ForegroundColor Gray
+        }
+    }
+}
 
 # Stubs use delta (upsert-only) so they never scoped-delete principals the Entra crawler owns.
 foreach ($pt in $PrincipalStubs.Keys) {
