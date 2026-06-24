@@ -113,7 +113,7 @@ router.post('/context-plugins/:name/run', gate, async (req, res) => {
 });
 
 // GET /api/context-plugins/runs
-router.get('/context-plugins/runs', gate, async (req, res) => {
+router.get('/context-plugins/runs', async (req, res) => {
   if (!useSql) return res.json({ data: [], total: 0 });
   try {
     const rows = await listRuns({
@@ -128,7 +128,7 @@ router.get('/context-plugins/runs', gate, async (req, res) => {
 });
 
 // GET /api/context-plugins/runs/:id
-router.get('/context-plugins/runs/:id', gate, async (req, res) => {
+router.get('/context-plugins/runs/:id', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid run id' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {
