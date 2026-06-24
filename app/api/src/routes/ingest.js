@@ -12,6 +12,7 @@ import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, EN
 import { startSession, continueSession, endSession, hasSession } from '../ingest/sessions.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../middleware/crawlerAuth.js';
 import { bumpSyncVersion } from '../lib/syncVersion.js';
+import { normalizeDirectoryQuery, lookupDirectoryPresence } from '../ingest/directoryPresence.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -253,27 +254,10 @@ router.post('/ingest/principals-in-directory', async (req, res) => {
   if (!crawlerHasPermission(req, 'ingest')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
-  const tenantId = typeof req.body?.tenantId === 'string' ? req.body.tenantId : null;
+  const { tenantId, ids } = normalizeDirectoryQuery(req.body);
   if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
-  const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((x) => typeof x === 'string') : [];
   try {
-    const avail = await db.queryOne(`
-      SELECT (
-        EXISTS (SELECT 1 FROM "Principals" p JOIN "Systems" s ON s.id = p."systemId" WHERE s."systemType" = 'EntraID' AND s."tenantId" = $1)
-        OR EXISTS (SELECT 1 FROM "Resources" r JOIN "Systems" s ON s.id = r."systemId" WHERE s."systemType" = 'EntraID' AND s."tenantId" = $1)
-      ) AS available`, [tenantId]);
-    let present = [];
-    if (ids.length > 0) {
-      const { rows } = await db.query(`
-        SELECT p.id::text AS id FROM "Principals" p JOIN "Systems" s ON s.id = p."systemId"
-          WHERE s."systemType" = 'EntraID' AND s."tenantId" = $2 AND p.id::text = ANY($1::text[])
-        UNION
-        SELECT r.id::text AS id FROM "Resources" r JOIN "Systems" s ON s.id = r."systemId"
-          WHERE s."systemType" = 'EntraID' AND s."tenantId" = $2 AND r.id::text = ANY($1::text[])
-      `, [ids, tenantId]);
-      present = rows.map((x) => x.id);
-    }
-    res.json({ present, directoryAvailable: !!avail?.available });
+    res.json(await lookupDirectoryPresence(db, tenantId, ids));
   } catch (err) {
     console.error('principals-in-directory lookup failed:', err.message);
     res.status(500).json({ error: 'Lookup failed' });
