@@ -19,6 +19,7 @@ import * as db from '../db/connection.js';
 import { effectiveAccessForNodes } from '../effectiveAccess/engine.js';
 import { getSyncVersion } from '../lib/syncVersion.js';
 import { resolveAttrExpr } from './attrExpr.js';
+import { visibleKeyExpr } from './attributeCut.js';
 
 // ── Effective-access cache (Phase 3: cache-by-sync) ─────────────────────────
 // Effective access can only change on a crawl, so we cache the engine's full
@@ -280,6 +281,66 @@ export async function buildInheritedContextCounts(p, built, rowType, frontierIds
     groupValues: [...groupSets.keys()],
     groupTotals: [...groupSets.entries()].map(([gv, set]) => ({ groupValue: gv, total: set.size })),
   };
+}
+
+// Folded effective counts for the LAYERED ATTRIBUTE FOLD. The group-value of a
+// holder is the same collapse-aware tuple key (visibleKeyExpr) the fold uses, so
+// the counts land on the existing tuple columns. principal rowType only (the
+// tuple is computed on the identity for identity rowType — not yet supported).
+export async function buildInheritedFoldCounts(p, built, rowType, sortAttributes, principalCols, collapsed) {
+  if (rowType === 'identity') return null;
+  if (!built.resourceSql || !Array.isArray(sortAttributes) || !sortAttributes.length) return null;
+  const nodeIds = await scopedNodeIds(p, built);
+  if (!nodeIds.length) return null;
+  const eff = await cachedEffectiveAccess(nodeIds);
+  if (!eff.length) return null;
+  const subjScope = await scopedPrincipalIds(p, built, rowType);
+  const rows = subjScope ? eff.filter((e) => subjScope.has(e.principalId)) : eff;
+  if (!rows.length) return null;
+  const pids = [...new Set(rows.map((r) => r.principalId))];
+
+  const attrExprs = [];
+  for (const a of sortAttributes) {
+    const r = resolveAttrExpr(a.attribute, 'pr', principalCols);
+    if (r.error) return null;
+    attrExprs.push(r.attrExpr);
+  }
+  const coll = Array.isArray(collapsed) ? collapsed : [];
+  const placeholders = coll.map((_, i) => `$${i + 2}`);
+  const vk = visibleKeyExpr(attrExprs, placeholders);
+  const { rows: gvr } = await db.query(
+    `SELECT id, ${vk} AS gv FROM "Principals" pr WHERE id = ANY($1)`, [pids, ...coll]);
+  const gvBy = new Map(gvr.map((r) => [r.id, r.gv]));
+
+  const { rows: pt } = await db.query(`SELECT id, "principalType" AS pt FROM "Principals" WHERE id = ANY($1)`, [pids]);
+  const isGroup = new Set(pt.filter((r) => r.pt === '#microsoft.graph.group').map((r) => r.id));
+  const { rows: nodeMeta } = await db.query(
+    `SELECT r.id, r."systemId", s."displayName" AS "systemName"
+       FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId" WHERE r.id = ANY($1)`, [nodeIds]);
+  const nodeById = new Map(nodeMeta.map((n) => [n.id, n]));
+
+  const resources = new Map(), cells = new Map(), gset = new Set();
+  for (const e of rows) {
+    if (isGroup.has(e.principalId)) continue;
+    const gv = gvBy.get(e.principalId);
+    if (gv == null) continue;
+    if (!resources.has(e.resourceId)) {
+      const node = nodeById.get(e.nodeId) || {};
+      resources.set(e.resourceId, {
+        resourceId: e.resourceId, resourceDisplayName: e.displayName,
+        resourceType: e.resourceType, resourceDescription: null,
+        systemId: node.systemId ?? null, systemName: node.systemName ?? null,
+      });
+    }
+    let m = cells.get(e.resourceId); if (!m) { m = new Map(); cells.set(e.resourceId, m); }
+    let s = m.get(gv); if (!s) { s = new Set(); m.set(gv, s); }
+    s.add(e.principalId);
+    gset.add(gv);
+  }
+  if (!resources.size) return null;
+  const counts = [];
+  for (const [resourceId, m] of cells) for (const [gv, set] of m) counts.push({ resourceId, groupValue: gv, directCount: set.size, governedCount: 0 });
+  return { resources: [...resources.values()], counts, groupValues: [...gset] };
 }
 
 // Explain a single inherited cell: "how did this principal get this capability

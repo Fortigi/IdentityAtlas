@@ -34,7 +34,7 @@ import {
   getResourceColumnValues,
 } from '../db/columnCache.js';
 import { resolveAttrExpr } from '../matrix/attrExpr.js';
-import { buildInheritedFlatRows, explainInheritance, buildInheritedRollupCounts, buildInheritedContextCounts } from '../matrix/inheritedAccess.js';
+import { buildInheritedFlatRows, explainInheritance, buildInheritedRollupCounts, buildInheritedContextCounts, buildInheritedFoldCounts } from '../matrix/inheritedAccess.js';
 import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
@@ -905,9 +905,17 @@ router.post('/matrix/data', async (req, res) => {
         excludeGroups: rowType !== 'identity',
       }))).recordset;
 
+      // Fold inherited (effective) access into the layered attribute fold. Holder
+      // tuple keys match the fold's visible key, so they reuse existing columns.
+      let inhFold = null;
+      if (includeInherited) {
+        try { inhFold = await buildInheritedFoldCounts(p, built, rowType, filter.sortAttributes, built.principalCols, filter.rollupCollapsed); }
+        catch (err) { built.warnings.push('inherited fold failed: ' + err.message); }
+      }
+
       // Hide attribute groups with no in-scope assignments — a column only shows
-      // if some resource has a Direct count for it.
-      const attrCellIds = new Set(cellRows.map(c => c.groupValue));
+      // if some resource has a Direct (or inherited) count for it.
+      const attrCellIds = new Set([...cellRows.map(c => c.groupValue), ...(inhFold?.groupValues || [])]);
       const nodes = nodeRows
         .filter(r => attrCellIds.has(r.groupValue))
         .map(r => tupleToNode(r.groupValue, r.total, r.childCount))
@@ -922,6 +930,7 @@ router.post('/matrix/data', async (req, res) => {
           systemId: row.systemId, systemName: row.systemName,
         });
       }
+      for (const r of (inhFold?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
 
       const counts = await scopeCounts(p, res, rowType, built);
       // Always show one header row per chosen attribute (folded groups occupy
@@ -935,10 +944,13 @@ router.post('/matrix/data', async (req, res) => {
         groupValues: nodes.map(n => n.id),
         groupTotals: nodes.map(n => ({ groupValue: n.id, total: n.total })),
         resources: [...resMap.values()],
-        counts: cellRows.map(r => ({
-          resourceId: r.resourceId, groupValue: r.groupValue,
-          directCount: r.directCount, governedCount: r.governedCount,
-        })),
+        counts: [
+          ...cellRows.map(r => ({
+            resourceId: r.resourceId, groupValue: r.groupValue,
+            directCount: r.directCount, governedCount: r.governedCount,
+          })),
+          ...(inhFold?.counts || []),
+        ],
         ...counts, totalUsers: counts.subjectTotal, warnings: built.warnings,
       });
     }
