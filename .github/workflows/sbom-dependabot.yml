@@ -23,7 +23,7 @@ on:
 # Serialize with any other run of this workflow so concurrent Dependabot
 # merges don't race each other on the push to main.
 concurrency:
-  group: sbom-update
+  group: sbom-update-main
   cancel-in-progress: false  # queue them, don't drop
 
 permissions:
