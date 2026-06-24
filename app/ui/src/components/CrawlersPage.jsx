@@ -95,16 +95,16 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
 
   return (
     <div className="p-4 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-start justify-between mb-3">
-        <div>
+      <div className="mb-3">
+        <div className="mb-2">
           <h4 className="font-semibold text-gray-900 dark:text-white">{config.displayName}</h4>
           <span className="text-xs text-gray-500 dark:text-gray-400">{config.crawlerType}</span>
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {supportsRun && (isRunning ? (
             <button
               onClick={() => onForceStop(runningJob.id)}
-              className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+              className="px-3 py-1 text-xs whitespace-nowrap bg-red-600 text-white rounded hover:bg-red-700"
             >
               Force Stop
             </button>
@@ -113,14 +113,14 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
               <button
                 onClick={() => onRunNow(config.id, 'delta')}
                 title="Queue a delta run — fetches only what changed since the last successful sync."
-                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="px-3 py-1 text-xs whitespace-nowrap bg-blue-600 text-white rounded hover:bg-blue-700"
               >
                 Run Delta
               </button>
               <button
                 onClick={() => onRunNow(config.id, 'full')}
                 title="Queue a full run — re-fetches everything, resets delta tokens."
-                className="px-3 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700"
+                className="px-3 py-1 text-xs whitespace-nowrap bg-amber-600 text-white rounded hover:bg-amber-700"
               >
                 Run Full
               </button>
@@ -128,19 +128,19 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
           ))}
           {supportsConfigure && (
             <button onClick={() => onEdit(config)}
-              className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
+              className="px-3 py-1 text-xs whitespace-nowrap bg-gray-100 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
               Configure
             </button>
           )}
           {supportsExport && (
             <button onClick={() => onExport(config)}
               title="Download this crawler's configuration as JSON (client secret is stripped)"
-              className="px-3 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">
+              className="px-3 py-1 text-xs whitespace-nowrap bg-gray-100 rounded hover:bg-gray-200">
               Export
             </button>
           )}
           <button onClick={() => onRemove(config.id)}
-            className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">
+            className="px-3 py-1 text-xs whitespace-nowrap bg-red-100 text-red-700 rounded hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">
             Remove
           </button>
         </div>

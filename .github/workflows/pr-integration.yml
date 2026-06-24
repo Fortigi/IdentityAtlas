@@ -273,6 +273,26 @@ jobs:
             exit 1
           fi
 
+      # ── Matrix expand affordance (regression: uuid=text cast) ────
+      - name: 'Test: matrix expand queries type-check on real Postgres'
+        run: |
+          # The expand-affordance query joins ResourceRelationships.parentResourceId (uuid) to
+          # Resources.targetNodeId (a TEXT generated column). A missing ::text cast type-errors on
+          # real Postgres but is invisible to the DB-mocked unit tests (which is how the original
+          # bug shipped). Run the predicate with ON_ERROR_STOP=1 so a type regression fails CI.
+          # Keep this predicate in sync with /api/groups-with-nested in routes/permissions.js.
+          docker compose -f docker-compose.ci.yml exec -T postgres \
+            psql -U identity_atlas -d identity_atlas -v ON_ERROR_STOP=1 -tAc \
+            "SELECT count(*) FROM \"Resources\" r
+               WHERE r.\"capabilityId\" IS NOT NULL AND r.\"targetNodeId\" IS NOT NULL
+                 AND EXISTS (SELECT 1 FROM \"ResourceRelationships\" rr
+                              WHERE rr.\"relationshipType\" = 'Contains'
+                                AND rr.\"parentResourceId\"::text = r.\"targetNodeId\");"
+          echo "OK: expand-affordance predicate type-checks against the live schema"
+          # The expand endpoints must respond with their documented shape (not a masked 500).
+          curl -sf http://localhost:3001/api/groups-with-nested \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); assert isinstance(d.get('groupIds'), list); print('OK: /groups-with-nested responds')"
+
       # ── Demo data ────────────────────────────────────────────────
       - name: 'Test: Load demo data'
         run: |
