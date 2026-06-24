@@ -1,5 +1,24 @@
 ## Changes in this PR
 
+- Added two generic context-algorithm plugins that derive navigable Context trees from the data any crawler emits: **Scope Hierarchy** (builds a tree from `Contains` relationships — e.g. Management Group → Subscription → Resource Group → Resource — with a `leafResourceTypes` option to stop at a level and list deeper resources as members) and **Resource Type Tree** (groups resources by an attribute into a root → per-type → members tree).
+- The matrix can now answer "who has access to **any** resource in this group?". Filtering by a Resource context whose members are scope nodes (e.g. "all key vaults", "all VMs") now shows the **effective** access at those scopes — including **inherited** access — computed on demand by the effective-access engine, instead of an empty grid. Generic: it works for any source with containment + capability-resources.
+- Added a **Principal Type Tree** context plugin — the principal-side mirror of Resource Type Tree. It groups principals by an attribute (default `principalType`) into a root with a child context per value, so you get ready-made **Managed Identities**, **AI Agents** and **Service Principals** contexts to filter the matrix by — answering "what can all managed identities access?". Optionally restrict to chosen values and/or one system.
+- Inherited (Indirect) rows from the matrix expand now navigate to a real resource instead of 404'ing, and synthesized rows carry their scope-type label in the name.
+- The access matrix can now show **inherited (effective) access**: tick **Include inherited access** when you've scoped to a set of resources, and access inherited from higher scopes (e.g. Owner on a subscription → Indirect on every resource beneath it) is folded in — as **I** badges in the flat grid and as counts in every rolled-up / folded view.
+- Click any inherited **I** badge to see **how it was inherited** — the grant source and the scope path (e.g. *Owner on Subscription X → Resource Group → resource*).
+- Inherited access is computed on demand and **cached per sync**, so repeat and large views are fast and it never needs materialising.
+- **Resource Type Tree** plugin can now add, under each type, **Data plane access / Control plane access** groups and a leaf per role — so you can ask "who has any data-plane access to a storage account?" or "who has Owner on any storage account?" (needs the crawler's per-role plane classification).
+- **Generated contexts now refresh automatically after every crawl**, so plugin-derived contexts (Managed Identities, Resource Types, scope trees…) never go stale — no separate plugin scheduling needed.
+- New **Admin → Plugins** tab: see every configured context-plugin tree, its configuration, context count and last run, and **Run now** for an ad-hoc rebuild.
+- The **Sync Log** tab is now **Logs** (moved next to Admin) — a single time-sorted activity stream of crawler syncs, context-plugin runs, account-linking runs and risk-scoring runs, with filter chips per type, a search box, and a **link back to the source** of each entry.
+- **Account linking, context-plugin refresh and risk scoring now run automatically after every crawl** (when configured) as one ordered pipeline — each completes before the next, so contexts rebuild *after* account linking and risk scoring runs *after* contexts. Links and scores always reflect the latest crawled data.
+- **Simplified scheduling:** account linking and risk scoring no longer have their own schedules to configure — they run after each crawl, with a **Run now** button for ad-hoc runs. Removes the per-tree, per-job and cron scheduling controls in favour of good defaults.
+- Added a **Run now** button to the Risk Scoring admin page to re-score the active classifier on demand.
+- Removed the **Recent runs** table from the Account Linking page — run history now lives in the Logs tab; Run now reports its result inline.
+- **Plugin details page:** click any row on Admin → Plugins to open a details view showing what the plugin does, its full configuration, context count and last run. From there you can **edit the configuration and re-run** it in place, re-run it unchanged, or **remove** the tree (deletes its generated contexts).
+
+## Changes in this PR
+
 - Added automation that, whenever a merged PR changes a dependency manifest, lockfile, Dockerfile, or the compose file, regenerates the machine-readable SPDX SBOM (`sbom-edge.spdx.json`) and refreshes the version data on the Software Bill of Materials documentation page (npm package versions plus the PostgreSQL, PowerShell, and Node base-image versions), keeping both in sync with what actually ships.
 
 ## Changes in this PR
