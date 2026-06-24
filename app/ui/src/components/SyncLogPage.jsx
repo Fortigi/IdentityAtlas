@@ -93,7 +93,7 @@ export default function SyncLogPage({ navigate, onOpenDetail }) {
         title: r.algorithmDisplayName || r.algorithmName,
         subtitle: r.parameters?.rootName || '',
         status: r.status, time: r.startedAt, triggeredBy: r.triggeredBy || '—',
-        link: { label: 'Open run', go: () => onOpenDetail?.('run', r.id) },
+        link: { label: 'Plugin', go: () => navigate?.('admin?sub=plugins') },
       });
     }
     for (const r of linkRuns) {

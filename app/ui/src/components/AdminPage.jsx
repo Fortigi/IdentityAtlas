@@ -5,6 +5,7 @@ import ScheduleEditor from './ScheduleEditor';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
+const PluginsPage = lazy(() => import('./PluginsPage'));
 const AuthSettingsPage = lazy(() => import('./AuthSettingsPage'));
 const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
@@ -1688,6 +1689,12 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
         {activeTab === 'crawlers' && (
           <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
             <CrawlersPage onNavigate={onNavigate} />
+          </Suspense>
+        )}
+
+        {activeTab === 'plugins' && (
+          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
+            <PluginsPage onNavigate={onNavigate} />
           </Suspense>
         )}
 

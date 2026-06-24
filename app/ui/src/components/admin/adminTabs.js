@@ -14,6 +14,7 @@ import { hasPermission } from '@ui/auth/usePermissions';
 
 export const ADMIN_TABS = [
   { key: 'crawlers',        label: 'Crawlers',         description: 'Add, configure and run identity data crawlers',                        requires: ['admin.crawlers'] },
+  { key: 'plugins',         label: 'Plugins',          description: 'Context plugins: configured trees, run, and refresh-after-crawl',      requires: ['admin.context-plugins'] },
   { key: 'data',            label: 'Data',             description: 'Export/import curated data and clean the database',                    requires: ['data.export.ui', 'admin.csv-import', 'admin.systems', 'admin.read-tokens', 'data.export.apikey'] },
   { key: 'account-linking', label: 'Account Linking',  description: 'Rules for linking orphan accounts to existing identities',             requires: ['admin.crawlers'] },
   { key: 'risk-scoring',    label: 'Risk Scoring',     description: 'Risk profile, classifiers and feature toggle',                         requires: ['admin.llm', 'admin.crawlers'] },

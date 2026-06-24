@@ -141,6 +141,67 @@ router.get('/context-plugins/runs/:id', async (req, res) => {
   }
 });
 
+// GET /api/context-plugins/trees — the configured generated context trees (one per
+// plugin instance) with params, last run, context count, and auto-refresh state.
+// Powers the admin Plugins management tab. Read-only history shape, but gated since
+// it exposes full run parameters.
+router.get('/context-plugins/trees', gate, async (req, res) => {
+  if (!useSql) return res.json({ data: [] });
+  try {
+    const { rows } = await db.query(`
+      SELECT a.id AS "algorithmId", a.name AS algo, a."displayName" AS "algoDisplayName", a."targetType",
+             c."scopeSystemId" AS "scopeSystemId", c."sourceInstanceKey" AS "instanceKey",
+             COUNT(*)::int AS "contextCount",
+             (array_agg(r.parameters   ORDER BY c."createdAt" DESC))[1] AS params,
+             (array_agg(r.status        ORDER BY c."createdAt" DESC))[1] AS "lastStatus",
+             (array_agg(r."startedAt"   ORDER BY c."createdAt" DESC))[1] AS "lastRunAt",
+             (array_agg(r."triggeredBy" ORDER BY c."createdAt" DESC))[1] AS "lastRunBy"
+        FROM "Contexts" c
+        JOIN "ContextAlgorithms" a ON a.id = c."sourceAlgorithmId"
+        LEFT JOIN "ContextAlgorithmRuns" r ON r.id = c."sourceRunId"
+       WHERE c.variant = 'generated' AND c."sourceAlgorithmId" IS NOT NULL
+       GROUP BY a.id, a.name, a."displayName", a."targetType", c."scopeSystemId", c."sourceInstanceKey"
+       ORDER BY a."displayName", "lastRunAt" DESC NULLS LAST
+    `);
+    res.json({ data: rows.map((t) => ({
+      algorithmId: t.algorithmId, algo: t.algo, algoDisplayName: t.algoDisplayName, targetType: t.targetType,
+      scopeSystemId: t.scopeSystemId, instanceKey: t.instanceKey,
+      rootName: t.params?.rootName || t.algoDisplayName,
+      params: t.params || {}, contextCount: t.contextCount,
+      lastStatus: t.lastStatus, lastRunAt: t.lastRunAt, lastRunBy: t.lastRunBy,
+      autoRefresh: t.params?.autoRefresh !== false, // default on
+    })) });
+  } catch (err) {
+    console.error('GET /context-plugins/trees failed:', err.message);
+    res.status(500).json({ error: 'Failed to load trees' });
+  }
+});
+
+// POST /api/context-plugins/trees/auto-refresh — set whether a tree re-runs after
+// every crawl. Persists into the tree's run parameters (which refreshGeneratedContexts
+// reads). { algorithmId, instanceKey, enabled }
+router.post('/context-plugins/trees/auto-refresh', gate, async (req, res) => {
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const { algorithmId, instanceKey, enabled } = req.body || {};
+  if (!UUID_RE.test(algorithmId || '') || typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: 'algorithmId and boolean enabled are required' });
+  }
+  try {
+    await db.query(`
+      UPDATE "ContextAlgorithmRuns"
+         SET parameters = jsonb_set(COALESCE(parameters, '{}'::jsonb), '{autoRefresh}', to_jsonb($3::boolean))
+       WHERE id IN (
+         SELECT DISTINCT "sourceRunId" FROM "Contexts"
+          WHERE "sourceAlgorithmId" = $1 AND COALESCE("sourceInstanceKey", '') = COALESCE($2, '')
+            AND "sourceRunId" IS NOT NULL)
+    `, [algorithmId, instanceKey || '', enabled]);
+    res.json({ ok: true, autoRefresh: enabled });
+  } catch (err) {
+    console.error('POST /context-plugins/trees/auto-refresh failed:', err.message);
+    res.status(500).json({ error: 'Failed to update auto-refresh' });
+  }
+});
+
 function stripPlugin(p) {
   return {
     name: p.name, displayName: p.displayName, description: p.description,
