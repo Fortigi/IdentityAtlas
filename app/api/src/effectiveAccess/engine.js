@@ -387,21 +387,36 @@ export async function expandCapabilityDown(focusResourceId, opts = {}) {
   );
   const holders = holderRows.map((h) => h.holder);
 
+  // Scope node display names + an optional short type label the source set (e.g. MG / Sub / RG /
+  // Res) so the synthesized row reads "Owner @ RG: name". Generic: the engine just uses whatever
+  // label the crawler stored on the node.
   const { rows: nameRows } = await db.query(
-    `SELECT id, "displayName" AS name FROM "Resources" WHERE id = ANY($1)`,
+    `SELECT id, "displayName" AS name, "extendedAttributes" ->> 'scopeTypeLabel' AS label
+       FROM "Resources" WHERE id = ANY($1)`,
     [descendants],
   );
-  const nameById = new Map(nameRows.map((r) => [r.id, r.name]));
+  const metaById = new Map(nameRows.map((r) => [r.id, r]));
   const roleLabel = focus.rolename || focus.cap;
+
+  // A synthesized child id has no stored row (so its detail page would 404). Navigate the row to a
+  // resolvable resource: the separately-declared capability-resource if one exists at that node,
+  // otherwise the underlying (stored) scope node. The cell-keying id (groupId) stays the synthesized
+  // capability id so it collapses with a declared row.
+  const childIds = descendants.map((n) => capabilityResourceId(n, focus.cap));
+  const { rows: storedRows } = await db.query(`SELECT id FROM "Resources" WHERE id = ANY($1)`, [childIds]);
+  const storedIds = new Set(storedRows.map((r) => r.id));
 
   const groups = [];
   const memberships = [];
   for (const node of descendants) {
     const childId = capabilityResourceId(node, focus.cap);
+    const meta = metaById.get(node);
+    const scopeName = meta?.name || node;
+    const displayName = meta?.label ? `${roleLabel} @ ${meta.label}: ${scopeName}` : `${roleLabel} @ ${scopeName}`;
     groups.push({
       groupId: childId,
-      resourceId: childId,
-      displayName: `${roleLabel} @ ${nameById.get(node) || node}`,
+      resourceId: storedIds.has(childId) ? childId : node,
+      displayName,
       resourceType: focus.rtype,
     });
     for (const h of holders) {
@@ -409,4 +424,82 @@ export async function expandCapabilityDown(focusResourceId, opts = {}) {
     }
   }
   return { groups, memberships, truncated: truncInfo };
+}
+
+/**
+ * Effective access AT a set of focus scope nodes — the engine behind the matrix's resource-context
+ * filter ("show everyone who can touch any key vault / any folder, however they got it"). For each
+ * focus node it walks `Contains` UP, gathers the capability grants that propagate down to it, and
+ * emits one row per (focus node, capability, holder): the synthesized capability-resource id, the
+ * holder principal, and the badge (Direct when granted at the node, Indirect when inherited). Unlike
+ * effectiveAccessAtNode this resolves ALL holders, so it can fill a matrix column-set. Generic —
+ * any source with Contains + capability-resources (Azure, DevOps, file shares, SharePoint).
+ * @returns {Promise<{rows: Array<{resourceId:string,nodeId:string,capabilityId:string,displayName:string,principalId:string,membershipType:string}>, truncated: object|null}>}
+ */
+export async function effectiveAccessForNodes(focusNodeIds, opts = {}) {
+  const policy = getPolicy(opts.policy ?? DEFAULT_POLICY);
+  const focus = [...new Set((focusNodeIds || []).map(String))];
+  if (focus.length === 0) return { rows: [], truncated: null };
+
+  // Friendly names for the focus scope nodes (for "role @ scope" row labels).
+  const { rows: nameRows } = await db.query(
+    `SELECT id, "displayName" AS name, "extendedAttributes" ->> 'scopeTypeLabel' AS label
+       FROM "Resources" WHERE id = ANY($1)`,
+    [focus],
+  );
+  const metaById = new Map(nameRows.map((r) => [r.id, r]));
+
+  const rows = [];
+  let truncated = false;
+  for (const node of focus) {
+    const { depthByNode, truncated: tr } = await getAncestorNodes(node, opts);
+    if (tr) truncated = true;
+    const ancestorIds = [...depthByNode.keys()];
+
+    const { rows: grantRows } = await db.query(
+      `SELECT r."capabilityId" AS cap,
+              r."targetNodeId" AS target,
+              r."extendedAttributes" ->> 'roleName' AS rolename,
+              ra."principalId" AS holder,
+              ra."effect" AS effect,
+              ra."propagationScope" AS scope
+         FROM "Resources" r
+         JOIN "ResourceAssignments" ra ON ra."resourceId" = r.id
+        WHERE r."capabilityId" IS NOT NULL AND r."targetNodeId" = ANY($1) AND ra."principalId" IS NOT NULL`,
+      [ancestorIds],
+    );
+
+    // Group ACEs by (capability, holder), honouring propagationScope + distance.
+    const byCapHolder = new Map();
+    for (const g of grantRows) {
+      const distance = depthByNode.get(g.target);
+      if (distance === undefined) continue;
+      const atFocus = distance === 0;
+      const scope = g.scope ?? 'selfAndDescendants';
+      const reaches = atFocus
+        ? scope === 'self' || scope === 'selfAndDescendants'
+        : scope === 'descendants' || scope === 'selfAndDescendants';
+      if (!reaches) continue;
+      const key = `${g.cap} ${g.holder}`;
+      if (!byCapHolder.has(key)) byCapHolder.set(key, { cap: g.cap, rolename: g.rolename, holder: g.holder, aces: [] });
+      byCapHolder.get(key).aces.push({ effect: g.effect ?? 'allow', distance, explicit: atFocus, viaGroupId: null });
+    }
+
+    const meta = metaById.get(node);
+    const scopeName = meta?.name || node;
+    for (const { cap, rolename, holder, aces } of byCapHolder.values()) {
+      const res = policy.resolve(aces);
+      if (res.effective === 'none') continue;
+      const roleLabel = rolename || cap;
+      rows.push({
+        resourceId: capabilityResourceId(node, cap),
+        nodeId: node,
+        capabilityId: cap,
+        displayName: meta?.label ? `${roleLabel} @ ${meta.label}: ${scopeName}` : `${roleLabel} @ ${scopeName}`,
+        principalId: holder,
+        membershipType: res.decisiveAce ? badgeForAce(res.decisiveAce) : 'Indirect',
+      });
+    }
+  }
+  return { rows, truncated: truncated ? { ancestors: true } : null };
 }
