@@ -1,1 +1,2 @@
 - Extracted shared scaffold (`EntityDetailPage`) from the Resource, User, Business Role, and Identity detail pages, eliminating ~700 lines of near-identical JSX while preserving all existing behavior (attributes table, relationship graph, timeline, risk tab, per-entity header styles, linked accounts panel, analyst override controls)
+- Added CI code-duplication gate (jscpd, 3% threshold) to catch clone drift before it enters main; threshold configured in `.jscpd.json` and enforced on every PR
