@@ -37,7 +37,8 @@ These four jobs have **no path gate** — they always run when there are product
 
 | Job | Check name | Purpose |
 |---|---|---|
-| `audit` | Audit: npm audit | npm vulnerability scan |
+| `audit` | Audit: npm audit | npm vulnerability scan (known advisories) |
+| `supply-chain` | Audit: Supply-chain firewall (Socket) | Installs both Node projects through [Socket Firewall](https://github.com/SocketDev/sfw-free), blocking known-malicious packages with no CVE yet |
 | `hygiene` | PR Hygiene | Branch naming, PR description checks |
 | `crawler-manifest` | Lint: Crawler manifest completeness | Every crawler has a `crawler.json` |
 | `docs-nav` | Lint: Crawler docs registered in site nav | Every crawler has a docs entry in `mkdocs.yml` |
