@@ -136,6 +136,25 @@ There is **no `resourceType` and no source/phase column** — `resourceType` liv
 on `Resources`, reachable only via `resourceId`. This is the crux of the
 partition decision.
 
+### 2.4 Which crawlers already conform?
+
+Target: every producer emits only `Direct`/`Indirect`/`Eligible`. Audited from
+the `assignmentType = '…'` literals in each crawler entry point:
+
+| Crawler | Emits today | Conforms? |
+|---|---|---|
+| `azure-rm` | `Direct` | ✅ yes |
+| `csv` | pass-through — whatever the file's type column says (defaults `Direct`) | ⚠️ only if the file does |
+| `omada` | `Direct`, `Governed` | ❌ no |
+| `midpoint` | `Direct`, `Governed` | ❌ no |
+| `entra-id` | `Direct`, `Eligible`, `Owner`, `Governed`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible` | ❌ no |
+
+So **phase 2 is not Entra-only**: `omada` and `midpoint` also emit `Governed`
+and need the same `Governed → Direct + flag` conversion; `csv` passes the input
+through untouched, so its conformance is only as good as the uploaded file — the
+runtime guard (§6, phase 3) is what actually protects it. Only `azure-rm` is
+already clean.
+
 ## 3. Target model
 
 - **`assignmentType` ∈ `{ Direct, Indirect, Eligible }`** — the universal "how,"
@@ -224,10 +243,17 @@ acknowledging the matrix-shape change is the thing to validate with users.
 
 ### 4.3 Governed stays a flag
 
-No change. `Governed` assignments already drive `managedByAccessPackage` in the
-matview. In the target model an access-package assignment is a `Direct`
-assignment to an `AccessPackage` resource with the governed flag set — the flag
+`Governed` assignments already drive `managedByAccessPackage` in the matview. In
+the target model an access-package assignment is a `Direct` assignment to an
+`AccessPackage`/`BusinessRole` resource with the governed flag set — the flag
 remains orthogonal to the "how."
+
+**Decision needed:** once `Governed` is no longer an `assignmentType`, the
+governed signal must be carried by *something else*. Two candidates — a boolean
+column on `ResourceAssignments`, or derive it from `resourceType ∈
+{AccessPackage, BusinessRole}`. This matters because `Governed` is emitted by
+**three** crawlers (`entra-id`, `omada`, `midpoint`; see §2.4), so all three
+switch to `Direct` + the chosen governed signal in phase 2.
 
 ## 5. Matrix impact
 
@@ -251,18 +277,31 @@ mid-migration could wipe another phase's rows.
    `ingest.js` only copies scope keys present in the request body — so crawlers
    that send only `assignmentType` get a byte-identical delete. Verified a
    behaviour-preserving no-op on SK1/SK3.
-2. **Crawlers + partition activation.** Crawlers start sending `resourceType` in
-   their reconcile scope (and populating it on write), switch from the source
-   types to `Direct/Indirect/Eligible`, and create the `GroupOwnership`
-   resources + relationships for owners. The reconcile delete now partitions on
-   the resource axis. Verified on SK3 (large matrices, soft-delete behaviour).
+2. **Crawlers + partition activation.** Every non-conforming producer (§2.4 —
+   `entra-id`, `omada`, `midpoint`, and `csv`'s input contract) starts sending
+   `resourceType` in its reconcile scope (and populating it on write), switches
+   from the source types to `Direct/Indirect/Eligible`, and creates the
+   `GroupOwnership` resources + relationships for owners. The reconcile delete
+   now partitions on the resource axis. Verified on SK3 (large matrices,
+   soft-delete behaviour).
 3. **Matview.** Drop the per-type `CASE`; rebuild from the now-clean
    `assignmentType`. Add the **enum↔collapse guard test** regardless.
 4. **Consumers.** Audit matrix badges, scope statistics, governance, risk
    scoring, and the effective-access engine for hardcoded source-type / `Owner`
    handling.
-5. **Cleanup.** Once no producer writes the legacy types and backfill is
-   complete, remove them from `validation.js ASSIGNMENT_TYPES`.
+5. **Cleanup + the hard rule.** Once no producer writes the legacy types and
+   backfill is complete, lock the model down with two layers:
+   - **Runtime (airtight).** Narrow `validation.js ASSIGNMENT_TYPES` to exactly
+     `['Direct','Indirect','Eligible']`. Because every crawler — Entra, Omada,
+     midpoint, CSV, and any external importer — writes through the same ingest
+     validation, the API then **rejects any other value with a 400**, with no
+     per-crawler trust required. A vitest pins the enum so it can't silently
+     regrow.
+   - **Static dev-time scan.** A CI test (Pester or vitest) that greps every
+     `tools/crawlers/**/*.ps1` for `assignmentType = '<X>'` — in both the record
+     payloads *and* the `-Scope @{ … }` calls — and fails if any `X ∉
+     {Direct, Indirect, Eligible}`. Catches a non-conforming crawler before it
+     ever reaches ingest.
 
 Each step is its own PR; the foundation is a verified no-op, which lets the
 risky crawler change in step 2 land behind a partition that already exists in
