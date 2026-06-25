@@ -25,6 +25,12 @@ export default defineConfig({
     // (see app/api/vitest.config.js); exclude here so the UI run doesn't
     // fail trying to load a dependency it doesn't have.
     exclude: [...configDefaults.exclude, '../../tools/crawlers/**/configValidation.test.js'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['src/**/*.{js,jsx}'],
+      exclude: ['src/**/*.test.{js,jsx}', 'src/main.jsx'],
+    },
   },
   server: {
     fs: {
