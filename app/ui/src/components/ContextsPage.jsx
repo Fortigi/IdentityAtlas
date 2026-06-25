@@ -185,7 +185,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
           )}
 
           {!selectedRoot && !rootsLoading && (
-            <div className="flex-1 flex items-center justify-center p-8 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">
+            <div className="flex-1 flex items-center justify-center p-8 text-sm text-gray-500 dark:text-gray-400">
               Select a tree on the left, or click <span className="font-semibold">+ New</span> to create one.
             </div>
           )}
@@ -212,7 +212,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
                   doesn't unmount-and-remount — that would reset every node's
                   expand/collapse state and collapse the tree on each drag-drop. */}
               {subtreeLoading && nodes.length === 0 ? (
-                <div className="p-4 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading subtree…</div>
+                <div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading subtree…</div>
               ) : viewMode === 'tree' ? (
                 <ContextTreeView
                   nodes={nodes}
@@ -290,7 +290,7 @@ function SelectedRootHeader({ root, viewMode, onChangeViewMode, onDeleteTree, de
               </span>
             )}
           </div>
-          {root.description && <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1 truncate">{root.description}</p>}
+          {root.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{root.description}</p>}
         </div>
 
         <div className="flex items-center gap-3">

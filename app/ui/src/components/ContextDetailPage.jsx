@@ -121,7 +121,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading context details...</div>
+        <div className="text-gray-500 dark:text-gray-400">Loading context details...</div>
       </div>
     );
   }
@@ -133,7 +133,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
         <p className="text-red-600 dark:text-red-400 mt-2 text-sm">{error}</p>
         <div className="flex gap-3 mt-3">
           <button onClick={fetchDetail} className="text-sm text-red-700 dark:text-red-400 underline hover:text-red-900">Retry</button>
-          <button onClick={onClose} className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 underline hover:text-gray-700 dark:text-gray-300">Close</button>
+          <button onClick={onClose} className="text-sm text-gray-500 dark:text-gray-400 underline hover:text-gray-700 dark:text-gray-300">Close</button>
         </div>
       </div>
     );
@@ -264,13 +264,13 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
             Members ({memberTotal})
             {detail.attributes.totalMemberCount > (detail.attributes.directMemberCount || 0) && !includeDescendants && (
-              <span className="ml-2 text-[11px] font-normal text-gray-500 dark:text-gray-400 dark:text-gray-500">
+              <span className="ml-2 text-[11px] font-normal text-gray-500 dark:text-gray-400">
                 direct only — {detail.attributes.directMemberCount || 0} of {detail.attributes.totalMemberCount} total
               </span>
             )}
           </h3>
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 text-[11px] text-gray-600 dark:text-gray-400 dark:text-gray-500 cursor-pointer">
+            <label className="flex items-center gap-1.5 text-[11px] text-gray-600 dark:text-gray-400 cursor-pointer">
               <input
                 type="checkbox"
                 checked={includeDescendants}
@@ -293,7 +293,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
         {canEditMembers && (
           <div className="mb-4">
             {isGenerated && (
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 dark:text-gray-500 mb-1">
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">
                 Manually-added members (<code>addedBy=analyst</code>) survive future plugin runs.
                 Algorithm-produced members are replaced on every run.
               </p>
@@ -315,7 +315,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
           <>
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700">
+                <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
                   <th className="pb-2 font-medium">Name</th>
                   <th className="pb-2 font-medium">Email</th>
                   <th className="pb-2 font-medium">Job Title</th>
@@ -328,7 +328,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                 {members.map(m => (
                   <tr
                     key={m.id}
-                    className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 cursor-pointer"
+                    className="border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
                     onClick={() => {
                       const tt = detail.attributes.targetType;
                       const kind = tt === 'Identity' ? 'identity'
@@ -339,11 +339,11 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                     }}
                   >
                     <td className="py-1.5 text-blue-600 dark:text-blue-400 hover:underline">{m.displayName}</td>
-                    <td className="py-1.5 text-gray-600 dark:text-gray-400 dark:text-gray-500">{m.email || '-'}</td>
-                    <td className="py-1.5 text-gray-600 dark:text-gray-400 dark:text-gray-500">{m.jobTitle || '-'}</td>
+                    <td className="py-1.5 text-gray-600 dark:text-gray-400">{m.email || '-'}</td>
+                    <td className="py-1.5 text-gray-600 dark:text-gray-400">{m.jobTitle || '-'}</td>
                     <td className="py-1.5">
                       {m.principalType && (
-                        <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 dark:text-gray-500 rounded px-1.5 py-0.5">{m.principalType}</span>
+                        <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded px-1.5 py-0.5">{m.principalType}</span>
                       )}
                     </td>
                     <td className="py-1.5">
@@ -377,7 +377,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                 <button
                   onClick={() => setMemberPage(p => Math.max(0, p - 1))}
                   disabled={memberPage === 0}
-                  className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
                 >
                   Previous
                 </button>
@@ -387,7 +387,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                 <button
                   onClick={() => setMemberPage(p => Math.min(totalPages - 1, p + 1))}
                   disabled={memberPage >= totalPages - 1}
-                  className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
                 >
                   Next
                 </button>
@@ -430,7 +430,7 @@ function ContextHeader({ attrs, onClose }) {
             <span className={`w-1.5 h-8 ${v.dotClass} rounded`} aria-hidden="true" />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white truncate">{attrs.displayName || attrs.id}</h2>
             {attrs.contextType && (
-              <span className="text-[10px] uppercase tracking-wide text-gray-600 dark:text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5">
+              <span className="text-[10px] uppercase tracking-wide text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5">
                 {attrs.contextType}
               </span>
             )}
@@ -449,12 +449,12 @@ function ContextHeader({ attrs, onClose }) {
               </span>
             )}
           </div>
-          {provenance && <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-2">{provenance}</p>}
+          {provenance && <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{provenance}</p>}
           {attrs.parentDisplayName && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Parent: {attrs.parentDisplayName}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Parent: {attrs.parentDisplayName}</p>
           )}
         </div>
-        <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:text-gray-500 p-1" title="Close">
+        <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 p-1" title="Close">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -525,7 +525,7 @@ function GeneratedContextActions({ contextId, attrs, authFetch, onDeleted }) {
           Generated by {algo}
         </span>
       </div>
-      <p className="text-[11px] text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-3">
+      <p className="text-[11px] text-gray-600 dark:text-gray-400 mb-3">
         Delete this context if it's noise. Re-running <code className="px-1 bg-gray-100 dark:bg-gray-700 rounded">{attrs.sourceAlgorithmName || 'the plugin'}</code>{' '}
         with the same parameters will recreate it — to keep it gone, also tune the plugin
         parameters (e.g., add noise tokens to <code className="px-1 bg-gray-100 dark:bg-gray-700 rounded">additionalStopwords</code>)
@@ -546,7 +546,7 @@ function GeneratedContextActions({ contextId, attrs, authFetch, onDeleted }) {
           </button>
           <button
             onClick={() => setConfirming(false)}
-            className="px-3 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300"
+            className="px-3 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300"
           >Cancel</button>
         </div>
       ) : (
