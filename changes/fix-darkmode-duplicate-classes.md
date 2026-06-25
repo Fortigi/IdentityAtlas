@@ -1,2 +1,0 @@
-- Fixed dark-mode styling on the context detail/tree, risk-scoring, run detail, and modal screens where duplicated Tailwind classes silently overrode the intended values: secondary text now renders at the correct (higher-contrast) shade, and table rows, list items, and sub-tabs no longer appear permanently highlighted in dark mode.
-- Added a lint check that flags a className setting the same dark-mode color twice, to stop the issue from creeping back in.

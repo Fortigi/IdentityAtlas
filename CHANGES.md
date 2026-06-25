@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed dark-mode styling on the context detail/tree, risk-scoring, run detail, and modal screens where duplicated Tailwind classes silently overrode the intended values: secondary text now renders at the correct (higher-contrast) shade, and table rows, list items, and sub-tabs no longer appear permanently highlighted in dark mode.
+- Added a lint check that flags a className setting the same dark-mode color twice, to stop the issue from creeping back in.
+
+## Changes in this PR
+
 - Fixed the identity detail page so each linked account again shows its real group count and risk score/tier. Previously the per-account group count always displayed 0 and the risk score/tier never appeared, regardless of the account's actual access.
 
 ## Changes in this PR
