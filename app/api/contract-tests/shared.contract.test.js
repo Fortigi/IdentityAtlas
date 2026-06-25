@@ -28,7 +28,11 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
+  // These tests assert GLOBAL Principal counts, and contract files share one DB
+  // container (singleFork). Sibling files leave Principals behind (they clean
+  // only their own systemId), so clear ALL principals to keep these counts
+  // isolated regardless of file execution order.
+  await pool.query(`DELETE FROM "Principals"`);
 });
 
 // ── helpers ──────────────────────────────────────────────────────────────────

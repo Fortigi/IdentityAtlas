@@ -29,7 +29,12 @@ beforeAll(async () => {
   systemId = sys.rows[0].id;
 });
 
-afterAll(async () => { await pool?.end(); });
+afterAll(async () => {
+  // Clean up our rows so we don't pollute sibling contract files (shared DB).
+  await pool?.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
+  await pool?.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
+  await pool?.end();
+});
 
 beforeEach(async () => {
   await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
@@ -38,8 +43,8 @@ beforeEach(async () => {
 async function insertRA(resourceId, principalId, assignmentType, resourceType) {
   await pool.query(
     `INSERT INTO "ResourceAssignments"
-       ("id", "systemId", "resourceId", "principalId", "assignmentType", "resourceType", "principalType")
-     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'User')`,
+       ("systemId", "resourceId", "principalId", "assignmentType", "resourceType", "principalType")
+     VALUES ($1, $2, $3, $4, $5, 'User')`,
     [systemId, resourceId, principalId, assignmentType, resourceType],
   );
 }
