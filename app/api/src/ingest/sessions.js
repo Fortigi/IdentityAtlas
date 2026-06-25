@@ -13,6 +13,7 @@
 import crypto from 'crypto';
 import { discoverColumns, writeSyncLog, scopedDelete } from './engine.js';
 import * as db from '../db/connection.js';
+import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
 
 const sessions = new Map();
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
@@ -32,30 +33,11 @@ setInterval(async () => {
 }, 5 * 60 * 1000);
 
 
-async function copyRows(client, tempTable, activeColumns, records) {
-  // Batched INSERT instead of COPY FROM STDIN. The COPY approach had a crash
-  // in pg-copy-streams at high row counts (see engine.js for details).
-  const colList = activeColumns.map(c => `"${c.name}"`).join(', ');
-  const CHUNK = 200;
-  for (let i = 0; i < records.length; i += CHUNK) {
-    const chunk = records.slice(i, i + CHUNK);
-    const placeholders = [];
-    const params = [];
-    let pi = 1;
-    for (const rec of chunk) {
-      const row = [];
-      for (const col of activeColumns) {
-        row.push(`$${pi++}`);
-        params.push(rec[col.name] !== undefined ? rec[col.name] : null);
-      }
-      placeholders.push(`(${row.join(',')})`);
-    }
-    await client.query(
-      `INSERT INTO "${tempTable}" (${colList}) VALUES ${placeholders.join(',')}`,
-      params
-    );
-  }
-}
+// Batched INSERT instead of COPY FROM STDIN (see engine.js for the reasoning).
+// Sessions use a smaller chunk size (200) because session batches are typically
+// much smaller than bulk ingest batches and are sent incrementally.
+const copyRows = (client, tempTable, activeColumns, records) =>
+  bulkInsertIntoTemp(client, tempTable, activeColumns, records, 200);
 
 export async function startSession(_pool, tableName, keyColumns, records, options = {}) {
   const syncId = crypto.randomUUID();
@@ -73,10 +55,7 @@ export async function startSession(_pool, tableName, keyColumns, records, option
   await client.query('BEGIN');
 
   const tempTable = `_tmp_session_${syncId.replace(/-/g, '').slice(0, 16)}`;
-  const colDefs = activeColumns
-    .map(c => `"${c.name}" ${c.sqlTypeName === 'USER-DEFINED' ? 'text' : c.sqlTypeName}`)
-    .join(', ');
-  await client.query(`CREATE TEMP TABLE "${tempTable}" (${colDefs}) ON COMMIT DROP`);
+  await createTempTable(client, tempTable, activeColumns);
 
   await copyRows(client, tempTable, activeColumns, records);
 
