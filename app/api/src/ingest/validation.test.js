@@ -256,6 +256,7 @@ describe('validateRecords — resource-assignments', () => {
     const allTypes = [
       'Direct', 'Indirect', 'Eligible', 'Owner', 'Governed',
       'OAuth2Grant', 'AppRole', 'AppRoleViaGroup',
+      'DirectoryRole', 'DirectoryRoleEligible',
     ];
     for (const t of allTypes) {
       const result = validateRecords([{ ...validAssignment, assignmentType: t }], 'resource-assignments');

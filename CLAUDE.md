@@ -129,6 +129,7 @@ The data model supports importing authorization data from any system. Resources,
 | `resourceType` | Source | What it represents |
 |---|---|---|
 | `EntraGroup` | Entra crawler | Security / Microsoft 365 group |
+| `EntraRole` | `SyncDirectoryRoles` phase | One resource per Entra directory role (`id` = roleDefinitionId). `extendedAttributes` holds the role's granular `allowedResourceActions`, `isBuiltIn`, and `templateId`. Assigned to principals via `assignmentType='DirectoryRole'` (active) or `assignmentType='DirectoryRoleEligible'` (PIM-eligible) |
 | `BusinessRole` | Governance sync (Entra access packages, Omada business roles) | Wraps groups via `relationshipType='Contains'`; assigned to users via `assignmentType='Governed'` |
 | `Application` | OAuth2 / AppRoles phases | Enterprise application (service principal). Doesn't grant access by itself — it's the parent of AppRole / DelegatedPermission children |
 | `AppRole` | `SyncAppRoles` phase | One synthetic resource per (Application, appRoleId). Parent app linked via `relationshipType='HasAppRole'`. Assigned to users via `assignmentType='AppRole'` (direct) or `assignmentType='AppRoleViaGroup'` (expanded from a group's role) |
@@ -136,7 +137,7 @@ The data model supports importing authorization data from any system. Resources,
 
 **Assignment types in use:**
 
-`Direct`, `Indirect`, `Owner`, `Eligible` (the four "how does this user have it" types) plus the *source-attribute* types `Governed`, `OAuth2Grant`, `AppRole`, `AppRoleViaGroup`. The matrix view (`vw_ResourceUserPermissionAssignments`) collapses the source-attribute types in its `membershipType` output — see [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-display rules.
+`Direct`, `Indirect`, `Owner`, `Eligible` (the four "how does this user have it" types) plus the *source-attribute* types `Governed`, `OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`. The matrix view (`vw_ResourceUserPermissionAssignments`) collapses the source-attribute types in its `membershipType` output (`DirectoryRole`→`Direct`, `DirectoryRoleEligible`→`Eligible`) — see [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-display rules.
 
 **Relationship types in use:** `Contains` (BusinessRole → group), `HasAppRole` (Application → AppRole), `DelegatesScope` (Application → DelegatedPermission), `GrantsAccessTo` (reserved).
 
