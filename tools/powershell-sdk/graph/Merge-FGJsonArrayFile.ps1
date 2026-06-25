@@ -14,7 +14,7 @@ function Merge-FGJsonArrayFile {
     $FilePath = $FileObject.Directory.FullName
     Rename-Item -Path $File -NewName "Input.json"
 
-    $InputFilePath  = $FilePath + "\Input.json"
+    $InputFilePath  = Join-Path $FilePath "Input.json"
     $OutputFilePath = $File
 
     $Reader = [System.IO.StreamReader]::new($InputFilePath)

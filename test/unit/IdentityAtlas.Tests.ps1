@@ -509,33 +509,33 @@ Describe 'Code Quality' {
 Describe 'Invoke-FGGetPage' {
     BeforeAll {
         $Global:AccessToken = 'test-token'
-        Mock Update-FGAccessTokenIfExpired { }
+        Mock Update-FGAccessTokenIfExpired { } -ModuleName 'IdentityAtlas'
     }
     AfterAll {
         Remove-Variable -Name AccessToken -Scope Global -ErrorAction SilentlyContinue
     }
 
     It 'returns the result object on a successful call' {
-        Mock Invoke-RestMethod { [pscustomobject]@{ value = @('a', 'b') } }
+        Mock Invoke-RestMethod { [pscustomobject]@{ value = @('a', 'b') } } -ModuleName 'IdentityAtlas'
         $r = Invoke-FGGetPage -URI 'https://graph.example/test'
         $r.value | Should -Be @('a', 'b')
     }
 
     It 'throws immediately on a non-transient error' {
-        Mock Invoke-RestMethod { throw [System.Net.WebException]::new('Not Found') }
+        Mock Invoke-RestMethod { throw [System.Net.WebException]::new('Not Found') } -ModuleName 'IdentityAtlas'
         { Invoke-FGGetPage -URI 'https://graph.example/test' -MaxRetries 2 } | Should -Throw
     }
 
     It 'passes TimeoutSec to Invoke-RestMethod when non-zero' {
-        Mock Invoke-RestMethod { [pscustomobject]@{ value = @() } }
+        Mock Invoke-RestMethod { [pscustomobject]@{ value = @() } } -ModuleName 'IdentityAtlas'
         Invoke-FGGetPage -URI 'https://graph.example/test' -TimeoutSec 30 | Out-Null
-        Should -Invoke Invoke-RestMethod -ParameterFilter { $TimeoutSec -eq 30 }
+        Should -Invoke Invoke-RestMethod -ModuleName 'IdentityAtlas' -ParameterFilter { $TimeoutSec -eq 30 }
     }
 
     It 'omits TimeoutSec from Invoke-RestMethod when zero' {
-        Mock Invoke-RestMethod { [pscustomobject]@{ value = @() } }
+        Mock Invoke-RestMethod { [pscustomobject]@{ value = @() } } -ModuleName 'IdentityAtlas'
         Invoke-FGGetPage -URI 'https://graph.example/test' -TimeoutSec 0 | Out-Null
-        Should -Invoke Invoke-RestMethod -ParameterFilter { -not $PSBoundParameters.ContainsKey('TimeoutSec') }
+        Should -Invoke Invoke-RestMethod -ModuleName 'IdentityAtlas' -ParameterFilter { -not $PSBoundParameters.ContainsKey('TimeoutSec') }
     }
 }
 
@@ -582,7 +582,7 @@ Describe 'Get-FGGroupMemberAll -Transitive' {
             if ($URI -match '/groups\?') { return @([pscustomobject]@{ id = 'g1' }) }
             if ($URI -match 'transitiveMembers') { return @([pscustomobject]@{ id = 'u1'; '@odata.type' = '#microsoft.graph.user' }) }
             if ($URI -match '/members') { return @([pscustomobject]@{ id = 'u2'; '@odata.type' = '#microsoft.graph.user' }) }
-        }
+        } -ModuleName 'IdentityAtlas'
     }
     AfterAll {
         Remove-Variable -Name AccessToken -Scope Global -ErrorAction SilentlyContinue
@@ -590,12 +590,12 @@ Describe 'Get-FGGroupMemberAll -Transitive' {
 
     It 'calls /members without -Transitive' {
         Get-FGGroupMemberAll | Out-Null
-        Should -Invoke Invoke-FGGetRequest -ParameterFilter { $URI -match '/members\?' }
+        Should -Invoke Invoke-FGGetRequest -ModuleName 'IdentityAtlas' -ParameterFilter { $URI -match '/members\?' }
     }
 
     It 'calls /transitiveMembers with -Transitive' {
         Get-FGGroupMemberAll -Transitive | Out-Null
-        Should -Invoke Invoke-FGGetRequest -ParameterFilter { $URI -match 'transitiveMembers' }
+        Should -Invoke Invoke-FGGetRequest -ModuleName 'IdentityAtlas' -ParameterFilter { $URI -match 'transitiveMembers' }
     }
 
     It 'returns memberId from transitive call' {
