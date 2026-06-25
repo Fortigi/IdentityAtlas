@@ -50,12 +50,13 @@ async function runMigrations(pool) {
 export async function startDb() {
   const container = await new PostgreSqlContainer('postgres:16-alpine').start();
 
-  const pool = new Pool({ connectionString: container.getConnectionUri(), max: 5 });
+  const connectionString = container.getConnectionUri();
+  const pool = new Pool({ connectionString, max: 5 });
 
   await runMigrations(pool);
 
   return {
-    pool,
+    connectionString,
     async stop() {
       await pool.end();
       await container.stop();

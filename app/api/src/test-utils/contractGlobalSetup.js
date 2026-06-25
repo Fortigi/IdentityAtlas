@@ -9,7 +9,7 @@ let db;
 
 export async function setup() {
   db = await startDb();
-  process.env.CONTRACT_DB_URL = db.pool.options.connectionString;
+  process.env.CONTRACT_DB_URL = db.connectionString;
 }
 
 export async function teardown() {
