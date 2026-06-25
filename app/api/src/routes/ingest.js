@@ -12,6 +12,7 @@ import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, EN
 import { startSession, continueSession, endSession, hasSession } from '../ingest/sessions.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../middleware/crawlerAuth.js';
 import { bumpSyncVersion } from '../lib/syncVersion.js';
+import { normalizePresenceQuery, lookupCrawlerPresence } from '../ingest/crawlerPresence.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -240,6 +241,28 @@ router.post('/ingest/governance/policies',      createIngestHandler('governance/
 router.post('/ingest/governance/requests',      createIngestHandler('governance/requests'));
 router.post('/ingest/governance/certifications', createIngestHandler('governance/certifications'));
 router.post('/ingest/principal-activity',       createIngestHandler('principal-activity'));
+
+// POST /api/ingest/principals-presence — given a set of Azure AD objectIds and a
+// tenantId, return which of them the crawler has already loaded from Entra ID (as a
+// Principal, or as a Resource such as a group). The Azure RM crawler uses this to
+// filter or flag role-assignment holders the Entra crawler hasn't loaded — deleted
+// SPs with dangling assignments, or principals outside a scoped (e.g. admins-only)
+// Entra crawl. `crawlerDataAvailable=false` means the crawler has loaded no Entra
+// data for that tenant yet, so the caller must NOT treat everything as orphaned.
+router.post('/ingest/principals-presence', async (req, res) => {
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  if (!crawlerHasPermission(req, 'ingest')) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  const { tenantId, ids } = normalizePresenceQuery(req.body);
+  if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
+  try {
+    res.json(await lookupCrawlerPresence(db, tenantId, ids));
+  } catch (err) {
+    console.error('principals-presence lookup failed:', err.message);
+    res.status(500).json({ error: 'Lookup failed' });
+  }
+});
 
 // POST /api/ingest/refresh-views — no-op in v5.
 //

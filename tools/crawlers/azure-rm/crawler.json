@@ -13,7 +13,8 @@
       "managementGroupId":    { "type": "string", "description": "Optional: crawl only the hierarchy beneath this management group" },
       "subscriptionIds":      { "type": "array", "items": { "type": "string" }, "description": "Optional: limit the crawl to these subscription IDs" },
       "includeResourceLevel": { "type": "boolean", "default": false, "description": "Also enumerate individual resources (high volume) — off by default" },
-      "includeCustomRoles":   { "type": "boolean", "default": true, "description": "Resolve tenant custom role definitions, not just built-in roles" }
+      "includeCustomRoles":   { "type": "boolean", "default": true, "description": "Resolve tenant custom role definitions, not just built-in roles" },
+      "onlyEntraPrincipals":  { "type": "boolean", "default": true, "description": "Only load assignments for principals present in Entra ID. On: skip role assignments whose principal isn't in the crawled Entra directory (run the Entra ID crawler first). Off: load them but flag the principal as orphaned." }
     }
   },
   "postSyncHooks": []
