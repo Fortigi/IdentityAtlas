@@ -1,1 +1,0 @@
-- Internal maintainability: completed the matrix API module split — the core matrix-data query endpoint now lives in its own module. The matrix route file is reduced from ~1,680 lines to ~200. No change to matrix behaviour, endpoints, or output.

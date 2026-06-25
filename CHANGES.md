@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal maintainability: completed the matrix API module split — the core matrix-data query endpoint now lives in its own module. The matrix route file is reduced from ~1,680 lines to ~200. No change to matrix behaviour, endpoints, or output.
+
+## Changes in this PR
+
 - Internal maintainability: continued the matrix API module split — the scope-analysis endpoints (scope statistics, timeline, and breakdown) and the shared filter/scope helper functions now live in their own modules. No change to matrix behaviour, endpoints, or output.
 
 ## Changes in this PR
