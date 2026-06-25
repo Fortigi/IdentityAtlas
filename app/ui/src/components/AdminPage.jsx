@@ -887,7 +887,9 @@ function HistoryRetentionSection() {
       const r = await authFetch('/api/admin/history-retention/prune', { method: 'POST' });
       if (r.ok) {
         const j = await r.json();
-        setMessage({ kind: 'ok', text: `Pruned ${j.deleted} row(s) older than ${j.retentionDays} days` });
+        const purgedTotal = Object.values(j.purged || {}).reduce((a, b) => a + b, 0);
+        const purgedNote = purgedTotal ? `, purged ${purgedTotal} deleted record(s)` : '';
+        setMessage({ kind: 'ok', text: `Pruned ${j.deleted} history row(s)${purgedNote} (older than ${j.retentionDays} days)` });
         load();
       } else {
         setMessage({ kind: 'err', text: `Prune failed (HTTP ${r.status})` });
@@ -900,10 +902,12 @@ function HistoryRetentionSection() {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-4">
-      <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Version History Retention</h4>
+      <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Deleted Data &amp; History Retention</h4>
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        How long row-level change history is kept in the audit log. Older entries are pruned automatically every 6 hours.
-        Set to <code className="dark:text-gray-300">0</code> to disable pruning and keep history forever.
+        How long deleted records and row-level change history are kept. Entities removed in a source system are
+        soft-deleted (hidden but kept for audit); after this many days they&apos;re permanently purged, and audit-log
+        entries older than this are pruned too. Runs automatically every 6 hours.
+        Set to <code className="dark:text-gray-300">0</code> to disable purging and keep everything forever.
       </p>
 
       <div className="flex items-end gap-3">
