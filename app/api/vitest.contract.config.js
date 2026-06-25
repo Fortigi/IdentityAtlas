@@ -13,7 +13,7 @@ export default defineConfig({
     alias: { '@api': path.resolve(__dirname, 'src') },
   },
   test: {
-    include: ['src/**/*.contract.test.js'],
+    include: ['contract-tests/**/*.contract.test.js'],
     globalSetup: ['./test-utils/contractGlobalSetup.js'],
     // Single worker: contract tests share one DB container; parallelism would
     // require per-test isolation that adds complexity. Keep it simple.

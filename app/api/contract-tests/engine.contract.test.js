@@ -9,7 +9,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
-import { scopedDelete, SOFT_DELETE_TABLES } from './engine.js';
+import { scopedDelete, SOFT_DELETE_TABLES } from '../src/ingest/engine.js';
 
 let pool;
 let systemId;
