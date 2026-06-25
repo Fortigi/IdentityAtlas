@@ -505,6 +505,105 @@ Describe 'Code Quality' {
     }
 }
 
+# ─── Invoke-FGGetPage ─────────────────────────────────────────────
+Describe 'Invoke-FGGetPage' {
+    BeforeAll {
+        $Global:AccessToken = 'test-token'
+        Mock Update-FGAccessTokenIfExpired { }
+    }
+    AfterAll {
+        Remove-Variable -Name AccessToken -Scope Global -ErrorAction SilentlyContinue
+    }
+
+    It 'returns the result object on a successful call' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ value = @('a', 'b') } }
+        $r = Invoke-FGGetPage -URI 'https://graph.example/test'
+        $r.value | Should -Be @('a', 'b')
+    }
+
+    It 'throws immediately on a non-transient error' {
+        Mock Invoke-RestMethod { throw [System.Net.WebException]::new('Not Found') }
+        { Invoke-FGGetPage -URI 'https://graph.example/test' -MaxRetries 2 } | Should -Throw
+    }
+
+    It 'passes TimeoutSec to Invoke-RestMethod when non-zero' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ value = @() } }
+        Invoke-FGGetPage -URI 'https://graph.example/test' -TimeoutSec 30 | Out-Null
+        Should -Invoke Invoke-RestMethod -ParameterFilter { $TimeoutSec -eq 30 }
+    }
+
+    It 'omits TimeoutSec from Invoke-RestMethod when zero' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ value = @() } }
+        Invoke-FGGetPage -URI 'https://graph.example/test' -TimeoutSec 0 | Out-Null
+        Should -Invoke Invoke-RestMethod -ParameterFilter { -not $PSBoundParameters.ContainsKey('TimeoutSec') }
+    }
+}
+
+# ─── Merge-FGJsonArrayFile ────────────────────────────────────────
+Describe 'Merge-FGJsonArrayFile' {
+    It 'merges two consecutive JSON arrays into one' {
+        $file = [System.IO.Path]::GetTempFileName()
+        @('[', '{"a":1}', ']', '[', '{"b":2}', ']') | Set-Content $file
+        Merge-FGJsonArrayFile -File $file
+        $content = Get-Content $file -Raw
+        $content | Should -Match '^\['
+        $content | Should -Not -Match '\]\s*\['
+        ($content | ConvertFrom-Json).Count | Should -Be 2
+        Remove-Item $file -Force
+    }
+
+    It 'leaves a single-array file unchanged' {
+        $file = [System.IO.Path]::GetTempFileName()
+        @('[', '{"a":1}', ']') | Set-Content $file
+        Merge-FGJsonArrayFile -File $file
+        (Get-Content $file -Raw | ConvertFrom-Json).Count | Should -Be 1
+        Remove-Item $file -Force
+    }
+}
+
+# ─── Remove-FGTrailingCommaFromJsonFile ───────────────────────────
+Describe 'Remove-FGTrailingCommaFromJsonFile' {
+    It 'removes the trailing comma before the closing bracket' {
+        $file = [System.IO.Path]::GetTempFileName()
+        @('[', '{"a":1}', ',', ']') | Set-Content $file
+        Remove-FGTrailingCommaFromJsonFile -File $file
+        $content = Get-Content $file -Raw
+        $content | Should -Not -Match ',\s*\]'
+        ($content | ConvertFrom-Json).Count | Should -Be 1
+        Remove-Item $file -Force
+    }
+}
+
+# ─── Get-FGGroupMemberAll -Transitive switch ──────────────────────
+Describe 'Get-FGGroupMemberAll -Transitive' {
+    BeforeAll {
+        $Global:AccessToken = 'test-token'
+        Mock Invoke-FGGetRequest {
+            if ($URI -match '/groups\?') { return @([pscustomobject]@{ id = 'g1' }) }
+            if ($URI -match 'transitiveMembers') { return @([pscustomobject]@{ id = 'u1'; '@odata.type' = '#microsoft.graph.user' }) }
+            if ($URI -match '/members') { return @([pscustomobject]@{ id = 'u2'; '@odata.type' = '#microsoft.graph.user' }) }
+        }
+    }
+    AfterAll {
+        Remove-Variable -Name AccessToken -Scope Global -ErrorAction SilentlyContinue
+    }
+
+    It 'calls /members without -Transitive' {
+        Get-FGGroupMemberAll | Out-Null
+        Should -Invoke Invoke-FGGetRequest -ParameterFilter { $URI -match '/members\?' }
+    }
+
+    It 'calls /transitiveMembers with -Transitive' {
+        Get-FGGroupMemberAll -Transitive | Out-Null
+        Should -Invoke Invoke-FGGetRequest -ParameterFilter { $URI -match 'transitiveMembers' }
+    }
+
+    It 'returns memberId from transitive call' {
+        $result = Get-FGGroupMemberAll -Transitive
+        $result[0].memberId | Should -Be 'u1'
+    }
+}
+
 Describe 'Postgres Schema Files' {
     BeforeAll {
         $script:migrationsDir = Join-Path $script:repoRoot 'app\api\src\db\migrations'
