@@ -3406,7 +3406,7 @@
 <p>Beyond the per-finding fixes, the remediation programme added preventative guardrails:</p>
 <ul>
 <li><strong>Permission model</strong> — a documented, tested role/permission catalog with the granular-permission bug fixed and per-route gating, plus a CI gate that blocks merges lacking tests or documentation (<a href="https://github.com/Fortigi/IdentityAtlas/pull/194">#194</a>).</li>
-<li><strong>Supply chain</strong> — all GitHub Actions pinned to commit SHAs with Dependabot keeping them current (<a href="https://github.com/Fortigi/IdentityAtlas/pull/214">#214</a>).</li>
+<li><strong>Supply chain</strong> — all GitHub Actions pinned to commit SHAs with Dependabot keeping them current (<a href="https://github.com/Fortigi/IdentityAtlas/pull/214">#214</a>). CI installs every Node dependency through <a href="https://github.com/SocketDev/sfw-free"><strong>Socket Firewall</strong></a>, which blocks known-malicious packages (typosquats, install-script malware, hijacked maintainer releases) before they reach the build — covering the supply-chain class that advisory-based scanning misses until a CVE is published. A machine-readable <a href="../../reference/sbom/">SBOM</a> is regenerated on every dependency change.</li>
 </ul>
 <hr />
 <h2 id="strengths-confirmed">Strengths (confirmed)<a class="headerlink" href="#strengths-confirmed" title="Permanent link">&para;</a></h2>
