@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Improved the risk-scoring dashboard's load time on large tenants: the "top entities by score" lists and the latest-scored-at lookup now query only what's shown (top 10 / most recent) instead of fetching and sorting every risk-scored row.
+
+## Changes in this PR
+
 - Added software supply-chain protection to the build pipeline: every pull request now installs Node dependencies through Socket Firewall, which blocks known-malicious packages (typosquats, install-script malware, hijacked maintainer releases) before they reach the build — including malicious version bumps that automated dependency updates might propose.
 - Credited Socket Firewall on the About and Security pages of the documentation.
 
