@@ -134,7 +134,6 @@ jobs:
               - 'tools/crawlers/**/*.e2e.*'
               - 'app/api/src/**'
               - 'app/api/Dockerfile'
-              - '.github/workflows/pr-integration.yml'
             load_soak:
               - 'app/api/src/**'
               - 'tools/crawlers/shared/**'

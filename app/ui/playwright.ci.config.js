@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright CI Configuration — runs against the Docker backend.
+ * Playwright CI Configuration — runs against the Docker backend (USE_SQL=true).
  *
  * Unlike the default config (playwright.config.js) which starts its own
  * backend in mock mode + Vite dev server, this config expects the full
