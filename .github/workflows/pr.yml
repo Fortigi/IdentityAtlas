@@ -131,6 +131,7 @@ jobs:
               - 'app/api/src/**'
               - 'app/api/package.json'
               - 'app/api/vitest.config.js'
+              - 'app/api/vitest.contract.config.js'
               - 'app/api/eslint.config.js'
             ui:
               - 'app/ui/src/**'
@@ -330,7 +331,38 @@ jobs:
         working-directory: app/api
         run: npm test
 
-  # ── Stage 4b: UI unit tests (Vitest) ────────────────────────────────────
+  # ── Stage 4b: Contract tests (Vitest + testcontainers) ──────────────────
+  # Runs *.contract.test.js files against a real PostgreSQL container spun up
+  # by testcontainers. Kept separate from unit-js so normal `npm test` stays
+  # fast and so this job can use a longer timeout (container start + 42
+  # migrations takes ~30-60s).
+  contract-tests:
+    name: 'Contract Tests: Vitest + PostgreSQL'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.api == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/api
+        run: npm ci
+
+      - name: Run contract tests
+        working-directory: app/api
+        run: npm run test:contract
+
+  # ── Stage 4c: UI unit tests (Vitest) ────────────────────────────────────
   unit-ui:
     name: 'Unit Tests: Vitest (UI)'
     needs: [filter]
@@ -676,6 +708,7 @@ jobs:
       - lint-js
       - unit-tests
       - unit-js
+      - contract-tests
       - unit-ui
       - node-launcher-ui-build
       - openapi
