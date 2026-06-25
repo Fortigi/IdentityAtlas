@@ -36,6 +36,12 @@ on:
       - dev
       - 'release/**'
 
+# Cancel superseded runs when a PR branch is pushed again, so a stale run can't
+# race the latest commit (or waste runners) (audit finding F4).
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DOTNET_NOLOGO: true
   POWERSHELL_TELEMETRY_OPTOUT: 1
@@ -123,8 +129,15 @@ jobs:
               - 'test/unit/**'
             api:
               - 'app/api/src/**'
+              - 'app/api/package.json'
+              - 'app/api/vitest.config.js'
+              - 'app/api/eslint.config.js'
             ui:
               - 'app/ui/src/**'
+              - 'app/ui/package.json'
+              - 'app/ui/vite.config.js'
+              - 'app/ui/eslint.config.js'
+              - 'app/ui/eslint-rules/**'
               - 'tools/crawlers/**/*.jsx'
               - 'tools/crawlers/**/*.test.js'
               - 'tools/crawlers/**/*.test.jsx'
@@ -201,8 +214,13 @@ jobs:
   lint-js:
     name: 'Lint: ESLint'
     needs: [filter]
+    # This job lints BOTH app/ui and app/api — and the API config carries the
+    # eslint-plugin-security rules — so an API-only PR must still trigger it
+    # (audit finding F7: previously gated on `ui` alone, so API-only PRs skipped
+    # the security linter).
     if: |
       needs.filter.outputs.ui == 'true' ||
+      needs.filter.outputs.api == 'true' ||
       needs.filter.result == 'failure'
     runs-on: ubuntu-latest
     steps:
