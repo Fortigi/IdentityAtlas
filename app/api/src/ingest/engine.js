@@ -18,6 +18,7 @@
 
 import crypto from 'crypto';
 import * as db from '../db/connection.js';
+import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
 
 // Cache the schema per table for the lifetime of the process. v5 schema is
 // only changed by migrations at startup, so the cache is safe.
@@ -96,10 +97,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
 
   return await db.tx(async (client) => {
     if (!existingTempTable) {
-      const colDefs = activeColumns
-        .map(c => `"${c.name}" ${c.sqlTypeName === 'USER-DEFINED' ? 'text' : c.sqlTypeName}`)
-        .join(', ');
-      await client.query(`CREATE TEMP TABLE "${tempName}" (${colDefs}) ON COMMIT DROP`);
+      await createTempTable(client, tempName, activeColumns);
     }
 
     // Bulk insert into the temp table. We use batched INSERT ... VALUES rather
@@ -108,33 +106,13 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     // teardown, producing an unhandled "Cannot read properties of null (reading
     // 'stream')" that kills the Node process. The INSERT approach is ~30% slower
     // but doesn't have this failure mode.
-    const colList = activeColumns.map(c => `"${c.name}"`).join(', ');
+    //
     // 1000 rows per INSERT. We measured this on a 255k-row ResourceAssignments
     // batch: bumping from 200 → 1000 cuts round-trip count 5× and wall-clock
     // time by roughly the same factor, with no measurable increase in lock
     // hold time on Postgres (the whole batch is already one transaction, so
     // chunk size only affects statement count, not locking behaviour).
-    const INSERT_CHUNK = 1000; // rows per INSERT statement
-    for (let i = 0; i < records.length; i += INSERT_CHUNK) {
-      const chunk = records.slice(i, i + INSERT_CHUNK);
-      const placeholders = [];
-      const params = [];
-      let pi = 1;
-      for (const rec of chunk) {
-        const row = [];
-        for (const col of activeColumns) {
-          row.push(`$${pi++}`);
-          let val = rec[col.name] !== undefined ? rec[col.name] : null;
-          if (val === null && col.hasUuidDefault) val = crypto.randomUUID();
-          params.push(val);
-        }
-        placeholders.push(`(${row.join(',')})`);
-      }
-      await client.query(
-        `INSERT INTO "${tempName}" (${colList}) VALUES ${placeholders.join(',')}`,
-        params
-      );
-    }
+    await bulkInsertIntoTemp(client, tempName, activeColumns, records, 1000, true);
 
     // Upsert from temp into target. xmax = 0 detects fresh inserts.
     const nonKeyCols = activeColumns.filter(c => !keyColumns.includes(c.name));
