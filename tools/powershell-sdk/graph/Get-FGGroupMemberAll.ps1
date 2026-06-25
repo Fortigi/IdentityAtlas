@@ -22,7 +22,7 @@ function Get-FGGroupMemberAll {
         $Completed = ($Count / $GroupCount) * 100
         Write-Progress -Activity $progressActivity -Status "Progress:" -PercentComplete $Completed
 
-        $URI = $GraphURI + "/groups/" + $Group.id + "/$memberSegment?`$select=id"
+        $URI = $GraphURI + "/groups/" + $Group.id + "/${memberSegment}?`$select=id"
         [array]$Members = Invoke-FGGetRequest -URI $URI
 
         Foreach ($Member in $Members) {

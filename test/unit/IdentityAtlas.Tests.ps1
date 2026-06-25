@@ -589,11 +589,11 @@ Describe 'Get-FGGroupMemberAll -Transitive' {
     }
 
     It 'uses /members and returns member id without -Transitive' {
-        (Get-FGGroupMemberAll)[0].memberId | Should -Be 'u2'
+        @(Get-FGGroupMemberAll)[0].memberId | Should -Be 'u2'
     }
 
     It 'uses /transitiveMembers and returns transitive member id with -Transitive' {
-        (Get-FGGroupMemberAll -Transitive)[0].memberId | Should -Be 'u1'
+        @(Get-FGGroupMemberAll -Transitive)[0].memberId | Should -Be 'u1'
     }
 }
 
