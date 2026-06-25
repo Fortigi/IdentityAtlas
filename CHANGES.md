@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Entities deleted in a source system (e.g. a user removed from Entra ID, or a deleted resource) are now **soft-deleted** instead of being erased: the record is kept and stamped as deleted, so leavers and removed resources stay auditable and cross-system references don't dangle. A later sync that re-sees the entity automatically restores it.
+- Soft-deleted principals and resources are **hidden by default** from the access matrix and the Users/Resources lists. An **Include deleted** toggle on each list brings them back, marked with a **Deleted** badge; their detail page carries a "Deleted in source" badge too.
+- Detail pages keep the history: a person still shows that they had access to a now-deleted resource (and a resource shows the now-deleted people who held it), each marked as deleted.
+
+## Changes in this PR
+
 - The Azure Resource Manager crawler can now skip role assignments whose principal isn't present in Entra ID — deleted service principals with dangling assignments, or principals outside a scoped (e.g. admins-only) Entra ID crawl. Controlled by a new **"Only load assignments for principals in Entra ID"** option (on by default; run the Entra ID crawler first).
 - With that option off, those principals are still loaded but flagged as **orphaned**, so you can review them rather than hide them.
 
