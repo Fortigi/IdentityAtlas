@@ -1,0 +1,2 @@
+- Added an architecture design doc (`docs/architecture/assignment-model-redesign.md`) for simplifying the assignment model — collapsing the internal assignment types down to the three universal kinds (Direct / Indirect / Eligible) and moving "what kind of access" onto the resource.
+- Groundwork for that change: assignments now carry the resource's type alongside them, so future syncs can reconcile by resource. No visible behaviour change.

@@ -339,12 +339,17 @@ export const ENTITY_KEY_MAP = {
   'principal-activity': ['principalId', 'resourceId', 'activityType'],
 };
 
-// Scope filter columns per entity type (used for scoped deletes)
+// Scope filter columns per entity type (used for scoped deletes).
+// `resourceType` is accepted on assignment scopes to let the full-sync reconcile
+// delete partition on the resource axis (assignment-model redesign, phase 1).
+// It is inert until crawlers actually send it: ingest.js only copies scope keys
+// that are present in the request body, so today's crawlers (which send only
+// assignmentType) get exactly the same delete as before.
 export const ENTITY_SCOPE_MAP = {
   'principals': ['principalType'],
   'resources': ['resourceType'],
-  'resource-assignments': ['assignmentType'],
-  'resource-assignments-identity': ['assignmentType'],
+  'resource-assignments': ['assignmentType', 'resourceType'],
+  'resource-assignments-identity': ['assignmentType', 'resourceType'],
   'resource-relationships': ['relationshipType'],
   'contexts': ['variant', 'contextType', 'scopeSystemId', 'sourceAlgorithmId'],
   'context-members': ['contextId'],
