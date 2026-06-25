@@ -253,7 +253,22 @@ The PowerShell side has the `Test-<Type>Crawler.ps1` contract above. The `Config
 
 ### Where the tests live and run
 
-Co-locate test files next to the plugin: `tools/crawlers/<type>/*.test.{js,jsx}`. Most of these (render smoke tests, pure-function unit tests) run under the **UI's** vitest, not the API's — `app/ui/vite.config.js`'s `test.include` explicitly adds `'../../tools/crawlers/**/*.test.{js,jsx}'` alongside `src/**/*.test.{js,jsx}`. A test file placed here without that glob entry would simply never execute, silently — there's no error, the suite just doesn't grow. Run them from `app/ui`:
+Co-locate test files next to the plugin: `tools/crawlers/<type>/*.test.{js,jsx}`.
+
+**Quick-reference — which filename runs under which runner:**
+
+| Filename pattern | Runner | Why |
+|---|---|---|
+| `ConfigWizard.test.jsx` | UI vitest (`app/ui`) | Imports JSX; needs React plugin |
+| `credentialGating.test.js` | UI vitest (`app/ui`) | Pure JS, caught by UI's broad glob |
+| `matchSlot.test.js` | UI vitest (`app/ui`) | Pure JS, caught by UI's broad glob |
+| `contextValidation.test.js` | UI vitest (`app/ui`) | Pure JS, caught by UI's broad glob |
+| `configPayload.test.js` | UI vitest (`app/ui`) | Pure JS, caught by UI's broad glob |
+| `discover.test.js` | API vitest (`app/api`) | Exercises Node handler; explicitly included |
+| `configValidation.test.js` | API vitest (`app/api`) | Imports `pg` via crawlerManifests; explicitly included and excluded from UI |
+| `*.e2e.mjs` | Playwright (via `crawler-plugin-tests.spec.js`) | Full browser interaction; not a vitest file |
+
+Most of these (render smoke tests, pure-function unit tests) run under the **UI's** vitest, not the API's — `app/ui/vite.config.js`'s `test.include` explicitly adds `'../../tools/crawlers/**/*.test.{js,jsx}'` alongside `src/**/*.test.{js,jsx}`. A test file placed here without that glob entry would simply never execute, silently — there's no error, the suite just doesn't grow. Run them from `app/ui`:
 
 ```bash
 cd app/ui && npx vitest run ../../tools/crawlers/<type>
