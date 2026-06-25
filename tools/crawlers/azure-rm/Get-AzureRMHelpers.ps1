@@ -63,6 +63,7 @@ function Invoke-ARMRequestRaw {
     while ($true) {
         $attempt++
         Update-ARMTokenIfNeeded
+        $Global:AzCallCount = [int]$Global:AzCallCount + 1
         try {
             return Invoke-RestMethod -Uri $Uri -Method Get -TimeoutSec 120 `
                 -Headers @{ Authorization = "Bearer $Global:AccessToken" }

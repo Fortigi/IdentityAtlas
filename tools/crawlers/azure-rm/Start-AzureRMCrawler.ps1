@@ -34,17 +34,20 @@ $OnlyEntraPrincipals  = if ($null -ne $Cfg.onlyEntraPrincipals) { [bool]$Cfg.onl
 $SubscriptionFilter   = if ($Cfg.subscriptionIds) { @($Cfg.subscriptionIds) } else { @() }
 $ManagementGroupId    = if ($Cfg.managementGroupId) { [string]$Cfg.managementGroupId } else { $null }
 
+# Round-trip counter (bumped by the request helpers) for the per-phase timing report.
+$Global:AzCallCount = 0
+
 # ─── Shared helpers ──────────────────────────────────────────────
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 . (Join-Path $PSScriptRoot '..' 'shared' 'Get-CapabilityId.ps1')
-# Get-AzureRMHelpers.ps1 is dot-sourced automatically by the dispatcher (same-folder library).
+# Get-AzureRMHelpers.ps1 (ARM auth + enumeration) and Get-AzureRGHelpers.ps1 (Resource Graph reads)
+# are dot-sourced automatically by the dispatcher (same-folder libraries).
 
-# ARM api-versions (pinned).
-$API_SUBS    = '2022-12-01'
-$API_RG      = '2021-04-01'
-$API_RES     = '2021-04-01'
-$API_MG      = '2021-04-01'
-$API_AUTH    = '2022-04-01'   # roleAssignments + roleDefinitions
+# ARM api-versions (pinned). Subscriptions and the management-group hierarchy are still read over the
+# ARM REST API — single enumeration calls, not per-subscription fan-out. Resource groups, resources,
+# role definitions and role assignments all come from Azure Resource Graph.
+$API_SUBS = '2022-12-01'
+$API_MG   = '2021-04-01'
 
 # A scope's stable Identity Atlas node id = deterministic UUID of its ARM path.
 # ARM resource IDs can legitimately contain '|' (e.g. some Insights / alert resources), which
@@ -53,7 +56,13 @@ $API_AUTH    = '2022-04-01'   # roleAssignments + roleDefinitions
 # is encoded — the raw armPath / externalId is stored unchanged. Subscription/RG/MG paths never
 # contain either character, so their ids are unaffected.
 function Get-ScopeNodeId { param([string]$ArmScopePath)
-    $safe = $ArmScopePath -replace '%', '%25' -replace '\|', '%7C'
+    # Lower-case the path before hashing so the node id is stable regardless of casing. Azure Resource
+    # Graph lower-cases every id, and Azure itself is inconsistent about ARM-path casing (a role
+    # assignment's properties.scope may read ".../resourceGroups/Foo" while a resource id reads
+    # ".../resourcegroups/foo"). Canonicalising here means the same physical scope never splits into
+    # two nodes because of casing. Only the hash input is canonicalised; the raw armPath / externalId
+    # is still stored as received.
+    $safe = $ArmScopePath.ToLowerInvariant() -replace '%', '%25' -replace '\|', '%7C'
     Get-CapabilityId -TargetNodeId $safe -CapabilityId 'azure-scope'
 }
 
@@ -72,7 +81,14 @@ function Send-IngestBatch {
     Invoke-IngestAPI -Endpoint $Endpoint -Body $body
 }
 
-Write-Host "`n=== Azure RM Crawler ===" -ForegroundColor Cyan
+# Per-phase wall-clock + round-trip report — the call counts make the cross-subscription savings of
+# the Resource Graph queries visible (a few paged queries instead of per-subscription fan-out).
+function Write-PhaseTiming {
+    param([string]$Name, [System.Diagnostics.Stopwatch]$Sw, [int]$CallsBefore)
+    Write-Host ("  [timing] {0}: {1:n1}s, {2} Azure call(s)" -f $Name, $Sw.Elapsed.TotalSeconds, ($Global:AzCallCount - $CallsBefore)) -ForegroundColor DarkGray
+}
+
+Write-Host "`n=== Azure RM Crawler (Resource Graph) ===" -ForegroundColor Cyan
 
 # ─── Connectivity + auth ─────────────────────────────────────────
 Update-CrawlerProgress -Step 'Authenticating to Azure RM' -Pct 2
@@ -116,7 +132,7 @@ function Get-AzureResourceType { param([string]$ArmPath)
     return ''
 }
 
-# Governance/filtering attributes lifted off an ARM resource object (from the /resources list):
+# Governance/filtering attributes lifted off a resource object (from the Resource Graph resources query):
 #   azureLocation              – region, e.g. "westeurope"  -> "access to any resource in West Europe"
 #   tag.<Key>                  – each portal tag as its own key -> "access to anything tagged Prio High"
 #   managedIdentity            – identity type (SystemAssigned/UserAssigned) when the resource has one
@@ -164,30 +180,58 @@ function Add-Scope {
 
 # ─── Phase: Scope discovery ──────────────────────────────────────
 Update-CrawlerProgress -Step 'Discovering scopes' -Pct 8
+$swDisc = [System.Diagnostics.Stopwatch]::StartNew()
+$callsDisc = $Global:AzCallCount
 
-# Subscriptions (auto-discover all accessible, or the configured subset).
+# Subscriptions (auto-discover all accessible, or the configured subset). Always one ARM list call —
+# subscription enumeration is not the fan-out problem, and its ids scope the ARG queries below.
 $subs = Invoke-ARMList -Path "/subscriptions?api-version=$API_SUBS"
 if ($SubscriptionFilter.Count -gt 0) {
     $subs = @($subs | Where-Object { $SubscriptionFilter -contains $_.subscriptionId })
 }
+$subIds = @($subs | ForEach-Object { [string]$_.subscriptionId })
 Write-Host "  $($subs.Count) subscription(s)" -ForegroundColor Gray
+
+# Pull every resource group (and, if requested, every resource) for the whole tenant up front in a
+# handful of paged Resource Graph queries, then index them by parent so the loop below does no
+# per-subscription / per-resource-group network calls.
+$argRgsBySub = @{}
+$argResByRg  = @{}
+if ($subIds.Count -gt 0) {
+    foreach ($rg in (Get-ARGResourceGroups -SubscriptionIds $subIds)) {
+        $k = [string]$rg.subscriptionId
+        if (-not $argRgsBySub.ContainsKey($k)) { $argRgsBySub[$k] = [System.Collections.Generic.List[object]]::new() }
+        $argRgsBySub[$k].Add($rg)
+    }
+    if ($IncludeResourceLevel) {
+        foreach ($r in (Get-ARGResources -SubscriptionIds $subIds)) {
+            # Index by the resource's parent resource-group path (lower-cased — Resource Graph ids are
+            # already lower-case, and Get-ScopeNodeId canonicalises the same way).
+            $rgKey = "/subscriptions/$($r.subscriptionId)/resourcegroups/$($r.resourceGroup)".ToLowerInvariant()
+            if (-not $argResByRg.ContainsKey($rgKey)) { $argResByRg[$rgKey] = [System.Collections.Generic.List[object]]::new() }
+            $argResByRg[$rgKey].Add($r)
+        }
+    }
+}
 
 foreach ($sub in $subs) {
     $subPath = "/subscriptions/$($sub.subscriptionId)"
     Add-Scope -ArmPath $subPath -DisplayName $sub.displayName -ResourceType 'AzureSubscription' -ParentArmPath $null -ScopeKind 'Subscription' | Out-Null
 
-    # Resource groups.
-    $rgs = Invoke-ARMList -Path "$subPath/resourcegroups?api-version=$API_RG"
+    $rgs = if ($argRgsBySub.ContainsKey([string]$sub.subscriptionId)) { $argRgsBySub[[string]$sub.subscriptionId] } else { @() }
     foreach ($rg in $rgs) {
         Add-Scope -ArmPath $rg.id -DisplayName $rg.name -ResourceType 'AzureResourceGroup' -ParentArmPath $subPath -ScopeKind 'ResourceGroup' | Out-Null
         if ($IncludeResourceLevel) {
-            $resources = Invoke-ARMList -Path "$($rg.id)/resources?api-version=$API_RES"
+            $rgKey = ([string]$rg.id).ToLowerInvariant()
+            $resources = if ($argResByRg.ContainsKey($rgKey)) { $argResByRg[$rgKey] } else { @() }
             foreach ($r in $resources) {
                 Add-Scope -ArmPath $r.id -DisplayName $r.name -ResourceType 'AzureResource' -ParentArmPath $rg.id -ScopeKind 'Resource' -ExtraExt (Get-ResourceAttributes -Resource $r) | Out-Null
             }
         }
     }
 }
+$swDisc.Stop()
+Write-PhaseTiming -Name 'scope discovery' -Sw $swDisc -CallsBefore $callsDisc
 
 # Management groups (only when explicitly configured — walks the tree beneath it).
 if ($ManagementGroupId) {
@@ -221,28 +265,34 @@ Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Cont
 
 # ─── Phase: Role definitions ─────────────────────────────────────
 Update-CrawlerProgress -Step 'Fetching role definitions' -Pct 35
-# Role definitions are visible at any subscription scope; fetch once per subscription and merge.
+$swDefs = [System.Diagnostics.Stopwatch]::StartNew()
+$callsDefs = $Global:AzCallCount
 $roleDefs = @{}   # roleDefId (GUID) → @{ name; isCustom; plane }
-foreach ($sub in $subs) {
-    $defs = Invoke-ARMList -Path "/subscriptions/$($sub.subscriptionId)/providers/Microsoft.Authorization/roleDefinitions?api-version=$API_AUTH"
-    foreach ($d in $defs) {
-        $guid = $d.name   # the roleDefinition's GUID
-        if (-not $roleDefs.ContainsKey($guid)) {
-            $isCustom = ($d.properties.type -eq 'CustomRole')
-            if ($isCustom -and -not $IncludeCustomRoles) { continue }
-            # Plane classification: control-plane `actions` (manage the resource) vs
-            # data-plane `dataActions` (read/write the data inside it). Owner/Contributor
-            # are control; "Storage Blob Data Reader", "Key Vault Secrets User" etc. are
-            # data. A role can grant both. Lets you ask "who has any data-plane access?".
-            $ctlActions  = @($d.properties.permissions | ForEach-Object { $_.actions }     | Where-Object { $_ })
-            $dataActions = @($d.properties.permissions | ForEach-Object { $_.dataActions } | Where-Object { $_ })
-            $plane = if ($dataActions.Count -gt 0 -and $ctlActions.Count -gt 0) { 'both' }
-                     elseif ($dataActions.Count -gt 0) { 'data' } else { 'control' }
-            $roleDefs[$guid] = @{ name = $d.properties.roleName; isCustom = $isCustom; plane = $plane }
-        }
+
+# Resource Graph returns every visible role definition (built-in catalog included, via AtScopeAndAbove)
+# in one paged query. Deduped below by GUID.
+$allDefs = if ($ManagementGroupId) { Get-ARGRoleDefinitions -ManagementGroups @($ManagementGroupId) }
+           else { Get-ARGRoleDefinitions -SubscriptionIds $subIds }
+
+foreach ($d in $allDefs) {
+    $guid = $d.name   # the roleDefinition's GUID
+    if (-not $roleDefs.ContainsKey($guid)) {
+        $isCustom = ($d.properties.type -eq 'CustomRole')
+        if ($isCustom -and -not $IncludeCustomRoles) { continue }
+        # Plane classification: control-plane `actions` (manage the resource) vs
+        # data-plane `dataActions` (read/write the data inside it). Owner/Contributor
+        # are control; "Storage Blob Data Reader", "Key Vault Secrets User" etc. are
+        # data. A role can grant both. Lets you ask "who has any data-plane access?".
+        $ctlActions  = @($d.properties.permissions | ForEach-Object { $_.actions }     | Where-Object { $_ })
+        $dataActions = @($d.properties.permissions | ForEach-Object { $_.dataActions } | Where-Object { $_ })
+        $plane = if ($dataActions.Count -gt 0 -and $ctlActions.Count -gt 0) { 'both' }
+                 elseif ($dataActions.Count -gt 0) { 'data' } else { 'control' }
+        $roleDefs[$guid] = @{ name = $d.properties.roleName; isCustom = $isCustom; plane = $plane }
     }
 }
+$swDefs.Stop()
 Write-Host "  $($roleDefs.Count) role definitions" -ForegroundColor Gray
+Write-PhaseTiming -Name 'role definitions' -Sw $swDefs -CallsBefore $callsDefs
 
 # ─── Phase: Role assignments ─────────────────────────────────────
 Update-CrawlerProgress -Step 'Fetching role assignments' -Pct 55
@@ -329,15 +379,51 @@ function Ensure-AssignmentScope { param([string]$ScopePath, [string]$OwningSubPa
     return Get-ScopeNodeId -ArmScopePath $ScopePath
 }
 
-# One un-filtered roleAssignments list per subscription returns every assignment in that
-# subscription's subtree PLUS those inherited from above (management groups / tenant root). We store
-# each at its OWN declared scope (properties.scope) and let the engine compute inheritance — never
-# materialising an inherited assignment as Direct on the scopes below it. (atScope() is NOT used: it
-# means "effective at this scope", i.e. this scope AND everything inherited from above.)
+# Every role assignment is stored at its OWN declared scope (properties.scope); the engine computes
+# inheritance on demand from the Contains hierarchy — we never materialise an inherited assignment as
+# Direct on the scopes below it.
+$swAssign = [System.Diagnostics.Stopwatch]::StartNew()
+$callsAssign = $Global:AzCallCount
+
+# Fetch every assignment once (AtScopeAboveAndBelow, so management-group / tenant-root rows come too),
+# then rebuild each subscription's "visible set": an assignment in a subscription's own subtree is seen
+# only by that subscription; one declared at a management-group ancestor is seen by every subscription
+# beneath that MG; one at the tenant root ('/') by all. Driving the per-subscription loop below this
+# way produces the scope nodes, grants AND the implicit management-group → subscription Contains edges.
+$argAssignBySub = @{}
+if ($subIds.Count -gt 0) {
+    $allAssign = Get-ARGRoleAssignments -SubscriptionIds $subIds
+    $mgChains  = Get-ARGSubscriptionMgChains -SubscriptionIds $subIds   # subId → [mg ancestor ids]
+    $subsByMg  = @{}
+    foreach ($sid in $subIds) {
+        foreach ($mg in @($mgChains[$sid])) {
+            $mgKey = ([string]$mg).ToLowerInvariant()
+            if (-not $subsByMg.ContainsKey($mgKey)) { $subsByMg[$mgKey] = [System.Collections.Generic.List[string]]::new() }
+            $subsByMg[$mgKey].Add($sid)
+        }
+    }
+    foreach ($sid in $subIds) { $argAssignBySub[([string]$sid).ToLowerInvariant()] = [System.Collections.Generic.List[object]]::new() }
+    foreach ($a in $allAssign) {
+        $scope = [string]$a.properties.scope
+        if ($scope -match '^/subscriptions/([^/]+)') {
+            $owner = $matches[1].ToLowerInvariant()
+            if ($argAssignBySub.ContainsKey($owner)) { $argAssignBySub[$owner].Add($a) }
+        } elseif ($scope -eq '/') {
+            foreach ($k in $argAssignBySub.Keys) { $argAssignBySub[$k].Add($a) }
+        } elseif ($scope -match '^/providers/[Mm]icrosoft\.[Mm]anagement/managementGroups/([^/]+)') {
+            $mgKey = $matches[1].ToLowerInvariant()
+            if ($subsByMg.ContainsKey($mgKey)) {
+                foreach ($sid in $subsByMg[$mgKey]) { $argAssignBySub[([string]$sid).ToLowerInvariant()].Add($a) }
+            }
+        }
+    }
+}
+
 $assignSeen = [System.Collections.Generic.HashSet[string]]::new()
 foreach ($sub in $subs) {
     $subPath = "/subscriptions/$($sub.subscriptionId)"
-    $assignments = Invoke-ARMList -Path "$subPath/providers/Microsoft.Authorization/roleAssignments?api-version=$API_AUTH"
+    $sk = ([string]$sub.subscriptionId).ToLowerInvariant()
+    $assignments = if ($argAssignBySub.ContainsKey($sk)) { $argAssignBySub[$sk] } else { @() }
     foreach ($a in $assignments) {
         $declaredScope = [string]$a.properties.scope
         if (-not $declaredScope) { continue }
@@ -391,16 +477,23 @@ foreach ($sub in $subs) {
         }
     }
 }
+$swAssign.Stop()
 Write-Host "  $($RoleResources.Count) role-at-scope resources, $($Grants.Count) assignments" -ForegroundColor Gray
+Write-PhaseTiming -Name 'role assignments' -Sw $swAssign -CallsBefore $callsAssign
 
-# The assignment phase may have added management-group / resource scope nodes on demand, so dedup and
-# ingest the scope nodes + Contains edges now — before the capability-resources and grants below that
-# reference them. Dedup by primary key — the ingest engine's ON CONFLICT can't touch a row twice.
+# The assignment phase may have added management-group / resource scope nodes on demand, so dedup the
+# scope nodes + Contains edges now — before the capability-resources and grants that reference them.
+# Dedup by primary key — the ingest engine's ON CONFLICT can't touch a row twice.
 $sSeen = [System.Collections.Generic.HashSet[string]]::new()
 $ScopeResources = @($ScopeResources | Where-Object { $sSeen.Add([string]$_.id) })
 $eSeen = [System.Collections.Generic.HashSet[string]]::new()
 $ContainsEdges = @($ContainsEdges | Where-Object { $eSeen.Add("$($_.parentResourceId)|$($_.childResourceId)|$($_.relationshipType)") })
+# Dedup grants on their PK (resourceId, principalId, assignmentType) — Azure can declare the same
+# principal+role at one scope more than once, which would touch the same upsert row twice.
+$gSeen = [System.Collections.Generic.HashSet[string]]::new()
+$Grants = @($Grants | Where-Object { $gSeen.Add("$($_.resourceId)|$($_.principalId)|$($_.assignmentType)") })
 Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Contains edges (final)" -ForegroundColor Gray
+
 Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = 'AzureScope' } -Records $ScopeResources | Out-Null
 Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ relationshipType = 'Contains' } -Records $ContainsEdges | Out-Null
 
@@ -459,10 +552,6 @@ foreach ($pt in $PrincipalStubs.Keys) {
     }
 }
 Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = 'AzureRoleAssignment' } -Records $RoleResources | Out-Null
-# Dedup grants on their PK (resourceId, principalId, assignmentType) — Azure can declare the same
-# principal+role at one scope more than once, which would touch the same upsert row twice.
-$gSeen = [System.Collections.Generic.HashSet[string]]::new()
-$Grants = @($Grants | Where-Object { $gSeen.Add("$($_.resourceId)|$($_.principalId)|$($_.assignmentType)") })
 Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ assignmentType = 'Direct' } -Records $Grants | Out-Null
 
 # Contexts are NOT emitted here — they are derived data. Context trees (scope hierarchy, resource
