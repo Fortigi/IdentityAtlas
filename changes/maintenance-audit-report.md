@@ -1,1 +1,0 @@
-- Published the June 2026 maintenance-sprint audit report (design/UX, security, performance & code quality, CI/test harness, and documentation review, plus an independent second-model cross-check) to the documentation site under Security.
