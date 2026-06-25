@@ -1,0 +1,3 @@
+- Extracted shared `queryRiskScoresPage` helper to eliminate duplicated list+count query pattern across all five risk score list endpoints (`/users`, `/groups`, `/business-roles`, `/contexts`, `/identities`)
+- Extracted shared matrix SQL expression builders (`buildAssignmentExprs`, `buildIdentityJoinExprs`, `buildRoleSubjectJoinExprs`, `buildApMemberExprs`, `mergeGroupTotals`, `resourceMeta`) to remove repeated identity/principal conditional blocks in matrix route
+- Extracted shared `createTempTable` and `bulkInsertIntoTemp` helpers to remove duplicated temp-table creation and batch-insert logic shared between ingest engine and sync sessions
