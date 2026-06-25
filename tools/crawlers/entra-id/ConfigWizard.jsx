@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ScheduleEditor from '@ui/components/ScheduleEditor';
-import Stepper from '@ui/components/Stepper';
+import WizardShell from '@ui/components/WizardShell';
 
 // ─── Attribute Picker ───────────────────────────────────────────────────────
 function AttributePicker({ title, available, selected, onChange, coreAttrs = [] }) {
@@ -436,17 +436,15 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   ];
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit' : 'Add'} Microsoft Graph Crawler</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      <div className="mb-5"><Stepper steps={entraSteps} current={step} onStepClick={setStep} allowAll={!!isEdit} /></div>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">{error}</div>
-      )}
+    <WizardShell
+      title={`${isEdit ? 'Edit' : 'Add'} Microsoft Graph Crawler`}
+      onCancel={onCancel}
+      steps={entraSteps}
+      currentStep={step}
+      onStepClick={setStep}
+      allowAllSteps={isEdit}
+      error={error}
+    >
 
       {/* ─── Step 1: Name + Credentials ─────────────────────────── */}
       {step === 1 && (
@@ -755,6 +753,6 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
           </div>
         </div>
       )}
-    </div>
+    </WizardShell>
   );
 }
