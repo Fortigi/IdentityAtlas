@@ -34,6 +34,9 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
   const [includeCustomRoles, setIncludeCustomRoles] = useState(
     initialConfig?.includeCustomRoles !== undefined ? !!initialConfig.includeCustomRoles : true,
   );
+  const [onlyEntraPrincipals, setOnlyEntraPrincipals] = useState(
+    initialConfig?.onlyEntraPrincipals !== undefined ? !!initialConfig.onlyEntraPrincipals : true,
+  );
 
   // Live discovery (subscriptions + nested management groups)
   const [availableSubs, setAvailableSubs] = useState([]);
@@ -87,6 +90,7 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
         clientId: clientId.trim(),
         includeResourceLevel,
         includeCustomRoles,
+        onlyEntraPrincipals,
       };
       if (clientSecret.trim()) config.clientSecret = clientSecret.trim();
       // The two scope modes are mutually exclusive. Always send both keys (one
@@ -258,6 +262,13 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
 
           {/* Options */}
           <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={onlyEntraPrincipals} onChange={(e) => setOnlyEntraPrincipals(e.target.checked)} className="mt-0.5" />
+              <div>
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Only load assignments for principals in Entra ID</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">skip role assignments whose principal isn&apos;t in the directory (run the Entra ID crawler first). Off: load them but flag the principal as orphaned</span>
+              </div>
+            </label>
             <label className="flex items-start gap-3 cursor-pointer">
               <input type="checkbox" checked={includeCustomRoles} onChange={(e) => setIncludeCustomRoles(e.target.checked)} className="mt-0.5" />
               <div>

@@ -168,12 +168,11 @@ export async function buildInheritedRollupCounts(p, built, rowType, rollupAttr, 
 
   // group-value per holder = the roll-up attribute on the principal (COALESCE
   // empty → '(none)', matching buildRollupSql). Plus principalType to drop groups.
-  let gvBy = new Map();
   const { attrExpr, error } = rollupAttr ? resolveAttrExpr(rollupAttr, 'pr', principalCols) : { error: true };
   const gvSel = error ? `'(none)'` : `COALESCE(NULLIF((${attrExpr})::text, ''), '(none)')`;
   const { rows: pr } = await db.query(
     `SELECT id, "principalType" AS pt, ${gvSel} AS gv FROM "Principals" pr WHERE id = ANY($1)`, [pids]);
-  gvBy = new Map(pr.map((r) => [r.id, r]));
+  const gvBy = new Map(pr.map((r) => [r.id, r]));
 
   const { rows: nodeMeta } = await db.query(
     `SELECT r.id, r."systemId", s."displayName" AS "systemName"
