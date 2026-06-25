@@ -1,0 +1,1 @@
+- Improved the risk-scoring dashboard's load time on large tenants: the "top entities by score" lists and the latest-scored-at lookup now query only what's shown (top 10 / most recent) instead of fetching and sorting every risk-scored row.
