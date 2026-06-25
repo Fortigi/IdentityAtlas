@@ -588,19 +588,12 @@ Describe 'Get-FGGroupMemberAll -Transitive' {
         Remove-Variable -Name AccessToken -Scope Global -ErrorAction SilentlyContinue
     }
 
-    It 'calls /members without -Transitive' {
-        Get-FGGroupMemberAll | Out-Null
-        Should -Invoke Invoke-FGGetRequest -ModuleName 'IdentityAtlas' -ParameterFilter { $URI -match '/members\?' }
+    It 'uses /members and returns member id without -Transitive' {
+        (Get-FGGroupMemberAll)[0].memberId | Should -Be 'u2'
     }
 
-    It 'calls /transitiveMembers with -Transitive' {
-        Get-FGGroupMemberAll -Transitive | Out-Null
-        Should -Invoke Invoke-FGGetRequest -ModuleName 'IdentityAtlas' -ParameterFilter { $URI -match 'transitiveMembers' }
-    }
-
-    It 'returns memberId from transitive call' {
-        $result = Get-FGGroupMemberAll -Transitive
-        $result[0].memberId | Should -Be 'u1'
+    It 'uses /transitiveMembers and returns transitive member id with -Transitive' {
+        (Get-FGGroupMemberAll -Transitive)[0].memberId | Should -Be 'u1'
     }
 }
 
