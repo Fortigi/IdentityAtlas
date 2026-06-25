@@ -695,10 +695,14 @@ foreach ($scenario in $Scenarios) {
                     # invariant below ensures their badge collapses cleanly.
                     Assert-ApiCount  -Name 'EntraID/Full-Sync/AppRoles'         -Path '/resources?resourceType=AppRole&limit=1'              -MinExpected 0
 
-                    # NOTE: `directoryRoles` is still a stub in
-                    # Start-EntraIDCrawler.ps1 — the wizard surfaces the
-                    # checkbox but no phase emits rows. Remove this note when
-                    # the directoryRoles phase ships.
+                    # Directory roles — the crawler imports the role catalog
+                    # (resourceType='EntraRole', with each role's granular
+                    # allowedResourceActions in extendedAttributes) plus active
+                    # and PIM-eligible assignments. A demo tenant always has the
+                    # built-in role catalog, so this endpoint should respond;
+                    # MinExpected=0 keeps it green if the selected object types
+                    # for this run didn't include directoryRoles.
+                    Assert-ApiCount  -Name 'EntraID/Full-Sync/DirectoryRoles'    -Path '/resources?resourceType=EntraRole&limit=1'            -MinExpected 0
 
                     # Dashboard timeseries endpoint — backs the Trends tab on
                     # the dashboard. The scheduler writes a snapshot row once

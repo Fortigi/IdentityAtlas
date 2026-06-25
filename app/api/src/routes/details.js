@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as db from '../db/connection.js';
 import { timedRequest } from '../perf/sqlTimer.js';
+import { isMissingSchema } from '../db/schemaErrors.js';
 
 const router = Router();
 
@@ -99,7 +100,7 @@ router.get('/user/:id', async (req, res) => {
         [userId]
       );
       if (rs.rows.length > 0) Object.assign(attributes, cleanRow(rs.rows[0]));
-    } catch { /* RiskScores may not exist on older deployments */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* RiskScores may not exist on older deployments */ }
 
     // 2. Tags
     let tags = [];
@@ -113,7 +114,7 @@ router.get('/user/:id', async (req, res) => {
            WHERE ta."entityId" = @id AND t."entityType" = 'user'
         `);
       tags = r.recordset;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 3. Counts — membership broken down by type so the entity graph can
     //    show a node per type (Direct / Indirect / Owner / Eligible) without
@@ -132,7 +133,7 @@ router.get('/user/:id', async (req, res) => {
         if (row.membershipType in membershipByType) membershipByType[row.membershipType] = row.cnt;
       }
       membershipCount = Object.values(membershipByType).reduce((a, b) => a + b, 0);
-    } catch { /* view may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* view may not exist */ }
 
     let accessPackageCount = 0;
     try {
@@ -142,10 +143,10 @@ router.get('/user/:id', async (req, res) => {
                   FROM "ResourceAssignments"
                  WHERE "principalId"::text = @id AND "assignmentType" = 'Governed'`);
       accessPackageCount = r.recordset[0].cnt;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     let historyCount = 0;
-    try { historyCount = await countHistory('Principals', userId); } catch { /* _history may not exist */ }
+    try { historyCount = await countHistory('Principals', userId); } catch (e) { if (!isMissingSchema(e)) throw e; /* _history may not exist */ }
 
     let oauth2GrantCount = 0;
     try {
@@ -155,7 +156,7 @@ router.get('/user/:id', async (req, res) => {
                   FROM "ResourceAssignments"
                  WHERE "principalId"::text = @id AND "assignmentType" = 'OAuth2Grant'`);
       oauth2GrantCount = r.recordset[0].cnt;
-    } catch { /* column may not exist on older deployments */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* column may not exist on older deployments */ }
 
     // Direct-report count: cheap query on managerId FK.
     let directReportCount = 0;
@@ -164,7 +165,7 @@ router.get('/user/:id', async (req, res) => {
         .input('id', userId)
         .query(`SELECT COUNT(*)::int AS cnt FROM "Principals" WHERE "managerId" = @id`);
       directReportCount = r.recordset[0].cnt;
-    } catch { /* managerId may not exist on older deployments */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* managerId may not exist on older deployments */ }
 
     // Context-membership count (v6 — replaces the old Principals.contextId
     // single-context column with a many-to-many ContextMembers join).
@@ -178,7 +179,7 @@ router.get('/user/:id', async (req, res) => {
                                           AND cm."memberType" = 'Identity'
                  WHERE im."principalId"::text = @id`);
       contextCount = r.recordset[0].cnt;
-    } catch { /* ContextMembers may not exist on older deployments */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist on older deployments */ }
 
     res.json({
       attributes,
@@ -394,7 +395,7 @@ router.get('/group/:id', async (req, res) => {
         WHERE ta."entityId" = @id AND t."entityType" IN ('resource', 'group')
       `);
       tags = r.recordset;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 3. Counts only (fast) — try resourceId first, fall back to groupId
     let memberCount = 0;
@@ -411,7 +412,7 @@ router.get('/group/:id', async (req, res) => {
           .query(`SELECT COUNT(DISTINCT "memberId") AS cnt FROM ${table} WHERE "groupId" = @id`);
       }
       memberCount = r.recordset[0].cnt;
-    } catch { /* view may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* view may not exist */ }
 
     let accessPackageCount = 0;
     try {
@@ -420,14 +421,14 @@ router.get('/group/:id', async (req, res) => {
         .query(`
         SELECT COUNT(DISTINCT rrs."parentResourceId") AS cnt
         FROM "ResourceRelationships" rrs
-        WHERE UPPER(rrs."childResourceId") = UPPER(@id)
+        WHERE UPPER(rrs."childResourceId"::text) = UPPER(@id)
           AND rrs."relationshipType" = 'Contains'
       `);
       accessPackageCount = r.recordset[0].cnt;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     let historyCount = 0;
-    try { historyCount = await countHistory('Resources', groupId); } catch { /* _history table may not exist on older deployments */ }
+    try { historyCount = await countHistory('Resources', groupId); } catch (e) { if (!isMissingSchema(e)) throw e; /* _history table may not exist on older deployments */ }
 
     res.json({ attributes, tags, memberCount, accessPackageCount, historyCount, hasHistory: historyCount > 0 });
   } catch (err) {
@@ -445,29 +446,24 @@ router.get('/group/:id/members', async (req, res) => {
   try {
     const pool = await db.getPool();
     const table = await getPermissionTable(pool);
-    let r;
-    try {
-      r = await timedRequest(pool, 'group-members', res)
-        .input('id', req.params.id)
-        .query(`
-        SELECT "memberId", memberDisplayName, memberUPN,
-               "membershipType", "managedByAccessPackage"
-        FROM ${table}
-        WHERE "resourceId" = @id
-        ORDER BY memberDisplayName, "membershipType"
+    // The matrix matview keys members by principalId and carries membershipType +
+    // managedByAccessPackage; join Principals for the display name / UPN.
+    // (Previously selected memberId/memberDisplayName/memberUPN, which don't exist
+    // on the v5 matview, so this endpoint always 500'd — masked by the legacy
+    // fallback, which referenced an equally-absent "groupId" column.)
+    const r = await timedRequest(pool, 'group-members', res)
+      .input('id', req.params.id)
+      .query(`
+        SELECT p."principalId"     AS "memberId",
+               pr."displayName"    AS "memberDisplayName",
+               pr.email            AS "memberUPN",
+               p."membershipType",
+               p."managedByAccessPackage"
+          FROM ${table} p
+          JOIN "Principals" pr ON pr.id = p."principalId"
+         WHERE p."resourceId" = @id
+         ORDER BY pr."displayName", p."membershipType"
       `);
-    } catch {
-      // Fall back to groupId column name
-      r = await timedRequest(pool, 'group-members-legacy', res)
-        .input('id', req.params.id)
-        .query(`
-        SELECT "memberId", memberDisplayName, memberUPN,
-               "membershipType", "managedByAccessPackage"
-        FROM ${table}
-        WHERE "groupId" = @id
-        ORDER BY memberDisplayName, "membershipType"
-      `);
-    }
     res.json(r.recordset);
   } catch (err) {
     console.error('Error fetching group members:', err.message);
@@ -489,10 +485,10 @@ router.get('/group/:id/access-packages', async (req, res) => {
       SELECT DISTINCT
         rrs."parentResourceId" AS "resourceId",
         ap."displayName" AS "accessPackageName",
-        rrs.roleName
+        rrs."roleName"
       FROM "ResourceRelationships" rrs
       LEFT JOIN "Resources" ap ON rrs."parentResourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
-      WHERE UPPER(rrs."childResourceId") = UPPER(@id)
+      WHERE UPPER(rrs."childResourceId"::text) = UPPER(@id)
         AND rrs."relationshipType" = 'Contains'
       ORDER BY ap."displayName"
     `);
@@ -560,7 +556,7 @@ router.get('/access-package/:id', async (req, res) => {
         SELECT COUNT(*) AS cnt FROM "ResourceAssignments" WHERE "resourceId" = @id AND "assignmentType" = 'Governed'
       `);
       assignmentCount = r.recordset[0].cnt;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 3. Group count (resources linked to this AP)
     let groupCount = 0;
@@ -573,7 +569,7 @@ router.get('/access-package/:id', async (req, res) => {
         WHERE "parentResourceId" = @id AND "relationshipType" = 'Contains'
       `);
       groupCount = r.recordset[0].cnt;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 4. Review count
     let reviewCount = 0;
@@ -584,7 +580,7 @@ router.get('/access-package/:id', async (req, res) => {
         SELECT COUNT(*) AS cnt FROM "CertificationDecisions" WHERE "resourceId" = @id
       `);
       reviewCount = r.recordset[0].cnt;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 5. Pending request count — COUNT only (cheap); full rows are lazy-loaded.
     let pendingRequestCount = null;
@@ -596,7 +592,7 @@ router.get('/access-package/:id', async (req, res) => {
         WHERE "resourceId" = @id AND "requestState" = 'PendingApproval'
       `);
       pendingRequestCount = r.recordset[0].cnt;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 5b. Last review date + reviewer
     let lastReviewDate = null;
@@ -612,7 +608,7 @@ router.get('/access-package/:id', async (req, res) => {
       `);
       lastReviewDate = r.recordset[0]?.reviewedDateTime || null;
       lastReviewedBy = r.recordset[0]?.reviewedByDisplayName || null;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 5c. Compliance status of the latest review instance — the same calculated
     //     "Review Status" the Business Roles list shows. Mirrors the
@@ -644,7 +640,7 @@ router.get('/access-package/:id', async (req, res) => {
         else complianceStatus = 'Reviewed Late';
         if (deadline && overdue) daysOverdue = Math.floor((Date.now() - deadline.getTime()) / 86400000);
       }
-    } catch { /* CertificationDecisions may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* CertificationDecisions may not exist */ }
 
     // 6. Policy summary — auto-assigned vs request-based vs auto-removal
     let policyCount = 0;
@@ -657,14 +653,14 @@ router.get('/access-package/:id', async (req, res) => {
         SELECT
           COUNT(*) AS total,
           SUM(CASE WHEN "hasAutoAddRule" = TRUE THEN 1 ELSE 0 END) AS "autoAdd",
-          SUM(CASE WHEN COALESCE("hasAutoAddRule", 0) = 0 AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END) AS "autoRemoveOnly"
+          SUM(CASE WHEN COALESCE("hasAutoAddRule", FALSE) = FALSE AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END) AS "autoRemoveOnly"
         FROM "AssignmentPolicies"
         WHERE "resourceId" = @id
       `);
       policyCount = r.recordset[0].total;
       autoAddPolicyCount = r.recordset[0].autoAdd;
       autoRemovePolicyCount = r.recordset[0].autoRemoveOnly;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // Derive assignment type label
     let assignmentType = null;
@@ -697,11 +693,11 @@ router.get('/access-package/:id', async (req, res) => {
       if (r.recordset.length > 0) {
         category = r.recordset[0];
       }
-    } catch { /* category tables may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* category tables may not exist */ }
 
     // 7. History count (v5: queries the _history audit table)
     let historyCount = 0;
-    try { historyCount = await countHistory('Resources', apId); } catch { /* _history may not exist */ }
+    try { historyCount = await countHistory('Resources', apId); } catch (e) { if (!isMissingSchema(e)) throw e; /* _history may not exist */ }
 
     res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, historyCount, hasHistory: historyCount > 0, policyCount, autoAddPolicyCount, assignmentType, category });
   } catch (err) {

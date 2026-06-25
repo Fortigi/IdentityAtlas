@@ -49,6 +49,15 @@
     assignments are skipped (those would need SP-as-principal which the
     data model doesn't yet support). Default: false.
 
+.PARAMETER SyncDirectoryRoles
+    Sync Entra ID directory roles — the role catalog (roleDefinitions,
+    including each role's granular allowedResourceActions), active role
+    assignments, and PIM-eligible role assignments. Roles are stored as
+    Resources(resourceType='EntraRole'); assignments use 'DirectoryRole'
+    (active) and 'DirectoryRoleEligible' (eligible). Group-typed assignments
+    are recorded against the group principal but not yet expanded to members.
+    Default: false.
+
 .PARAMETER RefreshViews
     Refresh materialized SQL views after sync (default: true)
 
@@ -93,6 +102,7 @@ $SyncPim               = $false
 $SyncSignInLogs        = $false
 $SyncOAuth2Grants      = $false
 $SyncAppRoles          = $false
+$SyncDirectoryRoles    = $false
 $RefreshViews          = $true
 $SignInLogsDays        = 7
 $CustomUserAttributes  = @()
@@ -116,6 +126,7 @@ if ($objects) {
     if ($objects.ContainsKey('signInLogs'))         { $SyncSignInLogs        = [bool]$objects['signInLogs'] }
     if ($objects.ContainsKey('oauth2Grants'))       { $SyncOAuth2Grants      = [bool]$objects['oauth2Grants'] }
     if ($objects.ContainsKey('appsAppRoles'))       { $SyncAppRoles          = [bool]$objects['appsAppRoles'] }
+    if ($objects.ContainsKey('directoryRoles'))     { $SyncDirectoryRoles    = [bool]$objects['directoryRoles'] }
 }
 # Direct config toggles (backward compat with older job configs)
 if ($RawConfig.ContainsKey('syncPrincipals'))        { $SyncPrincipals        = [bool]$RawConfig['syncPrincipals'] }
@@ -127,6 +138,7 @@ if ($RawConfig.ContainsKey('syncSignInLogs'))         { $SyncSignInLogs        =
 if ($RawConfig.ContainsKey('signInLogsDays'))         { $SignInLogsDays        = [int]$RawConfig['signInLogsDays'] }
 if ($RawConfig.ContainsKey('syncOAuth2Grants'))       { $SyncOAuth2Grants      = [bool]$RawConfig['syncOAuth2Grants'] }
 if ($RawConfig.ContainsKey('syncAppRoles'))           { $SyncAppRoles          = [bool]$RawConfig['syncAppRoles'] }
+if ($RawConfig.ContainsKey('syncDirectoryRoles'))     { $SyncDirectoryRoles    = [bool]$RawConfig['syncDirectoryRoles'] }
 if ($RawConfig['customUserAttributes'])  { $CustomUserAttributes  = @($RawConfig['customUserAttributes']) }
 if ($RawConfig['identityAttributes'])    { $CustomUserAttributes  += @($RawConfig['identityAttributes']); $CustomUserAttributes = $CustomUserAttributes | Select-Object -Unique }
 if ($RawConfig['customGroupAttributes']) { $CustomGroupAttributes = @($RawConfig['customGroupAttributes']) }
@@ -2344,6 +2356,167 @@ if ($SyncAppRoles) {
     $__appRoleErr = $script:phaseErrors | Where-Object { $_.StartsWith('AppRoles:') } | Select-Object -Last 1
     $__appRoleErrMsg = if ($__appRoleErr) { $__appRoleErr.Substring('AppRoles:'.Length).Trim() } else { $null }
     Write-Phase -Name 'AppRoles' -Duration $__phaseSW.Elapsed -ErrorMsg $__appRoleErrMsg
+}
+
+# ─── Sync Directory Roles ────────────────────────────────────────
+# Entra ID directory roles (Global Administrator, Privileged Role
+# Administrator, etc.). Three Graph reads, modelled as:
+#
+#     Resources(EntraRole)            <-- one per roleDefinition (id = roleDefinitionId)
+#       └─ ResourceAssignments(DirectoryRole)          <-- active (permanent or PIM-activated)
+#       └─ ResourceAssignments(DirectoryRoleEligible)  <-- PIM eligible (not yet active)
+#
+# Each role Resource stores its granular permission actions
+# (rolePermissions[].allowedResourceActions, flattened + de-duped) in
+# extendedAttributes so a later risk-scoring pass can tier a role by what
+# it can actually do (EAM Control/Management plane), not just its name.
+#
+# Distinct assignment types ('DirectoryRole' / 'DirectoryRoleEligible')
+# rather than reusing 'Direct' / 'Eligible' so the scoped full-sync delete
+# keys on them without wiping group memberships or PIM-group eligibilities —
+# the same reason AppRole uses a distinct type. The matrix view collapses
+# them to Direct/Eligible badges (migration 043).
+#
+# Group-typed assignments (a role-assignable group granted a role) are
+# recorded against the group principal but NOT yet expanded to per-member
+# rows — that's a follow-up, mirroring how the matrix shows group-typed
+# AppRole rows only in the nested-group expand.
+if ($SyncDirectoryRoles) {
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing directory roles..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing directory roles' -Pct 75 -Detail 'Fetching role definitions from Microsoft Graph...'
+
+    # Map a Graph directory-object @odata.type to our principalType vocabulary.
+    function Resolve-DirectoryRolePrincipalType {
+        param($Principal)
+        switch -Wildcard ($Principal.'@odata.type') {
+            '*servicePrincipal' { 'ServicePrincipal'; break }
+            '*group'            { 'Group'; break }
+            '*user'             { 'User'; break }
+            default             { 'User' }
+        }
+    }
+
+    try {
+        # 1. Role catalog. /roleDefinitions returns the full set of built-in
+        #    roles plus any custom roles. id == templateId for built-ins.
+        $roleDefs = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleDefinitions")
+        Write-Host "  Fetched $($roleDefs.Count) role definitions" -ForegroundColor Gray
+
+        $roleRecords = foreach ($rd in $roleDefs) {
+            $actions = [System.Collections.Generic.List[string]]::new()
+            foreach ($rp in @($rd.rolePermissions)) {
+                foreach ($a in @($rp.allowedResourceActions)) {
+                    if ($a) { $actions.Add([string]$a) }
+                }
+            }
+            $uniqueActions = @($actions | Select-Object -Unique)
+            @{
+                id           = $rd.id
+                displayName  = $rd.displayName
+                description  = $rd.description
+                resourceType = 'EntraRole'
+                enabled      = [bool]$rd.isEnabled
+                extendedAttributes = @{
+                    templateId             = $rd.templateId
+                    isBuiltIn              = [bool]$rd.isBuiltIn
+                    isEnabled              = [bool]$rd.isEnabled
+                    roleVersion            = $rd.version
+                    allowedResourceActions = $uniqueActions
+                    permissionCount        = $uniqueActions.Count
+                }
+            }
+        }
+        $roleRecords = @($roleRecords)
+
+        # 2. Active assignments (permanent + currently-activated PIM). $expand=principal
+        #    gives us the principal's @odata.type so we can set principalType
+        #    without a second lookup per assignment.
+        $activeList = [System.Collections.Generic.List[object]]::new()
+        try {
+            $roleAssignments = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleAssignments?`$expand=principal")
+            foreach ($ra in $roleAssignments) {
+                if (-not $ra.principalId -or -not $ra.roleDefinitionId) { continue }
+                $activeList.Add(@{
+                    resourceId     = $ra.roleDefinitionId
+                    principalId    = $ra.principalId
+                    principalType  = (Resolve-DirectoryRolePrincipalType -Principal $ra.principal)
+                    assignmentType = 'DirectoryRole'
+                    extendedAttributes = @{
+                        roleAssignmentId = $ra.id
+                        directoryScopeId = $ra.directoryScopeId
+                    }
+                })
+            }
+        } catch {
+            Write-Host "    /roleAssignments failed: $($_.Exception.Message)" -ForegroundColor DarkYellow
+        }
+
+        # 3. PIM-eligible assignments (eligible but not active). Tenants without
+        #    PIM (no Entra ID P2) return 400/403 here — non-fatal.
+        $eligibleList = [System.Collections.Generic.List[object]]::new()
+        try {
+            $eligibility = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleEligibilityScheduleInstances?`$expand=principal")
+            foreach ($e in $eligibility) {
+                if (-not $e.principalId -or -not $e.roleDefinitionId) { continue }
+                $eligibleList.Add(@{
+                    resourceId         = $e.roleDefinitionId
+                    principalId        = $e.principalId
+                    principalType      = (Resolve-DirectoryRolePrincipalType -Principal $e.principal)
+                    assignmentType     = 'DirectoryRoleEligible'
+                    expirationDateTime = $e.endDateTime
+                    extendedAttributes = @{
+                        memberType       = $e.memberType
+                        directoryScopeId = $e.directoryScopeId
+                    }
+                })
+            }
+        } catch {
+            Write-Host "    /roleEligibilityScheduleInstances failed (PIM may be unavailable): $($_.Exception.Message)" -ForegroundColor DarkYellow
+        }
+
+        # Dedupe on the assignment PK (resourceId, principalId, assignmentType).
+        # The same principal can hold one role at multiple directory scopes; the
+        # PK has no scope component, so collapse to the first (tenant-wide is the
+        # dominant case — per-scope modelling is a follow-up).
+        $seenActive = @{}
+        $activeRecords = @($activeList | Where-Object {
+            $k = "$($_.resourceId)|$($_.principalId)"
+            if ($seenActive.ContainsKey($k)) { $false } else { $seenActive[$k] = $true; $true }
+        })
+        $seenEligible = @{}
+        $eligibleRecords = @($eligibleList | Where-Object {
+            $k = "$($_.resourceId)|$($_.principalId)"
+            if ($seenEligible.ContainsKey($k)) { $false } else { $seenEligible[$k] = $true; $true }
+        })
+
+        Write-Host "  Roles: $($roleRecords.Count) · Active: $($activeRecords.Count) · Eligible: $($eligibleRecords.Count)" -ForegroundColor Gray
+
+        if ($roleRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($roleRecords.Count) directory roles..."
+            Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ resourceType = 'EntraRole' } -Records $roleRecords
+        }
+        if ($activeRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($activeRecords.Count) active role assignments..."
+            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ assignmentType = 'DirectoryRole' } -Records $activeRecords
+        }
+        if ($eligibleRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($eligibleRecords.Count) eligible role assignments..."
+            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
+                -Scope @{ assignmentType = 'DirectoryRoleEligible' } -Records $eligibleRecords
+        }
+    }
+    catch {
+        Write-Host "  Directory role sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("DirectoryRoles: $($_.Exception.Message)")
+        Write-Host "  (Requires RoleManagement.Read.Directory or Directory.Read.All; eligible assignments also need RoleEligibilitySchedule.Read.Directory.)" -ForegroundColor Yellow
+    }
+    $__phaseSW.Stop(); $phaseTimings['DirectoryRoles'] = $__phaseSW.Elapsed
+    $__dirRoleErr = $script:phaseErrors | Where-Object { $_.StartsWith('DirectoryRoles:') } | Select-Object -Last 1
+    $__dirRoleErrMsg = if ($__dirRoleErr) { $__dirRoleErr.Substring('DirectoryRoles:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'DirectoryRoles' -Duration $__phaseSW.Elapsed -ErrorMsg $__dirRoleErrMsg
 }
 
 # ─── Refresh Views ───────────────────────────────────────────────
