@@ -22,6 +22,7 @@ import { selfTest as vaultSelfTest } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
+import { purgeExpiredTombstones } from './ingest/tombstonePurge.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
 
@@ -125,10 +126,11 @@ export async function ensureBuiltinCrawler() {
   console.log(`Built-in Worker crawler created (prefix: ${prefix})`);
 }
 
-// Periodic prune of the `_history` audit table. Reads the retention setting
-// from WorkerConfig (default 180 days) and deletes anything older. Runs once
-// at startup (60s warm-up so it doesn't fight migrations) and then every 6 hours.
-// Setting retention to 0 disables pruning entirely.
+// Periodic prune of the `_history` audit table AND finalisation of soft-deleted
+// (tombstoned) rows. Reads ONE retention setting from WorkerConfig (default 180
+// days): rows soft-deleted longer ago than that are hard-deleted, and history
+// older than that is pruned. Runs once at startup (60s warm-up so it doesn't
+// fight migrations) and then every 6 hours. Setting retention to 0 disables both.
 function startHistoryPruneJob() {
   const PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
   const FIRST_RUN_DELAY_MS = 60 * 1000;
@@ -142,6 +144,14 @@ function startHistoryPruneJob() {
       );
       const days = r ? parseInt(r.configValue, 10) : DEFAULT_DAYS;
       if (days <= 0) return; // disabled
+
+      // Finalise tombstones first (the hard-delete writes the final 'D' history),
+      // then prune the history table itself to the same window.
+      const { purged } = await purgeExpiredTombstones(db, days);
+      for (const [table, n] of Object.entries(purged)) {
+        console.log(`Tombstone purge: hard-deleted ${n} ${table} soft-deleted over ${days} days ago`);
+      }
+
       const del = await db.query(
         `DELETE FROM "_history" WHERE "changedAt" < now() - ($1::int * interval '1 day')`,
         [days]
@@ -150,7 +160,7 @@ function startHistoryPruneJob() {
         console.log(`History prune: deleted ${del.rowCount} row(s) older than ${days} days`);
       }
     } catch (err) {
-      console.error('History prune failed (will retry next interval):', err.message);
+      console.error('History/tombstone prune failed (will retry next interval):', err.message);
     }
   }
 
