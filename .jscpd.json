@@ -1,0 +1,18 @@
+{
+  "threshold": 3,
+  "minLines": 10,
+  "minTokens": 50,
+  "reporters": ["console"],
+  "ignore": [
+    "**/*.sql",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/.git/**",
+    "**/package-lock.json",
+    "CHANGES.md",
+    "changes/**",
+    "**/__snapshots__/**"
+  ]
+}
