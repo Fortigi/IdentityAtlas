@@ -56,7 +56,7 @@ export default function RunDetailPage({ runId, onClose }) {
       <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6 max-w-md mx-auto mt-12">
         <h2 className="text-red-800 dark:text-red-300 font-semibold text-lg">Failed to load run</h2>
         <p className="text-red-600 dark:text-red-400 mt-2 text-sm">{error}</p>
-        <button onClick={onClose} className="mt-3 text-sm text-gray-500 dark:text-gray-400 underline hover:text-gray-700 dark:text-gray-300">Close</button>
+        <button onClick={onClose} className="mt-3 text-sm text-gray-500 dark:text-gray-400 underline hover:text-gray-700 dark:hover:text-gray-300">Close</button>
       </div>
     );
   }
@@ -83,7 +83,7 @@ export default function RunDetailPage({ runId, onClose }) {
               {isDone && durationMs != null && <> · took {formatDurationMs(durationMs)}</>}
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400" aria-label="Close">
+          <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400" aria-label="Close">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>

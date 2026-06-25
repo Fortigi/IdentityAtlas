@@ -13,8 +13,8 @@
 // `dark:hover:text-...` is the CORRECT way to set a dark hover color, so a
 // `dark:text-X` + `dark:hover:text-Y` pair is fine and never flagged.
 //
-// Started as a warning (ratchet): it surfaces the remaining backlog without
-// failing CI; promote to 'error' once clean. See app/ui/CLAUDE.md § Dark Mode.
+// Enforced as an error (the C1/C2/M6 backlog is cleaned up). See app/ui/CLAUDE.md
+// § Dark Mode.
 
 const TAILWIND_COLORS = new Set([
   'gray', 'slate', 'zinc', 'neutral', 'stone',

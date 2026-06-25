@@ -133,7 +133,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
         <p className="text-red-600 dark:text-red-400 mt-2 text-sm">{error}</p>
         <div className="flex gap-3 mt-3">
           <button onClick={fetchDetail} className="text-sm text-red-700 dark:text-red-400 underline hover:text-red-900">Retry</button>
-          <button onClick={onClose} className="text-sm text-gray-500 dark:text-gray-400 underline hover:text-gray-700 dark:text-gray-300">Close</button>
+          <button onClick={onClose} className="text-sm text-gray-500 dark:text-gray-400 underline hover:text-gray-700 dark:hover:text-gray-300">Close</button>
         </div>
       </div>
     );
@@ -143,7 +143,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
     return (
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center text-gray-600 dark:text-gray-500 text-sm">
         Context not found.
-        <button onClick={onClose} className="ml-2 text-blue-500 dark:text-blue-400 underline hover:text-blue-700 dark:text-blue-300">Close</button>
+        <button onClick={onClose} className="ml-2 text-blue-500 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300">Close</button>
       </div>
     );
   }
@@ -247,7 +247,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
               >
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-sky-100 text-sky-700 dark:text-sky-300 text-[9px] font-bold">CTX</span>
-                  <span className="text-sm text-gray-900 dark:text-white group-hover:text-sky-700 dark:text-sky-300">{sc.displayName}</span>
+                  <span className="text-sm text-gray-900 dark:text-white group-hover:text-sky-700 dark:hover:text-sky-300">{sc.displayName}</span>
                 </div>
                 {sc.memberCount != null && (
                   <span className="text-xs text-gray-600 dark:text-gray-500">{sc.memberCount} members</span>
@@ -377,7 +377,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                 <button
                   onClick={() => setMemberPage(p => Math.max(0, p - 1))}
                   disabled={memberPage === 0}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
                 >
                   Previous
                 </button>
@@ -387,7 +387,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
                 <button
                   onClick={() => setMemberPage(p => Math.min(totalPages - 1, p + 1))}
                   disabled={memberPage >= totalPages - 1}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700 rounded px-2 py-1"
                 >
                   Next
                 </button>
@@ -454,7 +454,7 @@ function ContextHeader({ attrs, onClose }) {
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Parent: {attrs.parentDisplayName}</p>
           )}
         </div>
-        <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 p-1" title="Close">
+        <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 p-1" title="Close">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -475,7 +475,7 @@ function RemoveMemberButton({ memberRow, onRemove, isGenerated }) {
     return (
       <button
         onClick={e => { e.stopPropagation(); onRemove(memberRow.id); }}
-        className="text-[11px] text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:text-amber-300"
+        className="text-[11px] text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300"
         title="Algorithm-produced member — removing now; the next plugin run will re-add it unless you tune plugin parameters."
       >Remove (will return)</button>
     );
@@ -483,7 +483,7 @@ function RemoveMemberButton({ memberRow, onRemove, isGenerated }) {
   return (
     <button
       onClick={e => { e.stopPropagation(); onRemove(memberRow.id); }}
-      className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-800 dark:text-red-300"
+      className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
       title="Remove from context"
     >Remove</button>
   );
@@ -552,7 +552,7 @@ function GeneratedContextActions({ contextId, attrs, authFetch, onDeleted }) {
       ) : (
         <button
           onClick={() => setConfirming(true)}
-          className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-700 dark:text-red-400"
+          className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-400"
         >Delete context…</button>
       )}
     </div>
