@@ -18,7 +18,7 @@ import { fileURLToPath } from 'url';
 
 const { Pool } = pg;
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = join(__dirname, '..', 'db', 'migrations');
+const MIGRATIONS_DIR = join(__dirname, '..', 'src', 'db', 'migrations');
 
 async function runMigrations(pool) {
   const client = await pool.connect();

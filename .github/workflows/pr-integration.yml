@@ -116,8 +116,6 @@ jobs:
           filters: |
             integration:
               - 'app/api/src/**'
-              - '!app/api/src/**/*.test.js'
-              - '!app/api/src/test-utils/**'
               - 'tools/crawlers/**/*.ps1'
               - 'tools/crawlers/**/*.js'
               - 'tools/crawlers/shared/**'
@@ -135,13 +133,9 @@ jobs:
               - 'tools/crawlers/**/*.jsx'
               - 'tools/crawlers/**/*.e2e.*'
               - 'app/api/src/**'
-              - '!app/api/src/**/*.test.js'
-              - '!app/api/src/test-utils/**'
               - 'app/api/Dockerfile'
             load_soak:
               - 'app/api/src/**'
-              - '!app/api/src/**/*.test.js'
-              - '!app/api/src/test-utils/**'
               - 'tools/crawlers/shared/**'
               - 'tools/powershell-sdk/**'
               - 'tools/crawlers/*/Start-*.ps1'

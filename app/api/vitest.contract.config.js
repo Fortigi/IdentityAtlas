@@ -14,7 +14,7 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.contract.test.js'],
-    globalSetup: ['./src/test-utils/contractGlobalSetup.js'],
+    globalSetup: ['./test-utils/contractGlobalSetup.js'],
     // Single worker: contract tests share one DB container; parallelism would
     // require per-test isolation that adds complexity. Keep it simple.
     pool: 'forks',
