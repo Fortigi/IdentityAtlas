@@ -334,19 +334,19 @@ These are the most important output of the cross-check. All assume `AUTH_ENABLED
 | SEC-NEW-2 | **High** | `routes/crawlers.js:386-419` | `POST /api/crawlers/jobs/claim` checks only `req.crawler` (any valid `fgc_` key), claims the next queued job regardless of which crawler/system owns it, and `injectJobSecret(job)` (line 414) injects the vaulted clientSecret into the response. **Any valid crawler key can drain the job queue and exfiltrate another system's Graph credentials.** The `crawlerHasSystemAccess`/`crawlerHasPermission` helpers (crawlerAuth.js:154-163) exist but are unused here. Mitigating: in a default install the built-in worker holds the only key — exposure scales with how many external crawler keys exist. | Scope job-claim to the calling crawler's `systemIds`/identity; gate secret injection on ownership. | M |
 | SEC-NEW-3 | Med | `routes/crawlers.js:427,457,484(+DELETE)` | `mark-delta-mode` and the `delta-tokens` GET/PUT/DELETE take a config id / `systemId` from the request and check only `req.crawler` — never `crawlerHasSystemAccess(req, systemId)`. A crawler scoped to system A can read/overwrite system B's delta tokens or flip any config to delta mode (→ skipped full sync, stale data). | Call the existing `crawlerHasSystemAccess` helper on every systemId-bearing crawler endpoint. | S |
 | SEC-NEW-4 | Low | `routes/perf.js:60,68` | `POST /api/perf/clear` and `POST /api/perf/toggle` have no `requirePermission` (perfRouter mounted authMiddleware-only at app.js:294). Any authenticated user can wipe collected metrics or disable the perf collector. | Gate behind an admin/perf permission. | S |
-| SEC-NEW-5 | Low-Med | `routes/matrix.js` saved-filters (~1625/1653/1689) | matrix router is ungated (SEC-NEW-1), so saved-filter create/update/delete — including **global** filters — run for any authenticated user with no write permission. | Add `requirePermission` to the mutating saved-filter handlers. | S |
+| SEC-NEW-5 | ~~Low-Med~~ **WITHDRAWN — by design** | `routes/matrix.js` saved-filters | **Original claim:** saved-filter create/update/delete (incl. the org-wide default) run for any authenticated user with no write permission. **Correction (verified):** this is intended design — migration `023_saved_matrix_filters.sql` documents it explicitly: *"Org-wide visibility: every signed-in analyst can list, load, rename, and delete every saved filter."* Saved filters are a shared, collaborative view preset, consistent with the read surface being open to any signed-in user (see SEC-NEW-1). Mitigations already in place: `fgr_` read tokens cannot call these endpoints (auth middleware blocks non-GET for read tokens), and every change is attributed (`createdBy`/`updatedBy`). | No code change. If a deployment wants least-privilege on the *org-wide default view*, gate only the `isDefault` toggle behind an admin permission — left as an optional config decision. | — |
 
 **Revised security conclusion:** no *unauthenticated* exploit; SQL parameterization,
-secrets, and crypto all hold. The real authenticated-authorization gaps are on the
+secrets, and crypto all hold. The real authenticated-authorization gaps were on the
 **crawler protocol** (SEC-NEW-2 secret exfil via job-claim, SEC-NEW-3 cross-system
-delta tokens) and two ungated mutation endpoints (SEC-NEW-4 perf, SEC-NEW-5 saved
-filters). The read surface being open to any signed-in user (SEC-NEW-1) is **intended
-design**, not a finding. Top security priorities: **SEC-NEW-2** and the Bicep secret
-leak **H-1**.
+delta tokens) and the ungated **perf mutation** endpoints (SEC-NEW-4) — all fixed.
+Two findings turned out to be **intended design**, not vulnerabilities: the read
+surface open to any signed-in user (SEC-NEW-1) and the shared saved-filter mutations
+(SEC-NEW-5). The remaining real priority is the Bicep secret leak **H-1**.
 
 **Remediation status (added post-review):** SEC-NEW-2, SEC-NEW-3, and SEC-NEW-4 are
-fixed in **PR #424** (`bugfixes/security-authz-enforcement`). H-1 (Bicep) and SEC-NEW-5
-(saved-filter write gate) remain open.
+fixed in **PR #424** (`bugfixes/security-authz-enforcement`). SEC-NEW-1 and SEC-NEW-5
+are withdrawn as intended design. **H-1 (Bicep) is the one remaining open security item.**
 
 ## Net-new (non-security) Codex catches — worth confirming + folding in
 - **Perf (Codex, spot-plausible, not yet hand-verified):** `riskScores.js:131/140/159`
@@ -379,7 +379,7 @@ fixed in **PR #424** (`bugfixes/security-authz-enforcement`). H-1 (Bicep) and SE
 
 **Promote into Tier 2:**
 - ~~SEC-NEW-1~~ — **withdrawn**, intended design (see correction above). No fix.
-- **SEC-NEW-5** (gate saved-filter mutations) — **S**. Still open.
+- ~~SEC-NEW-5~~ — **withdrawn**, intended design (migration 023 documents shared org-wide saved filters). No fix.
 - **riskScores top-N missing LIMIT** + unpaginated detail/assignment endpoints — **S-M**
   (confirm first).
 
