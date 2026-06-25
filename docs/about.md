@@ -22,6 +22,12 @@ See the [History](history.md) page for the full story of how Identity Atlas got 
 - **Website:** [www.fortigi.nl](https://www.fortigi.nl)
 - **Issues and pull requests:** [GitHub repository](https://github.com/Fortigi/IdentityAtlas)
 
+## Acknowledgements
+
+Identity Atlas stands on the shoulders of the open-source community. We'd like to call out one tool in particular:
+
+- **[Socket Firewall](https://github.com/SocketDev/sfw-free)** by [Socket](https://socket.dev) — guards our build pipeline against software supply-chain attacks by blocking known-malicious npm packages before they can be installed. Thank you for making it freely available.
+
 ## License
 
 Copyright © Maatschap Fortigi. See the repository `LICENSE` file for licensing terms.

@@ -100,7 +100,7 @@ The portable launcher was not in scope for the original assessment (it was added
 Beyond the per-finding fixes, the remediation programme added preventative guardrails:
 
 - **Permission model** — a documented, tested role/permission catalog with the granular-permission bug fixed and per-route gating, plus a CI gate that blocks merges lacking tests or documentation ([#194](https://github.com/Fortigi/IdentityAtlas/pull/194)).
-- **Supply chain** — all GitHub Actions pinned to commit SHAs with Dependabot keeping them current ([#214](https://github.com/Fortigi/IdentityAtlas/pull/214)).
+- **Supply chain** — all GitHub Actions pinned to commit SHAs with Dependabot keeping them current ([#214](https://github.com/Fortigi/IdentityAtlas/pull/214)). CI installs every Node dependency through [**Socket Firewall**](https://github.com/SocketDev/sfw-free), which blocks known-malicious packages (typosquats, install-script malware, hijacked maintainer releases) before they reach the build — covering the supply-chain class that advisory-based scanning misses until a CVE is published. A machine-readable [SBOM](../reference/sbom.md) is regenerated on every dependency change.
 
 ---
 

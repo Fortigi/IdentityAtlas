@@ -1,0 +1,2 @@
+- Added software supply-chain protection to the build pipeline: every pull request now installs Node dependencies through Socket Firewall, which blocks known-malicious packages (typosquats, install-script malware, hijacked maintainer releases) before they reach the build — including malicious version bumps that automated dependency updates might propose.
+- Credited Socket Firewall on the About and Security pages of the documentation.
