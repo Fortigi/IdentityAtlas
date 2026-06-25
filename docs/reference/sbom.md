@@ -72,7 +72,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.2.7 | UI framework | MIT |
 | react-dom | ^19.2.7 | React DOM renderer | MIT |
-| vite | ^8.0.16 | Build tool and dev server | MIT |
+| vite | ^8.1.0 | Build tool and dev server | MIT |
 
 ### Styling
 
@@ -107,7 +107,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^6.0.2 | Vite React plugin | MIT |
+| @vitejs/plugin-react | ^6.0.3 | Vite React plugin | MIT |
 | eslint | ^10.5.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.3 | React refresh linting | MIT |
