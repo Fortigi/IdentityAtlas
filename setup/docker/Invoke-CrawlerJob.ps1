@@ -160,8 +160,12 @@ try {
     foreach ($layer in $resolved) {
         $layerDir        = $registry[$layer].Dir
         $layerEntryPoint = $registry[$layer].Manifest['entryPoint']
+        # Dot-source the crawler's library files, but never the entry point, tests, or anything under
+        # a `dev/` subfolder (load-test seeders, parity harnesses) — those are standalone scripts with
+        # their own Param() blocks; dot-sourcing one would bind/prompt for its mandatory parameters and
+        # abort the job. This matches the documented contract that nothing in dev/ runs at runtime.
         Get-ChildItem -Path $layerDir -Include '*.ps1' -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -ne $layerEntryPoint -and $_.Name -notlike 'Test-*.ps1' } |
+            Where-Object { $_.Name -ne $layerEntryPoint -and $_.Name -notlike 'Test-*.ps1' -and $_.FullName -notmatch '[\\/]dev[\\/]' } |
             ForEach-Object { . $_.FullName }
     }
 

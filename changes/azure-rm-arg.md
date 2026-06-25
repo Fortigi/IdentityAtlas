@@ -1,0 +1,3 @@
+- The Azure RM crawler now reads resource groups, resources, role definitions and role assignments from Azure Resource Graph instead of one call per subscription, so it scales to tenants with hundreds of subscriptions with a fraction of the API calls and a much shorter run time. Output is unchanged — verified identical to the previous method on a live tenant before switching over.
+- Azure scope identities are now case-insensitive, so the same resource group or resource is never split into two entries because Azure returned its path with different casing.
+- Fixed crawler jobs failing when a crawler folder contains development-only scripts in a `dev/` subfolder; these are now correctly ignored at runtime as intended.
