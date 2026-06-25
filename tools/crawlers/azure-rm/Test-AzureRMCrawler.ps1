@@ -32,6 +32,34 @@ foreach ($fn in 'Connect-AzureRM', 'Invoke-ARMList', 'Invoke-ARMGet') {
     Report "function $fn defined" ([bool](Get-Command $fn -ErrorAction SilentlyContinue))
 }
 
+# 2b. Resource Graph helpers dot-source and expose the expected typed reads.
+. (Join-Path $here 'Get-AzureRGHelpers.ps1')
+foreach ($fn in 'Invoke-ARGQuery', 'Get-ARGResourceGroups', 'Get-ARGResources', 'Get-ARGRoleDefinitions', 'Get-ARGRoleAssignments', 'Get-ARGSubscriptionMgChains') {
+    Report "function $fn defined" ([bool](Get-Command $fn -ErrorAction SilentlyContinue))
+}
+
+# 2c. Invoke-ARGQuery paging + request body (network-free — stub the raw POST). Returns two pages
+# (first carries a $skipToken, second clears it) so we assert the loop follows the token, concatenates
+# rows, and sends a well-formed body (subscriptions scope + objectArray result format).
+$script:argBodies = [System.Collections.Generic.List[string]]::new()
+function Invoke-ARGRequestRaw { param([string]$Body, [int]$MaxRetries = 5)
+    $script:argBodies.Add($Body)
+    if ($script:argBodies.Count -eq 1) {
+        return [pscustomobject]@{ data = @([pscustomobject]@{ id = 'a' }); '$skipToken' = 'TOK'; count = 1; totalRecords = 2 }
+    }
+    return [pscustomobject]@{ data = @([pscustomobject]@{ id = 'b' }); '$skipToken' = $null; count = 1; totalRecords = 2 }
+}
+$argRows = Invoke-ARGQuery -Query 'resources | project id' -SubscriptionIds @('sub-1')
+Report 'ARG query concatenates all pages' (@($argRows).Count -eq 2)
+Report 'ARG query follows $skipToken (2 requests)' ($script:argBodies.Count -eq 2)
+$argBody1 = $script:argBodies[0] | ConvertFrom-Json
+Report 'ARG body scopes by subscriptions' (@($argBody1.subscriptions) -contains 'sub-1')
+Report 'ARG body requests objectArray' ($argBody1.options.resultFormat -eq 'objectArray')
+Report 'ARG page 2 carries the skipToken' ((($script:argBodies[1] | ConvertFrom-Json).options.'$skipToken') -eq 'TOK')
+Get-ARGRoleDefinitions -SubscriptionIds @('sub-1') | Out-Null
+$argDefBody = $script:argBodies[-1] | ConvertFrom-Json
+Report 'ARG role-definitions query uses AtScopeAndAbove' ($argDefBody.options.authorizationScopeFilter -eq 'AtScopeAndAbove')
+
 # 3. Deterministic capability/scope ids — shared with the engine (must match across runs).
 . (Join-Path $here '..' 'shared' 'Get-CapabilityId.ps1')
 $id1 = Get-CapabilityId -TargetNodeId '/subscriptions/abc' -CapabilityId 'azure-scope'
