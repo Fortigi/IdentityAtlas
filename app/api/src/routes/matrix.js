@@ -50,8 +50,13 @@ import {
   buildContextRolesSql, buildContextRolesAsRowsSql,
 } from '../matrix/contextRollup.js';
 import { buildAttrCutCellsSql, buildAttrCutNodesSql, tupleToNode } from '../matrix/attributeCut.js';
+import { buildRollupSql, buildRollupRolesSql, buildRolesAsRowsSql, buildGroupTotalsSql, buildRolesDrillSql } from '../matrix/rollupBuilders.js';
+import savedFiltersRouter from './matrix/savedFilters.js';
 
 const router = Router();
+// Saved-filter CRUD + the org-wide default filter live in their own module
+// (routes/matrix/savedFilters.js) — part of the matrix.js split (Q1).
+router.use(savedFiltersRouter);
 const useSql = process.env.USE_SQL === 'true';
 
 const ROW_TYPES = new Set(['principal', 'identity']);
@@ -309,134 +314,9 @@ async function scopeCounts(p, res, rowType, built) {
   return { subjectCount, subjectTotal, resourceCount, resourceTotal };
 }
 
-// Pure builder for the roll-up aggregation: count DISTINCT subjects with a
-// Direct assignment, grouped by (resource, attribute value). Direct only —
-// Indirect/Owner/Eligible are intentionally ignored. Exported for unit tests.
-export function buildRollupSql({ attrExpr, subjectJoin, subjectIdExpr, subjectIdForFilter, subjectSql, resourceSql }) {
-  const where = [
-    `(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`,
-    `p."membershipType" = 'Direct'`,
-  ];
-  if (subjectSql)  where.push(`${subjectIdForFilter} IN ${subjectSql}`);
-  if (resourceSql) where.push(`p."resourceId" IN ${resourceSql}`);
-  const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
-  // Inner: one row per distinct subject per (resource, group) with a governed
-  // flag (covered by a business role). Outer: count subjects, and the subset
-  // that's governed — so the view's All / Governed / Non-governed toggle can
-  // pick the right number without a re-query.
-  return `
-    SELECT t."resourceId"          AS "resourceId",
-           t."resourceDisplayName" AS "resourceDisplayName",
-           t."resourceType"        AS "resourceType",
-           t."resourceDescription" AS "resourceDescription",
-           t."systemId"            AS "systemId",
-           t."systemName"          AS "systemName",
-           t."groupValue"          AS "groupValue",
-           COUNT(*)::int                          AS "directCount",
-           COUNT(*) FILTER (WHERE t.governed)::int AS "governedCount"
-      FROM (
-        SELECT p."resourceId"      AS "resourceId",
-               r."displayName"     AS "resourceDisplayName",
-               r."resourceType"    AS "resourceType",
-               r."description"     AS "resourceDescription",
-               r."systemId"        AS "systemId",
-               sys."displayName"   AS "systemName",
-               ${grp}              AS "groupValue",
-               ${subjectIdExpr}    AS sid,
-               bool_or(br."userId" IS NOT NULL) AS governed
-          FROM "vw_ResourceUserPermissionAssignments" p
-          ${subjectJoin}
-          LEFT JOIN "Resources" r   ON p."resourceId" = r.id
-          LEFT JOIN "Systems"  sys  ON r."systemId" = sys.id
-          LEFT JOIN "vw_UserPermissionAssignmentViaBusinessRole" br
-            ON br."userId" = p."principalId" AND br."resourceId" = p."resourceId"
-         WHERE ${where.join(' AND ')}
-         GROUP BY p."resourceId", r."displayName", r."resourceType", r."description",
-                  r."systemId", sys."displayName", ${grp}, ${subjectIdExpr}
-      ) t
-     GROUP BY t."resourceId", t."resourceDisplayName", t."resourceType",
-              t."resourceDescription", t."systemId", t."systemName", t."groupValue"
-  `;
-}
-
-// Pure builder for the roll-up business-role (SOLL) counts: distinct in-scope
-// subjects holding each resource via each business role. Exported for tests.
-export function buildRollupRolesSql({ brMemberId, brJoin, subjectSql, resourceSql }) {
-  const where = [];
-  if (subjectSql)  where.push(`${brMemberId} IN ${subjectSql}`);
-  if (resourceSql) where.push(`br."resourceId" IN ${resourceSql}`);
-  return `
-    SELECT br."resourceId"     AS "resourceId",
-           br."businessRoleId" AS "roleId",
-           role."displayName"  AS "roleName",
-           COUNT(DISTINCT ${brMemberId})::int AS "count"
-      FROM "vw_UserPermissionAssignmentViaBusinessRole" br
-      ${brJoin}
-      LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
-     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-     GROUP BY br."resourceId", br."businessRoleId", role."displayName"
-  `;
-}
-
-// Pure builder for the "business roles only" roll-up: business roles on the
-// rows, roll-up attribute values on the columns, each cell the count of distinct
-// in-scope subjects who hold that role. Resources are not involved here.
-// Exported for unit tests.
-export function buildRolesAsRowsSql({ attrExpr, subjectJoin, subjectIdExpr, subjectIdForFilter, subjectSql }) {
-  const where = [];
-  if (subjectSql) where.push(`${subjectIdForFilter} IN ${subjectSql}`);
-  const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
-  return `
-    SELECT br."businessRoleId" AS "roleId",
-           role."displayName"  AS "roleName",
-           role."description"  AS "roleDescription",
-           ${grp}              AS "groupValue",
-           COUNT(DISTINCT ${subjectIdExpr})::int AS "count"
-      FROM "vw_UserPermissionAssignmentViaBusinessRole" br
-      ${subjectJoin}
-      LEFT JOIN "Resources" role ON role.id = br."businessRoleId"
-     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-     GROUP BY br."businessRoleId", role."displayName", role."description", ${grp}
-  `;
-}
-
-// Per-group subject denominator for the roll-up "% of subjects" metric: the
-// count of distinct in-scope subjects in each attribute group, independent of
-// any resource or role. For principals the group-shaped accounts are excluded
-// so the denominator matches what the matrix renders. Exported for unit tests.
-export function buildGroupTotalsSql({ attrExpr, subjectTable, subjectAlias, subjectSql }) {
-  const where = [];
-  if (subjectTable === 'Principals') {
-    where.push(`(${subjectAlias}."principalType" IS NULL OR ${subjectAlias}."principalType" != '#microsoft.graph.group')`);
-  }
-  if (subjectSql) where.push(`${subjectAlias}.id IN ${subjectSql}`);
-  const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
-  return `
-    SELECT ${grp} AS "groupValue",
-           COUNT(DISTINCT ${subjectAlias}.id)::int AS "total"
-      FROM "${subjectTable}" ${subjectAlias}
-     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-     GROUP BY ${grp}
-  `;
-}
-
-// Roles-only drill-down: the individual subjects (already scoped to one group
-// via a subject attribute condition baked into subjectSql) and which business
-// role each one holds. Powers expanding a group column into its subjects when
-// business roles are the rows. Exported for unit tests.
-export function buildRolesDrillSql({ subjectJoin, subjectIdExpr, subjectNameExpr, subjectTypeExpr, subjectIdForFilter, subjectSql }) {
-  const where = [];
-  if (subjectSql) where.push(`${subjectIdForFilter} IN ${subjectSql}`);
-  return `
-    SELECT DISTINCT ${subjectIdExpr}  AS "memberId",
-           ${subjectNameExpr}         AS "memberDisplayName",
-           ${subjectTypeExpr}         AS "memberType",
-           br."businessRoleId"        AS "roleId"
-      FROM "vw_UserPermissionAssignmentViaBusinessRole" br
-      ${subjectJoin}
-     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-  `;
-}
+// Roll-up SQL builders moved to ../matrix/rollupBuilders.js (Q1 split); they are
+// imported above and used by the handlers below. Their unit tests live in
+// matrix/rollupBuilders.test.js.
 
 // ─── POST /api/matrix/preview ───────────────────────────────────────
 router.post('/matrix/preview', async (req, res) => {
@@ -1532,147 +1412,5 @@ router.get('/matrix/columns', async (req, res) => {
 });
 
 // ─── Saved filters CRUD (org-wide) ──────────────────────────────────
-
-async function ensureSavedFiltersTable() {
-  // Migrations create this, but be defensive so a stale dev volume doesn't
-  // 500 every request.
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS "SavedMatrixFilters" (
-      "id"          UUID PRIMARY KEY,
-      "name"        TEXT NOT NULL,
-      "description" TEXT,
-      "filter"      JSONB NOT NULL,
-      "isDefault"   BOOLEAN NOT NULL DEFAULT false,
-      "createdBy"   TEXT,
-      "createdAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
-      "updatedBy"   TEXT,
-      "updatedAt"   TIMESTAMPTZ NOT NULL DEFAULT (now() AT TIME ZONE 'utc')
-    )
-  `);
-  await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS "ix_SavedMatrixFilters_name"
-      ON "SavedMatrixFilters" (LOWER("name"))
-  `);
-  await db.query(`ALTER TABLE "SavedMatrixFilters" ADD COLUMN IF NOT EXISTS "isDefault" BOOLEAN NOT NULL DEFAULT false`);
-  await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS "ix_SavedMatrixFilters_isDefault"
-      ON "SavedMatrixFilters" ("isDefault") WHERE "isDefault" = true
-  `);
-}
-
-function getActor(req) {
-  return (req.user && (req.user.email || req.user.upn || req.user.name)) || 'unknown';
-}
-
-router.get('/matrix/saved-filters', async (req, res) => {
-  if (!useSql) return res.json([]);
-  try {
-    await ensureSavedFiltersTable();
-    const r = await db.query(`
-      SELECT id, "name", "description", "filter", "isDefault", "createdBy", "createdAt", "updatedBy", "updatedAt"
-        FROM "SavedMatrixFilters"
-       ORDER BY LOWER("name")
-    `);
-    res.json(r.rows);
-  } catch (err) {
-    console.error('GET matrix/saved-filters failed:', err.message);
-    res.status(500).json({ error: 'Failed to list saved filters' });
-  }
-});
-
-router.post('/matrix/saved-filters', async (req, res) => {
-  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-  const body = req.body || {};
-  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 200) : '';
-  const description = typeof body.description === 'string' ? body.description.slice(0, 1000) : null;
-  if (!name) return res.status(400).json({ error: 'name is required' });
-  if (!body.filter || typeof body.filter !== 'object') return res.status(400).json({ error: 'filter is required' });
-
-  try {
-    await ensureSavedFiltersTable();
-    const id = randomUUID();
-    const actor = getActor(req);
-    await db.query(
-      `INSERT INTO "SavedMatrixFilters" (id, "name", "description", "filter", "createdBy", "updatedBy")
-       VALUES ($1, $2, $3, $4, $5, $5)`,
-      [id, name, description, body.filter, actor],
-    );
-    const row = await db.queryOne(`SELECT * FROM "SavedMatrixFilters" WHERE id = $1`, [id]);
-    res.status(201).json(row);
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.status(409).json({ error: `A filter named "${name}" already exists` });
-    }
-    console.error('POST matrix/saved-filters failed:', err.message);
-    res.status(500).json({ error: 'Failed to save filter' });
-  }
-});
-
-router.put('/matrix/saved-filters/:id', async (req, res) => {
-  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
-  const body = req.body || {};
-  const sets = [];
-  const params = [];
-  const push = (col, val) => { params.push(val); sets.push(`"${col}" = $${params.length}`); };
-
-  if (typeof body.name === 'string') push('name', body.name.trim().slice(0, 200));
-  if (typeof body.description === 'string' || body.description === null) {
-    push('description', body.description ? body.description.slice(0, 1000) : null);
-  }
-  if (body.filter && typeof body.filter === 'object') push('filter', body.filter);
-  if (typeof body.isDefault === 'boolean') push('isDefault', body.isDefault);
-  if (sets.length === 0) return res.status(400).json({ error: 'No updatable fields' });
-
-  push('updatedBy', getActor(req));
-  push('updatedAt', new Date());
-  params.push(req.params.id);
-  try {
-    await ensureSavedFiltersTable();
-    const r = await db.query(
-      `UPDATE "SavedMatrixFilters" SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`,
-      params,
-    );
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Filter not found' });
-    res.json(r.rows[0]);
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.status(409).json({ error: 'A filter with that name already exists' });
-    }
-    console.error('PUT matrix/saved-filters/:id failed:', err.message);
-    res.status(500).json({ error: 'Failed to update filter' });
-  }
-});
-
-router.delete('/matrix/saved-filters/:id', async (req, res) => {
-  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
-  try {
-    await ensureSavedFiltersTable();
-    const r = await db.query(`DELETE FROM "SavedMatrixFilters" WHERE id = $1`, [req.params.id]);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Filter not found' });
-    res.status(204).end();
-  } catch (err) {
-    console.error('DELETE matrix/saved-filters/:id failed:', err.message);
-    res.status(500).json({ error: 'Failed to delete filter' });
-  }
-});
-
-// ─── Default filter (auto-apply on first Matrix visit) ──────────────
-
-router.get('/matrix/default-filter', async (req, res) => {
-  if (!useSql) return res.json(null);
-  try {
-    await ensureSavedFiltersTable();
-    const row = await db.queryOne(
-      `SELECT id, "name", "description", "filter", "isDefault", "createdBy", "createdAt", "updatedBy", "updatedAt"
-         FROM "SavedMatrixFilters" WHERE "isDefault" = true LIMIT 1`
-    );
-    res.json(row || null);
-  } catch (err) {
-    console.error('GET matrix/default-filter failed:', err.message);
-    res.status(500).json({ error: 'Failed to fetch default filter' });
-  }
-});
 
 export default router;
