@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import * as db from '../db/connection.js';
-import { ingest, writeSyncLog } from '../ingest/engine.js';
+import { ingest, writeSyncLog, SOFT_DELETE_TABLES } from '../ingest/engine.js';
 import { normalizeRecords } from '../ingest/normalization.js';
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../ingest/validation.js';
 import { startSession, continueSession, endSession, hasSession } from '../ingest/sessions.js';
@@ -156,10 +156,14 @@ function createIngestHandler(entityType) {
           return res.status(400).json({ error: `deletedIds must be UUIDs (got '${String(bad).slice(0, 50)}')` });
         }
         try {
-          const delRes = await db.query(
-            `DELETE FROM "${tableName}" WHERE id = ANY($1::uuid[])`,
-            [body.deletedIds]
-          );
+          // Soft-delete tables stamp deletedAt (kept for audit); others hard-delete.
+          const delRes = SOFT_DELETE_TABLES.has(tableName)
+            ? await db.query(
+                `UPDATE "${tableName}" SET "deletedAt" = now() WHERE id = ANY($1::uuid[]) AND "deletedAt" IS NULL`,
+                [body.deletedIds])
+            : await db.query(
+                `DELETE FROM "${tableName}" WHERE id = ANY($1::uuid[])`,
+                [body.deletedIds]);
           result.deleted += delRes.rowCount || 0;
         } catch (delErr) {
           console.error(`Delete-by-id failed on ${tableName}:`, delErr.message);

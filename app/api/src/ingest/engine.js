@@ -52,6 +52,11 @@ export async function discoverColumns(_pool, tableName) {
 }
 
 
+// Entity tables that soft-delete: a row that vanishes from its source system is
+// stamped "deletedAt" (kept for audit + cross-system history) rather than removed,
+// and re-ingesting it clears the stamp. Every other table still hard-deletes.
+export const SOFT_DELETE_TABLES = new Set(['Principals', 'Resources', 'ResourceAssignments']);
+
 /**
  * Core ingest operation. Bulk-COPY records into a temp table, then upsert
  * from the temp table into the target.
@@ -141,6 +146,11 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     // the partial index predicate exactly.
     const conflictWhere = conflictFilter ? ` WHERE ${conflictFilter}` : '';
 
+    // Re-activation: re-ingesting a previously soft-deleted row clears its tombstone
+    // (it's back in the source, so it's live again). deletedAt isn't in the payload,
+    // so we set it explicitly on every upsert of a soft-delete table.
+    const reactivate = SOFT_DELETE_TABLES.has(tableName) ? ', "deletedAt" = NULL' : '';
+
     let upsertSql;
     if (nonKeyCols.length > 0) {
       // Delta syncs send partial records (Graph's /users/delta returns only
@@ -155,7 +165,15 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"
-        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}${reactivate}
+        RETURNING (xmax = 0) AS "wasInsert"
+      `;
+    } else if (reactivate) {
+      // Key-only soft-delete table: nothing to update except re-activation.
+      upsertSql = `
+        INSERT INTO "${tableName}" (${insertCols})
+        SELECT ${insertCols} FROM "${tempName}"
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET "deletedAt" = NULL
         RETURNING (xmax = 0) AS "wasInsert"
       `;
     } else {
@@ -227,7 +245,17 @@ export async function scopedDelete(client, tableName, keyColumns, tempName, syst
   if (scopeDeleteFilter) where += ` AND (${scopeDeleteFilter})`;
 
   const notExistsJoin = keyColumns.map(k => `t."${k}" = src."${k}"`).join(' AND ');
-  const sql = `
+  // Soft-delete tables stamp deletedAt instead of removing the row; the
+  // `deletedAt IS NULL` guard keeps the deletion timestamp stable across re-syncs
+  // (a row that's still gone isn't re-stamped). Other tables hard-delete.
+  const sql = SOFT_DELETE_TABLES.has(tableName)
+    ? `
+    UPDATE "${tableName}" t SET "deletedAt" = now()
+     WHERE ${where}
+       AND t."deletedAt" IS NULL
+       AND NOT EXISTS (SELECT 1 FROM "${tempName}" src WHERE ${notExistsJoin})
+  `
+    : `
     DELETE FROM "${tableName}" t
      WHERE ${where}
        AND NOT EXISTS (SELECT 1 FROM "${tempName}" src WHERE ${notExistsJoin})

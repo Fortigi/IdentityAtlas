@@ -3,6 +3,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
 import EntityGraph from './EntityGraph';
 import { AttributesTable } from './EntityDetailLayout';
+import DeletedBadge from './DeletedBadge';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
@@ -130,6 +131,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
                     {resourceType}
                   </span>
                 )}
+                {attributes.deletedAt && <DeletedBadge at={attributes.deletedAt} label="Deleted in source" />}
                 {attributes.systemId && (
                   <span className="text-xs text-gray-600 dark:text-gray-500">System: {attributes.systemId}</span>
                 )}
