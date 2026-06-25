@@ -404,6 +404,22 @@ describe('ENTITY_KEY_MAP — resource-assignments-identity', () => {
   });
 });
 
+// ── ENTITY_SCOPE_MAP — assignment reconcile partition ────────────────────────
+// Assignment-model redesign, phase 1: the full-sync reconcile delete may
+// partition on the resource axis. Both assignment scopes accept resourceType in
+// addition to assignmentType. assignmentType must remain first/present so a
+// crawler that sends only it keeps the exact same delete scope as before.
+
+describe('ENTITY_SCOPE_MAP — assignment scopes', () => {
+  it('both assignment scopes accept assignmentType and resourceType', async () => {
+    const { ENTITY_SCOPE_MAP } = await import('./validation.js');
+    for (const entity of ['resource-assignments', 'resource-assignments-identity']) {
+      expect(ENTITY_SCOPE_MAP[entity]).toContain('assignmentType');
+      expect(ENTITY_SCOPE_MAP[entity]).toContain('resourceType');
+    }
+  });
+});
+
 // ── validateRecords — unknown entity type ─────────────────────────────────────
 
 describe('validateRecords — unknown entity type', () => {
