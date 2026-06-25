@@ -238,11 +238,22 @@ router.get('/user/:id/memberships', async (req, res) => {
       SELECT p."resourceId", p."resourceId" AS "groupId",
              r."displayName" AS "resourceDisplayName", r."displayName" AS "groupDisplayName",
              r."resourceType", r."resourceType" AS "groupTypeCalculated",
-             p."membershipType", p."managedByAccessPackage"
+             p."membershipType", p."managedByAccessPackage", false AS "deleted"
         FROM "vw_ResourceUserPermissionAssignments" p
         LEFT JOIN "Resources" r ON p."resourceId" = r.id
        WHERE p."principalId"::text = @id
-       ORDER BY r."displayName", p."membershipType"
+      UNION ALL
+      -- Historical access: the assignment or its resource is soft-deleted, so the
+      -- matview hid it. Surface it flagged so the person keeps their access history.
+      SELECT ra."resourceId", ra."resourceId" AS "groupId",
+             r."displayName" AS "resourceDisplayName", r."displayName" AS "groupDisplayName",
+             r."resourceType", r."resourceType" AS "groupTypeCalculated",
+             ra."assignmentType" AS "membershipType", false AS "managedByAccessPackage", true AS "deleted"
+        FROM "ResourceAssignments" ra
+        LEFT JOIN "Resources" r ON ra."resourceId" = r.id
+       WHERE ra."principalId"::text = @id
+         AND (ra."deletedAt" IS NOT NULL OR r."deletedAt" IS NOT NULL)
+       ORDER BY "resourceDisplayName", "membershipType"
     `);
     res.json(r.recordset);
   } catch (err) {

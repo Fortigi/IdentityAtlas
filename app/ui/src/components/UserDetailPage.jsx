@@ -4,6 +4,7 @@ import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
 import { formatDate } from '@ui/utils/formatters';
 import EntityGraph from './EntityGraph';
 import { AttributesTable } from './EntityDetailLayout';
+import DeletedBadge from './DeletedBadge';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
@@ -159,6 +160,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
                     {attributes.principalType}
                   </span>
                 )}
+                {attributes.deletedAt && <DeletedBadge at={attributes.deletedAt} label="Deleted in source" />}
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">{attributes.userPrincipalName || attributes.email}</p>
               {(attributes.systemDisplayName || attributes.systemId) && (
