@@ -88,3 +88,19 @@ Types not in `VALID_JOB_TYPES` or without a `discover.js` return 404. The type s
 **Testing a `discover.js` handler:** the test file does **not** live in `routes/` alongside `jobs.js` — it's co-located with the handler at `tools/crawlers/<type>/discover.test.js` (nothing crawler-specific belongs outside its own folder; see `tools/crawlers/CLAUDE.md` → Rules). `vitest.config.js`'s `test.include` adds `'../../tools/crawlers/**/discover.test.js'` alongside `src/**/*.test.js` so `npm test` here still picks these up. See `tools/crawlers/omada/discover.test.js` or `tools/crawlers/entra-id/discover.test.js`.
 
 **Testing a crawler's `configSchema`:** same rule — detailed assertions about which fields one crawler type's schema requires (e.g. Omada's auth-method matrix) live at `tools/crawlers/<type>/configValidation.test.js`, calling `validateCrawlerConfig` from `crawlerManifests.js` directly. `vitest.config.js` adds a matching glob for this filename too. `routes/jobs.configValidation.test.js` keeps only the generic, type-agnostic engine tests (`maskConfig`, `VALID_JOB_TYPES` discovery). See `tools/crawlers/omada/configValidation.test.js`.
+
+## Contract Tests
+
+Contract tests verify that the SQL emitted by API code is correct against the real PostgreSQL 16 schema — catching wrong table names, column names in WHERE clauses, wrong casts, or missing views before they reach production. Unit tests (which mock the DB) cannot catch these.
+
+**Location:** `app/api/contract-tests/` — deliberately outside `src/` so that changes to contract tests do not trigger E2E or load & soak CI jobs (those fire on `app/api/src/**`).
+
+**Run:** `npm run test:contract` (uses `vitest.contract.config.js`). Not included in `npm test`.
+
+**Infrastructure:** `test-utils/withRealDb.js` starts a `postgres:16-alpine` container via testcontainers, runs all migrations, and returns a connection string. `test-utils/contractGlobalSetup.js` wires this into Vitest's `globalSetup` and exposes `CONTRACT_DB_URL` for the test files.
+
+**Writing a contract test:**
+- Import `pg` directly and create a `Pool` from `process.env.CONTRACT_DB_URL` in `beforeAll`.
+- Use `beforeEach` to `DELETE` test rows (don't `DROP` tables or `TRUNCATE` — schema must survive).
+- Insert a `Systems` row first (`systemType`, `displayName`) to satisfy foreign keys on `Principals`/`Resources`/etc.
+- If querying a materialized view, call `REFRESH MATERIALIZED VIEW "..."` in `beforeAll` after the pool is ready — migrations create matviews unpopulated.
