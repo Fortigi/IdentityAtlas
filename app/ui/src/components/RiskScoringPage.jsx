@@ -285,7 +285,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
               <div className="text-2xl font-bold text-gray-800 dark:text-gray-200">{c.aggregateRiskScore}</div>
               <TierBadge tier={c.riskTier} />
             </div>
-            <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 p-1">
+            <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 p-1">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
@@ -345,7 +345,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
                 <button
                   onClick={handleRemoveOwner}
                   disabled={saving}
-                  className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700 rounded px-2 py-0.5 hover:bg-red-50 dark:bg-red-900/30 disabled:opacity-40"
+                  className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 border border-red-200 dark:border-red-700 rounded px-2 py-0.5 hover:bg-red-50 dark:bg-red-900/30 disabled:opacity-40"
                 >
                   Remove
                 </button>
@@ -386,7 +386,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
                     )}
                     <button
                       onClick={() => { setShowOwnerSearch(false); setOwnerSearch(''); }}
-                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                     >
                       Cancel
                     </button>

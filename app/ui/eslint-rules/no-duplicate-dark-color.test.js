@@ -40,4 +40,15 @@ describe('findDuplicateProps', () => {
     // dark:text-sm is not a color; dark:p-2 is spacing — neither should count.
     expect(findDuplicateProps('dark:text-sm dark:text-gray-400')).toHaveLength(0);
   });
+
+  it('flags the M6 red-variant missing-hover pattern', () => {
+    // text-red-600 dark:text-red-400 hover:text-red-800 dark:text-red-300
+    expect(findDuplicateProps('text-red-600 dark:text-red-400 hover:text-red-800 dark:text-red-300')).toHaveLength(1);
+  });
+
+  it('does NOT flag the codemod output (base dark + dark:hover variant)', () => {
+    // This is the shape the M6 fix produces — must stay clean once the rule is an error.
+    expect(findDuplicateProps('text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300')).toHaveLength(0);
+    expect(findDuplicateProps('text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400')).toHaveLength(0);
+  });
 });
