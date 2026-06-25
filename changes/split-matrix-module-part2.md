@@ -1,0 +1,1 @@
+- Internal maintainability: continued the matrix API module split — the scope-analysis endpoints (scope statistics, timeline, and breakdown) and the shared filter/scope helper functions now live in their own modules. No change to matrix behaviour, endpoints, or output.
