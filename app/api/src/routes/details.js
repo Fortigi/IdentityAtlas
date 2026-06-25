@@ -421,7 +421,7 @@ router.get('/group/:id', async (req, res) => {
         .query(`
         SELECT COUNT(DISTINCT rrs."parentResourceId") AS cnt
         FROM "ResourceRelationships" rrs
-        WHERE UPPER(rrs."childResourceId") = UPPER(@id)
+        WHERE UPPER(rrs."childResourceId"::text) = UPPER(@id)
           AND rrs."relationshipType" = 'Contains'
       `);
       accessPackageCount = r.recordset[0].cnt;
@@ -493,7 +493,7 @@ router.get('/group/:id/access-packages', async (req, res) => {
         rrs.roleName
       FROM "ResourceRelationships" rrs
       LEFT JOIN "Resources" ap ON rrs."parentResourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
-      WHERE UPPER(rrs."childResourceId") = UPPER(@id)
+      WHERE UPPER(rrs."childResourceId"::text) = UPPER(@id)
         AND rrs."relationshipType" = 'Contains'
       ORDER BY ap."displayName"
     `);
@@ -658,7 +658,7 @@ router.get('/access-package/:id', async (req, res) => {
         SELECT
           COUNT(*) AS total,
           SUM(CASE WHEN "hasAutoAddRule" = TRUE THEN 1 ELSE 0 END) AS "autoAdd",
-          SUM(CASE WHEN COALESCE("hasAutoAddRule", 0) = 0 AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END) AS "autoRemoveOnly"
+          SUM(CASE WHEN COALESCE("hasAutoAddRule", FALSE) = FALSE AND "hasAutoRemoveRule" = TRUE THEN 1 ELSE 0 END) AS "autoRemoveOnly"
         FROM "AssignmentPolicies"
         WHERE "resourceId" = @id
       `);
