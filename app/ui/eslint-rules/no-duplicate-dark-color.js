@@ -33,7 +33,7 @@ const COLOR_PROPS = new Set([
 // Matches exactly `dark:<prop>-<color>[-<shade>][/<opacity>]` — NOT `dark:hover:…`.
 const DARK_COLOR = /^dark:([a-z]+)-([a-z]+)(?:-\d{1,3})?(?:\/\d{1,3})?$/;
 
-function findDuplicateProps(str) {
+export function findDuplicateProps(str) {
   const seen = new Map(); // prop -> first token
   const dupes = [];
   for (const token of str.split(/\s+/)) {
