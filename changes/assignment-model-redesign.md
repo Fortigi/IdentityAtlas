@@ -1,0 +1,1 @@
+- Added an architecture design doc (`docs/architecture/assignment-model-redesign.md`) proposing to simplify the assignment model: collapse the ten internal `assignmentType` values down to the three universal kinds (Direct / Indirect / Eligible), move "what kind of access" onto the resource itself, and model group ownership as a resource. No behavior change — design/proposal only.
