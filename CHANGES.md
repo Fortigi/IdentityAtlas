@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Extracted shared `Invoke-FGWriteRequest` helper to eliminate the duplicated body in `Invoke-FGPostRequest` and `Invoke-FGPutRequest`
+- Extracted shared `Invoke-FGGetPage` helper to eliminate the duplicated retry/throttle loop across `Invoke-FGGetRequest`, `Invoke-FGGetRequestToFile`, and `Invoke-FGGetRequestStream`
+- Extracted shared `Merge-FGJsonArrayFile` and `Remove-FGTrailingCommaFromJsonFile` helpers to eliminate the duplicated StreamReader/StreamWriter JSON cleanup blocks
+- Merged `Get-FGGroupTransitiveMemberAll` and `Get-FGGroupTransitiveMemberAllToFile` into their non-transitive counterparts via a `-Transitive` switch; the old function names remain as thin wrappers
+- Extracted shared `Resolve-FGMemberObjectIds` helper to eliminate the duplicated member-name-to-object-ID resolution block in `Confirm-FGGroupMember` and `Confirm-FGNotGroupMember`
+
+## Changes in this PR
+
 - Fixed dark-mode styling on the context detail/tree, risk-scoring, run detail, and modal screens where duplicated Tailwind classes silently overrode the intended values: secondary text now renders at the correct (higher-contrast) shade, and table rows, list items, and sub-tabs no longer appear permanently highlighted in dark mode.
 - Added a lint check that flags a className setting the same dark-mode color twice, to stop the issue from creeping back in.
 
