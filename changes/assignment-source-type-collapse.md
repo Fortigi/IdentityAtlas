@@ -1,0 +1,1 @@
+- Entra app-role, OAuth2 delegated-permission, and directory-role assignments are now recorded using the standard Direct / Indirect / Eligible assignment kinds instead of internal source-specific labels — the kind of resource already says what the access is, so the matrix shows one consistent set of assignment types. No change to which access is shown.
