@@ -17,6 +17,27 @@ import { requirePermission } from '../middleware/auth.js';
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
+// Attach per-account group counts + risk to each linked-account member, keyed by
+// `principalId` — the column every source query selects. A prior version keyed
+// these maps by `userId` (which none of the queries return), so group counts
+// always rendered 0 and risk/tier never attached on the identity-detail page.
+// Pure + exported for unit testing (identities.enrich.test.js).
+export function enrichMembers(members, riskRows = [], groupCountRows = []) {
+  const riskMap = {};
+  for (const r of riskRows) riskMap[r.principalId] = { riskScore: r.riskScore, riskTier: r.riskTier };
+  const groupCountMap = {};
+  for (const gc of groupCountRows) groupCountMap[gc.principalId] = gc.groupCount;
+  for (const member of members) {
+    member.groupCount = groupCountMap[member.principalId] || 0;
+    const risk = riskMap[member.principalId];
+    if (risk) {
+      member.riskScore = risk.riskScore;
+      member.riskTier = risk.riskTier;
+    }
+  }
+  return members;
+}
+
 // Analyst decisions on a linked account are a write action — gate them like
 // risk-score overrides (riskScores.js uses data.write.risk). Reads stay open
 // to anyone who can sign in (data.read).
@@ -291,7 +312,7 @@ router.get('/identities/:id', async (req, res) => {
     }
 
     // Enrich members with risk scores (optional — try Principals then GraphUsers)
-    let memberRiskMap = {};
+    let riskRows = [];
     try {
       let riskResult;
       try {
@@ -313,40 +334,28 @@ router.get('/identities/:id', async (req, res) => {
             WHERE m."identityId" = @identityId
           `);
       }
-      for (const r of riskResult.recordset) {
-        memberRiskMap[r.userId] = { riskScore: r.riskScore, riskTier: r.riskTier };
-      }
+      riskRows = riskResult.recordset;
     } catch { /* risk columns may not exist yet */ }
 
     // Fetch group memberships per account for context
-    let memberGroupCounts = [];
+    let groupCountRows = [];
     try {
       const groupCountResult = await timedRequest(p, 'identity-member-groups', res)
         .input('identityId', identityId)
         .query(`
-          SELECT m."principalId", COUNT(DISTINCT gm."resourceId") AS "groupCount"
+          SELECT m."principalId", COUNT(DISTINCT gm."resourceId")::int AS "groupCount"
           FROM "IdentityMembers" m
           LEFT JOIN "ResourceAssignments" gm ON m."principalId" = gm."principalId" AND gm."assignmentType" = 'Direct'
           WHERE m."identityId" = @identityId
           GROUP BY m."principalId"
         `);
-      memberGroupCounts = groupCountResult.recordset;
+      groupCountRows = groupCountResult.recordset;
     } catch {
       // ResourceAssignments may not exist
     }
 
-    // Enrich members with group counts and risk scores
-    const groupCountMap = {};
-    for (const gc of memberGroupCounts) {
-      groupCountMap[gc.userId] = gc.groupCount;
-    }
-    for (const member of membersResult.recordset) {
-      member.groupCount = groupCountMap[member.userId] || 0;
-      if (memberRiskMap[member.userId]) {
-        member.riskScore = memberRiskMap[member.userId].riskScore;
-        member.riskTier = memberRiskMap[member.userId].riskTier;
-      }
-    }
+    // Attach per-account group counts + risk (keyed by principalId — see enrichMembers).
+    enrichMembers(membersResult.recordset, riskRows, groupCountRows);
 
     // Aggregate relationship counts across every linked account — the entity
     // graph shows these as nodes ("32 groups across 3 accounts", "4 access

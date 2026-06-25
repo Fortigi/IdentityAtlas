@@ -1,0 +1,1 @@
+- Fixed the identity detail page so each linked account again shows its real group count and risk score/tier. Previously the per-account group count always displayed 0 and the risk score/tier never appeared, regardless of the account's actual access.
