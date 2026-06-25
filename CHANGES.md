@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal maintainability: split the oversized matrix API route module into smaller focused modules — the saved-filter endpoints and the roll-up SQL builders now live in their own files. No change to matrix behaviour, endpoints, or output.
+
+## Changes in this PR
+
 - Fixed dark-mode hover states on buttons and links across the context detail/tree, risk-scoring, run-detail, and modal screens. A hover text color was being applied permanently in dark mode (instead of only on hover) because its `hover:` modifier was missing, so the affected controls didn't visibly respond to hover in dark mode.
 - The lint check for duplicate dark-mode colors is now enforced as an error, preventing the issue from returning.
 
