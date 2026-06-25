@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added `npm run test:e2e:sql` command to run Playwright E2E tests against a real Docker stack locally, matching the CI environment exactly
+- E2E failures in CI now block PR merges (removed the `continue-on-error` bypass that was masking test failures)
+
+## Changes in this PR
+
 - Improved the risk-scoring dashboard's load time on large tenants: the "top entities by score" lists and the latest-scored-at lookup now query only what's shown (top 10 / most recent) instead of fetching and sorting every risk-scored row.
 
 ## Changes in this PR
