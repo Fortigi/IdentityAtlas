@@ -1348,6 +1348,7 @@ if ($SyncAssignments) {
                 resourceId     = $o.resourceId
                 principalId    = $o.principalId
                 assignmentType = 'Direct'
+                resourceType   = 'EntraGroup'
                 principalType  = if ($o.childType -eq '#microsoft.graph.group') { 'Group' } else { 'User' }
             }
         }
@@ -1358,7 +1359,7 @@ if ($SyncAssignments) {
 
     Update-CrawlerProgress -Detail "Uploading $($allMembers.Count) memberships to ingest API..."
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-        -Scope @{ assignmentType = 'Direct' } -Records $allMembers
+        -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraGroup' } -Records $allMembers
 
     # Group Owners
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing assignments (group owners)..." -ForegroundColor Cyan
@@ -1458,6 +1459,7 @@ if ($SyncPim) {
                     principalId        = $r.principalId
                     principalType      = $r.principalType
                     assignmentType     = $r.assignmentType
+                    resourceType       = 'EntraGroup'
                     state              = $r.state
                     expirationDateTime = $r.expirationDateTime
                 })
@@ -1481,7 +1483,7 @@ if ($SyncPim) {
                 if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
             })
             Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'Eligible' } -Records $pimRecords
+                -Scope @{ assignmentType = 'Eligible'; resourceType = 'EntraGroup' } -Records $pimRecords
         }
     } catch {
         Write-Host "  PIM sync failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -2004,7 +2006,8 @@ if ($SyncOAuth2Grants) {
                         resourceId     = $scopeResId
                         principalId    = $userId
                         principalType  = 'User'
-                        assignmentType = 'OAuth2Grant'
+                        assignmentType = 'Direct'
+                        resourceType   = 'DelegatedPermission'
                         extendedAttributes = @{
                             grantId              = $g.id
                             clientSpId           = $clientId
@@ -2040,7 +2043,7 @@ if ($SyncOAuth2Grants) {
             })
             Update-CrawlerProgress -Detail "Uploading $($assignRecords.Count) OAuth2 grant assignments..."
             Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'OAuth2Grant' } -Records $assignRecords
+                -Scope @{ assignmentType = 'Direct'; resourceType = 'DelegatedPermission' } -Records $assignRecords
         }
     }
     catch {
@@ -2217,7 +2220,8 @@ if ($SyncAppRoles) {
                             resourceId     = $roleResId
                             principalId    = $a.principalId
                             principalType  = 'User'
-                            assignmentType = 'AppRole'
+                            assignmentType = 'Direct'
+                            resourceType   = 'AppRole'
                             extendedAttributes = @{
                                 appRoleAssignmentId = $a.id
                                 appRoleId           = $roleId
@@ -2246,7 +2250,8 @@ if ($SyncAppRoles) {
                             resourceId     = $roleResId
                             principalId    = $a.principalId
                             principalType  = 'Group'
-                            assignmentType = 'AppRole'
+                            assignmentType = 'Direct'
+                            resourceType   = 'AppRole'
                             extendedAttributes = @{
                                 appRoleAssignmentId = $a.id
                                 appRoleId           = $roleId
@@ -2287,7 +2292,8 @@ if ($SyncAppRoles) {
                         resourceId     = $roleAssn.roleResId
                         principalId    = $uid
                         principalType  = 'User'
-                        assignmentType = 'AppRoleViaGroup'
+                        assignmentType = 'Indirect'
+                        resourceType   = 'AppRole'
                         extendedAttributes = @{
                             viaGroupId          = $groupId
                             appRoleId           = $roleAssn.roleId
@@ -2339,12 +2345,12 @@ if ($SyncAppRoles) {
         if ($directRecords.Count -gt 0) {
             Update-CrawlerProgress -Detail "Uploading $($directRecords.Count) direct app-role assignments..."
             Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'AppRole' } -Records $directRecords
+                -Scope @{ assignmentType = 'Direct'; resourceType = 'AppRole' } -Records $directRecords
         }
         if ($indirectRecords.Count -gt 0) {
             Update-CrawlerProgress -Detail "Uploading $($indirectRecords.Count) indirect (via-group) app-role assignments..."
             Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'AppRoleViaGroup' } -Records $indirectRecords
+                -Scope @{ assignmentType = 'Indirect'; resourceType = 'AppRole' } -Records $indirectRecords
         }
     }
     catch {
@@ -2441,7 +2447,8 @@ if ($SyncDirectoryRoles) {
                     resourceId     = $ra.roleDefinitionId
                     principalId    = $ra.principalId
                     principalType  = (Resolve-DirectoryRolePrincipalType -Principal $ra.principal)
-                    assignmentType = 'DirectoryRole'
+                    assignmentType = 'Direct'
+                    resourceType   = 'EntraRole'
                     extendedAttributes = @{
                         roleAssignmentId = $ra.id
                         directoryScopeId = $ra.directoryScopeId
@@ -2463,7 +2470,8 @@ if ($SyncDirectoryRoles) {
                     resourceId         = $e.roleDefinitionId
                     principalId        = $e.principalId
                     principalType      = (Resolve-DirectoryRolePrincipalType -Principal $e.principal)
-                    assignmentType     = 'DirectoryRoleEligible'
+                    assignmentType     = 'Eligible'
+                    resourceType       = 'EntraRole'
                     expirationDateTime = $e.endDateTime
                     extendedAttributes = @{
                         memberType       = $e.memberType
@@ -2500,12 +2508,12 @@ if ($SyncDirectoryRoles) {
         if ($activeRecords.Count -gt 0) {
             Update-CrawlerProgress -Detail "Uploading $($activeRecords.Count) active role assignments..."
             Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'DirectoryRole' } -Records $activeRecords
+                -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraRole' } -Records $activeRecords
         }
         if ($eligibleRecords.Count -gt 0) {
             Update-CrawlerProgress -Detail "Uploading $($eligibleRecords.Count) eligible role assignments..."
             Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'DirectoryRoleEligible' } -Records $eligibleRecords
+                -Scope @{ assignmentType = 'Eligible'; resourceType = 'EntraRole' } -Records $eligibleRecords
         }
     }
     catch {
