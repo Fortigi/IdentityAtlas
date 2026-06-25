@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal maintainability: continued the matrix API module split — the scope-analysis endpoints (scope statistics, timeline, and breakdown) and the shared filter/scope helper functions now live in their own modules. No change to matrix behaviour, endpoints, or output.
+
+## Changes in this PR
+
 - Internal maintainability: split the oversized matrix API route module into smaller focused modules — the saved-filter endpoints and the roll-up SQL builders now live in their own files. No change to matrix behaviour, endpoints, or output.
 
 ## Changes in this PR
