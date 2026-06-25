@@ -1,1 +1,0 @@
-- Added quick-reference table to `tools/crawlers/CLAUDE.md` showing which test filename runs under which runner (UI vitest, API vitest, or Playwright), so developers don't have to read through multiple paragraphs to understand where a new test will execute

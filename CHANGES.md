@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added quick-reference table to `tools/crawlers/CLAUDE.md` showing which test filename runs under which runner (UI vitest, API vitest, or Playwright), so developers don't have to read through multiple paragraphs to understand where a new test will execute
+
+## Changes in this PR
+
 - Added `npm run test:coverage` to `app/api` and `app/ui` for informational code coverage reporting (no CI gate — run locally to see which lines are exercised by unit tests)
 
 ## Changes in this PR
