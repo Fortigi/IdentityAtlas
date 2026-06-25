@@ -4,8 +4,15 @@
 
 import { Router } from 'express';
 import { isEnabled, enable, disable, summarize, recent, slowest, clear } from '../perf/collector.js';
+import { requirePermission } from '../middleware/auth.js';
 
 const router = Router();
+
+// Security (SEC-NEW-4): perfRouter is mounted with authMiddleware only. Reads are
+// fine for any signed-in user (data.read is authentication-level / implicit), but
+// the state-changing /perf/clear and /perf/toggle had NO gate — any authenticated
+// user could wipe metrics or disable the collector. Those two are gated on
+// admin.feature-flags below (runtime-toggle territory). No-op when auth disabled.
 
 // ─── GET /api/perf ──────────────────────────────────────────────
 // Summary view: per-endpoint aggregations (p50, p95, p99, avg, min, max)
@@ -57,7 +64,7 @@ router.get('/perf/export', (req, res) => {
 
 // ─── POST /api/perf/clear ──────────────────────────────────────
 // Clear all collected metrics.
-router.post('/perf/clear', (req, res) => {
+router.post('/perf/clear', requirePermission('admin.feature-flags'), (req, res) => {
   clear();
   res.json({ ok: true, message: 'Metrics cleared' });
 });
@@ -65,7 +72,7 @@ router.post('/perf/clear', (req, res) => {
 // ─── POST /api/perf/toggle ─────────────────────────────────────
 // Enable or disable the metrics collector at runtime.
 // body: { enabled: boolean }
-router.post('/perf/toggle', (req, res) => {
+router.post('/perf/toggle', requirePermission('admin.feature-flags'), (req, res) => {
   const { enabled: target } = req.body || {};
   if (typeof target !== 'boolean') {
     return res.status(400).json({ error: 'enabled (boolean) is required' });
