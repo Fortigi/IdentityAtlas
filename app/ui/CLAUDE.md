@@ -15,17 +15,17 @@ The UI supports a light/dark theme toggle via Tailwind v4's class-based dark mod
 **Rule: all light-theme colors must meet WCAG 2.0 AA contrast.** Any hardcoded color used as text, icon, or border on a light background must achieve ≥4.5:1 contrast ratio against that background (≥3:1 for large text ≥18pt / bold ≥14pt). Use Tailwind 700–800 tier values for colored text on white — mid-tone 400–500 values consistently fail. Check new color constants with a contrast tool before committing. The `TAG_COLORS` array in `src/utils/colors.js` is the reference example of compliant values.
 
 **Enforced by lint:** The ESLint rule `local/no-low-contrast-text` (defined in `eslint-rules/no-low-contrast-text.js`) flags any bare (light-mode) Tailwind `text-{color}-300` or `text-{color}-400` class in JSX `className` attributes and blocks the build. Fix by raising to `-600` and pairing with a `dark:` override:
-```jsx
+``jsx
 // ✗ FAILS lint (and WCAG)
 className="text-gray-400 dark:text-gray-500"
 
 // ✓ Passes lint
 className="text-gray-600 dark:text-gray-400"
-```
+``
 Exception: shades 100–200 are not flagged because they are routinely used as near-white text on dark/colored button backgrounds (`bg-gray-900 text-gray-100`). Use them only in that context.
 
 **Common patterns:**
-```jsx
+``jsx
 // Container cards
 className="bg-white border border-gray-200 dark:bg-gray-800 dark:border-gray-700"
 
@@ -52,7 +52,7 @@ className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
 // Inline hex colors — use useIsDark() from ThemeContext
 const isDark = useIsDark();
 style={{ color: isDark ? AP_COLORS_DARK[i] : AP_COLORS[i] }}
-```
+``
 
 ## Import path aliases
 
@@ -63,7 +63,7 @@ All cross-directory imports inside `src/` **must** use the `@ui/` alias rather t
 | `@ui/X` | `app/ui/src/X` | Anything in `src/` referenced from within `src/` or from `tools/crawlers/` |
 | `@crawlers/X` | `tools/crawlers/X` | Crawler plugins referenced from within `tools/crawlers/` |
 
-```js
+``js
 // ✓ Correct — use @ui/ alias
 import { useAuth } from '@ui/auth/AuthGate';
 import { formatDate } from '@ui/utils/formatters';
@@ -72,7 +72,7 @@ import Stepper from '@ui/components/Stepper';
 // ✗ Wrong — relative traversal
 import { useAuth } from '../../auth/AuthGate';
 import { formatDate } from '../../../app/ui/src/utils/formatters';
-```
+``
 
 **Enforcement:** The ESLint rule `local/no-relative-package-imports` (in `eslint-rules/no-relative-package-imports.js`) blocks `'../'` imports in `src/**` at lint time. The Vitest test `src/__tests__/import-conventions.test.js` enforces the same at test time — it also covers crawler wizard files under `tools/crawlers/`.
 
@@ -100,6 +100,9 @@ Before writing any utility function, helper, constant, or component — **search
 - `components/inputs/Combobox.jsx` — free-text input with live-discovery dropdown; props: `value`, `onChange`, `options: string[]`, `defaultOption: {value,label}`, `placeholder`, `className`, `wrapperClassName`
 - `components/inputs/Select.jsx` — styled native `<select>` with `ChevronDown` overlay; props: `value`, `onChange`, `id`, `wrapperClassName`, children as `<option>` elements
 - `components/inputs/ChevronDown.jsx` — shared SVG chevron icon; used by both `Select` and `Combobox`
+- `components/EntityListPage.jsx` — full list-page scaffold (header, tag bar, filter bar, action bar, table, pagination) backed by `useEntityPage`; props: `title`, `entityType`, `listEndpoint`, `columnsEndpoint`, `tagFilterKey`, `tableColumns`, `fieldLabels`, `renderEntityCell(item, onOpenDetail)`, `renderDataCells(item)`, `searchPlaceholder`, `showIncludeDeleted`, `subTabBar`, `baseFilters`, `customizeFilterFields`, `onOpenDetail`. Used by GroupsPage/UsersPage/IdentitiesPage — do not re-implement list-page boilerplate.
+- `components/EntityDetailPage.jsx` — full detail-page scaffold (data fetch, loading/error guards, TabBar, Attributes/Relationships/Timeline/Risk tabs, graph via `useExpandableGraph`, timeline via `useTimeline`); extend via render props: `renderHeader(data)`, `renderAttributesBefore(data)`, `renderAttributesExtra(data)`, `renderRelationshipsExtra(data, graph)`, `renderRisk(data)`, `getTabs(data, entries)`, `getAttributeEntries(data)`. Used by ResourceDetailPage/UserDetailPage/AccessPackageDetailPage/IdentityDetailPage — do not re-implement detail-page boilerplate.
+- `components/LinkedAccountsPanel.jsx` — linked accounts list with confidence bar, analyst override badges and Confirm/Remove/Undo buttons; props: `members`, `busyMember`, `onOverride(principalId, action)`, `onOpenDetail`
 - `components/WizardShell.jsx` — shared outer card/header/stepper/error wrapper for all crawler ConfigWizard components; props: `title`, `onCancel`, `steps`, `currentStep`, `onStepClick`, `allowAllSteps`, `error`, `children`
 - `components/MappingRows.jsx` — generic add/remove/update mapping-row grid for ConfigWizard components; props: `rows`, `onAdd`, `onRemove(i)`, `onUpdate(i,key,val)`, `columns: [{key, render(value,onChange)}]`, `headers?`, `addLabel?`, `minRows?`
 - `utils/crawlerCredentials.js` — `canSubmitCredentials(authMethod, fields, isEdit)`, `buildCredentialFields(authMethod, fields)`, `SECRET_PLACEHOLDER`; covers all auth methods used by crawlers
@@ -128,7 +131,7 @@ Crawler configuration wizards are loaded from `tools/crawlers/*/ConfigWizard.jsx
 
 **How it works (in `CrawlersPage.jsx`):**
 
-```js
+``js
 // Eager-load all CrawlerMeta.js files for the type picker
 const _crawlerMetaModules = import.meta.glob('../../../../tools/crawlers/*/CrawlerMeta.js', { eager: true });
 const _discoveredCrawlerTypes = Object.values(_crawlerMetaModules).map(m => ({ ...m.default, available: true }));
@@ -145,7 +148,7 @@ const _summaryModules = import.meta.glob('../../../../tools/crawlers/*/Summary.j
 function getCrawlerSummary(crawlerType) {
   return _summaryModules[`../../../../tools/crawlers/${crawlerType}/Summary.jsx`]?.default || null;
 }
-```
+``
 
 **Vite dev server:** `vite.config.js` sets `server.fs.allow` to include the repo root so wizard components under `tools/crawlers/` are served correctly during development. This is already configured — don't remove it.
 

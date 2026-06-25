@@ -1,5 +1,17 @@
 ## Changes in this PR
 
+- Extracted shared scaffold (`EntityDetailPage`) from the Resource, User, Business Role, and Identity detail pages, eliminating ~700 lines of near-identical JSX while preserving all existing behavior (attributes table, relationship graph, timeline, risk tab, per-entity header styles, linked accounts panel, analyst override controls)
+- Added CI code-duplication gate (jscpd, 3% threshold) to catch clone drift before it enters main; threshold configured in `.jscpd.json` and enforced on every PR
+- Extracted shared scaffold (`EntityListPage`) from the Resources, Users, and Identities list pages, eliminating ~700 lines of near-identical JSX while preserving all existing behavior (tag management, filter bar, sort, selection, pagination, include-deleted toggle, sub-tabs)
+
+## Changes in this PR
+
+- Extracted shared `queryRiskScoresPage` helper to eliminate duplicated list+count query pattern across all five risk score list endpoints (`/users`, `/groups`, `/business-roles`, `/contexts`, `/identities`)
+- Extracted shared matrix SQL expression builders (`buildAssignmentExprs`, `buildIdentityJoinExprs`, `buildRoleSubjectJoinExprs`, `buildApMemberExprs`, `mergeGroupTotals`, `resourceMeta`) to remove repeated identity/principal conditional blocks in matrix route
+- Extracted shared `createTempTable` and `bulkInsertIntoTemp` helpers to remove duplicated temp-table creation and batch-insert logic shared between ingest engine and sync sessions
+
+## Changes in this PR
+
 - The Azure RM crawler now reads resource groups, resources, role definitions and role assignments from Azure Resource Graph instead of one call per subscription, so it scales to tenants with hundreds of subscriptions with a fraction of the API calls and a much shorter run time. Output is unchanged — verified identical to the previous method on a live tenant before switching over.
 - Azure scope identities are now case-insensitive, so the same resource group or resource is never split into two entries because Azure returned its path with different casing.
 - Fixed crawler jobs failing when a crawler folder contains development-only scripts in a `dev/` subfolder; these are now correctly ignored at runtime as intended.
