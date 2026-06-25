@@ -1,30 +1,22 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import useFeatures from '@ui/hooks/useFeatures';
+import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
-import EntityGraph from './EntityGraph';
-import { AttributesTable } from './EntityDetailLayout';
 import DeletedBadge from './DeletedBadge';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
-import ExpandedItemsList from './ExpandedItemsList';
-import TabBar from './TabBar';
-import EntityTimeline from './EntityTimeline';
-import useExpandableGraph from '@ui/hooks/useExpandableGraph';
-import useTimeline from '@ui/hooks/useTimeline';
-import useFeatures from '@ui/hooks/useFeatures';
-import { getRootNodes } from './entityGraphShape';
 
 const RESOURCE_TYPE_COLORS = {
-  EntraGroup: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-  EntraAppRole: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-  EntraDirectoryRole: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
-  EntraAdminUnit: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
+  EntraGroup:          'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+  EntraAppRole:        'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+  EntraDirectoryRole:  'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+  EntraAdminUnit:      'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
 };
 
 const HEADER_FIELDS = ['description', 'resourceType', 'groupTypeCalculated'];
 const HIDDEN_FIELDS = new Set([
   'displayName', ...HEADER_FIELDS, ...RISK_FIELDS,
-  'ValidFrom', 'ValidTo', 'extendedAttributes', 'systemId',
-  'contextId',
+  'ValidFrom', 'ValidTo', 'extendedAttributes', 'systemId', 'contextId',
 ]);
 
 function parseExtendedAttributes(val) {
@@ -33,189 +25,93 @@ function parseExtendedAttributes(val) {
   try { return JSON.parse(val); } catch { return null; }
 }
 
+async function fetchResourceData({ entityId, authFetch }) {
+  const r = await authFetch(`/api/resources/${encodeURIComponent(entityId)}`);
+  if (!r.ok) {
+    const r2 = await authFetch(`/api/group/${encodeURIComponent(entityId)}`);
+    if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
+    return r2.json();
+  }
+  return r.json();
+}
+
+function getResourceAttributeEntries(data) {
+  const extAttrs = parseExtendedAttributes(data.attributes.extendedAttributes);
+  return buildAttributeEntries(data.attributes, extAttrs, HIDDEN_FIELDS);
+}
+
+function getResourceRootExtras(data) {
+  return { contextId: data.attributes?.contextId, recent: null };
+}
+
+function ResourceHeader({ data }) {
+  const { attributes, tags } = data;
+  const resourceType = attributes.resourceType || attributes.groupTypeCalculated || '';
+  const typeBadgeClass = RESOURCE_TYPE_COLORS[resourceType] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center justify-center text-lg font-bold">R</div>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>
+          <div className="flex items-center gap-2 mt-0.5">
+            {resourceType && (
+              <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${typeBadgeClass}`}>{resourceType}</span>
+            )}
+            {attributes.deletedAt && <DeletedBadge at={attributes.deletedAt} label="Deleted in source" />}
+            {attributes.systemId && (
+              <span className="text-xs text-gray-600 dark:text-gray-500">System: {attributes.systemId}</span>
+            )}
+          </div>
+        </div>
+      </div>
+      {attributes.description && (
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">{attributes.description}</p>
+      )}
+      {tags?.length > 0 && (
+        <div className="flex gap-1.5 mt-2">
+          {tags.map(t => (
+            <span key={t.id} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
+              style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}>
+              {t.name}
+            </span>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function ResourceDetailPage({ resourceId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
   const features = useFeatures();
 
-  const [data, setData] = useState(cachedData?.core || null);
-  const [loading, setLoading] = useState(!cachedData?.core);
-  const [error, setError] = useState(null);
-
-  const [activeTab, setActiveTab] = useState('attributes');
-  const [timelineDays, setTimelineDays] = useState(90);
-
-  useEffect(() => {
-    if (cachedData?.core) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    authFetch(`/api/resources/${encodeURIComponent(resourceId)}`)
-      .then(r => {
-        if (!r.ok) return authFetch(`/api/group/${encodeURIComponent(resourceId)}`).then(r2 => {
-          if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
-          return r2.json();
-        });
-        return r.json();
-      })
-      .then(d => {
-        if (!cancelled) {
-          setData(d);
-          onCacheData?.(resourceId, 'resource', { core: d });
-        }
-      })
-      .catch(e => { if (!cancelled) setError(e.message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [resourceId, authFetch, cachedData?.core, onCacheData]);
-
-  const timeline = useTimeline('resource', resourceId, authFetch, {
-    sinceDays: timelineDays,
-    enabled: activeTab === 'timeline',
-  });
-
-  const rootExtras = useMemo(() => ({
-    contextId: data?.attributes?.contextId,
-    recent: null,
-  }), [data]);
-
-  const rootNodes = useMemo(() => (
-    data ? getRootNodes('resource', data, rootExtras) : []
-  ), [data, rootExtras]);
-
-  const graph = useExpandableGraph({
-    rootEntityKind: 'resource',
-    rootEntityId: resourceId,
-    rootExtras,
-    rootNodes,
-    authFetch,
-  });
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading resource details...</div>;
-  }
-  if (error) {
-    return (
-      <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6">
-        <h2 className="text-red-800 dark:text-red-300 font-semibold">Error loading resource</h2>
-        <p className="text-red-600 dark:text-red-400 mt-1 text-sm">{error}</p>
-      </div>
-    );
-  }
-  if (!data) return null;
-
-  const { attributes, tags } = data;
-  const resourceType = attributes.resourceType || attributes.groupTypeCalculated || '';
-  const typeBadgeClass = RESOURCE_TYPE_COLORS[resourceType] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
-  const extAttrs = parseExtendedAttributes(attributes.extendedAttributes);
-  const attributeEntries = buildAttributeEntries(attributes, extAttrs, HIDDEN_FIELDS);
-
-  const tabs = [
-    { key: 'attributes', label: 'Attributes', count: attributeEntries.length },
+  const getTabs = useCallback((data, entries) => [
+    { key: 'attributes', label: 'Attributes', count: entries.length },
     { key: 'relationships', label: 'Relationships' },
     { key: 'timeline', label: 'Timeline' },
-    (features.riskScoring && attributes.riskScore != null) && { key: 'risk', label: 'Risk' },
-  ];
+    (features.riskScoring && data.attributes.riskScore != null) && { key: 'risk', label: 'Risk' },
+  ], [features]);
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center justify-center text-lg font-bold">R</div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>
-              <div className="flex items-center gap-2 mt-0.5">
-                {resourceType && (
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${typeBadgeClass}`}>
-                    {resourceType}
-                  </span>
-                )}
-                {attributes.deletedAt && <DeletedBadge at={attributes.deletedAt} label="Deleted in source" />}
-                {attributes.systemId && (
-                  <span className="text-xs text-gray-600 dark:text-gray-500">System: {attributes.systemId}</span>
-                )}
-              </div>
-            </div>
-          </div>
-          {attributes.description && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">{attributes.description}</p>
-          )}
-          {tags && tags.length > 0 && (
-            <div className="flex gap-1.5 mt-2">
-              {tags.map(t => (
-                <span key={t.id} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
-                  style={{ backgroundColor: t.color + '20', borderColor: t.color, color: t.color }}>
-                  {t.name}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <button onClick={onClose}
-          className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-          title="Close tab">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
-
-      <div className="mt-4">
-        {activeTab === 'attributes' && (
-          <AttributesTable entries={attributeEntries} />
-        )}
-
-        {activeTab === 'relationships' && (
-          <div className="space-y-4">
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-              <EntityGraph
-                centerLabel="Resource"
-                centerSubLabel={attributes.displayName}
-                nodes={graph.nodesWithExpansion}
-                expandedPath={graph.expandedPath}
-                onNodeClick={graph.handleNodeClick}
-              />
-              {graph.pathDepth > 0 && (
-                <div className="text-xs text-gray-600 dark:text-gray-500 text-center pb-2">
-                  <span className="font-medium text-gray-600 dark:text-gray-300">{graph.activeListLabel}</span>
-                  {' — '}
-                  <button onClick={graph.reset} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">collapse</button>
-                </div>
-              )}
-            </div>
-
-            {graph.pathDepth > 0 ? (
-              <ExpandedItemsList
-                label={graph.activeListLabel}
-                items={graph.activeListItems}
-                loading={graph.loading}
-                onOpenDetail={onOpenDetail}
-              />
-            ) : (
-              <div className="bg-white dark:bg-gray-800 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
-                <p className="text-sm text-gray-600 dark:text-gray-500">Click a node in the graph to fan it out; click again to collapse.</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'timeline' && (
-          <EntityTimeline
-            events={timeline.events}
-            loading={timeline.loading}
-            sinceDays={timelineDays}
-            onSinceDaysChange={setTimelineDays}
-            onOpenDetail={onOpenDetail}
-          />
-        )}
-
-        {activeTab === 'risk' && (
-          <RiskScoreSection attributes={attributes} entityType="group" entityId={resourceId} authFetch={authFetch} />
-        )}
-      </div>
-    </div>
+    <EntityDetailPage
+      entityKind="resource"
+      entityId={resourceId}
+      authFetch={authFetch}
+      fetchData={fetchResourceData}
+      cachedData={cachedData}
+      onCacheData={onCacheData}
+      getGraphRootExtras={getResourceRootExtras}
+      graphCenterLabel="Resource"
+      getTabs={getTabs}
+      getAttributeEntries={getResourceAttributeEntries}
+      renderHeader={(data) => <ResourceHeader data={data} />}
+      renderRisk={(data) => (
+        <RiskScoreSection attributes={data.attributes} entityType="group" entityId={resourceId} authFetch={authFetch} />
+      )}
+      entityLabel="resource"
+      onClose={onClose}
+      onOpenDetail={onOpenDetail}
+    />
   );
 }
