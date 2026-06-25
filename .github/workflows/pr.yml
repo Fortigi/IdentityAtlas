@@ -129,6 +129,8 @@ jobs:
               - 'test/unit/**'
             api:
               - 'app/api/src/**'
+              - 'app/api/contract-tests/**'
+              - 'app/api/test-utils/**'
               - 'app/api/package.json'
               - 'app/api/vitest.config.js'
               - 'app/api/vitest.contract.config.js'
