@@ -404,17 +404,17 @@ Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Cont
 Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = 'AzureScope' } -Records $ScopeResources | Out-Null
 Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ relationshipType = 'Contains' } -Records $ContainsEdges | Out-Null
 
-# ─── Orphan handling: principals not present in the Entra ID directory ──────────
-# Azure RBAC assignments can reference principals absent from the Entra directory —
+# ─── Orphan handling: principals the Entra ID crawler hasn't loaded ─────────────
+# Azure RBAC assignments can reference principals the Entra crawler hasn't loaded —
 # deleted SPs with dangling assignments, or (when the Entra crawl is scoped, e.g. to
-# admins) principals intentionally out of scope. Resolve each holder against our Entra
-# data; ON (default) drops them so they don't surface, OFF keeps them but flags the
-# principal as orphaned. A tenant with no Entra data yet is left untouched.
+# admins) principals intentionally out of scope. Resolve each holder against the
+# crawler's Entra data; ON (default) drops them so they don't surface, OFF keeps them
+# but flags the principal as orphaned. A tenant with no Entra data yet is left untouched.
 $distinctPids = @($Grants | ForEach-Object { [string]$_.principalId } | Sort-Object -Unique)
 if ($distinctPids.Count -gt 0) {
-    $lookup = Invoke-IngestAPI -Endpoint 'ingest/principals-in-directory' -Body @{ tenantId = [string]$Cfg.tenantId; ids = $distinctPids }
-    if (-not $lookup.directoryAvailable) {
-        Write-Host "  No Entra ID directory data for this tenant yet — skipping orphan handling (run the Entra ID crawler first)." -ForegroundColor Yellow
+    $lookup = Invoke-IngestAPI -Endpoint 'ingest/principals-presence' -Body @{ tenantId = [string]$Cfg.tenantId; ids = $distinctPids }
+    if (-not $lookup.crawlerDataAvailable) {
+        Write-Host "  No Entra ID data loaded by the crawler for this tenant yet — skipping orphan handling (run the Entra ID crawler first)." -ForegroundColor Yellow
     } else {
         $present = [System.Collections.Generic.HashSet[string]]::new([string[]]@($lookup.present), [System.StringComparer]::OrdinalIgnoreCase)
         $orphanCount = 0

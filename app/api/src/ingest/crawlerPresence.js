@@ -1,22 +1,25 @@
-// Resolve which Azure AD objectIds are present in the crawled Entra ID directory.
+// Resolve which Azure AD objectIds are present in the data the crawler has loaded.
 //
 // "Present" means the objectId exists, for the given tenant, as a Principal OR a
 // Resource (security groups are modelled as Resources, so they must be checked too)
-// sourced from an EntraID system. The Azure RM crawler uses this to filter or flag
-// role-assignment holders that aren't in Entra ID — deleted SPs with dangling
-// assignments, or principals outside a scoped (e.g. admins-only) Entra crawl.
+// sourced from an EntraID system — i.e. something the Entra ID crawler has already
+// brought in. It is crawler presence, not a live directory lookup. The Azure RM
+// crawler uses this to filter or flag role-assignment holders the Entra crawler
+// hasn't loaded — deleted SPs with dangling assignments, or principals outside a
+// scoped (e.g. admins-only) Entra crawl.
 //
 // db is injected so the logic is unit-testable without a live database.
 
-export function normalizeDirectoryQuery(body) {
+export function normalizePresenceQuery(body) {
   const tenantId = (typeof body?.tenantId === 'string' && body.tenantId) ? body.tenantId : null;
   const ids = Array.isArray(body?.ids) ? body.ids.filter((x) => typeof x === 'string') : [];
   return { tenantId, ids };
 }
 
-export async function lookupDirectoryPresence(db, tenantId, ids) {
-  // directoryAvailable=false means we have no Entra data for this tenant yet, so the
-  // caller must NOT treat everything as orphaned (an Azure-RM-first run, say).
+export async function lookupCrawlerPresence(db, tenantId, ids) {
+  // crawlerDataAvailable=false means the crawler has loaded no Entra data for this
+  // tenant yet, so the caller must NOT treat everything as orphaned (an
+  // Azure-RM-first run, say).
   const avail = await db.queryOne(`
     SELECT (
       EXISTS (SELECT 1 FROM "Principals" p JOIN "Systems" s ON s.id = p."systemId" WHERE s."systemType" = 'EntraID' AND s."tenantId" = $1)
@@ -35,5 +38,5 @@ export async function lookupDirectoryPresence(db, tenantId, ids) {
     present = rows.map((x) => x.id);
   }
 
-  return { present, directoryAvailable: !!avail?.available };
+  return { present, crawlerDataAvailable: !!avail?.available };
 }
