@@ -1,1 +1,0 @@
-- Added contract tests for the ingest engine's soft-delete path, running against a real PostgreSQL container via testcontainers. Verifies that `scopedDelete` correctly stamps `deletedAt` on absent rows and skips already-deleted rows.

@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Entra app-role, OAuth2 delegated-permission, and directory-role assignments are now recorded using the standard Direct / Indirect / Eligible assignment kinds instead of internal source-specific labels — the kind of resource already says what the access is, so the matrix shows one consistent set of assignment types. No change to which access is shown.
+- Added contract tests for the ingest engine's soft-delete path, running against a real PostgreSQL container via testcontainers. Verifies that `scopedDelete` correctly stamps `deletedAt` on absent rows and skips already-deleted rows.
+
+## Changes in this PR
+
 - Added an architecture design doc (`docs/architecture/assignment-model-redesign.md`) for simplifying the assignment model — collapsing the internal assignment types down to the three universal kinds (Direct / Indirect / Eligible) and moving "what kind of access" onto the resource.
 - Groundwork for that change: assignments now carry the resource's type alongside them, so future syncs can reconcile by resource. No visible behaviour change.
 
