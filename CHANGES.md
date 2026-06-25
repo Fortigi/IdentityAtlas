@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Soft-deleted records (users, resources and their assignments that were removed in a source system) are now **permanently purged after the retention period**, reusing the existing **Admin → Deleted Data & History Retention** setting (default 180 days). They stay auditable during the window, then the same job that prunes the audit log finalises them. One global value governs both; set it to `0` to keep everything forever.
+- The Admin retention card and its "Prune now" action now cover deleted records as well as history.
+
+## Changes in this PR
+
 - Entities deleted in a source system (e.g. a user removed from Entra ID, or a deleted resource) are now **soft-deleted** instead of being erased: the record is kept and stamped as deleted, so leavers and removed resources stay auditable and cross-system references don't dangle. A later sync that re-sees the entity automatically restores it.
 - Soft-deleted principals and resources are **hidden by default** from the access matrix and the Users/Resources lists. An **Include deleted** toggle on each list brings them back, marked with a **Deleted** badge; their detail page carries a "Deleted in source" badge too.
 - Detail pages keep the history: a person still shows that they had access to a now-deleted resource (and a resource shows the now-deleted people who held it), each marked as deleted.
