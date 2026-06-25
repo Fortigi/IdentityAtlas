@@ -1,0 +1,4 @@
+- The Entra ID crawler now imports directory roles (Global Administrator, Privileged Role Administrator, etc.). Enable the "Directory Roles" object type on the crawler to sync them.
+- Each directory role records its granular permission actions, whether it's a built-in role, and its template ID — the groundwork for scoring how critical a role is by what it can actually do.
+- Both active role holders and PIM-eligible role holders are imported, and show up in the access matrix as Direct and Eligible access respectively.
+- Fixed the Entra ID crawler edit wizard: the "Object Types to Sync" step now shows the full list of object types when editing an existing crawler (previously it could appear blank unless you re-entered the client secret), so you can enable Directory Roles on a crawler you've already set up.
