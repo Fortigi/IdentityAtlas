@@ -167,6 +167,28 @@ export function buildEntraConfigPayload({
   return { displayName, configPayload };
 }
 
+// Static fallback catalog of Entra object types, mirroring ENTRA_OBJECT_TYPES
+// in discover.js. The authoritative catalog comes from the live `validate`
+// response, but that response is wizard-runtime state and is never persisted
+// to the crawler config. In edit mode the user often opens step 2 without
+// re-entering the client secret (so no fresh validate runs), which left
+// `validation.objectTypes` empty and rendered a blank, non-functional step 2 —
+// you couldn't toggle a newly-added object type like Directory Roles. This
+// fallback keeps the full catalog available for selection in that case; the
+// per-object permission gate (canObjectBeSelected) already no-ops when the
+// live permission map is absent, so every type stays selectable.
+export const ENTRA_OBJECT_TYPES_FALLBACK = [
+  { key: 'identity', label: 'Identity', description: 'Personal user accounts that are synced from HR' },
+  { key: 'usersGroupsMembers', label: 'Users & Groups & Members', description: 'All users, security groups, and group memberships' },
+  { key: 'servicePrincipals', label: 'Service Principals', description: 'Non-human identities (enterprise app SPs, managed identities, AI agents)' },
+  { key: 'identityGovernance', label: 'Identity Governance', description: 'Access Packages, assignments, policies, reviews' },
+  { key: 'appsAppRoles', label: 'Apps & AppRoles', description: 'Application registrations and role assignments' },
+  { key: 'directoryRoles', label: 'Directory Roles', description: 'Entra ID directory role assignments' },
+  { key: 'pim', label: 'PIM', description: 'Privileged Identity Management eligible group memberships' },
+  { key: 'signInLogs', label: 'Sign-in Logs (per-app activity)', description: 'Aggregated sign-in events — last activity per (user, app) pair' },
+  { key: 'oauth2Grants', label: 'OAuth2 Delegated Grants', description: 'Per-user consent grants (user X allowed app Y to call API Z with scope W). Tenant-wide consents are skipped.' },
+];
+
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 //
 // Steps:
@@ -427,6 +449,10 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
 
   // ── Render ────────────────────────────────────────────────────
 
+  // Authoritative catalog from a fresh validate, else the static fallback so
+  // edit mode (no re-validation) still shows every selectable object type.
+  const objectTypesCatalog = validation?.objectTypes?.length ? validation.objectTypes : ENTRA_OBJECT_TYPES_FALLBACK;
+
   const entraSteps = [
     { n: 1, label: 'Credentials' },
     { n: 2, label: 'Object Types' },
@@ -494,30 +520,36 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
       )}
 
       {/* ─── Step 2: Object Type Selection ──────────────────────── */}
-      {step === 2 && validation && (
+      {step === 2 && (validation || isEdit) && (
         <div>
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded dark:bg-green-900/20 dark:border-green-700">
             <span className="font-medium text-green-800 dark:text-green-300">
-              Connected to {validation.organization || 'tenant'}
+              Connected to {validation?.organization || 'tenant'}
             </span>
           </div>
 
-          <div className="mb-5">
-            <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Granted Permissions</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-              {Object.entries(validation.permissions || {}).sort(([a], [b]) => a.localeCompare(b)).map(([perm, granted]) => (
-                <div key={perm} className="flex items-center gap-2 text-sm py-1">
-                  <span className={granted ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{granted ? '✓' : '✗'}</span>
-                  <span className={granted ? 'dark:text-gray-200' : 'text-gray-600 line-through dark:text-gray-500'}>{perm}</span>
-                </div>
-              ))}
+          {Object.keys(validation?.permissions || {}).length > 0 ? (
+            <div className="mb-5">
+              <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Granted Permissions</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
+                {Object.entries(validation.permissions || {}).sort(([a], [b]) => a.localeCompare(b)).map(([perm, granted]) => (
+                  <div key={perm} className="flex items-center gap-2 text-sm py-1">
+                    <span className={granted ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{granted ? '✓' : '✗'}</span>
+                    <span className={granted ? 'dark:text-gray-200' : 'text-gray-600 line-through dark:text-gray-500'}>{perm}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="mb-5 text-xs text-gray-500 dark:text-gray-400">
+              Permissions weren't re-checked (no new client secret entered). Re-enter the secret on the previous step to verify Graph permissions — object types are still selectable here. Make sure the app has the permissions a type needs before enabling it.
+            </div>
+          )}
 
           <div className="mb-5">
             <h4 className="text-sm font-semibold mb-2 dark:text-gray-200">Object Types to Sync</h4>
             <div className="space-y-2">
-              {(validation.objectTypes || []).map(ot => {
+              {objectTypesCatalog.map(ot => {
                 const canSelect = canObjectBeSelected(ot.key);
                 return (
                   <label key={ot.key} className={`flex items-start gap-3 p-2 rounded ${canSelect ? '' : 'opacity-40'}`}>
