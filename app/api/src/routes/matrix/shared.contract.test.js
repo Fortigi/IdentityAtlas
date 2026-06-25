@@ -17,6 +17,10 @@ beforeAll(async () => {
     `INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', 'matrix-contract-test') RETURNING "id"`,
   );
   systemId = sys.rows[0].id;
+
+  // Materialized views are created unpopulated by the migrations. Refresh once
+  // so they can be queried; with empty base tables the result is 0 rows.
+  await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
 });
 
 afterAll(async () => {
