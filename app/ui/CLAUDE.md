@@ -100,6 +100,9 @@ Before writing any utility function, helper, constant, or component — **search
 - `components/inputs/Combobox.jsx` — free-text input with live-discovery dropdown; props: `value`, `onChange`, `options: string[]`, `defaultOption: {value,label}`, `placeholder`, `className`, `wrapperClassName`
 - `components/inputs/Select.jsx` — styled native `<select>` with `ChevronDown` overlay; props: `value`, `onChange`, `id`, `wrapperClassName`, children as `<option>` elements
 - `components/inputs/ChevronDown.jsx` — shared SVG chevron icon; used by both `Select` and `Combobox`
+- `components/WizardShell.jsx` — shared outer card/header/stepper/error wrapper for all crawler ConfigWizard components; props: `title`, `onCancel`, `steps`, `currentStep`, `onStepClick`, `allowAllSteps`, `error`, `children`
+- `components/MappingRows.jsx` — generic add/remove/update mapping-row grid for ConfigWizard components; props: `rows`, `onAdd`, `onRemove(i)`, `onUpdate(i,key,val)`, `columns: [{key, render(value,onChange)}]`, `headers?`, `addLabel?`, `minRows?`
+- `utils/crawlerCredentials.js` — `canSubmitCredentials(authMethod, fields, isEdit)`, `buildCredentialFields(authMethod, fields)`, `SECRET_PLACEHOLDER`; covers all auth methods used by crawlers
 
 If the same logic already exists in one file and you're about to write it in a second, stop and extract it instead. Three or more files with the same code is a mandatory extraction — don't leave it for later.
 

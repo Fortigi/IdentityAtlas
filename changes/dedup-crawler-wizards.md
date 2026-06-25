@@ -1,0 +1,3 @@
+- Extracted shared `WizardShell` component from all 7 crawler ConfigWizard files, eliminating repeated card/header/stepper/error JSX
+- Extracted shared `canSubmitCredentials` and `buildCredentialFields` utilities into `crawlerCredentials.js`, covering all auth methods (FormCookie, BasicAuth, OAuth2CC, OAuth2ROPC, ApiToken, CookieString)
+- Extracted shared `MappingRows` component for the add/remove mapping-row grids used by the Omada and midPoint wizards

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import WizardShell from '@ui/components/WizardShell';
 
 export default function DemoConfigWizard({ onComplete, onCancel, authFetch }) {
   const [loading, setLoading] = useState(false);
@@ -25,18 +26,7 @@ export default function DemoConfigWizard({ onComplete, onCancel, authFetch }) {
   };
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Load Demo Data</h3>
-        <button
-          onClick={onCancel}
-          disabled={loading}
-          className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          Cancel
-        </button>
-      </div>
-
+    <WizardShell title="Load Demo Data" onCancel={onCancel} cancelDisabled={loading} error={error}>
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
         Loads a synthetic dataset so you can explore the platform without connecting a live system.
         The import takes approximately 30 seconds.
@@ -51,12 +41,6 @@ export default function DemoConfigWizard({ onComplete, onCancel, authFetch }) {
           <li>Business roles with governed assignments</li>
         </ul>
       </div>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">
-          {error}
-        </div>
-      )}
 
       <div className="flex gap-3">
         <button
@@ -74,6 +58,6 @@ export default function DemoConfigWizard({ onComplete, onCancel, authFetch }) {
           Cancel
         </button>
       </div>
-    </div>
+    </WizardShell>
   );
 }

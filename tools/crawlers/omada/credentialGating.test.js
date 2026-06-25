@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canSubmitCredentials, buildCredentialFields } from './ConfigWizard.jsx';
+import { canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 
 const blank = { username: '', password: '', clientId: '', clientSecret: '', tokenEndpoint: '', apiToken: '', cookieString: '' };
 
