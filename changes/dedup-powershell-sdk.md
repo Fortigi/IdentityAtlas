@@ -1,0 +1,5 @@
+- Extracted shared `Invoke-FGWriteRequest` helper to eliminate the duplicated body in `Invoke-FGPostRequest` and `Invoke-FGPutRequest`
+- Extracted shared `Invoke-FGGetPage` helper to eliminate the duplicated retry/throttle loop across `Invoke-FGGetRequest`, `Invoke-FGGetRequestToFile`, and `Invoke-FGGetRequestStream`
+- Extracted shared `Merge-FGJsonArrayFile` and `Remove-FGTrailingCommaFromJsonFile` helpers to eliminate the duplicated StreamReader/StreamWriter JSON cleanup blocks
+- Merged `Get-FGGroupTransitiveMemberAll` and `Get-FGGroupTransitiveMemberAllToFile` into their non-transitive counterparts via a `-Transitive` switch; the old function names remain as thin wrappers
+- Extracted shared `Resolve-FGMemberObjectIds` helper to eliminate the duplicated member-name-to-object-ID resolution block in `Confirm-FGGroupMember` and `Confirm-FGNotGroupMember`
