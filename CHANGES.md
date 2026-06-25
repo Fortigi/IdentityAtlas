@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- The Entra ID crawler now imports directory roles (Global Administrator, Privileged Role Administrator, etc.). Enable the "Directory Roles" object type on the crawler to sync them.
+- Each directory role records its granular permission actions, whether it's a built-in role, and its template ID — the groundwork for scoring how critical a role is by what it can actually do.
+- Both active role holders and PIM-eligible role holders are imported, and show up in the access matrix as Direct and Eligible access respectively.
+- Detail pages no longer silently hide real backend errors as empty data. The tolerance for optional tables on older deployments is now precise — only a genuinely missing table or column is ignored, while any other failure surfaces (logged and reported) instead of masking the problem behind a blank section.
+
+## Changes in this PR
+
 - Added quick-reference table to `tools/crawlers/CLAUDE.md` showing which test filename runs under which runner (UI vitest, API vitest, or Playwright), so developers don't have to read through multiple paragraphs to understand where a new test will execute
 
 ## Changes in this PR
