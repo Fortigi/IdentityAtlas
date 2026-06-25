@@ -1,1 +1,0 @@
-- Detail pages no longer silently hide real backend errors as empty data. The tolerance for optional tables on older deployments is now precise — only a genuinely missing table or column is ignored, while any other failure surfaces (logged and reported) instead of masking the problem behind a blank section.
