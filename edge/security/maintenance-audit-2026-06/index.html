@@ -1,0 +1,4517 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Universal authorization intelligence — sync, analyze, and govern permissions from any identity system">
+      
+      
+      
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/security/maintenance-audit-2026-06/">
+      
+      
+        <link rel="prev" href="../assessment/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Maintenance Audit (June 2026) - Identity Atlas</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#identity-atlas-maintenance-sprint-audit" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Identity Atlas" class="md-header__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Identity Atlas
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Maintenance Audit (June 2026)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../quickstart/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../risk-scoring/overview/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../about/" class="md-tabs__link">
+          
+  
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Identity Atlas" class="md-nav__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Identity Atlas
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/governance-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/risk-scoring-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Sources
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data Sources
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/entra-id/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entra ID
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/azure-rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Resource Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint Configuration Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/omada/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada IGA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/omada-crawler-datamodel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada Data Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/building-a-crawler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Crawler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Using Identity Atlas
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Risk Scoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/docker-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/branching-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release & Branching Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling & Load Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/demo-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Dataset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix & Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Experience
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Experience
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ux/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Security
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-design-ux-react-19-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 — Design / UX (React 19 UI)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1 — Design / UX (React 19 UI)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#critical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-low-condensed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium / Low (condensed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-security-authorized-defensive-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 — Security (authorized defensive review)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 2 — Security (authorized defensive review)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#high_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#low-info-condensed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Low / Info (condensed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-performance-code-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 — Performance &amp; Code Quality
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 3 — Performance &amp; Code Quality">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Quality
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-ci-test-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 — CI / Test Harness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-5-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 — Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-cutting-themes-flagged-in-2-phases-independently" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-Cutting Themes (flagged in 2+ phases independently)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prioritized-backlog-suggested-one-pr-at-a-time-slices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prioritized Backlog (suggested one-PR-at-a-time slices)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prioritized Backlog (suggested one-PR-at-a-time slices)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tier-1-high-value-low-effort-do-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 1 — High value, low effort (do first)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-2-high-value-medium-effort" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 2 — High value, medium effort
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-3-larger-structural-schedule-deliberately" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 3 — Larger / structural (schedule deliberately)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#defense-in-depth-lower-priority-batch-as-capacity-allows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Defense-in-depth / lower priority (batch as capacity allows)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notable-strengths-no-action-keep-doing-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notable strengths (no action — keep doing this)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-design-ux-react-19-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 — Design / UX (React 19 UI)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1 — Design / UX (React 19 UI)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#critical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#high" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-low-condensed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium / Low (condensed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-security-authorized-defensive-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 — Security (authorized defensive review)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 2 — Security (authorized defensive review)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#high_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#low-info-condensed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Low / Info (condensed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-performance-code-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 — Performance &amp; Code Quality
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 3 — Performance &amp; Code Quality">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Quality
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-ci-test-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 — CI / Test Harness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-5-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 — Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-cutting-themes-flagged-in-2-phases-independently" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-Cutting Themes (flagged in 2+ phases independently)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prioritized-backlog-suggested-one-pr-at-a-time-slices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prioritized Backlog (suggested one-PR-at-a-time slices)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prioritized Backlog (suggested one-PR-at-a-time slices)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tier-1-high-value-low-effort-do-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 1 — High value, low effort (do first)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-2-high-value-medium-effort" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 2 — High value, medium effort
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-3-larger-structural-schedule-deliberately" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 3 — Larger / structural (schedule deliberately)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#defense-in-depth-lower-priority-batch-as-capacity-allows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Defense-in-depth / lower priority (batch as capacity allows)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notable-strengths-no-action-keep-doing-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notable strengths (no action — keep doing this)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../../about/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Project
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../assessment/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Security
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="identity-atlas-maintenance-sprint-audit">Identity Atlas — Maintenance Sprint Audit<a class="headerlink" href="#identity-atlas-maintenance-sprint-audit" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-06-25  <strong>Branch:</strong> main @ 5e88565  <strong>Scope:</strong> read-only audit, no code changes
+<strong>Phases:</strong> Design/UX · Security · Performance &amp; Code Quality · CI/Test Harness · Documentation</p>
+<blockquote>
+<p>Method: five parallel read-only audit agents, one per dimension, each producing
+file:line-evidenced findings. The five highest-impact claims were independently
+re-verified against source before publication (all confirmed). No new features —
+this is a maintenance/quality pass. Triage the backlog at the end into one-PR-at-a-time
+fixes (pentest-style), matching the existing UX-audit remediation pattern.</p>
+</blockquote>
+<hr />
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>The codebase is in good health overall. Three of the five dimensions came back
+"mature with specific, fixable defects" rather than "structurally broken":</p>
+<ul>
+<li><strong>Security posture is strong.</strong> Correct JWT pinning, uniformly parameterized SQL
+  with whitelisted identifiers, AES-256-GCM envelope encryption, re2 for all user/LLM
+  regexes, real SSRF defense in the scraper. No <em>unauthenticated</em> exploit. The real
+  authorization gaps are on the <strong>crawler protocol</strong> (a crawler key could claim any
+  job and receive another system's vaulted secret) and a couple of ungated
+  mutation endpoints — see SEC-NEW-2/3/4 (now fixed in PR #424). The read surface
+  being open to any signed-in user (originally filed as SEC-NEW-1) turned out to be
+  <strong>intended design</strong>, not a bug — corrected below.</li>
+<li><strong>The matrix data layer is well-engineered</strong> — matviews, CONCURRENTLY refresh,
+  pagination, row virtualization. Confirmed: the matview is declared-only, so
+  crawlers must pre-materialize Indirect grants (the effectiveAccess engine is only
+  folded in on opt-in). This matches your existing mental model.</li>
+<li><strong>CI is genuinely thoughtful</strong> — dual PR gates, scope-aware path filters with safe
+  fallback, SHA-pinned actions, aggregator gates for branch protection.</li>
+</ul>
+<p>The themes worth a sprint:</p>
+<ol>
+<li><strong>A bad global find/replace doubled every <code>dark:</code> utility</strong> (<code>dark:text-gray-400
+   dark:text-gray-500</code>), silently breaking dark mode across ~85 sites. Invisible in
+   light mode, so it shipped. <strong>Single highest value/effort fix in the whole audit.</strong></li>
+<li><strong>Shared UI primitives exist but adoption isn't enforced</strong> — no global Button/Modal,
+   competing lime/indigo accents vs the documented "blue only" rule, axe suite skipped
+   wholesale.</li>
+<li><strong>The E2E safety net is off</strong> — Playwright job is <code>continue-on-error: true</code>, visual
+   regression skipped with no baselines, secret-dependent tests skip silently (false green).</li>
+<li><strong>A real data bug</strong> in identity detail (<code>userId</code>/<code>principalId</code> key mismatch) — group
+   counts always 0, risk never attaches.</li>
+<li><strong>Doc drift on the flagship concept doc</strong> — <code>data-model.md</code> and <code>risk-scoring-model.md</code>
+   still describe dropped tables (<code>GraphResourceClusters</code>, per-entity <code>contextId</code>); the
+   OpenAPI spec covers ~22 of 100+ routes; the new soft-delete lifecycle is undocumented.</li>
+</ol>
+<p><strong>Finding counts:</strong> Design 21 · Security 19 · Perf/Quality 20 · CI 13 · Docs 12 = <strong>85 total.</strong>
+Critical/High across all dimensions: <strong>14.</strong></p>
+<hr />
+<h2 id="phase-1-design-ux-react-19-ui">Phase 1 — Design / UX (React 19 UI)<a class="headerlink" href="#phase-1-design-ux-react-19-ui" title="Permanent link">&para;</a></h2>
+<p><strong>Summary:</strong> The UI has matured — a real shared layer now exists (<code>Stepper</code>, <code>EmptyState</code>,
+<code>DetailSection</code>, <code>inputs/*</code>, <code>ModalPrimitives</code>, token files). The old duplicated-Stepper
+finding is resolved. What remains: inconsistent adoption of those primitives + a systemic
+copy-paste dark-mode bug.</p>
+<h3 id="critical">Critical<a class="headerlink" href="#critical" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Area</th>
+<th>Location</th>
+<th>Issue</th>
+<th>Fix</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C1</td>
+<td>Dark mode</td>
+<td>59 sites / 8 files (ContextDetailPage 16×, RiskScoringPage 26×, RunDetailPage 7×, ModalPrimitives 3×, ContextsPage 3×, …)</td>
+<td>Doubled <code>dark:text-gray-400 dark:text-gray-500</code> — Tailwind keeps the <em>last</em> class, so secondary text is silently downgraded to lower-contrast gray-500 in dark mode. <strong>Verified: 59 occurrences.</strong></td>
+<td>Codemod-strip the trailing redundant <code>dark:text-gray-500</code>; add ESLint rule flagging duplicate <code>dark:</code> utilities of the same property</td>
+<td>M</td>
+</tr>
+<tr>
+<td>C2</td>
+<td>Dark mode</td>
+<td>9 sites / 5 files (RiskScoringPage:127, ContextDetailPage:331, ModalPrimitives:69, …)</td>
+<td>Doubled <code>hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50</code> — the stray non-hover class makes rows/buttons look <em>permanently</em> hovered in dark mode</td>
+<td>Remove the non-hover <code>dark:bg-gray-700/50</code></td>
+<td>S</td>
+</tr>
+<tr>
+<td>C3</td>
+<td>A11y</td>
+<td><code>e2e/accessibility.spec.js:19-29</code></td>
+<td>The entire axe-core WCAG 2a/2aa suite is <code>test.skip()</code>; only the skip-link test runs. Comment admits color-contrast + missing input labels deferred indefinitely</td>
+<td>Re-enable axe on Users/Resources first, fix labels + lime contrast, gate in CI</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="high">High<a class="headerlink" href="#high" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Area</th>
+<th>Location</th>
+<th>Issue</th>
+<th>Fix</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H1</td>
+<td>Consistency</td>
+<td>DashboardPage (27 lime), AuthSettingsPage (8 indigo), RollupMatrixView (13 teal) vs blue elsewhere</td>
+<td>3+ competing accent families, contradicting the documented "blue is the single interactive accent" rule (Stepper.jsx:2)</td>
+<td>Blue = the one interactive accent; demote lime to brand/illustration; convert indigo links to blue</td>
+<td>M</td>
+</tr>
+<tr>
+<td>H2</td>
+<td>Duplication</td>
+<td>No <code>Button.jsx</code>; 30 inline primary-button strings / 16 files. <code>PrimaryButton</code>/<code>SecondaryButton</code> exist but are trapped in <code>contexts/ModalPrimitives.jsx</code></td>
+<td>Promote to <code>components/Button.jsx</code> with variant/size; codemod call sites</td>
+<td>L</td>
+<td></td>
+</tr>
+<tr>
+<td>H3</td>
+<td>A11y</td>
+<td>GroupsPage:57-83/263-300, DashboardPage:310 (StatCard)</td>
+<td>Clickable <code>&lt;span&gt;</code>/<code>&lt;tr&gt;</code>/<code>&lt;div&gt;</code> with no role/tabIndex/keyboard handler — unreachable by keyboard</td>
+<td>Use real <code>&lt;button&gt;</code>/<code>&lt;a&gt;</code> or add role+tabIndex+onKeyDown</td>
+<td>M</td>
+</tr>
+<tr>
+<td>H4</td>
+<td>A11y</td>
+<td>All 6 modals (ModalPrimitives:9, CrawlersPage:393, MatrixView:1127, MatrixFilterWizard:1142, RiskScoringPage:267, RiskProfileWizard:574)</td>
+<td>No modal closes on Escape, traps focus, or sets <code>role="dialog"</code>/<code>aria-modal</code> (grep: zero Escape matches in any overlay)</td>
+<td>Shared <code>Modal</code> with role/aria + Escape + focus trap; route all 6 through it</td>
+<td>M</td>
+</tr>
+<tr>
+<td>H5</td>
+<td>Duplication</td>
+<td>6 distinct modal overlays; CrawlersPage:393 uses deprecated <code>bg-opacity-50</code> with no dark variant</td>
+<td>Consolidate onto one Modal; <code>bg-opacity-50</code>→<code>bg-black/50</code></td>
+<td>M</td>
+<td></td>
+</tr>
+<tr>
+<td>H6</td>
+<td>States</td>
+<td><code>hooks/useEntityPage.js:67/77/110</code></td>
+<td>List pages have <strong>no error state</strong> — fetch failures swallowed to console.error, so a failed load shows the <em>empty</em> message ("No resources found"), indistinguishable from genuinely empty</td>
+<td>Add <code>error</code> state to the hook; render distinct error panel with retry</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="medium-low-condensed">Medium / Low (condensed)<a class="headerlink" href="#medium-low-condensed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>M1</strong> 4 redundant <code>Section</code> + 2 <code>StatCard</code> redefinitions despite shared <code>DetailSection</code>.</li>
+<li><strong>M2</strong> No toast system — 9 native <code>alert()</code>/<code>confirm()</code> (jarring, no dark mode).</li>
+<li><strong>M3</strong> Emoji-as-icon (AdminPage 🏢🎯📊📦) mixed with inline svg + unicode glyphs.</li>
+<li><strong>M4</strong> Gradient overuse on Dashboard StatCards only. <strong>M5</strong> Radius scale unstandardized (<code>rounded</code>/<code>rounded-lg</code>/<code>rounded-xl</code>). <strong>M6</strong> No-op hover colors (same find/replace as C1). <strong>M7</strong> Data tables lack <code>overflow-x-auto</code> (crush on narrow screens). <strong>M8</strong> Tag-pill inline <code>color + '20'</code> alpha hack risks contrast failures.</li>
+<li><strong>L1</strong> List pages dead-end with bare text instead of shared <code>EmptyState</code>. <strong>L2</strong> Inputs lack labels/aria. <strong>L3</strong> No semantic design-token layer in <code>index.css</code> (root enabler of C1/C2/H1). <strong>L4</strong> RiskScoringPage active-tab uses near-black not blue.</li>
+</ul>
+<p><strong>Root causes:</strong> (1) a bad global find/replace doubled every <code>dark:</code> class (~85 defects, C1/C2/M6); (2) shared primitives exist but adoption isn't lint-enforced or folder-global; (3) no semantic design-token layer; (4) a11y treated as deferrable (axe skipped).</p>
+<hr />
+<h2 id="phase-2-security-authorized-defensive-review">Phase 2 — Security (authorized defensive review)<a class="headerlink" href="#phase-2-security-authorized-defensive-review" title="Permanent link">&para;</a></h2>
+<p><strong>Summary:</strong> Mature defense-in-depth, with inline evidence of prior security review
+(fixed C-01/H-01/H-08). Fail-closed authz, correct JWT aud/iss/alg/tenant pinning,
+uniformly parameterized SQL with <code>SAFE_IDENT_RE</code> whitelists + information_schema-sourced
+identifiers (no injection across ~40 interpolation sites), AES-256-GCM envelope encryption,
+re2 for all regexes, DNS-pinned redirect-revalidating scraper. <strong>No unauthenticated- or
+low-priv-reachable exploit found.</strong> Findings are mostly hardening + one real IaC leak.</p>
+<h3 id="high_1">High<a class="headerlink" href="#high_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Category</th>
+<th>Location</th>
+<th>Issue</th>
+<th>Fix</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H-1</td>
+<td>A05 / Secrets</td>
+<td><code>azure/modules/storage.bicep:59</code>, <code>log-analytics.bicep:62</code></td>
+<td>Storage account key + LA shared key emitted as Bicep <strong>outputs</strong> (linter rule suppressed). Outputs persist in ARM deployment history, readable by any RG/deployment-reader → full file-share data-plane access. <strong>Verified.</strong></td>
+<td>Don't cross a module boundary with secrets; consumers call <code>listKeys()</code> directly. Rotate keys.</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="medium">Medium<a class="headerlink" href="#medium" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Category</th>
+<th>Location</th>
+<th>Issue</th>
+<th>Fix</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-1</td>
+<td>A06 / Availability</td>
+<td><code>llm/providers.js:59,100,142,254,312,336</code></td>
+<td>No timeout/AbortSignal on any outbound LLM fetch; no response-size cap. A hung provider holds the request open indefinitely</td>
+<td>AbortController timeout + body-size cap on all provider fetches</td>
+<td>S</td>
+</tr>
+<tr>
+<td>M-2</td>
+<td>A09 / Info leak</td>
+<td><code>routes/llm.js:64,105,108,126</code>, <code>riskProfiles.js:86,155,211,403</code></td>
+<td>Upstream provider error bodies returned to client via <code>err.message</code>, violating the project's own "generic messages to clients" rule</td>
+<td>Log server-side; return generic error</td>
+<td>S</td>
+</tr>
+<tr>
+<td>M-3</td>
+<td>A04 / SSRF residual</td>
+<td><code>llm/providers.js:142-147</code></td>
+<td>Azure path uses fetch (auto-follows redirects) with custom <code>api-key</code> header allowlisted only on the initial request; redirect to internal addr could carry the key</td>
+<td><code>redirect:'manual'</code> + revalidate, as the scraper already does</td>
+<td>S</td>
+</tr>
+<tr>
+<td>M-4</td>
+<td>A04 / DoS</td>
+<td><code>routes/crawlerFiles.js:96-101,150</code></td>
+<td>Upload limits 1 GB × 50 files = ~50 GB/request to a shared Docker volume; no aggregate cap (admin-only)</td>
+<td>Lower per-file cap (100-250 MB) + aggregate cap</td>
+<td>S</td>
+</tr>
+<tr>
+<td>M-5</td>
+<td>A03 / Prompt injection</td>
+<td><code>llm/scraper.js:250-253</code> → <code>riskPrompts.js:66-69</code></td>
+<td>Scraped page content + user hints interpolated verbatim into prompt; can coax a hostile classifier regex (admin reviews output, low blast radius)</td>
+<td>Delimit/encode external content; validate LLM-authored regexes on save</td>
+<td>M</td>
+</tr>
+<tr>
+<td>M-6</td>
+<td>A03 / ReDoS (verify)</td>
+<td><code>routes/riskProfiles.js:408</code></td>
+<td>LLM/admin-authored classifier patterns stored unvalidated. Mitigated <strong>iff</strong> every exec path uses re2 (appears true)</td>
+<td>Confirm all pattern exec uses re2; add save-time validation</td>
+<td>S</td>
+</tr>
+</tbody>
+</table>
+<h3 id="low-info-condensed">Low / Info (condensed)<a class="headerlink" href="#low-info-condensed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>L-1</strong> <code>setup/docker/scheduler.ps1:198</code> <code>Invoke-Expression $cron.Command</code> (operator-supplied crontab, not network-reachable; classic IEX anti-pattern → allowlist dispatch).</li>
+<li><strong>L-2</strong> Plaintext clientSecret to <code>GetTempFileName()</code> without explicit perms (entra-id/Invoke-CrawlerJob; chmod 600 or stdin).</li>
+<li><strong>L-3</strong> Full job transcript to shared volume (latent secret-leak if future debug line echoes config).</li>
+<li><strong>L-4</strong> Azure data services publicly reachable (KV/Postgres/Storage — documented "Simple shape" tradeoff; ship Isolated/private-endpoint template).</li>
+<li><strong>L-5</strong> Postgres admin password deterministically derived from <code>uniqueString(RG id)</code> — formula is in the public repo (random KV-only secret instead).</li>
+<li><strong>L-6</strong> Connector base URLs (Omada/OData/midPoint) have no scheme allowlist (admin could point at metadata endpoint with bearer).</li>
+<li><strong>L-7</strong> <code>PGSSLMODE=require</code> (not <code>verify-full</code>) — doesn't stop active MITM.</li>
+<li><strong>L-8</strong> CSV file parser loads whole file into memory, no row cap (pairs with L-2 1 GB upload → worker OOM).</li>
+<li><strong>I-1</strong> <code>riskScores.js:595</code> interpolates the literal string <code>"tableName"</code> + MSSQL bracket syntax on Postgres → query always throws (swallowed), <code>displayName</code> always null. Latent bug, not injection.</li>
+<li><strong>I-2</strong> Stale IaC comments ("RBAC-only" vs access-policies; "OPEN mode" vs <code>AUTH_ENABLED=true</code>).</li>
+</ul>
+<p><strong>Confirmed exploitable:</strong> only H-1 (RG-reader → storage key). Everything else needs
+elevated app privilege, a compromised upstream, or host/deploy access.</p>
+<p><strong>Top 5:</strong> H-1 (remove secrets from Bicep outputs + rotate) → M-1 (LLM fetch timeouts) →
+M-2 (stop leaking error bodies) → M-4/L-8 (upload + CSV bounds) → L-4/L-5 (Isolated Azure template, random DB password).</p>
+<hr />
+<h2 id="phase-3-performance-code-quality">Phase 3 — Performance &amp; Code Quality<a class="headerlink" href="#phase-3-performance-code-quality" title="Permanent link">&para;</a></h2>
+<p><strong>Summary:</strong> Matrix data layer is well-engineered (matviews, CONCURRENTLY refresh,
+pagination, row virtualization). Known-context confirmed: matview is declared-only, so
+Indirect grants are pre-materialized by crawlers; effectiveAccess engine folded in only on
+opt-in bounded-scope requests. Biggest correctness issue is a real data bug; biggest
+quality issues are the 1,720-line <code>matrix.js</code> god-module and <code>catch {}</code>-as-feature-detection.</p>
+<h3 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Sev</th>
+<th>Location</th>
+<th>Issue</th>
+<th>Impact</th>
+<th>Fix</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1</td>
+<td>High</td>
+<td><code>routes/identities.js:316-348</code></td>
+<td>Risk + group-count maps keyed/read by <code>.userId</code>, but SQL selects <code>principalId</code> (never selects userId). <strong>Verified.</strong></td>
+<td>2 extra round-trips per identity-detail page silently discarded; group counts always 0, risk never attaches</td>
+<td>Key maps by <code>principalId</code>, read <code>member.principalId</code></td>
+<td>S</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>High</td>
+<td><code>routes/matrix.js:1404-1521</code></td>
+<td>Flat <code>/matrix/data</code> ships full cross-product as one JSON array up to MAX_FLAT_ROWS=400k, no server pagination; &gt;500k hits V8 <code>Invalid string length</code></td>
+<td>Large tenants get 413 instead of data; huge responses = heavy GC on event loop</td>
+<td>Cursor/keyset pagination for flat grid, or steer to aggregated views earlier</td>
+<td>L</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>High</td>
+<td>migration 041 indexes vs <code>matrix.js</code> rollup/scope queries</td>
+<td>Matview indexed only on PK + single-col; hot queries filter <code>membershipType='Direct' AND principalType != group</code> (principalType unindexed) on a ~1.5M-row matview</td>
+<td>Rollup/scope-stat queries do bitmap/seq scans</td>
+<td>Partial covering index <code>(resourceId,principalId) WHERE membershipType='Direct'</code></td>
+<td>M</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>Med</td>
+<td><code>MatrixView.jsx:966-1098</code>, <code>SortableMatrixBody.jsx:79-143</code></td>
+<td>Only rows virtualized; columns are not — every resource column renders a <code>&lt;td&gt;</code> per visible row</td>
+<td>Wide matrices (100s of columns) = huge DOM, slow scroll</td>
+<td>Add column virtualization or cap visible columns</td>
+<td>L</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>Med</td>
+<td><code>routes/ingest.js:476-518</code></td>
+<td>Every <code>refresh-views</code> does 2 <code>REFRESH MATERIALIZED VIEW CONCURRENTLY</code> + ANALYZE×13 at end of every CSV sync; matview has 2 NOT EXISTS soft-delete subqueries</td>
+<td>Multi-second-to-minute recompute per sync on large tenants</td>
+<td>Incremental/conditional refresh; index-support the soft-delete NOT EXISTS</td>
+<td>M</td>
+</tr>
+<tr>
+<td>P6-P10</td>
+<td>Low-Med</td>
+<td>(see detail)</td>
+<td>Identity-column UNION-ALL cost (cached, ok); ingest uses INSERT not COPY (stale header comment); excel buffered in memory (tiny today); perf middleware correctly off-by-default (good); <code>getPermissionTable()</code> pointless await of a constant</td>
+<td>—</td>
+<td>mostly minor / doc fixes</td>
+<td>S</td>
+</tr>
+</tbody>
+</table>
+<h3 id="code-quality">Code Quality<a class="headerlink" href="#code-quality" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Sev</th>
+<th>Location</th>
+<th>Issue</th>
+<th>Fix</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q1</td>
+<td>High</td>
+<td><code>routes/matrix.js</code> (1,720 lines)</td>
+<td>God-module: 8 SQL builders + 8 handlers + saved-filters CRUD; <code>/matrix/data</code> handler alone ~715 lines, 5 nested branches</td>
+<td>Split into <code>matrix/handlers/{flat,rollup,context,fold}.js</code></td>
+<td>L</td>
+</tr>
+<tr>
+<td>Q2</td>
+<td>High</td>
+<td>API-wide (details.js ~20 blocks, identities.js)</td>
+<td><code>try {…} catch {}</code> used as schema-version feature-detection on the hot path — masks real bugs (P1 would've been caught) and adds per-request branch cost</td>
+<td>Detect schema once at startup (capability map); let real errors surface</td>
+<td>M</td>
+</tr>
+<tr>
+<td>Q3</td>
+<td>Med</td>
+<td><code>matrix.js</code> (~20 sites)</td>
+<td>Bind-loop <code>for (…) req.input(k,v)</code> copy-pasted ~20×</td>
+<td>Generalize the existing <code>runCount</code> into <code>runBound(...)</code></td>
+<td>S</td>
+</tr>
+<tr>
+<td>Q4</td>
+<td>Med</td>
+<td>details/resources/identities.js</td>
+<td>Duplicated helpers: <code>cleanRow</code>, <code>parseTags</code> (already drifted — one parseInts id, other keeps string), <code>UUID_RE</code> ×6, <code>getPermissionTable</code> ×2</td>
+<td>Extract to <code>routes/_shared.js</code></td>
+<td>S</td>
+</tr>
+<tr>
+<td>Q5</td>
+<td>Med</td>
+<td><code>matrix.js</code> (5+ sites)</td>
+<td>resource-map build loop repeated verbatim 5×</td>
+<td>Extract <code>resourceFromRow()</code>/<code>collectResources()</code></td>
+<td>S</td>
+</tr>
+<tr>
+<td>Q6</td>
+<td>Med</td>
+<td><code>ingest.js:539</code>, <code>matrix.js:1578</code></td>
+<td><code>SavedMatrixFilters</code> DDL duplicated at runtime (different defaults), violating "schema via migrations only" — migration 023 already creates it</td>
+<td>Delete both runtime DDLs</td>
+<td>S</td>
+</tr>
+<tr>
+<td>Q7</td>
+<td>Med</td>
+<td>details.js:716-757, identities.js</td>
+<td>Dead legacy GraphGroups/GraphUsers fallbacks for a schema that no longer exists (can never succeed, add latency on failure) + bug-narrative comment blocks</td>
+<td>Delete legacy fallbacks</td>
+<td>M</td>
+</tr>
+<tr>
+<td>Q8</td>
+<td>Low</td>
+<td>repo-wide</td>
+<td><strong>Positive:</strong> TODO/FIXME/HACK density effectively zero in app/src</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Q9-Q10</td>
+<td>Low</td>
+<td>extendedAttributes <code>JSON.parse</code> on already-parsed jsonb (throws, swallowed); magic strings (<code>#microsoft.graph.group</code>, <code>400_000</code>) scattered</td>
+<td>Drop the parse; centralize constants</td>
+<td>S</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Biggest offenders:</strong> matrix.js (1,720) · AdminPage.jsx (1,726) / MatrixFilterWizard (1,232) / MatrixView (1,178) · Start-EntraIDCrawler.ps1 (2,453) · details.js (907) · identities.js (696).</p>
+<p><strong>Top 5:</strong> P1 (the data bug) → P3 (partial covering index) → Q2 (stop catch-as-feature-detection) → Q1/Q3/Q5 (split matrix.js + de-dup) → P4 (column virtualization).</p>
+<hr />
+<h2 id="phase-4-ci-test-harness">Phase 4 — CI / Test Harness<a class="headerlink" href="#phase-4-ci-test-harness" title="Permanent link">&para;</a></h2>
+<p><strong>Summary:</strong> Strong harness — dual PR gates (<code>pr.yml</code> fast + <code>pr-integration.yml</code> full
+Docker stack), scope-aware path filters with safe fallback-to-run-all, single aggregator
+gates for branch protection, SHA-pinned actions. Biggest reliability risk: the E2E job is
+non-blocking, so every UI regression it could catch is advisory. Biggest correctness risk:
+secret-dependent tests skip silently (false green). No JS coverage thresholds anywhere.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Sev</th>
+<th>Location</th>
+<th>Issue</th>
+<th>Fix</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F1</td>
+<td>High</td>
+<td><code>pr-integration.yml:678</code></td>
+<td><strong>All E2E non-blocking</strong> (<code>continue-on-error: true</code>) — 21 specs + axe + visual never fail CI. <strong>Verified.</strong></td>
+<td>Triage into blocking core set + quarantined set; drop continue-on-error for the core</td>
+<td>M</td>
+</tr>
+<tr>
+<td>F2</td>
+<td>High</td>
+<td><code>pr-integration.yml:408,483</code></td>
+<td>Secret-dependent tests (Entra, LLM) skip silently when secrets unset → register green having run nothing</td>
+<td>Assert required secrets exist on main PRs (visible gate)</td>
+<td>S</td>
+</tr>
+<tr>
+<td>F3</td>
+<td>High</td>
+<td><code>visual-regression.spec.js:17</code></td>
+<td>Visual regression <code>test.skip</code>'d, no baselines committed; CI also <code>--ignore-snapshots</code></td>
+<td>Generate+commit chromium-linux baselines; un-skip; drop --ignore-snapshots</td>
+<td>M</td>
+</tr>
+<tr>
+<td>F4</td>
+<td>High</td>
+<td>pr.yml, pr-integration.yml</td>
+<td>No <code>concurrency</code> block on either PR workflow — stale runs not cancelled (wasted Docker/load-soak minutes, out-of-order gates)</td>
+<td>Add <code>concurrency: {group: ci-${{github.ref}}, cancel-in-progress: true}</code></td>
+<td>S</td>
+</tr>
+<tr>
+<td>F5</td>
+<td>Med</td>
+<td>api/ui package.json</td>
+<td>JS tests run <code>vitest run</code> with no <code>--coverage</code>/threshold; Pester prints coverage but never enforces</td>
+<td>Add <code>--coverage</code> with ratcheting threshold; Pester floor</td>
+<td>M</td>
+</tr>
+<tr>
+<td>F6</td>
+<td>Med</td>
+<td><code>test/ci-scripts/*.sh</code></td>
+<td>The path-gate self-tests (deciding <em>what CI runs</em>) aren't run by any workflow</td>
+<td>Add a tiny PR job running the 3 self-test scripts</td>
+<td>S</td>
+</tr>
+<tr>
+<td>F7</td>
+<td>Med</td>
+<td><code>pr.yml:225-231</code></td>
+<td>API ESLint (carries the security rules) only runs under <strong>ui</strong> scope — an API-only PR skips API linting</td>
+<td>Split API eslint into its own <code>api</code>-scoped job</td>
+<td>S</td>
+</tr>
+<tr>
+<td>F8</td>
+<td>Med</td>
+<td>test/unit, tools/crawlers</td>
+<td>30 crawler .ps1 files; few have mocked Pester unit tests — most verified only via live-stack integration needing Docker + secrets</td>
+<td>Add mocked-Graph/REST Pester units for parsing/transform/paging</td>
+<td>L</td>
+</tr>
+<tr>
+<td>F9</td>
+<td>Med</td>
+<td><code>codeql.yml:26</code></td>
+<td>Only javascript-typescript analyzed — PowerShell worker + Python helpers get no SAST</td>
+<td>Add python to CodeQL; enable PSScriptAnalyzer security rules</td>
+<td>S</td>
+</tr>
+<tr>
+<td>F10-F13</td>
+<td>Low</td>
+<td>cut-hotfix.yml:68 floating <code>@v6</code> tag (others SHA-pinned); thin vault/softDelete tests; bump-version push lacks rebase-retry (race with sbom-update); 3 jobs each rebuild Docker images</td>
+<td>pin SHA; add negative-path tests; add retry loop; build-once artifact</td>
+<td>S-M</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Critical-path coverage:</strong> auth/JWT/permissions <strong>strong</strong> (but the whole CI stack runs
+<code>AUTH_ENABLED=false</code> — the real auth gate is never exercised end-to-end). Matrix SQL
+<strong>good.</strong> Ingest soft-delete <strong>good.</strong> Secrets vault <strong>partial</strong> (happy-path only).
+<strong>Gaps:</strong> no auth-enabled flow in CI; most PowerShell crawlers lack mocked units; visual/a11y written but non-blocking.</p>
+<p><strong>Top 5:</strong> F1 (make core E2E blocking) + F3 (commit visual baselines) → F2 (fail on missing secrets) → F4 (concurrency) → F6+F7 (wire ci-scripts, fix eslint scoping) → F5 (coverage thresholds).</p>
+<hr />
+<h2 id="phase-5-documentation">Phase 5 — Documentation<a class="headerlink" href="#phase-5-documentation" title="Permanent link">&para;</a></h2>
+<p><strong>Summary:</strong> Moderate-to-good on concepts, weak on API-reference completeness and nav
+hygiene. Core architecture docs largely track the v6 Contexts redesign and the Azure
+Resource Graph crawler (#420). The previously-feared "stale OrgUnits" concern is mostly a
+<strong>false alarm</strong> — OrgUnit now correctly appears only as a <code>contextType</code> value. Real issues:</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Sev</th>
+<th>Type</th>
+<th>Location</th>
+<th>Issue</th>
+<th>Fix</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D1</td>
+<td>Critical</td>
+<td>Gap</td>
+<td><code>app/api/src/openapi.yaml</code></td>
+<td>Spec covers ~22 ingest/crawler-admin paths; the entire authenticated read API (matrix, identities, resources, governance, risk-scores, contexts, details, org-chart, tags, account-linking — 100+ routes) is absent</td>
+<td>Generate read routes into the spec, OR explicitly scope it "Ingest + Crawler Admin" and cross-link docs/api/*</td>
+<td>L</td>
+</tr>
+<tr>
+<td>D2</td>
+<td>High</td>
+<td>Stale</td>
+<td><code>docs/concepts/risk-scoring-model.md</code> (25-28, 71-91, 192-227)</td>
+<td>Documents <code>GraphResourceClusters</code>/<code>GraphResourceClusterMembers</code> as live; migration 019 dropped them (clustering is now the resource-cluster context plugin). <strong>Verified.</strong></td>
+<td>Remove cluster-table sections + <code>Save-FGResourceClusters</code> init step; point to the plugin</td>
+<td>M</td>
+</tr>
+<tr>
+<td>D3</td>
+<td>High</td>
+<td>Stale</td>
+<td><code>docs/api/index.md:68</code></td>
+<td>Lists <code>/api/org-units</code> as a live endpoint group — route doesn't exist (org hierarchy is <code>/api/contexts/tree</code> + <code>/api/org-chart</code>)</td>
+<td>Replace with Contexts</td>
+<td>S</td>
+</tr>
+<tr>
+<td>D4</td>
+<td>High</td>
+<td>Gap</td>
+<td>docs/ (soft-delete)</td>
+<td>The soft-delete/tombstone lifecycle (migrations 040/041, #400/#401 — headline of recent commits) has no dedicated doc; only 2 passing mentions</td>
+<td>Add a concepts/operations page: re-activation, retention/purge job, "show deleted" toggle, matrix exclusion</td>
+<td>M</td>
+</tr>
+<tr>
+<td>D5</td>
+<td>High</td>
+<td>Broken</td>
+<td><code>mkdocs.yml</code> nav</td>
+<td>15 orphan docs not in nav, incl. the context-redesign trilogy and <code>effective-access-engine.md</code> (which other docs link to)</td>
+<td>Add user-facing ones to nav; move/mark internal planning docs</td>
+<td>M</td>
+</tr>
+<tr>
+<td>D6</td>
+<td>Med</td>
+<td>Stale</td>
+<td>docs/api/index.md, entities/governance/matrix.md</td>
+<td>References "Azure SQL" (it's PostgreSQL) and <code>GraphTags</code>/<code>GraphTagAssignments</code> as base tables (they're backward-compat views over Contexts)</td>
+<td>Fix DB name; note tags are views</td>
+<td>M</td>
+</tr>
+<tr>
+<td>D7</td>
+<td>Med</td>
+<td>Inconsistent</td>
+<td>data-model.md:3 (v3.2) vs CLAUDE.md:93 (v3.1)</td>
+<td>Data-model version label drift</td>
+<td>Align to one version</td>
+<td>S</td>
+</tr>
+<tr>
+<td>D8</td>
+<td>Med</td>
+<td>Stale</td>
+<td>risk-scoring-model.md:232-247</td>
+<td>Init-order uses <code>Initialize-FGRiskScoreTables</code>/<code>Save-FGResourceClusters</code> cmdlets, contradicting line 8 ("created by migration 004 at startup")</td>
+<td>Reconcile init steps</td>
+<td>S</td>
+</tr>
+<tr>
+<td>D9</td>
+<td>Low→High*</td>
+<td>Inconsistent</td>
+<td><code>data-model.md</code> (whole) vs migration 018</td>
+<td>Flagship doc still models per-entity <code>contextId</code> columns + <code>Identities.contextId</code> FK in the ERD; migration 018 dropped all three, membership moved to <code>ContextMembers</code>. <em>Most significant accuracy drift in the flagship concept doc</em></td>
+<td>Rewrite Contexts section to describe ContextMembers variant/targetType model</td>
+<td>L</td>
+</tr>
+<tr>
+<td>D10-D12</td>
+<td>Low</td>
+<td>misc</td>
+<td>README legacy "(FortigiGraph)" name + verify <code>tools/powershell-sdk/</code> path; <code>.spectral.yaml</code> only <code>spectral:oas</code> (thin spec passes trivially); history example uses SQL-Server <code>SysStartTime</code>/<code>SysEndTime</code> not <code>_history</code>/<code>changedAt</code></td>
+<td>minor edits</td>
+<td>S</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Missing docs:</strong> soft-delete lifecycle (D4); read API in OpenAPI (D1); effective-access
+engine (exists but orphaned, D5); secrets/vault (only incidental mentions).</p>
+<p><strong>Top 5:</strong> D1 (OpenAPI scope decision) → D2 (remove dropped cluster tables) → D9 (rewrite
+Contexts section of data-model.md) → D4 (document soft-delete) → D5 (fix nav orphans).</p>
+<hr />
+<h2 id="cross-cutting-themes-flagged-in-2-phases-independently">Cross-Cutting Themes (flagged in 2+ phases independently)<a class="headerlink" href="#cross-cutting-themes-flagged-in-2-phases-independently" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong><code>catch {}</code> as schema feature-detection</strong> — Perf/Quality flags it as a maintainability +
+   silent-bug hazard (Q2); it's the <em>direct cause</em> of the identities.js data bug (P1) staying
+   hidden. The same swallow-pattern in the UI (H6, fetch errors → console.error) makes failed
+   loads look empty. <strong>One discipline change fixes a class of bugs across API + UI.</strong></li>
+<li><strong>Deferred-then-forgotten quality gates</strong> — the axe a11y suite (C3), visual regression
+   (F3), and the whole E2E job (F1) are all written but switched off. The safety nets exist;
+   they're just not armed.</li>
+<li><strong>Doc/code drift concentrated around the two big recent migrations</strong> — the v6 Contexts
+   redesign (018/019/020) and soft-delete (040/041). Docs lag exactly where the schema moved
+   fastest (D2, D4, D9).</li>
+<li><strong>"Reuse before creating" is documented but not enforced</strong> — shows up as UI primitive
+   duplication (H2, H5, M1) and API helper duplication (Q4, Q5, Q6). Lint rules would hold the line.</li>
+</ol>
+<hr />
+<h2 id="prioritized-backlog-suggested-one-pr-at-a-time-slices">Prioritized Backlog (suggested one-PR-at-a-time slices)<a class="headerlink" href="#prioritized-backlog-suggested-one-pr-at-a-time-slices" title="Permanent link">&para;</a></h2>
+<p>Ordered by value/effort. Each row = a candidate branch. Effort is CC-time (S≈&lt;1h, M≈half-day, L≈1-2 days).</p>
+<h3 id="tier-1-high-value-low-effort-do-first">Tier 1 — High value, low effort (do first)<a class="headerlink" href="#tier-1-high-value-low-effort-do-first" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>PR slice</th>
+<th>Fixes</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Codemod-strip duplicated <code>dark:</code> classes</strong> + add ESLint rule</td>
+<td>C1, C2, M6 (~85 dark-mode defects)</td>
+<td>S</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Fix identities.js <code>userId</code>→<code>principalId</code> key bug</strong></td>
+<td>P1 (group counts, risk attach)</td>
+<td>S</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Remove secrets from Bicep outputs + rotate keys</strong></td>
+<td>H-1</td>
+<td>M</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Add <code>concurrency</code> cancel-in-progress to both PR workflows</strong></td>
+<td>F4</td>
+<td>S</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Fail CI when required test secrets missing on main PRs</strong></td>
+<td>F2</td>
+<td>S</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Fix API-eslint scoping + wire ci-scripts self-tests</strong></td>
+<td>F6, F7</td>
+<td>S</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>LLM fetch timeouts + stop leaking error bodies</strong></td>
+<td>M-1, M-2</td>
+<td>S</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>Tighten upload + CSV row bounds</strong></td>
+<td>M-4, L-8</td>
+<td>S</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>Doc drift quick fixes:</strong> drop <code>/api/org-units</code>, "Azure SQL"→PostgreSQL, version label, history-column example</td>
+<td>D3, D6, D7, D12</td>
+<td>S</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>Remove dropped cluster tables from risk-scoring-model.md</strong></td>
+<td>D2, D8</td>
+<td>S-M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tier-2-high-value-medium-effort">Tier 2 — High value, medium effort<a class="headerlink" href="#tier-2-high-value-medium-effort" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>PR slice</th>
+<th>Fixes</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>11</td>
+<td><strong>Make core E2E blocking + commit visual baselines</strong></td>
+<td>F1, F3</td>
+<td>M</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong>Re-enable axe on Users/Resources + fix input labels &amp; lime contrast</strong></td>
+<td>C3, L2, H1(partial)</td>
+<td>M</td>
+</tr>
+<tr>
+<td>13</td>
+<td><strong>Add partial covering index on matrix matview</strong></td>
+<td>P3</td>
+<td>M</td>
+</tr>
+<tr>
+<td>14</td>
+<td><strong>Shared error state in useEntityPage + distinct error panels</strong></td>
+<td>H6</td>
+<td>M</td>
+</tr>
+<tr>
+<td>15</td>
+<td><strong>Promote Button + consolidate Modal (Escape/focus/aria)</strong></td>
+<td>H2, H4, H5</td>
+<td>M-L</td>
+</tr>
+<tr>
+<td>16</td>
+<td><strong>Document soft-delete lifecycle + fix mkdocs nav orphans</strong></td>
+<td>D4, D5</td>
+<td>M</td>
+</tr>
+<tr>
+<td>17</td>
+<td><strong>Stop <code>catch{}</code>-as-feature-detection: startup capability map</strong></td>
+<td>Q2 (+ removes a bug class)</td>
+<td>M</td>
+</tr>
+<tr>
+<td>18</td>
+<td><strong>De-dup API helpers + delete legacy GraphUsers fallbacks + drop runtime DDL</strong></td>
+<td>Q4, Q5, Q6, Q7</td>
+<td>M</td>
+</tr>
+<tr>
+<td>19</td>
+<td><strong>JS coverage thresholds + Pester floor + add python to CodeQL</strong></td>
+<td>F5, F9</td>
+<td>M</td>
+</tr>
+<tr>
+<td>20</td>
+<td><strong>Single interactive accent (blue) sweep</strong></td>
+<td>H1</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tier-3-larger-structural-schedule-deliberately">Tier 3 — Larger / structural (schedule deliberately)<a class="headerlink" href="#tier-3-larger-structural-schedule-deliberately" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>PR slice</th>
+<th>Fixes</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>21</td>
+<td><strong>Split matrix.js god-module into handlers/</strong> + generalize runBound</td>
+<td>Q1, Q3</td>
+<td>L</td>
+</tr>
+<tr>
+<td>22</td>
+<td><strong>Matrix column virtualization</strong></td>
+<td>P4</td>
+<td>L</td>
+</tr>
+<tr>
+<td>23</td>
+<td><strong>OpenAPI read-API: generate or scope-and-cross-link</strong></td>
+<td>D1, D11</td>
+<td>L</td>
+</tr>
+<tr>
+<td>24</td>
+<td><strong>Rewrite data-model.md Contexts section (ContextMembers model)</strong></td>
+<td>D9</td>
+<td>L</td>
+</tr>
+<tr>
+<td>25</td>
+<td><strong>Flat-matrix pagination (cursor/keyset)</strong></td>
+<td>P2</td>
+<td>L</td>
+</tr>
+<tr>
+<td>26</td>
+<td><strong>Mocked Pester units for crawlers + auth-enabled CI flow</strong></td>
+<td>F8, F-auth gap</td>
+<td>L</td>
+</tr>
+<tr>
+<td>27</td>
+<td><strong>Azure "Isolated" template (private endpoints) + random DB password + verify-full TLS</strong></td>
+<td>L-4, L-5, L-7</td>
+<td>L</td>
+</tr>
+<tr>
+<td>28</td>
+<td><strong>Semantic design-token layer in index.css</strong></td>
+<td>L3 (root cause of C1/H1)</td>
+<td>M-L</td>
+</tr>
+</tbody>
+</table>
+<h3 id="defense-in-depth-lower-priority-batch-as-capacity-allows">Defense-in-depth / lower priority (batch as capacity allows)<a class="headerlink" href="#defense-in-depth-lower-priority-batch-as-capacity-allows" title="Permanent link">&para;</a></h3>
+<p>M-3, M-5, M-6, L-1, L-2, L-3, L-6, I-1 (security hardening) · M2 toast system · M3 icon set · M5/M7/M8 visual polish · F10-F13 CI hygiene · D10 README.</p>
+<hr />
+<h2 id="notable-strengths-no-action-keep-doing-this">Notable strengths (no action — keep doing this)<a class="headerlink" href="#notable-strengths-no-action-keep-doing-this" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Fail-closed permission resolution, no wildcard fallback; correct JWT pinning; read-token GET-only/non-admin scoping.</li>
+<li>Uniform SQL parameterization with <code>SAFE_IDENT_RE</code> + information_schema identifiers — no injection found across ~40 interpolation sites.</li>
+<li>AES-256-GCM envelope encryption, no hardcoded key, no secret logging; re2 for all regexes; real scraper SSRF defense.</li>
+<li>Perf middleware correctly off-by-default (P9). TODO/FIXME density near-zero in app/src (Q8).</li>
+<li>CI: SHA-pinned actions, scope-aware filters with safe fallback, aggregator gates.</li>
+</ul>
+<hr />
+<h1 id="codex-cross-check-reconciliation-outside-voice">Codex Cross-Check Reconciliation (outside voice)<a class="headerlink" href="#codex-cross-check-reconciliation-outside-voice" title="Permanent link">&para;</a></h1>
+<p>Added after the initial Claude-only audit. Five independent <code>codex exec</code> runs
+(codex-cli 0.142.2), one per dimension, each told to challenge the Claude findings
+and hunt for what was missed. Their highest-impact disputes/net-new claims were then
+re-verified by hand against source. Net result: <strong>Codex confirmed nearly every
+Claude Critical/High finding</strong>, corrected a few severities, and — crucially — <strong>broke
+the security pass's headline conclusion</strong> with five real authorization gaps.</p>
+<h2 id="agreement">Agreement<a class="headerlink" href="#agreement" title="Permanent link">&para;</a></h2>
+<p>Codex returned CONFIRMED on: C1, C2, C3, H1-H6, M2, M8 (design) · H-1, M-1..M-6, L-1,
+L-5, I-1 (security) · P1-P5, P7, Q1, Q2, Q6, Q7 (perf/quality) · F1-F7, F9, F10, F12,
+AUTH-GAP (CI) · D1-D6, D9, D12 (docs). No Claude Critical/High was refuted.</p>
+<h2 id="severity-accuracy-corrections-adopt-codex">Severity / accuracy corrections (adopt Codex)<a class="headerlink" href="#severity-accuracy-corrections-adopt-codex" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>C1, C2</strong> dark-mode duplication: Critical → <strong>Medium-High</strong>. It's pervasive and real,
+  but contrast degradation in dark mode is not "Critical." Keep it as Tier-1 (the fix is
+  trivial) but label severity honestly.</li>
+<li><strong>H1</strong>: RollupMatrixView uses <strong>indigo</strong>, not teal. Same finding, corrected color. The
+  accent-sprawl point stands (blue/lime/indigo all present).</li>
+<li><strong>H4</strong>: the MatrixView modal line citation is imprecise — the <em>finding</em> (no Escape/focus-
+  trap/role across overlays) holds; fix the line reference when implementing.</li>
+<li><strong>D7</strong>: Codex returned NEEDS-CONTEXT only because CLAUDE.md was outside its sandbox —
+  not a real dispute. The v3.1/v3.2 label drift stands.</li>
+</ul>
+<h2 id="new-security-findings-codex-net-new-verified-by-hand-not-in-the-original-audit">NEW security findings (Codex net-new — verified by hand, NOT in the original audit)<a class="headerlink" href="#new-security-findings-codex-net-new-verified-by-hand-not-in-the-original-audit" title="Permanent link">&para;</a></h2>
+<p>These are the most important output of the cross-check. All assume <code>AUTH_ENABLED=true</code>.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Sev</th>
+<th>Location</th>
+<th>Issue (verified)</th>
+<th>Fix</th>
+<th>Effort</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SEC-NEW-1</td>
+<td>~~High~~ <strong>WITHDRAWN — by design</strong></td>
+<td><code>app.js:294-309</code> + read routers</td>
+<td><strong>Original claim (Codex + Claude):</strong> the read routers (matrix/details/resources/governance/…) apply no <code>requirePermission</code>, so any authenticated tenant user can read all data. <strong>Correction (verified against <code>auth/permissionManifest.js</code>):</strong> this is <em>intended, documented, tested</em> design. <code>data.read</code> is classified as an <strong>IMPLICIT</strong> permission — <em>"Authentication-required: any signed-in user can read… No requirePermission gate"</em> — and is covered by <code>auth/permissionMatrix.test.js</code>. "Any signed-in user can read" is the deliberate model; the C-01 fix scoped fail-closed behavior to <em>admin/write</em> endpoints specifically. Restricting reads to particular roles is a config choice via <code>AUTH_REQUIRED_ROLES</code>, not a defect. <strong>Lesson:</strong> both the outside voice <em>and</em> the hand-verification confirmed "no gate exists" but missed <em>why</em> — a reminder that "missing check" ≠ "vulnerability" without the threat model.</td>
+<td>No code change. Optionally document <code>AUTH_REQUIRED_ROLES</code> more prominently as the knob to lock down read access.</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SEC-NEW-2</td>
+<td><strong>High</strong></td>
+<td><code>routes/crawlers.js:386-419</code></td>
+<td><code>POST /api/crawlers/jobs/claim</code> checks only <code>req.crawler</code> (any valid <code>fgc_</code> key), claims the next queued job regardless of which crawler/system owns it, and <code>injectJobSecret(job)</code> (line 414) injects the vaulted clientSecret into the response. <strong>Any valid crawler key can drain the job queue and exfiltrate another system's Graph credentials.</strong> The <code>crawlerHasSystemAccess</code>/<code>crawlerHasPermission</code> helpers (crawlerAuth.js:154-163) exist but are unused here. Mitigating: in a default install the built-in worker holds the only key — exposure scales with how many external crawler keys exist.</td>
+<td>Scope job-claim to the calling crawler's <code>systemIds</code>/identity; gate secret injection on ownership.</td>
+<td>M</td>
+</tr>
+<tr>
+<td>SEC-NEW-3</td>
+<td>Med</td>
+<td><code>routes/crawlers.js:427,457,484(+DELETE)</code></td>
+<td><code>mark-delta-mode</code> and the <code>delta-tokens</code> GET/PUT/DELETE take a config id / <code>systemId</code> from the request and check only <code>req.crawler</code> — never <code>crawlerHasSystemAccess(req, systemId)</code>. A crawler scoped to system A can read/overwrite system B's delta tokens or flip any config to delta mode (→ skipped full sync, stale data).</td>
+<td>Call the existing <code>crawlerHasSystemAccess</code> helper on every systemId-bearing crawler endpoint.</td>
+<td>S</td>
+</tr>
+<tr>
+<td>SEC-NEW-4</td>
+<td>Low</td>
+<td><code>routes/perf.js:60,68</code></td>
+<td><code>POST /api/perf/clear</code> and <code>POST /api/perf/toggle</code> have no <code>requirePermission</code> (perfRouter mounted authMiddleware-only at app.js:294). Any authenticated user can wipe collected metrics or disable the perf collector.</td>
+<td>Gate behind an admin/perf permission.</td>
+<td>S</td>
+</tr>
+<tr>
+<td>SEC-NEW-5</td>
+<td>Low-Med</td>
+<td><code>routes/matrix.js</code> saved-filters (~1625/1653/1689)</td>
+<td>matrix router is ungated (SEC-NEW-1), so saved-filter create/update/delete — including <strong>global</strong> filters — run for any authenticated user with no write permission.</td>
+<td>Add <code>requirePermission</code> to the mutating saved-filter handlers.</td>
+<td>S</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Revised security conclusion:</strong> no <em>unauthenticated</em> exploit; SQL parameterization,
+secrets, and crypto all hold. The real authenticated-authorization gaps are on the
+<strong>crawler protocol</strong> (SEC-NEW-2 secret exfil via job-claim, SEC-NEW-3 cross-system
+delta tokens) and two ungated mutation endpoints (SEC-NEW-4 perf, SEC-NEW-5 saved
+filters). The read surface being open to any signed-in user (SEC-NEW-1) is <strong>intended
+design</strong>, not a finding. Top security priorities: <strong>SEC-NEW-2</strong> and the Bicep secret
+leak <strong>H-1</strong>.</p>
+<p><strong>Remediation status (added post-review):</strong> SEC-NEW-2, SEC-NEW-3, and SEC-NEW-4 are
+fixed in <strong>PR #424</strong> (<code>bugfixes/security-authz-enforcement</code>). H-1 (Bicep) and SEC-NEW-5
+(saved-filter write gate) remain open.</p>
+<h2 id="net-new-non-security-codex-catches-worth-confirming-folding-in">Net-new (non-security) Codex catches — worth confirming + folding in<a class="headerlink" href="#net-new-non-security-codex-catches-worth-confirming-folding-in" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Perf (Codex, spot-plausible, not yet hand-verified):</strong> <code>riskScores.js:131/140/159</code>
+  "top 10" users/resources queries + latest-scored-at lack <code>LIMIT</code> (return all rows);
+  <code>details.js:442</code> group-members + <code>resources.js:330</code> assignments unpaginated;
+  <code>MatrixView.jsx:395</code> client-side O(groups×users) nested count loop;
+  <code>SortableMatrixBody.jsx:68</code> dragging disables virtualization (mounts all rows).</li>
+<li><strong>CI (Codex):</strong> path filters ignore config-file changes — <code>pr.yml:123</code> API scope ignores
+  package/eslint config, <code>:125</code> UI scope ignores <code>app/ui/e2e</code> + playwright config,
+  <code>pr-integration.yml:122</code> e2e filter ignores e2e/playwright config, <code>:111</code> integration
+  filter ignores <code>test/nightly</code>+demo data → <strong>a PR touching only those can skip the very
+  tests meant to cover it.</strong> Also <code>skip-hygiene</code> (pr.yml:423) and <code>skip-load-soak</code>
+  (:784) labels bypass required gates; <code>users-page.spec.js:8</code> uses fixed sleeps not
+  readiness asserts (flake source).</li>
+<li><strong>Docs (Codex):</strong> <code>docs/api/entities.md</code> references nonexistent <code>mat_UserPermissionAssignments</code>
+  (code uses <code>vw_UserPermissionAssignments</code>) and <code>/api/perf/slowest</code> (route is <code>/api/perf/slow</code>);
+  <code>risk-scoring-model.md</code> still uses SQL-Server types (<code>NVARCHAR</code>/<code>DATETIME2</code>/<code>BIT</code>);
+  more public endpoints undocumented (<code>/api/version</code>, <code>/api/features</code>, <code>/api/openapi.json</code>).</li>
+<li><strong>Design (Codex a11y net-new):</strong> App.jsx:491 toggle has no accessible name/state;
+  App.jsx:556 detail-tab close is a keyboard-inaccessible span; DashboardPage FeatureCard,
+  AccessPackagesPage category filter, FilterBar select, UsersPage swatches/select-all,
+  AccessPackagesPage sortable <code>th</code> — all repeat the clickable-non-control a11y pattern (H3).</li>
+</ul>
+<h2 id="backlog-changes-from-the-cross-check">Backlog changes from the cross-check<a class="headerlink" href="#backlog-changes-from-the-cross-check" title="Permanent link">&para;</a></h2>
+<p><strong>Promote into Tier 1 (high value, low-ish effort):</strong>
+- <strong>SEC-NEW-2</strong> (crawler job-claim secret exposure) — scope to caller. <strong>M.</strong>
+- <strong>SEC-NEW-3</strong> (use the existing <code>crawlerHasSystemAccess</code> helper) — <strong>S.</strong>
+- <strong>SEC-NEW-4</strong> (gate perf clear/toggle) — <strong>S.</strong>
+- <strong>CI path-filter gaps</strong> (PR touching only config/e2e can skip its own tests) — <strong>S.</strong></p>
+<p><strong>Promote into Tier 2:</strong>
+- ~~SEC-NEW-1~~ — <strong>withdrawn</strong>, intended design (see correction above). No fix.
+- <strong>SEC-NEW-5</strong> (gate saved-filter mutations) — <strong>S</strong>. Still open.
+- <strong>riskScores top-N missing LIMIT</strong> + unpaginated detail/assignment endpoints — <strong>S-M</strong>
+  (confirm first).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Created by <a href="https://www.fortigi.nl">Maatschap Fortigi</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/wimvdheijkant/" target="_blank" rel="noopener" title="Wim van den Heijkant" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.fortigi.nl" target="_blank" rel="noopener" title="Fortigi" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M351.9 280H161c2.9 64.5 17.2 123.9 37.5 167.4 11.4 24.5 23.7 41.8 35.1 52.4 11.2 10.5 18.9 12.2 22.9 12.2s11.7-1.7 22.9-12.2c11.4-10.6 23.7-28 35.1-52.4 20.3-43.5 34.6-102.9 37.5-167.4zm-191-48h190.9c-2.8-64.5-17.1-123.9-37.4-167.4-11.4-24.4-23.7-41.8-35.1-52.4C268.1 1.7 260.4 0 256.4 0s-11.7 1.7-22.9 12.2c-11.4 10.6-23.7 28-35.1 52.4-20.3 43.5-34.6 102.9-37.5 167.4m-48 0c3.5-85.6 25.6-165.1 57.9-217.3C78.7 47.3 10.9 131.2 1.5 232zM1.5 280c9.4 100.8 77.2 184.7 169.3 217.3-32.3-52.2-54.4-131.7-57.9-217.3zm398.4 0c-3.5 85.6-25.6 165.1-57.9 217.3 92.1-32.7 159.9-116.5 169.3-217.3zm111.4-48C501.9 131.2 434.1 47.3 342 14.7c32.3 52.2 54.4 131.7 57.9 217.3z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
