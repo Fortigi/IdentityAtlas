@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The Azure Resource Manager crawler can now skip role assignments whose principal isn't present in Entra ID — deleted service principals with dangling assignments, or principals outside a scoped (e.g. admins-only) Entra ID crawl. Controlled by a new **"Only load assignments for principals in Entra ID"** option (on by default; run the Entra ID crawler first).
+- With that option off, those principals are still loaded but flagged as **orphaned**, so you can review them rather than hide them.
+
+## Changes in this PR
+
 - Added two generic context-algorithm plugins that derive navigable Context trees from the data any crawler emits: **Scope Hierarchy** (builds a tree from `Contains` relationships — e.g. Management Group → Subscription → Resource Group → Resource — with a `leafResourceTypes` option to stop at a level and list deeper resources as members) and **Resource Type Tree** (groups resources by an attribute into a root → per-type → members tree).
 - The matrix can now answer "who has access to **any** resource in this group?". Filtering by a Resource context whose members are scope nodes (e.g. "all key vaults", "all VMs") now shows the **effective** access at those scopes — including **inherited** access — computed on demand by the effective-access engine, instead of an empty grid. Generic: it works for any source with containment + capability-resources.
 - Added a **Principal Type Tree** context plugin — the principal-side mirror of Resource Type Tree. It groups principals by an attribute (default `principalType`) into a root with a child context per value, so you get ready-made **Managed Identities**, **AI Agents** and **Service Principals** contexts to filter the matrix by — answering "what can all managed identities access?". Optionally restrict to chosen values and/or one system.

@@ -1,2 +1,0 @@
-- The Azure Resource Manager crawler can now skip role assignments whose principal isn't present in Entra ID — deleted service principals with dangling assignments, or principals outside a scoped (e.g. admins-only) Entra ID crawl. Controlled by a new **"Only load assignments for principals in Entra ID"** option (on by default; run the Entra ID crawler first).
-- With that option off, those principals are still loaded but flagged as **orphaned**, so you can review them rather than hide them.
