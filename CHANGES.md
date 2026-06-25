@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the identity detail page so each linked account again shows its real group count and risk score/tier. Previously the per-account group count always displayed 0 and the risk score/tier never appeared, regardless of the account's actual access.
+
+## Changes in this PR
+
 - Published the June 2026 maintenance-sprint audit report (design/UX, security, performance & code quality, CI/test harness, and documentation review, plus an independent second-model cross-check) to the documentation site under Security.
 
 ## Changes in this PR
