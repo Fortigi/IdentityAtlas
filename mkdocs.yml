@@ -139,6 +139,7 @@ nav:
           - Assessment & Remediation: ux/assessment.md
       - Security:
           - Assessment & Remediation: security/assessment.md
+          - Maintenance Audit (June 2026): security/maintenance-audit-2026-06.md
 
 extra:
   version:
