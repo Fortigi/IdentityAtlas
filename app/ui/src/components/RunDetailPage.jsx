@@ -49,14 +49,14 @@ export default function RunDetailPage({ runId, onClose }) {
   }, [fetchRun]);
 
   if (loading && !run) {
-    return <div className="p-8 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading run…</div>;
+    return <div className="p-8 text-sm text-gray-500 dark:text-gray-400">Loading run…</div>;
   }
   if (error && !run) {
     return (
       <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6 max-w-md mx-auto mt-12">
         <h2 className="text-red-800 dark:text-red-300 font-semibold text-lg">Failed to load run</h2>
         <p className="text-red-600 dark:text-red-400 mt-2 text-sm">{error}</p>
-        <button onClick={onClose} className="mt-3 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 underline hover:text-gray-700 dark:text-gray-300">Close</button>
+        <button onClick={onClose} className="mt-3 text-sm text-gray-500 dark:text-gray-400 underline hover:text-gray-700 dark:text-gray-300">Close</button>
       </div>
     );
   }
@@ -78,12 +78,12 @@ export default function RunDetailPage({ runId, onClose }) {
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{run.algorithmDisplayName || run.algorithmName}</h2>
               <span className={`text-[11px] px-2 py-0.5 rounded border ${statusMeta.className}`}>{statusMeta.label}</span>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               Triggered by {run.triggeredBy || 'unknown'} · started {fmt(run.startedAt)}
               {isDone && durationMs != null && <> · took {formatDurationMs(durationMs)}</>}
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:text-gray-500" aria-label="Close">
+          <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400" aria-label="Close">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -131,13 +131,13 @@ export default function RunDetailPage({ runId, onClose }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
             {Object.entries(run.parameters).map(([k, v]) => (
               <div key={k} className="flex items-baseline gap-2 py-1">
-                <span className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 font-medium min-w-[140px]">{k}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium min-w-[140px]">{k}</span>
                 <span className="text-sm text-gray-900 dark:text-white break-all">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">No parameters were supplied.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">No parameters were supplied.</p>
         )}
       </div>
 
@@ -166,7 +166,7 @@ const STATUS_META = {
 function Stat({ label, value }) {
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 dark:text-gray-500">{label}</div>
+      <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</div>
       <div className="text-lg font-semibold text-gray-900 dark:text-white">{value ?? 0}</div>
     </div>
   );
