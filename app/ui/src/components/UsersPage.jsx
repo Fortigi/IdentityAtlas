@@ -2,6 +2,7 @@
 import { useAuth } from '@ui/auth/AuthGate';
 import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
+import DeletedBadge from './DeletedBadge';
 import { TAG_COLORS } from '@ui/utils/colors';
 
 const FIELD_LABELS = {
@@ -223,6 +224,11 @@ export default function UsersPage({ onOpenDetail }) {
           className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-56 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
 
+        <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none" title="Also show users that were deleted in the source system">
+          <input type="checkbox" checked={ep.includeDeleted} onChange={e => ep.setIncludeDeleted(e.target.checked)} />
+          Include deleted
+        </label>
+
         {ep.hasAnyFilter && (
           <>
             <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />
@@ -344,7 +350,9 @@ export default function UsersPage({ onOpenDetail }) {
                     />
                   </td>
                   <td className="px-3 py-2 font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
-                    onClick={() => onOpenDetail?.('user', u.id, u.displayName)}>{u.displayName}</td>
+                    onClick={() => onOpenDetail?.('user', u.id, u.displayName)}>
+                    {u.displayName}{u.deletedAt && <> <DeletedBadge at={u.deletedAt} /></>}
+                  </td>
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs">{u.userPrincipalName}</td>
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{u.department || ''}</td>
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{u.jobTitle || ''}</td>

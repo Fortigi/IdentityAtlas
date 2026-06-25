@@ -81,6 +81,8 @@ router.get('/resources', async (req, res) => {
     const filterWhere = buildFilterWhere(request, attrFilters, colNames, 'r');
 
     let where = '1=1';
+    // Hide soft-deleted resources by default; ?includeDeleted=true reveals them.
+    if (req.query.includeDeleted !== 'true') where += ` AND r."deletedAt" IS NULL`;
     if (search) {
       where += ` AND (r."displayName" ILIKE @search OR r."description" ILIKE @search)`;
       request.input('search', `%${search}%`);
@@ -122,7 +124,7 @@ router.get('/resources', async (req, res) => {
              r."createdDateTime", r."extendedAttributes",
              r."mail", r."visibility", r."externalId",
              r."catalogId", r."isHidden", r."modifiedDateTime",
-             r."riskScore", r."riskTier",
+             r."riskScore", r."riskTier", r."deletedAt",
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" IN ('resource', 'group')
@@ -410,11 +412,22 @@ router.get('/resources/:id/members', async (req, res) => {
       .query(`
         SELECT p."resourceId", p."principalId" AS "memberId",
                u."displayName" AS "memberDisplayName", u."email" AS "memberUPN",
-               p."membershipType", p."managedByAccessPackage"
+               p."membershipType", p."managedByAccessPackage", false AS "deleted"
           FROM ${table} p
           LEFT JOIN "Principals" u ON p."principalId" = u.id
          WHERE p."resourceId"::text = @id
-         ORDER BY u."displayName", p."membershipType"
+        UNION ALL
+        -- Historical holders: the assignment or the holder is soft-deleted, so the
+        -- matview hid it. Surface them flagged so the resource keeps its history.
+        SELECT ra."resourceId", ra."principalId" AS "memberId",
+               u."displayName" AS "memberDisplayName", u."email" AS "memberUPN",
+               ra."assignmentType" AS "membershipType", false AS "managedByAccessPackage", true AS "deleted"
+          FROM "ResourceAssignments" ra
+          JOIN "Principals" u ON u.id = ra."principalId"
+         WHERE ra."resourceId"::text = @id
+           AND ra."principalId" IS NOT NULL
+           AND (ra."deletedAt" IS NOT NULL OR u."deletedAt" IS NOT NULL)
+         ORDER BY "memberDisplayName", "membershipType"
       `);
     res.json(r.recordset);
   } catch (err) {

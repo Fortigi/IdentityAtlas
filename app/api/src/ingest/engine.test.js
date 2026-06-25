@@ -1,11 +1,16 @@
-// Unit tests for ingest/engine.js scopedDelete — the full-sync reconcile DELETE.
+// Unit tests for ingest/engine.js scopedDelete — the full-sync reconcile.
 // No real DB: we pass a fake client that records the SQL it's asked to run.
+//
+// Soft-delete tables (Principals, Resources, ResourceAssignments) reconcile by
+// stamping deletedAt via UPDATE; every other table still hard-deletes. The
+// reconcile statement — DELETE or UPDATE — carries the same WHERE clauses either
+// way, so these tests assert against `reconcileSql`.
 
 import { describe, it, expect } from 'vitest';
 import { scopedDelete } from './engine.js';
 
 // A fake pg client. Records every query() call and returns an empty result.
-// The CREATE INDEX / ANALYZE preamble and the DELETE all flow through here.
+// The CREATE INDEX / ANALYZE preamble and the reconcile statement flow through here.
 function fakeClient() {
   const calls = [];
   return {
@@ -14,9 +19,10 @@ function fakeClient() {
       calls.push({ sql, params });
       return { rowCount: 0, rows: [] };
     },
-    // The DELETE is the only statement that starts with DELETE.
-    get deleteSql() {
-      return calls.map(c => c.sql).find(s => /^\s*DELETE\b/.test(s)) || '';
+    // The reconcile is the only DELETE or UPDATE statement (soft-delete tables
+    // UPDATE … SET deletedAt; others DELETE).
+    get reconcileSql() {
+      return calls.map(c => c.sql).find(s => /^\s*(DELETE|UPDATE)\b/.test(s)) || '';
     },
   };
 }
@@ -24,7 +30,7 @@ function fakeClient() {
 // ── scopedDelete — scopeDeleteFilter cross-contamination prevention (T7.5, T7.6)
 
 describe('scopedDelete — scopeDeleteFilter cross-contamination prevention', () => {
-  const raCols = new Set(['resourceId', 'principalId', 'identityId', 'assignmentType', 'systemId']);
+  const raCols = new Set(['resourceId', 'principalId', 'identityId', 'assignmentType', 'systemId', 'deletedAt']);
 
   it('appends the filter so identity full-sync only deletes identity rows (T7.5)', async () => {
     const client = fakeClient();
@@ -33,9 +39,12 @@ describe('scopedDelete — scopeDeleteFilter cross-contamination prevention', ()
       '_tmp_ingest_abc', 7, {}, 'systemId', raCols,
       '"identityId" IS NOT NULL'
     );
-    expect(client.deleteSql).toContain('"identityId" IS NOT NULL');
+    expect(client.reconcileSql).toContain('"identityId" IS NOT NULL');
     // Must NOT accidentally scope-delete principal rows
-    expect(client.deleteSql).not.toContain('"principalId" IS NOT NULL');
+    expect(client.reconcileSql).not.toContain('"principalId" IS NOT NULL');
+    // ResourceAssignments is a soft-delete table → stamp deletedAt, don't remove.
+    expect(client.reconcileSql).toMatch(/UPDATE "ResourceAssignments"/);
+    expect(client.reconcileSql).toContain('"deletedAt"');
   });
 
   it('appends the filter so principal full-sync only deletes principal rows (T7.6)', async () => {
@@ -45,26 +54,28 @@ describe('scopedDelete — scopeDeleteFilter cross-contamination prevention', ()
       '_tmp_ingest_abc', 7, {}, 'systemId', raCols,
       '"principalId" IS NOT NULL'
     );
-    expect(client.deleteSql).toContain('"principalId" IS NOT NULL');
-    expect(client.deleteSql).not.toContain('"identityId" IS NOT NULL');
+    expect(client.reconcileSql).toContain('"principalId" IS NOT NULL');
+    expect(client.reconcileSql).not.toContain('"identityId" IS NOT NULL');
   });
 
-  it('adds no extra clause when scopeDeleteFilter is null (non-RA tables)', async () => {
+  it('soft-deletes (not hard-deletes) a soft-delete table on full-sync reconcile', async () => {
     const client = fakeClient();
-    const resCols = new Set(['id', 'systemId', 'displayName']);
+    const resCols = new Set(['id', 'systemId', 'displayName', 'deletedAt']);
     await scopedDelete(
       client, 'Resources', ['id'], '_tmp_ingest_def', 7, {}, 'systemId', resCols, null
     );
-    const sql = client.deleteSql;
-    expect(sql).toContain('DELETE FROM "Resources"');
+    const sql = client.reconcileSql;
+    expect(sql).toContain('UPDATE "Resources"');
+    expect(sql).toContain('SET "deletedAt"');
+    expect(sql).toContain('NOT EXISTS');
     expect(sql).not.toContain('identityId');
   });
 });
 
-// ── scopedDelete — account-linking / analyst link preservation ────────────────
+// ── scopedDelete — soft vs hard delete + account-linking / analyst preservation ──
 
-describe('scopedDelete — account-linking / analyst link preservation', () => {
-  it('excludes scored and analyst-owned rows when those columns exist (IdentityMembers)', async () => {
+describe('scopedDelete — soft vs hard delete + link preservation', () => {
+  it('hard-deletes a non-soft-delete table, excluding scored/analyst-owned rows (IdentityMembers)', async () => {
     const client = fakeClient();
     const cols = new Set(['identityId', 'principalId', 'systemId', 'linkConfidence', 'analystOverride']);
 
@@ -79,7 +90,9 @@ describe('scopedDelete — account-linking / analyst link preservation', () => {
       cols
     );
 
-    const sql = client.deleteSql;
+    const sql = client.reconcileSql;
+    // IdentityMembers is NOT a soft-delete table → real DELETE.
+    expect(sql).toContain('DELETE FROM "IdentityMembers"');
     // The crawler reconcile must skip links that carry a confidence score
     // (account linking) or an analyst decision — otherwise a full crawl wipes them.
     expect(sql).toContain('"linkConfidence" IS NULL');
@@ -88,7 +101,7 @@ describe('scopedDelete — account-linking / analyst link preservation', () => {
 
   it('does not add the preservation clauses for tables without those columns', async () => {
     const client = fakeClient();
-    const cols = new Set(['id', 'systemId', 'displayName']); // e.g. Resources
+    const cols = new Set(['id', 'systemId', 'displayName', 'deletedAt']); // e.g. Resources
 
     await scopedDelete(
       client,
@@ -101,11 +114,12 @@ describe('scopedDelete — account-linking / analyst link preservation', () => {
       cols
     );
 
-    const sql = client.deleteSql;
+    const sql = client.reconcileSql;
     expect(sql).not.toContain('linkConfidence');
     expect(sql).not.toContain('analystOverride');
-    // It still performs the scoped, NOT-EXISTS reconcile delete.
-    expect(sql).toContain('DELETE FROM "Resources"');
+    // Resources is a soft-delete table → it stamps deletedAt via the scoped,
+    // NOT-EXISTS reconcile rather than deleting.
+    expect(sql).toContain('UPDATE "Resources"');
     expect(sql).toContain('NOT EXISTS');
   });
 });
