@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import ScheduleEditor from '@ui/components/ScheduleEditor';
-import Stepper from '@ui/components/Stepper';
+import MappingRows from '@ui/components/MappingRows';
+import WizardShell from '@ui/components/WizardShell';
+import { SECRET_PLACEHOLDER, canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const SECRET_PLACEHOLDER = '••••••••';
 
 const AUTH_METHODS = [
   { id: 'FormCookie',   label: 'Form / Cookie',              description: 'POST username+password to /api/authenticate (on-premise)' },
@@ -32,57 +32,7 @@ const SYNC_OPTIONS = [
 ];
 
 const RESOURCE_TYPE_OPTIONS = ['BusinessRole', 'Resource', 'AppRole', 'DelegatedPermission'];
-
-// ─── Credential validation + payload helpers ───────────────────────────────────
-// Pure functions (no closure over component state) so they're independently
-// unit-testable — see credentialGating.test.js. Each auth method needs a
-// different subset of fields; isEdit relaxes the requirement for secret
-// fields only (blank in edit mode means "keep the stored value").
-
-export function canSubmitCredentials(authMethod, fields, isEdit) {
-  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken, cookieString } = fields;
-  if (authMethod === 'FormCookie') {
-    return !!username.trim() && !!(password.trim() || isEdit);
-  }
-  if (authMethod === 'OAuth2CC') {
-    return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit);
-  }
-  if (authMethod === 'OAuth2ROPC') {
-    return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit) && !!username.trim() && !!(password.trim() || isEdit);
-  }
-  if (authMethod === 'ApiToken') return !!(apiToken.trim() || isEdit);
-  if (authMethod === 'CookieString') return !!(cookieString.trim() || isEdit);
-  if (authMethod === 'BasicAuth') return !!username.trim() && !!(password.trim() || isEdit);
-  return true;
-}
-
-// Only includes credential fields that have a value — blank means "keep the
-// existing stored value" on edit, and is unreachable on create because
-// canSubmitCredentials already requires it there.
-export function buildCredentialFields(authMethod, fields) {
-  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken, cookieString } = fields;
-  const out = {};
-  if (authMethod === 'FormCookie' || authMethod === 'OAuth2ROPC') {
-    out.username = username.trim();
-    if (password.trim()) out.password = password.trim();
-  }
-  if (authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') {
-    out.tokenEndpoint = tokenEndpoint.trim();
-    out.clientId = clientId.trim();
-    if (clientSecret.trim()) out.clientSecret = clientSecret.trim();
-  }
-  if (authMethod === 'ApiToken') {
-    if (apiToken.trim()) out.apiToken = apiToken.trim();
-  }
-  if (authMethod === 'CookieString') {
-    if (cookieString.trim()) out.cookieString = cookieString.trim();
-  }
-  if (authMethod === 'BasicAuth') {
-    out.username = username.trim();
-    if (password.trim()) out.password = password.trim();
-  }
-  return out;
-}
+const FIELD_CLS = 'w-full text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 
 // Validates one contextObjectTypes row's entitySet/identityField against the
 // live $metadata lists fetched from the Omada server. Pure function (no
@@ -273,15 +223,15 @@ export default function OmadaConfigWizard({ onComplete, onCancel, initialConfig,
   const handleStepClick = (n) => { setStep(n); if (n === 3) fetchMetadata(); };
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit' : 'Add'} Omada IGA Crawler</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      <div className="mb-5"><Stepper steps={steps} current={step} onStepClick={handleStepClick} allowAll={!!isEdit} /></div>
-
-      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">{error}</div>}
+    <WizardShell
+      title={`${isEdit ? 'Edit' : 'Add'} Omada IGA Crawler`}
+      onCancel={onCancel}
+      steps={steps}
+      currentStep={step}
+      onStepClick={handleStepClick}
+      allowAllSteps={isEdit}
+      error={error}
+    >
 
       {/* Step 1 — Connection */}
       {step === 1 && (
@@ -540,30 +490,27 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
               Maps Omada <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">ROLECATEGORY</code> to an
               Identity Atlas resource type. Leave <em>ROLECATEGORY</em> blank for the default/catch-all row (must be last).
             </p>
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 pr-6">
-                <span>ROLECATEGORY value</span><span>Identity Atlas type</span>
-              </div>
-              {resCategoryMapping.map((m, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input value={m.category} onChange={e => updateResMapping(i, 'category', e.target.value)}
+            <MappingRows
+              rows={resCategoryMapping}
+              onAdd={addResMapping}
+              onRemove={removeResMapping}
+              onUpdate={updateResMapping}
+              headers={['ROLECATEGORY value', 'Identity Atlas type']}
+              addLabel="+ Add mapping row"
+              columns={[
+                { key: 'category', render: (v, onChange) => (
+                  <input value={v} onChange={e => onChange(e.target.value)}
                     placeholder="e.g. Role  (blank = default)"
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                  <select value={m.resourceType} onChange={e => updateResMapping(i, 'resourceType', e.target.value)}
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded px-2 py-1 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                    {RESOURCE_TYPE_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
+                    className={FIELD_CLS} />
+                )},
+                { key: 'resourceType', render: (v, onChange) => (
+                  <select value={v} onChange={e => onChange(e.target.value)}
+                    className={FIELD_CLS + ' bg-white'}>
+                    {RESOURCE_TYPE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
-                  <button onClick={() => removeResMapping(i)} disabled={resCategoryMapping.length === 1}
-                    className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
-                </div>
-              ))}
-            </div>
-            <button onClick={addResMapping}
-              className="mt-2 text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">
-              + Add mapping row
-            </button>
+                )},
+              ]}
+            />
           </div>
 
           <div className="flex justify-between">
@@ -604,6 +551,6 @@ $s.Cookies.GetCookies([Uri]"https://omada.example.com") |
           </div>
         </div>
       )}
-    </div>
+    </WizardShell>
   );
 }

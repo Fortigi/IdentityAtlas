@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import ScheduleEditor from '@ui/components/ScheduleEditor';
-import Stepper from '@ui/components/Stepper';
-
-const SECRET_PLACEHOLDER = '••••••••';
+import WizardShell from '@ui/components/WizardShell';
+import { SECRET_PLACEHOLDER } from '@ui/utils/crawlerCredentials';
 
 // Pure, independently-testable credential gate. The client secret is required on create but
 // optional on edit (blank = keep the stored value). See credentialGating.test.js.
@@ -141,15 +140,15 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
   const inputCls = 'w-full border border-gray-200 rounded px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit' : 'Add'} Azure Resource Manager Crawler</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      <div className="mb-5"><Stepper steps={steps} current={step} onStepClick={goToStep} allowAll={!!isEdit} /></div>
-
-      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">{error}</div>}
+    <WizardShell
+      title={`${isEdit ? 'Edit' : 'Add'} Azure Resource Manager Crawler`}
+      onCancel={onCancel}
+      steps={steps}
+      currentStep={step}
+      onStepClick={goToStep}
+      allowAllSteps={isEdit}
+      error={error}
+    >
 
       {/* Step 1 — Service Principal */}
       {step === 1 && (
@@ -318,6 +317,6 @@ export default function AzureRmConfigWizard({ onComplete, onCancel, initialConfi
           </div>
         </div>
       )}
-    </div>
+    </WizardShell>
   );
 }
