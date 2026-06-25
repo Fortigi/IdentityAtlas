@@ -51,10 +51,10 @@ export default [
     rules: {
       ...reactHooks.configs.recommended.rules,
       'local/no-low-contrast-text': 'error',
-      // Ratchet: warns on duplicate dark: color utilities (the audit's C1/C2/M6
-      // class). Promote to 'error' once the remaining `hover:text-X dark:text-Y`
-      // (missing-hover) backlog is cleaned up.
-      'local/no-duplicate-dark-color': 'warn',
+      // Flags two plain dark: utilities setting the same color property (the
+      // audit's C1/C2/M6 class — the later one silently wins). The missing-hover
+      // backlog (`hover:text-X dark:text-Y`) is now cleaned up, so this is an error.
+      'local/no-duplicate-dark-color': 'error',
       'local/no-native-dialogs': 'error',
       'local/no-legacy-jargon': 'error',
       'local/no-hardcoded-crawler-meta': 'error',

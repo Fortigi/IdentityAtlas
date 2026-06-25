@@ -239,7 +239,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
           ) : (
             <button
               onClick={() => setConfirmingDelete(true)}
-              className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-700 dark:text-red-400"
+              className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-400"
             >Delete context…</button>
           )}
         </div>

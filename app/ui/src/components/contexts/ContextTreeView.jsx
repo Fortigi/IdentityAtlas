@@ -339,7 +339,7 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
           <button
             aria-expanded={expanded}
             onClick={() => toggleExpanded(node.id)}
-            className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded shrink-0"
+            className="w-5 h-5 flex items-center justify-center text-gray-600 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded shrink-0"
             title={expanded ? 'Collapse' : 'Expand'}
           >
             {expanded ? '▾' : '▸'}

@@ -22,7 +22,7 @@ export function Modal({ title, subtitle, onClose, children, width = 480, dismiss
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{title}</h3>
             {subtitle && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
           </div>
-          <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 ml-4" aria-label="Close">✕</button>
+          <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 ml-4" aria-label="Close">✕</button>
         </div>
         {children}
       </div>
