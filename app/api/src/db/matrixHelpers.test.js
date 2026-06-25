@@ -56,6 +56,7 @@ describe('buildRoleSubjectJoinExprs', () => {
     const { join, id, name, type } = buildRoleSubjectJoinExprs('user');
     expect(join).not.toContain('Identities');
     expect(id).toBe('u.id');
+    expect(name).toBe('u."displayName"');
     expect(type).toContain('User');
   });
 });
