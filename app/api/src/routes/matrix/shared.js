@@ -1,0 +1,266 @@
+// Shared helpers + constants for the matrix endpoints.
+//
+// Extracted verbatim from routes/matrix.js as part of splitting that god-module
+// (audit finding Q1). Imported by routes/matrix.js and routes/matrix/scope.js so
+// both share one definition. No behaviour change — pure code move.
+
+import * as db from '../../db/connection.js';
+import { timedRequest } from '../../perf/sqlTimer.js';
+import { getPrincipalColumns, getResourceColumns } from '../../db/columnCache.js';
+import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
+
+export const ROW_TYPES = new Set(['principal', 'identity']);
+export const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
+export const FILTERABLE_TYPES = new Set([
+  'text', 'character varying', 'character', 'boolean',
+  'integer', 'bigint', 'smallint',
+]);
+
+// ─── Identity column discovery ──────────────────────────────────────
+
+let identityColumnsCache = null;
+let identityColumnsCacheTime = 0;
+let identityValuesCache = null;
+let identityValuesCacheTime = 0;
+const IDENTITY_CACHE_TTL = 5 * 60 * 1000;
+
+export async function getIdentityColumns() {
+  const now = Date.now();
+  if (identityColumnsCache && (now - identityColumnsCacheTime) < IDENTITY_CACHE_TTL) {
+    return identityColumnsCache;
+  }
+  const r = await db.query(
+    `SELECT column_name, data_type
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'Identities'
+        AND column_name NOT IN ('id', 'extendedAttributes')
+      ORDER BY ordinal_position`
+  );
+  identityColumnsCache = r.rows.map(row => ({
+    name: row.column_name,
+    rawName: row.column_name,
+    type: row.data_type,
+  }));
+  identityColumnsCacheTime = now;
+  return identityColumnsCache;
+}
+
+export async function getIdentityColumnValues() {
+  const now = Date.now();
+  if (identityValuesCache && (now - identityValuesCacheTime) < IDENTITY_CACHE_TTL) {
+    return identityValuesCache;
+  }
+  const grouped = {};
+
+  // Distinct values for real, filterable columns.
+  const cols = await getIdentityColumns();
+  const filterable = cols.filter(c => FILTERABLE_TYPES.has(c.type) && SAFE_IDENT_RE.test(c.rawName));
+  if (filterable.length > 0) {
+    const parts = filterable.map(c =>
+      `SELECT '${c.name}' AS col, val FROM (
+         SELECT DISTINCT "${c.rawName}"::text AS val FROM "Identities"
+          WHERE "${c.rawName}" IS NOT NULL AND "${c.rawName}"::text <> ''
+          LIMIT 500
+       ) t`
+    );
+    const r = await db.query(parts.join('\nUNION ALL\n') + '\nORDER BY col, val');
+    for (const row of r.rows) {
+      if (!grouped[row.col]) grouped[row.col] = [];
+      grouped[row.col].push(row.val);
+    }
+  }
+
+  // Extension-attribute keys + distinct values, surfaced as ext.<key> so they
+  // can be picked and filtered just like Principal/Resource ext attributes.
+  try {
+    const ext = await db.query(`
+      SELECT col, val FROM (
+        SELECT DISTINCT 'ext.' || e.key AS col, e.value AS val
+          FROM "Identities" i, LATERAL jsonb_each_text(i."extendedAttributes") e
+         WHERE i."extendedAttributes" IS NOT NULL
+           AND e.value IS NOT NULL AND e.value <> ''
+      ) t
+      ORDER BY col, val
+      LIMIT 5000
+    `);
+    for (const row of ext.rows) {
+      if (!grouped[row.col]) grouped[row.col] = [];
+      if (grouped[row.col].length < 500) grouped[row.col].push(row.val);
+    }
+  } catch { /* extendedAttributes column may be absent on older schemas */ }
+
+  identityValuesCache = grouped;
+  identityValuesCacheTime = now;
+  return identityValuesCache;
+}
+
+// ─── Filter parsing ─────────────────────────────────────────────────
+
+export function parseFilter(body) {
+  const f = body && body.filter;
+  if (!f || typeof f !== 'object') return null;
+  const rowType = ROW_TYPES.has(f.rowType) ? f.rowType : 'principal';
+  return {
+    rowType,
+    subject:  normaliseBlock(f.subject),
+    resource: normaliseBlock(f.resource),
+    // Roll-up: aggregate the subject axis by this attribute (real column or
+    // ext.<key>). null = off. Validated against real columns in the handler.
+    rollup: typeof f.rollup === 'string' && f.rollup ? f.rollup : null,
+    // What the roll-up returns: resources + role columns (default), resources
+    // only, or business roles as rows.
+    rollupContent: ['resources-and-roles', 'resources-only', 'roles-only'].includes(f.rollupContent)
+      ? f.rollupContent : 'resources-and-roles',
+    // How each roll-up cell is displayed: an absolute count (default) or the
+    // percentage of in-scope subjects in that group who hold it. Presentational
+    // only — the backend always returns groupTotals so the frontend can switch.
+    rollupMetric: f.rollupMetric === 'percent' ? 'percent' : 'count',
+    // Internal: a roles-only drill request returns the per-subject breakdown
+    // for the group already scoped via a subject attribute condition.
+    drill: f.drill === true,
+    // EXPERIMENTAL — aggregate the subject axis by a Context tree (e.g. the
+    // Manager Hierarchy) instead of an attribute. rollupKind 'context' switches
+    // the roll-up branch; rollupContextId is the starting (root) node. The view
+    // zooms one level at a time: rollupPath is the drill path from the root to
+    // the current focus node, and the columns are the focus node's children.
+    rollupKind: f.rollupKind === 'context' ? 'context' : 'attribute',
+    rollupContextId: typeof f.rollupContextId === 'string' && f.rollupContextId ? f.rollupContextId : null,
+    rollupPath: Array.isArray(f.rollupPath) ? f.rollupPath.filter(x => typeof x === 'string').slice(0, 50) : [],
+    // Layered hierarchy view: the set of org nodes the user has expanded in
+    // place. The visible columns are the resulting tree cut; expanding a node
+    // adds the next level as a new header row (see buildContextCutSql). Reused by
+    // the layered attribute fold, where the entries are attribute-tuple keys.
+    rollupExpanded: Array.isArray(f.rollupExpanded) ? f.rollupExpanded.filter(x => typeof x === 'string').slice(0, 200) : [],
+    // Serve the attribute fold as a server-aggregated layered view (counts +
+    // expand-in-place) rather than a flat per-subject grid — set by the wizard
+    // for matrices too large to ship every row. Uses sortAttributes as the tree.
+    foldAttributes: f.foldAttributes === true,
+    // Layered attribute fold: the set of attribute-tuple keys the user has
+    // FOLDED (collapse model — default none = full depth, all attribute rows
+    // shown). Inverse of rollupExpanded, which the hierarchy view uses.
+    rollupCollapsed: Array.isArray(f.rollupCollapsed) ? f.rollupCollapsed.filter(x => typeof x === 'string').slice(0, 500) : [],
+    // Subject-axis sort order — client-side only, but normalised here so the
+    // shape is consistent across endpoints. Max 3 attributes.
+    sortAttributes: normaliseSortAttributes(f.sortAttributes),
+    // Sort the subject axis by a Context tree (Manager Hierarchy). Served as a
+    // context roll-up (aggregated per org node) so we never ship every
+    // per-subject row — see the translation in the /matrix/data handler.
+    sortHierarchy: f.sortHierarchy && typeof f.sortHierarchy === 'object'
+      && typeof f.sortHierarchy.contextId === 'string' && f.sortHierarchy.contextId
+      ? { contextId: f.sortHierarchy.contextId } : null,
+  };
+}
+
+export function normaliseSortAttributes(arr) {
+  const DEFAULT = [{ attribute: 'department', dir: 'asc' }];
+  if (!Array.isArray(arr)) return DEFAULT;
+  const out = [];
+  for (const a of arr) {
+    if (!a || typeof a.attribute !== 'string' || !a.attribute) continue;
+    out.push({ attribute: a.attribute, dir: a.dir === 'desc' ? 'desc' : 'asc' });
+    if (out.length === 6) break;
+  }
+  return out.length ? out : DEFAULT;
+}
+
+export function normaliseBlock(b) {
+  if (!b || typeof b !== 'object') return { include: [], exclude: [] };
+  return {
+    include: Array.isArray(b.include) ? b.include : [],
+    exclude: Array.isArray(b.exclude) ? b.exclude : [],
+  };
+}
+
+// ─── Subquery + scope helpers ───────────────────────────────────────
+
+export async function resolveContextTypes(filter) {
+  const ids = collectContextIds(filter);
+  if (ids.length === 0) return new Map();
+  const r = await db.query(
+    `SELECT id, "targetType" FROM "Contexts" WHERE id = ANY($1::uuid[])`,
+    [ids],
+  );
+  return new Map(r.rows.map(row => [row.id, row.targetType]));
+}
+
+export async function buildSubqueries(filter) {
+  const [principalCols, resourceCols, identityCols, contextTypes] = await Promise.all([
+    getPrincipalColumns(),
+    getResourceColumns(),
+    getIdentityColumns(),
+    resolveContextTypes(filter),
+  ]);
+  const principalColSet = new Set(principalCols.map(c => c.name));
+  const resourceColSet  = new Set(resourceCols.map(c => c.name));
+  const identityColSet  = new Set(identityCols.map(c => c.name));
+
+  const subjectEntity = filter.rowType === 'identity' ? 'Identity' : 'Principal';
+  const subjectValidCols = filter.rowType === 'identity' ? identityColSet : principalColSet;
+
+  const subject = buildEntitySubquery({
+    entity: subjectEntity,
+    include: filter.subject.include,
+    exclude: filter.subject.exclude,
+    validColumns: subjectValidCols,
+    contextTypes,
+    bindingPrefix: 'sf',
+  });
+  const resource = buildEntitySubquery({
+    entity: 'Resource',
+    include: filter.resource.include,
+    exclude: filter.resource.exclude,
+    validColumns: resourceColSet,
+    contextTypes,
+    bindingPrefix: 'rf',
+  });
+
+  return {
+    subjectSql:    subject.sql,
+    resourceSql:   resource.sql,
+    bindings:      { ...subject.bindings, ...resource.bindings },
+    warnings:      [...subject.warnings, ...resource.warnings],
+    principalCols,
+    resourceCols,
+    identityCols,
+  };
+}
+
+// Run a single-cell COUNT query with the given bindings; returns the integer.
+export async function runCount(p, label, res, sql, bindings) {
+  const r = timedRequest(p, label, res);
+  for (const [k, v] of Object.entries(bindings)) r.input(k, v);
+  const result = await r.query(sql);
+  return result.recordset[0]?.c ?? 0;
+}
+
+export function subjectScopeClauses(rowType, subjectSql) {
+  const subjectTable = rowType === 'identity' ? 'Identities' : 'Principals';
+  // For principals, exclude group-shaped accounts so counts match what the
+  // matrix actually renders.
+  const baseWhere = rowType === 'principal'
+    ? `("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')`
+    : null;
+  const idClause = subjectSql ? `id IN ${subjectSql}` : null;
+  const clauses = [baseWhere, idClause].filter(Boolean);
+  return {
+    subjectTable,
+    where: clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '',
+    baseWhere: baseWhere ? ` WHERE ${baseWhere}` : '',
+  };
+}
+
+// Subject/resource scope counts shared by /matrix/data (flat + roll-up paths).
+export async function scopeCounts(p, res, rowType, built) {
+  const subj = subjectScopeClauses(rowType, built.subjectSql);
+  const [subjectCount, subjectTotal, resourceCount, resourceTotal] = await Promise.all([
+    runCount(p, 'matrix-data-subject-count', res,
+      `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`, built.bindings),
+    runCount(p, 'matrix-data-subject-total', res,
+      `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.baseWhere}`, {}),
+    runCount(p, 'matrix-data-resource-count', res,
+      `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceSql ? ` WHERE id IN ${built.resourceSql}` : ''}`, built.bindings),
+    runCount(p, 'matrix-data-resource-total', res,
+      `SELECT COUNT(*)::int AS c FROM "Resources"`, {}),
+  ]);
+  return { subjectCount, subjectTotal, resourceCount, resourceTotal };
+}
