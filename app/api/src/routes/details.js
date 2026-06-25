@@ -446,29 +446,24 @@ router.get('/group/:id/members', async (req, res) => {
   try {
     const pool = await db.getPool();
     const table = await getPermissionTable(pool);
-    let r;
-    try {
-      r = await timedRequest(pool, 'group-members', res)
-        .input('id', req.params.id)
-        .query(`
-        SELECT "memberId", memberDisplayName, memberUPN,
-               "membershipType", "managedByAccessPackage"
-        FROM ${table}
-        WHERE "resourceId" = @id
-        ORDER BY memberDisplayName, "membershipType"
+    // The matrix matview keys members by principalId and carries membershipType +
+    // managedByAccessPackage; join Principals for the display name / UPN.
+    // (Previously selected memberId/memberDisplayName/memberUPN, which don't exist
+    // on the v5 matview, so this endpoint always 500'd — masked by the legacy
+    // fallback, which referenced an equally-absent "groupId" column.)
+    const r = await timedRequest(pool, 'group-members', res)
+      .input('id', req.params.id)
+      .query(`
+        SELECT p."principalId"     AS "memberId",
+               pr."displayName"    AS "memberDisplayName",
+               pr.email            AS "memberUPN",
+               p."membershipType",
+               p."managedByAccessPackage"
+          FROM ${table} p
+          JOIN "Principals" pr ON pr.id = p."principalId"
+         WHERE p."resourceId" = @id
+         ORDER BY pr."displayName", p."membershipType"
       `);
-    } catch {
-      // Fall back to groupId column name
-      r = await timedRequest(pool, 'group-members-legacy', res)
-        .input('id', req.params.id)
-        .query(`
-        SELECT "memberId", memberDisplayName, memberUPN,
-               "membershipType", "managedByAccessPackage"
-        FROM ${table}
-        WHERE "groupId" = @id
-        ORDER BY memberDisplayName, "membershipType"
-      `);
-    }
     res.json(r.recordset);
   } catch (err) {
     console.error('Error fetching group members:', err.message);
