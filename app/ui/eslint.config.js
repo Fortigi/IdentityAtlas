@@ -6,6 +6,7 @@ import noNativeDialogs from './eslint-rules/no-native-dialogs.js';
 import noLegacyJargon from './eslint-rules/no-legacy-jargon.js';
 import noHardcodedCrawlerMeta from './eslint-rules/no-hardcoded-crawler-meta.js';
 import noRelativePackageImports from './eslint-rules/no-relative-package-imports.js';
+import noDuplicateDarkColor from './eslint-rules/no-duplicate-dark-color.js';
 
 // Files that still use native confirm()/alert()/prompt() (the pre-existing
 // backlog). They're downgraded to a warning so CI stays green while new code
@@ -43,12 +44,17 @@ export default [
           'no-legacy-jargon': noLegacyJargon,
           'no-hardcoded-crawler-meta': noHardcodedCrawlerMeta,
           'no-relative-package-imports': noRelativePackageImports,
+          'no-duplicate-dark-color': noDuplicateDarkColor,
         },
       },
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
       'local/no-low-contrast-text': 'error',
+      // Ratchet: warns on duplicate dark: color utilities (the audit's C1/C2/M6
+      // class). Promote to 'error' once the remaining `hover:text-X dark:text-Y`
+      // (missing-hover) backlog is cleaned up.
+      'local/no-duplicate-dark-color': 'warn',
       'local/no-native-dialogs': 'error',
       'local/no-legacy-jargon': 'error',
       'local/no-hardcoded-crawler-meta': 'error',
