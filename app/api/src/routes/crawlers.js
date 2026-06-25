@@ -5,6 +5,7 @@ import * as db from '../db/connection.js';
 import { injectJobSecret, deleteJobSecret } from '../secrets/crawlerSecrets.js';
 import { getPushModeType } from '../crawlerManifests.js';
 import { runPostCrawlJobs } from '../postCrawlJobs.js';
+import { crawlerHasPermission, crawlerHasSystemAccess } from '../middleware/crawlerAuth.js';
 
 const adminCrawlersRouter = Router();
 const gate = requirePermission('admin.crawlers');
@@ -382,8 +383,23 @@ selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
 // to claim and complete jobs. The web container handles all SQL.
 //
 // Auth: crawler API key (the built-in worker holds the only valid one).
+//
+// Security (SEC-NEW-2): these job-orchestration endpoints are the web<->worker
+// protocol. /claim in particular returns the vaulted clientSecret (injectJobSecret),
+// so any valid fgc_ key could otherwise drain the queue and harvest another
+// system's Graph credentials. Restrict them to the privileged worker: the
+// built-in worker holds the 'admin' crawler permission; external ingest-only
+// keys (default ['ingest']) are rejected. Crawlers that only push data use
+// /api/ingest, not this protocol.
+function requireWorkerCrawler(req, res, next) {
+  if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
+  if (!crawlerHasPermission(req, 'admin')) {
+    return res.status(403).json({ error: 'This endpoint requires a worker crawler key' });
+  }
+  next();
+}
 
-selfServiceCrawlersRouter.post('/crawlers/jobs/claim', async (req, res) => {
+selfServiceCrawlersRouter.post('/crawlers/jobs/claim', requireWorkerCrawler, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
@@ -424,7 +440,7 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/claim', async (req, res) => {
 // delta-mode-next-run. Operators explicitly request a full sync via the
 // UI (setting nextRunMode='full'); once that full run lands successfully,
 // we auto-reset so the subsequent scheduled run uses the fast delta path.
-selfServiceCrawlersRouter.post('/crawlers/configs/:id/mark-delta-mode', async (req, res) => {
+selfServiceCrawlersRouter.post('/crawlers/configs/:id/mark-delta-mode', requireWorkerCrawler, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
@@ -461,6 +477,12 @@ selfServiceCrawlersRouter.get('/crawlers/delta-tokens/:endpoint', async (req, re
   if (!Number.isInteger(systemId) || systemId <= 0) {
     return res.status(400).json({ error: 'systemId query param required' });
   }
+  // Security (SEC-NEW-3): scope delta tokens to systems this crawler may access.
+  // The built-in worker (systemIds=null) keeps full access; a system-scoped
+  // external crawler can no longer read another system's token.
+  if (!crawlerHasSystemAccess(req, systemId)) {
+    return res.status(403).json({ error: 'Crawler not authorized for this system' });
+  }
   // Permit alphanumerics + / - . : _ — matches Graph endpoint path fragments.
   const endpoint = String(req.params.endpoint || '');
   if (!/^[a-zA-Z0-9/_\-.:]+$/.test(endpoint) || endpoint.length > 200) {
@@ -491,6 +513,8 @@ selfServiceCrawlersRouter.put('/crawlers/delta-tokens/:endpoint', async (req, re
   const { systemId, token, recordsLastSeen } = req.body || {};
   const sid = parseInt(systemId, 10);
   if (!Number.isInteger(sid) || sid <= 0) return res.status(400).json({ error: 'systemId is required' });
+  // Security (SEC-NEW-3): scope delta-token writes to systems this crawler may access.
+  if (!crawlerHasSystemAccess(req, sid)) return res.status(403).json({ error: 'Crawler not authorized for this system' });
   if (!token || typeof token !== 'string') return res.status(400).json({ error: 'token is required' });
   // Graph delta tokens run a few KB. Cap at 64 KB to catch runaway payloads
   // while still accommodating the nested $select/$filter tokens Graph hands out.
@@ -518,6 +542,8 @@ selfServiceCrawlersRouter.delete('/crawlers/delta-tokens/:endpoint', async (req,
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const systemId = parseInt(req.query.systemId, 10);
   if (!Number.isInteger(systemId) || systemId <= 0) return res.status(400).json({ error: 'systemId query param required' });
+  // Security (SEC-NEW-3): scope delta-token deletes to systems this crawler may access.
+  if (!crawlerHasSystemAccess(req, systemId)) return res.status(403).json({ error: 'Crawler not authorized for this system' });
   const endpoint = String(req.params.endpoint || '');
   if (!/^[a-zA-Z0-9/_\-.:]+$/.test(endpoint) || endpoint.length > 200) {
     return res.status(400).json({ error: 'Invalid endpoint format' });
@@ -539,7 +565,7 @@ selfServiceCrawlersRouter.delete('/crawlers/delta-tokens/:endpoint', async (req,
 // Sync Log / Jobs UI. Called once just before the crawler returns (or throws)
 // so the data lands regardless of whether the scheduler ends up in `/complete`
 // or `/fail`. Idempotent: a re-call replaces the previous phases array.
-selfServiceCrawlersRouter.post('/crawlers/jobs/:id/phases', async (req, res) => {
+selfServiceCrawlersRouter.post('/crawlers/jobs/:id/phases', requireWorkerCrawler, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
@@ -568,7 +594,7 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/phases', async (req, res) => 
   }
 });
 
-selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', async (req, res) => {
+selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', requireWorkerCrawler, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
@@ -596,7 +622,7 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/:id/complete', async (req, res) =
   }
 });
 
-selfServiceCrawlersRouter.post('/crawlers/jobs/:id/fail', async (req, res) => {
+selfServiceCrawlersRouter.post('/crawlers/jobs/:id/fail', requireWorkerCrawler, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const id = parseInt(req.params.id, 10);
