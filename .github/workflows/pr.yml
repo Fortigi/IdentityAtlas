@@ -22,6 +22,7 @@
 #   9. hygiene    — tests + changelog fragment required for code changes
 #  10. crawler-manifest — CrawlerMeta.js completeness check
 #  11. docs-nav   — crawler docs registered in mkdocs.yml nav
+#  12. duplication — jscpd clone detection; threshold in .jscpd.json
 #
 # Target branches: PRs into main or dev
 # ─────────────────────────────────────────────────────────────────────────────
@@ -583,6 +584,21 @@ jobs:
           if [ "$FAIL" = "1" ]; then exit 1; fi
           echo "All crawler docs are registered in the site nav."
 
+  # ── Stage 10: Code duplication threshold ─────────────────────────────────
+  # Fails if overall duplication exceeds the threshold in .jscpd.json.
+  # Threshold starts at 3% (above the 2.95% pre-refactor baseline). Lower it
+  # progressively as the dedup refactor phases land in main.
+  duplication:
+    name: 'Lint: Code duplication (jscpd)'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Check code duplication
+        run: npx --yes jscpd@3 . --config .jscpd.json
+
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
   # protection to require only "ci-passed" — not each individual job name.
@@ -608,6 +624,7 @@ jobs:
       - hygiene
       - crawler-manifest
       - docs-nav
+      - duplication
     if: always()
     runs-on: ubuntu-latest
     steps:
