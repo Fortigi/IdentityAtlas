@@ -490,7 +490,7 @@ router.get('/group/:id/access-packages', async (req, res) => {
       SELECT DISTINCT
         rrs."parentResourceId" AS "resourceId",
         ap."displayName" AS "accessPackageName",
-        rrs.roleName
+        rrs."roleName"
       FROM "ResourceRelationships" rrs
       LEFT JOIN "Resources" ap ON rrs."parentResourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
       WHERE UPPER(rrs."childResourceId"::text) = UPPER(@id)
