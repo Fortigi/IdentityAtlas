@@ -47,18 +47,23 @@ async function countAll(table, where = '') {
 
 // ── scopeCounts SQL patterns ─────────────────────────────────────────────────
 
+// Counts are scoped to this file's own systemId: the contract suite shares one
+// DB container, so sibling files' Principals would otherwise leak into a global
+// COUNT(*). The assertion under test is the group-exclusion WHERE clause, which
+// is preserved verbatim.
+const GROUP_EXCL = `("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')`;
+
 describe('scopeCounts — Principals', () => {
   it('returns an integer (not a string) for an empty table', async () => {
-    const r = await pool.query(`SELECT COUNT(*)::int AS c FROM "Principals"`);
+    const r = await pool.query(`SELECT COUNT(*)::int AS c FROM "Principals" WHERE "systemId" = $1`, [systemId]);
     expect(typeof r.rows[0].c).toBe('number');
     expect(r.rows[0].c).toBe(0);
   });
 
   it('scoped count uses the group-exclusion WHERE from subjectScopeClauses', async () => {
-    // This is the exact SQL subjectScopeClauses emits for rowType === 'principal'.
     const r = await pool.query(
-      `SELECT COUNT(*)::int AS c FROM "Principals"
-        WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')`,
+      `SELECT COUNT(*)::int AS c FROM "Principals" WHERE "systemId" = $1 AND ${GROUP_EXCL}`,
+      [systemId],
     );
     expect(typeof r.rows[0].c).toBe('number');
     expect(r.rows[0].c).toBe(0);
@@ -66,8 +71,8 @@ describe('scopeCounts — Principals', () => {
 
   it('reflects a newly inserted User in both the scoped and total counts', async () => {
     await insertPrincipal('u1');
-    const scoped = await countAll('Principals', ` WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')`);
-    const total  = await countAll('Principals');
+    const scoped = await countAll('Principals', ` WHERE "systemId" = ${systemId} AND ${GROUP_EXCL}`);
+    const total  = await countAll('Principals', ` WHERE "systemId" = ${systemId}`);
     expect(scoped).toBe(1);
     expect(total).toBe(1);
   });
@@ -75,8 +80,8 @@ describe('scopeCounts — Principals', () => {
   it('group-typed Principals are excluded from scoped count but included in total', async () => {
     await insertPrincipal('g1', '#microsoft.graph.group');
     await insertPrincipal('u1', 'User');
-    const scoped = await countAll('Principals', ` WHERE ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')`);
-    const total  = await countAll('Principals');
+    const scoped = await countAll('Principals', ` WHERE "systemId" = ${systemId} AND ${GROUP_EXCL}`);
+    const total  = await countAll('Principals', ` WHERE "systemId" = ${systemId}`);
     expect(scoped).toBe(1); // only the User
     expect(total).toBe(2);  // User + group
   });
