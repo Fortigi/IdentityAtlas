@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed dark-mode hover states on buttons and links across the context detail/tree, risk-scoring, run-detail, and modal screens. A hover text color was being applied permanently in dark mode (instead of only on hover) because its `hover:` modifier was missing, so the affected controls didn't visibly respond to hover in dark mode.
+- The lint check for duplicate dark-mode colors is now enforced as an error, preventing the issue from returning.
+
+## Changes in this PR
+
 - Extracted shared `Invoke-FGWriteRequest` helper to eliminate the duplicated body in `Invoke-FGPostRequest` and `Invoke-FGPutRequest`
 - Extracted shared `Invoke-FGGetPage` helper to eliminate the duplicated retry/throttle loop across `Invoke-FGGetRequest`, `Invoke-FGGetRequestToFile`, and `Invoke-FGGetRequestStream`
 - Extracted shared `Merge-FGJsonArrayFile` and `Remove-FGTrailingCommaFromJsonFile` helpers to eliminate the duplicated StreamReader/StreamWriter JSON cleanup blocks
