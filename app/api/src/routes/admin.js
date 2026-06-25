@@ -2,6 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import * as db from '../db/connection.js';
 import { getAuthState } from '../config/authConfig.js';
+import { purgeExpiredTombstones } from '../ingest/tombstonePurge.js';
 import { requirePermission } from '../middleware/auth.js';
 
 // Per-handler gates for the various /admin/* endpoints. Read-only dashboards
@@ -745,12 +746,15 @@ router.post('/admin/history-retention/prune', writeSystems, adminDestructiveLimi
       [HISTORY_RETENTION_KEY]
     );
     const days = r ? parseInt(r.configValue, 10) : HISTORY_RETENTION_DEFAULT;
-    if (days <= 0) return res.json({ deleted: 0, message: 'Retention disabled (0 days) — nothing pruned' });
+    if (days <= 0) return res.json({ deleted: 0, purged: {}, message: 'Retention disabled (0 days) — nothing pruned' });
+    // Finalise tombstones (hard-delete soft-deleted rows past the window), then
+    // prune the history table — same retention governs both.
+    const { purged } = await purgeExpiredTombstones(db, days);
     const del = await db.query(
       `DELETE FROM "_history" WHERE "changedAt" < now() - ($1::int * interval '1 day')`,
       [days]
     );
-    res.json({ deleted: del.rowCount || 0, retentionDays: days });
+    res.json({ deleted: del.rowCount || 0, purged, retentionDays: days });
   } catch (err) {
     console.error('history-retention prune failed:', err.message);
     res.status(500).json({ error: 'Prune failed' });

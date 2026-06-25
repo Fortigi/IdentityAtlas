@@ -1,0 +1,2 @@
+- Soft-deleted records (users, resources and their assignments that were removed in a source system) are now **permanently purged after the retention period**, reusing the existing **Admin → Deleted Data & History Retention** setting (default 180 days). They stay auditable during the window, then the same job that prunes the audit log finalises them. One global value governs both; set it to `0` to keep everything forever.
+- The Admin retention card and its "Prune now" action now cover deleted records as well as history.
