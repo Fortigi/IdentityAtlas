@@ -128,10 +128,13 @@ jobs:
             e2e:
               - 'app/ui/src/**'
               - 'app/ui/e2e/**'
+              - 'app/ui/scripts/**'
               - 'app/ui/playwright*.config.js'
               - 'tools/crawlers/**/*.jsx'
+              - 'tools/crawlers/**/*.e2e.*'
               - 'app/api/src/**'
               - 'app/api/Dockerfile'
+              - '.github/workflows/pr-integration.yml'
             load_soak:
               - 'app/api/src/**'
               - 'tools/crawlers/shared/**'
