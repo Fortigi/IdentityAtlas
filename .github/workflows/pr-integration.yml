@@ -42,6 +42,12 @@ on:
       - 'setup/IdentityAtlas.psd1'
       - '**.md'
 
+# Cancel superseded runs when a PR branch is pushed again — these Docker/load
+# suites are expensive, so don't let a stale run keep burning a runner (F4).
+concurrency:
+  group: pr-integration-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DOTNET_NOLOGO: true
   POWERSHELL_TELEMETRY_OPTOUT: 1
@@ -121,6 +127,8 @@ jobs:
               - 'docker-compose*.yml'
             e2e:
               - 'app/ui/src/**'
+              - 'app/ui/e2e/**'
+              - 'app/ui/playwright*.config.js'
               - 'tools/crawlers/**/*.jsx'
               - 'app/api/src/**'
               - 'app/api/Dockerfile'
