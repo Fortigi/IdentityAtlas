@@ -1,1 +1,0 @@
-- Added `npm run test:coverage` to `app/api` and `app/ui` for informational code coverage reporting (no CI gate — run locally to see which lines are exercised by unit tests)

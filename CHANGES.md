@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added `npm run test:coverage` to `app/api` and `app/ui` for informational code coverage reporting (no CI gate — run locally to see which lines are exercised by unit tests)
+
+## Changes in this PR
+
 - Added `npm run test:e2e:sql` command to run Playwright E2E tests against a real Docker stack locally, matching the CI environment exactly
 - E2E failures in CI now block PR merges (removed the `continue-on-error` bypass that was masking test failures)
 
