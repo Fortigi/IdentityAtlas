@@ -135,6 +135,7 @@ router.get('/risk-scores', async (req, res) => {
       INNER JOIN "Principals" p ON rs."entityId" = p.id AND ${TEMPORAL_FILTER}
       WHERE rs."entityType" = 'Principal'
       ORDER BY rs."riskScore" DESC
+      LIMIT 10
     `);
 
     // Top 10 resources by score
@@ -144,6 +145,7 @@ router.get('/risk-scores', async (req, res) => {
       INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${TEMPORAL_FILTER}
       WHERE rs."entityType" = 'Resource'
       ORDER BY rs."riskScore" DESC
+      LIMIT 10
     `);
 
     // Totals and override counts
@@ -161,6 +163,7 @@ router.get('/risk-scores', async (req, res) => {
       SELECT "riskScoredAt" FROM "RiskScores"
       WHERE "riskScoredAt" IS NOT NULL
       ORDER BY "riskScoredAt" DESC
+      LIMIT 1
     `);
 
     // Resource type breakdown
