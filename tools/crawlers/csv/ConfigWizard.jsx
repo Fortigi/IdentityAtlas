@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Stepper from '@ui/components/Stepper';
+import WizardShell from '@ui/components/WizardShell';
 import CSV_SLOTS from './csv-slots.json';
 
 export const MAX_FILE_BYTES = 1024 * 1024 * 1024; // 1 GB — must match crawlerFiles.js
@@ -168,19 +168,15 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   ];
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit CSV Crawler' : 'Add CSV Crawler'}</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      <div className="mb-5"><Stepper steps={csvSteps} current={step} onStepClick={setStep} allowAll={!!isEdit} /></div>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">
-          {error}
-        </div>
-      )}
+    <WizardShell
+      title={isEdit ? 'Edit CSV Crawler' : 'Add CSV Crawler'}
+      onCancel={onCancel}
+      steps={csvSteps}
+      currentStep={step}
+      onStepClick={setStep}
+      allowAllSteps={isEdit}
+      error={error}
+    >
 
       {/* ── Step 1: System info ──────────────────────────────────────────── */}
       {step === 1 && (
@@ -361,6 +357,6 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
           </div>
         </div>
       )}
-    </div>
+    </WizardShell>
   );
 }

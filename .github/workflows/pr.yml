@@ -586,8 +586,8 @@ jobs:
 
   # ── Stage 10: Code duplication threshold ─────────────────────────────────
   # Fails if overall duplication exceeds the threshold in .jscpd.json.
-  # Threshold starts at 3% (above the 2.95% pre-refactor baseline). Lower it
-  # progressively as the dedup refactor phases land in main.
+  # Threshold is 2% (above the 1.65% baseline after dedup phases 1-4). Lower it
+  # progressively as further dedup refactor phases land in main.
   duplication:
     name: 'Lint: Code duplication (jscpd)'
     needs: [changes]

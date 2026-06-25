@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import ScheduleEditor from '@ui/components/ScheduleEditor';
-import Stepper from '@ui/components/Stepper';
+import MappingRows from '@ui/components/MappingRows';
+import WizardShell from '@ui/components/WizardShell';
 import Combobox from '@ui/components/inputs/Combobox';
 import Select from '@ui/components/inputs/Select';
+import { SECRET_PLACEHOLDER, canSubmitCredentials, buildCredentialFields } from '@ui/utils/crawlerCredentials';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const SECRET_PLACEHOLDER = '••••••••';
 
 const AUTH_METHODS = [
   { id: 'BasicAuth',  label: 'HTTP Basic Auth',           description: 'username + password (Authorization: Basic)' },
@@ -31,40 +31,6 @@ const SYNC_OPTIONS = [
 const RESOURCE_TYPE_OPTIONS  = ['BusinessRole', 'Service', 'Resource', 'Application', 'AppRole', 'Entitlement', 'DelegatedPermission'];
 const PRINCIPAL_TYPE_OPTIONS = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
 const FIELD_CLS = 'text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
-
-// ─── Credential validation + payload helpers ───────────────────────────────────
-// Pure functions (no closure over component state) so they're independently
-// unit-testable — see credentialGating.test.js. Each auth method needs a
-// different subset of fields; isEdit relaxes the requirement for secret
-// fields only (blank in edit mode means "keep the stored value").
-
-export function canSubmitCredentials(authMethod, fields, isEdit) {
-  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken } = fields;
-  if (authMethod === 'BasicAuth')  return !!username.trim() && !!(password.trim() || isEdit);
-  if (authMethod === 'ApiToken')   return !!(apiToken.trim() || isEdit);
-  if (authMethod === 'OAuth2CC')   return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit);
-  if (authMethod === 'OAuth2ROPC') return !!tokenEndpoint.trim() && !!clientId.trim() && !!(clientSecret.trim() || isEdit) && !!username.trim() && !!(password.trim() || isEdit);
-  return true;
-}
-
-// Only includes credential fields that have a value — blank means "keep the
-// existing stored value" on edit, and is unreachable on create because
-// canSubmitCredentials already requires it there.
-export function buildCredentialFields(authMethod, fields) {
-  const { username, password, clientId, clientSecret, tokenEndpoint, apiToken } = fields;
-  const out = {};
-  if (authMethod === 'BasicAuth' || authMethod === 'OAuth2ROPC') {
-    out.username = username.trim();
-    if (password.trim()) out.password = password.trim();
-  }
-  if (authMethod === 'ApiToken' && apiToken.trim()) out.apiToken = apiToken.trim();
-  if (authMethod === 'OAuth2CC' || authMethod === 'OAuth2ROPC') {
-    out.tokenEndpoint = tokenEndpoint.trim();
-    out.clientId = clientId.trim();
-    if (clientSecret.trim()) out.clientSecret = clientSecret.trim();
-  }
-  return out;
-}
 
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 
@@ -207,15 +173,15 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
   const handleStepClick = (n) => { setStep(n); if (n === 3) fetchDiscovery(); };
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">{isEdit ? 'Edit' : 'Add'} midPoint Crawler</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      <div className="mb-5"><Stepper steps={steps} current={step} onStepClick={handleStepClick} allowAll={!!isEdit} /></div>
-
-      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">{error}</div>}
+    <WizardShell
+      title={`${isEdit ? 'Edit' : 'Add'} midPoint Crawler`}
+      onCancel={onCancel}
+      steps={steps}
+      currentStep={step}
+      onStepClick={handleStepClick}
+      allowAllSteps={isEdit}
+      error={error}
+    >
 
       {/* Step 1 — Connection */}
       {step === 1 && (
@@ -334,32 +300,36 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
               Dropdowns are populated live from the midPoint server. Default: every role → BusinessRole.
             </p>
             {discoError && <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">{discoError}</p>}
-            <div className="space-y-2">
-              <div className="grid grid-cols-3 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 pr-6">
-                <span>Archetype</span><span>Subtype (fallback)</span><span>Identity Atlas type</span>
-              </div>
-              {archetypeMapping.map((m, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <Combobox value={m.archetype} onChange={v => upArch(i, 'archetype', v)}
+            <MappingRows
+              rows={archetypeMapping}
+              onAdd={addArch}
+              onRemove={rmArch}
+              onUpdate={upArch}
+              headers={['Archetype', 'Subtype (fallback)', 'Identity Atlas type']}
+              addLabel="+ Add rule"
+              columns={[
+                { key: 'archetype', render: (v, onChange) => (
+                  <Combobox value={v} onChange={onChange}
                     options={(disco?.archetypes || []).map(a => a.name)}
                     defaultOption={{ value: '', label: '(any / catch-all)' }}
                     placeholder="(any / catch-all)"
-                    wrapperClassName="flex-1 min-w-0" className={FIELD_CLS} />
-                  <Combobox value={m.subtype} onChange={v => upArch(i, 'subtype', v)}
+                    className={FIELD_CLS} />
+                )},
+                { key: 'subtype', render: (v, onChange) => (
+                  <Combobox value={v} onChange={onChange}
                     options={disco?.roleSubtypes || []}
                     defaultOption={{ value: '', label: '(none)' }}
                     placeholder="(optional)"
-                    wrapperClassName="flex-1 min-w-0" className={FIELD_CLS} />
-                  <Select value={m.resourceType} onChange={e => upArch(i, 'resourceType', e.target.value)}
-                    wrapperClassName="flex-1 min-w-0" className={FIELD_CLS + ' bg-white'}>
+                    className={FIELD_CLS} />
+                )},
+                { key: 'resourceType', render: (v, onChange) => (
+                  <Select value={v} onChange={e => onChange(e.target.value)}
+                    className={FIELD_CLS + ' bg-white'}>
                     {RESOURCE_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                   </Select>
-                  <button onClick={() => rmArch(i)} disabled={archetypeMapping.length === 1}
-                    className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
-                </div>
-              ))}
-            </div>
-            <button onClick={addArch} className="mt-2 text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">+ Add rule</button>
+                )},
+              ]}
+            />
           </div>
 
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -371,42 +341,54 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
                 <div>
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Org → context type</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Map an OrgType subtype to a context type. Blank subtype = catch-all (default OrgUnit).</p>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 pr-6 mb-1"><span>Org subtype</span><span>Context type</span></div>
-                  {orgMapping.map((m, i) => (
-                    <div key={i} className="flex gap-2 items-center mb-1">
-                      <Combobox value={m.orgSubtype} onChange={v => upOrg(i, 'orgSubtype', v)}
-                        options={disco?.orgSubtypes || []}
-                        defaultOption={{ value: '', label: '(any / catch-all)' }}
-                        placeholder="(any / catch-all)"
-                        wrapperClassName="flex-1 min-w-0" className={FIELD_CLS} />
-                      <input value={m.contextType} onChange={e => upOrg(i, 'contextType', e.target.value)} placeholder="OrgUnit"
-                        className={'flex-1 min-w-0 ' + FIELD_CLS} />
-                      <button onClick={() => rmOrg(i)} disabled={orgMapping.length === 1}
-                        className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
-                    </div>
-                  ))}
-                  <button onClick={addOrg} className="mt-1 text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">+ Add rule</button>
+                  <MappingRows
+                    rows={orgMapping}
+                    onAdd={addOrg}
+                    onRemove={rmOrg}
+                    onUpdate={upOrg}
+                    headers={['Org subtype', 'Context type']}
+                    addLabel="+ Add rule"
+                    columns={[
+                      { key: 'orgSubtype', render: (v, onChange) => (
+                        <Combobox value={v} onChange={onChange}
+                          options={disco?.orgSubtypes || []}
+                          defaultOption={{ value: '', label: '(any / catch-all)' }}
+                          placeholder="(any / catch-all)"
+                          className={FIELD_CLS} />
+                      )},
+                      { key: 'contextType', render: (v, onChange) => (
+                        <input value={v} onChange={e => onChange(e.target.value)} placeholder="OrgUnit"
+                          className={'w-full ' + FIELD_CLS} />
+                      )},
+                    ]}
+                  />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">User → principal type</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Map a UserType subtype/employeeType to a principal type. Blank = catch-all (default User).</p>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 pr-6 mb-1"><span>User subtype</span><span>Principal type</span></div>
-                  {idMapping.map((m, i) => (
-                    <div key={i} className="flex gap-2 items-center mb-1">
-                      <Combobox value={m.userType} onChange={v => upId(i, 'userType', v)}
-                        options={disco?.userTypes || []}
-                        defaultOption={{ value: '', label: '(any / catch-all)' }}
-                        placeholder="(any / catch-all)"
-                        wrapperClassName="flex-1 min-w-0" className={FIELD_CLS} />
-                      <Select value={m.principalType} onChange={e => upId(i, 'principalType', e.target.value)}
-                        wrapperClassName="flex-1 min-w-0" className={FIELD_CLS + ' bg-white'}>
-                        {PRINCIPAL_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                      </Select>
-                      <button onClick={() => rmId(i)} disabled={idMapping.length === 1}
-                        className="text-gray-600 dark:text-gray-400 hover:text-red-500 text-lg leading-none disabled:opacity-30" title="Remove">×</button>
-                    </div>
-                  ))}
-                  <button onClick={addId} className="mt-1 text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300">+ Add rule</button>
+                  <MappingRows
+                    rows={idMapping}
+                    onAdd={addId}
+                    onRemove={rmId}
+                    onUpdate={upId}
+                    headers={['User subtype', 'Principal type']}
+                    addLabel="+ Add rule"
+                    columns={[
+                      { key: 'userType', render: (v, onChange) => (
+                        <Combobox value={v} onChange={onChange}
+                          options={disco?.userTypes || []}
+                          defaultOption={{ value: '', label: '(any / catch-all)' }}
+                          placeholder="(any / catch-all)"
+                          className={FIELD_CLS} />
+                      )},
+                      { key: 'principalType', render: (v, onChange) => (
+                        <Select value={v} onChange={e => onChange(e.target.value)}
+                          className={FIELD_CLS + ' bg-white'}>
+                          {PRINCIPAL_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                        </Select>
+                      )},
+                    ]}
+                  />
                 </div>
               </div>
             )}
@@ -446,6 +428,6 @@ export default function MidpointConfigWizard({ onComplete, onCancel, initialConf
           </div>
         </div>
       )}
-    </div>
+    </WizardShell>
   );
 }

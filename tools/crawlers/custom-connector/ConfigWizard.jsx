@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import Stepper from '@ui/components/Stepper';
+import WizardShell from '@ui/components/WizardShell';
 import useDocsUrl from '@ui/hooks/useDocsUrl';
 
 export default function ConfigWizard({ onComplete, onCancel, authFetch }) {
@@ -122,17 +122,13 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
   ];
 
   return (
-    <div className="mb-6 p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold dark:text-white">Custom Connector</h3>
-        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 text-sm dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
-      </div>
-
-      <div className="mb-5"><Stepper steps={connectorSteps} current={step} /></div>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">{error}</div>
-      )}
+    <WizardShell
+      title="Custom Connector"
+      onCancel={onCancel}
+      steps={connectorSteps}
+      currentStep={step}
+      error={error}
+    >
 
       {/* Step 1: Name + register */}
       {step === 1 && (
@@ -257,7 +253,7 @@ Invoke-RestMethod -Uri "$api/ingest/principals" -Method Post -Headers $headers -
           </div>
         </div>
       )}
-    </div>
+    </WizardShell>
   );
 }
 
