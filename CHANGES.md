@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added software supply-chain protection to the build pipeline: every pull request now installs Node dependencies through Socket Firewall, which blocks known-malicious packages (typosquats, install-script malware, hijacked maintainer releases) before they reach the build — including malicious version bumps that automated dependency updates might propose.
+- Credited Socket Firewall on the About and Security pages of the documentation.
+
+## Changes in this PR
+
 - Improved matrix performance on large tenants: the roll-up and scope views now use a dedicated index for direct memberships, roughly halving the query time for broad matrix loads (measured ~2.5x faster on a real ~370k-row dataset). No change to results.
 
 ## Changes in this PR
