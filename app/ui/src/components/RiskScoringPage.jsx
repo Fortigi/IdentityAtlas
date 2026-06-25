@@ -20,7 +20,7 @@ function ScoreBar({ score, maxScore = 100 }) {
       <div className="w-24 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-mono text-gray-600 dark:text-gray-400 dark:text-gray-500 w-6 text-right">{score}</span>
+      <span className="text-xs font-mono text-gray-600 dark:text-gray-400 w-6 text-right">{score}</span>
     </div>
   );
 }
@@ -45,7 +45,7 @@ function DistributionChart({ label, byTier, total }) {
               <div className="flex-1 h-5 bg-gray-50 dark:bg-gray-700/50 rounded overflow-hidden">
                 <div className={`h-full ${s.dot} rounded`} style={{ width: `${pct}%` }} />
               </div>
-              <span className="w-8 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 text-right">{count}</span>
+              <span className="w-8 text-xs text-gray-500 dark:text-gray-400 text-right">{count}</span>
             </div>
           );
         })}
@@ -104,14 +104,14 @@ function EntityTable({ entities, entityType, onOpenDetail }) {
       <table className="min-w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Name</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
             {cols.map(c => (
-              <th key={c.key} className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">{c.label}</th>
+              <th key={c.key} className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{c.label}</th>
             ))}
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase w-20">Score</th>
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase w-24">Tier</th>
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Why</th>
-            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase w-20">Override</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">Score</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">Tier</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Why</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">Override</th>
           </tr>
         </thead>
         <tbody>
@@ -124,7 +124,7 @@ function EntityTable({ entities, entityType, onOpenDetail }) {
             return (
               <tr
                 key={entity.id}
-                className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 cursor-pointer"
+                className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
                 onClick={() => openDetail(entity)}
                 title="Open detail page"
               >
@@ -135,7 +135,7 @@ function EntityTable({ entities, entityType, onOpenDetail }) {
                   )}
                 </td>
                 {cols.map(c => (
-                  <td key={c.key} className="py-2 px-3 text-gray-600 dark:text-gray-400 dark:text-gray-500">{c.render(entity)}</td>
+                  <td key={c.key} className="py-2 px-3 text-gray-600 dark:text-gray-400">{c.render(entity)}</td>
                 ))}
                 <td className="py-2 px-3">
                   <ScoreBar score={entity.effectiveScore ?? entity.riskScore} />
@@ -272,7 +272,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{c.displayName}</h3>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                c.clusterType === 'classifier' ? 'bg-blue-50 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 dark:text-gray-500'
+                c.clusterType === 'classifier' ? 'bg-blue-50 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
               }`}>{c.clusterType}</span>
               {c.sourceClassifierCategory && (
                 <span className="text-xs text-gray-600 dark:text-gray-500">{c.sourceClassifierCategory}</span>
@@ -285,7 +285,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
               <div className="text-2xl font-bold text-gray-800 dark:text-gray-200">{c.aggregateRiskScore}</div>
               <TierBadge tier={c.riskTier} />
             </div>
-            <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:text-gray-500 p-1">
+            <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 p-1">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
@@ -296,15 +296,15 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-center">
               <div className="text-lg font-bold text-gray-800 dark:text-gray-200">{c.aggregateRiskScore}</div>
-              <div className="text-[10px] text-gray-500 dark:text-gray-400 dark:text-gray-500">Aggregate</div>
+              <div className="text-[10px] text-gray-500 dark:text-gray-400">Aggregate</div>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-center">
               <div className="text-lg font-bold text-gray-800 dark:text-gray-200">{c.maxMemberRiskScore}</div>
-              <div className="text-[10px] text-gray-500 dark:text-gray-400 dark:text-gray-500">Max</div>
+              <div className="text-[10px] text-gray-500 dark:text-gray-400">Max</div>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-center">
               <div className="text-lg font-bold text-gray-800 dark:text-gray-200">{c.avgMemberRiskScore}</div>
-              <div className="text-[10px] text-gray-500 dark:text-gray-400 dark:text-gray-500">Avg</div>
+              <div className="text-[10px] text-gray-500 dark:text-gray-400">Avg</div>
             </div>
           </div>
 
@@ -386,7 +386,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
                     )}
                     <button
                       onClick={() => { setShowOwnerSearch(false); setOwnerSearch(''); }}
-                      className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300"
                     >
                       Cancel
                     </button>
@@ -402,7 +402,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
               <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Match Patterns</h4>
               <div className="flex gap-1.5 flex-wrap">
                 {c.matchPatterns.map((p, i) => (
-                  <span key={i} className="text-[10px] font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 dark:text-gray-500 px-1.5 py-0.5 rounded">
+                  <span key={i} className="text-[10px] font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded">
                     {p}
                   </span>
                 ))}
@@ -420,7 +420,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
             ) : (
               <div className="space-y-1 max-h-[300px] overflow-y-auto">
                 {members.map(m => (
-                  <div key={`${m.resourceType}-${m.resourceId}`} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50">
+                  <div key={`${m.resourceType}-${m.resourceId}`} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <div className="flex items-center gap-2 min-w-0">
                       <button
                         onClick={() => onOpenDetail?.('group', m.resourceId, m.resourceName)}
@@ -572,7 +572,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
   if (loading && !summary) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500 dark:text-gray-400 dark:text-gray-500">Loading risk scores...</div>
+        <div className="text-gray-500 dark:text-gray-400">Loading risk scores...</div>
       </div>
     );
   }
@@ -630,7 +630,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Identity Risk Scores</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Persisted risk scores computed by <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">Invoke-FGRiskScoring</code>
             {totalOverrides > 0 && (
               <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">
@@ -678,7 +678,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
                         <div className="flex-1 h-5 bg-gray-50 dark:bg-gray-700/50 rounded overflow-hidden">
                           <div className={`h-full ${st.dot} rounded`} style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="w-8 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 text-right">{count}</span>
+                        <span className="w-8 text-xs text-gray-500 dark:text-gray-400 text-right">{count}</span>
                       </div>
                     );
                   })}
@@ -754,7 +754,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
               <button
                 onClick={() => setView('groups')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'groups' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700'
+                  view === 'groups' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 Resources
@@ -764,7 +764,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
               <button
                 onClick={() => setView('users')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'users' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700'
+                  view === 'users' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 Users
@@ -774,7 +774,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
               <button
                 onClick={() => setView('business-roles')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'business-roles' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700'
+                  view === 'business-roles' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 Business Roles
@@ -784,7 +784,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
               <button
                 onClick={() => setView('contexts')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'contexts' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700'
+                  view === 'contexts' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 Contexts
@@ -794,7 +794,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
               <button
                 onClick={() => setView('identities')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  view === 'identities' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700'
+                  view === 'identities' ? 'bg-gray-900 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 Identities
@@ -804,7 +804,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
 
           <div className="flex items-center gap-3">
             {view !== 'clusters' && (
-              <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 cursor-pointer">
+              <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={overridesOnly}
@@ -847,14 +847,14 @@ export default function RiskScoringPage({ onOpenDetail }) {
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               {page * PAGE_SIZE + 1}&ndash;{Math.min((page + 1) * PAGE_SIZE, activeTotal)} of {activeTotal}
             </span>
             <div className="flex gap-1">
               <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50">Prev</button>
+                className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700/50">Prev</button>
               <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-                className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50">Next</button>
+                className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700/50">Next</button>
             </div>
           </div>
         )}

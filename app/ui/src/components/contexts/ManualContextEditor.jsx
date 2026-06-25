@@ -233,7 +233,7 @@ export default function ManualContextEditor({ contextId, attrs, onUpdated, onDel
               </button>
               <button
                 onClick={() => setConfirmingDelete(false)}
-                className="px-3 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300"
+                className="px-3 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300"
               >Cancel</button>
             </div>
           ) : (
@@ -276,7 +276,7 @@ function Field({ label, help, full, children }) {
     <div className={full ? 'sm:col-span-2' : ''}>
       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">{label}</label>
       {children}
-      {help && <p className="text-[11px] text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-0.5">{help}</p>}
+      {help && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{help}</p>}
     </div>
   );
 }

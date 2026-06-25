@@ -93,7 +93,7 @@ export default function ContextMemberPicker({ contextId, targetType, onAdded, ex
   }, [authFetch, contextId, onAdded]);
 
   if (!SEARCH_ENDPOINT[targetType]) {
-    return <p className="text-[11px] text-gray-500 dark:text-gray-400 dark:text-gray-500">No search endpoint for target type "{targetType}".</p>;
+    return <p className="text-[11px] text-gray-500 dark:text-gray-400">No search endpoint for target type "{targetType}".</p>;
   }
 
   return (
@@ -108,7 +108,7 @@ export default function ContextMemberPicker({ contextId, targetType, onAdded, ex
 
       {open && (results.length > 0 || loading) && (
         <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-20 max-h-64 overflow-auto">
-          {loading && <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">Searching…</div>}
+          {loading && <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">Searching…</div>}
           {!loading && results.map(r => {
             const alreadyIn = existing.has(r.id);
             return (
@@ -116,7 +116,7 @@ export default function ContextMemberPicker({ contextId, targetType, onAdded, ex
                 key={r.id}
                 disabled={alreadyIn || adding === r.id}
                 onClick={() => add(r)}
-                className={`w-full text-left px-3 py-1.5 text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 ${alreadyIn ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-full text-left px-3 py-1.5 text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 ${alreadyIn ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <span className="truncate">{r.displayName || r.id}</span>
                 <span className="text-[11px] text-gray-600 dark:text-gray-500 ml-2">

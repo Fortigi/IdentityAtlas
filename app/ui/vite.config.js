@@ -15,9 +15,10 @@ export default defineConfig({
     },
   },
   test: {
-    // Also pick up tests co-located with crawler wizard plugins, which live
-    // outside src/ (tools/crawlers/<type>/*.test.{js,jsx}).
-    include: ['src/**/*.test.{js,jsx}', '../../tools/crawlers/**/*.test.{js,jsx}'],
+    // Also pick up tests co-located with crawler wizard plugins (outside src/,
+    // tools/crawlers/<type>/*.test.{js,jsx}) and the custom ESLint rule tests
+    // (eslint-rules/*.test.js).
+    include: ['src/**/*.test.{js,jsx}', '../../tools/crawlers/**/*.test.{js,jsx}', 'eslint-rules/**/*.test.{js,jsx}'],
     // configValidation.test.js imports app/api/src/crawlerManifests.js, which
     // transitively requires the 'pg' package — only installed under
     // app/api/node_modules. Those tests run under app/api's vitest instead
