@@ -70,8 +70,18 @@ resource group *under* Foo returns `Contributor` with badge **Indirect** — inh
 - Azure RM is a JSON REST API (not OData), so this crawler does **not** depend on the `odata`
   base layer. Auth reuses `Get-FGAccessToken` against `https://management.azure.com/`.
 - Reads honour Azure's throttling (`429` + `Retry-After`) and token refresh on long crawls.
-- `atScope()` is used when reading role assignments, so only assignments *declared* at each
-  scope are stored — inheritance is the engine's job.
+- **Reads via Azure Resource Graph.** Resource groups, resources, role definitions and role
+  assignments are read from [Azure Resource Graph](https://learn.microsoft.com/azure/governance/resource-graph/)
+  in a few paged queries across every subscription at once, rather than one list call per
+  subscription — so the crawl scales to hundreds of subscriptions with far fewer round-trips.
+  (Subscriptions and the management-group hierarchy are still enumerated over the ARM REST API; those
+  are single calls, not per-subscription fan-out.) Two Resource Graph details: the role-assignments
+  query uses `authorizationScopeFilter=AtScopeAboveAndBelow` so management-group and tenant-root
+  declared assignments are returned (the principal still only sees what it has Reader on); and the
+  built-in role-definition catalog is fetched with `AtScopeAndAbove`, since a plain at-or-below query
+  does not surface it.
+- Only assignments *declared* at each scope are stored (at the assignment's own `properties.scope`);
+  inheritance down the `Contains` hierarchy is the effective-access engine's job, computed on demand.
 
 ## See also
 
