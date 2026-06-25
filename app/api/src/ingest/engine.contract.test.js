@@ -11,8 +11,6 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
 import { scopedDelete, SOFT_DELETE_TABLES } from './engine.js';
 
-const { Pool } = pg;
-
 let pool;
 let systemId;
 
