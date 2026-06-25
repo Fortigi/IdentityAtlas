@@ -4361,24 +4361,24 @@ AUTH-GAP (CI) · D1-D6, D9, D12 (docs). No Claude Critical/High was refuted.</p>
 </tr>
 <tr>
 <td>SEC-NEW-5</td>
-<td>Low-Med</td>
-<td><code>routes/matrix.js</code> saved-filters (~1625/1653/1689)</td>
-<td>matrix router is ungated (SEC-NEW-1), so saved-filter create/update/delete — including <strong>global</strong> filters — run for any authenticated user with no write permission.</td>
-<td>Add <code>requirePermission</code> to the mutating saved-filter handlers.</td>
-<td>S</td>
+<td>~~Low-Med~~ <strong>WITHDRAWN — by design</strong></td>
+<td><code>routes/matrix.js</code> saved-filters</td>
+<td><strong>Original claim:</strong> saved-filter create/update/delete (incl. the org-wide default) run for any authenticated user with no write permission. <strong>Correction (verified):</strong> this is intended design — migration <code>023_saved_matrix_filters.sql</code> documents it explicitly: <em>"Org-wide visibility: every signed-in analyst can list, load, rename, and delete every saved filter."</em> Saved filters are a shared, collaborative view preset, consistent with the read surface being open to any signed-in user (see SEC-NEW-1). Mitigations already in place: <code>fgr_</code> read tokens cannot call these endpoints (auth middleware blocks non-GET for read tokens), and every change is attributed (<code>createdBy</code>/<code>updatedBy</code>).</td>
+<td>No code change. If a deployment wants least-privilege on the <em>org-wide default view</em>, gate only the <code>isDefault</code> toggle behind an admin permission — left as an optional config decision.</td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Revised security conclusion:</strong> no <em>unauthenticated</em> exploit; SQL parameterization,
-secrets, and crypto all hold. The real authenticated-authorization gaps are on the
+secrets, and crypto all hold. The real authenticated-authorization gaps were on the
 <strong>crawler protocol</strong> (SEC-NEW-2 secret exfil via job-claim, SEC-NEW-3 cross-system
-delta tokens) and two ungated mutation endpoints (SEC-NEW-4 perf, SEC-NEW-5 saved
-filters). The read surface being open to any signed-in user (SEC-NEW-1) is <strong>intended
-design</strong>, not a finding. Top security priorities: <strong>SEC-NEW-2</strong> and the Bicep secret
-leak <strong>H-1</strong>.</p>
+delta tokens) and the ungated <strong>perf mutation</strong> endpoints (SEC-NEW-4) — all fixed.
+Two findings turned out to be <strong>intended design</strong>, not vulnerabilities: the read
+surface open to any signed-in user (SEC-NEW-1) and the shared saved-filter mutations
+(SEC-NEW-5). The remaining real priority is the Bicep secret leak <strong>H-1</strong>.</p>
 <p><strong>Remediation status (added post-review):</strong> SEC-NEW-2, SEC-NEW-3, and SEC-NEW-4 are
-fixed in <strong>PR #424</strong> (<code>bugfixes/security-authz-enforcement</code>). H-1 (Bicep) and SEC-NEW-5
-(saved-filter write gate) remain open.</p>
+fixed in <strong>PR #424</strong> (<code>bugfixes/security-authz-enforcement</code>). SEC-NEW-1 and SEC-NEW-5
+are withdrawn as intended design. <strong>H-1 (Bicep) is the one remaining open security item.</strong></p>
 <h2 id="net-new-non-security-codex-catches-worth-confirming-folding-in">Net-new (non-security) Codex catches — worth confirming + folding in<a class="headerlink" href="#net-new-non-security-codex-catches-worth-confirming-folding-in" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Perf (Codex, spot-plausible, not yet hand-verified):</strong> <code>riskScores.js:131/140/159</code>
@@ -4410,7 +4410,7 @@ fixed in <strong>PR #424</strong> (<code>bugfixes/security-authz-enforcement</co
 - <strong>CI path-filter gaps</strong> (PR touching only config/e2e can skip its own tests) — <strong>S.</strong></p>
 <p><strong>Promote into Tier 2:</strong>
 - ~~SEC-NEW-1~~ — <strong>withdrawn</strong>, intended design (see correction above). No fix.
-- <strong>SEC-NEW-5</strong> (gate saved-filter mutations) — <strong>S</strong>. Still open.
+- ~~SEC-NEW-5~~ — <strong>withdrawn</strong>, intended design (migration 023 documents shared org-wide saved filters). No fix.
 - <strong>riskScores top-N missing LIMIT</strong> + unpaginated detail/assignment endpoints — <strong>S-M</strong>
   (confirm first).</p>
 
