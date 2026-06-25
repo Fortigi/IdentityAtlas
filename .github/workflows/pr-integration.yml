@@ -679,11 +679,6 @@ jobs:
       !contains(github.event.pull_request.labels.*.name, 'skip-e2e')
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Non-blocking for now: many E2E specs were written for local dev (mock
-    # backend, interactive browser) and need adaptation for the Docker CI
-    # environment (accessibility violations, visual regression baselines,
-    # optional tabs hidden by default). Filed as follow-up work.
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

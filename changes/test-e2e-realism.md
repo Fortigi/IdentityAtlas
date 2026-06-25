@@ -1,0 +1,2 @@
+- Added `npm run test:e2e:sql` command to run Playwright E2E tests against a real Docker stack locally, matching the CI environment exactly
+- E2E failures in CI now block PR merges (removed the `continue-on-error` bypass that was masking test failures)
