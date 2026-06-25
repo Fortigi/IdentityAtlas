@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Hardened crawler API-key authorization: a crawler key can no longer claim worker jobs, mark jobs complete/failed, or flip a config to delta mode unless it is the privileged built-in worker key. This closes a path where any valid crawler key could claim a queued job and receive another connected system's stored credentials.
+- Crawler delta-sync state (delta tokens) is now scoped to the systems a crawler is allowed to access — a system-scoped crawler can no longer read, overwrite, or delete another system's sync token.
+- The performance-metrics endpoints that clear collected metrics or enable/disable collection now require administrative permission instead of being open to any signed-in user.
+
+## Changes in this PR
+
 - Extracted shared `WizardShell` component from all 7 crawler ConfigWizard files, eliminating repeated card/header/stepper/error JSX
 - Extracted shared `canSubmitCredentials` and `buildCredentialFields` utilities into `crawlerCredentials.js`, covering all auth methods (FormCookie, BasicAuth, OAuth2CC, OAuth2ROPC, ApiToken, CookieString)
 - Extracted shared `MappingRows` component for the add/remove mapping-row grids used by the Omada and midPoint wizards
