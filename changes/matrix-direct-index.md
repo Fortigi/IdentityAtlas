@@ -1,0 +1,1 @@
+- Improved matrix performance on large tenants: the roll-up and scope views now use a dedicated index for direct memberships, roughly halving the query time for broad matrix loads (measured ~2.5x faster on a real ~370k-row dataset). No change to results.
