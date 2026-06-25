@@ -18,7 +18,7 @@ export default defineConfig({
     // Single worker: contract tests share one DB container; parallelism would
     // require per-test isolation that adds complexity. Keep it simple.
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    forks: { singleFork: true },
     // Container startup + migrations take ~30-60s; allow enough headroom.
     testTimeout: 30000,
     hookTimeout: 120000,

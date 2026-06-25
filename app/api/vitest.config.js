@@ -25,6 +25,7 @@ export default defineConfig({
       '../../tools/crawlers/**/discover.test.js',
       '../../tools/crawlers/**/configValidation.test.js',
     ],
+    exclude: ['src/**/*.contract.test.js'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

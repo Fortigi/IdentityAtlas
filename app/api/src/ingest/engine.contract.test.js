@@ -21,7 +21,7 @@ beforeAll(async () => {
 
   // Insert a System row so foreign key constraints on Principals are satisfied.
   const sys = await pool.query(
-    `INSERT INTO "Systems" ("name", "type") VALUES ('contract-test', 'test') RETURNING "id"`,
+    `INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', 'contract-test') RETURNING "id"`,
   );
   systemId = sys.rows[0].id;
 });
