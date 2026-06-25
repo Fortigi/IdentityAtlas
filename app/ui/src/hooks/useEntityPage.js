@@ -34,6 +34,8 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 400);
   const [page, setPage] = useState(0);
+  // Soft-deleted (tombstoned) entities are hidden by default; this reveals them.
+  const [includeDeleted, setIncludeDeleted] = useState(false);
 
   // Selection state
   const [selected, setSelected] = useState(new Set());
@@ -54,7 +56,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   const fetchVersion = useRef(0);
 
   // Reset page & selection when filters change
-  useEffect(() => { setPage(0); setSelected(new Set()); }, [debouncedSearch, activeFilters, baseFilters]);
+  useEffect(() => { setPage(0); setSelected(new Set()); }, [debouncedSearch, activeFilters, baseFilters, includeDeleted]);
 
   // Fetch available columns for filter dropdowns
   useEffect(() => {
@@ -98,6 +100,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
       const params = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (filtersObj) params.set('filters', JSON.stringify(filtersObj));
+      if (includeDeleted) params.set('includeDeleted', 'true');
       const res = await authFetch(`${listEndpoint}?${params}`);
       if (res.ok && version === fetchVersion.current) {
         const json = await res.json();
@@ -106,7 +109,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
       }
     } catch (err) { console.error(`Failed to fetch ${entityType}s:`, err); }
     if (version === fetchVersion.current) setLoading(false);
-  }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint]);
+  }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint, includeDeleted]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -283,6 +286,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
     page, setPage, totalPages, PAGE_SIZE,
     // Search & Filters
     search, setSearch, debouncedSearch,
+    includeDeleted, setIncludeDeleted,
     activeFilters, addFilter, removeFilter, clearAllFilters,
     hasAnyFilter, activeTagFilter, filtersObj,
     columnsLoading, getFilterFields, getOptionsForField,
