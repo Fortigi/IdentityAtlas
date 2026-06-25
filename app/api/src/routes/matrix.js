@@ -18,6 +18,14 @@ import { randomUUID } from 'crypto';
 import * as db from '../db/connection.js';
 import { timedRequest } from '../perf/sqlTimer.js';
 import {
+  buildAssignmentExprs,
+  buildIdentityJoinExprs,
+  buildRoleSubjectJoinExprs,
+  buildApMemberExprs,
+  mergeGroupTotals,
+  resourceMeta,
+} from '../db/matrixHelpers.js';
+import {
   buildEntitySubquery,
   collectContextIds,
   UUID_RE,
@@ -447,13 +455,7 @@ router.post('/matrix/preview', async (req, res) => {
     const p = await db.getPool();
     const subj = subjectScopeClauses(filter.rowType, built.subjectSql);
 
-    const subjectIdExpr = filter.rowType === 'identity' ? 'im."identityId"' : 'p."principalId"';
-    const assignmentJoin = filter.rowType === 'identity'
-      ? `INNER JOIN "IdentityMembers" im ON im."principalId" = p."principalId"`
-      : '';
-    const assignmentWhere = [`(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`];
-    if (built.subjectSql)  assignmentWhere.push(`${subjectIdExpr} IN ${built.subjectSql}`);
-    if (built.resourceSql) assignmentWhere.push(`p."resourceId" IN ${built.resourceSql}`);
+    const { subjectIdExpr, assignmentJoin, assignmentWhere } = buildAssignmentExprs(filter.rowType, built);
 
     const [subjectCount, subjectTotal, resourceCount, resourceTotal, assignmentCount] = await Promise.all([
       runCount(p, 'matrix-preview-subject', res,
@@ -516,13 +518,7 @@ router.post('/matrix/scope-stats', async (req, res) => {
     const p = await db.getPool();
     const subj = subjectScopeClauses(filter.rowType, built.subjectSql);
 
-    const subjectIdExpr = filter.rowType === 'identity' ? 'im."identityId"' : 'p."principalId"';
-    const assignmentJoin = filter.rowType === 'identity'
-      ? `INNER JOIN "IdentityMembers" im ON im."principalId" = p."principalId"`
-      : '';
-    const assignmentWhere = [`(p."principalType" IS NULL OR p."principalType" != '#microsoft.graph.group')`];
-    if (built.subjectSql)  assignmentWhere.push(`${subjectIdExpr} IN ${built.subjectSql}`);
-    if (built.resourceSql) assignmentWhere.push(`p."resourceId" IN ${built.resourceSql}`);
+    const { subjectIdExpr, assignmentJoin, assignmentWhere } = buildAssignmentExprs(filter.rowType, built);
 
     // One pair-level aggregation: distinct (subject, resource) pairs, each
     // flagged governed if ANY of its assignment rows is access-package managed.
@@ -924,11 +920,7 @@ router.post('/matrix/data', async (req, res) => {
       const resMap = new Map();
       for (const row of cellRows) {
         if (!row.resourceId || resMap.has(row.resourceId)) continue;
-        resMap.set(row.resourceId, {
-          resourceId: row.resourceId, resourceDisplayName: row.resourceDisplayName,
-          resourceType: row.resourceType, resourceDescription: row.resourceDescription,
-          systemId: row.systemId, systemName: row.systemName,
-        });
+        resMap.set(row.resourceId, resourceMeta(row));
       }
       for (const r of (inhFold?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
 
@@ -985,10 +977,7 @@ router.post('/matrix/data', async (req, res) => {
         try { cutValues = frontierValues(frontier); }
         catch { return res.status(400).json({ error: 'Invalid frontier' }); }
 
-        const idJoin = rowType === 'identity'
-          ? `JOIN "IdentityMembers" im ON im."principalId" = nm.pid
-             JOIN "Identities" i ON i.id = im."identityId"` : '';
-        const cutSubjectId = rowType === 'identity' ? 'i.id' : 'nm.pid';
+        const { join: idJoin, subjectId: cutSubjectId } = buildIdentityJoinExprs(rowType);
 
         const layerReq = timedRequest(p, `matrix-ctx-layered[${rowType}]`, res);
         for (const [k, v] of Object.entries(built.bindings)) layerReq.input(k, v);
@@ -1000,11 +989,7 @@ router.post('/matrix/data', async (req, res) => {
         const layerResMap = new Map();
         for (const row of layerCells) {
           if (!row.resourceId || layerResMap.has(row.resourceId)) continue;
-          layerResMap.set(row.resourceId, {
-            resourceId: row.resourceId, resourceDisplayName: row.resourceDisplayName,
-            resourceType: row.resourceType, resourceDescription: row.resourceDescription,
-            systemId: row.systemId, systemName: row.systemName,
-          });
+          layerResMap.set(row.resourceId, resourceMeta(row));
         }
 
         // SCOPED member counts for the header (direct / total), so they match the
@@ -1073,26 +1058,18 @@ router.post('/matrix/data', async (req, res) => {
       try { values = frontierValues(frontier); }
       catch { return res.status(400).json({ error: 'Invalid frontier' }); }
 
-      const identityJoin = rowType === 'identity'
-        ? `JOIN "IdentityMembers" im ON im."principalId" = nm.pid
-           JOIN "Identities" i ON i.id = im."identityId"` : '';
-      const ctxSubjectId = rowType === 'identity' ? 'i.id' : 'nm.pid';
+      const { join: identityJoin, subjectId: ctxSubjectId } = buildIdentityJoinExprs(rowType);
 
       // Roles-only leaf drill: expand one org (already scoped via a subject
       // context condition) into its subjects + the business role each holds.
       if (filter.drill) {
-        const brSubjectJoin = rowType === 'identity'
-          ? `INNER JOIN "Principals" u ON u.id = br."userId"
-             INNER JOIN "IdentityMembers" im ON im."principalId" = u.id
-             INNER JOIN "Identities" i ON i.id = im."identityId"`
-          : `INNER JOIN "Principals" u ON u.id = br."userId"`;
-        const brId = rowType === 'identity' ? 'i.id' : 'u.id';
+        const { join: brSubjectJoin, id: brId, name: brName, type: brType } = buildRoleSubjectJoinExprs(rowType);
         const drillReq = timedRequest(p, `matrix-ctx-rows-drill[${rowType}]`, res);
         for (const [k, v] of Object.entries(built.bindings)) drillReq.input(k, v);
         const members = (await drillReq.query(buildRolesDrillSql({
           subjectJoin: brSubjectJoin, subjectIdExpr: brId,
-          subjectNameExpr: rowType === 'identity' ? 'i."displayName"' : 'u."displayName"',
-          subjectTypeExpr: rowType === 'identity' ? `'Identity'` : `'User'`,
+          subjectNameExpr: brName,
+          subjectTypeExpr: brType,
           subjectIdForFilter: brId, subjectSql: built.subjectSql,
         }))).recordset;
         return res.json({ rollup: 'context', rollupKind: 'context', rollupContent: 'roles-only', drill: { members } });
@@ -1195,13 +1172,7 @@ router.post('/matrix/data', async (req, res) => {
         } catch { /* business-role view may be absent */ }
       }
 
-      const mergedCtxTotals = inhCtx2?.groupTotals?.length
-        ? (() => {
-            const m = new Map(ctxTotals.map(t => [t.groupValue, t.total]));
-            for (const t of inhCtx2.groupTotals) m.set(t.groupValue, (m.get(t.groupValue) || 0) + t.total);
-            return [...m.entries()].map(([groupValue, total]) => ({ groupValue, total }));
-          })()
-        : ctxTotals;
+      const mergedCtxTotals = mergeGroupTotals(ctxTotals, inhCtx2?.groupTotals);
 
       return res.json({
         ...shared,
@@ -1242,12 +1213,7 @@ router.post('/matrix/data', async (req, res) => {
 
       // ─── Business roles as rows ───
       if (filter.rollupContent === 'roles-only') {
-        const brSubjectJoin = rowType === 'identity'
-          ? `INNER JOIN "Principals" u ON u.id = br."userId"
-             INNER JOIN "IdentityMembers" im ON im."principalId" = u.id
-             INNER JOIN "Identities" i ON i.id = im."identityId"`
-          : `INNER JOIN "Principals" u ON u.id = br."userId"`;
-        const brSubjectId = rowType === 'identity' ? 'i.id' : 'u.id';
+        const { join: brSubjectJoin, id: brSubjectId, name: brSubjectName, type: brSubjectType } = buildRoleSubjectJoinExprs(rowType);
 
         // Drill-down: expand one group column into its individual subjects +
         // which business role each holds. The group is already scoped via a
@@ -1259,8 +1225,8 @@ router.post('/matrix/data', async (req, res) => {
           const members = (await drillReq.query(buildRolesDrillSql({
             subjectJoin: brSubjectJoin,
             subjectIdExpr: brSubjectId,
-            subjectNameExpr: rowType === 'identity' ? 'i."displayName"' : 'u."displayName"',
-            subjectTypeExpr: rowType === 'identity' ? `'Identity'` : `'User'`,
+            subjectNameExpr: brSubjectName,
+            subjectTypeExpr: brSubjectType,
             subjectIdForFilter: brSubjectId,
             subjectSql: built.subjectSql,
           }))).recordset;
@@ -1353,9 +1319,7 @@ router.post('/matrix/data', async (req, res) => {
       const roleCounts = [];
       if (filter.rollupContent !== 'resources-only') {
         try {
-          const brMemberId = rowType === 'identity' ? 'im2."identityId"' : 'br."userId"';
-          const brJoin = rowType === 'identity'
-            ? 'INNER JOIN "IdentityMembers" im2 ON im2."principalId" = br."userId"' : '';
+          const { memberId: brMemberId, join: brJoin } = buildApMemberExprs(rowType);
           const brReq = timedRequest(p, 'matrix-rollup-roles', res);
           for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
           const brRows = (await brReq.query(buildRollupRolesSql({
@@ -1371,13 +1335,7 @@ router.post('/matrix/data', async (req, res) => {
         } catch { /* business-role view may be absent */ }
       }
 
-      const mergedGroupTotals = inhGroupTotals.length
-        ? (() => {
-            const m = new Map(groupTotals.map(t => [t.groupValue, t.total]));
-            for (const t of inhGroupTotals) m.set(t.groupValue, (m.get(t.groupValue) || 0) + t.total);
-            return [...m.entries()].map(([groupValue, total]) => ({ groupValue, total }));
-          })()
-        : groupTotals;
+      const mergedGroupTotals = mergeGroupTotals(groupTotals, inhGroupTotals);
 
       return res.json({
         rollup: filter.rollup,
