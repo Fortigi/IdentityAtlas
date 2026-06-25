@@ -1,0 +1,1 @@
+- Extracted shared scaffold (`EntityListPage`) from the Resources, Users, and Identities list pages, eliminating ~700 lines of near-identical JSX while preserving all existing behavior (tag management, filter bar, sort, selection, pagination, include-deleted toggle, sub-tabs)
