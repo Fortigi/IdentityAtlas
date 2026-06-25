@@ -35,7 +35,7 @@ This document lists all major software components, dependencies, and infrastruct
 | express-rate-limit | ^8.2.1 | Rate limiting protection | MIT |
 | cors | ^2.8.5 | Cross-Origin Resource Sharing | MIT |
 | jsonwebtoken | ^9.0.2 | JWT token validation | MIT |
-| jwks-rsa | ^4.0.1 | JWKS key retrieval for Entra ID | MIT |
+| jwks-rsa | ^4.1.0 | JWKS key retrieval for Entra ID | MIT |
 
 ### File Handling & Documentation
 
