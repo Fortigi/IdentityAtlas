@@ -43,7 +43,9 @@ function subtreeCte(values) {
       SELECT s.frontier_id, c.id
         FROM "Contexts" c
         JOIN subtree s ON c."parentContextId" = s.ctx_id
-    ),
+    )
+    -- CYCLE guard: corrupt parent chains must not recurse forever.
+    CYCLE ctx_id SET "isCycle" USING "cyclePath",
     node_members AS (
       SELECT DISTINCT s.frontier_id AS fid, cm."memberId" AS pid
         FROM subtree s
@@ -159,7 +161,9 @@ export function buildContextScopedMemberCountsSql({ values, identityJoin = '', s
       SELECT s.frontier_id, c.id
         FROM "Contexts" c
         JOIN subtree s ON c."parentContextId" = s.ctx_id
-    ),
+    )
+    -- CYCLE guard: corrupt parent chains must not recurse forever.
+    CYCLE ctx_id SET "isCycle" USING "cyclePath",
     member_dir AS (
       SELECT s.frontier_id AS fid, cm."memberId" AS pid,
              bool_or(s.ctx_id = s.frontier_id) AS is_direct
@@ -221,6 +225,8 @@ export function buildContextCutSql(rootId, expandedIds = []) {
         JOIN "Contexts" c ON c."parentContextId" = cut.id
        WHERE EXISTS (SELECT 1 FROM expanded e WHERE e.id = cut.id)
     )
+    -- CYCLE guard: a cycle among expanded nodes must not recurse forever.
+    CYCLE id SET "isCycle" USING "cyclePath"
     SELECT cut.id::text            AS id,
            cut.depth               AS depth,
            cut.path_ids            AS "pathIds",

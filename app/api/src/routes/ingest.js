@@ -435,7 +435,10 @@ router.post('/ingest/refresh-views', async (req, res) => {
           UNION ALL
           SELECT s.root_id, c.id
             FROM "Contexts" c JOIN subtree s ON c."parentContextId" = s.node_id
-        ),
+        )
+        -- CYCLE guard: this seeds from every context and runs on each sync,
+        -- so a single corrupt parent chain would otherwise hang ingest.
+        CYCLE node_id SET "isCycle" USING "cyclePath",
         totals AS (
           SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
             FROM subtree s

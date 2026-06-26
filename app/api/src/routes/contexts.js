@@ -101,6 +101,9 @@ router.get('/contexts/tree', async (req, res) => {
           UNION ALL
           SELECT c.* FROM "Contexts" c JOIN descendants d ON c."parentContextId" = d.id
         )
+        -- CYCLE guard: a corrupt parent chain (A→B→A) would otherwise recurse
+        -- forever. PG stops descending the moment an id repeats on the path.
+        CYCLE id SET "isCycle" USING "cyclePath"
         SELECT id, variant, "targetType", "contextType", "displayName", description,
                "parentContextId", "scopeSystemId", "sourceAlgorithmId", "ownerUserId",
                "directMemberCount", "totalMemberCount", "userRenamed", "userReparented"
@@ -579,6 +582,8 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
           UNION ALL
           SELECT c.id FROM "Contexts" c JOIN subtree s ON c."parentContextId" = s.id
         )
+        -- CYCLE guard: corrupt parent chains must not recurse forever.
+        CYCLE id SET "isCycle" USING "cyclePath"
         SELECT id FROM subtree
       )`
     : null;

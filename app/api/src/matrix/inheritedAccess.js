@@ -235,6 +235,8 @@ export async function buildInheritedContextCounts(p, built, rowType, frontierIds
          SELECT fid, fid FROM frontier
          UNION ALL
          SELECT s.fid, c.id FROM "Contexts" c JOIN subtree s ON c."parentContextId" = s.ctx)
+     -- CYCLE guard: corrupt parent chains must not recurse forever.
+     CYCLE ctx SET "isCycle" USING "cyclePath"
      SELECT DISTINCT s.fid::text AS gv, cm."memberId" AS pid
        FROM subtree s JOIN "ContextMembers" cm ON cm."contextId" = s.ctx
       WHERE cm."memberType" = 'Principal' AND cm."memberId" = ANY($2::uuid[])`,
