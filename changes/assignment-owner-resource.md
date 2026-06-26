@@ -1,0 +1,2 @@
+- Group ownership is now modelled as its own "Owner @ \<group\>" resource (a Direct assignment) instead of a separate "Owner" membership kind — so the matrix uses one consistent set of assignment types (Direct / Indirect / Eligible) and ownership can be listed, related, and certified like any other access.
+- The matrix shows ownership as a real resource row rather than a client-side-simulated "(Owner)" sub-row.
