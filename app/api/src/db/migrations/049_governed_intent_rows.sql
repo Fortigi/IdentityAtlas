@@ -36,7 +36,7 @@ CREATE INDEX "ix_RA_governed"
 -- governance resource. Drives the matrix AP colouring + the SOLL side.
 DROP MATERIALIZED VIEW IF EXISTS "vw_UserPermissionAssignmentViaBusinessRole" CASCADE;
 CREATE MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole" AS
-SELECT
+SELECT DISTINCT
     bru."principalId"     AS "userId",
     rr."childResourceId"  AS "groupId",
     rr."childResourceId"  AS "resourceId",
