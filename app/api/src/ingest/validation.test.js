@@ -394,13 +394,13 @@ describe('ENTITY_KEY_MAP — resource-assignments-identity', () => {
   it('uses identityId as key column, not principalId', async () => {
     const { ENTITY_KEY_MAP } = await import('./validation.js');
     expect(ENTITY_KEY_MAP['resource-assignments-identity'])
-      .toEqual(['resourceId', 'identityId', 'assignmentType']);
+      .toEqual(['resourceId', 'identityId', 'assignmentType', 'governed']);
   });
 
   it('principal endpoint still uses principalId as key column (T7.2)', async () => {
     const { ENTITY_KEY_MAP } = await import('./validation.js');
     expect(ENTITY_KEY_MAP['resource-assignments'])
-      .toEqual(['resourceId', 'principalId', 'assignmentType']);
+      .toEqual(['resourceId', 'principalId', 'assignmentType', 'governed']);
   });
 });
 
