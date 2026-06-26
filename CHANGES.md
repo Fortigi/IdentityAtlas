@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Governance constructs (business roles / access packages) are now explicitly labelled in the data with a generic `governanceResource` flag, so the matrix's governance side is identified from the data instead of hardcoded knowledge — and new governance sources surface automatically. All crawlers (Entra, Omada, midPoint) label theirs consistently; existing ones are backfilled. No system-specific terms in the model.
+
+## Changes in this PR
+
 - Fixed a hang where context pages, the matrix, and crawler syncs could freeze indefinitely if a context's parent chain ever formed a loop (A inside B inside A). Affected queries now stop safely instead of running forever.
 
 ## Changes in this PR
