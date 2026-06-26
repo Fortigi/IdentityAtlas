@@ -22,5 +22,17 @@ export default defineConfig({
     // Container startup + migrations take ~30-60s; allow enough headroom.
     testTimeout: 30000,
     hookTimeout: 120000,
+    // Coverage is opt-in via `--coverage` (kept off for normal local runs).
+    // Output goes to its own dir so the docs pipeline (coverage.yml) can feed
+    // BOTH this lcov and the unit lcov to ReportGenerator, which merges them
+    // into one API coverage report. Same include/exclude as the unit config so
+    // the two measure the same file set.
+    coverage: {
+      provider: 'v8',
+      reporter: ['lcov'],
+      reportsDirectory: './coverage-contract',
+      include: ['src/**/*.js'],
+      exclude: ['src/**/*.test.js', 'src/index.js'],
+    },
   },
 });

@@ -30,7 +30,7 @@ import sys
 # Display label + browsable-report subfolder for each suite slug. Order here is
 # the order rows appear in the table.
 SUITES = [
-    ("api", "API (Node / Vitest)"),
+    ("api", "API (Node / Vitest — unit + contract)"),
     ("ui", "UI (React / Vitest)"),
     ("powershell", "PowerShell (Pester)"),
 ]
