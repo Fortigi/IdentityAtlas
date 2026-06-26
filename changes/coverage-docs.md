@@ -1,0 +1,1 @@
+- Added a Test Coverage page to the documentation (Reference → Test Coverage) showing line/branch/method coverage for the API, UI, and PowerShell suites, with links to full browsable per-file reports. It refreshes automatically on every merge and is versioned alongside the docs (edge tracks the latest, a release is frozen at its version).
