@@ -125,6 +125,11 @@ jobs:
               - 'app/api/Dockerfile'
               - 'setup/docker/Dockerfile.powershell'
               - 'docker-compose*.yml'
+              # Test files are co-located under src/ but aren't app source — a
+              # test-only change leaves the running app unchanged, so don't spin
+              # up the ~50-min integration/e2e/load-soak suites for it.
+              - '!**/*.test.js'
+              - '!**/*.test.jsx'
             e2e:
               - 'app/ui/src/**'
               - 'app/ui/e2e/**'
@@ -134,6 +139,8 @@ jobs:
               - 'tools/crawlers/**/*.e2e.*'
               - 'app/api/src/**'
               - 'app/api/Dockerfile'
+              - '!**/*.test.js'
+              - '!**/*.test.jsx'
             load_soak:
               - 'app/api/src/**'
               - 'tools/crawlers/shared/**'
@@ -142,6 +149,8 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/docker/Dockerfile.powershell'
               - 'docker-compose*.yml'
+              - '!**/*.test.js'
+              - '!**/*.test.jsx'
 
       # Dynamically detect which crawler types changed from the git diff.
       # No hardcoded type list — new crawlers are picked up automatically.

@@ -1,0 +1,1 @@
+- CI no longer spins up the ~50-minute Integration, Playwright E2E, and Load & Soak suites for pull requests that only change test files — the application under test is unchanged, so those suites are skipped (unit and contract tests still run).
