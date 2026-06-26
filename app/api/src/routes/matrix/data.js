@@ -608,7 +608,9 @@ router.post('/matrix/data', async (req, res) => {
         p."membershipType",
         ${dynamicSubjectCols ? dynamicSubjectCols + ',' : ''}
         ${subjectAlias}."extendedAttributes" AS "extendedAttributes",
-        p."managedByAccessPackage"
+        p."managedByAccessPackage",
+        p."provisioningGap",
+        p."isActualMembership"
       FROM "vw_ResourceUserPermissionAssignments" p
       ${subjectJoin}
       LEFT JOIN "Resources" r ON p."resourceId" = r.id

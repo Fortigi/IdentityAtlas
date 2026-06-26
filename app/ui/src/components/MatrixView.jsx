@@ -308,11 +308,12 @@ export default function MatrixView({
   // Owner memberships are split into separate synthetic rows (id: "groupId__owner",
   // realGroupId: original groupId, displayName suffixed with "(Owner)").
   // D/I/E memberships stay on the regular group row.
-  const { users, groups, memberships, managedMap } = useMemo(() => {
+  const { users, groups, memberships, managedMap, gapMap } = useMemo(() => {
     const userMap = new Map();
     const groupMap = new Map();
     const membershipMap = new Map();
     const managed = new Map();
+    const gaps = new Map();
 
     filteredData.forEach(d => {
       // Users
@@ -358,11 +359,24 @@ export default function MatrixView({
       if (!membershipMap.has(key)) {
         membershipMap.set(key, new Set());
       }
-      membershipMap.get(key).add(d.membershipType);
+      // Only actual memberships (governed=false) render a badge. A governed=true
+      // intent row with no matching actual carries isActualMembership=false and
+      // is recorded as a provisioning gap instead. (Absent flag → treat as actual
+      // for rollup/account-matrix data that predates the column.)
+      if (d.isActualMembership !== false) {
+        membershipMap.get(key).add(d.membershipType);
+      }
 
       // Track managedByAccessPackage per cell (boolean from view, used for filtering)
       if (d.managedByAccessPackage) {
         managed.set(key, true);
+      }
+
+      // Data-derived provisioning gap: governance intent exists for this cell
+      // but the matching actual membership doesn't.
+      if (d.provisioningGap) {
+        if (!gaps.has(key)) gaps.set(key, new Set());
+        gaps.get(key).add(d.membershipType);
       }
     });
 
@@ -374,9 +388,11 @@ export default function MatrixView({
     // Per-type counts enable priority sorting: Direct > Eligible > Owner > Indirect
     const userList = [...userMap.values()];
     for (const group of groupMap.values()) {
-      let memberCount = 0, directCount = 0, eligibleCount = 0, nonIndirectCount = 0;
+      let memberCount = 0, directCount = 0, eligibleCount = 0, nonIndirectCount = 0, gapCount = 0;
       for (const u of userList) {
-        const types = membershipMap.get(`${group.id}|${u.id}`);
+        const key = `${group.id}|${u.id}`;
+        if (gaps.has(key)) gapCount++;
+        const types = membershipMap.get(key);
         if (!types || types.size === 0) continue;
         memberCount++;
         if (types.has('Direct'))   directCount++;
@@ -387,12 +403,13 @@ export default function MatrixView({
       group.directCount = directCount;
       group.eligibleCount = eligibleCount;
       group.nonIndirectCount = nonIndirectCount;
+      group.gapCount = gapCount;
     }
 
     // Sort groups by member count descending; filter out groups with 0 members.
     // Priority: Direct > Eligible > Indirect-only
     const groups = [...groupMap.values()]
-      .filter(g => g.memberCount > 0)
+      .filter(g => g.memberCount > 0 || g.gapCount > 0)
       .sort((a, b) => {
         // Direct members first
         const directCmp = (b.directCount || 0) - (a.directCount || 0);
@@ -404,7 +421,7 @@ export default function MatrixView({
         return b.memberCount - a.memberCount;
       });
 
-    return { users, groups, memberships: membershipMap, managedMap: managed };
+    return { users, groups, memberships: membershipMap, managedMap: managed, gapMap: gaps };
   }, [filteredData, groupTagMap, sortAttrs, hierActive, hierDepth, hierPaths]);
 
   // Seed the initial fold state from the wizard's foldOnLoad setting, once per
@@ -1049,6 +1066,7 @@ export default function MatrixView({
               columnHeaders={columnHeaders}
               users={colUsers}
               memberships={colMemberships}
+              gapMap={gapMap}
               aggDirectCounts={aggDirectCounts}
               managedMap={managedMap}
               managedApMap={managedApMap}
@@ -1074,6 +1092,7 @@ export default function MatrixView({
                     users={colUsers}
                     totalUsers={colUsers.length}
                     memberships={colMemberships}
+                    gapMap={gapMap}
                     aggDirectCounts={aggDirectCounts}
                     managedMap={managedMap}
                     managedApMap={managedApMap}

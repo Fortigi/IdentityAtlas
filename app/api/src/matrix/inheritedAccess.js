@@ -128,6 +128,8 @@ export async function buildInheritedFlatRows(p, built, rowType, subjectCols) {
       membershipType: e.membershipType,
       extendedAttributes: u.extendedAttributes ?? null,
       managedByAccessPackage: false,
+      provisioningGap: false,
+      isActualMembership: true,
       // Carried so the UI can explain an inherited (Indirect) cell on demand
       // (POST /matrix/inheritance-path) — the path that produced the badge.
       inheritedNodeId: e.nodeId, inheritedCapabilityId: e.capabilityId, inheritedPrincipalId: e.principalId,
