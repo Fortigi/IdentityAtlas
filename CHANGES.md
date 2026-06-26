@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The API row on the Test Coverage docs page now reflects both unit *and* contract tests, so route code exercised only end-to-end (the matrix grid, contexts, identities, resources, ingest, plugin runner) no longer reads as untested.
+
+## Changes in this PR
+
 - Added a Test Coverage page to the documentation (Reference → Test Coverage) showing line/branch/method coverage for the API, UI, and PowerShell suites, with links to full browsable per-file reports. It refreshes automatically on every merge and is versioned alongside the docs (edge tracks the latest, a release is frozen at its version).
 
 ## Changes in this PR

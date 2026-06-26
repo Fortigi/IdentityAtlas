@@ -1,1 +1,0 @@
-- The API row on the Test Coverage docs page now reflects both unit *and* contract tests, so route code exercised only end-to-end (the matrix grid, contexts, identities, resources, ingest, plugin runner) no longer reads as untested.
