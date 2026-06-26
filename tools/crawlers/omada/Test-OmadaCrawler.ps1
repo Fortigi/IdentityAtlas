@@ -7,8 +7,6 @@
     Identity Atlas dispatch pipeline, and verifies that data landed in the
     database.
 
-    Entity shape confirmed against Omada OData API (omada.cloud, 2026-06-06).
-
     Requires the full Identity Atlas Docker stack to be running (postgres + web API).
 
 .PARAMETER ApiBaseUrl
@@ -60,7 +58,6 @@ Write-Host "`n=== Omada IGA Crawler Integration Test ===" -ForegroundColor Cyan
 . (Join-Path (Split-Path $PSScriptRoot -Parent) 'shared' 'Start-MockODataServer.ps1')
 
 # ── Mock entity data ──────────────────────────────────────────────────────────
-# Entity shapes validated against Omada OData API (omada.cloud 2026-06-06)
 $identityUid  = 'bbbbbbbb-bbbb-0001-0000-bbbbbbbbbbbb'
 $userUid      = 'cccccccc-cccc-0001-0000-cccccccccccc'
 $resourceUid  = 'dddddddd-dddd-0001-0000-dddddddddddd'

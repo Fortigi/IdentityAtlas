@@ -109,34 +109,34 @@ as `DEFAULT_STOPWORDS`. Tenant-specific additions go through the
 
 ## 4. Worked example
 
-Input (an extract from a real Entra tenant):
+Input (an illustrative set of group names):
 
 ```
 SG_APP_AXIOM_Admins_P
 GRP-AXIOM-ReadOnly-TST
 AG_AzureDevOps_Axiom_Developer
-AG_AzureSubscription_SCH_Axiom_Polaris_Sandbox_Support
-AG_AzureTeam_Axiom_GedelegeerdProductOwner
-AG_JITApprover_APP_AXIOM-ADAM_KCADMIN_A
+AG_AzureSubscription_SCH_Axiom_Helios_Sandbox_Support
+AG_AzureTeam_Axiom_DelegatedProductOwner
+AG_JITApprover_APP_AXIOM-APPX_SVCADMIN_A
 SG_FINANCE_BookKeepers
 DL_Finance_Readers
-AG_ROL_DMS_Bezoekers van Finance-Commissie
+AG_ROL_DMS_Owners of Finance-Committee
 ```
 
 After tokenisation (default stopwords, `minTokenLength=3`,
-`additionalStopwords=["rol","azure","sch","adam","kcadmin","polaris","sandbox","gedelegeerdproductowner","commissie"]`):
+`additionalStopwords=["rol","azure","sch","appx","svcadmin","helios","sandbox","delegatedproductowner","committee"]`):
 
 | Resource | Surviving tokens |
 |---|---|
 | `SG_APP_AXIOM_Admins_P` | `axiom` |
 | `GRP-AXIOM-ReadOnly-TST` | `axiom` |
 | `AG_AzureDevOps_Axiom_Developer` | `devops`, `axiom` |
-| `AG_AzureSubscription_SCH_Axiom_Polaris_Sandbox_Support` | `axiom` |
-| `AG_AzureTeam_Axiom_GedelegeerdProductOwner` | `axiom` |
-| `AG_JITApprover_APP_AXIOM-ADAM_KCADMIN_A` | `axiom`, `jitapprover` |
+| `AG_AzureSubscription_SCH_Axiom_Helios_Sandbox_Support` | `axiom` |
+| `AG_AzureTeam_Axiom_DelegatedProductOwner` | `axiom` |
+| `AG_JITApprover_APP_AXIOM-APPX_SVCADMIN_A` | `axiom`, `jitapprover` |
 | `SG_FINANCE_BookKeepers` | `finance`, `bookkeepers` |
 | `DL_Finance_Readers` | `finance` |
-| `AG_ROL_DMS_Bezoekers van Finance-Commissie` | `dms`, `finance` |
+| `AG_ROL_DMS_Owners of Finance-Committee` | `dms`, `finance` |
 
 Index built:
 
@@ -153,15 +153,15 @@ With `minMembers=4`, only the **AXIOM** cluster survives. With
 `minMembers=3`, **AXIOM** and **FINANCE** both survive. With
 `minMembers=1`, six clusters survive, most of them size-1 noise.
 
-## 5. Real-data result
+## 5. Example result
 
-Running against one tenant's 9 683 resources with tuned stopwords
+Running against an example tenant's ~9,700 resources with tuned stopwords
 produced this top 10:
 
 ```
 DMS                1890
-Inkoop              788
-Contractmanagement  773
+Procurement         788
+ContractManagement  773
 SRV                 652
 MGT                 433
 SUB                 334

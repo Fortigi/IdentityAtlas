@@ -53,7 +53,7 @@ You must respond with ONLY a valid JSON object (no markdown fencing, no explanat
 
 Research targets:
 - What does the organisation do? (industry, sector, sub-sector)
-- What regulations apply? (NIS2, DORA, SOX, HIPAA, Wbni, BIO, etc.)
+- What regulations apply? (NIS2, DORA, SOX, HIPAA, GDPR, etc.)
 - What are their critical business processes?
 - What key systems/platforms are publicly known?
 - What security frameworks do they likely follow? (ISO 27001, NIST, BIO for government)
@@ -101,7 +101,7 @@ RULES:
 - "assistantMessage" is ALWAYS present and contains your natural-language reply to the user.
 - "profile" is the COMPLETE customer_profile schema — same shape as the current profile below. Include ALL fields even if unchanged.
 - "profileChanged" is true if you modified anything in the profile, false if the user just asked a question and you didn't change the profile.
-- If the user asks a question (e.g. "what software does HBR use?"), research the answer, include it in assistantMessage, and also add any relevant facts to the profile (e.g. known_systems, critical_business_processes). Set profileChanged=true if you added anything.
+- If the user asks a question (e.g. "what software does the organisation use?"), research the answer, include it in assistantMessage, and also add any relevant facts to the profile (e.g. known_systems, critical_business_processes). Set profileChanged=true if you added anything.
 - If the user requests a change (e.g. "drop NIS2"), apply it, describe what you changed in assistantMessage, and set profileChanged=true.
 - NEVER respond with prose outside the JSON object. NEVER use markdown fences. The output must start with { and end with }.
 
@@ -188,7 +188,7 @@ HARD RULES FOR PATTERNS — follow all of them:
 
   4. Exclude news/communications/training/room/mailbox naming conventions. Specifically, make sure your patterns do NOT fire on entities whose name contains any of: "nieuws", "news", "newsletter", "communicatie", "communication", "lokaal", "leslokaal", "room", "meeting", "mailbox", "postbus", "kalender", "calendar", "distributielijst", "distribution list", "shared mailbox". If your keyword is literally the same as one of these (e.g. "room operator"), rewrite the pattern to require additional context.
 
-  5. Prefer system-specific nouns from the profile over generic job categories. If the profile mentions AXIOM, Portbase, SAP-S/4HANA, Dynamics, Pronto, PortXchange, Navigate, ISPS, SOC, etc., build patterns around those exact names. Generic "infrastructure admin" catches too much; "\\bAXIOM[\\s_-]?admin\\b" catches exactly what matters.
+  5. Prefer system-specific nouns from the profile over generic job categories. If the profile mentions AXIOM, SAP-S/4HANA, Dynamics, ServiceNow, Swift, SEPA, SOC, etc., build patterns around those exact names. Generic "infrastructure admin" catches too much; "\\bAXIOM[\\s_-]?admin\\b" catches exactly what matters.
 
   6. Separate role-name patterns from descriptive terms. Patterns like "robot" or "autopilot" or "dynamics" will fire on Azure Autopilot device groups, Microsoft Dynamics CRM administrators, and Hadoop Robot Engineer service accounts — none of which are OT/SCADA. Don't produce patterns that match those words unless you also require a genuine OT/ICS keyword beside them.
 

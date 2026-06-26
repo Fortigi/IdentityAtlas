@@ -101,12 +101,12 @@ This is **contrastive scoring with an implicit comparison cohort**. The comparis
 
 The analyst can't ask "what's specific to data analysts *within IT*?" without dilution from the rest of the company. The fix when (if) this becomes a pain: optionally let the analyst supply *two* filters — in-scope + "compare against" — instead of one. Plugin signature doesn't change; host passes a different complement set. **v2 problem, not v1.**
 
-### Example (from the analyst's Power BI screenshot)
+### Example (illustrative figures)
 
 | Resource | % in-scope | % out-of-scope | Score |
 |---|---|---|---|
-| GG_ROL_Alle_medewerkers | 98.4% | 0.79% | 97.65 |
-| _All_Users_Formeel | 98.5% | 1.56% | 96.93 |
+| GG_ROL_All_Employees | 98.4% | 0.79% | 97.65 |
+| _All_Users_Formal | 98.5% | 1.56% | 96.93 |
 | GG_APL_O365_E5-Default | 97.0% | 1.92% | 95.06 |
 | GG_ServiceNow-dev | 98.1% | 4.37% | 93.76 |
 | GG_APP_ServiceNow_Allusers_P | 98.4% | 9.75% | 88.69 |

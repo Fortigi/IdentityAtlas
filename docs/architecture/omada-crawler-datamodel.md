@@ -1,8 +1,5 @@
 # Omada IGA Crawler — Data Model Reference
 
-> **Last updated:** 2026-06-04  
-> **Tested against:** Omada Identity v15.0 on-premise (OData 4.0) and Omada Cloud (omada.cloud)
-
 ---
 
 ## Overview
