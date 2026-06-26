@@ -55,3 +55,10 @@ UPDATE "ResourceAssignments" ra
   FROM owned o
  WHERE ra."resourceId" = o.group_id
    AND ra."assignmentType" = 'Owner';
+
+-- This is a VISIBLE change (Owner badges become GroupOwnership resource rows).
+-- Migrations run before the web port binds, so refresh the matrix matview here
+-- (plain REFRESH — allowed in a migration transaction, unlike CONCURRENTLY) so
+-- the matrix is correct the instant the app serves, rather than briefly showing
+-- phantom Owner cells until the boot/end-of-sync refresh catches up.
+REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments";
