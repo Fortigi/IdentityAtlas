@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Governance memberships (access packages / business roles) are now modelled as ordinary assignments with a "governed" flag marking that the access is driven by a governance structure, replacing the special-cased "Governed" assignment type. A user assigned to a business role gets a real Direct membership on it, flagged governed.
+- The matrix now derives "managed by access package" colouring and the **provisioning gap** — a user who should have access via a business role but doesn't actually have it — directly from the data instead of computing it in the browser, so the gap is consistent everywhere and reflects every governance source, not just Entra access packages.
+- Provisioning-gap detection now works for any source that supplies role/entitlement relationships (Entra access packages, midPoint and Omada business roles), including identity-based assignments.
+- Access-package counts on dashboards, user pages and the governance views now read the governed flag, so they stay accurate after the model change.
+
+## Changes in this PR
+
 - Standardised example data across the documentation, tests, and fixtures to use generic placeholder organisation, system, and hostname values.
 
 ## Changes in this PR
