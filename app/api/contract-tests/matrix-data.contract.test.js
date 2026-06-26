@@ -83,16 +83,20 @@ describe('POST /matrix/data — flat grid', () => {
     expect(typeof res.body.subjectTotal).toBe('number');
     expect(typeof res.body.resourceTotal).toBe('number');
 
-    // Regression pins on the fresh contract DB: 2 principals, 3 resources.
-    expect(res.body.subjectTotal).toBe(2);
-    expect(res.body.resourceTotal).toBe(3);
+    // subjectTotal / resourceTotal are GLOBAL counts (every Principal / Resource
+    // in the DB), and the contract suite shares one singleFork database where
+    // other files leave rows behind — so assert our seed is *included*, not the
+    // exact totals.
+    expect(res.body.subjectTotal).toBeGreaterThanOrEqual(2);
+    expect(res.body.resourceTotal).toBeGreaterThanOrEqual(3);
 
-    // The seeded Direct assignments surface through the materialized view.
-    expect(res.body.data.length).toBe(5);
-    const row = res.body.data[0];
-    expect(row).toHaveProperty('resourceId');
-    expect(row).toHaveProperty('memberId');
-    expect(row).toHaveProperty('membershipType');
-    expect(resourceIds).toContain(res.body.data[0].resourceId);
+    // Scope the row assertions to our own resources (unique uuids) so they're
+    // deterministic regardless of any leftover rows from other test files.
+    const ourRows = res.body.data.filter(r => resourceIds.includes(r.resourceId));
+    expect(ourRows.length).toBe(5); // the 5 seeded Direct assignments
+    for (const row of ourRows) {
+      expect(principalIds).toContain(row.memberId);
+      expect(row.membershipType).toBe('Direct');
+    }
   });
 });
