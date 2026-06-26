@@ -939,6 +939,7 @@ if ($SyncResources) {
                 externalId         = $ExtId
                 displayName        = $DispName
                 resourceType       = $AtlasType
+                governanceResource = ($AtlasType -eq 'BusinessRole')
                 description        = $Item.DESCRIPTION
                 enabled            = $Enabled
                 extendedAttributes = @{

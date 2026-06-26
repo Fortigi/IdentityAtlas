@@ -63,6 +63,7 @@ const SCHEMAS = {
       contextId: { type: 'uuid' },
       catalogId: { type: 'uuid' },
       isHidden: { type: 'boolean' },
+      governanceResource: { type: 'boolean' },
       extendedAttributes: { type: 'json' },
     },
   },

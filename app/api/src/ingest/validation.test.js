@@ -297,6 +297,18 @@ describe('validateRecords — resource-relationships', () => {
   });
 });
 
+// ── validateRecords — resources governanceResource ──────────────────────────
+
+describe('validateRecords — resources governanceResource', () => {
+  it('accepts a boolean governanceResource on a governance resource', () => {
+    const r = validateRecords(
+      [{ displayName: 'Marketing role', resourceType: 'BusinessRole', governanceResource: true }],
+      'resources',
+    );
+    expect(r.valid).toBe(true);
+  });
+});
+
 // ── validateRecords — resource-assignments XOR check (T7.3) ──────────────────
 
 describe('validateRecords — resource-assignments XOR check', () => {
