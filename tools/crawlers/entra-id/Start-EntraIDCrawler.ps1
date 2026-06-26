@@ -1361,9 +1361,27 @@ if ($SyncAssignments) {
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraGroup' } -Records $allMembers
 
-    # Group Owners
+    # Group Owners — modelled as a Direct assignment to a synthetic
+    # "Owner @ <group>" resource (resourceType='GroupOwnership'), linked to the
+    # group by a HasOwnership relationship — mirroring how an AppRole hangs off
+    # its Application. The ownership resource id is deterministic over the group
+    # id (same scheme as New-AppRoleResourceId and migration 046), so re-syncs
+    # upsert the same rows.
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing assignments (group owners)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing group owners' -Pct 51 -Detail "0 of $totalGroups groups"
+
+    function New-OwnershipResourceId {
+        param([string]$GroupId)
+        $seed = "entraid-ownership:${GroupId}"
+        $md5 = [System.Security.Cryptography.MD5]::Create()
+        try {
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
+            $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
+        } finally {
+            $md5.Dispose()
+        }
+        return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+    }
 
     $ownerResult = Get-FGGroupChildrenParallel `
         -Groups $groups -ChildPath 'owners' -ThrottleLimit 16 `
@@ -1371,19 +1389,62 @@ if ($SyncAssignments) {
         -RecordBuilder {
             param($o)
             @{
-                resourceId     = $o.resourceId
-                principalId    = $o.principalId
-                assignmentType = 'Owner'
+                groupId     = $o.resourceId
+                principalId = $o.principalId
             }
         }
-    $allOwners = $ownerResult.records
+    $rawOwners = $ownerResult.records
     if ($ownerResult.errorCount -gt 0) {
         Write-Host "  WARNING: $($ownerResult.errorCount) groups failed during owner fetch (skipped)" -ForegroundColor Yellow
     }
 
-    Update-CrawlerProgress -Detail "Uploading $($allOwners.Count) owner assignments..."
+    # Build ownership resources (one per owned group), HasOwnership relationships,
+    # and the owner assignments (Direct to the ownership resource).
+    $groupNameById = @{}
+    foreach ($g in $groups) { $groupNameById[$g.id] = $g.displayName }
+
+    $ownershipResMap = @{}   # ownershipId -> resource record
+    $ownershipRelMap = @{}   # "groupId|ownershipId" -> relationship record
+    $ownerAssns = [System.Collections.Generic.List[object]]::new()
+    foreach ($ow in $rawOwners) {
+        $ownId = New-OwnershipResourceId -GroupId $ow.groupId
+        if (-not $ownershipResMap.ContainsKey($ownId)) {
+            $gname = $groupNameById[$ow.groupId]
+            if (-not $gname) { $gname = '(group)' }
+            $ownershipResMap[$ownId] = @{
+                id                 = $ownId
+                displayName        = "Owner @ $gname"
+                resourceType       = 'GroupOwnership'
+                externalId         = "entraid-ownership:$($ow.groupId)"
+                extendedAttributes = @{ ownedResourceId = $ow.groupId }
+            }
+            $ownershipRelMap["$($ow.groupId)|$ownId"] = @{
+                parentResourceId = $ow.groupId
+                childResourceId  = $ownId
+                relationshipType = 'HasOwnership'
+            }
+        }
+        $ownerAssns.Add(@{
+            resourceId     = $ownId
+            principalId    = $ow.principalId
+            assignmentType = 'Direct'
+            resourceType   = 'GroupOwnership'
+        })
+    }
+    $ownershipResources = @($ownershipResMap.Values)
+    $ownershipRels      = @($ownershipRelMap.Values)
+    $ownerRecords       = @($ownerAssns)
+
+    # Send unconditionally (even when empty) so a full-sync reconcile clears
+    # ownership resources/relationships/assignments for groups that lost owners.
+    Update-CrawlerProgress -Detail "Uploading $($ownershipResources.Count) ownership resources..."
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
+        -Scope @{ resourceType = 'GroupOwnership' } -Records $ownershipResources
+    Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $systemId -SyncMode 'full' `
+        -Scope @{ relationshipType = 'HasOwnership' } -Records $ownershipRels
+    Update-CrawlerProgress -Detail "Uploading $($ownerRecords.Count) owner assignments..."
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-        -Scope @{ assignmentType = 'Owner' } -Records $allOwners
+        -Scope @{ assignmentType = 'Direct'; resourceType = 'GroupOwnership' } -Records $ownerRecords
     } catch {
         $script:phaseErrors.Add("Assignments: $($_.Exception.Message)")
         Write-Host "  Assignments phase failed: $($_.Exception.Message)" -ForegroundColor Red

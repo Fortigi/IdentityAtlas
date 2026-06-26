@@ -9,6 +9,8 @@
 
 > **Reuse before creating.** Search before writing any function, constant, helper, hook, or component. Only create something new when nothing suitable exists. Applies across all languages (PowerShell, JavaScript, SQL). See each subdirectory CLAUDE.md for known utilities specific to that layer.
 
+> **Fix at the source, not the surface.** When a value is missing, wrongly shaped, or derived, fix it where the data is produced — the crawler, the ingest layer, the schema, or the matview — so every consumer benefits. **Before writing any client-side workaround** (computing, deriving, reshaping, or faking in the UI what the data should already provide), stop and ask: *should this live in the data model instead?* Client-side patches that paper over a data-model gap silently accrue as duplication and drift — e.g. the matrix once simulated "owner as its own row" in React while the data still stamped `assignmentType='Owner'` on the group; two mechanisms for one concept, kept in sync by hand. Prefer the deeper fix. If a surface-level fix is genuinely the right call, say why in the PR.
+
 ## Project Overview
 
 Identity Atlas is a Docker-deployed application that pulls authorization data from Microsoft Graph (and other systems via CSV) into a **PostgreSQL** database, then surfaces it through a React role-mining UI. The worker container ships PowerShell crawler scripts; all persistence flows through the Node.js API.

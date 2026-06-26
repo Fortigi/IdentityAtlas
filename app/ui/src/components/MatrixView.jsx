@@ -350,37 +350,18 @@ export default function MatrixView({
         });
       }
 
-      // Owner memberships go to a separate synthetic group row
-      const isOwner = d.membershipType === 'Owner';
-      if (isOwner && gid) {
-        const ownerGroupId = `${gid}__owner`;
-        if (!groupMap.has(ownerGroupId)) {
-          const name = d.resourceDisplayName || d.groupDisplayName || gid;
-          const tags = groupTagMap?.get(gid.toUpperCase()) || [];
-          groupMap.set(ownerGroupId, {
-            id: ownerGroupId,
-            realGroupId: gid,
-            displayName: `${name} (Owner)`,
-            tags,
-            description: d.resourceDescription || d.groupDescription || '',
-            groupType: d.resourceType || d.groupTypeCalculated || '',
-            systemName: d.systemName || '',
-          });
-        }
-      }
-
-      // Memberships: Owner -> synthetic owner group, others -> real group
-      const effectiveGroupId = isOwner ? `${gid}__owner` : gid;
-      const key = `${effectiveGroupId}|${d.memberId}`;
+      // Group ownership is its own resource now (resourceType='GroupOwnership',
+      // shown as a normal row), so every membership lands on its real resource
+      // row — no client-side owner-row simulation. (See "Fix at the source" in
+      // the root CLAUDE.md.)
+      const key = `${gid}|${d.memberId}`;
       if (!membershipMap.has(key)) {
         membershipMap.set(key, new Set());
       }
       membershipMap.get(key).add(d.membershipType);
 
       // Track managedByAccessPackage per cell (boolean from view, used for filtering)
-      // Owner rows are NOT managed by APs — the managedByAccessPackage flag from the
-      // SQL view checks AP→Direct membership, which doesn't apply to Owner relationships.
-      if (d.managedByAccessPackage && !isOwner) {
+      if (d.managedByAccessPackage) {
         managed.set(key, true);
       }
     });
@@ -393,27 +374,23 @@ export default function MatrixView({
     // Per-type counts enable priority sorting: Direct > Eligible > Owner > Indirect
     const userList = [...userMap.values()];
     for (const group of groupMap.values()) {
-      let memberCount = 0, directCount = 0, eligibleCount = 0, ownerCount = 0, nonIndirectCount = 0;
+      let memberCount = 0, directCount = 0, eligibleCount = 0, nonIndirectCount = 0;
       for (const u of userList) {
         const types = membershipMap.get(`${group.id}|${u.id}`);
         if (!types || types.size === 0) continue;
         memberCount++;
         if (types.has('Direct'))   directCount++;
         if (types.has('Eligible')) eligibleCount++;
-        if (types.has('Owner'))    ownerCount++;
         for (const t of types) { if (t !== 'Indirect') { nonIndirectCount++; break; } }
       }
       group.memberCount = memberCount;
       group.directCount = directCount;
       group.eligibleCount = eligibleCount;
-      group.ownerCount = ownerCount;
       group.nonIndirectCount = nonIndirectCount;
     }
 
-    // Sort groups by member count descending; filter out groups with 0 members
-    // (e.g., a base group with only Owner memberships will have 0 members since
-    // those went to the __owner synthetic row)
-    // Priority: Direct > Eligible > Owner > Indirect-only
+    // Sort groups by member count descending; filter out groups with 0 members.
+    // Priority: Direct > Eligible > Indirect-only
     const groups = [...groupMap.values()]
       .filter(g => g.memberCount > 0)
       .sort((a, b) => {
@@ -423,9 +400,6 @@ export default function MatrixView({
         // Then eligible
         const eligibleCmp = (b.eligibleCount || 0) - (a.eligibleCount || 0);
         if (eligibleCmp !== 0) return eligibleCmp;
-        // Then owner
-        const ownerCmp = (b.ownerCount || 0) - (a.ownerCount || 0);
-        if (ownerCmp !== 0) return ownerCmp;
         // Then total member count (indirect as tiebreaker)
         return b.memberCount - a.memberCount;
       });
@@ -566,13 +540,11 @@ export default function MatrixView({
       const aBucket = groupApBucket.get(a.id);
       const bBucket = groupApBucket.get(b.id);
       if (aBucket !== bBucket) return aBucket - bBucket;
-      // Same bucket: sort by type priority (Direct > Eligible > Owner > Indirect)
+      // Same bucket: sort by type priority (Direct > Eligible > Indirect)
       const directCmp = (b.directCount || 0) - (a.directCount || 0);
       if (directCmp !== 0) return directCmp;
       const eligibleCmp = (b.eligibleCount || 0) - (a.eligibleCount || 0);
       if (eligibleCmp !== 0) return eligibleCmp;
-      const ownerCmp = (b.ownerCount || 0) - (a.ownerCount || 0);
-      if (ownerCmp !== 0) return ownerCmp;
       return b.memberCount - a.memberCount;
     });
   }, [groups, accessPackages, apGroupMap, managedFilter]);
