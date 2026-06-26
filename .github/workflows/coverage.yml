@@ -1,0 +1,167 @@
+# ─── Publish test coverage to the docs ───────────────────────────────────────
+# On every push to main that touches source or tests, this workflow:
+#   1. Runs each test suite with coverage:
+#        - API  (app/api)  → Vitest v8 → lcov.info
+#        - UI   (app/ui)   → Vitest v8 → lcov.info
+#        - Pester (test/unit) → JaCoCo XML
+#   2. Converts each suite to a consistent browsable HTML report + a
+#      machine-readable Summary.json via ReportGenerator, under docs/coverage/.
+#   3. Renders the curated docs page (docs/reference/coverage.md) from those
+#      summaries (tools/generate-coverage-doc.py).
+#   4. Commits docs/reference/coverage.md + docs/coverage/** back to main.
+#
+# Why commit into docs/ rather than publish a one-off artifact: the docs site is
+# versioned with mike (edge = main, stable = release tag). Committing the page and
+# reports into the docs tree means mike builds them into BOTH versions naturally —
+# edge refreshes every merge, a release is frozen at its tag's numbers. The commit
+# touches only docs/** so it re-triggers docs.yml (redeploy) but NOT this workflow
+# (its paths filter is source/tests only) — no loop — and not docker-publish.yml
+# (gated on bump-version). Same protected-main push mechanics as sbom-update.yml:
+# the GitHub App token is required (GITHUB_TOKEN can't bypass branch protection),
+# and the push rebases-and-retries to absorb bump-version.yml's concurrent commit.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Publish coverage to docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/api/src/**'
+      - 'app/ui/src/**'
+      - 'tools/crawlers/**'
+      - 'tools/powershell-sdk/**'
+      - 'tools/riskscoring/**'
+      - 'test/unit/**'
+      - 'tools/generate-coverage-doc.py'
+      - '.github/workflows/coverage.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: coverage-docs-main
+  cancel-in-progress: false  # queue, don't drop — each merge's numbers matter
+
+permissions:
+  contents: write
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          token: ${{ steps.bot-token.outputs.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24'
+
+      - name: Setup .NET (for ReportGenerator)
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # ── API coverage (Vitest) ──────────────────────────────────────────────
+      - name: API tests with coverage
+        working-directory: app/api
+        continue-on-error: true  # publish coverage even if a suite has a failure
+        run: |
+          npm ci
+          npm run test:coverage
+
+      # ── UI coverage (Vitest) ───────────────────────────────────────────────
+      - name: UI tests with coverage
+        working-directory: app/ui
+        continue-on-error: true
+        run: |
+          npm ci
+          npm run test:coverage
+
+      # ── PowerShell coverage (Pester → JaCoCo) ──────────────────────────────
+      # Coverage scope mirrors pr.yml's pester job exactly.
+      - name: Pester tests with coverage
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          if (-not (Get-Module Pester -ListAvailable | Where-Object Version -ge '5.0.0')) {
+            Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
+          }
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'test/unit'
+          $cfg.Run.PassThru = $true
+          $cfg.CodeCoverage.Enabled = $true
+          $cfg.CodeCoverage.Path = @(
+            (Get-ChildItem 'tools/powershell-sdk' -Directory | Select-Object -ExpandProperty FullName)
+            (Get-ChildItem 'tools/crawlers' -Directory |
+              Where-Object { Test-Path (Join-Path $_.FullName 'crawler.json') } |
+              Select-Object -ExpandProperty FullName)
+            'tools/riskscoring'
+          )
+          $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
+          $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
+          Invoke-Pester -Configuration $cfg
+
+      # ── Convert each suite to HTML + Summary.json ──────────────────────────
+      - name: Install ReportGenerator
+        run: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Build coverage reports
+        run: |
+          gen() {
+            local slug="$1"; local src="$2"; local title="$3"
+            if [ -f "$src" ]; then
+              reportgenerator \
+                "-reports:$src" \
+                "-targetdir:docs/coverage/$slug" \
+                "-reporttypes:Html;JsonSummary" \
+                "-sourcedirs:." \
+                "-title:$title"
+            else
+              echo "::warning::No coverage input for $slug ($src) — skipping"
+            fi
+          }
+          gen api        app/api/coverage/lcov.info "API"
+          gen ui         app/ui/coverage/lcov.info  "UI"
+          gen powershell pester-coverage.xml        "PowerShell"
+
+      - name: Render coverage docs page
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: python3 tools/generate-coverage-doc.py
+              --coverage-dir docs/coverage
+              --out docs/reference/coverage.md
+              --commit "$GITHUB_SHA"
+
+      # ── Commit back to main ────────────────────────────────────────────────
+      - name: Commit coverage
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/reference/coverage.md docs/coverage
+          if git diff --cached --quiet; then
+            echo "Coverage unchanged — nothing to commit"
+            exit 0
+          fi
+          git commit -m "docs: update test coverage report"
+          # bump-version.yml may push to main on the same merge — rebase & retry.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "Push failed (attempt $attempt) — rebasing onto latest main"
+            git pull --rebase origin main
+          done
+          echo "::error::Could not push coverage update after 5 attempts"
+          exit 1
