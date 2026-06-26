@@ -326,46 +326,68 @@ router.post('/ingest/sync-log', async (req, res) => {
   }
 });
 
-// POST /api/ingest/classify-business-role-assignments — reclassify Direct
-// assignments to BusinessRole resources as Governed. Called by the CSV crawler
-// after all data is imported so it doesn't need to know resource types at
-// assignment-import time.
+// POST /api/ingest/classify-business-role-assignments — (re)generate the
+// governed-intent rows. A user's membership in a governance resource (business
+// role / access package) is a real Direct assignment (governed=false); the
+// SOLL it implies — "this user should have <role> in each group the resource
+// Contains" — is materialised here as governed=true intent rows on those
+// groups, carrying the granting business-role id(s) in extendedAttributes. The
+// matrix derives "managed by access package" + the provisioning gap from these.
+// Fully derived from current memberships + Contains, so it is idempotent:
+// existing intent rows are reconciled away and rebuilt. Called by crawlers
+// after a governance sync.
 router.post('/ingest/classify-business-role-assignments', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!crawlerHasPermission(req, 'ingest')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   try {
-    // The primary key includes assignmentType, so a naive UPDATE to 'Governed'
-    // fails with a pk collision when a (resourceId, principalId, 'Governed')
-    // row already exists. We handle that in two passes:
-    //   1. Delete Direct rows that already have a matching Governed row — they
-    //      are redundant after classification.
-    //   2. Promote the remaining Direct rows to Governed.
-    const dup = await db.query(`
-      DELETE FROM "ResourceAssignments" ra
-       USING "Resources" r
-       WHERE ra."resourceId" = r.id
-         AND r."resourceType" = 'BusinessRole'
-         AND ra."assignmentType" = 'Direct'
-         AND EXISTS (
-           SELECT 1 FROM "ResourceAssignments" ra2
-            WHERE ra2."resourceId" = ra."resourceId"
-              AND ra2."assignmentType" = 'Governed'
-              AND (
-                (ra."principalId" IS NOT NULL AND ra2."principalId" = ra."principalId")
-                OR
-                (ra."identityId"  IS NOT NULL AND ra2."identityId"  = ra."identityId")
-              )
-         )
-    `);
+    // 1. Reconcile: governed-intent rows are fully derived below, so drop the
+    //    existing set first (cross-system intent isn't modelled yet — every
+    //    governed=true row comes from an intra-system Contains expansion).
+    const dup = await db.query(`DELETE FROM "ResourceAssignments" WHERE "governed" = true`);
+
+    // 2. Expand (membership in a governance resource) × (group it Contains)
+    //    into governed=true intent rows. Two arms: principal-based (Entra) and
+    //    identity-based (midPoint / Omada). Role 'eligible' → Eligible, else
+    //    Direct; multiple packages granting one cell collapse to one row.
     const r = await db.query(`
-      UPDATE "ResourceAssignments" ra
-         SET "assignmentType" = 'Governed'
-        FROM "Resources" r
-       WHERE ra."resourceId" = r.id
-         AND r."resourceType" = 'BusinessRole'
-         AND ra."assignmentType" = 'Direct'
+      INSERT INTO "ResourceAssignments"
+          ("resourceId", "principalId", "identityId", "assignmentType", "governed",
+           "resourceType", "systemId", "extendedAttributes")
+      SELECT
+          x."resourceId", x."principalId", x."identityId", x."assignmentType", true,
+          x."resourceType", x."systemId",
+          jsonb_build_object('businessRoleIds', to_jsonb(x."businessRoleIds"))
+      FROM (
+        SELECT rr."childResourceId" AS "resourceId",
+               bru."principalId", NULL::uuid AS "identityId",
+               CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END AS "assignmentType",
+               g."resourceType", bru."systemId",
+               array_agg(DISTINCT rr."parentResourceId") AS "businessRoleIds"
+          FROM "ResourceRelationships" rr
+          JOIN "ResourceAssignments" bru ON bru."resourceId" = rr."parentResourceId" AND bru."governed" = false AND bru."principalId" IS NOT NULL AND bru."deletedAt" IS NULL
+          JOIN "Resources" gov ON gov.id = rr."parentResourceId" AND gov."governanceResource"
+          JOIN "Resources" g ON g.id = rr."childResourceId"
+         WHERE rr."relationshipType" = 'Contains'
+         GROUP BY rr."childResourceId", bru."principalId",
+                  CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END,
+                  g."resourceType", bru."systemId"
+        UNION ALL
+        SELECT rr."childResourceId", NULL::uuid, bru."identityId",
+               CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END,
+               g."resourceType", bru."systemId",
+               array_agg(DISTINCT rr."parentResourceId")
+          FROM "ResourceRelationships" rr
+          JOIN "ResourceAssignments" bru ON bru."resourceId" = rr."parentResourceId" AND bru."governed" = false AND bru."identityId" IS NOT NULL AND bru."principalId" IS NULL AND bru."deletedAt" IS NULL
+          JOIN "Resources" gov ON gov.id = rr."parentResourceId" AND gov."governanceResource"
+          JOIN "Resources" g ON g.id = rr."childResourceId"
+         WHERE rr."relationshipType" = 'Contains'
+         GROUP BY rr."childResourceId", bru."identityId",
+                  CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END,
+                  g."resourceType", bru."systemId"
+      ) x
+      ON CONFLICT DO NOTHING
     `);
     // After re-classifying, the matrix materialized views are stale —
     // refresh them before returning so the UI sees the new data. This is
@@ -381,8 +403,8 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
     }
     return res.json({
       ok: true,
-      reclassified: r.rowCount || 0,
-      duplicatesRemoved: dup.rowCount || 0,
+      intentRows: r.rowCount || 0,
+      reconciledRemoved: dup.rowCount || 0,
       viewRefresh,
     });
   } catch (err) {
@@ -394,7 +416,7 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
 // POST /api/ingest/refresh-views — refresh the matrix materialized views.
 //
 // Called by the CSV crawler at end-of-sync (and by classify-business-role-
-// assignments after promoting Direct → Governed). Uses REFRESH MATERIALIZED
+// assignments after regenerating governed-intent rows). Uses REFRESH MATERIALIZED
 // VIEW CONCURRENTLY so reads during the refresh see the old data rather
 // than blocking — the unique index created in migration 013 is required
 // for CONCURRENTLY to work.

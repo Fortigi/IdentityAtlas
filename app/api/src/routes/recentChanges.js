@@ -448,8 +448,7 @@ router.get('/access-package/:id/recent-changes', async (req, res) => {
        WHERE "changedAt" > now() - ($1::int || ' days')::interval
          AND (
            ("tableName" = 'ResourceAssignments'
-              AND "rowData"->>'resourceId' = $2
-              AND COALESCE("rowData"->>'assignmentType','') = 'Governed')
+              AND "rowData"->>'resourceId' = $2)
            OR ("tableName" = 'ResourceRelationships'
               AND "rowData"->>'parentResourceId' = $2
               AND COALESCE("rowData"->>'relationshipType','') = 'Contains')
@@ -618,7 +617,7 @@ const TIMELINE_WHERE = {
   resource: `("tableName" = 'ResourceAssignments' AND "rowData"->>'resourceId' = $2)
       OR ("tableName" = 'ResourceRelationships' AND ("rowData"->>'childResourceId' = $2 OR "rowData"->>'parentResourceId' = $2))
       OR ("tableName" = 'Resources' AND "rowId" = $2)`,
-  'access-package': `("tableName" = 'ResourceAssignments' AND "rowData"->>'resourceId' = $2 AND COALESCE("rowData"->>'assignmentType','') = 'Governed')
+  'access-package': `("tableName" = 'ResourceAssignments' AND "rowData"->>'resourceId' = $2)
       OR ("tableName" = 'ResourceRelationships' AND "rowData"->>'parentResourceId' = $2 AND COALESCE("rowData"->>'relationshipType','') = 'Contains')
       OR ("tableName" = 'Resources' AND "rowId" = $2)`,
   identity: `("tableName" = 'IdentityMembers' AND "rowData"->>'identityId' = $2)

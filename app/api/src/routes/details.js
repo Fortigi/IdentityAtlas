@@ -139,9 +139,12 @@ router.get('/user/:id', async (req, res) => {
     try {
       const r = await timedRequest(pool, 'user-ap-count', res)
         .input('id', userId)
-        .query(`SELECT COUNT(DISTINCT "resourceId")::int AS cnt
-                  FROM "ResourceAssignments"
-                 WHERE "principalId"::text = @id AND "assignmentType" = 'Governed'`);
+        .query(`SELECT COUNT(DISTINCT ra."resourceId")::int AS cnt
+                  FROM "ResourceAssignments" ra
+                  JOIN "Resources" r ON r.id = ra."resourceId"
+                 WHERE ra."principalId"::text = @id
+                   AND ra."assignmentType" = 'Direct' AND ra."governed" = false
+                   AND r."governanceResource"`);
       accessPackageCount = r.recordset[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
@@ -280,8 +283,8 @@ router.get('/user/:id/access-packages', async (req, res) => {
         a."state",
         a."expirationDateTime"
         FROM "ResourceAssignments" a
-        LEFT JOIN "Resources" ap ON a."resourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
-       WHERE a."principalId"::text = @id AND a."assignmentType" = 'Governed'
+        JOIN "Resources" ap ON a."resourceId" = ap.id AND ap."governanceResource"
+       WHERE a."principalId"::text = @id AND a."assignmentType" = 'Direct' AND a."governed" = false
        ORDER BY ap."displayName"
     `);
     res.json(r.recordset);
@@ -553,7 +556,7 @@ router.get('/access-package/:id', async (req, res) => {
       const r = await timedRequest(pool, 'ap-assignment-count', res)
         .input('id', apId)
         .query(`
-        SELECT COUNT(*) AS cnt FROM "ResourceAssignments" WHERE "resourceId" = @id AND "assignmentType" = 'Governed'
+        SELECT COUNT(*) AS cnt FROM "ResourceAssignments" WHERE "resourceId" = @id AND "assignmentType" = 'Direct' AND "governed" = false
       `);
       assignmentCount = r.recordset[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
@@ -738,7 +741,7 @@ router.get('/access-package/:id/assignments', async (req, res) => {
         FROM "ResourceAssignments" a
         LEFT JOIN "Principals" u ON a."principalId" = u.id
         WHERE a."resourceId" = @id
-          AND a."assignmentType" = 'Governed'
+          AND a."assignmentType" = 'Direct' AND a."governed" = false
           AND (a.state = 'Delivered' OR a.state IS NULL)
         ORDER BY u."displayName"
       `);

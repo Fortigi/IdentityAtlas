@@ -1651,8 +1651,11 @@ if ($SyncGovernance) {
         $__scopeErrMsg = if ($__scopeErr) { $__scopeErr.Substring('Governance/ResourceScopes:'.Length).Trim() } else { $null }
         Write-Phase -Name 'Governance/ResourceScopes' -Duration $__scopeSW.Elapsed -ErrorMsg $__scopeErrMsg
 
-        # ── Access Package Assignments (Governed) ────────────────────
-        # Each assignment links a user (target) to an access package
+        # ── Access Package Assignments (Direct membership on the package) ──
+        # Each assignment links a user (target) to an access package. This is a
+        # real Direct membership on the package resource (governed=false); the
+        # access it implies on contained groups is materialised as governed=true
+        # intent rows by /ingest/classify-business-role-assignments at end-of-sync.
         $__apaSW = [Diagnostics.Stopwatch]::StartNew()
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access package assignments)..." -ForegroundColor Cyan
         try {
@@ -1689,7 +1692,9 @@ if ($SyncGovernance) {
                     resourceId         = $apId
                     principalId        = $targetId
                     principalType      = 'User'
-                    assignmentType     = 'Governed'
+                    assignmentType     = 'Direct'
+                    resourceType       = 'BusinessRole'
+                    governed           = $false
                     state              = $state
                     assignmentStatus   = $a.assignmentStatus
                     expirationDateTime = $a.expiredDateTime
@@ -1701,7 +1706,7 @@ if ($SyncGovernance) {
 
             if ($assignRecords.Count -gt 0) {
                 Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                    -Scope @{ assignmentType = 'Governed' } -Records $assignRecords
+                    -Scope @{ assignmentType = 'Direct'; resourceType = 'BusinessRole' } -Records $assignRecords
             } else {
                 Write-Host "  No active access package assignments found" -ForegroundColor Yellow
             }
@@ -2587,6 +2592,21 @@ if ($SyncDirectoryRoles) {
     $__dirRoleErr = $script:phaseErrors | Where-Object { $_.StartsWith('DirectoryRoles:') } | Select-Object -Last 1
     $__dirRoleErrMsg = if ($__dirRoleErr) { $__dirRoleErr.Substring('DirectoryRoles:'.Length).Trim() } else { $null }
     Write-Phase -Name 'DirectoryRoles' -Duration $__phaseSW.Elapsed -ErrorMsg $__dirRoleErrMsg
+}
+
+# ─── Regenerate governed-intent rows ─────────────────────────────
+# After all memberships + Contains are ingested, expand governance memberships
+# into governed=true intent rows (the provisioning-gap source). Server-side and
+# idempotent; the endpoint also refreshes the matrix matviews.
+if ($RefreshViews) {
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Regenerating governed-intent rows..." -ForegroundColor Cyan
+    try {
+        Invoke-IngestAPI -Endpoint 'ingest/classify-business-role-assignments' -Body @{}
+        Write-Host "  Governed-intent rows regenerated" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "  Warning: governed-intent regeneration failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
 
 # ─── Refresh Views ───────────────────────────────────────────────

@@ -351,11 +351,12 @@ export async function runScoring(runId, classifierId = null) {
     // One round-trip per signal; the data is small compared to the scoring loop.
     await updateRun({ step: 'Loading memberships', pct: 12 });
 
-    // Member counts per resource (Direct + Governed for total headcount)
+    // Member counts per resource — actual memberships only (governed=false);
+    // governed=true intent rows are SOLL, not real headcount.
     const memberCountRows = await db.query(
       `SELECT "resourceId"::text AS rid, COUNT(*)::int AS cnt
          FROM "ResourceAssignments"
-        WHERE "assignmentType" IN ('Direct','Governed')
+        WHERE "assignmentType" = 'Direct' AND "governed" = false
         GROUP BY "resourceId"`
     );
     const memberCountMap = new Map(memberCountRows.rows.map(r => [r.rid, r.cnt]));
@@ -371,13 +372,13 @@ export async function runScoring(runId, classifierId = null) {
 
     // Build bidirectional index: principal → list of resource ids (memberships)
     //                           resource  → list of principal ids (members)
-    // We only follow Direct and Governed for membership propagation — Owner is
-    // a different relationship (admin control, not "has access to") and
-    // propagating through it double-counts privileged users.
+    // We only follow actual Direct memberships (governed=false) for membership
+    // propagation — Owner is a different relationship (admin control, not "has
+    // access to"), and governed=true intent rows are SOLL, not real access.
     const assignmentRows = await db.query(
       `SELECT "principalId"::text AS pid, "resourceId"::text AS rid
          FROM "ResourceAssignments"
-        WHERE "assignmentType" IN ('Direct','Governed')`
+        WHERE "assignmentType" = 'Direct' AND "governed" = false`
     );
     const principalMemberships = new Map(); // pid -> Set<rid>
     const resourceMembers      = new Map(); // rid -> Set<pid>

@@ -584,7 +584,8 @@ async function accessPackageResourcesHandler(req, res) {
           SELECT "resourceId", COUNT(*)::int AS cnt
             FROM "ResourceAssignments"
            WHERE ("state" = 'delivered' OR "state" IS NULL)
-             AND "assignmentType" = 'Governed'
+             AND "assignmentType" = 'Direct'
+             AND "governed" = false
            GROUP BY "resourceId"
         )
         SELECT
