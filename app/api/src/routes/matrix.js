@@ -121,7 +121,9 @@ router.post('/matrix/hierarchy-paths', async (req, res) => {
         UNION ALL
         SELECT c.id, d.path || c."displayName"
           FROM "Contexts" c JOIN down d ON c."parentContextId" = d.id
-      )`;
+      )
+      -- CYCLE guard: corrupt parent chains must not recurse forever.
+      CYCLE id SET "isCycle" USING "cyclePath"`;
     const sql = rowType === 'identity'
       ? `${pathCte}
          SELECT DISTINCT ON (im."identityId") im."identityId"::text AS "subjectId", d.path AS path
