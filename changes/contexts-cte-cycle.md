@@ -1,1 +1,0 @@
-- Fixed a hang where context pages, the matrix, and crawler syncs could freeze indefinitely if a context's parent chain ever formed a loop (A inside B inside A). Affected queries now stop safely instead of running forever.

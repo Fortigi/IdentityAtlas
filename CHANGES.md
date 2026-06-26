@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed a hang where context pages, the matrix, and crawler syncs could freeze indefinitely if a context's parent chain ever formed a loop (A inside B inside A). Affected queries now stop safely instead of running forever.
+
+## Changes in this PR
+
 - Groundwork for governed-access tracking: an assignment can now carry a "governed" flag, letting the same access be recorded both as actually-in-place and as governed/expected-by-a-business-role. No visible behaviour change yet — the crawler and matrix that use it follow in a later change.
 
 ## Changes in this PR
