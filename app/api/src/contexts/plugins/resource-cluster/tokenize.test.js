@@ -8,19 +8,19 @@ describe('tokenize', () => {
   });
 
   it('treats parens / brackets / punctuation as separators', () => {
-    expect(tokenize('Eigenaren van Smart-Infra (INKOOP EN CONTRACTMANAGEMENT)'))
-      .toEqual(['smart', 'infra', 'inkoop', 'contractmanagement']);
+    expect(tokenize('Owners of Data-Platform (PROCUREMENT & CONTRACTING)'))
+      .toEqual(['data', 'platform', 'procurement', 'contracting']);
     expect(tokenize('Role: Procurement+Invoicing; Team=A&B'))
       .toEqual(['procurement', 'invoicing']);
   });
 
-  it('strips Dutch connective tokens like "van"', () => {
-    // "rol" is a tenant-specific AD prefix at Novastream Financial — not
-    // filtered by default, but the analyst can add it via additionalStopwords.
-    // Here we just confirm that "van" and "eigenaren" (NL fillers/roles) are
-    // filtered out of the default set.
-    expect(tokenize('AG_ROL_DMS_EIGENAREN VAN FINANCE (INKOOP)'))
-      .toEqual(['rol', 'dms', 'finance', 'inkoop']);
+  it('strips role-suffix and short connective tokens', () => {
+    // "rol" is a generic AD role-prefix — not filtered by default, but the
+    // analyst can add it via additionalStopwords. Here we just confirm that
+    // "owners" (a role suffix) and "of" (too short) are filtered out, while
+    // "rol", "dms", "finance" and "procurement" survive.
+    expect(tokenize('AG_ROL_DMS_OWNERS OF FINANCE (PROCUREMENT)'))
+      .toEqual(['rol', 'dms', 'finance', 'procurement']);
   });
 
   it('lowercases tokens', () => {

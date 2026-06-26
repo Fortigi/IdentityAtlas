@@ -242,7 +242,7 @@ if (-not $finalRun) {
     Report-Result 'RiskLLM/RunCompletes' $true "scored=$($finalRun.scoredEntities)"
 
     # Assert at least some classifier matches were produced. The LLM-generated
-    # classifiers SHOULD match real NSF/demo data since they were generated for
+    # classifiers SHOULD match the example/demo data since they were generated for
     # this exact org. Zero matches would mean either (a) the regex compile bug
     # regressed or (b) the LLM produced garbage patterns.
     try {

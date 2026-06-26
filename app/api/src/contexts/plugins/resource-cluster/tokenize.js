@@ -37,7 +37,7 @@ const ROLE_WORDS = [
 ];
 
 // Dutch connectives / prepositions that clutter descriptive display names
-// like "Eigenaren van Smart Infra — Lot Sensorenplatform (Inkoop en …)".
+// like "Eigenaren van Finance (Inkoop en Contracten)".
 const NL_FILLER = [
   'van', 'voor', 'naar', 'bij', 'aan', 'uit', 'over', 'onder',
   'tot', 'met', 'als', 'ook', 'door', 'nog',
@@ -78,7 +78,7 @@ export const DEFAULT_STOPWORDS = new Set([
 // Anything that isn't an ASCII letter or digit is treated as a separator.
 // This intentionally breaks on any punctuation, parens, brackets, spaces,
 // underscores, slashes, etc. — display names like
-// "Eigenaren van … (INKOOP EN CONTRACTMANAGEMENT)" and
+// "Owners of … (PROCUREMENT & CONTRACTING)" and
 // "Role: Procurement+Invoicing" both tokenize cleanly.
 const SEPARATOR_RE = /[^a-zA-Z0-9]+/;
 const NUMERIC_RE = /^\d+$/;

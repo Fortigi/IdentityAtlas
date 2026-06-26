@@ -78,7 +78,7 @@ describe('isNonProduction', () => {
 
   it('does NOT flag production names', () => {
     expect(isNonProduction('Domain Admins')).toBe(false);
-    expect(isNonProduction('GG_ROL_VTS_OPERATORS')).toBe(false);
+    expect(isNonProduction('GG_ROL_PAY_OPERATORS')).toBe(false);
     expect(isNonProduction('GG_ROL_NSF_Dynamics_Administrator')).toBe(false);
     expect(isNonProduction('Enterprise Admins')).toBe(false);
   });
@@ -209,7 +209,7 @@ describe('scoreOne', () => {
   // End-to-end regression for the full LLM → compile → match chain.
   // Uses a real Claude-style classifier with (?i) inline flags to prove the
   // scoring engine works with the kind of patterns the LLM actually produces.
-  it('real-world: Claude-style domain admin classifier matches NSF-style data', () => {
+  it('example: Claude-style domain admin classifier matches realistic group data', () => {
     const claudeClassifier = {
       id: 'domain-admins',
       label: 'Domain Administrators',
@@ -224,7 +224,7 @@ describe('scoreOne', () => {
       ],
     };
     const cls = [compileClassifier(claudeClassifier)];
-    // These are real NSF resource display names from the test dataset
+    // These are example resource display names from the test dataset
     expect(scoreOne(['GG_ROL_AD_Administrators'], cls).directScore).toBe(0); // doesn't match "domain"
     expect(scoreOne(['Domain Admins'], cls).directScore).toBe(100);
     expect(scoreOne(['Enterprise Admins'], cls).directScore).toBe(100);

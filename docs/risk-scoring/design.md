@@ -53,7 +53,7 @@ graph TB
 **Research targets:**
 
 - What does the organization do? (industry, sector, sub-sector)
-- What regulations apply? (NIS2, DORA, SOX, HIPAA, Wbni, DNB supervision, etc.)
+- What regulations apply? (NIS2, DORA, SOX, HIPAA, GDPR, etc.)
 - What are their critical business processes?
 - What key systems/platforms are publicly known?
 - What is their organizational structure?
@@ -66,34 +66,34 @@ graph TB
 customer_profile:
   name: "Novastream Financial N.V."
   domain: "novastream-fi.net"
-  industry: "critical-infrastructure"
-  sub_industry: "port-authority"
+  industry: "financial-services"
+  sub_industry: "payments"
   country: "NL"
 
   regulations:
     - id: "nis2"
       name: "NIS2 Directive"
-      relevance: "Essential entity - port operator"
-    - id: "wbni"
-      name: "Wet Beveiliging Netwerk- en Informatiesystemen"
-      relevance: "Critical infrastructure designation"
+      relevance: "Essential entity - digital infrastructure"
+    - id: "dora"
+      name: "Digital Operational Resilience Act"
+      relevance: "Financial entity - ICT risk management"
 
   critical_business_processes:
-    - "Vessel traffic management and port safety"
-    - "Terminal operations and logistics coordination"
-    - "Customs and border security integration"
+    - "Payment processing and settlement"
+    - "Transaction monitoring and fraud detection"
+    - "Regulatory reporting and compliance"
 
   known_systems:
     - name: "Axiom"
-      type: "Harbor Master Information System"
+      type: "Core payments platform"
       criticality: "critical"
 
   critical_roles:
-    - title_patterns: ["havenmester", "harbor.?master"]
-      rationale: "Legally responsible for port safety"
+    - title_patterns: ["payments.?ops", "settlement.?officer"]
+      rationale: "Operate the core payment rails"
 
   risk_domains:
-    - domain: "safety"
+    - domain: "financial"
       weight: 1.0
     - domain: "security"
       weight: 0.95
@@ -153,12 +153,12 @@ universal_classifiers:
 
 industry_classifiers:
   groups:
-    - id: "port-vts-access"
-      category: "critical-infrastructure"
-      industry: "port-authority"
-      name_patterns: ["VTS", "vessel.?traffic", "VTMS", "radar", "AIS"]
+    - id: "payments-core-access"
+      category: "financial-critical"
+      industry: "payments"
+      name_patterns: ["payment.?rails", "settlement", "clearing", "swift", "sepa"]
       base_score: 90
-      rationale: "Vessel Traffic Service systems — safety-critical infrastructure"
+      rationale: "Core payment-rail systems — financially critical infrastructure"
 ```
 
 ---
