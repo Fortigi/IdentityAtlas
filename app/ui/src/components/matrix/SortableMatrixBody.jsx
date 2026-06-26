@@ -46,7 +46,6 @@ export default function SortableMatrixBody({
   // Row props passed through to MatrixGroupRow
   users,
   memberships,
-  gapMap,
   aggDirectCounts,
   managedMap,
   managedApMap,
@@ -92,7 +91,6 @@ export default function SortableMatrixBody({
     users,
     totalUsers: users.length,
     memberships,
-    gapMap,
     aggDirectCounts,
     managedMap,
     managedApMap,

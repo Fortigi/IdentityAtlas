@@ -8,10 +8,12 @@
 -- a business-role membership becomes a normal Direct assignment with
 -- governed=true.
 --
--- The provisioning gap is DERIVED, not stored: a subject holds a governance
--- resource (resourceType flagged governanceResource) that Contains resource X,
--- but has no effective assignment to X. The matrix matview emits those as gap
--- cells (isActualMembership=false). No intent rows are materialised.
+-- The matview holds ONLY actual membership cells, with managedByAccessPackage
+-- flagged when the subject holds a governance resource that Contains the cell's
+-- resource. The provisioning gap (a managed subject/resource with no actual
+-- cell) is DERIVED for the matrix grid from that flag — keeping it out of the
+-- view so it never inflates the view's many count/list consumers. No intent
+-- rows are materialised.
 
 -- ── 1. Retire assignmentType='Governed' → Direct membership, governed=true ───
 UPDATE "ResourceAssignments" ra
@@ -114,22 +116,14 @@ eff_agg AS (
     FROM effective
     GROUP BY "resourceId", "principalId", "membershipType"
 )
--- Effective cells — managed if a governance resource implies this (subject, resource).
+-- Effective (actual) membership cells only — managed if a governance resource
+-- the subject holds Contains this resource. The provisioning gap (a managed
+-- subject/resource with no actual cell here) is derived for the matrix grid
+-- from managedByAccessPackage + the absence of an effective cell, so it never
+-- inflates the many count/list consumers of this view.
 SELECT e."resourceId", e."principalId", e."principalType", e."membershipType",
-       EXISTS (SELECT 1 FROM soll s WHERE s."resourceId" = e."resourceId" AND s."principalId" = e."principalId") AS "managedByAccessPackage",
-       false AS "provisioningGap",
-       true  AS "isActualMembership"
+       EXISTS (SELECT 1 FROM soll s WHERE s."resourceId" = e."resourceId" AND s."principalId" = e."principalId") AS "managedByAccessPackage"
 FROM eff_agg e
-UNION ALL
--- Gap cells — implied by governance but no effective assignment exists.
-SELECT s."resourceId", s."principalId", NULL AS "principalType", s."membershipType",
-       true AS "managedByAccessPackage",
-       true AS "provisioningGap",
-       false AS "isActualMembership"
-FROM (SELECT DISTINCT "resourceId", "principalId", "membershipType" FROM soll) s
-WHERE NOT EXISTS (
-    SELECT 1 FROM eff_agg e WHERE e."resourceId" = s."resourceId" AND e."principalId" = s."principalId"
-)
 WITH NO DATA;
 
 CREATE UNIQUE INDEX "ix_vw_ResUserPerm_pk"
@@ -148,9 +142,7 @@ SELECT
     "principalId"           AS "memberId",
     "principalType",
     "membershipType",
-    "managedByAccessPackage",
-    "provisioningGap",
-    "isActualMembership"
+    "managedByAccessPackage"
 FROM "vw_ResourceUserPermissionAssignments";
 
 -- ── 5. Populate the freshly-created matviews ─────────────────────────────────

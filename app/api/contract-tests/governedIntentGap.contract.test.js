@@ -1,12 +1,9 @@
-// Contract test — the matrix matview derives managedByAccessPackage +
-// provisioningGap + isActualMembership from governed memberships + Contains
-// (migration 049), with NO stored intent rows.
-//
-// Model: a subject who holds a governance resource (governanceResource=true)
-// that Contains group G is "managed" for G. If the subject also has an effective
-// membership in G → provisioned (no gap). If not → provisioning gap (a derived
-// cell with isActualMembership=false). A plain membership with no governance
-// behind it is ungoverned.
+// Contract test — the matrix matview flags managedByAccessPackage on actual
+// membership cells when the subject holds a governance resource (business role
+// / access package) that Contains the resource (migration 049). The matview
+// holds ONLY actual memberships — the provisioning gap (managed cell with no
+// actual membership) is derived for the grid, so it never inflates the view's
+// many count/list consumers.
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
@@ -16,14 +13,14 @@ let systemId;
 
 const BR = '11111111-1111-1111-1111-111111111111'; // a business role (governanceResource)
 const G  = '22222222-2222-2222-2222-222222222222'; // a group the role Contains
-const U_OK  = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'; // holds BR + actual member of G → provisioned
-const U_GAP = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'; // holds BR, not in G        → gap
-const U_UN  = 'cccccccc-cccc-cccc-cccc-cccccccccccc'; // member of G, no BR         → ungoverned
+const U_OK  = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'; // holds BR + member of G → managed
+const U_UN  = 'cccccccc-cccc-cccc-cccc-cccccccccccc'; // member of G, no BR     → unmanaged
+const U_GAP = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'; // holds BR, not in G     → no actual cell
 
 beforeAll(async () => {
   pool = new pg.Pool({ connectionString: process.env.CONTRACT_DB_URL });
   const sys = await pool.query(
-    `INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', 'governed-gap') RETURNING "id"`,
+    `INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', 'governed-managed') RETURNING "id"`,
   );
   systemId = sys.rows[0].id;
   await pool.query(
@@ -61,9 +58,10 @@ async function assign({ resourceId, principalId, governed }) {
 }
 
 async function groupCell(principalId) {
+  await pool.query(`REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole"`);
   await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
   const r = await pool.query(
-    `SELECT "managedByAccessPackage", "provisioningGap", "isActualMembership"
+    `SELECT "managedByAccessPackage"
        FROM "vw_ResourceUserPermissionAssignments"
       WHERE "resourceId" = $1 AND "principalId" = $2 AND "membershipType" = 'Direct'`,
     [G, principalId],
@@ -71,26 +69,25 @@ async function groupCell(principalId) {
   return r.rows;
 }
 
-describe('matrix matview — derived provisioning gap (governed + Contains)', () => {
-  it('holds the role + actual member of the group → managed, no gap', async () => {
+describe('matrix matview — managedByAccessPackage from governance coverage', () => {
+  it('holds the role + member of the group → managed cell', async () => {
     await assign({ resourceId: BR, principalId: U_OK, governed: true });  // holds the role
     await assign({ resourceId: G,  principalId: U_OK, governed: false }); // actual membership
     const rows = await groupCell(U_OK);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ managedByAccessPackage: true, provisioningGap: false, isActualMembership: true });
+    expect(rows[0].managedByAccessPackage).toBe(true);
   });
 
-  it('holds the role but not in the group → managed, GAP, no badge', async () => {
-    await assign({ resourceId: BR, principalId: U_GAP, governed: true }); // holds the role only
-    const rows = await groupCell(U_GAP);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ managedByAccessPackage: true, provisioningGap: true, isActualMembership: false });
-  });
-
-  it('member of the group with no governance → not managed, no gap', async () => {
+  it('member of the group with no governance → unmanaged cell', async () => {
     await assign({ resourceId: G, principalId: U_UN, governed: false });
     const rows = await groupCell(U_UN);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ managedByAccessPackage: false, provisioningGap: false, isActualMembership: true });
+    expect(rows[0].managedByAccessPackage).toBe(false);
+  });
+
+  it('holds the role but not in the group → no actual cell (gap is grid-derived)', async () => {
+    await assign({ resourceId: BR, principalId: U_GAP, governed: true });
+    const rows = await groupCell(U_GAP);
+    expect(rows).toHaveLength(0);
   });
 });

@@ -19,7 +19,6 @@ export default function MatrixGroupRow({
   users,
   totalUsers,
   memberships,
-  gapMap,
   aggDirectCounts,
   managedMap,
   managedApMap,
@@ -148,12 +147,13 @@ export default function MatrixGroupRow({
           });
         }
 
-        // Provisioning gap is derived server-side (matview provisioningGap): a
-        // governance intent exists for this cell but the matching actual
-        // membership doesn't. Suppressed in "unmanaged" filter mode.
-        const gapTypes = gapMap?.get(cellKey);
-        const provisioningGap = managedFilter !== 'unmanaged' && !!gapTypes && gapTypes.size > 0;
-        const gapExpected = provisioningGap ? [...gapTypes][0] : null;
+        // Provisioning gap: the cell is governance-managed (an access package the
+        // subject holds Contains this resource — server-computed managedByAccessPackage)
+        // but the subject has no actual membership. The SOLL coverage is derived in
+        // the data; the gap is just "managed and empty".
+        const hasActual = cellTypes && cellTypes.size > 0;
+        const provisioningGap = managed && !hasActual;
+        const gapExpected = provisioningGap ? 'Direct' : null;
 
         return (
           <MatrixCell
