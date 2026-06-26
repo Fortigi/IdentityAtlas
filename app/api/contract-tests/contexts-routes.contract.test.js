@@ -24,7 +24,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await pool.query(`UPDATE "Contexts" SET "parentContextId" = NULL WHERE "scopeSystemId" = $1`, [systemId]);
-  await pool.query(`DELETE FROM "Contexts" WHERE "scopeSystemId" = $1`, [systemId]);
+  await pool.query(`DELETE FROM "Contexts" WHERE "scopeSystemId" = $1`, [systemId]); // cascades ContextMembers
+  await pool.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
   await pool.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
   await pool.end();
   delete process.env.USE_SQL; // singleFork — env mutations leak across files
@@ -70,5 +71,38 @@ describe('GET /contexts/tree — nesting', () => {
     const root = res.body.find(n => n.id === a);
     expect(root).toBeTruthy();
     expect(root.children.some(ch => ch.id === b)).toBe(true);
+  });
+});
+
+describe('GET /contexts/:id/members — count pin (Phase 3)', () => {
+  // Regression pin: a context with 3 live Principal members must report exactly
+  // 3. loadMembers joins ContextMembers to the target table by memberId and
+  // filters on the context's targetType; a join/filter regression would silently
+  // under- or over-count membership. A failing pin without a feature PR is a bug.
+  it('reports the seeded member count and rows', async () => {
+    const ctxId = await insertContext({ name: 'Members Ctx' });
+
+    const memberIds = [];
+    for (const name of ['M1', 'M2', 'M3']) {
+      const r = await pool.query(
+        `INSERT INTO "Principals" ("systemId", "displayName", "principalType") VALUES ($1, $2, 'User') RETURNING "id"`,
+        [systemId, name],
+      );
+      memberIds.push(r.rows[0].id);
+    }
+    for (const memberId of memberIds) {
+      await pool.query(
+        `INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
+         VALUES ($1, 'Principal', $2, 'sync')`,
+        [ctxId, memberId],
+      );
+    }
+
+    const res = await agent.get(`/api/contexts/${ctxId}/members`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(3);
+    expect(res.body.data).toHaveLength(3);
+    expect(res.body.data.map(m => m.id).sort()).toEqual([...memberIds].sort());
   });
 });
