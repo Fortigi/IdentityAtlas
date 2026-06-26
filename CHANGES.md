@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- CI no longer spins up the ~50-minute Integration, Playwright E2E, and Load & Soak suites for pull requests that only change test files — the application under test is unchanged, so those suites are skipped (unit and contract tests still run).
+
+## Changes in this PR
+
 - The API row on the Test Coverage docs page now reflects both unit *and* contract tests, so route code exercised only end-to-end (the matrix grid, contexts, identities, resources, ingest, plugin runner) no longer reads as untested.
 
 ## Changes in this PR
