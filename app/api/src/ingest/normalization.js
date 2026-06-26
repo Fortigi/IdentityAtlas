@@ -38,11 +38,14 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * @param {object} options
  * @param {string} options.idGeneration - 'native' (default) or 'deterministic'
  * @param {string} options.idPrefix - Namespace for deterministic GUIDs
+ * @param {string} options.systemPrefix - System-only prefix (no entity suffix) for
+ *   cross-entity reference resolution. When omitted, falls back to idPrefix.split('-')[0],
+ *   which is wrong whenever the system prefix itself contains a hyphen.
  * @param {number} options.systemId - System ID to set on each record
  * @returns {object[]} Normalized records
  */
 export function normalizeRecords(records, coreColumns, options = {}) {
-  const { idGeneration = 'native', idPrefix = '', systemId } = options;
+  const { idGeneration = 'native', idPrefix = '', systemId, systemPrefix } = options;
   const coreSet = new Set(coreColumns);
 
   return records.map(rec => {
@@ -77,17 +80,19 @@ export function normalizeRecords(records, coreColumns, options = {}) {
     if (idGeneration === 'deterministic') {
       // Cross-entity ID resolution: derive the prefix used to generate the
       // target entity's deterministic GUID. The convention is that the ingest
-      // caller sets idPrefix = "<systemType>-<endpointSuffix>", e.g.:
-      //   resources:              "CSV-resources"
-      //   principals:             "CSV-principals"
-      //   resource-assignments:   "CSV-resource-assignments"
-      //   resource-relationships: "CSV-resource-relationships"
-      //   certifications:         "CSV-certifications"
+      // caller sets idPrefix = "<systemPrefix>-<endpointSuffix>", e.g.
+      // "<sys>-resources", "<sys>-principals", "<sys>-resource-assignments".
       //
-      // To resolve a resourceExternalId we need "CSV-resources" — i.e. keep
-      // the system prefix (everything before the first hyphen) and swap the
-      // entity suffix. Same for principals.
-      const sysPrefix = idPrefix.split('-')[0]; // e.g. "CSV", "Omada"
+      // To resolve a resourceExternalId we need "<sys>-resources" — i.e. keep
+      // the system prefix and swap the entity suffix. Same for principals.
+      //
+      // Prefer the explicit systemPrefix the route recovers by stripping the
+      // known entity suffix off idPrefix — that survives a system prefix that
+      // itself contains hyphens. Splitting on the first hyphen only works when
+      // the system prefix is hyphen-free, and otherwise resolves references to
+      // the wrong namespace, causing FK violations (e.g.
+      // ContextMembers_contextId_fkey on the context-members upsert).
+      const sysPrefix = systemPrefix || idPrefix.split('-')[0];
 
       if (rec.parentExternalId && !normalized.parentResourceId) {
         normalized.parentResourceId = deterministicGuid(`${sysPrefix}-resources`, String(rec.parentExternalId));

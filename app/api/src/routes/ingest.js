@@ -89,9 +89,24 @@ function createIngestHandler(entityType) {
         r.column_name.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
       );
 
+      // Recover the system-only prefix used to namespace deterministic GUIDs.
+      // Callers build idPrefix as "<systemPrefix>-<entitySuffix>" where the
+      // suffix is this endpoint's slug (e.g. "context-members"). Stripping that
+      // known suffix recovers <systemPrefix> intact even when it contains
+      // hyphens, so cross-entity externalId references resolve to the SAME GUID
+      // the referenced entity was created under. Without this, a hyphenated
+      // systemType broke contextId resolution and blew up the context-members
+      // upsert with ContextMembers_contextId_fkey.
+      const entitySuffix = '-' + entityType.split('/').pop();
+      const idPrefix = body.idPrefix || '';
+      const systemPrefix = idPrefix.endsWith(entitySuffix)
+        ? idPrefix.slice(0, -entitySuffix.length)
+        : idPrefix.split('-')[0];
+
       const normalized = normalizeRecords(body.records, coreColumns, {
         idGeneration: body.idGeneration || 'native',
-        idPrefix: body.idPrefix || '',
+        idPrefix,
+        systemPrefix,
         systemId: body.systemId,
       });
 
