@@ -55,6 +55,15 @@ export async function startDb() {
 
   await runMigrations(pool);
 
+  // Cap every connection to this database at a 10s statement timeout so a
+  // runaway query (e.g. a recursive CTE over cyclic data) can't wedge the
+  // singleFork contract suite. ALTER DATABASE ... SET applies to all sessions
+  // that connect after this point — including the per-file pools each contract
+  // test opens in its beforeAll. The container DB name isn't always "postgres"
+  // (testcontainers defaults to "test"), so resolve it at runtime.
+  const { rows } = await pool.query('SELECT current_database() AS db');
+  await pool.query(`ALTER DATABASE "${rows[0].db}" SET statement_timeout = '10s'`);
+
   return {
     connectionString,
     async stop() {
