@@ -1652,10 +1652,10 @@ if ($SyncGovernance) {
         Write-Phase -Name 'Governance/ResourceScopes' -Duration $__scopeSW.Elapsed -ErrorMsg $__scopeErrMsg
 
         # ── Access Package Assignments (Direct membership on the package) ──
-        # Each assignment links a user (target) to an access package. This is a
-        # real Direct membership on the package resource (governed=false); the
-        # access it implies on contained groups is materialised as governed=true
-        # intent rows by /ingest/classify-business-role-assignments at end-of-sync.
+        # Each assignment links a user (target) to an access package — a real
+        # Direct membership on the package resource, flagged governed=true
+        # (IGA-driven). The matrix derives the provisioning gap for the groups
+        # the package Contains from these + the Contains relationships.
         $__apaSW = [Diagnostics.Stopwatch]::StartNew()
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access package assignments)..." -ForegroundColor Cyan
         try {
@@ -1694,7 +1694,7 @@ if ($SyncGovernance) {
                     principalType      = 'User'
                     assignmentType     = 'Direct'
                     resourceType       = 'BusinessRole'
-                    governed           = $false
+                    governed           = $true
                     state              = $state
                     assignmentStatus   = $a.assignmentStatus
                     expirationDateTime = $a.expiredDateTime
@@ -2592,21 +2592,6 @@ if ($SyncDirectoryRoles) {
     $__dirRoleErr = $script:phaseErrors | Where-Object { $_.StartsWith('DirectoryRoles:') } | Select-Object -Last 1
     $__dirRoleErrMsg = if ($__dirRoleErr) { $__dirRoleErr.Substring('DirectoryRoles:'.Length).Trim() } else { $null }
     Write-Phase -Name 'DirectoryRoles' -Duration $__phaseSW.Elapsed -ErrorMsg $__dirRoleErrMsg
-}
-
-# ─── Regenerate governed-intent rows ─────────────────────────────
-# After all memberships + Contains are ingested, expand governance memberships
-# into governed=true intent rows (the provisioning-gap source). Server-side and
-# idempotent; the endpoint also refreshes the matrix matviews.
-if ($RefreshViews) {
-    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Regenerating governed-intent rows..." -ForegroundColor Cyan
-    try {
-        Invoke-IngestAPI -Endpoint 'ingest/classify-business-role-assignments' -Body @{}
-        Write-Host "  Governed-intent rows regenerated" -ForegroundColor Green
-    }
-    catch {
-        Write-Host "  Warning: governed-intent regeneration failed: $($_.Exception.Message)" -ForegroundColor Yellow
-    }
 }
 
 # ─── Refresh Views ───────────────────────────────────────────────

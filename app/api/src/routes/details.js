@@ -143,7 +143,6 @@ router.get('/user/:id', async (req, res) => {
                   FROM "ResourceAssignments" ra
                   JOIN "Resources" r ON r.id = ra."resourceId"
                  WHERE ra."principalId"::text = @id
-                   AND ra."assignmentType" = 'Direct' AND ra."governed" = false
                    AND r."governanceResource"`);
       accessPackageCount = r.recordset[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
@@ -284,7 +283,7 @@ router.get('/user/:id/access-packages', async (req, res) => {
         a."expirationDateTime"
         FROM "ResourceAssignments" a
         JOIN "Resources" ap ON a."resourceId" = ap.id AND ap."governanceResource"
-       WHERE a."principalId"::text = @id AND a."assignmentType" = 'Direct' AND a."governed" = false
+       WHERE a."principalId"::text = @id
        ORDER BY ap."displayName"
     `);
     res.json(r.recordset);
@@ -556,7 +555,7 @@ router.get('/access-package/:id', async (req, res) => {
       const r = await timedRequest(pool, 'ap-assignment-count', res)
         .input('id', apId)
         .query(`
-        SELECT COUNT(*) AS cnt FROM "ResourceAssignments" WHERE "resourceId" = @id AND "assignmentType" = 'Direct' AND "governed" = false
+        SELECT COUNT(*) AS cnt FROM "ResourceAssignments" WHERE "resourceId" = @id
       `);
       assignmentCount = r.recordset[0].cnt;
     } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
@@ -741,7 +740,6 @@ router.get('/access-package/:id/assignments', async (req, res) => {
         FROM "ResourceAssignments" a
         LEFT JOIN "Principals" u ON a."principalId" = u.id
         WHERE a."resourceId" = @id
-          AND a."assignmentType" = 'Direct' AND a."governed" = false
           AND (a.state = 'Delivered' OR a.state IS NULL)
         ORDER BY u."displayName"
       `);

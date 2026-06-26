@@ -1,119 +1,52 @@
--- 049: Governed-intent two-row model (retires assignmentType='Governed')
+-- 049: Governed as an IGA-driven flag + data-derived provisioning gap
 --
--- Before: a user→business-role membership was stored as a single
--- ResourceAssignments row with assignmentType='Governed' on the business-role
--- (access-package) resource, and the matrix computed "managed by access
--- package" + the provisioning gap CLIENT-SIDE from the Contains relationships.
+-- Model: every ResourceAssignments row is an EFFECTIVE assignment (the subject
+-- actually holds it). `governed` (migration 047) marks whether that access is
+-- driven by a governance structure (an access package / business role / IGA),
+-- as opposed to a raw directory grant. The old assignmentType='Governed' value
+-- conflated "is a business-role membership" with the type — it is retired here:
+-- a business-role membership becomes a normal Direct assignment with
+-- governed=true.
 --
--- After:
---   1. The user→business-role membership becomes a real Direct assignment to
---      the governance resource (governed=false) — the *actual* AP membership.
---   2. For every group the business role Contains, a governed=true *intent* row
---      is written on the GROUP (the SOLL). It carries the granting
---      business-role id(s) in extendedAttributes.businessRoleIds so multiple
---      packages granting one cell collapse to one row but keep the AP list.
---   3. The matrix matview derives managedByAccessPackage + provisioningGap from
---      the governed flag (intent without a matching actual = gap).
---
--- Existing 'Governed' rows are migrated in place below; the crawlers emit the
--- new shape directly.
+-- The provisioning gap is DERIVED, not stored: a subject holds a governance
+-- resource (resourceType flagged governanceResource) that Contains resource X,
+-- but has no effective assignment to X. The matrix matview emits those as gap
+-- cells (isActualMembership=false). No intent rows are materialised.
 
--- ── 1. Materialise governed-intent rows from existing Governed + Contains ────
--- Runs BEFORE the Governed→Direct conversion so the governance memberships are
--- still identifiable by assignmentType='Governed'. Two arms: principal-based
--- (Entra access packages) and identity-based (midPoint/Omada roles, which key
--- the governance assignment on identityId). Multiple packages granting one
--- (subject, group, how) collapse to one row whose businessRoleIds lists them.
-INSERT INTO "ResourceAssignments"
-    ("resourceId", "principalId", "identityId", "assignmentType", "governed",
-     "resourceType", "systemId", "extendedAttributes")
-SELECT
-    x."resourceId", x."principalId", x."identityId", x."assignmentType", true,
-    x."resourceType", x."systemId",
-    jsonb_build_object('businessRoleIds', to_jsonb(x."businessRoleIds"))
-FROM (
-    -- principal-based governance memberships
-    SELECT
-        rr."childResourceId"                                        AS "resourceId",
-        bru."principalId"                                           AS "principalId",
-        NULL::uuid                                                  AS "identityId",
-        CASE WHEN lower(COALESCE(rr."roleName", '')) LIKE '%eligible%'
-             THEN 'Eligible' ELSE 'Direct' END                     AS "assignmentType",
-        g."resourceType"                                            AS "resourceType",
-        bru."systemId"                                              AS "systemId",
-        array_agg(DISTINCT rr."parentResourceId")                  AS "businessRoleIds"
-    FROM "ResourceRelationships" rr
-    JOIN "ResourceAssignments" bru
-      ON bru."resourceId"     = rr."parentResourceId"
-     AND bru."assignmentType" = 'Governed'
-     AND bru."principalId" IS NOT NULL
-     AND bru."deletedAt" IS NULL
-    JOIN "Resources" g ON g.id = rr."childResourceId"
-    WHERE rr."relationshipType" = 'Contains'
-    GROUP BY rr."childResourceId", bru."principalId",
-             CASE WHEN lower(COALESCE(rr."roleName", '')) LIKE '%eligible%'
-                  THEN 'Eligible' ELSE 'Direct' END,
-             g."resourceType", bru."systemId"
-
-    UNION ALL
-
-    -- identity-based governance memberships (midPoint / Omada)
-    SELECT
-        rr."childResourceId",
-        NULL::uuid,
-        bru."identityId",
-        CASE WHEN lower(COALESCE(rr."roleName", '')) LIKE '%eligible%'
-             THEN 'Eligible' ELSE 'Direct' END,
-        g."resourceType",
-        bru."systemId",
-        array_agg(DISTINCT rr."parentResourceId")
-    FROM "ResourceRelationships" rr
-    JOIN "ResourceAssignments" bru
-      ON bru."resourceId"     = rr."parentResourceId"
-     AND bru."assignmentType" = 'Governed'
-     AND bru."identityId" IS NOT NULL
-     AND bru."principalId" IS NULL
-     AND bru."deletedAt" IS NULL
-    JOIN "Resources" g ON g.id = rr."childResourceId"
-    WHERE rr."relationshipType" = 'Contains'
-    GROUP BY rr."childResourceId", bru."identityId",
-             CASE WHEN lower(COALESCE(rr."roleName", '')) LIKE '%eligible%'
-                  THEN 'Eligible' ELSE 'Direct' END,
-             g."resourceType", bru."systemId"
-) x
-ON CONFLICT DO NOTHING;
-
--- ── 2. Convert the user→business-role membership to a real Direct assignment ─
+-- ── 1. Retire assignmentType='Governed' → Direct membership, governed=true ───
 UPDATE "ResourceAssignments" ra
    SET "assignmentType" = 'Direct',
-       "governed"       = false,
+       "governed"       = true,
        "resourceType"   = COALESCE(ra."resourceType", r."resourceType")
   FROM "Resources" r
  WHERE r.id = ra."resourceId"
    AND ra."assignmentType" = 'Governed';
 
--- ── 3. Dashboard / lookup index now keys on the governed flag ───────────────
+-- ── 2. Index supporting the governed flag ───────────────────────────────────
 DROP INDEX IF EXISTS "ix_RA_governed";
 CREATE INDEX "ix_RA_governed"
     ON "ResourceAssignments" ("resourceId", "principalId")
     WHERE "governed" = true;
 
--- ── 4. Rebuild the business-role mapping matview from governed-intent rows ───
--- Unnest the granting business-role list so (user, group, businessRole) rows
--- match the previous shape exactly (apColor / apCount / apNames keep working).
+-- ── 3. Business-role mapping matview: who is covered by which governance res ──
+-- A subject holds a governance resource (business role / access package) that
+-- Contains a child resource → that child membership is "managed by" the
+-- governance resource. Drives the matrix AP colouring + the SOLL side.
 DROP MATERIALIZED VIEW IF EXISTS "vw_UserPermissionAssignmentViaBusinessRole" CASCADE;
 CREATE MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole" AS
 SELECT
-    ra."principalId"   AS "userId",
-    ra."resourceId"    AS "groupId",
-    ra."resourceId"    AS "resourceId",
-    br_id::uuid        AS "businessRoleId"
-FROM "ResourceAssignments" ra
-CROSS JOIN LATERAL jsonb_array_elements_text(
-    COALESCE(ra."extendedAttributes"::jsonb -> 'businessRoleIds', '[]'::jsonb)) AS br_id
-WHERE ra."governed" = true
-  AND ra."principalId" IS NOT NULL
-  AND ra."deletedAt" IS NULL
+    bru."principalId"     AS "userId",
+    rr."childResourceId"  AS "groupId",
+    rr."childResourceId"  AS "resourceId",
+    rr."parentResourceId" AS "businessRoleId"
+FROM "ResourceRelationships" rr
+JOIN "Resources" gov
+  ON gov.id = rr."parentResourceId" AND gov."governanceResource"
+JOIN "ResourceAssignments" bru
+  ON bru."resourceId" = rr."parentResourceId"
+ AND bru."principalId" IS NOT NULL
+ AND bru."deletedAt" IS NULL
+WHERE rr."relationshipType" = 'Contains'
 WITH NO DATA;
 
 CREATE UNIQUE INDEX "ix_vw_UPABR_pk"
@@ -123,64 +56,80 @@ CREATE INDEX "ix_vw_UPABR_userId"
 CREATE INDEX "ix_vw_UPABR_groupId"
     ON "vw_UserPermissionAssignmentViaBusinessRole" ("groupId");
 
--- ── 5. Rebuild the main matrix matview: managed + gap from the governed flag ─
+-- ── 4. Main matrix matview: effective cells + derived gap cells ──────────────
 DROP VIEW IF EXISTS "vw_UserPermissionAssignments";
 DROP MATERIALIZED VIEW IF EXISTS "vw_ResourceUserPermissionAssignments";
 
 CREATE MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments" AS
-WITH collapsed AS (
+WITH effective AS (
     -- principal arm
-    SELECT
-        ra."resourceId",
-        ra."principalId",
-        ra."principalType",
+    SELECT ra."resourceId", ra."principalId", ra."principalType",
         CASE
           WHEN ra."assignmentType" IN ('OAuth2Grant', 'AppRole', 'DirectoryRole') THEN 'Direct'
           WHEN ra."assignmentType" = 'AppRoleViaGroup'                            THEN 'Indirect'
           WHEN ra."assignmentType" = 'DirectoryRoleEligible'                      THEN 'Eligible'
           ELSE ra."assignmentType"
-        END AS "membershipType",
-        ra."governed"
+        END AS "membershipType"
     FROM "ResourceAssignments" ra
     WHERE ra."principalId" IS NOT NULL
       AND ra."deletedAt" IS NULL
       AND NOT EXISTS (SELECT 1 FROM "Resources"  r WHERE r.id = ra."resourceId"  AND r."deletedAt" IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM "Principals" p WHERE p.id = ra."principalId" AND p."deletedAt" IS NOT NULL)
-
     UNION ALL
-
-    -- identity arm expanded through IdentityMembers
-    SELECT
-        ra."resourceId",
-        im."principalId",
-        NULL AS "principalType",
+    -- identity arm
+    SELECT ra."resourceId", im."principalId", NULL AS "principalType",
         CASE
           WHEN ra."assignmentType" IN ('OAuth2Grant', 'AppRole', 'DirectoryRole') THEN 'Direct'
           WHEN ra."assignmentType" = 'AppRoleViaGroup'                            THEN 'Indirect'
           WHEN ra."assignmentType" = 'DirectoryRoleEligible'                      THEN 'Eligible'
           ELSE ra."assignmentType"
-        END AS "membershipType",
-        ra."governed"
+        END AS "membershipType"
     FROM "ResourceAssignments" ra
     JOIN "IdentityMembers" im ON im."identityId" = ra."identityId"
     WHERE ra."identityId" IS NOT NULL
       AND ra."deletedAt" IS NULL
       AND NOT EXISTS (SELECT 1 FROM "Resources"  r WHERE r.id = ra."resourceId"  AND r."deletedAt" IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM "Principals" p WHERE p.id = im."principalId" AND p."deletedAt" IS NOT NULL)
+),
+-- SOLL: (subject, child resource, expected type) implied by holding a
+-- governance resource that Contains the child.
+soll AS (
+    SELECT bru."principalId" AS "principalId", rr."childResourceId" AS "resourceId",
+           CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END AS "membershipType"
+    FROM "ResourceRelationships" rr
+    JOIN "Resources" gov ON gov.id = rr."parentResourceId" AND gov."governanceResource"
+    JOIN "ResourceAssignments" bru ON bru."resourceId" = rr."parentResourceId" AND bru."principalId" IS NOT NULL AND bru."deletedAt" IS NULL
+    WHERE rr."relationshipType" = 'Contains'
+    UNION
+    SELECT im."principalId", rr."childResourceId",
+           CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END
+    FROM "ResourceRelationships" rr
+    JOIN "Resources" gov ON gov.id = rr."parentResourceId" AND gov."governanceResource"
+    JOIN "ResourceAssignments" bru ON bru."resourceId" = rr."parentResourceId" AND bru."identityId" IS NOT NULL AND bru."deletedAt" IS NULL
+    JOIN "IdentityMembers" im ON im."identityId" = bru."identityId"
+    WHERE rr."relationshipType" = 'Contains'
+),
+eff_agg AS (
+    SELECT "resourceId", "principalId", "membershipType", MAX("principalType") AS "principalType"
+    FROM effective
+    GROUP BY "resourceId", "principalId", "membershipType"
 )
-SELECT
-    "resourceId",
-    "principalId",
-    MAX("principalType")                                    AS "principalType",
-    "membershipType",
-    -- a governed=true intent row exists for this cell → governed by a package
-    bool_or("governed")                                    AS "managedByAccessPackage",
-    -- intent exists but no matching actual membership → provisioning gap
-    (bool_or("governed") AND NOT bool_or(NOT "governed"))  AS "provisioningGap",
-    -- at least one real (non-intent) membership → render the badge
-    bool_or(NOT "governed")                                AS "isActualMembership"
-FROM collapsed
-GROUP BY "resourceId", "principalId", "membershipType"
+-- Effective cells — managed if a governance resource implies this (subject, resource).
+SELECT e."resourceId", e."principalId", e."principalType", e."membershipType",
+       EXISTS (SELECT 1 FROM soll s WHERE s."resourceId" = e."resourceId" AND s."principalId" = e."principalId") AS "managedByAccessPackage",
+       false AS "provisioningGap",
+       true  AS "isActualMembership"
+FROM eff_agg e
+UNION ALL
+-- Gap cells — implied by governance but no effective assignment exists.
+SELECT s."resourceId", s."principalId", NULL AS "principalType", s."membershipType",
+       true AS "managedByAccessPackage",
+       true AS "provisioningGap",
+       false AS "isActualMembership"
+FROM (SELECT DISTINCT "resourceId", "principalId", "membershipType" FROM soll) s
+WHERE NOT EXISTS (
+    SELECT 1 FROM eff_agg e WHERE e."resourceId" = s."resourceId" AND e."principalId" = s."principalId"
+)
 WITH NO DATA;
 
 CREATE UNIQUE INDEX "ix_vw_ResUserPerm_pk"
@@ -204,6 +153,6 @@ SELECT
     "isActualMembership"
 FROM "vw_ResourceUserPermissionAssignments";
 
--- ── 6. Populate the freshly-created matviews (first refresh is non-concurrent) ─
+-- ── 5. Populate the freshly-created matviews ─────────────────────────────────
 REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole";
 REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments";

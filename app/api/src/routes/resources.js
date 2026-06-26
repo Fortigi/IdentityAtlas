@@ -340,7 +340,7 @@ router.get('/resources/:id/assignments', async (req, res) => {
                p."principalType", ra."assignmentType", ra.state, ra."assignmentStatus"
         FROM "ResourceAssignments" ra
         LEFT JOIN "Principals" p ON ra."principalId" = p.id
-        WHERE ra."resourceId" = @id AND ra."governed" = false
+        WHERE ra."resourceId" = @id
         ORDER BY ra."assignmentType", p."displayName"
       `);
     res.json(r.recordset);

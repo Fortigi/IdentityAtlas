@@ -186,18 +186,18 @@ try {
         Report-Result 'Midpoint/Data — entitlements mapped as resources (assoc + referenceAttributes)' ($ents.Count -ge 2) "($($ents.Count) Entitlement resource(s) in system $resSid; expected >= 2)"
     } catch { Report-Result 'Midpoint/Data — entitlement mapped as resource' $false $_.Exception.Message }
 
-    # ── Assert: inherited role membership imported as a Governed assignment ──
+    # ── Assert: inherited role membership imported as a Direct membership ──
     # The user is only DIRECTLY assigned $roleOid, but midPoint's roleMembershipRef also
     # lists $inhRoleOid (default relation, inherited) and $mgrRoleOid (manager relation).
-    # The crawler's two-pass Assignments phase must import the inherited role as a Governed
-    # assignment, while excluding the manager-relation one.
+    # The crawler's two-pass Assignments phase must import the inherited role as a real
+    # Direct membership (governed=false), while excluding the manager-relation one.
     try {
         $inhAssign = Invoke-RestMethod -Uri "$ApiBaseUrl/resources/$inhRoleOid/assignments" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
         $mgrAssign = Invoke-RestMethod -Uri "$ApiBaseUrl/resources/$mgrRoleOid/assignments" -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
-        $inhHit = @($inhAssign) | Where-Object { $_.principalId -eq $userOid -and $_.assignmentType -eq 'Governed' }
+        $inhHit = @($inhAssign) | Where-Object { $_.principalId -eq $userOid -and $_.assignmentType -eq 'Direct' }
         $mgrHit = @($mgrAssign) | Where-Object { $_.principalId -eq $userOid }
         $ok = ($inhHit.Count -ge 1) -and ($mgrHit.Count -eq 0)
-        Report-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $ok "(inherited: $($inhHit.Count) Governed; manager: $($mgrHit.Count) — expected inherited>=1, manager=0)"
+        Report-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $ok "(inherited: $($inhHit.Count) Direct; manager: $($mgrHit.Count) — expected inherited>=1, manager=0)"
     } catch { Report-Result 'Midpoint/Data — inherited role membership imported (manager relation excluded)' $false $_.Exception.Message }
 
     # ── Assert: construction inducements became Contains edges (role → entitlements) ──

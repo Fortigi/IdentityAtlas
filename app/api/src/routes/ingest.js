@@ -326,73 +326,28 @@ router.post('/ingest/sync-log', async (req, res) => {
   }
 });
 
-// POST /api/ingest/classify-business-role-assignments — (re)generate the
-// governed-intent rows. A user's membership in a governance resource (business
-// role / access package) is a real Direct assignment (governed=false); the
-// SOLL it implies — "this user should have <role> in each group the resource
-// Contains" — is materialised here as governed=true intent rows on those
-// groups, carrying the granting business-role id(s) in extendedAttributes. The
-// matrix derives "managed by access package" + the provisioning gap from these.
-// Fully derived from current memberships + Contains, so it is idempotent:
-// existing intent rows are reconciled away and rebuilt. Called by crawlers
-// after a governance sync.
+// POST /api/ingest/classify-business-role-assignments — flag memberships in a
+// governance resource (business role / access package) as governed=true. Flat
+// importers (CSV) don't know which resources are governance resources at
+// assignment-import time, so this marks them after the fact. The provisioning
+// gap is DERIVED in the matrix matview from these governed memberships + the
+// Contains relationships — nothing is materialised here.
 router.post('/ingest/classify-business-role-assignments', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!crawlerHasPermission(req, 'ingest')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   try {
-    // 1. Reconcile: governed-intent rows are fully derived below, so drop the
-    //    existing set first (cross-system intent isn't modelled yet — every
-    //    governed=true row comes from an intra-system Contains expansion).
-    const dup = await db.query(`DELETE FROM "ResourceAssignments" WHERE "governed" = true`);
-
-    // 2. Expand (membership in a governance resource) × (group it Contains)
-    //    into governed=true intent rows. Two arms: principal-based (Entra) and
-    //    identity-based (midPoint / Omada). Role 'eligible' → Eligible, else
-    //    Direct; multiple packages granting one cell collapse to one row.
     const r = await db.query(`
-      INSERT INTO "ResourceAssignments"
-          ("resourceId", "principalId", "identityId", "assignmentType", "governed",
-           "resourceType", "systemId", "extendedAttributes")
-      SELECT
-          x."resourceId", x."principalId", x."identityId", x."assignmentType", true,
-          x."resourceType", x."systemId",
-          jsonb_build_object('businessRoleIds', to_jsonb(x."businessRoleIds"))
-      FROM (
-        SELECT rr."childResourceId" AS "resourceId",
-               bru."principalId", NULL::uuid AS "identityId",
-               CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END AS "assignmentType",
-               g."resourceType", bru."systemId",
-               array_agg(DISTINCT rr."parentResourceId") AS "businessRoleIds"
-          FROM "ResourceRelationships" rr
-          JOIN "ResourceAssignments" bru ON bru."resourceId" = rr."parentResourceId" AND bru."governed" = false AND bru."principalId" IS NOT NULL AND bru."deletedAt" IS NULL
-          JOIN "Resources" gov ON gov.id = rr."parentResourceId" AND gov."governanceResource"
-          JOIN "Resources" g ON g.id = rr."childResourceId"
-         WHERE rr."relationshipType" = 'Contains'
-         GROUP BY rr."childResourceId", bru."principalId",
-                  CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END,
-                  g."resourceType", bru."systemId"
-        UNION ALL
-        SELECT rr."childResourceId", NULL::uuid, bru."identityId",
-               CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END,
-               g."resourceType", bru."systemId",
-               array_agg(DISTINCT rr."parentResourceId")
-          FROM "ResourceRelationships" rr
-          JOIN "ResourceAssignments" bru ON bru."resourceId" = rr."parentResourceId" AND bru."governed" = false AND bru."identityId" IS NOT NULL AND bru."principalId" IS NULL AND bru."deletedAt" IS NULL
-          JOIN "Resources" gov ON gov.id = rr."parentResourceId" AND gov."governanceResource"
-          JOIN "Resources" g ON g.id = rr."childResourceId"
-         WHERE rr."relationshipType" = 'Contains'
-         GROUP BY rr."childResourceId", bru."identityId",
-                  CASE WHEN lower(COALESCE(rr."roleName",'')) LIKE '%eligible%' THEN 'Eligible' ELSE 'Direct' END,
-                  g."resourceType", bru."systemId"
-      ) x
-      ON CONFLICT DO NOTHING
+      UPDATE "ResourceAssignments" ra
+         SET "governed" = true
+        FROM "Resources" r
+       WHERE r.id = ra."resourceId"
+         AND r."governanceResource"
+         AND ra."governed" = false
     `);
-    // After re-classifying, the matrix materialized views are stale —
-    // refresh them before returning so the UI sees the new data. This is
-    // also cheaper than a separate /refresh-views call because we've
-    // already warmed the tables.
+    // The matrix materialized views are now stale — refresh them before
+    // returning so the UI sees the new data.
     let viewRefresh;
     try {
       await refreshMatrixViews();
@@ -403,8 +358,7 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
     }
     return res.json({
       ok: true,
-      intentRows: r.rowCount || 0,
-      reconciledRemoved: dup.rowCount || 0,
+      governedMarked: r.rowCount || 0,
       viewRefresh,
     });
   } catch (err) {

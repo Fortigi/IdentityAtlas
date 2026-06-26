@@ -46,7 +46,7 @@ router.get('/systems', async (req, res) => {
                json_agg(DISTINCT ra."assignmentType") FILTER (WHERE ra."assignmentType" IS NOT NULL)
                  AS "computedAssignmentTypes"
           FROM "ResourceAssignments" ra
-         WHERE ra."systemId" IS NOT NULL AND ra."governed" = false
+         WHERE ra."systemId" IS NOT NULL
          GROUP BY ra."systemId"
       )
       SELECT s.*,
@@ -83,14 +83,14 @@ router.get('/systems/:id', async (req, res) => {
           (SELECT COUNT(*) FROM "Principals" p WHERE p."systemId" = s.id) AS "principalCount",
           (SELECT COUNT(*) FROM "ResourceAssignments" ra
            INNER JOIN "Resources" r ON ra."resourceId" = r.id
-           WHERE r."systemId" = s.id AND ra."governed" = false) AS "assignmentCount",
+           WHERE r."systemId" = s.id) AS "assignmentCount",
           (SELECT json_agg(rt."resourceType")
            FROM (SELECT DISTINCT "resourceType" FROM "Resources"
                  WHERE "systemId" = s.id AND "resourceType" IS NOT NULL) rt) AS "computedResourceTypes",
           (SELECT json_agg(at."assignmentType")
            FROM (SELECT DISTINCT "assignmentType" FROM "ResourceAssignments" ra2
                  INNER JOIN "Resources" r2 ON ra2."resourceId" = r2.id
-                 WHERE r2."systemId" = s.id AND ra2."governed" = false AND ra2."assignmentType" IS NOT NULL) at) AS "computedAssignmentTypes"
+                 WHERE r2."systemId" = s.id AND ra2."assignmentType" IS NOT NULL) at) AS "computedAssignmentTypes"
         FROM "Systems" s
         WHERE s.id = @id
       `);
