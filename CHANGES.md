@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Standardised example data across the documentation, tests, and fixtures to use generic placeholder organisation, system, and hostname values.
+
+## Changes in this PR
+
 - CI no longer spins up the ~50-minute Integration, Playwright E2E, and Load & Soak suites for pull requests that only change test files — the application under test is unchanged, so those suites are skipped (unit and contract tests still run).
 
 ## Changes in this PR
