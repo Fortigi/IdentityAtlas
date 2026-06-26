@@ -2842,10 +2842,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-real-data-result" class="md-nav__link">
+  <a href="#5-example-result" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Real-data result
+        5. Example result
       
     </span>
   </a>
@@ -3066,19 +3066,19 @@ as <code>DEFAULT_STOPWORDS</code>. Tenant-specific additions go through the
 </tbody>
 </table>
 <h2 id="4-worked-example">4. Worked example<a class="headerlink" href="#4-worked-example" title="Permanent link">&para;</a></h2>
-<p>Input (an extract from a real Entra tenant):</p>
+<p>Input (an illustrative set of group names):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>SG_APP_AXIOM_Admins_P
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>GRP-AXIOM-ReadOnly-TST
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>AG_AzureDevOps_Axiom_Developer
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>AG_AzureSubscription_SCH_Axiom_Helios_Sandbox_Support
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>AG_AzureTeam_Axiom_GedelegeerdProductOwner
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>AG_AzureTeam_Axiom_DelegatedProductOwner
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>AG_JITApprover_APP_AXIOM-APPX_SVCADMIN_A
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>SG_FINANCE_BookKeepers
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>DL_Finance_Readers
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>AG_ROL_DMS_Bezoekers van Finance-Commissie
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>AG_ROL_DMS_Owners of Finance-Committee
 </code></pre></div>
 <p>After tokenisation (default stopwords, <code>minTokenLength=3</code>,
-<code>additionalStopwords=["rol","azure","sch","appx","svcadmin","helios","sandbox","gedelegeerdproductowner","commissie"]</code>):</p>
+<code>additionalStopwords=["rol","azure","sch","appx","svcadmin","helios","sandbox","delegatedproductowner","committee"]</code>):</p>
 <table>
 <thead>
 <tr>
@@ -3104,7 +3104,7 @@ as <code>DEFAULT_STOPWORDS</code>. Tenant-specific additions go through the
 <td><code>axiom</code></td>
 </tr>
 <tr>
-<td><code>AG_AzureTeam_Axiom_GedelegeerdProductOwner</code></td>
+<td><code>AG_AzureTeam_Axiom_DelegatedProductOwner</code></td>
 <td><code>axiom</code></td>
 </tr>
 <tr>
@@ -3120,7 +3120,7 @@ as <code>DEFAULT_STOPWORDS</code>. Tenant-specific additions go through the
 <td><code>finance</code></td>
 </tr>
 <tr>
-<td><code>AG_ROL_DMS_Bezoekers van Finance-Commissie</code></td>
+<td><code>AG_ROL_DMS_Owners of Finance-Committee</code></td>
 <td><code>dms</code>, <code>finance</code></td>
 </tr>
 </tbody>
@@ -3136,12 +3136,12 @@ as <code>DEFAULT_STOPWORDS</code>. Tenant-specific additions go through the
 <p>With <code>minMembers=4</code>, only the <strong>AXIOM</strong> cluster survives. With
 <code>minMembers=3</code>, <strong>AXIOM</strong> and <strong>FINANCE</strong> both survive. With
 <code>minMembers=1</code>, six clusters survive, most of them size-1 noise.</p>
-<h2 id="5-real-data-result">5. Real-data result<a class="headerlink" href="#5-real-data-result" title="Permanent link">&para;</a></h2>
-<p>Running against one tenant's 9 683 resources with tuned stopwords
+<h2 id="5-example-result">5. Example result<a class="headerlink" href="#5-example-result" title="Permanent link">&para;</a></h2>
+<p>Running against an example tenant's ~9,700 resources with tuned stopwords
 produced this top 10:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>DMS                1890
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Inkoop              788
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Contractmanagement  773
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Procurement         788
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>ContractManagement  773
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>SRV                 652
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>MGT                 433
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>SUB                 334
