@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Group ownership is now modelled as its own "Owner @ \<group\>" resource (a Direct assignment) instead of a separate "Owner" membership kind — so the matrix uses one consistent set of assignment types (Direct / Indirect / Eligible) and ownership can be listed, related, and certified like any other access.
+- The matrix shows ownership as a real resource row rather than a client-side-simulated "(Owner)" sub-row.
+
+## Changes in this PR
+
 - Entra app-role, OAuth2 delegated-permission, and directory-role assignments are now recorded using the standard Direct / Indirect / Eligible assignment kinds instead of internal source-specific labels — the kind of resource already says what the access is, so the matrix shows one consistent set of assignment types. No change to which access is shown.
 - Added contract tests for the ingest engine's soft-delete path, running against a real PostgreSQL container via testcontainers. Verifies that `scopedDelete` correctly stamps `deletedAt` on absent rows and skips already-deleted rows.
 
