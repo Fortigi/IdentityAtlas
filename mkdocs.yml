@@ -66,6 +66,12 @@ plugins:
   - mike:
       canonical_version: stable
 
+# The per-suite HTML coverage reports under docs/coverage/ are generated and
+# committed by .github/workflows/coverage.yml. They're linked from the curated
+# Test Coverage page rather than the nav, so silence the "not in nav" warnings.
+not_in_nav: |
+  /coverage/
+
 extra_css:
   - assets/extra.css
 
@@ -128,6 +134,7 @@ nav:
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - Software Bill of Materials: reference/sbom.md
+      - Test Coverage: reference/coverage.md
 
   - Project:
       - About Identity Atlas: about.md
