@@ -63,3 +63,55 @@ describe('GET /group/:id — branching', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// Happy-path coverage: a generic non-empty row for every timed query drives the
+// detail + list handlers through their success branches (200). db.query returns
+// empty (risk/history absent — both guarded). We assert status + the top-level
+// response keys, not full bodies; the real SQL/shape is covered by contract tests.
+const GENERIC = { id: 'x', displayName: 'X', name: 'X', cnt: 0, total: 0, autoAdd: 0, autoRemoveOnly: 0 };
+
+describe('details — happy paths (200)', () => {
+  beforeEach(() => {
+    timedQuery.mockResolvedValue({ recordset: [GENERIC] });
+    dbQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+  });
+
+  it('GET /user/:id returns the detail payload', async () => {
+    const res = await request(app).get(`/api/user/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('attributes');
+    expect(res.body).toHaveProperty('membershipCount');
+  });
+
+  it('GET /group/:id returns the detail payload', async () => {
+    const res = await request(app).get(`/api/group/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('attributes');
+    expect(res.body).toHaveProperty('memberCount');
+  });
+
+  it('GET /access-package/:id returns the detail payload', async () => {
+    const res = await request(app).get(`/api/access-package/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('attributes');
+    expect(res.body).toHaveProperty('assignmentCount');
+  });
+
+  for (const sub of ['/contexts', '/memberships', '/access-packages', '/oauth2-grants', '/history']) {
+    it(`GET /user/:id${sub} returns 200`, async () => {
+      expect((await request(app).get(`/api/user/${VALID_ID}${sub}`)).status).toBe(200);
+    });
+  }
+
+  for (const sub of ['/members', '/access-packages', '/history']) {
+    it(`GET /group/:id${sub} returns 200`, async () => {
+      expect((await request(app).get(`/api/group/${VALID_ID}${sub}`)).status).toBe(200);
+    });
+  }
+
+  for (const sub of ['/assignments', '/resource-roles', '/reviews', '/requests', '/history', '/policies']) {
+    it(`GET /access-package/:id${sub} returns 200`, async () => {
+      expect((await request(app).get(`/api/access-package/${VALID_ID}${sub}`)).status).toBe(200);
+    });
+  }
+});
