@@ -52,6 +52,16 @@ function createIngestHandler(entityType) {
     if (entityType === 'resource-assignments' || entityType === 'resource-assignments-identity') {
       for (const r of body.records) { if (r && r.governed === undefined) r.governed = false; }
     }
+    // `governanceResource` is NOT NULL on Resources. When a crawler doesn't set
+    // it, derive it from the generic governance type (business roles / access
+    // packages are all stored as resourceType='BusinessRole') so every governance
+    // construct is labelled regardless of which crawler produced it (demo, CSV,
+    // future) — and a mixed-type batch never inserts NULL for the column.
+    if (entityType === 'resources') {
+      for (const r of body.records) {
+        if (r && r.governanceResource === undefined) r.governanceResource = (r.resourceType === 'BusinessRole');
+      }
+    }
 
     const recResult = validateRecords(body.records, entityType, body.idGeneration, body.syncMode);
     if (!recResult.valid) {
