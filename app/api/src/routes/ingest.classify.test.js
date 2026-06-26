@@ -1,9 +1,10 @@
-// Tests for the classify-business-role-assignments endpoint (T7.9, T7.10).
+// Tests for the classify-business-role-assignments endpoint.
 //
-// Covers the XOR dedup fix: for identity rows (principalId IS NULL) the old
-// ra2."principalId" = ra."principalId" comparison evaluates NULL=NULL=false,
-// so identity Direct rows were never deduped before the subsequent UPDATE hit
-// a unique constraint. The fix uses an XOR condition.
+// In the governed-as-IGA-flag model the endpoint flags memberships in a
+// governance resource (governanceResource=true) as governed=true — flat
+// importers (CSV) don't know which resources are governance resources at
+// assignment-import time. The provisioning gap is derived in the matrix
+// matview, so there is no Direct→Governed promotion and no dedup DELETE here.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -53,46 +54,25 @@ async function captureClassifySql() {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('POST /ingest/classify-business-role-assignments', () => {
-  it('returns 200 with reclassified and duplicatesRemoved counts (T7.10)', async () => {
+  it('returns 200 with a governedMarked count', async () => {
     const res = await request(app).post('/ingest/classify-business-role-assignments');
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(typeof res.body.reclassified).toBe('number');
-    expect(typeof res.body.duplicatesRemoved).toBe('number');
+    expect(typeof res.body.governedMarked).toBe('number');
   });
 
-  it('dedup DELETE uses XOR condition, not bare principalId comparison (T7.9)', async () => {
-    const { sqls } = await captureClassifySql();
-    const deleteSql = sqls.find(s => /DELETE FROM "ResourceAssignments"/.test(s)) || '';
-
-    // XOR condition must be present
-    expect(deleteSql).toContain('ra."principalId" IS NOT NULL');
-    expect(deleteSql).toContain('ra."identityId"  IS NOT NULL');
-
-    // The principalId comparison must be guarded by IS NOT NULL — without the
-    // guard, NULL = NULL evaluates to false so identity rows are never deduped.
-    expect(deleteSql).not.toMatch(/AND ra2\."principalId" = ra\."principalId"\s*\n\s+AND/);
-  });
-
-  it('dedup DELETE checks both key types in the EXISTS subquery (T7.9)', async () => {
-    const { sqls } = await captureClassifySql();
-    const deleteSql = sqls.find(s => /DELETE FROM "ResourceAssignments"/.test(s)) || '';
-
-    // The EXISTS subquery must handle principalId-keyed rows
-    expect(deleteSql).toContain('ra2."principalId" = ra."principalId"');
-    // AND identityId-keyed rows
-    expect(deleteSql).toContain('ra2."identityId"  = ra."identityId"');
-  });
-
-  it('UPDATE promotion does not restrict by key type (T7.10)', async () => {
+  it('flags governance-resource memberships as governed=true', async () => {
     const { sqls } = await captureClassifySql();
     const updateSql = sqls.find(s => /UPDATE "ResourceAssignments"/.test(s)) || '';
+    expect(updateSql).toContain('SET "governed" = true');
+    expect(updateSql).toContain('r."governanceResource"');
+    expect(updateSql).toContain('ra."governed" = false');
+  });
 
-    // The UPDATE promotes all remaining Direct rows regardless of whether they
-    // carry a principalId or an identityId — resource type is the only filter.
-    expect(updateSql).toContain('"assignmentType" = \'Direct\'');
-    expect(updateSql).toContain('"assignmentType" = \'Governed\'');
-    // Must NOT restrict to principalId IS NOT NULL — that would skip identity rows
-    expect(updateSql).not.toContain('principalId IS NOT NULL');
+  it('does not promote to a Governed assignmentType and does not delete rows', async () => {
+    const { sqls } = await captureClassifySql();
+    const joined = sqls.join('\n');
+    expect(joined).not.toContain("'Governed'");
+    expect(joined).not.toMatch(/DELETE FROM "ResourceAssignments"/);
   });
 });
