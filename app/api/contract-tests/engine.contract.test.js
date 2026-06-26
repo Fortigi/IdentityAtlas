@@ -123,3 +123,66 @@ describe('scopedDelete — soft-delete path (Principals)', () => {
     }
   });
 });
+
+describe('scopedDelete — hard-delete path (ResourceRelationships)', () => {
+  // ResourceRelationships is NOT in SOFT_DELETE_TABLES, so scopedDelete takes
+  // the DELETE branch: rows absent from the temp table are physically removed,
+  // not stamped. parent/childResourceId are plain uuids (no FK to Resources),
+  // so the fixture needs no seeded resources.
+  const KEY = ['parentResourceId', 'childResourceId', 'relationshipType'];
+  const parentId = randomUUID();
+  const keepChild = randomUUID();
+  const dropChild = randomUUID();
+
+  beforeEach(async () => {
+    await pool.query(`DELETE FROM "ResourceRelationships" WHERE "systemId" = $1`, [systemId]);
+    for (const child of [keepChild, dropChild]) {
+      await pool.query(
+        `INSERT INTO "ResourceRelationships" ("parentResourceId", "childResourceId", "relationshipType", "systemId")
+         VALUES ($1, $2, 'Contains', $3)`,
+        [parentId, child, systemId],
+      );
+    }
+  });
+
+  it('physically deletes rows absent from the temp table, keeps present rows', async () => {
+    expect(SOFT_DELETE_TABLES.has('ResourceRelationships')).toBe(false);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const tempName = 'tmp_relationships_spike';
+      // Temp table holds only the row to KEEP (parent→keepChild).
+      await client.query(
+        `CREATE TEMP TABLE "${tempName}" ("parentResourceId" uuid, "childResourceId" uuid, "relationshipType" text) ON COMMIT DROP`,
+      );
+      await client.query(
+        `INSERT INTO "${tempName}" VALUES ($1, $2, 'Contains')`,
+        [parentId, keepChild],
+      );
+
+      const tableColumnNames = new Set(['parentResourceId', 'childResourceId', 'relationshipType', 'systemId']);
+      const deleted = await scopedDelete(
+        client, 'ResourceRelationships', KEY, tempName,
+        systemId, {}, 'systemId', tableColumnNames,
+      );
+      await client.query('COMMIT');
+
+      expect(deleted).toBe(1); // only parent→dropChild was absent
+
+      const remaining = await pool.query(
+        `SELECT "childResourceId" FROM "ResourceRelationships" WHERE "systemId" = $1`,
+        [systemId],
+      );
+      const childIds = remaining.rows.map(r => r.childResourceId);
+      expect(childIds).toContain(keepChild);
+      expect(childIds).not.toContain(dropChild); // hard-deleted (gone), not stamped
+    } finally {
+      client.release();
+    }
+  });
+
+  afterAll(async () => {
+    await pool.query(`DELETE FROM "ResourceRelationships" WHERE "systemId" = $1`, [systemId]);
+  });
+});
