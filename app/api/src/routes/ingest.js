@@ -45,6 +45,14 @@ function createIngestHandler(entityType) {
     // sending delta-only-deletes — empty arrays serialize to null).
     if (!Array.isArray(body.records)) body.records = [];
 
+    // `governed` is part of the assignment unique key (migration 047) and NOT
+    // NULL. It's a key column, so the engine always inserts it — default it to
+    // false for crawlers that don't send it (everything except the governance
+    // phase), otherwise the bulk insert would write NULL and violate NOT NULL.
+    if (entityType === 'resource-assignments' || entityType === 'resource-assignments-identity') {
+      for (const r of body.records) { if (r && r.governed === undefined) r.governed = false; }
+    }
+
     const recResult = validateRecords(body.records, entityType, body.idGeneration, body.syncMode);
     if (!recResult.valid) {
       // Both branches are hardcoded literals so syncMode is never tainted (log-injection fix).
