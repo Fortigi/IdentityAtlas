@@ -3,8 +3,8 @@
 // the handler logic (response shape, the resourceType filter branch, 400/404).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import express from 'express';
 import request from 'supertest';
+import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
@@ -42,14 +42,7 @@ vi.mock('./tags.js', () => ({
 }));
 
 const { default: router } = await import('./resources.js');
-
-function makeApp() {
-  const app = express();
-  app.use(express.json());
-  app.use('/api', router);
-  return app;
-}
-const app = makeApp();
+const app = mountRouter(router);
 
 const VALID_ID = '11111111-1111-1111-1111-111111111111';
 

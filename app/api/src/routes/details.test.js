@@ -6,8 +6,8 @@
 // no container is needed (contract tests cover the real SQL).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import express from 'express';
 import request from 'supertest';
+import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 // useSql is captured at module load — enable it before importing the router.
 process.env.USE_SQL = 'true';
@@ -28,14 +28,7 @@ vi.mock('../db/connection.js', () => ({
 }));
 
 const { default: router } = await import('./details.js');
-
-function makeApp() {
-  const app = express();
-  app.use(express.json());
-  app.use('/api', router);
-  return app;
-}
-const app = makeApp();
+const app = mountRouter(router);
 
 const VALID_ID = '11111111-1111-1111-1111-111111111111';
 

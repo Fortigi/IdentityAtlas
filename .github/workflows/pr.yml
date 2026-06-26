@@ -329,9 +329,17 @@ jobs:
         working-directory: app/api
         run: npm ci
 
-      - name: Run Vitest
+      - name: Run Vitest (with coverage)
         working-directory: app/api
-        run: npm test
+        run: npm run test:coverage
+
+      - name: Upload coverage (lcov + text)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: api-coverage
+          path: app/api/coverage/
+          retention-days: 14
 
   # ── Stage 4b: Contract tests (Vitest + testcontainers) ──────────────────
   # Runs *.contract.test.js files against a real PostgreSQL container spun up
