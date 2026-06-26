@@ -47,7 +47,7 @@
     Sync Omada permission nesting → ResourceRelationships (Contains).
 
 .PARAMETER SyncAssignments
-    Sync Omada role assignments → ResourceAssignments (Governed).
+    Sync Omada role + calculated assignments → ResourceAssignments (Direct, governed=true).
 
 .PARAMETER SyncContextMembers
     Sync Omada context assignments (Contextassignment) → ContextMembers table.
@@ -1026,11 +1026,12 @@ if ($SyncEntitlements) {
 
 # ─── Phase: Assignments ───────────────────────────────────────────
 # Uses /OData/Builtin/CalculatedAssignments — authoritative source for all effective access.
-# Two sources of assignments are combined:
-#   1. Resourceassignment (DataObjects) — IGA-governed role assignments (Identity → Role/Resource).
-#      All records are Governed. Grouped per connected system for correct scoped-delete.
-#   2. CalculatedAssignments (Builtin) — effective account provisioning (Identity → Account resource).
-#      IsManaged=true → Governed, IsManaged=false → Direct. Also grouped per system.
+# Two sources of assignments are combined into one reconcile per system — both
+# are real Direct memberships flagged governed=true (IGA-driven):
+#   1. Resourceassignment (DataObjects) — role assignments (Identity → Role/Resource).
+#   2. CalculatedAssignments (Builtin) — effective account provisioning (Identity → Resource);
+#      configured in Omada's governance structure, so governed=true regardless of IsManaged
+#      (IsManaged kept in extendedAttributes).
 if ($SyncAssignments) {
     $T = [datetime]::UtcNow
     Write-Host "`nAssignments:" -ForegroundColor Cyan
@@ -1064,28 +1065,18 @@ if ($SyncAssignments) {
                 $RaBySys[$SysKey].Add([PSCustomObject]@{
                     resourceId         = $ResourceUid
                     principalId        = $UserUid
-                    assignmentType     = 'Governed'
+                    assignmentType     = 'Direct'
+                    governed           = $true
                     extendedAttributes = @{ validFrom = $Item.VALIDFROM; validTo = $Item.VALIDTO }
                 })
             }
         }
 
-        Write-Step "Ingesting role assignments (Governed) across $($RaBySys.Keys.Count) system(s)..."
-        $TotalRaInserted = 0; $TotalRaUpdated = 0
-        foreach ($Key in $RaBySys.Keys) {
-            $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
-            # Deduplicate (principalId, resourceId) pairs — fanout can produce duplicates
-            # if the same identity has multiple accounts or the same resource appears twice.
-            $Seen  = [System.Collections.Generic.HashSet[string]]::new()
-            $Dedup = @($RaBySys[$Key] | Where-Object {
-                $K = "$($_.principalId)|$($_.resourceId)"
-                $Seen.Add($K)
-            })
-            $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SysId `
-                -SyncMode 'full' -Scope @{ assignmentType = 'Governed' } -Records $Dedup
-            $TotalRaInserted += ($R.inserted ?? 0); $TotalRaUpdated += ($R.updated ?? 0)
-        }
-        Write-Host "  Role assignments (Governed): +$TotalRaInserted ~$TotalRaUpdated" -ForegroundColor Green
+        # Role assignments are combined with the CRA assignments below into one
+        # reconcile per system — both are governed=true Direct memberships and
+        # share a delete partition, so sending them separately would make each
+        # phase's full-sync delete wipe the other's rows.
+        Write-Host "  Role assignments collected across $($RaBySys.Keys.Count) system(s)" -ForegroundColor Gray
 
         # ── Source 2: Calculated Resource Assignments (CRA — account provisioning per connected system) ──
         # Streamed page-by-page to avoid loading the entire dataset into memory at once.
@@ -1094,8 +1085,7 @@ if ($SyncAssignments) {
         # Each page is processed and released before fetching the next.
         $CaPrincipalsBySys  = @{}   # connected-system Principals derived from CRA (keyed by OmadaSystemUId)
         $CaIdentityMembers  = [System.Collections.Generic.List[object]]::new()
-        $CaAssignmentsBySys = @{}   # Governed
-        $CaAssignmentsBysD  = @{}   # Direct
+        $CaAssignmentsBySys = @{}   # all CRA → governed=true Direct memberships
         $CaTotalCount = 0
         $CaSkip = 0
         $CaPageSize = 1000
@@ -1179,19 +1169,19 @@ if ($SyncAssignments) {
                 accountName = $AccountName
             }
 
+            # CRA rows are effective provisioning configured in Omada's governance
+            # structure → real Direct memberships, flagged governed=true. IsManaged
+            # is preserved in extendedAttributes for reference.
+            $ExtAttr.isManaged = [bool]$Item.IsManaged
             $Rec = [PSCustomObject]@{
                 resourceId         = $ResourceUid
                 principalId        = $PrincipalUid
-                assignmentType     = if ($Item.IsManaged) { 'Governed' } else { 'Direct' }
+                assignmentType     = 'Direct'
+                governed           = $true
                 extendedAttributes = $ExtAttr
             }
-            if ($Item.IsManaged) {
-                if (-not $CaAssignmentsBySys.ContainsKey($SysKey)) { $CaAssignmentsBySys[$SysKey] = [System.Collections.Generic.List[object]]::new() }
-                $CaAssignmentsBySys[$SysKey].Add($Rec)
-            } else {
-                if (-not $CaAssignmentsBysD.ContainsKey($SysKey))  { $CaAssignmentsBysD[$SysKey]  = [System.Collections.Generic.List[object]]::new() }
-                $CaAssignmentsBysD[$SysKey].Add($Rec)
-            }
+            if (-not $CaAssignmentsBySys.ContainsKey($SysKey)) { $CaAssignmentsBySys[$SysKey] = [System.Collections.Generic.List[object]]::new() }
+            $CaAssignmentsBySys[$SysKey].Add($Rec)
         }  # end foreach $Item in $CaPage
         } while ($CaPage.Count -gt 0)  # fetch next page until empty
         Write-Host "  $CaTotalCount CRA records from Omada" -ForegroundColor Gray
@@ -1216,26 +1206,27 @@ if ($SyncAssignments) {
         }
         Write-Host "  CRA: $CaTotalCount records → $TotalCaPrincipals connected-system accounts, $($CaIdentityMembers.Count) identity-member links" -ForegroundColor Green
 
-        Write-Step "Ingesting CRA resource assignments (Governed + Direct) per system..."
-        # Ingest CRA ResourceAssignments per system
-        $TotalCaGovIns = 0; $TotalCaDirIns = 0
-        foreach ($Key in $CaAssignmentsBySys.Keys) {
+        Write-Step "Ingesting governance assignments (role + CRA) per system..."
+        # Combine Source 1 (role assignments) + Source 2 (CRA) per system: both
+        # are governed=true Direct memberships sharing one reconcile partition, so
+        # they must be sent together or each full-sync delete wipes the other's.
+        $TotalGovIns = 0
+        $AllSysKeys = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($k in $RaBySys.Keys)            { [void]$AllSysKeys.Add($k) }
+        foreach ($k in $CaAssignmentsBySys.Keys) { [void]$AllSysKeys.Add($k) }
+        foreach ($Key in $AllSysKeys) {
             $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
+            $Combined = [System.Collections.Generic.List[object]]::new()
+            if ($RaBySys.ContainsKey($Key))            { $Combined.AddRange($RaBySys[$Key]) }
+            if ($CaAssignmentsBySys.ContainsKey($Key)) { $Combined.AddRange($CaAssignmentsBySys[$Key]) }
             $Seen  = [System.Collections.Generic.HashSet[string]]::new()
-            $Dedup = @($CaAssignmentsBySys[$Key] | Where-Object { $Seen.Add("$($_.principalId)|$($_.resourceId)") })
+            $Dedup = @($Combined | Where-Object { $Seen.Add("$($_.principalId)|$($_.resourceId)") })
+            if ($Dedup.Count -eq 0) { continue }
             $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SysId `
-                -SyncMode 'full' -Scope @{ assignmentType = 'Governed' } -Records $Dedup
-            $TotalCaGovIns += ($R.inserted ?? 0)
+                -SyncMode 'full' -Scope @{ assignmentType = 'Direct'; governed = $true } -Records $Dedup
+            $TotalGovIns += ($R.inserted ?? 0)
         }
-        foreach ($Key in $CaAssignmentsBysD.Keys) {
-            $SysId = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
-            $Seen  = [System.Collections.Generic.HashSet[string]]::new()
-            $Dedup = @($CaAssignmentsBysD[$Key] | Where-Object { $Seen.Add("$($_.principalId)|$($_.resourceId)") })
-            $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SysId `
-                -SyncMode 'full' -Scope @{ assignmentType = 'Direct' } -Records $Dedup
-            $TotalCaDirIns += ($R.inserted ?? 0)
-        }
-        Write-Host "  CRA assignments (Governed): +$TotalCaGovIns, (Direct): +$TotalCaDirIns" -ForegroundColor Green
+        Write-Host "  Governance assignments (Direct, governed): +$TotalGovIns" -ForegroundColor Green
 
         Write-Phase -Name 'Assignments' -Duration ([datetime]::UtcNow - $T) `
             -Records @{ roleAssignments = ($RaBySys.Values | ForEach-Object { $_.Count } | Measure-Object -Sum).Sum
