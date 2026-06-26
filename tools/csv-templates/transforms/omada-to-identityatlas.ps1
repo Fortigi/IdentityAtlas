@@ -269,7 +269,7 @@ if ($ident) {
         (-not $t) -or ($t -in @('Primary','Person','Employee'))
     } | ForEach-Object {
         [PSCustomObject]@{
-            ExternalId = if ($_._UID) { $_._UID } elseif ($_.IDENTITYID) { $_.IDENTITYID } else { $_._ID }
+            ExternalId = if ($_._ID) { $_._ID } elseif ($_._UID) { $_._UID } else { $_._IdentityID }
             DisplayName = if ($_._DISPLAYNAME) { $_._DISPLAYNAME } else { $_.DisplayName }
             Email       = $_.EMAIL
             EmployeeId  = if ($_.EMPLOYEEID) { $_.EMPLOYEEID } else { $_.EmployeeID }
@@ -297,7 +297,10 @@ if ($ident -and $users) {
         $joinKey = $_.IDENTITYID
         $joinKey -and $userIds.ContainsKey($joinKey)
     } | ForEach-Object {
-        $identId = if ($_._UID) { $_._UID } else { $_._ID }
+        # Key identities the SAME way the Identities section does (_ID → _UID →
+        # _IdentityID), otherwise a person and their membership row resolve to
+        # different deterministic GUIDs and the account→identity link breaks.
+        $identId = if ($_._ID) { $_._ID } elseif ($_._UID) { $_._UID } else { $_._IdentityID }
         [PSCustomObject]@{
             IdentityExternalId = $identId
             UserExternalId     = $_.IDENTITYID
