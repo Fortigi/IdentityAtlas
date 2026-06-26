@@ -123,7 +123,7 @@ These run **after** a PR merges, on the push to `main` — not as PR gates. They
 
 The coverage workflow publishes line/branch/method coverage for all three suites to the **Reference → Test Coverage** docs page, each suite linking to a full per-file HTML report.
 
-- **Build:** `npm run test:coverage` for API and UI (Vitest v8 → `lcov.info`); Pester over `tools/powershell-sdk`, the crawler dirs, and `tools/riskscoring` (→ JaCoCo XML). [ReportGenerator](https://github.com/danielpalme/ReportGenerator) converts each to a consistent HTML report + `Summary.json`, which `tools/generate-coverage-doc.py` turns into the curated page.
+- **Build:** `npm run test:coverage` for API and UI (Vitest v8 → `lcov.info`); Pester over `tools/powershell-sdk`, the crawler dirs, and `tools/riskscoring` (→ JaCoCo XML). The API suite also runs the contract tests with coverage (`npm run test:contract -- --coverage` → a second `lcov.info`); [ReportGenerator](https://github.com/danielpalme/ReportGenerator) merges the unit + contract lcov for the API row, so route code exercised only end-to-end still counts. It converts each suite to a consistent HTML report + `Summary.json`, which `tools/generate-coverage-doc.py` turns into the curated page.
 - **Versioning:** because the page and reports are committed into `docs/`, `mike` builds them into **both** doc versions — edge refreshes every merge, a release is frozen at its tag's numbers.
 - **No loop:** the commit only touches `docs/**`, so it re-triggers `docs.yml` (redeploy) but not `coverage.yml` (its paths filter is source/tests only) and not `docker-publish.yml` (gated on `bump-version`).
 - A suite that fails or produces no coverage degrades gracefully — the page still renders, marking that suite as having no report.

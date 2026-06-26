@@ -1,7 +1,7 @@
 # ─── Publish test coverage to the docs ───────────────────────────────────────
 # On every push to main that touches source or tests, this workflow:
 #   1. Runs each test suite with coverage:
-#        - API  (app/api)  → Vitest v8 → lcov.info
+#        - API  (app/api)  → Vitest v8, unit + contract → two lcov.info (merged)
 #        - UI   (app/ui)   → Vitest v8 → lcov.info
 #        - Pester (test/unit) → JaCoCo XML
 #   2. Converts each suite to a consistent browsable HTML report + a
@@ -71,12 +71,23 @@ jobs:
           dotnet-version: '8.0.x'
 
       # ── API coverage (Vitest) ──────────────────────────────────────────────
-      - name: API tests with coverage
+      # The API number reflects BOTH suites: unit tests (mocked DB) and contract
+      # tests (real PostgreSQL via testcontainers). They run under separate vitest
+      # configs into separate lcov dirs; ReportGenerator merges them below. Without
+      # the contract run, route files exercised only end-to-end (matrix/data,
+      # contexts, identities, resources, ingest engine, plugin runner) would read
+      # as near-zero here even though they're well covered.
+      - name: API unit tests with coverage
         working-directory: app/api
         continue-on-error: true  # publish coverage even if a suite has a failure
         run: |
           npm ci
           npm run test:coverage
+
+      - name: API contract tests with coverage
+        working-directory: app/api
+        continue-on-error: true  # testcontainers spins up postgres:16 on the runner
+        run: npm run test:contract -- --coverage
 
       # ── UI coverage (Vitest) ───────────────────────────────────────────────
       - name: UI tests with coverage
@@ -118,22 +129,29 @@ jobs:
 
       - name: Build coverage reports
         run: |
+          # gen <slug> <title> <src...> — ReportGenerator merges every input
+          # report that exists (union of line hits), so a suite can be fed more
+          # than one lcov (the API suite = unit + contract).
           gen() {
-            local slug="$1"; local src="$2"; local title="$3"
-            if [ -f "$src" ]; then
+            local slug="$1"; local title="$2"; shift 2
+            local reports=""
+            for src in "$@"; do
+              [ -f "$src" ] && reports="${reports:+$reports;}$src"
+            done
+            if [ -n "$reports" ]; then
               reportgenerator \
-                "-reports:$src" \
+                "-reports:$reports" \
                 "-targetdir:docs/coverage/$slug" \
                 "-reporttypes:Html;JsonSummary" \
                 "-sourcedirs:." \
                 "-title:$title"
             else
-              echo "::warning::No coverage input for $slug ($src) — skipping"
+              echo "::warning::No coverage input for $slug — skipping"
             fi
           }
-          gen api        app/api/coverage/lcov.info "API"
-          gen ui         app/ui/coverage/lcov.info  "UI"
-          gen powershell pester-coverage.xml        "PowerShell"
+          gen api        "API"        app/api/coverage/lcov.info app/api/coverage-contract/lcov.info
+          gen ui         "UI"         app/ui/coverage/lcov.info
+          gen powershell "PowerShell" pester-coverage.xml
 
       - name: Render coverage docs page
         env:
