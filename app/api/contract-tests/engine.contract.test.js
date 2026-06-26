@@ -8,6 +8,7 @@
 // the hard-delete path. If both pass reliably in CI we expand to matrix.js.
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { randomUUID } from 'crypto';
 import pg from 'pg';
 import { scopedDelete, SOFT_DELETE_TABLES } from '../src/ingest/engine.js';
 
