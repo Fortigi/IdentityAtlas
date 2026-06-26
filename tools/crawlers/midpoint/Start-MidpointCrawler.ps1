@@ -442,6 +442,7 @@ if ($Sync.roles -or $Sync.services) {
                     externalId   = $oid
                     displayName  = $disp
                     resourceType = $rt
+                    governanceResource = ($rt -eq 'BusinessRole')
                     description  = (Get-MidpointString $r.description '')
                     enabled      = (Test-MidpointEnabled $r)
                     extendedAttributes = @{

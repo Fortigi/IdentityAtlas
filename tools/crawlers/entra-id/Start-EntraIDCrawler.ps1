@@ -1586,6 +1586,7 @@ if ($SyncGovernance) {
                 displayName     = $_.displayName
                 description     = $_.description
                 resourceType    = 'BusinessRole'
+                governanceResource = $true
                 catalogId       = $_.catalogId
                 isHidden        = [bool]$_.isHidden
                 enabled         = $true
