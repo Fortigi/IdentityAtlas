@@ -1,6 +1,6 @@
 # CI Pipeline
 
-Two GitHub Actions workflows run on every PR targeting `main`. Both use the same two-step pattern: a **commit-range skip** job that detects housekeeping-only pushes, then **path-filter gates** that run only what actually changed.
+Two GitHub Actions workflows run on every PR targeting `main`. Both use the same two-step pattern: a **commit-range skip** job that detects housekeeping-only pushes, then **path-filter gates** that run only what actually changed. A handful of **post-merge** workflows then run on the push to `main` itself (version bump, docs deploy, SBOM and coverage refresh) — see [Post-merge workflows](#post-merge-workflows-push-to-main) below.
 
 Branch protection requires two checks to pass before a PR can merge:
 
@@ -105,6 +105,28 @@ Example: only `omada` changed → `testSet = [omada]`, `runSet = [odata, omada]`
 | `load-soak` | Forces load soak regardless of which paths changed |
 | `skip-load-soak` | Skips load soak even when paths would trigger it |
 | `skip-e2e` | Skips Playwright E2E |
+
+---
+
+## Post-merge workflows (push to main)
+
+These run **after** a PR merges, on the push to `main` — not as PR gates. They push their results back to `main` with the GitHub App token (branch protection blocks `GITHUB_TOKEN`), each rebasing-and-retrying to absorb the concurrent `bump-version.yml` commit on the same merge.
+
+| Workflow | Triggers on | What it does |
+|---|---|---|
+| `bump-version.yml` | Every PR merge | Increments `Minor` + timestamp in `setup/IdentityAtlas.psd1`, merges `changes/*.md` fragments into `CHANGES.md`, pushes `:edge` Docker tag |
+| `docs.yml` | `docs/**`, `mkdocs.yml` changes; releases | Builds the MkDocs site and deploys with `mike` (edge from `main`, stable from a release tag) |
+| `sbom-update.yml` | Dependency-manifest changes | Regenerates the SPDX SBOM and refreshes `docs/reference/sbom.md` |
+| `coverage.yml` | `app/api/src/**`, `app/ui/src/**`, `tools/crawlers/**`, `tools/powershell-sdk/**`, `tools/riskscoring/**`, `test/unit/**` | Runs API/UI (Vitest) + Pester with coverage, converts each suite to a browsable HTML report via ReportGenerator, renders `docs/reference/coverage.md`, and commits the page + `docs/coverage/**` |
+
+### coverage.yml — test coverage to docs
+
+The coverage workflow publishes line/branch/method coverage for all three suites to the **Reference → Test Coverage** docs page, each suite linking to a full per-file HTML report.
+
+- **Build:** `npm run test:coverage` for API and UI (Vitest v8 → `lcov.info`); Pester over `tools/powershell-sdk`, the crawler dirs, and `tools/riskscoring` (→ JaCoCo XML). [ReportGenerator](https://github.com/danielpalme/ReportGenerator) converts each to a consistent HTML report + `Summary.json`, which `tools/generate-coverage-doc.py` turns into the curated page.
+- **Versioning:** because the page and reports are committed into `docs/`, `mike` builds them into **both** doc versions — edge refreshes every merge, a release is frozen at its tag's numbers.
+- **No loop:** the commit only touches `docs/**`, so it re-triggers `docs.yml` (redeploy) but not `coverage.yml` (its paths filter is source/tests only) and not `docker-publish.yml` (gated on `bump-version`).
+- A suite that fails or produces no coverage degrades gracefully — the page still renders, marking that suite as having no report.
 
 ---
 
