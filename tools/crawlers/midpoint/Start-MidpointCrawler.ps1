@@ -12,7 +12,7 @@
       ServiceType                      → Resources (Service)
       UserType (focus / person)        → Identities + a Principal (the midPoint account) + IdentityMembers
       ShadowType (accounts on systems) → Principals (per resource system) + IdentityMembers (via user.linkRef)
-      user.assignment[] → Role/Service → ResourceAssignments (Governed)
+      user.assignment[] → Role/Service → ResourceAssignments (Direct, governed=false)
       user.parentOrgRef[]              → ContextMembers (org membership)
 
     midPoint object OIDs are UUIDs, so they are reused directly as Identity Atlas
@@ -275,6 +275,7 @@ $UserOidToName           = @{}                                                  
 $SyncedOrgIds            = [System.Collections.Generic.HashSet[string]]::new()  # OrgType OIDs synced as Contexts
 $OrgOidToName            = @{}                                                   # OrgType OID → display name (for the user's department)
 $SyncedResourceIds       = [System.Collections.Generic.HashSet[string]]::new()  # Role/Service + Entitlement OIDs synced as Resources
+$ResourceOidToType       = @{}                                                   # OID → mapped resourceType, for governance-assignment reconcile bucketing
 $AllUsers                = $null
 $ShadowOidToUserOid      = @{}                                                   # shadow OID → owning user OID (from user.linkRef)
 $EntitlementByDn         = @{}                                                   # normalised DN/name → entitlement shadow OID (for construction → Contains)
@@ -424,6 +425,10 @@ if ($Sync.roles -or $Sync.services) {
         param([string]$Type, $Rec)
         if (-not $resByType.Contains($Type)) { $resByType[$Type] = [System.Collections.Generic.List[object]]::new() }
         $resByType[$Type].Add($Rec)
+        # Remember each resource's mapped type so governance assignments can be
+        # reconcile-bucketed by resourceType (roles map to BusinessRole or custom
+        # types, services to Service).
+        $ResourceOidToType[[string]$Rec.id] = $Type
     }
 
     if ($Sync.roles) {
@@ -689,9 +694,9 @@ if ($Sync.shadows -and $Sync.users) {
                     if (-not $entOid) { return }
                     if (-not $entAssignSeen.Add("$entOid|$ownerOid")) { return }
                     if (-not $entAssignStreams.ContainsKey($sysId)) {
-                        $entAssignStreams[$sysId] = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId $sysId -Scope @{ assignmentType = 'Direct' }
+                        $entAssignStreams[$sysId] = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId $sysId -Scope @{ assignmentType = 'Direct'; resourceType = 'Entitlement' }
                     }
-                    Add-IngestStreamRecord -Stream $entAssignStreams[$sysId] -Record ([PSCustomObject]@{ resourceId = $entOid; principalId = $ownerOid; assignmentType = 'Direct'; extendedAttributes = @{ viaAccount = $shadowOid } })
+                    Add-IngestStreamRecord -Stream $entAssignStreams[$sysId] -Record ([PSCustomObject]@{ resourceId = $entOid; principalId = $ownerOid; assignmentType = 'Direct'; resourceType = 'Entitlement'; extendedAttributes = @{ viaAccount = $shadowOid } })
                 }
                 if ($s.association) {
                     foreach ($assoc in @($s.association)) {
@@ -744,9 +749,9 @@ if ($Sync.orgMembership -and $Sync.users -and $AllUsers) {
     } catch { Add-PhaseError 'ContextMembers' $_.Exception.Message }
 }
 
-# ─── Phase: Assignments → ResourceAssignments (Governed) ─────────────────────
+# ─── Phase: Assignments → ResourceAssignments (Direct memberships) ───────────
 if ($Sync.assignments -and $Sync.users -and $AllUsers) {
-    Write-Host "`nAssignments (Governed):" -ForegroundColor Cyan
+    Write-Host "`nAssignments (role/service memberships):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing assignments' -Pct 82
     try {
         # Two passes per user so birthright/nested/org-inherited memberships are captured,
@@ -780,7 +785,9 @@ if ($Sync.assignments -and $Sync.users -and $AllUsers) {
                 $ra.Add([PSCustomObject]@{
                     resourceId         = $targetOid
                     principalId        = $uoid
-                    assignmentType     = 'Governed'
+                    assignmentType     = 'Direct'
+                    governed           = $true
+                    resourceType       = $ResourceOidToType[$targetOid]
                     extendedAttributes = @{ grant = 'direct' }
                 })
             }
@@ -802,13 +809,21 @@ if ($Sync.assignments -and $Sync.users -and $AllUsers) {
                 $ra.Add([PSCustomObject]@{
                     resourceId         = $targetOid
                     principalId        = $uoid
-                    assignmentType     = 'Governed'
+                    assignmentType     = 'Direct'
+                    governed           = $true
+                    resourceType       = $ResourceOidToType[$targetOid]
                     extendedAttributes = @{ grant = 'inherited' }
                 })
             }
         }
-        $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $MidpointSystemId -Scope @{ assignmentType = 'Governed' } -Records @($ra)
-        Write-Host "  ResourceAssignments (Governed): +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($ra.Count) links)" -ForegroundColor Green
+        # Governance memberships are real Direct assignments on the role/service,
+        # flagged governed=true (IGA-driven). Bucket the reconcile by resourceType
+        # so each type's full-sync delete only touches its own rows, never the
+        # Entitlement memberships from the Shadows phase.
+        foreach ($grp in ($ra | Group-Object resourceType)) {
+            $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $MidpointSystemId -Scope @{ assignmentType = 'Direct'; resourceType = $grp.Name } -Records @($grp.Group)
+            Write-Host "  ResourceAssignments ($($grp.Name)): +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($grp.Count) links)" -ForegroundColor Green
+        }
     } catch { Add-PhaseError 'Assignments' $_.Exception.Message }
 }
 

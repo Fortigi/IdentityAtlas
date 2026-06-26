@@ -275,7 +275,7 @@ router.get('/access-packages', async (req, res) => {
       WITH ac AS (
         SELECT "resourceId", COUNT(*)::int AS cnt
           FROM "ResourceAssignments"
-         WHERE "assignmentType" = 'Governed'
+         WHERE "governed" = true
            AND (LOWER(state) = 'delivered' OR state IS NULL)
          GROUP BY "resourceId"
       ), pc AS (

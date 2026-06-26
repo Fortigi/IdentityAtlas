@@ -227,10 +227,11 @@ router.get('/resources/:id', async (req, res) => {
       const r = await timedRequest(pool, 'resource-member-breakdown', res)
         .input('id', resourceId)
         .query(`
-          SELECT "assignmentType", COUNT(DISTINCT "principalId")::int AS cnt
+          SELECT CASE WHEN "governed" THEN 'Governed' ELSE "assignmentType" END AS "assignmentType",
+                 COUNT(DISTINCT "principalId")::int AS cnt
           FROM "ResourceAssignments"
           WHERE "resourceId" = @id
-          GROUP BY "assignmentType"
+          GROUP BY 1
         `);
       for (const row of r.recordset) {
         if (row.assignmentType in assignmentByType) assignmentByType[row.assignmentType] = row.cnt;

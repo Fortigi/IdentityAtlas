@@ -251,13 +251,22 @@ export function buildScopeAsofSql({ filter, principalColSet, resourceColSet, con
     ${asofSurrogateCte('asof_resources', 'Resources', 'Resources')},
     ${asofAssignmentsCte('asof_assign')},
     ${asofContainsCte('asof_contains')},
-    -- A (user, group) membership is governed at D when the user held a business
-    -- role (Governed assignment, rid = the role) that Contains the group at D.
+    -- A (user, group) membership is governed at D when the subject held a
+    -- membership in a governance resource (business role / access package) that
+    -- Contains the group at D. Pre-049 history recorded that as the Governed
+    -- assignment type, from 049 on as a normal Direct membership on a resource
+    -- flagged governanceResource. The derived governed rows are not history
+    -- tracked, so coverage is reconstructed from membership and Contains facts.
     coverage AS (
       SELECT DISTINCT ga.pid AS "userId", rr.child AS "groupId"
         FROM asof_assign ga
         JOIN asof_contains rr ON rr.parent = ga.rid
        WHERE ga.atype = 'Governed'
+          OR EXISTS (
+               SELECT 1 FROM asof_resources ar
+                WHERE (ar.state->>'id') = ga.rid
+                  AND COALESCE((ar.state->>'governanceResource')::boolean, false)
+             )
     ),
     sp AS (
       SELECT (sp.state->>'id')::uuid AS id

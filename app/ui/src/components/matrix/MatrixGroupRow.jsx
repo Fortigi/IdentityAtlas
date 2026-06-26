@@ -3,14 +3,13 @@ import { getAccessPackageColor } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
 // Map AP resource role names to the same badge style used in user/group cells.
-// roleDisplayName from Graph can be "Member", "Owner", "Eligible Member", etc.
+// Group ownership is its own resource (resourceType='GroupOwnership') now, so
+// access-package role scopes only ever resolve to Member (Direct) or Eligible.
 const BADGE_DIRECT   = { letter: 'D', bg: '#166534', text: '#fff' };
-const BADGE_OWNER    = { letter: 'O', bg: '#9d174d', text: '#fff' };
 const BADGE_ELIGIBLE = { letter: 'E', bg: '#854d0e', text: '#fff' };
 
 function getRoleBadge(roleName) {
   const lower = (roleName || '').toLowerCase();
-  if (lower.includes('owner')) return BADGE_OWNER;
   if (lower.includes('eligible')) return BADGE_ELIGIBLE;
   return BADGE_DIRECT;
 }
@@ -42,7 +41,6 @@ export default function MatrixGroupRow({
 }) {
   const isDark = useIsDark();
   const memberCount = group.memberCount;
-  const isOwnerRow = !!group.realGroupId && !group.isNestedRow;
 
   // Expand/collapse state for nested groups (up to 4 levels deep)
   const realGidForExpand = group.realGroupId || group.id;
@@ -127,19 +125,11 @@ export default function MatrixGroupRow({
         const cellKey = `${group.id}|${user.id}`;
         const cellTypes = memberships.get(cellKey);
 
-        // Look up AP management using the real group ID (not synthetic __owner ID)
+        // AP management overlay — which package(s) govern this cell (drives the
+        // colour + count + tooltip). Keyed by the real group id.
         const realGid = group.realGroupId || group.id;
         const cellKeyLower = `${realGid.toLowerCase()}|${user.id.toLowerCase()}`;
-        const allApIds = managedApMap?.get(cellKeyLower) || [];
-        const lookupGid = realGid.toUpperCase();
-
-        // Filter APs by role relevance for this row type:
-        // Owner rows only show APs with Owner role; regular rows show non-Owner APs.
-        const relevantApIds = allApIds.filter(apId => {
-          const role = apGroupMap?.get(`${lookupGid}|${apId}`) || 'Member';
-          const roleIsOwner = role.toLowerCase().includes('owner');
-          return isOwnerRow ? roleIsOwner : !roleIsOwner;
-        });
+        const relevantApIds = managedApMap?.get(cellKeyLower) || [];
 
         // In "unmanaged" filter mode, suppress AP management indicators — user is focused on ungoverned access
         const managed = managedFilter !== 'unmanaged' && relevantApIds.length > 0;
@@ -157,26 +147,13 @@ export default function MatrixGroupRow({
           });
         }
 
-        // Provisioning gap: AP manages this cell but user lacks the expected membership type.
-        // Owner role → needs Owner; Eligible role → needs Eligible; Member/default → needs Direct.
-        // Skip gap detection in "unmanaged" filter — gaps are irrelevant when viewing only unmanaged access.
-        let provisioningGap = false;
-        let gapExpected = null;
-        if (managed && managedFilter !== 'unmanaged') {
-          for (const apId of relevantApIds) {
-            const role = apGroupMap?.get(`${lookupGid}|${apId}`) || 'Member';
-            const lower = role.toLowerCase();
-            let expected, hasIt;
-            if (lower.includes('owner'))        { expected = 'Owner';    hasIt = cellTypes?.has('Owner'); }
-            else if (lower.includes('eligible')) { expected = 'Eligible'; hasIt = cellTypes?.has('Eligible'); }
-            else                                 { expected = 'Direct';   hasIt = cellTypes?.has('Direct'); }
-            if (!hasIt) {
-              provisioningGap = true;
-              gapExpected = expected;
-              break;
-            }
-          }
-        }
+        // Provisioning gap: the cell is governance-managed (an access package the
+        // subject holds Contains this resource — server-computed managedByAccessPackage)
+        // but the subject has no actual membership. The SOLL coverage is derived in
+        // the data; the gap is just "managed and empty".
+        const hasActual = cellTypes && cellTypes.size > 0;
+        const provisioningGap = managed && !hasActual;
+        const gapExpected = provisioningGap ? 'Direct' : null;
 
         return (
           <MatrixCell
@@ -196,15 +173,10 @@ export default function MatrixGroupRow({
 
       {/* Access Package cells (SOLL) */}
       {accessPackages.map((ap, idx) => {
-        // For owner rows, look up using realGroupId (AP data uses real group IDs)
         const lookupGid = (group.realGroupId || group.id).toUpperCase();
         const apKey = `${lookupGid}|${ap.id.toLowerCase()}`;
         const roleName = apGroupMap?.get(apKey);
-        // Owner rows only show AP cells where the role is Owner;
-        // regular rows only show non-Owner roles
-        const isOwnerForAp = !!group.realGroupId && !group.isNestedRow;
-        const roleIsOwner = (roleName || '').toLowerCase().includes('owner');
-        const hasMapping = !!roleName && (isOwnerForAp ? roleIsOwner : !roleIsOwner);
+        const hasMapping = !!roleName;
         const prevCat = idx > 0 ? (accessPackages[idx - 1].categoryName || null) : undefined;
         const curCat = ap.categoryName || null;
         const isCategoryBoundary = idx === 0 || prevCat !== curCat;

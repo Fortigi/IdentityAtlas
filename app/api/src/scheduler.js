@@ -200,7 +200,7 @@ async function captureDashboardSnapshotIfMissing() {
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Principals'), 0), 0)::int,
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Identities'), 0), 0)::int,
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='ResourceAssignments'), 0), 0)::int,
-        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "assignmentType" = 'Governed'),
+        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "governed" = true),
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='ResourceRelationships'), 0), 0)::int,
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Contexts'), 0), 0)::int,
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='IdentityMembers'), 0), 0)::int,

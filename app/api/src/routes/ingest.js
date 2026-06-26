@@ -341,51 +341,28 @@ router.post('/ingest/sync-log', async (req, res) => {
   }
 });
 
-// POST /api/ingest/classify-business-role-assignments — reclassify Direct
-// assignments to BusinessRole resources as Governed. Called by the CSV crawler
-// after all data is imported so it doesn't need to know resource types at
-// assignment-import time.
+// POST /api/ingest/classify-business-role-assignments — flag memberships in a
+// governance resource (business role / access package) as governed=true. Flat
+// importers (CSV) don't know which resources are governance resources at
+// assignment-import time, so this marks them after the fact. The provisioning
+// gap is DERIVED in the matrix matview from these governed memberships + the
+// Contains relationships — nothing is materialised here.
 router.post('/ingest/classify-business-role-assignments', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (!crawlerHasPermission(req, 'ingest')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   try {
-    // The primary key includes assignmentType, so a naive UPDATE to 'Governed'
-    // fails with a pk collision when a (resourceId, principalId, 'Governed')
-    // row already exists. We handle that in two passes:
-    //   1. Delete Direct rows that already have a matching Governed row — they
-    //      are redundant after classification.
-    //   2. Promote the remaining Direct rows to Governed.
-    const dup = await db.query(`
-      DELETE FROM "ResourceAssignments" ra
-       USING "Resources" r
-       WHERE ra."resourceId" = r.id
-         AND r."resourceType" = 'BusinessRole'
-         AND ra."assignmentType" = 'Direct'
-         AND EXISTS (
-           SELECT 1 FROM "ResourceAssignments" ra2
-            WHERE ra2."resourceId" = ra."resourceId"
-              AND ra2."assignmentType" = 'Governed'
-              AND (
-                (ra."principalId" IS NOT NULL AND ra2."principalId" = ra."principalId")
-                OR
-                (ra."identityId"  IS NOT NULL AND ra2."identityId"  = ra."identityId")
-              )
-         )
-    `);
     const r = await db.query(`
       UPDATE "ResourceAssignments" ra
-         SET "assignmentType" = 'Governed'
+         SET "governed" = true
         FROM "Resources" r
-       WHERE ra."resourceId" = r.id
-         AND r."resourceType" = 'BusinessRole'
-         AND ra."assignmentType" = 'Direct'
+       WHERE r.id = ra."resourceId"
+         AND r."governanceResource"
+         AND ra."governed" = false
     `);
-    // After re-classifying, the matrix materialized views are stale —
-    // refresh them before returning so the UI sees the new data. This is
-    // also cheaper than a separate /refresh-views call because we've
-    // already warmed the tables.
+    // The matrix materialized views are now stale — refresh them before
+    // returning so the UI sees the new data.
     let viewRefresh;
     try {
       await refreshMatrixViews();
@@ -396,8 +373,7 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
     }
     return res.json({
       ok: true,
-      reclassified: r.rowCount || 0,
-      duplicatesRemoved: dup.rowCount || 0,
+      governedMarked: r.rowCount || 0,
       viewRefresh,
     });
   } catch (err) {
@@ -409,7 +385,7 @@ router.post('/ingest/classify-business-role-assignments', async (req, res) => {
 // POST /api/ingest/refresh-views — refresh the matrix materialized views.
 //
 // Called by the CSV crawler at end-of-sync (and by classify-business-role-
-// assignments after promoting Direct → Governed). Uses REFRESH MATERIALIZED
+// assignments after regenerating governed-intent rows). Uses REFRESH MATERIALIZED
 // VIEW CONCURRENTLY so reads during the refresh see the old data rather
 // than blocking — the unique index created in migration 013 is required
 // for CONCURRENTLY to work.

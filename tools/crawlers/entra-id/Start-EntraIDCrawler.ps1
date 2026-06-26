@@ -1651,8 +1651,11 @@ if ($SyncGovernance) {
         $__scopeErrMsg = if ($__scopeErr) { $__scopeErr.Substring('Governance/ResourceScopes:'.Length).Trim() } else { $null }
         Write-Phase -Name 'Governance/ResourceScopes' -Duration $__scopeSW.Elapsed -ErrorMsg $__scopeErrMsg
 
-        # ── Access Package Assignments (Governed) ────────────────────
-        # Each assignment links a user (target) to an access package
+        # ── Access Package Assignments (Direct membership on the package) ──
+        # Each assignment links a user (target) to an access package — a real
+        # Direct membership on the package resource, flagged governed=true
+        # (IGA-driven). The matrix derives the provisioning gap for the groups
+        # the package Contains from these + the Contains relationships.
         $__apaSW = [Diagnostics.Stopwatch]::StartNew()
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access package assignments)..." -ForegroundColor Cyan
         try {
@@ -1689,7 +1692,9 @@ if ($SyncGovernance) {
                     resourceId         = $apId
                     principalId        = $targetId
                     principalType      = 'User'
-                    assignmentType     = 'Governed'
+                    assignmentType     = 'Direct'
+                    resourceType       = 'BusinessRole'
+                    governed           = $true
                     state              = $state
                     assignmentStatus   = $a.assignmentStatus
                     expirationDateTime = $a.expiredDateTime
@@ -1701,7 +1706,7 @@ if ($SyncGovernance) {
 
             if ($assignRecords.Count -gt 0) {
                 Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-                    -Scope @{ assignmentType = 'Governed' } -Records $assignRecords
+                    -Scope @{ assignmentType = 'Direct'; resourceType = 'BusinessRole' } -Records $assignRecords
             } else {
                 Write-Host "  No active access package assignments found" -ForegroundColor Yellow
             }

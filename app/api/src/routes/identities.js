@@ -366,11 +366,13 @@ router.get('/identities/:id', async (req, res) => {
       const aggResult = await timedRequest(p, 'identity-aggregate-counts', res)
         .input('identityId', identityId)
         .query(`
-          SELECT ra."assignmentType", COUNT(DISTINCT ra."resourceId")::int AS cnt
+          SELECT CASE WHEN gov."governanceResource" THEN 'Governed' ELSE ra."assignmentType" END AS "assignmentType",
+                 COUNT(DISTINCT ra."resourceId")::int AS cnt
           FROM "IdentityMembers" m
           JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
+          LEFT JOIN "Resources" gov ON gov.id = ra."resourceId"
           WHERE m."identityId" = @identityId
-          GROUP BY ra."assignmentType"
+          GROUP BY 1
         `);
       for (const row of aggResult.recordset) {
         if (row.assignmentType in aggregate) aggregate[row.assignmentType] = row.cnt;
