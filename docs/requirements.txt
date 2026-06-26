@@ -1,0 +1,10 @@
+# Documentation site build toolchain — MkDocs + Material theme + Mike versioning.
+#
+# Pinned so the published docs are reproducible AND the dependency set is captured
+# by the SBOM (Syft scans requirements*.txt). These run only in CI (docs deploy
+# and release packaging); they are never installed into the shipped containers.
+#
+# Install:  pip install -r docs/requirements.txt
+mkdocs==1.6.1
+mkdocs-material==9.7.6
+mike==2.2.0

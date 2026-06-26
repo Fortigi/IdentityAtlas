@@ -10,6 +10,8 @@ untouched.
 Sources of truth, by section:
   * "API Backend (Node.js)" / "Frontend (React)" — Version column from the npm
     manifests (app/api/package.json, app/ui/package.json).
+  * "Documentation Toolchain (Python)" — Version column from the pinned pip
+    manifest (docs/requirements.txt).
   * "Infrastructure Components" — Version column from the Docker base images and
     compose file (Postgres, PowerShell, Node).
   * "Docker Images" — Base column from the Dockerfiles.
@@ -27,6 +29,7 @@ REPO = Path(__file__).resolve().parent.parent
 DOC = REPO / "docs" / "reference" / "sbom.md"
 API_PKG = REPO / "app" / "api" / "package.json"
 UI_PKG = REPO / "app" / "ui" / "package.json"
+DOCS_REQ = REPO / "docs" / "requirements.txt"
 API_DOCKERFILE = REPO / "app" / "api" / "Dockerfile"
 PWSH_DOCKERFILE = REPO / "setup" / "docker" / "Dockerfile.powershell"
 COMPOSE = REPO / "docker-compose.yml"
@@ -38,6 +41,20 @@ def load_versions(pkg_path):
     versions = {}
     versions.update(data.get("dependencies", {}))
     versions.update(data.get("devDependencies", {}))
+    return versions
+
+
+def load_pip_versions(req_path):
+    """name -> pinned version from a pip requirements file (``name==version``)."""
+    versions = {}
+    if not req_path.exists():
+        return versions
+    for raw in req_path.read_text().splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if "==" not in line:
+            continue
+        name, _, ver = line.partition("==")
+        versions[name.strip()] = ver.strip()
     return versions
 
 
@@ -113,6 +130,7 @@ def update_docker_image(cells, images):
 def main():
     api = load_versions(API_PKG)
     ui = load_versions(UI_PKG)
+    docs = load_pip_versions(DOCS_REQ)
     components, images = build_infra()
 
     lines = DOC.read_text().splitlines()
@@ -143,6 +161,8 @@ def main():
             new_value = update_npm_row(cells, api, missing)
         elif section and "Frontend" in section:
             new_value = update_npm_row(cells, ui, missing)
+        elif section and "Documentation Toolchain" in section:
+            new_value = update_npm_row(cells, docs, missing)
         elif section == "Infrastructure Components":
             new_value = update_infra_component(cells, components)
         elif section == "Docker Images":

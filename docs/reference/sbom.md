@@ -120,6 +120,18 @@ This document lists all major software components, dependencies, and infrastruct
 
 ---
 
+## Documentation Toolchain (Python)
+
+The documentation site is built and versioned from [`docs/requirements.txt`](https://github.com/Fortigi/IdentityAtlas/blob/main/docs/requirements.txt). These packages run only in CI (docs deploy and release packaging) and are never installed into the shipped containers.
+
+| Package | Version | Purpose | License |
+|---------|---------|---------|---------|
+| mkdocs | 1.6.1 | Static documentation site generator | BSD-2-Clause |
+| mkdocs-material | 9.7.6 | Material for MkDocs — docs site theme and UI | MIT |
+| mike | 2.2.0 | Versioned docs deployment (edge / stable) | BSD-3-Clause |
+
+---
+
 ## PowerShell Module
 
 ### Module Information
@@ -205,7 +217,8 @@ All direct dependencies use permissive open-source licenses:
 - **MIT License**: 95%+ of dependencies
 - **Apache 2.0**: swagger-ui-express, @playwright/test, eslint-plugin-security
 - **MPL 2.0**: @axe-core/playwright
-- **BSD-3-Clause**: re2
+- **BSD-3-Clause**: re2, mike
+- **BSD-2-Clause**: mkdocs
 - **PostgreSQL License**: PostgreSQL server
 
 Identity Atlas itself is licensed under the **MIT License**. See the repository `LICENSE` file for full terms.
@@ -218,6 +231,7 @@ The module version is automatically bumped on every PR merge to `main`. For the 
 
 - API backend: [`app/api/package.json`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/package.json)
 - Frontend: [`app/ui/package.json`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/package.json)
+- Documentation toolchain: [`docs/requirements.txt`](https://github.com/Fortigi/IdentityAtlas/blob/main/docs/requirements.txt)
 - PowerShell module: [`setup/IdentityAtlas.psd1`](https://github.com/Fortigi/IdentityAtlas/blob/main/setup/IdentityAtlas.psd1)
 
 ---

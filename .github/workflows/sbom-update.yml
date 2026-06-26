@@ -29,6 +29,7 @@ on:
       - app/api/package-lock.json
       - app/ui/package.json
       - app/ui/package-lock.json
+      - docs/requirements.txt
       - app/api/Dockerfile
       - app/ui/Dockerfile
       - setup/docker/Dockerfile.powershell

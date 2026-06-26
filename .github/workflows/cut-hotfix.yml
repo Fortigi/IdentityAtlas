@@ -147,7 +147,7 @@ jobs:
 
       - name: Deploy versioned docs
         run: |
-          pip install --quiet mike mkdocs-material
+          pip install --quiet -r docs/requirements.txt
           mike deploy --push --title "$VERSION" stable
 
       - name: Post run summary
