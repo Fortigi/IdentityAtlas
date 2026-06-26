@@ -2260,6 +2260,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2625,6 +2653,34 @@
     <span class="md-ellipsis">
       
         Labels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-merge-workflows-push-to-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-merge workflows (push to main)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Post-merge workflows (push to main)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#coverageyml-test-coverage-to-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        coverage.yml — test coverage to docs
       
     </span>
   </a>
@@ -3073,6 +3129,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#post-merge-workflows-push-to-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-merge workflows (push to main)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Post-merge workflows (push to main)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#coverageyml-test-coverage-to-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        coverage.yml — test coverage to docs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-runs-for-common-change-types" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3170,7 +3254,7 @@
 
 
 <h1 id="ci-pipeline">CI Pipeline<a class="headerlink" href="#ci-pipeline" title="Permanent link">&para;</a></h1>
-<p>Two GitHub Actions workflows run on every PR targeting <code>main</code>. Both use the same two-step pattern: a <strong>commit-range skip</strong> job that detects housekeeping-only pushes, then <strong>path-filter gates</strong> that run only what actually changed.</p>
+<p>Two GitHub Actions workflows run on every PR targeting <code>main</code>. Both use the same two-step pattern: a <strong>commit-range skip</strong> job that detects housekeeping-only pushes, then <strong>path-filter gates</strong> that run only what actually changed. A handful of <strong>post-merge</strong> workflows then run on the push to <code>main</code> itself (version bump, docs deploy, SBOM and coverage refresh) — see <a href="#post-merge-workflows-push-to-main">Post-merge workflows</a> below.</p>
 <p>Branch protection requires two checks to pass before a PR can merge:</p>
 <table>
 <thead>
@@ -3380,6 +3464,48 @@
 </tr>
 </tbody>
 </table>
+<hr />
+<h2 id="post-merge-workflows-push-to-main">Post-merge workflows (push to main)<a class="headerlink" href="#post-merge-workflows-push-to-main" title="Permanent link">&para;</a></h2>
+<p>These run <strong>after</strong> a PR merges, on the push to <code>main</code> — not as PR gates. They push their results back to <code>main</code> with the GitHub App token (branch protection blocks <code>GITHUB_TOKEN</code>), each rebasing-and-retrying to absorb the concurrent <code>bump-version.yml</code> commit on the same merge.</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Triggers on</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bump-version.yml</code></td>
+<td>Every PR merge</td>
+<td>Increments <code>Minor</code> + timestamp in <code>setup/IdentityAtlas.psd1</code>, merges <code>changes/*.md</code> fragments into <code>CHANGES.md</code>, pushes <code>:edge</code> Docker tag</td>
+</tr>
+<tr>
+<td><code>docs.yml</code></td>
+<td><code>docs/**</code>, <code>mkdocs.yml</code> changes; releases</td>
+<td>Builds the MkDocs site and deploys with <code>mike</code> (edge from <code>main</code>, stable from a release tag)</td>
+</tr>
+<tr>
+<td><code>sbom-update.yml</code></td>
+<td>Dependency-manifest changes</td>
+<td>Regenerates the SPDX SBOM and refreshes <code>docs/reference/sbom.md</code></td>
+</tr>
+<tr>
+<td><code>coverage.yml</code></td>
+<td><code>app/api/src/**</code>, <code>app/ui/src/**</code>, <code>tools/crawlers/**</code>, <code>tools/powershell-sdk/**</code>, <code>tools/riskscoring/**</code>, <code>test/unit/**</code></td>
+<td>Runs API/UI (Vitest) + Pester with coverage, converts each suite to a browsable HTML report via ReportGenerator, renders <code>docs/reference/coverage.md</code>, and commits the page + <code>docs/coverage/**</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="coverageyml-test-coverage-to-docs">coverage.yml — test coverage to docs<a class="headerlink" href="#coverageyml-test-coverage-to-docs" title="Permanent link">&para;</a></h3>
+<p>The coverage workflow publishes line/branch/method coverage for all three suites to the <strong>Reference → Test Coverage</strong> docs page, each suite linking to a full per-file HTML report.</p>
+<ul>
+<li><strong>Build:</strong> <code>npm run test:coverage</code> for API and UI (Vitest v8 → <code>lcov.info</code>); Pester over <code>tools/powershell-sdk</code>, the crawler dirs, and <code>tools/riskscoring</code> (→ JaCoCo XML). <a href="https://github.com/danielpalme/ReportGenerator">ReportGenerator</a> converts each to a consistent HTML report + <code>Summary.json</code>, which <code>tools/generate-coverage-doc.py</code> turns into the curated page.</li>
+<li><strong>Versioning:</strong> because the page and reports are committed into <code>docs/</code>, <code>mike</code> builds them into <strong>both</strong> doc versions — edge refreshes every merge, a release is frozen at its tag's numbers.</li>
+<li><strong>No loop:</strong> the commit only touches <code>docs/**</code>, so it re-triggers <code>docs.yml</code> (redeploy) but not <code>coverage.yml</code> (its paths filter is source/tests only) and not <code>docker-publish.yml</code> (gated on <code>bump-version</code>).</li>
+<li>A suite that fails or produces no coverage degrades gracefully — the page still renders, marking that suite as having no report.</li>
+</ul>
 <hr />
 <h2 id="what-runs-for-common-change-types">What runs for common change types<a class="headerlink" href="#what-runs-for-common-change-types" title="Permanent link">&para;</a></h2>
 <table>
