@@ -1,0 +1,2 @@
+- Fixed CSV/Omada imports failing with a `ContextMembers_contextId_fkey` foreign-key error when the configured system type contained a hyphen (e.g. a two-word system name). Context members now resolve to the same contexts that were imported, regardless of hyphens in the system type.
+- Omada transform: identities are now keyed by `_ID` first (then `_UID`, then `_IdentityID`), and identity-to-account links use the same key derivation so a person and their accounts always connect.

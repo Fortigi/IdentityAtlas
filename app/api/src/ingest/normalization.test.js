@@ -157,4 +157,35 @@ describe('normalizeRecords — context-member externalId resolution', () => {
     );
     expect(r[0].contextId).toBe(explicit);
   });
+
+  it('honours an explicit systemPrefix when the prefix contains a hyphen (regression)', () => {
+    // A hyphenated systemType used to break here: the old idPrefix.split('-')[0]
+    // recovered only the first segment, so members resolved their contextId
+    // under "<first>-contexts" while the Contexts endpoint created rows under
+    // the full "<first>-<rest>-contexts" — every contextId mismatched and the
+    // upsert failed with ContextMembers_contextId_fkey. The route now strips the
+    // known entity suffix and passes the full systemPrefix.
+    const sys = 'Two-Part';
+    const ctx = normalizeRecords(
+      [{ externalId: 'OU123', displayName: 'OU', variant: 'synced', targetType: 'Identity', contextType: 'OrgUnit' }],
+      ['id', 'externalId', 'displayName', 'variant', 'targetType', 'contextType', 'systemId'],
+      { idGeneration: 'deterministic', idPrefix: `${sys}-contexts`, systemId: 1 }
+    );
+    const memberCols2 = ['contextId', 'memberId', 'memberType'];
+    const withPrefix = normalizeRecords(
+      [{ contextExternalId: 'OU123', memberExternalId: 'alice', memberType: 'Identity' }],
+      memberCols2,
+      { idGeneration: 'deterministic', idPrefix: `${sys}-context-members`, systemPrefix: sys, systemId: 1 }
+    );
+    // With the recovered systemPrefix the member resolves to the exact context id.
+    expect(withPrefix[0].contextId).toBe(ctx[0].id);
+
+    // And the old fallback (no systemPrefix → split on first hyphen) would NOT.
+    const oldBehaviour = normalizeRecords(
+      [{ contextExternalId: 'OU123', memberExternalId: 'alice', memberType: 'Identity' }],
+      memberCols2,
+      { idGeneration: 'deterministic', idPrefix: `${sys}-context-members`, systemId: 1 }
+    );
+    expect(oldBehaviour[0].contextId).not.toBe(ctx[0].id);
+  });
 });
