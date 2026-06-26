@@ -42,19 +42,20 @@ beforeAll(async () => {
     resourceIds.push(r.rows[0].id);
   }
 
-  // 5 Direct assignments across the two principals.
+  // 5 assignments across the two principals: 4 Direct + 1 Indirect, so the
+  // matview's Direct/Indirect breakdown is exercised (Phase 3 regression pin).
   const pairs = [
-    [resourceIds[0], principalIds[0]],
-    [resourceIds[1], principalIds[0]],
-    [resourceIds[2], principalIds[0]],
-    [resourceIds[0], principalIds[1]],
-    [resourceIds[1], principalIds[1]],
+    [resourceIds[0], principalIds[0], 'Direct'],
+    [resourceIds[1], principalIds[0], 'Direct'],
+    [resourceIds[2], principalIds[0], 'Direct'],
+    [resourceIds[0], principalIds[1], 'Direct'],
+    [resourceIds[1], principalIds[1], 'Indirect'],
   ];
-  for (const [resourceId, principalId] of pairs) {
+  for (const [resourceId, principalId, assignmentType] of pairs) {
     await pool.query(
       `INSERT INTO "ResourceAssignments" ("resourceId", "principalId", "assignmentType", "systemId", "principalType")
-       VALUES ($1, $2, 'Direct', $3, 'User')`,
-      [resourceId, principalId, systemId],
+       VALUES ($1, $2, $3, $4, 'User')`,
+      [resourceId, principalId, assignmentType, systemId],
     );
   }
 
@@ -93,10 +94,24 @@ describe('POST /matrix/data — flat grid', () => {
     // Scope the row assertions to our own resources (unique uuids) so they're
     // deterministic regardless of any leftover rows from other test files.
     const ourRows = res.body.data.filter(r => resourceIds.includes(r.resourceId));
-    expect(ourRows.length).toBe(5); // the 5 seeded Direct assignments
+    expect(ourRows.length).toBe(5); // the 5 seeded assignments
     for (const row of ourRows) {
       expect(principalIds).toContain(row.memberId);
-      expect(row.membershipType).toBe('Direct');
+      expect(['Direct', 'Indirect']).toContain(row.membershipType);
     }
+  });
+
+  // Phase 3 regression pin: the matview must preserve the Direct/Indirect
+  // distinction (assignmentType → membershipType CASE, migration 043). A change
+  // that collapses them would silently merge access categories in the grid.
+  // A failing pin here without a feature PR is a bug — investigate, don't delete.
+  it('preserves the Direct vs Indirect membership breakdown', async () => {
+    const res = await agent
+      .post('/api/matrix/data')
+      .send({ filter: { subject: { include: [], exclude: [] }, resource: { include: [], exclude: [] } } });
+    expect(res.status).toBe(200);
+    const ourRows = res.body.data.filter(r => resourceIds.includes(r.resourceId));
+    const breakdown = ourRows.reduce((acc, r) => { acc[r.membershipType] = (acc[r.membershipType] || 0) + 1; return acc; }, {});
+    expect(breakdown).toEqual({ Direct: 4, Indirect: 1 });
   });
 });
