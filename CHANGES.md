@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Groundwork for governed-access tracking: an assignment can now carry a "governed" flag, letting the same access be recorded both as actually-in-place and as governed/expected-by-a-business-role. No visible behaviour change yet — the crawler and matrix that use it follow in a later change.
+
+## Changes in this PR
+
 - Group ownership is now modelled as its own "Owner @ \<group\>" resource (a Direct assignment) instead of a separate "Owner" membership kind — so the matrix uses one consistent set of assignment types (Direct / Indirect / Eligible) and ownership can be listed, related, and certified like any other access.
 - The matrix shows ownership as a real resource row rather than a client-side-simulated "(Owner)" sub-row.
 
