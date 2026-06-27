@@ -12,7 +12,7 @@ const pages = [
 
 // Skipped: baselines are platform-specific (chromium-linux in CI vs
 // chromium-win32 locally) and don't exist yet. Re-enable after committing
-// baselines or adding a baseline-generation CI step.
+// baselines or adding a baseline-generation CI step. Tracked in #472.
 for (const p of pages) {
   test.skip(`visual regression: ${p.name}`, async ({ page }) => {
     await page.goto(`${BASE}/${p.hash}`);
