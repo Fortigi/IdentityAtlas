@@ -1,0 +1,1 @@
+- Fixed the published test-coverage page (and its browsable HTML reports) so they update on every merge again. The coverage workflow had been failing silently because the report directory under `docs/` was being excluded by an over-broad version-control ignore rule, so the page stayed frozen at its initial version.
