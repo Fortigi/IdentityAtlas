@@ -190,22 +190,22 @@ foreach ($emp in ($employees | Where-Object { $_.dept -eq 'Finance' })) {
 $assignments += @{ resourceId = $resVPN; principalId = (New-DemoGuid 'principal-E0029'); assignmentType = 'Direct' }
 $assignments += @{ resourceId = $resVPN; principalId = (New-DemoGuid 'principal-E0030'); assignmentType = 'Direct' }
 
-# Admin Tier0: CTO as owner, SysAdmin + SP as members
-$assignments += @{ resourceId = $resAdminTier0; principalId = (New-DemoGuid 'principal-E0002'); assignmentType = 'Owner' }
+# Admin Tier0: CTO + SysAdmin + SP as members
+$assignments += @{ resourceId = $resAdminTier0; principalId = (New-DemoGuid 'principal-E0002'); assignmentType = 'Direct' }
 $assignments += @{ resourceId = $resAdminTier0; principalId = (New-DemoGuid 'principal-E0029'); assignmentType = 'Direct' }
 $assignments += @{ resourceId = $resAdminTier0; principalId = $guidSvcPrinc; assignmentType = 'Direct' }
 
 # CTO -> Global Admin directory role
 $assignments += @{ resourceId = $resGlobalAdmin; principalId = (New-DemoGuid 'principal-E0002'); assignmentType = 'Direct' }
 
-# Governed assignments (business roles)
+# Governed business-role memberships: Direct assignments flagged governed=true
 foreach ($emp in $employees) {
     $pGuid = New-DemoGuid "principal-$($emp.id)"
-    $assignments += @{ resourceId = $resBRBase; principalId = $pGuid; assignmentType = 'Governed' }
+    $assignments += @{ resourceId = $resBRBase; principalId = $pGuid; assignmentType = 'Direct'; governed = $true }
 }
 foreach ($emp in ($employees | Where-Object { $_.dept -eq 'Engineering' })) {
     $pGuid = New-DemoGuid "principal-$($emp.id)"
-    $assignments += @{ resourceId = $resBREng; principalId = $pGuid; assignmentType = 'Governed' }
+    $assignments += @{ resourceId = $resBREng; principalId = $pGuid; assignmentType = 'Direct'; governed = $true }
 }
 
 # SysAdmin eligible for privileged admin

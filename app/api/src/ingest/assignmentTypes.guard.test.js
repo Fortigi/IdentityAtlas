@@ -24,13 +24,17 @@ const R = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const P = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const rec = (assignmentType) => [{ resourceId: R, principalId: P, assignmentType }];
 
-const crawlersDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'tools', 'crawlers');
+// Every place that emits assignmentType records into the ingest: the crawlers
+// and the test fixtures/seeders (the demo dataset + benchmark, which feed the
+// same ingest API and would be rejected by the narrowed validation).
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const SCAN_ROOTS = ['tools/crawlers', 'test/demo-dataset', 'test/benchmark'].map(r => join(repoRoot, r));
 
 function walk(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
-    if (statSync(p).isDirectory()) out.push(...walk(p));
+    if (statSync(p).isDirectory()) { if (name !== 'results') out.push(...walk(p)); }
     else out.push(p);
   }
   return out;
@@ -51,19 +55,19 @@ describe('assignment-type hard rule — runtime', () => {
   });
 });
 
-describe('assignment-type hard rule — static crawler scan', () => {
-  it('no crawler emits a retired assignmentType', () => {
-    // Match an emission (assignmentType = 'X' / assignmentType: 'X'), not a
+describe('assignment-type hard rule — static emission scan', () => {
+  it('no crawler or fixture emits a retired assignmentType', () => {
+    // Match an emission (assignmentType = 'X' / "assignmentType": "X"), not a
     // comparison/comment/phase-toggle name, so historical handling and
     // SyncOAuth2Grants-style params don't trip it.
     const emitRe = new RegExp(`assignmentType\\s*[=:]\\s*['"](${RETIRED.join('|')})['"]`);
-    const files = walk(crawlersDir).filter(f => /\.(ps1|js|jsx)$/.test(f) && !/\.test\./.test(f));
+    const files = SCAN_ROOTS.flatMap(walk).filter(f => /\.(ps1|js|jsx|json)$/.test(f) && !/\.test\./.test(f));
     const offenders = [];
     for (const f of files) {
       readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
-        if (emitRe.test(line)) offenders.push(`${f.replace(/\\/g, '/').split('/tools/')[1]}:${i + 1}  ${line.trim()}`);
+        if (emitRe.test(line)) offenders.push(`${f.replace(/\\/g, '/').split(/\/(tools|test)\//)[2]}:${i + 1}  ${line.trim()}`);
       });
     }
-    expect(offenders, `retired assignmentType emitted by a crawler:\n${offenders.join('\n')}`).toEqual([]);
+    expect(offenders, `retired assignmentType emitted:\n${offenders.join('\n')}`).toEqual([]);
   });
 });
