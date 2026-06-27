@@ -2284,6 +2284,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -2300,6 +2318,36 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#browsable-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browsable reports
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -2776,6 +2824,25 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#browsable-reports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browsable reports
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -2853,15 +2920,57 @@
 <h1 id="test-coverage">Test Coverage<a class="headerlink" href="#test-coverage" title="Permanent link">&para;</a></h1>
 <!-- GENERATED FILE — do not edit by hand. Produced by tools/generate-coverage-doc.py via .github/workflows/coverage.yml. -->
 
-<p>Line coverage across the project's automated test suites (API, UI, PowerShell),
-regenerated on every merge to <code>main</code>.</p>
-<div class="admonition info">
-<p class="admonition-title">Pending first generation</p>
-<p>This page is populated by the <strong>Publish coverage to docs</strong> workflow on the
-next merge to <code>main</code>. Until then it shows no figures. The numbers reflect the
-version of the docs you are viewing — <strong>edge</strong> tracks <code>main</code>, a released
-version is frozen at its release tag.</p>
-</div>
+<p>Line coverage across the project's automated test suites, regenerated on every merge to <code>main</code>. The figures on this page reflect the version of the docs you are viewing — <strong>edge</strong> tracks <code>main</code>, a released version is frozen at its release tag.</p>
+<p><img alt="Overall coverage" src="https://img.shields.io/badge/coverage-21.6%25-red" /></p>
+<table>
+<thead>
+<tr>
+<th>Suite</th>
+<th>Line</th>
+<th>Branch</th>
+<th>Method</th>
+<th>Lines covered</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../coverage/api/">API (Node / Vitest — unit + contract)</a></td>
+<td>44.1%</td>
+<td>35.9%</td>
+<td>62.5%</td>
+<td>3,747 / 8,488</td>
+</tr>
+<tr>
+<td><a href="../../coverage/ui/">UI (React / Vitest)</a></td>
+<td>5.3%</td>
+<td>5.3%</td>
+<td>3.7%</td>
+<td>370 / 6,966</td>
+</tr>
+<tr>
+<td><a href="../../coverage/powershell/">PowerShell (Pester)</a></td>
+<td>9.6%</td>
+<td>—</td>
+<td>18.2%</td>
+<td>638 / 6,588</td>
+</tr>
+<tr>
+<td><strong>Overall</strong></td>
+<td><strong>21.6%</strong></td>
+<td></td>
+<td></td>
+<td><strong>4,755 / 22,042</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="browsable-reports">Browsable reports<a class="headerlink" href="#browsable-reports" title="Permanent link">&para;</a></h2>
+<p>Each suite links to a full per-file, line-by-line HTML report:</p>
+<ul>
+<li><a href="../../coverage/api/">API (Node / Vitest — unit + contract)</a></li>
+<li><a href="../../coverage/ui/">UI (React / Vitest)</a></li>
+<li><a href="../../coverage/powershell/">PowerShell (Pester)</a></li>
+</ul>
+<p><em>Generated 2026-06-27 08:43 UTC from commit <code>8cefd6ff</code>.</em></p>
 
 
 
