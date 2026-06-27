@@ -13,7 +13,9 @@ export default defineConfig({
     alias: { '@api': path.resolve(__dirname, 'src') },
   },
   test: {
-    include: ['contract-tests/**/*.contract.test.js'],
+    // *.contract.test.js — SQL-shape tests; *.integration.test.js — full HTTP
+    // tests booting the real app against the testcontainers DB with auth enabled.
+    include: ['contract-tests/**/*.contract.test.js', 'contract-tests/**/*.integration.test.js'],
     globalSetup: ['./test-utils/contractGlobalSetup.js'],
     // Single worker: contract tests share one DB container; parallelism would
     // require per-test isolation that adds complexity. Keep it simple.
