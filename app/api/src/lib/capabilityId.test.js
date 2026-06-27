@@ -16,6 +16,10 @@ const GOLDENS = [
   { target: 'C:\\Finance', capability: 'Write', expected: 'ded9f1e4-b426-7bf9-a4e9-68cb2e9758bd' },
   { target: 'a', capability: 'b', expected: '0eab8a0a-3380-abf4-c7d1-fb0b43b66aaf' },
   { target: 'café', capability: 'rôle', expected: '50c1f141-9d52-c66f-1ca8-04ebef754098' }, // UTF-8 multibyte
+  { target: 'Привет', capability: 'роль', expected: '5979aa3b-4757-56cd-eff2-98f32bf23c7a' }, // Cyrillic
+  { target: '財務部', capability: '書き込み', expected: '12cea6f4-05e5-f34f-9c58-8ea9fa5ccf82' }, // CJK
+  { target: 'مرحبا', capability: 'مدير', expected: 'e66813b8-93da-557d-cf32-d9cb0bc0c69e' }, // Arabic (RTL)
+  { target: '🔐lock', capability: '✏️edit', expected: 'cf0f8181-eb90-75bb-4655-071b608d1f1e' }, // emoji / surrogate pairs
 ];
 
 describe('capabilityResourceId', () => {

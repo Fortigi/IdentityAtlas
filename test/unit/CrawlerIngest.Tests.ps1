@@ -122,3 +122,45 @@ Describe 'Update-CrawlerProgress — HTTP 409 abort' {
         { Update-CrawlerProgress -Step 'test' -Pct 50 } | Should -Not -Throw
     }
 }
+
+Describe 'Invoke-IngestAPI — error handling and payload serialisation' {
+
+    It 'throws (does not swallow) on HTTP 400, without retrying — 400 is non-transient' {
+        Mock Invoke-RestMethod -MockWith {
+            $sc   = [PSCustomObject]@{ value__ = 400 }
+            $resp = [PSCustomObject]@{ StatusCode = $sc }
+            $ex   = [System.Exception]::new('Bad Request')
+            $ex | Add-Member -NotePropertyName 'Response' -NotePropertyValue $resp -Force
+            throw $ex
+        }
+        { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
+        Should -Invoke Invoke-RestMethod -Times 1
+    }
+
+    It 'retries a transient 503, then re-throws after exhausting all attempts' {
+        # statusCode >= 500 is transient → retried up to maxAttempts (5).
+        Mock Start-Sleep { }   # skip the real exponential backoff
+        Mock Invoke-RestMethod -MockWith {
+            $sc   = [PSCustomObject]@{ value__ = 503 }
+            $resp = [PSCustomObject]@{ StatusCode = $sc }
+            $ex   = [System.Exception]::new('Service Unavailable')
+            $ex | Add-Member -NotePropertyName 'Response' -NotePropertyValue $resp -Force
+            throw $ex
+        }
+        { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } } | Should -Throw
+        Should -Invoke Invoke-RestMethod -Times 5
+    }
+
+    It 'serialises records with null fields cleanly (null preserved, valid JSON)' {
+        $items  = @(@{ id = 1; name = $null; email = $null })
+        $result = ConvertTo-JsonArray -Items $items
+        $json   = @{ records = $result } | ConvertTo-Json -Depth 5 -Compress
+        $json | Should -Match '"name":null'
+    }
+
+    It 'preserves duplicate-id records (no client-side dedup; the server upserts)' {
+        $items  = @(@{ id = 'dup' }, @{ id = 'dup' }, @{ id = 'other' })
+        $result = ConvertTo-JsonArray -Items $items
+        $result.Count | Should -Be 3
+    }
+}
