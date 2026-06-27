@@ -1,1 +1,0 @@
-- Added the documentation build toolchain (MkDocs, Material for MkDocs, Mike) to the Software Bill of Materials, so it now appears in both the generated SBOM and the SBOM reference page. These were previously installed ad-hoc during CI and went unrecorded.
