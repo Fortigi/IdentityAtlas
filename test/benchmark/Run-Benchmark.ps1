@@ -159,7 +159,7 @@ foreach ($br in $businessRoles) {
         $records += @{
             resourceExternalId  = $br.externalId
             principalExternalId = $u.externalId
-            assignmentType      = 'Governed'
+            assignmentType      = 'Direct'   # membership on a business role; classify (below) flags it governed=true
         }
     }
 }
@@ -168,7 +168,7 @@ foreach ($br in $businessRoles) {
 $body = @{
     systemId     = $targetSystemId
     syncMode     = 'delta'
-    scope        = @{ assignmentType = 'Governed' }
+    scope        = @{ assignmentType = 'Direct' }
     records      = $records
     idGeneration = 'deterministic'
     idPrefix     = 'bench-assignments'

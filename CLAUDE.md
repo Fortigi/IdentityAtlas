@@ -120,7 +120,7 @@ The data model supports importing authorization data from any system. Resources,
 **Tables:**
 - **Systems** — Connected authorization sources (EntraID, SharePoint, AzureRM, DevOps, etc.)
 - **Resources** — Any permission-granting resource (groups, roles, app roles, sites) **and** business roles (`resourceType='BusinessRole'`) with `extendedAttributes` JSON
-- **ResourceAssignments** — Who has access to what (`resourceId` + `principalId` + `assignmentType`). Governed assignments use `assignmentType='Governed'`
+- **ResourceAssignments** — Who has access to what (`resourceId` + `principalId` + `assignmentType` ∈ {`Direct`, `Indirect`, `Eligible`}). Governance-driven assignments carry `governed=true`
 - **ResourceRelationships** — Resource-to-resource links (`Contains`, `GrantsAccessTo`). Business role resource grants use `relationshipType='Contains'`
 - **Principals** — User accounts from any system with `principalType` and `extendedAttributes` JSON
 - **Identities** — Real persons aggregated from multiple accounts (account correlation)
@@ -131,15 +131,20 @@ The data model supports importing authorization data from any system. Resources,
 | `resourceType` | Source | What it represents |
 |---|---|---|
 | `EntraGroup` | Entra crawler | Security / Microsoft 365 group |
-| `EntraRole` | `SyncDirectoryRoles` phase | One resource per Entra directory role (`id` = roleDefinitionId). `extendedAttributes` holds the role's granular `allowedResourceActions`, `isBuiltIn`, and `templateId`. Assigned to principals via `assignmentType='DirectoryRole'` (active) or `assignmentType='DirectoryRoleEligible'` (PIM-eligible) |
-| `BusinessRole` | Governance sync (Entra access packages, Omada business roles) | Wraps groups via `relationshipType='Contains'`; assigned to users via `assignmentType='Governed'` |
+| `EntraRole` | `SyncDirectoryRoles` phase | One resource per Entra directory role (`id` = roleDefinitionId). `extendedAttributes` holds the role's granular `allowedResourceActions`, `isBuiltIn`, and `templateId`. Assigned to principals via `Direct` (active) or `Eligible` (PIM-eligible) |
+| `BusinessRole` | Governance sync (Entra access packages, Omada business roles) | Wraps groups via `relationshipType='Contains'`; flagged `governanceResource=true`; assigned to users via a `Direct` membership flagged `governed=true` |
 | `Application` | OAuth2 / AppRoles phases | Enterprise application (service principal). Doesn't grant access by itself — it's the parent of AppRole / DelegatedPermission children |
-| `AppRole` | `SyncAppRoles` phase | One synthetic resource per (Application, appRoleId). Parent app linked via `relationshipType='HasAppRole'`. Assigned to users via `assignmentType='AppRole'` (direct) or `assignmentType='AppRoleViaGroup'` (expanded from a group's role) |
-| `DelegatedPermission` | `SyncOAuth2Grants` phase | One synthetic resource per (clientSP, targetApiSP, scope). Parent app linked via `relationshipType='DelegatesScope'`. Assigned to users via `assignmentType='OAuth2Grant'` |
+| `AppRole` | `SyncAppRoles` phase | One synthetic resource per (Application, appRoleId). Parent app linked via `relationshipType='HasAppRole'`. Assigned to users via `Direct` (direct) or `Indirect` (expanded from a group's role) |
+| `DelegatedPermission` | `SyncOAuth2Grants` phase | One synthetic resource per (clientSP, targetApiSP, scope). Parent app linked via `relationshipType='DelegatesScope'`. Assigned to users via `Direct` |
 
 **Assignment types in use:**
 
-`Direct`, `Indirect`, `Owner`, `Eligible` (the four "how does this user have it" types) plus the *source-attribute* types `Governed`, `OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`. The matrix view (`vw_ResourceUserPermissionAssignments`) collapses the source-attribute types in its `membershipType` output (`DirectoryRole`→`Direct`, `DirectoryRoleEligible`→`Eligible`) — see [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-display rules.
+`Direct`, `Indirect`, `Eligible` — the three universal "how does this user have it" values, and the **only** accepted ones (ingest rejects anything else; `app/api/src/ingest/assignmentTypes.guard.test.js` statically scans the crawlers so a retired type can't be reintroduced). Everything that used to be its own assignmentType is now modelled differently:
+- **Ownership** → a `Direct` membership on a `GroupOwnership` resource (an "Owner @ <group>" resource), not an `Owner` type.
+- **Governance** → the `governed` boolean flag on the assignment (the business role / access package itself is flagged `governanceResource`), not a `Governed` type.
+- **Source-attribute detail** (former `OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`) → collapse to `Direct`/`Indirect`/`Eligible`, with `resourceType` carrying the source detail.
+
+See [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-display rules.
 
 **Relationship types in use:** `Contains` (BusinessRole → group), `HasAppRole` (Application → AppRole), `DelegatesScope` (Application → DelegatedPermission), `GrantsAccessTo` (reserved).
 
@@ -168,7 +173,7 @@ Business roles, certifications, and access policies from any IGA platform. Busin
 | GovernanceCatalogs | — | Catalog | — | Source |
 | Resources | `resourceType='BusinessRole'` | Access Package | Business Role | Access Profile |
 | ResourceRelationships | `relationshipType='Contains'` | Resource Role Scopes | Role Entitlements | Entitlements |
-| ResourceAssignments | `assignmentType='Governed'` | AP Assignment | Role Assignment | Access Request Result |
+| ResourceAssignments | `governed=true` | AP Assignment | Role Assignment | Access Request Result |
 | AssignmentPolicies | — | AP Assignment Policy | Assignment Policy | Access Request Config |
 | AssignmentRequests | — | AP Assignment Request | — | Access Request |
 | CertificationDecisions | — | AP Access Review | CRA | Certification |

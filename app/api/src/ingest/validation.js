@@ -8,7 +8,15 @@
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
-const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible', 'Owner', 'Governed', 'OAuth2Grant', 'AppRole', 'AppRoleViaGroup', 'DirectoryRole', 'DirectoryRoleEligible'];
+// Hard rule (assignment-model redesign): an assignment is only ever one of the
+// three universal "how" values. Everything that used to be its own type is now
+// modelled differently — ownership is a Direct membership on a GroupOwnership
+// resource, governance is the `governed` flag, and the old source-attribute
+// types (OAuth2Grant / AppRole / AppRoleViaGroup / DirectoryRole /
+// DirectoryRoleEligible) collapse to Direct/Indirect/Eligible + resourceType.
+// Ingest REJECTS any other value; assignmentTypes.guard.test.js statically
+// scans the crawlers so a retired type can't be reintroduced at the source.
+const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
 const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership'];
 
 // Schema definitions per entity type

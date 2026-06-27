@@ -1,0 +1,2 @@
+- Assignment imports now accept only the three standard assignment types (Direct, Indirect, Eligible); the legacy source-specific types are rejected at import, completing the assignment-model simplification (ownership is modelled as its own resource, governance as a flag).
+- Added an automated guard so the simplified assignment model can't quietly drift back to the old set of types.

@@ -251,13 +251,10 @@ describe('validateRecords — resource-assignments', () => {
   });
 
   it('accepts all valid assignmentType values', () => {
-    // Keep this in sync with ASSIGNMENT_TYPES in validation.js.
-    // Order matters only for human readability; the underlying check is set-membership.
-    const allTypes = [
-      'Direct', 'Indirect', 'Eligible', 'Owner', 'Governed',
-      'OAuth2Grant', 'AppRole', 'AppRoleViaGroup',
-      'DirectoryRole', 'DirectoryRoleEligible',
-    ];
+    // The assignment-model redesign narrowed assignmentType to the three
+    // universal "how" values (see ASSIGNMENT_TYPES in validation.js + the hard
+    // rule in assignmentTypes.guard.test.js).
+    const allTypes = ['Direct', 'Indirect', 'Eligible'];
     for (const t of allTypes) {
       const result = validateRecords([{ ...validAssignment, assignmentType: t }], 'resource-assignments');
       expect(result.valid, `Expected valid for assignmentType=${t}`).toBe(true);
@@ -348,7 +345,7 @@ describe('validateRecords — resource-assignments-identity', () => {
   const validIdentityAssignment = {
     resourceId:    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     identityId:    'cccccccc-cccc-cccc-cccc-cccccccccccc',
-    assignmentType: 'Governed',
+    assignmentType: 'Direct',
   };
 
   it('accepts a valid identity assignment with explicit identityId (T7.1)', () => {
