@@ -2473,6 +2473,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#documentation-toolchain-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation Toolchain (Python)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#powershell-module" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3307,6 +3318,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#documentation-toolchain-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation Toolchain (Python)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#powershell-module" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3977,6 +3999,39 @@
 </tbody>
 </table>
 <hr />
+<h2 id="documentation-toolchain-python">Documentation Toolchain (Python)<a class="headerlink" href="#documentation-toolchain-python" title="Permanent link">&para;</a></h2>
+<p>The documentation site is built and versioned from <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/docs/requirements.txt"><code>docs/requirements.txt</code></a>. These packages run only in CI (docs deploy and release packaging) and are never installed into the shipped containers.</p>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Version</th>
+<th>Purpose</th>
+<th>License</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mkdocs</td>
+<td>1.6.1</td>
+<td>Static documentation site generator</td>
+<td>BSD-2-Clause</td>
+</tr>
+<tr>
+<td>mkdocs-material</td>
+<td>9.7.6</td>
+<td>Material for MkDocs — docs site theme and UI</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td>mike</td>
+<td>2.2.0</td>
+<td>Versioned docs deployment (edge / stable)</td>
+<td>BSD-3-Clause</td>
+</tr>
+</tbody>
+</table>
+<hr />
 <h2 id="powershell-module">PowerShell Module<a class="headerlink" href="#powershell-module" title="Permanent link">&para;</a></h2>
 <h3 id="module-information">Module Information<a class="headerlink" href="#module-information" title="Permanent link">&para;</a></h3>
 <table>
@@ -4154,7 +4209,8 @@
 <li><strong>MIT License</strong>: 95%+ of dependencies</li>
 <li><strong>Apache 2.0</strong>: swagger-ui-express, @playwright/test, eslint-plugin-security</li>
 <li><strong>MPL 2.0</strong>: @axe-core/playwright</li>
-<li><strong>BSD-3-Clause</strong>: re2</li>
+<li><strong>BSD-3-Clause</strong>: re2, mike</li>
+<li><strong>BSD-2-Clause</strong>: mkdocs</li>
 <li><strong>PostgreSQL License</strong>: PostgreSQL server</li>
 </ul>
 <p>Identity Atlas itself is licensed under the <strong>MIT License</strong>. See the repository <code>LICENSE</code> file for full terms.</p>
@@ -4164,6 +4220,7 @@
 <ul>
 <li>API backend: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/package.json"><code>app/api/package.json</code></a></li>
 <li>Frontend: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/ui/package.json"><code>app/ui/package.json</code></a></li>
+<li>Documentation toolchain: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/docs/requirements.txt"><code>docs/requirements.txt</code></a></li>
 <li>PowerShell module: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/setup/IdentityAtlas.psd1"><code>setup/IdentityAtlas.psd1</code></a></li>
 </ul>
 <hr />
