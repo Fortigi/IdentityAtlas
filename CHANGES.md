@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the published test-coverage page (and its browsable HTML reports) so they update on every merge again. The coverage workflow had been failing silently because the report directory under `docs/` was being excluded by an over-broad version-control ignore rule, so the page stayed frozen at its initial version.
+
+## Changes in this PR
+
 - Added the documentation build toolchain (MkDocs, Material for MkDocs, Mike) to the Software Bill of Materials, so it now appears in both the generated SBOM and the SBOM reference page. These were previously installed ad-hoc during CI and went unrecorded.
 
 ## Changes in this PR
