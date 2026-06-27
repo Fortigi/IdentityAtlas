@@ -15,7 +15,7 @@ const pages = [
 // Skipped: the lime-on-white theme has color-contrast issues and search
 // inputs are missing <label> elements. These are real a11y issues that will
 // be addressed when we add theme selection (high-contrast theme option).
-// Re-enable after the theme work lands.
+// Re-enable after the theme work lands. Tracked in #471.
 for (const p of pages) {
   test.skip(`${p.name} page has no critical accessibility violations`, async ({ page }) => {
     await page.goto(`${BASE}/${p.hash}`);
