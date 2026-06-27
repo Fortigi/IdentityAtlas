@@ -11,6 +11,11 @@ node_modules/
 .last-run.json
 coverage/
 coverage-contract/
+# The published, versioned coverage report lives under docs/ and IS committed
+# (coverage.yml renders it into the docs site). Keep it out of the broad
+# `coverage/` ignore above, which otherwise matches a `coverage` dir at any depth.
+!docs/coverage/
+!docs/coverage/**
 tools/csv-templates/demodata/
 tools/csv-templates/demodataTransformed/
 .claude/settings.local.json

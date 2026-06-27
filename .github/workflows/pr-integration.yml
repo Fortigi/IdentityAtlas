@@ -105,6 +105,7 @@ jobs:
       e2e:               ${{ steps.f.outputs.e2e }}
       load_soak:         ${{ steps.f.outputs.load_soak }}
       crawlers_to_test:  ${{ steps.scope.outputs.crawlers_to_test }}
+      only_tests:        ${{ steps.scope.outputs.only_tests }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -125,11 +126,6 @@ jobs:
               - 'app/api/Dockerfile'
               - 'setup/docker/Dockerfile.powershell'
               - 'docker-compose*.yml'
-              # Test files are co-located under src/ but aren't app source — a
-              # test-only change leaves the running app unchanged, so don't spin
-              # up the ~50-min integration/e2e/load-soak suites for it.
-              - '!**/*.test.js'
-              - '!**/*.test.jsx'
             e2e:
               - 'app/ui/src/**'
               - 'app/ui/e2e/**'
@@ -139,8 +135,6 @@ jobs:
               - 'tools/crawlers/**/*.e2e.*'
               - 'app/api/src/**'
               - 'app/api/Dockerfile'
-              - '!**/*.test.js'
-              - '!**/*.test.jsx'
             load_soak:
               - 'app/api/src/**'
               - 'tools/crawlers/shared/**'
@@ -149,8 +143,6 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/docker/Dockerfile.powershell'
               - 'docker-compose*.yml'
-              - '!**/*.test.js'
-              - '!**/*.test.jsx'
 
       # Dynamically detect which crawler types changed from the git diff.
       # No hardcoded type list — new crawlers are picked up automatically.
@@ -165,6 +157,19 @@ jobs:
       - id: scope
         run: |
           CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+
+          # only_tests: true when EVERY changed file is a test file (JS/JSX unit
+          # or Pester). The heavy integration/e2e/load-soak suites build and run
+          # the app, which a test-only change leaves unaffected — so they're
+          # gated off below. (dorny path filters can't express this: their `!`
+          # negation is additive OR, not subtractive, so app/api/src/** still
+          # matches a co-located *.test.js. We compute it here from the diff.)
+          if [ -n "$CHANGED" ] && ! echo "$CHANGED" | grep -qvE '\.test\.(js|jsx)$|\.Tests\.ps1$'; then
+            echo "only_tests=true" >> "$GITHUB_OUTPUT"
+            echo "ONLY_TESTS: true — test-only change, skipping integration/e2e/load-soak" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "only_tests=false" >> "$GITHUB_OUTPUT"
+          fi
 
           # Shared infra change → must test all crawlers
           if echo "$CHANGED" | grep -qE \
@@ -200,7 +205,7 @@ jobs:
     name: Integration Tests
     needs: [filter]
     if: |
-      needs.filter.outputs.integration == 'true' ||
+      (needs.filter.outputs.integration == 'true' && needs.filter.outputs.only_tests != 'true') ||
       needs.filter.result == 'failure' ||
       contains(github.event.pull_request.labels.*.name, 'integration-test')
     runs-on: ubuntu-latest
@@ -686,7 +691,7 @@ jobs:
     name: Playwright E2E
     needs: [filter]
     if: |
-      (needs.filter.outputs.e2e == 'true' || needs.filter.result == 'failure') &&
+      ((needs.filter.outputs.e2e == 'true' && needs.filter.outputs.only_tests != 'true') || needs.filter.result == 'failure') &&
       !contains(github.event.pull_request.labels.*.name, 'skip-e2e')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -791,7 +796,7 @@ jobs:
     needs: [filter]
     if: |
       (
-        needs.filter.outputs.load_soak == 'true' ||
+        (needs.filter.outputs.load_soak == 'true' && needs.filter.outputs.only_tests != 'true') ||
         needs.filter.result == 'failure' ||
         contains(github.event.pull_request.labels.*.name, 'load-soak')
       ) &&
