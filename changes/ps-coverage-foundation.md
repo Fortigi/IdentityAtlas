@@ -1,0 +1,4 @@
+- Added unit tests for the PowerShell SDK (Graph request/token layer, user/group/governance read functions, write functions, and helpers), the risk-scoring module, and the crawler helper libraries (midPoint REST client, Azure Resource Graph + ARM helpers, and the OData GET/paged request layer) to substantially raise PowerShell code coverage.
+- Fixed `Set-FGGroup`, which previously failed on every call due to a malformed `$PSBoundParameters` reference.
+- Fixed `Confirm-FGAccessPackageResource`, which referenced a non-existent command (a missing hyphen) when adding a group to an access package.
+- Fixed `Get-FGServicePrincipalWithSync`, which threw when discovering service principals without a filter.

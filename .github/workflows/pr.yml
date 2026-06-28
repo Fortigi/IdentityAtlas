@@ -284,13 +284,21 @@ jobs:
           $cfg.TestResult.OutputPath = 'pester-results.xml'
           $cfg.TestResult.OutputFormat = 'JUnitXml'
           $cfg.CodeCoverage.Enabled = $true
+          # Measure PRODUCT code only. Enumerate the .ps1 files and drop tooling
+          # that lives inside these dirs but isn't the crawler/SDK itself —
+          # self-test harnesses (Test-*Crawler.ps1), data seeders (Seed-*), and
+          # dev-only scripts. Same rationale as excluding *.test.js on the JS side.
           $cfg.CodeCoverage.Path = @(
-            (Get-ChildItem 'tools/powershell-sdk' -Directory | Select-Object -ExpandProperty FullName)
+            Get-ChildItem 'tools/powershell-sdk','tools/riskscoring' -Recurse -Filter '*.ps1' -File
             (Get-ChildItem 'tools/crawlers' -Directory |
               Where-Object { Test-Path (Join-Path $_.FullName 'crawler.json') } |
-              Select-Object -ExpandProperty FullName)
-            'tools/riskscoring'
-          )
+              ForEach-Object { Get-ChildItem $_.FullName -Recurse -Filter '*.ps1' -File })
+          ) | Where-Object {
+            $_.Name -notlike '*.Tests.ps1' -and
+            $_.Name -notlike 'Test-*Crawler.ps1' -and
+            $_.Name -notlike 'Seed-*' -and
+            $_.FullName -notmatch '[\\/]dev[\\/]'
+          } | Select-Object -ExpandProperty FullName
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
           $result = Invoke-Pester -Configuration $cfg

@@ -20,7 +20,7 @@ function Confirm-FGAccessPackageResource {
     }
     Else {
         Write-Host "Adding AccessPackageResource Group: $GroupDisplayName to Access Package: $AccessPackageName" -ForegroundColor Yellow
-        AddFGGroupToAccessPackage -AccessPackageID $AccessPackage.id -GroupId $Group.id -CatalogGroupID $CatalogGroup.id
+        Add-FGGroupToAccessPackage -AccessPackageID $AccessPackage.id -GroupId $Group.id -CatalogGroupID $CatalogGroup.id
     }
 
     $Result = Get-FGAccessPackagesResource -AccessPackageID $AccessPackage.id
