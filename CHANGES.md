@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Assignment imports now accept only the three standard assignment types (Direct, Indirect, Eligible); the legacy source-specific types are rejected at import, completing the assignment-model simplification (ownership is modelled as its own resource, governance as a flag).
+- Added an automated guard so the simplified assignment model can't quietly drift back to the old set of types.
+
+## Changes in this PR
+
 - Fixed the published test-coverage page (and its browsable HTML reports) so they update on every merge again. The coverage workflow had been failing silently because the report directory under `docs/` was being excluded by an over-broad version-control ignore rule, so the page stayed frozen at its initial version.
 
 ## Changes in this PR
