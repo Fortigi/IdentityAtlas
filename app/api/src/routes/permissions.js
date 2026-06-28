@@ -6,6 +6,7 @@ import { getGroupColumns, getResourceColumns, getPrincipalOrUserColumns, getPrin
 import { timedRequest } from '../perf/sqlTimer.js';
 import { buildContextFilterSql, parseAndResolveContextFilters } from '../contexts/contextFilters.js';
 import { expandCapabilityDown, effectiveAccessForNodes } from '../effectiveAccess/engine.js';
+import { isMissingSchema } from '../db/schemaErrors.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -81,7 +82,7 @@ router.get('/user-columns', async (req, res) => {
       `);
       const userTags = tagResult.recordset.map(r => r.name);
       grouped['__userTag'] = userTags; // always include values — tag query is fast
-    } catch { /* tag tables may not exist yet — skip silently */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* tag tables may not exist yet — skip silently */ }
 
     return res.json(
       Object.entries(grouped).map(([column, values]) => ({ column, values }))
@@ -130,7 +131,8 @@ router.get('/permissions', async (req, res) => {
       let allGroupCols;
       try {
         allGroupCols = await getResourceColumns(p);
-      } catch {
+      } catch (e) {
+        if (!isMissingSchema(e)) throw e;
         allGroupCols = await getGroupColumns(p);
       }
       const groupColNames = new Set(allGroupCols.map(c => GROUP_COL_ALIASES[c.name] || c.name));
@@ -242,7 +244,8 @@ router.get('/permissions', async (req, res) => {
       if (userTagFilter || groupTagFilter) {
         try {
           await ensureTagTables(p);
-        } catch {
+        } catch (e) {
+          if (!isMissingSchema(e)) throw e;
           userTagFilter = null;
           groupTagFilter = null;
         }
@@ -434,7 +437,7 @@ router.get('/permissions', async (req, res) => {
             GROUP BY ap."userId", ap."resourceId"
           `);
           apMapping = apRes.recordset;
-        } catch { /* AP view may not exist */ }
+        } catch (e) { if (!isMissingSchema(e)) throw e; /* AP view may not exist */ }
 
         const managedByPackages = apMapping
           .filter(r => r.memberId)
@@ -514,7 +517,7 @@ router.get('/permissions', async (req, res) => {
           GROUP BY ap."userId", ap."resourceId"
         `);
         apMapping = apResult.recordset;
-      } catch { /* AP view may not exist */ }
+      } catch (e) { if (!isMissingSchema(e)) throw e; /* AP view may not exist */ }
 
       const managedByPackages = apMapping
         .filter(r => r.memberId)
@@ -568,7 +571,7 @@ async function accessPackageResourcesHandler(req, res) {
   try {
     if (useSql) {
       const p = await db.getPool();
-      try { await ensureCategoryTables(p); } catch { /* category tables optional */ }
+      try { await ensureCategoryTables(p); } catch (e) { if (!isMissingSchema(e)) throw e; /* category tables optional */ }
       // Performance notes:
       //  - Previous version returned one row per (AP, resource) pair and
       //    let Node de-normalize it. On the load-test dataset that was
