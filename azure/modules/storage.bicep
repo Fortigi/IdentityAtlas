@@ -55,5 +55,9 @@ resource uploadsShare 'Microsoft.Storage/storageAccounts/fileServices/shares@202
 output storageAccountId string = st.id
 output storageAccountName string = st.name
 output uploadsShareName string = uploadsShare.name
-#disable-next-line outputs-should-not-contain-secrets // consumed by App Service + ACA Env file-share configs
-output storageAccountKey string = st.listKeys().keys[0].value
+
+// The storage account key is deliberately NOT emitted as an output. Module
+// outputs persist in ARM deployment history and are readable by any principal
+// with deployment/RG-reader access (audit finding H-1). Consumers (App Service,
+// ACA Env) reference this account via `existing` and call listKeys() themselves
+// — same deploy principal, so no secret crosses a module boundary.

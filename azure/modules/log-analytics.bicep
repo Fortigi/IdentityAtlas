@@ -54,11 +54,9 @@ resource lookedUp 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing
 output workspaceId string = createNew ? newWorkspace!.id : lookedUp!.id
 output customerId string = createNew ? newWorkspace!.properties.customerId : lookedUp!.properties.customerId
 
-// sharedKey IS a secret by design — consumed by the ACA Environment's
-// log destination config. Linter rule disabled on the output line.
-// Resolved via a var so the suppression applies to a single-line output.
-var resolvedSharedKey = createNew ? newWorkspace!.listKeys().primarySharedKey : lookedUp!.listKeys().primarySharedKey
-#disable-next-line outputs-should-not-contain-secrets
-output sharedKey string = resolvedSharedKey
+// The workspace shared key is deliberately NOT emitted as an output — outputs
+// persist in ARM deployment history (audit finding H-1). The ACA Environment
+// module references the workspace via `existing` (using the workspaceId output
+// above) and calls listKeys() itself.
 
 output createdNew bool = createNew

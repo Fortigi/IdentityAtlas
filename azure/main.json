@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "9529672888590703395"
+      "templateHash": "1861829179006836607"
     }
   },
   "parameters": {
@@ -122,7 +122,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "1270207507332607310"
+              "templateHash": "526043258497844453"
             }
           },
           "parameters": {
@@ -178,10 +178,6 @@
               "type": "string",
               "value": "[if(variables('createNew'), reference(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('namePrefix'))), '2023-09-01').customerId, reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingWorkspaceId'), '/')[2], split(parameters('existingWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))), '2023-09-01').customerId)]"
             },
-            "sharedKey": {
-              "type": "string",
-              "value": "[if(variables('createNew'), listKeys(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('namePrefix'))), '2023-09-01').primarySharedKey, listKeys(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingWorkspaceId'), '/')[2], split(parameters('existingWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('existingWorkspaceId'), '/'))), '2023-09-01').primarySharedKey)]"
-            },
             "createdNew": {
               "type": "bool",
               "value": "[variables('createNew')]"
@@ -217,7 +213,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "6337813460438162675"
+              "templateHash": "3469364046225841182"
             }
           },
           "parameters": {
@@ -297,10 +293,6 @@
             "uploadsShareName": {
               "type": "string",
               "value": "uploads"
-            },
-            "storageAccountKey": {
-              "type": "string",
-              "value": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('stName')), '2024-01-01').keys[0].value]"
             }
           }
         }
@@ -901,9 +893,6 @@
           "storageAccountName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.storageAccountName.value]"
           },
-          "storageAccountKey": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.storageAccountKey.value]"
-          },
           "uploadsShareName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.uploadsShareName.value]"
           },
@@ -918,7 +907,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "5240171855654956544"
+              "templateHash": "16066790737795264958"
             }
           },
           "parameters": {
@@ -982,12 +971,6 @@
               "type": "string",
               "metadata": {
                 "description": "Storage account name backing /data/uploads"
-              }
-            },
-            "storageAccountKey": {
-              "type": "securestring",
-              "metadata": {
-                "description": "Storage account key (used for the Azure Files mount)"
               }
             },
             "uploadsShareName": {
@@ -1145,7 +1128,7 @@
                       "accountName": "[parameters('storageAccountName')]",
                       "shareName": "[parameters('uploadsShareName')]",
                       "mountPath": "/data/uploads",
-                      "accessKey": "[parameters('storageAccountKey')]"
+                      "accessKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2024-01-01').keys[0].value]"
                     }
                   }
                 }
@@ -1236,14 +1219,11 @@
           "workspaceCustomerId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.customerId.value]"
           },
-          "workspaceSharedKey": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.sharedKey.value]"
+          "workspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.workspaceId.value]"
           },
           "storageAccountName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.storageAccountName.value]"
-          },
-          "storageAccountKey": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.storageAccountKey.value]"
           },
           "uploadsShareName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.uploadsShareName.value]"
@@ -1256,7 +1236,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "1752411857540287886"
+              "templateHash": "1376923566476867404"
             }
           },
           "parameters": {
@@ -1280,22 +1260,16 @@
                 "description": "Log Analytics customer ID (GUID)"
               }
             },
-            "workspaceSharedKey": {
-              "type": "securestring",
+            "workspaceId": {
+              "type": "string",
               "metadata": {
-                "description": "Log Analytics shared key"
+                "description": "Log Analytics workspace resource ID — used to read its shared key locally via listKeys(). The key is NOT passed in: module outputs persist in ARM deployment history (audit finding H-1)."
               }
             },
             "storageAccountName": {
               "type": "string",
               "metadata": {
                 "description": "Storage account name backing the uploads share"
-              }
-            },
-            "storageAccountKey": {
-              "type": "securestring",
-              "metadata": {
-                "description": "Storage account key"
               }
             },
             "uploadsShareName": {
@@ -1316,7 +1290,7 @@
                   "destination": "log-analytics",
                   "logAnalyticsConfiguration": {
                     "customerId": "[parameters('workspaceCustomerId')]",
-                    "sharedKey": "[parameters('workspaceSharedKey')]"
+                    "sharedKey": "[listKeys(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('workspaceId'), '/')[2], split(parameters('workspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('workspaceId'), '/'))), '2023-09-01').primarySharedKey]"
                   }
                 }
               }
@@ -1328,7 +1302,7 @@
               "properties": {
                 "azureFile": {
                   "accountName": "[parameters('storageAccountName')]",
-                  "accountKey": "[parameters('storageAccountKey')]",
+                  "accountKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2024-01-01').keys[0].value]",
                   "shareName": "[parameters('uploadsShareName')]",
                   "accessMode": "ReadWrite"
                 }
