@@ -103,7 +103,20 @@ export function renderWithProviders(ui, { auth = {}, theme = { isDark: false, mo
   return { authFetch: authValue.authFetch, ...result };
 }
 
+// Wrapper component factory for `renderHook` — supplies the same Theme + Auth
+// providers so hooks that call useAuth()/useIsDark() resolve. Returns both the
+// wrapper and the resolved authFetch (so tests can assert calls):
+//   const authFetch = makeAuthFetch({ '/api/foo': {...} });
+//   const { result } = renderHook(() => useFoo(), { wrapper: makeWrapper({ auth: { authFetch } }).wrapper });
+export function makeWrapper({ auth = {}, theme = { isDark: false, mode: 'light' } } = {}) {
+  const authValue = { ...defaultAuth, ...auth };
+  function Wrapper({ children }) {
+    return h(ThemeContext.Provider, { value: theme }, h(AuthContext.Provider, { value: authValue }, children));
+  }
+  return { wrapper: Wrapper, authFetch: authValue.authFetch };
+}
+
 // Re-export the Testing Library surface so test files import everything from
 // one place.
-export { screen, within, fireEvent, waitFor, act, cleanup } from '@testing-library/react';
+export { screen, within, fireEvent, waitFor, act, cleanup, renderHook } from '@testing-library/react';
 export { default as userEvent } from '@testing-library/user-event';
