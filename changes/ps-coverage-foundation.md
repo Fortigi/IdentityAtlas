@@ -2,3 +2,4 @@
 - Fixed `Set-FGGroup`, which previously failed on every call due to a malformed `$PSBoundParameters` reference.
 - Fixed `Confirm-FGAccessPackageResource`, which referenced a non-existent command (a missing hyphen) when adding a group to an access package.
 - Fixed `Get-FGServicePrincipalWithSync`, which threw when discovering service principals without a filter.
+- Fixed `Get-FGGroupEligibleMemberAll` so it gracefully returns nothing when the group query fails: previously, under the crawler's strict error mode, its error log terminated the call and crashed the crawl instead of skipping.
