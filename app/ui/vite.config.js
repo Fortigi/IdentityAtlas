@@ -29,7 +29,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: ['src/**/*.{js,jsx}'],
-      exclude: ['src/**/*.test.{js,jsx}', 'src/main.jsx'],
+      exclude: ['src/**/*.test.{js,jsx}', 'src/main.jsx', 'src/test-utils/**'],
     },
   },
   server: {

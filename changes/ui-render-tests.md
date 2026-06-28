@@ -1,0 +1,2 @@
+- Greatly expanded automated UI test coverage: React components are now mounted and exercised in a real DOM (effects, clicks, forms, tab switches) rather than only inspected as source, raising UI line coverage from ~5% to ~25%.
+- Added mount tests for the Plugins, Governance, Risk Scoring, Admin, Access Packages, Department, Context detail, Roll-up matrix, and Risk score sections, covering their loading, empty, error, and interaction states.
