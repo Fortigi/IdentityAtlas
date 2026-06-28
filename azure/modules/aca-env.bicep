@@ -17,19 +17,29 @@ param location string
 @description('Log Analytics customer ID (GUID)')
 param workspaceCustomerId string
 
-@description('Log Analytics shared key')
-@secure()
-param workspaceSharedKey string
+@description('Log Analytics workspace resource ID — used to read its shared key locally via listKeys(). The key is NOT passed in: module outputs persist in ARM deployment history (audit finding H-1).')
+param workspaceId string
 
 @description('Storage account name backing the uploads share')
 param storageAccountName string
 
-@description('Storage account key')
-@secure()
-param storageAccountKey string
-
 @description('File share name')
 param uploadsShareName string
+
+// Reference the LA workspace + storage account so we can read their secrets
+// locally via listKeys(), instead of receiving them as params/outputs (outputs
+// persist in ARM deployment history — audit H-1). Same deploy principal as the
+// producing modules, which already called listKeys() on these, so no extra
+// permissions are required. The workspace may be BYO in another RG, so its
+// name + scope are parsed out of the full resource ID.
+resource law 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
+  name: last(split(workspaceId, '/'))
+  scope: resourceGroup(split(workspaceId, '/')[2], split(workspaceId, '/')[4])
+}
+
+resource stg 'Microsoft.Storage/storageAccounts@2024-01-01' existing = {
+  name: storageAccountName
+}
 
 // IMPORTANT: do NOT set `workloadProfiles` here. Setting it (even to just
 // the Consumption profile) flips the env into "Workload Profiles" plan
@@ -45,7 +55,7 @@ resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
         customerId: workspaceCustomerId
-        sharedKey: workspaceSharedKey
+        sharedKey: law.listKeys().primarySharedKey
       }
     }
   }
@@ -57,7 +67,7 @@ resource uploadsStorage 'Microsoft.App/managedEnvironments/storages@2024-10-02-p
   properties: {
     azureFile: {
       accountName: storageAccountName
-      accountKey: storageAccountKey
+      accountKey: stg.listKeys().keys[0].value
       shareName: uploadsShareName
       accessMode: 'ReadWrite'
     }

@@ -217,7 +217,6 @@ module web 'modules/app-service.bicep' = {
     pgUsername: postgres.outputs.adminUsername
     pgDatabaseName: postgres.outputs.databaseName
     storageAccountName: storage.outputs.storageAccountName
-    storageAccountKey: storage.outputs.storageAccountKey
     uploadsShareName: storage.outputs.uploadsShareName
     logAnalyticsWorkspaceId: logs.outputs.workspaceId
   }
@@ -232,9 +231,8 @@ module cae 'modules/aca-env.bicep' = {
     namePrefix: namePrefix
     location: location
     workspaceCustomerId: logs.outputs.customerId
-    workspaceSharedKey: logs.outputs.sharedKey
+    workspaceId: logs.outputs.workspaceId
     storageAccountName: storage.outputs.storageAccountName
-    storageAccountKey: storage.outputs.storageAccountKey
     uploadsShareName: storage.outputs.uploadsShareName
   }
 }

@@ -42,10 +42,6 @@ param pgDatabaseName string
 @description('Storage account name backing /data/uploads')
 param storageAccountName string
 
-@description('Storage account key (used for the Azure Files mount)')
-@secure()
-param storageAccountKey string
-
 @description('Uploads share name')
 param uploadsShareName string
 
@@ -64,6 +60,13 @@ param allowedIpCidrs array = []
 // expects the full image path. We pass the full image including tag, so no
 // stripping needed — variable kept for clarity.
 var linuxFxVersion = 'DOCKER|${image}'
+
+// Reference the storage account (created in this RG by the storage module) so we
+// can read its key locally via listKeys(), instead of receiving the key as a
+// module output/param — outputs persist in ARM deployment history (audit H-1).
+resource stg 'Microsoft.Storage/storageAccounts@2024-01-01' existing = {
+  name: storageAccountName
+}
 
 resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: '${namePrefix}-plan'
@@ -154,7 +157,7 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
           accountName: storageAccountName
           shareName: uploadsShareName
           mountPath: '/data/uploads'
-          accessKey: storageAccountKey
+          accessKey: stg.listKeys().keys[0].value
         }
       }
     }
