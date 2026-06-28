@@ -25,7 +25,7 @@ WITH g AS (
     FROM "_history"
    WHERE "tableName" = 'ResourceAssignments'
      AND "operation" = 'I'
-     AND ("rowData"->>'assignmentType') = 'Governed'
+     AND ("rowData"->>'governed') = 'true'
 )
 UPDATE "_history" h
    SET "changedAt" = now() - (CASE

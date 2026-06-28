@@ -147,12 +147,9 @@ Assert-Check 'BusinessRole-Count' ($brCount -eq 4) "Got $brCount (expected 4)"
 $dirRoleCount = Get-SqlScalar "SELECT COUNT(*) FROM Resources WHERE resourceType = 'EntraDirectoryRole' AND ValidTo = $CURRENT"
 Assert-Check 'DirectoryRole-Count' ($dirRoleCount -eq 2) "Got $dirRoleCount (expected 2)"
 
-# Assignment types
-$govCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments WHERE assignmentType = 'Governed' AND ValidTo = $CURRENT"
+# Assignment types — governance is now the `governed` flag (not a 'Governed' type)
+$govCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments WHERE governed = true AND ValidTo = $CURRENT"
 Assert-Check 'Has-Governed-Assignments' ($govCount -ge 10) "Count: $govCount"
-
-$ownerCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments WHERE assignmentType = 'Owner' AND ValidTo = $CURRENT"
-Assert-Check 'Has-Owner-Assignments' ($ownerCount -ge 1) "Count: $ownerCount"
 
 $eligCount = Get-SqlScalar "SELECT COUNT(*) FROM ResourceAssignments WHERE assignmentType = 'Eligible' AND ValidTo = $CURRENT"
 Assert-Check 'Has-Eligible-Assignments' ($eligCount -ge 1) "Count: $eligCount"
