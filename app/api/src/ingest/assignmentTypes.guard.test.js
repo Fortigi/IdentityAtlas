@@ -59,8 +59,10 @@ describe('assignment-type hard rule — static emission scan', () => {
   it('no crawler or fixture emits a retired assignmentType', () => {
     // Match an emission (assignmentType = 'X' / "assignmentType": "X"), not a
     // comparison/comment/phase-toggle name, so historical handling and
-    // SyncOAuth2Grants-style params don't trip it.
-    const emitRe = new RegExp(`assignmentType\\s*[=:]\\s*['"](${RETIRED.join('|')})['"]`);
+    // SyncOAuth2Grants-style params don't trip it. Static literal (keep the
+    // alternation in sync with RETIRED above); longer variants first so the
+    // closing-quote anchor resolves AppRole vs AppRoleViaGroup correctly.
+    const emitRe = /["']?assignmentType["']?\s*[=:]\s*['"](Owner|Governed|OAuth2Grant|AppRoleViaGroup|AppRole|DirectoryRoleEligible|DirectoryRole)['"]/;
     const files = SCAN_ROOTS.flatMap(walk).filter(f => /\.(ps1|js|jsx|json)$/.test(f) && !/\.test\./.test(f));
     const offenders = [];
     for (const f of files) {
