@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Hardened the Azure deployment templates: the storage account key and Log Analytics shared key are no longer emitted as Bicep module outputs (they previously persisted in ARM deployment history, readable by any deployment/resource-group reader). The App Service and Container Apps Environment now read those keys directly at deploy time, so the secrets never cross a module boundary.
+
+## Changes in this PR
+
 - Identity, resource, and permission pages now report a clear error when an underlying data lookup genuinely fails, instead of silently showing empty or zero values — only a legitimately absent optional table/column is treated as "no data".
 
 ## Changes in this PR
