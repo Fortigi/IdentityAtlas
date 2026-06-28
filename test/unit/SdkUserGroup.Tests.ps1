@@ -394,7 +394,7 @@ Describe 'Get-FGGroupMemberAllToFile' {
         }
         Mock -ModuleName IdentityAtlas Remove-FGTrailingCommaFromJsonFile { }
 
-        $file = Join-Path $env:TEMP ("fg_members_{0}.json" -f [guid]::NewGuid())
+        $file = Join-Path $TestDrive ("fg_members_{0}.json" -f [guid]::NewGuid())
         try {
             Get-FGGroupMemberAllToFile -File $file
             Test-Path $file | Should -BeTrue
@@ -418,7 +418,7 @@ Describe 'Get-FGGroupMemberAllToFile' {
         }
         Mock -ModuleName IdentityAtlas Remove-FGTrailingCommaFromJsonFile { }
 
-        $file = Join-Path $env:TEMP ("fg_members_{0}.json" -f [guid]::NewGuid())
+        $file = Join-Path $TestDrive ("fg_members_{0}.json" -f [guid]::NewGuid())
         try {
             Get-FGGroupMemberAllToFile -File $file -Transitive
             Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetRequest -ParameterFilter {
@@ -445,7 +445,7 @@ Describe 'Get-FGGroupTransitiveMemberAllToFile' {
         }
         Mock -ModuleName IdentityAtlas Remove-FGTrailingCommaFromJsonFile { }
 
-        $file = Join-Path $env:TEMP ("fg_members_{0}.json" -f [guid]::NewGuid())
+        $file = Join-Path $TestDrive ("fg_members_{0}.json" -f [guid]::NewGuid())
         try {
             Get-FGGroupTransitiveMemberAllToFile -File $file
             Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetRequest -ParameterFilter {
