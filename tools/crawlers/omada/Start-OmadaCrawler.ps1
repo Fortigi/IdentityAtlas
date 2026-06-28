@@ -192,16 +192,6 @@ $ResourceCategoryMapping = if ($Cfg.resourceCategoryMapping) {
 
 #region Functions
 
-function Map-ResourceCategory {
-    param([string]$Category)
-    foreach ($M in $ResourceCategoryMapping) {
-        if ($M.category -eq $Category -or $M.category -eq '') {
-            return $M.resourceType
-        }
-    }
-    return 'Resource'
-}
-
 # Default type mappings (operator can override in config)
 $DefaultTypeMappings = @{
     identityTypeToIdentityAtlas    = @{ Employee = 'User'; Primary = 'User'; Person = 'User'; Contractor = 'ExternalUser'; 'External Worker' = 'ExternalUser'; 'Service Account' = 'ServicePrincipal'; 'Non-Person' = 'ServicePrincipal'; Machine = 'ServicePrincipal' }
@@ -211,120 +201,21 @@ $DefaultTypeMappings = @{
     resourceTypesAsBusinessRoles   = @('Business Role')
 }
 
-function Merge-TypeMappings {
-    param($Defaults, $Overrides)
-    if (-not $Overrides) { return $Defaults }
-    $Result = @{}
-    foreach ($K in $Defaults.Keys) {
-        if ($Overrides.PSObject.Properties.Name -contains $K) {
-            $Ov = $Overrides.$K
-            if ($Ov -is [System.Management.Automation.PSCustomObject]) {
-                # Convert PSCustomObject to hashtable and merge
-                $Merged = @{}
-                foreach ($Dk in $Defaults[$K].Keys) { $Merged[$Dk] = $Defaults[$K][$Dk] }
-                foreach ($Ok in $Ov.PSObject.Properties) { $Merged[$Ok.Name] = $Ok.Value }
-                $Result[$K] = $Merged
-            } elseif ($Ov -is [array]) {
-                $Result[$K] = @($Ov)
-            } else {
-                $Result[$K] = $Ov
-            }
-        } else {
-            $Result[$K] = $Defaults[$K]
-        }
-    }
-    return $Result
-}
+# ─── Load extracted helper functions ──────────────────────────────
+# Dot-sourced into this script's own scope so they read script-scope vars
+# (e.g. $TypeMappings, $ResourceCategoryMapping, $Script:phases) at call time.
+. (Join-Path $PSScriptRoot 'OmadaCrawler.Functions.ps1')
 
 $TypeMappings = Merge-TypeMappings -Defaults $DefaultTypeMappings -Overrides $Cfg.typeMappings
 $IdentityTypesForIdentityTable = @($TypeMappings['identityTypesForIdentityTable'])
-
-function Map-IdentityTypeToAtlas {
-    param([string]$OmadaType)
-    $Map = $TypeMappings['identityTypeToIdentityAtlas']
-    if ($Map.ContainsKey($OmadaType)) { return $Map[$OmadaType] }
-    Write-Host "    Warning: unknown IdentityType '$OmadaType' — defaulting to 'User'" -ForegroundColor Yellow
-    return 'User'
-}
-
-function Map-ResourceTypeToAtlas {
-    param([string]$OmadaType)
-    $Map = $TypeMappings['resourceTypeToIdentityAtlas']
-    if ($Map.ContainsKey($OmadaType)) { return $Map[$OmadaType] }
-    # Normalise: remove spaces, keep as-is
-    return $OmadaType -replace '\s+', ''
-}
-
-function Map-ContextTypeToAtlas {
-    param([string]$OmadaType)
-    $Map = $TypeMappings['contextTypeToIdentityAtlas']
-    if ($Map.ContainsKey($OmadaType)) { return $Map[$OmadaType] }
-    return $OmadaType -replace '\s+', ''
-}
-
-# ─── Step logging ─────────────────────────────────────────────────
-function Write-Step {
-    param([string]$Msg)
-    Write-Host "  → $Msg" -ForegroundColor DarkGray
-}
 
 # ─── Phase tracking ───────────────────────────────────────────────
 $Script:phases      = [System.Collections.Generic.List[object]]::new()
 $Script:phaseErrors = [System.Collections.Generic.List[string]]::new()
 $Script:startTime   = [datetime]::UtcNow
 
-function Write-Phase {
-    param([string]$Name, [TimeSpan]$Duration, [string]$ErrorMsg = $Null, [hashtable]$Records = $Null)
-    $Phase = @{ name = $Name; durationMs = [int]$Duration.TotalMilliseconds; status = if ($ErrorMsg) { 'failed' } else { 'ok' } }
-    if ($ErrorMsg)  { $Phase.error   = $ErrorMsg }
-    if ($Records)   { $Phase.records = $Records }
-    $Script:phases.Add($Phase)
-}
-
 # ─── Ingest + progress helpers ───────────────────────────────────
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
-
-function Send-IngestBatch {
-    param(
-        [Parameter(Mandatory)] [string]$Endpoint,
-        [Parameter(Mandatory)] [int]$SystemId,
-        [string]$SyncMode   = 'full',
-        [hashtable]$Scope   = @{},
-        [array]$Records     = @(),
-        [string[]]$DeletedIds = @(),
-        [int]$BatchSize     = 5000
-    )
-    if (-not $Records -or $Records.Count -eq 0) {
-        # Still send an empty full-sync batch so the server can scoped-delete stale data
-        $Body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = @() }
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-    }
-
-    if ($DeletedIds.Count -gt 0) {
-        $DelBody = @{ systemId = $SystemId; syncMode = 'delta'; scope = $Scope; records = @(); deletedIds = ConvertTo-JsonArray $DeletedIds }
-        Invoke-IngestAPI -Endpoint $Endpoint -Body $DelBody | Out-Null
-    }
-
-    if ($Records.Count -le $BatchSize) {
-        $Body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Records }
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-    }
-
-    # Chunked session for large batches
-    $SyncId = $Null; $TotalInserted = 0; $TotalUpdated = 0; $TotalDeleted = 0
-    for ($I = 0; $I -lt $Records.Count; $I += $BatchSize) {
-        $Chunk   = $Records[$I..([Math]::Min($I + $BatchSize - 1, $Records.Count - 1))]
-        $IsFirst = ($I -eq 0)
-        $IsLast  = ($I + $BatchSize -ge $Records.Count)
-        $Body    = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Chunk
-                      syncSession = if ($IsFirst) { 'start' } elseif ($IsLast) { 'end' } else { 'continue' } }
-        if ($SyncId) { $Body.syncId = $SyncId }
-        $Result = Invoke-IngestAPI -Endpoint $Endpoint -Body $Body
-        if ($IsFirst -and $Result.syncId) { $SyncId = $Result.syncId }
-        $TotalInserted += ($Result.inserted ?? 0); $TotalUpdated += ($Result.updated ?? 0); $TotalDeleted += ($Result.deleted ?? 0)
-    }
-    return @{ inserted = $TotalInserted; updated = $TotalUpdated; deleted = $TotalDeleted }
-}
 
 #endregion Functions
 
