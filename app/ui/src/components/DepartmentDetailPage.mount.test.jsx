@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
 import DepartmentDetailPage from './DepartmentDetailPage';
-import { renderWithProviders, makeAuthFetch, jsonResponse, screen, fireEvent, userEvent } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent } from '@ui/test-utils/renderWithProviders';
 
 // Org-chart user fixtures. The component's buildDeptTree picks the manager-less
 // user that has reports and the highest report count as the tree root, then

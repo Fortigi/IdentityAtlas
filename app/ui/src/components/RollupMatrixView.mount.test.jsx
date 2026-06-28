@@ -4,7 +4,7 @@ import { createElement as h } from 'react';
 import RollupMatrixView from './RollupMatrixView';
 import {
   renderWithProviders, makeAuthFetch, jsonResponse,
-  screen, within, fireEvent, userEvent,
+  screen, userEvent,
 } from '@ui/test-utils/renderWithProviders';
 
 // A non-trivial attribute roll-up: two resource rows, two group columns

@@ -231,11 +231,11 @@ describe('AdminPage (mounted)', () => {
   });
 
   it('runs an LLM connection test and surfaces the result', async () => {
-    const authFetch = makeAuthFetch((url, opts) => {
+    const authFetch = makeAuthFetch((url) => {
       if (String(url).includes('/api/admin/llm/test')) {
         return { ok: true, model: 'claude-3', latencyMs: 123, sample: 'hi' };
       }
-      return adminRoutes(url, opts);
+      return adminRoutes(url);
     });
     renderWithProviders(h(AdminPage, {}), {
       auth: { authFetch, hasWildcard: true, permissions: new Set(['*']) },

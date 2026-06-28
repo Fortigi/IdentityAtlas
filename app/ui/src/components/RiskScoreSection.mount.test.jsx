@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
 import RiskScoreSection from './RiskScoreSection';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, fireEvent, userEvent } from '@ui/test-utils/renderWithProviders';
