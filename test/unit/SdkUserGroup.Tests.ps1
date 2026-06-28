@@ -494,6 +494,8 @@ Describe 'Get-FGGroupEligibleMemberAll' {
 
     It 'returns null when the top-level groups call fails' {
         Mock -ModuleName IdentityAtlas Invoke-FGGetRequest { throw 'boom' }
-        Get-FGGroupEligibleMemberAll | Should -BeNullOrEmpty
+        # 2>$null silences the function's by-design "failed" error-stream log (it's
+        # exercised on purpose here) so it doesn't read as a failure in CI output.
+        Get-FGGroupEligibleMemberAll 2>$null | Should -BeNullOrEmpty
     }
 }

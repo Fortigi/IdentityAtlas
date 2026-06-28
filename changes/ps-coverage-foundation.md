@@ -3,3 +3,4 @@
 - Fixed `Confirm-FGAccessPackageResource`, which referenced a non-existent command (a missing hyphen) when adding a group to an access package.
 - Fixed `Get-FGServicePrincipalWithSync`, which threw when discovering service principals without a filter.
 - Fixed `Get-FGGroupEligibleMemberAll` so it gracefully returns nothing when the group query fails: previously, under the crawler's strict error mode, its error log terminated the call and crashed the crawl instead of skipping.
+- Re-enabled the crawler manifest `CrawlerMeta.js` checks for every crawler (removed a stale "pending migration" skip list that was suppressing them now that all crawlers ship the file).

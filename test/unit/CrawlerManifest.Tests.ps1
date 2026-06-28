@@ -19,7 +19,6 @@
 
 BeforeDiscovery {
     $libraryCrawlers  = @('odata')
-    $pendingMigration = @('entra-id', 'csv', 'demo', 'custom-connector')
 
     $repoRoot     = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $crawlersRoot = Join-Path $repoRoot 'tools' 'crawlers'
@@ -32,7 +31,6 @@ BeforeDiscovery {
                 Type      = $obj.type
                 Dir       = $_.DirectoryName
                 IsLibrary = ($libraryCrawlers  -contains $obj.type)
-                IsPending = ($pendingMigration -contains $obj.type)
             }
         }
 }
@@ -56,10 +54,6 @@ Describe 'Crawler manifest completeness' {
         It 'has CrawlerMeta.js for UI type-picker registration' {
             if ($IsLibrary) {
                 Set-ItResult -Skipped -Because "'$Type' is a library crawler (dependsOn only) — CrawlerMeta.js not required"
-                return
-            }
-            if ($IsPending) {
-                Set-ItResult -Skipped -Because "'$Type' not yet migrated — add tools/crawlers/$Type/CrawlerMeta.js and remove from pendingMigration"
                 return
             }
             Join-Path $Dir 'CrawlerMeta.js' | Should -Exist
