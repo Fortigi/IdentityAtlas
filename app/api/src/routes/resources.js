@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { timedRequest } from '../perf/sqlTimer.js';
 import { getResourceColumns, getResourceColumnValues } from '../db/columnCache.js';
 import { ensureTagTables, buildFilterWhere } from './tags.js';
+import { isMissingSchema } from '../db/schemaErrors.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -203,7 +204,7 @@ router.get('/resources/:id', async (req, res) => {
         [resourceId]
       );
       if (rs.rows.length > 0) Object.assign(attributes, cleanRow(rs.rows[0]));
-    } catch { /* RiskScores may not exist on older deployments */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* RiskScores may not exist on older deployments */ }
 
     // 2. Tags (support both 'resource' and 'group' entity types for backward compat)
     let tags = [];
@@ -217,7 +218,7 @@ router.get('/resources/:id', async (req, res) => {
           WHERE ta."entityId" = @id AND t."entityType" IN ('resource', 'group')
         `);
       tags = r.recordset;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 3. Member count — broken down by assignmentType so the entity graph
     //    can show a node per type (Direct / Governed / Owner / Eligible).
@@ -237,7 +238,8 @@ router.get('/resources/:id', async (req, res) => {
         if (row.assignmentType in assignmentByType) assignmentByType[row.assignmentType] = row.cnt;
       }
       memberCount = Object.values(assignmentByType).reduce((a, b) => a + b, 0);
-    } catch {
+    } catch (e) {
+      if (!isMissingSchema(e)) throw e;
       // Fall back to permission view (no type breakdown there — leave counts 0)
       try {
         const table = await getPermissionTable(pool);
@@ -245,7 +247,7 @@ router.get('/resources/:id', async (req, res) => {
           .input('id', resourceId)
           .query(`SELECT COUNT(DISTINCT "memberId") AS cnt FROM ${table} WHERE "resourceId" = @id`);
         memberCount = r.recordset[0].cnt;
-      } catch { /* view may not exist */ }
+      } catch (e) { if (!isMissingSchema(e)) throw e; /* view may not exist */ }
     }
 
     // 4. Access package count (business roles that contain this resource)
@@ -262,7 +264,7 @@ router.get('/resources/:id', async (req, res) => {
             AND rrs."parentResourceId" IS NOT NULL
         `);
       accessPackageCount = r.recordset[0].cnt;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 4b. Parent resource count (all parent resources via any relationship type)
     let parentResourceCount = 0;
@@ -275,7 +277,7 @@ router.get('/resources/:id', async (req, res) => {
           WHERE rrs."childResourceId" = @id
         `);
       parentResourceCount = r.recordset[0].cnt;
-    } catch { /* table may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* table may not exist */ }
 
     // 5. History count (v5: queries the _history audit table)
     let historyCount = 0;
@@ -285,7 +287,7 @@ router.get('/resources/:id', async (req, res) => {
         [resourceId]
       );
       historyCount = r?.cnt ?? 0;
-    } catch { /* _history may not exist on older deployments */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* _history may not exist on older deployments */ }
 
     // 6. Context-membership count (v6 — Resources.contextId column was
     // dropped in favor of the many-to-many ContextMembers join).
@@ -296,7 +298,7 @@ router.get('/resources/:id', async (req, res) => {
         [resourceId]
       );
       contextCount = r?.cnt ?? 0;
-    } catch { /* ContextMembers may not exist on older deployments */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist on older deployments */ }
 
     res.json({ attributes, tags, memberCount, assignmentByType, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0, contextCount });
   } catch (err) {
@@ -491,7 +493,7 @@ router.get('/resource-columns', async (req, res) => {
       `);
       const resourceTags = tagResult.recordset.map(r => r.name);
       grouped['__resourceTag'] = schemaOnly ? [] : resourceTags;
-    } catch { /* tag tables may not exist yet */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* tag tables may not exist yet */ }
 
     return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
   } catch (err) {

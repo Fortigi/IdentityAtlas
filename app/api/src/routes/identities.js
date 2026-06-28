@@ -13,6 +13,7 @@
 import { Router } from 'express';
 import { timedRequest } from '../perf/sqlTimer.js';
 import { requirePermission } from '../middleware/auth.js';
+import { isMissingSchema } from '../db/schemaErrors.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -299,7 +300,8 @@ router.get('/identities/:id', async (req, res) => {
           WHERE m."identityId" = @identityId
           ORDER BY m."isPrimary" DESC NULLS LAST, m."accountType" ASC
         `);
-    } catch {
+    } catch (e) {
+      if (!isMissingSchema(e)) throw e;
       membersResult = await timedRequest(p, 'identity-members-legacy', res)
         .input('identityId', identityId)
         .query(`
@@ -324,7 +326,8 @@ router.get('/identities/:id', async (req, res) => {
             LEFT JOIN "Principals" u ON m."principalId" = u.id
             WHERE m."identityId" = @identityId
           `);
-      } catch {
+      } catch (e) {
+        if (!isMissingSchema(e)) throw e;
         riskResult = await timedRequest(p, 'identity-member-risks-legacy', res)
           .input('identityId', identityId)
           .query(`
@@ -335,7 +338,7 @@ router.get('/identities/:id', async (req, res) => {
           `);
       }
       riskRows = riskResult.recordset;
-    } catch { /* risk columns may not exist yet */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* risk columns may not exist yet */ }
 
     // Fetch group memberships per account for context
     let groupCountRows = [];
@@ -350,8 +353,8 @@ router.get('/identities/:id', async (req, res) => {
           GROUP BY m."principalId"
         `);
       groupCountRows = groupCountResult.recordset;
-    } catch {
-      // ResourceAssignments may not exist
+    } catch (e) {
+      if (!isMissingSchema(e)) throw e;  // ResourceAssignments may not exist
     }
 
     // Attach per-account group counts + risk (keyed by principalId — see enrichMembers).
@@ -377,7 +380,7 @@ router.get('/identities/:id', async (req, res) => {
       for (const row of aggResult.recordset) {
         if (row.assignmentType in aggregate) aggregate[row.assignmentType] = row.cnt;
       }
-    } catch { /* ResourceAssignments may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* ResourceAssignments may not exist */ }
 
     // Context-membership count across the identity's linked principal IDs.
     let contextCount = 0;
@@ -389,7 +392,7 @@ router.get('/identities/:id', async (req, res) => {
                  WHERE cm."memberId"::text = @identityId
                    AND cm."memberType" = 'Identity'`);
       contextCount = r.recordset[0]?.cnt || 0;
-    } catch { /* ContextMembers may not exist */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* ContextMembers may not exist */ }
 
     res.json({
       identity,
@@ -681,7 +684,7 @@ router.get('/identity-columns', async (req, res) => {
             `SELECT DISTINCT "${col}" AS v FROM "Identities" WHERE "${col}" IS NOT NULL AND "${col}" <> '' ORDER BY "${col}" LIMIT 500`
           );
           grouped[col] = r.recordset.map(x => x.v);
-        } catch { grouped[col] = []; }
+        } catch (e) { if (!isMissingSchema(e)) throw e; grouped[col] = []; }
       }
     }
 
@@ -695,7 +698,7 @@ router.get('/identity-columns', async (req, res) => {
          ORDER BY t.name
       `);
       grouped['__identityTag'] = schemaOnly ? [] : r.recordset.map(x => x.name);
-    } catch { /* GraphTags may not exist yet */ }
+    } catch (e) { if (!isMissingSchema(e)) throw e; /* GraphTags may not exist yet */ }
 
     return res.json(Object.entries(grouped).map(([column, values]) => ({ column, values })));
   } catch (err) {

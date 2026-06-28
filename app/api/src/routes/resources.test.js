@@ -23,7 +23,15 @@ const mockPool = {
   },
 };
 
-vi.mock('../db/connection.js', () => ({ getPool: async () => mockPool }));
+// db.query / db.queryOne back the optional-data reads in GET /resources/:id
+// (RiskScores, history, context counts) — exposed so the de-masking tests below
+// can make a single optional read fail on demand.
+const mockDb = { query: vi.fn(), queryOne: vi.fn() };
+vi.mock('../db/connection.js', () => ({
+  getPool: async () => mockPool,
+  query: (...a) => mockDb.query(...a),
+  queryOne: (...a) => mockDb.queryOne(...a),
+}));
 
 // timedRequest is used only by GET /resources/:id.
 const timedQuery = vi.fn();
@@ -89,5 +97,34 @@ describe('GET /resources/:id — detail', () => {
     timedQuery.mockResolvedValueOnce({ recordset: [] });
     const res = await request(app).get(`/api/resources/${VALID_ID}`);
     expect(res.status).toBe(404);
+  });
+});
+
+// Audit finding Q2: optional-data reads (RiskScores, tags, counts, history) are
+// each wrapped in try/catch. They must swallow ONLY a missing table/column/view
+// and let every other error surface — otherwise a real failure silently returns
+// a 200 with empty/zero data, masking the outage.
+describe('GET /resources/:id — optional-data error handling (Q2 de-masking)', () => {
+  // A resource row (passes the 404 gate) + cnt:0 for every count query.
+  const okRow = { recordset: [{ id: VALID_ID, displayName: 'Eng', cnt: 0, assignmentType: 'Direct' }] };
+  beforeEach(() => {
+    timedQuery.mockReset();
+    timedQuery.mockResolvedValue(okRow);
+    mockDb.query.mockReset();
+    mockDb.query.mockResolvedValue({ rows: [] });   // RiskScores
+    mockDb.queryOne.mockReset();
+    mockDb.queryOne.mockResolvedValue({ cnt: 0 });   // history + context counts
+  });
+
+  it('degrades to 200 when an optional table/view is absent (missing-schema code)', async () => {
+    mockDb.query.mockRejectedValueOnce({ code: '42P01' }); // RiskScores table missing
+    const res = await request(app).get(`/api/resources/${VALID_ID}`);
+    expect(res.status).toBe(200);
+  });
+
+  it('surfaces a 500 when an optional read fails for a non-schema reason', async () => {
+    mockDb.query.mockRejectedValueOnce(new Error('connection reset')); // real failure
+    const res = await request(app).get(`/api/resources/${VALID_ID}`);
+    expect(res.status).toBe(500);
   });
 });
