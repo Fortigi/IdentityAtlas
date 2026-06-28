@@ -1,5 +1,14 @@
 ## Changes in this PR
 
+- Greatly expanded automated UI test coverage: React components are now mounted and exercised in a real DOM (effects, clicks, forms, wizard steps, tab switches) rather than only inspected as source, raising UI line coverage from ~5% to ~64%.
+- Added mount tests for the Plugins, Governance, Risk Scoring, Admin, Access Packages, Department, Context detail, Contexts, Roll-up matrix, Matrix, Matrix filter wizard, New context wizard, Risk profile wizard, Roles & permissions, and Risk score sections — covering their loading, empty, error, and interaction states.
+- Added mount tests for the Systems, Identity detail, and Run detail pages — covering their loading, empty, error, and interaction states.
+- Added mount tests for the Dashboard landing page (Overview and Trends tabs) and the Sync Log page — covering loading, empty, error, stat-card navigation, tab switching, and filter/search interactions.
+- Added mount tests for the Performance, Account Linking settings, Entity graph, Context picker, and Rotated matrix views — covering their loading, empty, error, and interaction states.
+- Added tests for the Excel export utilities, entity-graph shaping, and the shared list-page, matrix, permissions, and expandable-graph hooks.
+
+## Changes in this PR
+
 - Hardened the Azure deployment templates: the storage account key and Log Analytics shared key are no longer emitted as Bicep module outputs (they previously persisted in ARM deployment history, readable by any deployment/resource-group reader). The App Service and Container Apps Environment now read those keys directly at deploy time, so the secrets never cross a module boundary.
 
 ## Changes in this PR
