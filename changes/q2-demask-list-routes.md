@@ -1,1 +1,0 @@
-- Identity, resource, and permission pages now report a clear error when an underlying data lookup genuinely fails, instead of silently showing empty or zero values — only a legitimately absent optional table/column is treated as "no data".
