@@ -23,6 +23,14 @@ const gate = requirePermission('admin.csv-import');
 
 const UPLOAD_ROOT = process.env.UPLOAD_ROOT || '/data/uploads';
 
+// Upload bounds (M-4) — previously 1 GB/file × 50 files = ~50 GB/request to a
+// shared Docker volume, with no aggregate cap. Per-file size + file count are
+// enforced by multer; the aggregate request cap is checked from Content-Length
+// before multer streams anything to disk. All env-overridable for large tenants.
+const MAX_FILE_BYTES  = Number(process.env.UPLOAD_MAX_FILE_BYTES)  || 250 * 1024 * 1024;  // 250 MB / file
+const MAX_FILES       = Number(process.env.UPLOAD_MAX_FILES)       || 20;
+const MAX_TOTAL_BYTES = Number(process.env.UPLOAD_MAX_TOTAL_BYTES) || 1024 * 1024 * 1024; // 1 GB / request
+
 function configFolder(crawlerType, configId) {
   return join(UPLOAD_ROOT, `${crawlerType}-${configId}`);
 }
@@ -96,8 +104,8 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 1024 * 1024 * 1024, // 1 GB per file
-    files: 50,
+    fileSize: MAX_FILE_BYTES,
+    files: MAX_FILES,
   },
   fileFilter: (req, file, cb) => {
     // Allowed extensions come from the crawler's own manifest. Block anything
@@ -143,12 +151,20 @@ router.post(
     if (configId === null) return;
     const crawlerType = await assertUploadableConfig(configId, res);
     if (!crawlerType) return;
+    // Aggregate request-size cap (M-4) — reject an oversized upload from the
+    // declared Content-Length before multer streams anything to the shared volume.
+    const declaredBytes = Number(req.headers['content-length']);
+    if (Number.isFinite(declaredBytes) && declaredBytes > MAX_TOTAL_BYTES) {
+      return res.status(413).json({ error: `Upload too large — maximum ${Math.round(MAX_TOTAL_BYTES / 1024 / 1024)} MB per request` });
+    }
     req._crawlerType = crawlerType;
     next();
   },
   (req, res) => {
-    upload.array('files', 50)(req, res, (err) => {
+    upload.array('files', MAX_FILES)(req, res, (err) => {
       if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE')  return res.status(413).json({ error: `File exceeds the ${Math.round(MAX_FILE_BYTES / 1024 / 1024)} MB per-file limit` });
+        if (err.code === 'LIMIT_FILE_COUNT') return res.status(413).json({ error: `Too many files — maximum ${MAX_FILES} per request` });
         return res.status(400).json({ error: err.message });
       }
       const uploaded = (req.files || []).map(f => ({ name: f.filename, sizeBytes: f.size }));

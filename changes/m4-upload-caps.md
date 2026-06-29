@@ -1,0 +1,1 @@
+- Crawler file uploads now enforce sensible size limits — 250 MB per file, 20 files per request, and a 1 GB total per request — instead of allowing up to ~50 GB to be written to the shared storage volume in a single request. An over-limit upload is rejected up front with a clear message. The limits are configurable via environment variables for large tenants.
