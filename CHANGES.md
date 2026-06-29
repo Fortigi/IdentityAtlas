@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Refactored the entra-id crawler so its internal functions live in a loadable `EntraIDCrawler.Functions.ps1` library (dot-sourced by the entry-point script) instead of being trapped in the script's top-level execution body — no change to runtime behavior.
+- Added unit tests for the entra-id crawler's helper functions (batched and chunked ingest, Graph delta-token persistence, delta-aware paginated fetching, per-phase tracking, user attribute resolution).
+
+## Changes in this PR
+
 - Refactored the midpoint crawler so its internal functions live in a loadable `MidpointCrawler.Functions.ps1` library (dot-sourced by the entry-point script) instead of being trapped in the script's top-level execution body — no change to runtime behavior.
 - Added unit tests for the midpoint crawler's helper functions (batched and streaming ingest, per-endpoint performance stats, phase-error tracking, shadow-account labelling).
 
