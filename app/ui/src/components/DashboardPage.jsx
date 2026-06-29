@@ -11,8 +11,9 @@
 // When no data has been loaded yet, the central call-to-action becomes
 // "Configure a crawler" pointing at Admin → Crawlers.
 
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useFetch } from '@ui/hooks/useFetch';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { formatCompactNumber as formatNumber, formatRelativeTime } from '@ui/utils/formatters';
 import { docsUrl } from '@ui/utils/docsUrl';
@@ -39,34 +40,16 @@ function changesUrl(v) {
 export default function DashboardPage({ onNavigate }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
-  const [stats, setStats] = useState(null);
-  const [version, setVersion] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);   // dashboard-stats fetch failed (≠ empty DB)
-  const [reloadKey, setReloadKey] = useState(0);
   const [tab, setTab] = useState('overview');  // 'overview' | 'trends'
 
-  useEffect(() => {
-    let cancelled = false;
-    const STATS_ERR = Symbol('stats-error');
-    setLoading(true);
-    setError(false);
-    Promise.all([
-      authFetch('/api/admin/dashboard-stats')
-        .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .catch(() => STATS_ERR),
-      authFetch('/api/version').then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([s, v]) => {
-      if (cancelled) return;
-      // Distinguish a failed stats fetch from a genuinely empty database — the
-      // former must NOT show the "configure a crawler" onboarding CTA.
-      if (s === STATS_ERR) { setError(true); setStats(null); }
-      else { setStats(s); }
-      setVersion(v);
-      setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [authFetch, reloadKey]);
+  // Stats drives the page's loading/error state. A failed stats fetch leaves
+  // `error` truthy and `stats` null — the render uses that to distinguish a
+  // load error from a genuinely empty database (so the failure case must NOT
+  // show the "configure a crawler" onboarding CTA).
+  const { data: stats, loading, error, reload: reloadStats } = useFetch('/api/admin/dashboard-stats', { authFetch });
+  // Version is best-effort — its absence never blocks the dashboard.
+  const { data: version, reload: reloadVersion } = useFetch('/api/version', { authFetch });
+  const reload = useCallback(() => { reloadStats(); reloadVersion(); }, [reloadStats, reloadVersion]);
 
   const hasData = stats?.hasData;
 
@@ -174,7 +157,7 @@ export default function DashboardPage({ onNavigate }) {
               </p>
               <button
                 type="button"
-                onClick={() => setReloadKey(k => k + 1)}
+                onClick={reload}
                 className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
               >
                 Retry
