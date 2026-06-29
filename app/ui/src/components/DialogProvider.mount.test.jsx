@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { createElement as h, useState } from 'react';
-import { renderWithProviders, screen, within, waitFor, userEvent, act } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 import { useDialog } from './dialogContext';
 
 // A tiny harness component that exposes each dialog API via buttons and shows
