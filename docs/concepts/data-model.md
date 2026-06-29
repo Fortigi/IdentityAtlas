@@ -32,21 +32,22 @@ Identities (real persons — the governance anchor)
        └─ ResourceAssignments (what access each account holds)
             └─ Resources (what is being accessed)
 
-Contexts (organizational/structural trees — system-scoped)
-  └─ Identities  (contextId: HR org unit, department)
-  └─ Principals  (contextId: AD OU, Entra admin unit)
-  └─ Resources   (contextId: resource classification, location)
+Contexts (organizational/structural trees — synced, generated, or manual)
+  └─ ContextMembers (which entities belong to each context)
+       └─ Identities / Principals / Resources / Systems  (by memberType)
 
-Systems (technical sync root — each Principal, Resource, and Context belongs to one System)
+Systems (technical sync root — each Principal, Resource, and synced Context belongs to one System)
 ```
 
-**Why Identity is the root:** A real person (Identity) may have multiple accounts (Principals) across different source systems. The organizational context — department, team, cost center — belongs to the *person*, not to each individual account. Identities carry a `contextId` that represents their place in the HR/governance org structure.
+**Why Identity is the root:** A real person (Identity) may have multiple accounts (Principals) across different source systems. Organizational context — department, team, cost center — belongs to the *person*, not to each individual account, so it is modelled as Contexts whose members are Identities.
 
-**Why Principals and Resources also have a contextId:** Source systems have their own organizational structures that are distinct from the HR org chart. Active Directory has OUs, Entra ID has administrative units, resource management systems have classification hierarchies. These structures are valuable for risk scoring, policy evaluation, and reporting — but they belong to the *system*, not to the person. A Principal's `contextId` captures its position in the source system's own hierarchy, independent of the Identity's HR context.
+**Membership is many-to-many (since v6):** Entities do **not** carry a `contextId` column. Membership lives in the explicit `ContextMembers` join table (`contextId` + `memberType` + `memberId`), so a single Identity, Principal, or Resource can belong to *many* contexts at once — an HR department **and** a location **and** a tag — without picking a "primary" one. (Before the v6 Contexts redesign in migration `018_context_redesign.sql`, each entity had a single `contextId` FK; those columns were dropped.)
 
-**Multiple independent context trees:** Each `(systemId, contextType)` combination forms an independent tree. An HR system produces a Department tree linked to Identities. Active Directory produces an OU tree linked to Principals. A resource classification system produces a Category tree linked to Resources. These trees coexist in the same Contexts table, scoped by `systemId`.
+**Why each Context has a `targetType`:** A context groups exactly one kind of entity — `Identity`, `Principal`, `Resource`, or `System`. An HR department tree targets Identities; an Active Directory OU tree targets Principals; a resource-classification tree targets Resources. They coexist in the same `Contexts` table, discriminated by `targetType` + `contextType`.
 
-**Why Systems are the sync root:** At ingestion time, every Principal, Resource, and Context must belong to a System. This enables multi-tenant and multi-system deployments without ambiguity.
+**Three variants:** Every context is `synced` (ingested from a source system), `generated` (emitted by a context-algorithm plugin — org-chart derivation, clustering, orphan detection), or `manual` (analyst-curated, including tags). See [context-redesign](../architecture/context-redesign.md).
+
+**Why Systems are the sync root:** At ingestion time, every Principal, Resource, and synced Context must belong to a System. This enables multi-tenant and multi-system deployments without ambiguity.
 
 ---
 
@@ -61,7 +62,6 @@ erDiagram
         string employeeId
         string department
         string jobTitle
-        guid contextId FK
         guid primaryPrincipalId FK
         guid managerIdentityId FK
         bool isHrAnchored
@@ -89,7 +89,6 @@ erDiagram
         int systemId FK
         string displayName
         string resourceType
-        guid contextId FK
         string extendedAttributes
         guid catalogId
         decimal riskScore
@@ -99,16 +98,24 @@ erDiagram
         int systemId FK
         string displayName
         string principalType
-        guid contextId FK
         string extendedAttributes
         decimal riskScore
     }
     Contexts {
         guid id PK
-        int systemId FK
-        string displayName
+        string variant
+        string targetType
         string contextType
+        string displayName
         guid parentContextId FK
+        int scopeSystemId FK
+        guid sourceAlgorithmId FK
+    }
+    ContextMembers {
+        guid contextId FK
+        string memberType
+        guid memberId
+        string addedBy
     }
     ResourceAssignments {
         guid resourceId FK
@@ -145,13 +152,14 @@ erDiagram
     }
 
     Identities ||--o{ IdentityMembers : "aggregates"
-    Identities }o--o| Contexts : "HR org context"
     Principals ||--o{ IdentityMembers : "linked via"
-    Principals }o--o| Contexts : "system org context"
-    Resources }o--o| Contexts : "classification context"
+    Contexts ||--o{ ContextMembers : "has members"
+    ContextMembers }o--|| Identities : "memberType=Identity"
+    ContextMembers }o--|| Principals : "memberType=Principal"
+    ContextMembers }o--|| Resources : "memberType=Resource"
     Systems ||--o{ Resources : "hosts"
     Systems ||--o{ Principals : "hosts"
-    Systems ||--o{ Contexts : "scopes"
+    Systems ||--o{ Contexts : "scopes (synced)"
     Resources ||--o{ ResourceAssignments : "granted via"
     Principals |o--o{ ResourceAssignments : "receives (account-level)"
     Identities |o--o{ ResourceAssignments : "receives (person-level)"
@@ -169,7 +177,7 @@ erDiagram
 
 Real persons aggregated across multiple accounts and source systems. An Identity is the result of account linking: one human may have an Entra ID user, a service account, and a privileged admin account — all linked to one Identity record. Links come from a crawler's IdentityFilter (authoritative, score-less) or from the deterministic [Account Linking](../architecture/account-linking.md) engine (orphan accounts attached with a confidence score).
 
-Identities carry the `contextId` because organizational context (department, team) belongs to the *person*, not to their individual accounts.
+Organizational context (department, team) belongs to the *person*, not to their individual accounts, so an Identity's context memberships live in `ContextMembers` (`memberType='Identity'`) — an Identity can belong to several contexts at once.
 
 | Property | Value |
 |---|---|
@@ -177,7 +185,7 @@ Identities carry the `contextId` because organizational context (department, tea
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
 
-Key columns: `displayName`, `email`, `employeeId`, `department`, `jobTitle`, `contextId`, `primaryPrincipalId`, `managerIdentityId`.
+Key columns: `displayName`, `email`, `employeeId`, `department`, `jobTitle`, `primaryPrincipalId`, `managerIdentityId`.
 
 Account-linking columns: `isHrAnchored`, `hrAccountId`, `accountCount`, `linkSignals` (JSONB), `linkConfidence`, `linkedAt`. These were renamed from `correlationSignals` / `correlationConfidence` / `correlatedAt` in migration `030_account_linking.sql`.
 
@@ -202,9 +210,9 @@ Per-account link columns (renamed in migration `030_account_linking.sql`): `link
 
 ### Contexts
 
-Organizational and structural groupings from any source system. A Context can represent an HR department, an AD organizational unit, an Entra ID administrative unit, a resource classification category, or any other hierarchy. The `contextType` column discriminates between them; the `systemId` column scopes them to a source system.
+Organizational and structural groupings — synced from a source system, generated by a plugin, or manually curated. A Context can represent an HR department, an AD organizational unit, an Entra ID administrative unit, a resource classification category, a tag, a cluster, or any other grouping. The `contextType` column discriminates between them, `targetType` declares which kind of entity they group, and `scopeSystemId` scopes synced contexts to a source system.
 
-**Multiple independent context trees:** Each `(systemId, contextType)` combination forms its own tree. These trees are independent — an HR department tree, an AD OU tree, and a resource classification tree all coexist in the same table without interfering.
+**Multiple independent context trees:** Each `(scopeSystemId, targetType, contextType)` combination forms its own tree. These trees are independent — an HR department tree, an AD OU tree, and a resource classification tree all coexist in the same table without interfering.
 
 | Source System | contextType | Linked To | Example |
 |---|---|---|---|
@@ -215,25 +223,27 @@ Organizational and structural groupings from any source system. A Context can re
 | Resource mgmt | `Classification` | Resources | Confidential > Finance Data > Payment Systems |
 | Custom | Any string | Any | Fully extensible |
 
-**Which entities carry a contextId:**
+**Membership lives in `ContextMembers`, not on the entity:** Since the v6 redesign there is **no `contextId` column** on Identities, Principals, or Resources. Instead the `ContextMembers` join table records membership as (`contextId`, `memberType`, `memberId`), so any entity can belong to **multiple** contexts at once:
 
-- **Identities** — HR/governance org context. "This person belongs to Finance > Accounts Payable."
-- **Principals** — Source system org context. "This AD account lives in OU=Admins,OU=Amsterdam."
-- **Resources** — Classification or grouping context. "This SharePoint site is classified as Confidential > Finance Data."
+- An **Identity** can be in an HR department context *and* a location context *and* a tag.
+- A **Principal** can be in an AD OU context *and* an Entra administrative-unit context.
+- A **Resource** can be in a classification context *and* a generated cluster.
 
-Each entity has a single `contextId` column. If an entity needs to participate in multiple context trees (e.g., an Identity has both an HR department and a location), use the primary governance context as `contextId` and store secondary context references in `extendedAttributes`.
+`ContextMembers.addedBy` records provenance — `sync` (from a crawler), `algorithm` (a context plugin), or `analyst` (manual).
 
-**Context and policy-driven access:** When an assignment is driven by an Identity's context (e.g., "all Finance employees get access to SharePoint Finance"), the governing rule is captured in `AssignmentPolicies.policyConditions` as a JSON condition referencing the `contextId`. The assignment row in `ResourceAssignments` records the *result*; the policy row records the *rule*. This keeps assignments clean while the "why" remains auditable through the policy chain.
+**Three variants** (the `variant` column): `synced` (ingested from a source system), `generated` (emitted by a context-algorithm plugin — org-chart derivation, resource clustering, orphan detection), or `manual` (analyst-curated, including tags). **`targetType`** (`Identity` / `Resource` / `Principal` / `System`) declares which kind of entity a context groups.
+
+**Context and policy-driven access:** When an assignment is driven by an Identity's context (e.g., "all Finance employees get access to SharePoint Finance"), the governing rule is captured in `AssignmentPolicies.policyConditions` as a JSON condition referencing the context. The assignment row in `ResourceAssignments` records the *result*; the policy row records the *rule*. This keeps assignments clean while the "why" remains auditable through the policy chain.
 
 | Property | Value |
 |---|---|
-| Primary Key | `id` GUID |
-| Audit history | No |
-| Created by | Migration `001_core_schema.sql` |
+| Primary Key | `Contexts.id` GUID; `ContextMembers` keyed on (`contextId`, `memberId`) |
+| Audit history | Yes for `Contexts` (via `_history` trigger); no for `ContextMembers` |
+| Created by | Migration `018_context_redesign.sql` (replaced the legacy `OrgUnits` / per-entity `contextId` shape) |
 
-Key columns: `displayName`, `contextType`, `systemId`, `parentContextId` (self-referencing for hierarchy).
+Key columns (`Contexts`): `variant`, `targetType`, `contextType`, `displayName`, `parentContextId` (self-referencing for hierarchy), `scopeSystemId`, `sourceAlgorithmId` / `sourceRunId` (provenance for generated contexts), `directMemberCount` / `totalMemberCount`.
 
-**contextType values:** `Department`, `Division`, `CostCenter`, `Team`, `Office`, `Project`, `Location`, `OrgUnit`, `AdministrativeUnit`, `Classification`, or any custom string.
+**contextType values:** `Department`, `Division`, `CostCenter`, `Team`, `Office`, `Project`, `Location`, `OrgUnit`, `AdministrativeUnit`, `Classification`, `Tag`, or any custom string.
 
 !!! note "Tags can target Identities"
     Tags are stored as manual Contexts (`contextType='Tag'`). As of migration `031_tags_identity_targettype.sql`, tags support `targetType='Identity'` in addition to `Principal` and `Resource`, so an analyst can tag an identity directly. The `GraphTags` backward-compat view surfaces `targetType='Identity'` rows as `entityType='identity'`.
@@ -264,7 +274,7 @@ Any permission-granting entity: Entra ID groups, directory roles, application ro
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
 
-Key columns: `displayName`, `resourceType`, `systemId`, `contextId` (optional — classification or grouping context), `extendedAttributes` (JSON), `catalogId`, `isHidden`, `riskScore`.
+Key columns: `displayName`, `resourceType`, `systemId`, `extendedAttributes` (JSON), `catalogId`, `isHidden`, `riskScore`. Classification/grouping is via `ContextMembers` (`memberType='Resource'`), not a column.
 
 ---
 
@@ -309,7 +319,7 @@ All identity types from any system. The `principalType` column distinguishes hum
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
 
-Key columns: `displayName`, `principalType`, `systemId`, `contextId` (optional — source system org structure, e.g. AD OU), `extendedAttributes` (JSON), `riskScore`.
+Key columns: `displayName`, `principalType`, `systemId`, `extendedAttributes` (JSON), `riskScore`. Source-system org placement (e.g. AD OU) is via `ContextMembers` (`memberType='Principal'`), not a column.
 
 ---
 
