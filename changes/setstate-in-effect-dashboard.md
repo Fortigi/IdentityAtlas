@@ -1,0 +1,1 @@
+- Dashboard landing page now loads its stats and version through the shared fetch lifecycle, removing a React Compiler set-state-in-effect warning. Load-error vs empty-database handling and the Retry button are unchanged.

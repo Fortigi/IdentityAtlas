@@ -97,6 +97,29 @@ describe('DashboardPage (mounted)', () => {
     expect(screen.queryByText(/No data loaded yet/i)).not.toBeInTheDocument();
   });
 
+  it('retries the stats fetch when the Retry button is clicked', async () => {
+    // First stats call fails; after Retry it succeeds — the error UI gives way
+    // to the populated dashboard.
+    let statsCalls = 0;
+    const authFetch = vi.fn((url) => {
+      if (url.startsWith('/api/admin/dashboard-stats')) {
+        statsCalls += 1;
+        return Promise.resolve(
+          statsCalls === 1 ? jsonResponse({ error: 'boom' }, { ok: false, status: 500 }) : jsonResponse(fullStats),
+        );
+      }
+      if (url.startsWith('/api/version')) return Promise.resolve(jsonResponse(version));
+      return Promise.resolve(jsonResponse({}));
+    });
+    renderWithProviders(h(DashboardPage), { auth: { authFetch } });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByText('Retry'));
+
+    expect(await screen.findByText('Business Roles')).toBeInTheDocument();
+    expect(statsCalls).toBe(2);
+  });
+
   it('switches to the Trends tab and loads the timeseries snapshot', async () => {
     const timeseries = {
       data: [
