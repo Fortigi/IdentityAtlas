@@ -1,5 +1,14 @@
 ## Changes in this PR
 
+- Added unit tests for the PowerShell SDK (Graph request/token layer, user/group/governance read functions, write functions, and helpers), the risk-scoring module, and the crawler helper libraries (midPoint REST client, Azure Resource Graph + ARM helpers, and the OData GET/paged request layer) to substantially raise PowerShell code coverage.
+- Fixed `Set-FGGroup`, which previously failed on every call due to a malformed `$PSBoundParameters` reference.
+- Fixed `Confirm-FGAccessPackageResource`, which referenced a non-existent command (a missing hyphen) when adding a group to an access package.
+- Fixed `Get-FGServicePrincipalWithSync`, which threw when discovering service principals without a filter.
+- Fixed `Get-FGGroupEligibleMemberAll` so it gracefully returns nothing when the group query fails: previously, under the crawler's strict error mode, its error log terminated the call and crashed the crawl instead of skipping.
+- Re-enabled the crawler manifest `CrawlerMeta.js` checks for every crawler (removed a stale "pending migration" skip list that was suppressing them now that all crawlers ship the file).
+
+## Changes in this PR
+
 - Expanded automated API test coverage: added unit tests (with the database mocked) across the matrix, tags, categories, admin, permissions, contexts, context-plugins, risk-profile, risk-score, identities, ingest, account-linking, data-export, auth-roles, bulk-list, risk-scoring-run, performance, and org-chart routes — raising route-handler line coverage from roughly half to ~75%.
 
 ## Changes in this PR
