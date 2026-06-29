@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal code-quality: converted the Contexts data hooks (`useContextRoots`, `useContextSubtree`) to the shared `useFetch` hook, clearing more `react-hooks/set-state-in-effect` warnings. No user-facing behaviour change.
+
+## Changes in this PR
+
 - Internal code-quality: added a shared `useFetch` data-loading hook to centralise the GET loading/error/abort lifecycle, so components stop hand-rolling `useState`+`useEffect` fetches (which trip the `react-hooks/set-state-in-effect` lint rule / React Compiler compatibility). No user-facing behaviour change; site conversions follow in separate PRs.
 
 ## Changes in this PR
