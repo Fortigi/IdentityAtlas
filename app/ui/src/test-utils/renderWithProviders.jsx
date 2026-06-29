@@ -18,6 +18,7 @@ import { cleanup, render } from '@testing-library/react';
 import { createElement as h } from 'react';
 import { ThemeContext } from '@ui/contexts/ThemeContext';
 import { AuthContext } from '@ui/auth/AuthGate';
+import { DialogProvider } from '@ui/components/DialogProvider';
 
 // @testing-library/react does not auto-clean when vitest `globals` is off (this
 // project imports test fns explicitly), so unmount between tests ourselves.
@@ -98,7 +99,9 @@ const defaultAuth = {
 export function renderWithProviders(ui, { auth = {}, theme = { isDark: false, mode: 'light' } } = {}) {
   const authValue = { ...defaultAuth, ...auth };
   const result = render(
-    h(ThemeContext.Provider, { value: theme }, h(AuthContext.Provider, { value: authValue }, ui)),
+    h(ThemeContext.Provider, { value: theme },
+      h(AuthContext.Provider, { value: authValue },
+        h(DialogProvider, null, ui))),
   );
   return { authFetch: authValue.authFetch, ...result };
 }
@@ -111,7 +114,9 @@ export function renderWithProviders(ui, { auth = {}, theme = { isDark: false, mo
 export function makeWrapper({ auth = {}, theme = { isDark: false, mode: 'light' } } = {}) {
   const authValue = { ...defaultAuth, ...auth };
   function Wrapper({ children }) {
-    return h(ThemeContext.Provider, { value: theme }, h(AuthContext.Provider, { value: authValue }, children));
+    return h(ThemeContext.Provider, { value: theme },
+      h(AuthContext.Provider, { value: authValue },
+        h(DialogProvider, null, children)));
   }
   return { wrapper: Wrapper, authFetch: authValue.authFetch };
 }
