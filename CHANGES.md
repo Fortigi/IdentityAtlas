@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Expanded automated test coverage of the PowerShell SDK configuration helpers (`Update-FGConfig`, `Get-/Test-/Clear-FGSecureConfigValue`) to 100%, exercising the credential migration, encrypted-value fallback, and interactive add-missing-section paths.
+- Expanded automated test coverage of service-principal synchronization discovery (`Get-FGServicePrincipalWithSync`) to 100%, including the no-filter candidate discovery and error-tolerance paths.
+- Added coverage for all object-type variants of the Entra portal deep-link helper (`Get-FGEntraPortalLink`).
+
+## Changes in this PR
+
 - Outbound AI/LLM provider calls now have a request timeout and a response-size cap, so a hung or runaway provider can no longer hold a request open indefinitely or exhaust server memory.
 - LLM and risk-profile endpoints no longer return raw upstream provider error details to the browser — failures now show a generic message (the full detail is logged server-side). The Admin → LLM Settings "Test" button still reports the provider and HTTP status so a bad key/endpoint is diagnosable, without echoing the raw provider response.
 
