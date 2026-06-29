@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Extracted the Azure RM crawler's reusable scope/ingest helper functions into a separate loadable library so they can be unit-tested in isolation; the crawler's behaviour is unchanged.
+
+## Changes in this PR
+
 - Expanded automated test coverage of the PowerShell SDK configuration helpers (`Update-FGConfig`, `Get-/Test-/Clear-FGSecureConfigValue`) to 100%, exercising the credential migration, encrypted-value fallback, and interactive add-missing-section paths.
 - Expanded automated test coverage of service-principal synchronization discovery (`Get-FGServicePrincipalWithSync`) to 100%, including the no-filter candidate discovery and error-tolerance paths.
 - Added coverage for all object-type variants of the Entra portal deep-link helper (`Get-FGEntraPortalLink`).

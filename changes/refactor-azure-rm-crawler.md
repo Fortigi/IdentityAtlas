@@ -1,1 +1,0 @@
-- Extracted the Azure RM crawler's reusable scope/ingest helper functions into a separate loadable library so they can be unit-tested in isolation; the crawler's behaviour is unchanged.
