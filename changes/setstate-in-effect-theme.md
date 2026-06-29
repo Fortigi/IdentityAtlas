@@ -1,0 +1,1 @@
+- The light/auto/dark theme hook was reworked to remove a React Compiler set-state-in-effect warning. Auto mode still follows the operating-system preference live, and switching or cycling the theme persists exactly as before.
