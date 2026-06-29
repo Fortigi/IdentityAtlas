@@ -286,7 +286,10 @@ describe('MatrixFilterWizard (mounted)', () => {
     if (next) await user.click(next);
 
     // Wait for the oversized preview to land, then Apply should be disabled.
-    expect(await screen.findByText(/99,999/)).toBeInTheDocument();
+    // Locale-agnostic: the count is rendered via toLocaleString() (en-US "99,999"
+    // vs en-NL "99.999"), so match the same formatting, escaped for the regex.
+    const count = (99999).toLocaleString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    expect(await screen.findByText(new RegExp(count))).toBeInTheDocument();
     const applyBtn = await screen.findByText('Apply');
     expect(applyBtn).toBeDisabled();
     expect(onApply).not.toHaveBeenCalled();
