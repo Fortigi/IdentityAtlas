@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal code-quality: added a shared `useFetch` data-loading hook to centralise the GET loading/error/abort lifecycle, so components stop hand-rolling `useState`+`useEffect` fetches (which trip the `react-hooks/set-state-in-effect` lint rule / React Compiler compatibility). No user-facing behaviour change; site conversions follow in separate PRs.
+
+## Changes in this PR
+
 - Replaced the browser's native `alert`/`confirm`/`prompt` pop-ups with themed in-app dialogs and toast notifications — dark-mode aware, non-blocking, and consistent with the rest of the UI.
 
 ## Changes in this PR
