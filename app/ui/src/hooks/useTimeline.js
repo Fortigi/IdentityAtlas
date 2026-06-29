@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useFetch } from '@ui/hooks/useFetch';
 
 // ─── useTimeline ─────────────────────────────────────────────────────
 // Fetches /api/<kind>/:id/timeline — the unified attribute + relationship
@@ -17,22 +17,14 @@ const ENDPOINT = {
 };
 
 export default function useTimeline(entityKind, entityId, authFetch, { sinceDays = 90, limit = 200, enabled = true } = {}) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const urlFn = ENDPOINT[entityKind];
-    if (!enabled || !entityId || !urlFn) return undefined;
-    let cancelled = false;
-    setLoading(true);
-    const url = `${urlFn(entityId)}?sinceDays=${sinceDays}&limit=${limit}`;
-    authFetch(url)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled) setData(d || { events: [], addedCount: 0, removedCount: 0, changedCount: 0, sinceDays }); })
-      .catch(() => { if (!cancelled) setData({ events: [], addedCount: 0, removedCount: 0, changedCount: 0, sinceDays }); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [entityKind, entityId, authFetch, sinceDays, limit, enabled]);
+  const urlFn = ENDPOINT[entityKind];
+  const url = (enabled && entityId && urlFn)
+    ? `${urlFn(entityId)}?sinceDays=${sinceDays}&limit=${limit}`
+    : null;
+  // A non-ok/failed fetch leaves `data` null; the defaults below render an empty
+  // timeline (matches the previous fallback object). `error` is intentionally
+  // not surfaced — the Timeline tab just shows "no changes".
+  const { data, loading } = useFetch(url, { authFetch });
 
   return {
     events: data?.events || [],
