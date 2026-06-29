@@ -157,8 +157,11 @@ npm test
 > ```bash
 > cd app/api && npm rebuild re2
 > ```
-> This is a local-setup issue only — production builds `re2` inside the target
-> Linux image, so the binary always matches there.
+> This is a local-setup issue only — every production distribution ships a
+> `re2` binary that matches its target: the Docker image builds/fetches it for
+> Linux during `npm ci`, and the portable desktop ZIP downloads the
+> `win32-x64` prebuilt for its bundled Node at build time. Only a local
+> checkout whose `node_modules` came from a different platform is affected.
 
 **What it tests** (`src/ingest/validation.test.js`, 53 test cases):
 - `validateEnvelope`: required fields, array bounds (0–50 000), `syncMode`/`idGeneration` enums, `idPrefix` requirement, `systems` endpoint skips `systemId`
