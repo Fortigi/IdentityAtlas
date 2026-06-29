@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Extracted the Entra ID crawler's remaining inline helper functions (filter-value coercion, ownership/OAuth2-scope/app-role resource-id generation, directory-role principal-type resolution) into the loadable helper library so they can be unit-tested in isolation; the crawler's behaviour is unchanged.
+- Refactored the parallel group-children fetch so the per-group fetch/retry/pagination logic is a testable function and the parallel execution is isolated behind a thin seam; the crawler's behaviour is unchanged.
+
+## Changes in this PR
+
 - Documentation accuracy fixes: the API reference now shows PostgreSQL (was "Azure SQL"), the non-existent `/api/org-units` endpoint is replaced with the real org/context endpoints (`/api/contexts/tree`, `/api/org-chart`), the version-history example uses the actual `changedAt`/`diff` shape instead of legacy SQL-Server temporal columns, the data-model version label is aligned, the tag tables are noted as backward-compatibility views over Contexts, and the legacy "(FortigiGraph)" suffix is dropped from the README title.
 
 ## Changes in this PR
