@@ -2,6 +2,7 @@
 import { useAuth } from '@ui/auth/AuthGate';
 import { Modal, SecondaryButton } from './ModalPrimitives';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import { matchesTargetTypes } from './ContextPicker.helpers.js';
 
 // ─── ContextPicker ────────────────────────────────────────────────────────────
 // Reusable modal for selecting a single Context. Mirrors the look of
@@ -24,19 +25,6 @@ import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
 
 const INDENT_PX = 22;
 const CONNECTOR = 'rgb(203 213 225)';
-
-// Decide whether a root context should be shown given the target-type filters.
-// `targetTypes` (a non-empty array) takes precedence over single `targetType`.
-// When neither is supplied, nothing is filtered out.
-export function matchesTargetTypes(ctx, { targetTypes = null, targetType = null } = {}) {
-  if (Array.isArray(targetTypes) && targetTypes.length) {
-    return targetTypes.includes(ctx.targetType);
-  }
-  if (targetType) {
-    return ctx.targetType === targetType;
-  }
-  return true;
-}
 
 export default function ContextPicker({
   open,

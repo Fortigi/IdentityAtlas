@@ -3,7 +3,7 @@
 // inline filter predicate that previously lived in filteredTrees.
 
 import { describe, it, expect } from 'vitest';
-import { matchesTargetTypes } from './ContextPicker.jsx';
+import { matchesTargetTypes } from './ContextPicker.helpers.js';
 
 const identityCtx = { id: 'a', targetType: 'Identity' };
 const resourceCtx = { id: 'b', targetType: 'Resource' };

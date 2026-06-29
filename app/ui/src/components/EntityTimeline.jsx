@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { formatDate, formatDateOnly, friendlyLabel } from '@ui/utils/formatters';
-import { OP_STYLES, KIND_TO_TAB, renderSummaryWithLink } from './RecentChangesSection';
+import { OP_STYLES, KIND_TO_TAB, renderSummaryWithLink } from './RecentChangesSection.helpers.jsx';
 
 // ─── EntityTimeline ────────────────────────────────────────────────────
 // Horizontal timeline for the user-detail Timeline tab. Each "moment" (a

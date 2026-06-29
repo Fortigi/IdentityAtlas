@@ -24,12 +24,8 @@ function ScoreBar({ score, maxScore = 100, width = 'w-32' }) {
   );
 }
 
-// ─── Risk field names (to exclude from generic Attributes table) ─────
-export const RISK_FIELDS = new Set([
-  'riskScore', 'riskTier', 'riskDirectScore', 'riskMembershipScore',
-  'riskStructuralScore', 'riskPropagatedScore', 'riskClassifierMatches',
-  'riskExplanation', 'riskScoredAt', 'riskOverride', 'riskOverrideReason',
-]);
+// RISK_FIELDS (the field names excluded from the generic Attributes table) lives
+// in RiskScoreSection.constants.js so this file only exports its component.
 
 function parseJSON(val) {
   if (!val || val === '\u2014') return null;
