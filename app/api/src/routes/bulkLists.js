@@ -31,17 +31,27 @@ function parsePaging(req) {
 async function runListAndCount({ table, alias, columns, orderBy, dataWhere, countWhere, systemId, limit, offset }) {
   const dataParams = systemId !== null ? [systemId, limit, offset] : [limit, offset];
   const dataLimitOffset = systemId !== null ? '$2 OFFSET $3' : '$1 OFFSET $2';
-  const countParams = systemId !== null ? [systemId] : [];
 
+  const listP = db.query(
+    `SELECT ${columns}
+       FROM "${table}" ${alias}
+       ${dataWhere}
+      ORDER BY ${orderBy}
+      LIMIT ${dataLimitOffset}`,
+    dataParams
+  );
+
+  // COUNT(*) only on the first page. The Excel Power Query workbook reads `total`
+  // once from page 1 and pages by row count thereafter, so re-running a full-table
+  // COUNT on every page was a full scan per page — crippling on large tenants.
+  if (offset > 0) {
+    const list = await listP;
+    return { data: list.rows, total: null };
+  }
+
+  const countParams = systemId !== null ? [systemId] : [];
   const [list, count] = await Promise.all([
-    db.query(
-      `SELECT ${columns}
-         FROM "${table}" ${alias}
-         ${dataWhere}
-        ORDER BY ${orderBy}
-        LIMIT ${dataLimitOffset}`,
-      dataParams
-    ),
+    listP,
     db.queryOne(
       `SELECT COUNT(*)::int AS total FROM "${table}" ${alias} ${countWhere}`,
       countParams
