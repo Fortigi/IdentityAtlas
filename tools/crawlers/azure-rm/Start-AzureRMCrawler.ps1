@@ -40,6 +40,7 @@ $Global:AzCallCount = 0
 # ─── Shared helpers ──────────────────────────────────────────────
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 . (Join-Path $PSScriptRoot '..' 'shared' 'Get-CapabilityId.ps1')
+. (Join-Path $PSScriptRoot 'AzureRMCrawler.Functions.ps1')
 # Get-AzureRMHelpers.ps1 (ARM auth + enumeration) and Get-AzureRGHelpers.ps1 (Resource Graph reads)
 # are dot-sourced automatically by the dispatcher (same-folder libraries).
 
@@ -48,45 +49,6 @@ $Global:AzCallCount = 0
 # role definitions and role assignments all come from Azure Resource Graph.
 $API_SUBS = '2022-12-01'
 $API_MG   = '2021-04-01'
-
-# A scope's stable Identity Atlas node id = deterministic UUID of its ARM path.
-# ARM resource IDs can legitimately contain '|' (e.g. some Insights / alert resources), which
-# Get-CapabilityId reserves as its field separator. Percent-encode '%' then '|' so the id-hash
-# input stays injective (no two distinct ARM paths collide) and pipe-free. Only the hash input
-# is encoded — the raw armPath / externalId is stored unchanged. Subscription/RG/MG paths never
-# contain either character, so their ids are unaffected.
-function Get-ScopeNodeId { param([string]$ArmScopePath)
-    # Lower-case the path before hashing so the node id is stable regardless of casing. Azure Resource
-    # Graph lower-cases every id, and Azure itself is inconsistent about ARM-path casing (a role
-    # assignment's properties.scope may read ".../resourceGroups/Foo" while a resource id reads
-    # ".../resourcegroups/foo"). Canonicalising here means the same physical scope never splits into
-    # two nodes because of casing. Only the hash input is canonicalised; the raw armPath / externalId
-    # is still stored as received.
-    $safe = $ArmScopePath.ToLowerInvariant() -replace '%', '%25' -replace '\|', '%7C'
-    Get-CapabilityId -TargetNodeId $safe -CapabilityId 'azure-scope'
-}
-
-function Send-IngestBatch {
-    param(
-        [Parameter(Mandatory)] [string]$Endpoint,
-        [Parameter(Mandatory)] [int]$SystemId,
-        [string]$SyncMode = 'full',
-        [hashtable]$Scope = @{},
-        [array]$Records = @()
-    )
-    if (-not $Records -or $Records.Count -eq 0) {
-        return Invoke-IngestAPI -Endpoint $Endpoint -Body @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = @() }
-    }
-    $body = @{ systemId = $SystemId; syncMode = $SyncMode; scope = $Scope; records = ConvertTo-JsonArray $Records }
-    Invoke-IngestAPI -Endpoint $Endpoint -Body $body
-}
-
-# Per-phase wall-clock + round-trip report — the call counts make the cross-subscription savings of
-# the Resource Graph queries visible (a few paged queries instead of per-subscription fan-out).
-function Write-PhaseTiming {
-    param([string]$Name, [System.Diagnostics.Stopwatch]$Sw, [int]$CallsBefore)
-    Write-Host ("  [timing] {0}: {1:n1}s, {2} Azure call(s)" -f $Name, $Sw.Elapsed.TotalSeconds, ($Global:AzCallCount - $CallsBefore)) -ForegroundColor DarkGray
-}
 
 Write-Host "`n=== Azure RM Crawler (Resource Graph) ===" -ForegroundColor Cyan
 
@@ -106,54 +68,6 @@ Write-Host "  System ID: $SystemId" -ForegroundColor Green
 $ScopeResources = [System.Collections.Generic.List[object]]::new()   # scope nodes
 $ContainsEdges  = [System.Collections.Generic.List[object]]::new()   # scope → child scope
 $ScopePaths     = [System.Collections.Generic.List[string]]::new()   # all ARM scope paths to read assignments at
-
-# Short type label shown in capability names ("Owner @ RG: name") and stored on the scope node so
-# the effective-access engine labels synthesized inherited rows the same way.
-function Get-ScopeTypeLabel { param([string]$ScopeKind)
-    switch ($ScopeKind) {
-        'ManagementGroup' { 'MG' }
-        'Subscription'    { 'Sub' }
-        'ResourceGroup'   { 'RG' }
-        'Resource'        { 'Res' }
-        default { '' }
-    }
-}
-
-# The Azure resource type (provider namespace + type) parsed out of an ARM resource id, e.g.
-# /subscriptions/../resourceGroups/../providers/Microsoft.Compute/virtualMachines/vm1
-#   -> "Microsoft.Compute/virtualMachines". Lets the UI/matrix answer "who can touch any VM?".
-function Get-AzureResourceType { param([string]$ArmPath)
-    if ($ArmPath -match '/providers/(.+)$') {
-        $segs = $matches[1] -split '/'              # ns / type / name [ / subtype / subname ... ]
-        $parts = @($segs[0])
-        for ($i = 1; $i -lt $segs.Count; $i += 2) { $parts += $segs[$i] }   # type segments only
-        return ($parts -join '/')
-    }
-    return ''
-}
-
-# Governance/filtering attributes lifted off a resource object (from the Resource Graph resources query):
-#   azureLocation              – region, e.g. "westeurope"  -> "access to any resource in West Europe"
-#   tag.<Key>                  – each portal tag as its own key -> "access to anything tagged Prio High"
-#   managedIdentity            – identity type (SystemAssigned/UserAssigned) when the resource has one
-#                                -> the "resources that have a managed identity" context
-#   managedIdentityPrincipalId – the system-assigned identity's principal id, soft-linking the resource
-#                                to its managed-identity principal (no model change; attribute only)
-# Everything here is generic extendedAttributes the context plugins group by — no new core needed.
-function Get-ResourceAttributes { param($Resource)
-    $ext = @{}
-    if ($Resource.location) { $ext['azureLocation'] = [string]$Resource.location }
-    if ($Resource.tags) {
-        foreach ($p in $Resource.tags.PSObject.Properties) {
-            if ($p.Name) { $ext["tag.$($p.Name)"] = [string]$p.Value }
-        }
-    }
-    if ($Resource.identity -and $Resource.identity.type -and $Resource.identity.type -ne 'None') {
-        $ext['managedIdentity'] = [string]$Resource.identity.type
-        if ($Resource.identity.principalId) { $ext['managedIdentityPrincipalId'] = [string]$Resource.identity.principalId }
-    }
-    return $ext
-}
 
 # helper to register a scope node + (optional) parent edge
 function Add-Scope {
@@ -312,16 +226,6 @@ function Add-ContainsEdge { param([string]$ParentPath, [string]$ChildPath)
         childResourceId  = (Get-ScopeNodeId -ArmScopePath $ChildPath)
         relationshipType = 'Contains'; extendedAttributes = @{ propagates = $true }
     })
-}
-
-# Parent of a sub-subscription scope: a resource → its resource group, a resource group → its
-# subscription, a subscription-level resource → its subscription. $null for subscription / management
-# group / tenant-root scopes (those are handled as "above the subscription").
-function Get-ParentScopePath { param([string]$ScopePath)
-    if ($ScopePath -match '^(/subscriptions/[^/]+/resourceGroups/[^/]+)/providers/') { return $matches[1] }
-    if ($ScopePath -match '^(/subscriptions/[^/]+)/resourceGroups/[^/]+$')           { return $matches[1] }
-    if ($ScopePath -match '^(/subscriptions/[^/]+)/providers/')                       { return $matches[1] }
-    return $null
 }
 
 # Resolve a management group's friendly display name (cached). On-demand MG nodes would otherwise
