@@ -20,6 +20,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import JsonViewer from './JsonViewer';
 import Stepper from './Stepper';
+import { useDialog } from '@ui/components/dialogContext';
 
 const STEPS = [
   { key: 'sources',     label: 'Sources' },
@@ -31,6 +32,7 @@ const STEPS = [
 
 export default function RiskProfileWizard({ onClose, onSaved }) {
   const { authFetch } = useAuth();
+  const dialog = useDialog();
   const [stepIdx, setStepIdx] = useState(0);
   const [llmReady, setLlmReady] = useState(null); // null=loading, bool
 
@@ -221,7 +223,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
         setSavedProfileId(j.id);
         setStepIdx(3);
       } else {
-        alert(j.error || `HTTP ${r.status}`);
+        dialog.alert(j.error || `HTTP ${r.status}`);
       }
     } finally { setSavingProfile(false); }
   }
@@ -271,7 +273,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
         setSavedClassifierId(j.id);
         setStepIdx(4);
       } else {
-        alert(j.error || `HTTP ${r.status}`);
+        dialog.alert(j.error || `HTTP ${r.status}`);
       }
     } finally { setSavingClassifiers(false); }
   }

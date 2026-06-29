@@ -19,6 +19,7 @@ import Stepper from '@ui/components/Stepper';
 import { Modal, PrimaryButton, SecondaryButton, ErrorBox } from '@ui/components/contexts/ModalPrimitives';
 import ContextPicker from '@ui/components/contexts/ContextPicker';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import { useDialog } from '@ui/components/dialogContext';
 import { friendlyLabel } from '@ui/utils/formatters';
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -143,6 +144,7 @@ export default function MatrixFilterWizard({
   onClose,
 }) {
   const { authFetch } = useAuth();
+  const dialog = useDialog();
   const [step, setStep] = useState('setup');
   const [filter, setFilter] = useState(() => structuredClone(initialFilter || EMPTY_FILTER));
   // The All / Governed / Non-governed toggle lives in the matrix toolbar, not
@@ -369,7 +371,7 @@ export default function MatrixFilterWizard({
   };
 
   const handleDeleteSaved = async (id) => {
-    if (!confirm('Delete this saved filter? This affects everyone in the org.')) return;
+    if (!(await dialog.confirm({ message: 'Delete this saved filter? This affects everyone in the org.', confirmLabel: 'Delete', danger: true }))) return;
     await authFetch(`/api/matrix/saved-filters/${id}`, { method: 'DELETE' }).catch(() => {});
     setSavedFilters(prev => prev.filter(f => f.id !== id));
   };

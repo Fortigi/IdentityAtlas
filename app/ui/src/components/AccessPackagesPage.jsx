@@ -5,6 +5,7 @@ import { TAG_COLORS } from '@ui/utils/colors';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
 import { formatDateOnly as formatDate } from '@ui/utils/formatters';
 import { ASSIGNMENT_TYPE_STYLES } from '@ui/utils/accessPackageStyles';
+import { useDialog } from '@ui/components/dialogContext';
 
 const PAGE_SIZE = 100;
 
@@ -19,6 +20,7 @@ const ASSIGNMENT_TYPES = ['Auto-assigned', 'Request-based', 'Request-based with 
 
 export default function AccessPackagesPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
+  const dialog = useDialog();
   const canExport = useCanExportUi();
 
   // Data state
@@ -148,7 +150,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         await fetchCategories();
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Failed to create category');
+        dialog.alert(err.error || 'Failed to create category');
       }
     } finally { setBusy(false); }
   };
@@ -185,7 +187,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
   };
 
   const deleteCategory = async (catId) => {
-    if (!confirm('Delete this category and all its assignments?')) return;
+    if (!(await dialog.confirm({ message: 'Delete this category and all its assignments?', confirmLabel: 'Delete', danger: true }))) return;
     setBusy(true);
     try {
       await authFetch(`/api/categories/${catId}`, { method: 'DELETE' });

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useDialog } from '@ui/components/dialogContext';
 import { ADMIN_TABS, visibleAdminTabs } from './admin/adminTabs';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
@@ -405,6 +406,7 @@ function ClassifiersSection() {
 // immediately.
 function PowerQueryExportSection() {
   const { authFetch } = useAuth();
+  const dialog = useDialog();
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -478,7 +480,7 @@ function PowerQueryExportSection() {
   }
 
   async function revoke(id) {
-    if (!confirm('Revoke this token? Workbooks using it will stop refreshing immediately.')) return;
+    if (!(await dialog.confirm({ message: 'Revoke this token? Workbooks using it will stop refreshing immediately.', confirmLabel: 'Revoke', danger: true }))) return;
     setBusy(true);
     try {
       const r = await authFetch(`/api/admin/read-tokens/${id}`, { method: 'DELETE' });
@@ -1103,6 +1105,7 @@ function DangerZoneSection({ onRefresh }) {
 // so the user can verify credentials before clicking Save.
 function LLMSettingsSection() {
   const { authFetch } = useAuth();
+  const dialog = useDialog();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState([]);
   const [defaultModels, setDefaultModels] = useState({});
@@ -1207,7 +1210,7 @@ function LLMSettingsSection() {
   };
 
   const handleClear = async () => {
-    if (!confirm('Clear the LLM configuration and stored API key?')) return;
+    if (!(await dialog.confirm({ message: 'Clear the LLM configuration and stored API key?', confirmLabel: 'Clear', danger: true }))) return;
     await authFetch('/api/admin/llm/config', { method: 'DELETE' });
     setConfig({ provider: 'anthropic', model: '', endpoint: '', deployment: '', apiVersion: '', apiKey: '' });
     setApiKeySet(false);
