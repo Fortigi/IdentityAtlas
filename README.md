@@ -1,4 +1,4 @@
-# Identity Atlas (FortigiGraph)
+# Identity Atlas
 
 > Universal authorization intelligence — sync, analyze, and govern permissions from any identity system.
 

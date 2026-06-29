@@ -1,6 +1,6 @@
 # Data Model
 
-Identity Atlas uses a unified data model (v3.2) that stores all authorization entities — from any source system — in a consistent structure backed by PostgreSQL with trigger-based audit history.
+Identity Atlas uses a unified data model (v3.1) that stores all authorization entities — from any source system — in a consistent structure backed by PostgreSQL with trigger-based audit history.
 
 ---
 

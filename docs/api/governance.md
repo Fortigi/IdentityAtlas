@@ -201,7 +201,7 @@ All category assignments as a flat list. Used by the Matrix view to determine co
 
 ## Tag Management
 
-Tags are free-form labels for users and resources. Unlike categories, an entity can have **multiple tags**, and tags are scoped by `entityType` (`user` or `group`). Tags are stored in `GraphTags` and `GraphTagAssignments`.
+Tags are free-form labels for users and resources. Unlike categories, an entity can have **multiple tags**, and tags are scoped by `entityType` (`user` or `group`). Tags read/write through `GraphTags` and `GraphTagAssignments`, which since the v6 Contexts redesign are **backward-compatibility views** over the unified `Contexts` model (`contextType='Tag'`), not standalone base tables.
 
 ### GET /api/tags
 

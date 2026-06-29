@@ -164,7 +164,7 @@ The UI uses a hybrid filtering approach to balance performance and flexibility:
 flowchart TD
     F[Active Filters] --> US[User attribute filters\ndepartment, jobTitle, __userTag]
     F --> RS[Relationship filters\ngroupDisplayName, membershipType]
-    US -->|Server-side SQL WHERE| DB[Azure SQL]
+    US -->|Server-side SQL WHERE| DB[PostgreSQL]
     RS -->|Client-side JS filter| Browser[Browser]
     DB --> Browser
 ```
