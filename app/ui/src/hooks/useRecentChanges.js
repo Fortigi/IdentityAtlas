@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useFetch } from '@ui/hooks/useFetch';
 
 // ─── useRecentChanges ────────────────────────────────────────────────
 // Fetches /api/<kind>/:id/recent-changes on mount and exposes it in the
@@ -22,22 +23,13 @@ const ENDPOINT = {
 };
 
 export default function useRecentChanges(entityKind, entityId, authFetch, { sinceDays = 30, limit = 50 } = {}) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const urlFn = ENDPOINT[entityKind];
-    if (!urlFn || !entityId) { setLoading(false); return; }
-    let cancelled = false;
-    setLoading(true);
-    const url = `${urlFn(entityId)}?sinceDays=${sinceDays}&limit=${limit}`;
-    authFetch(url)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (!cancelled) setData(d || { events: [], addedCount: 0, removedCount: 0, sinceDays }); })
-      .catch(() => { if (!cancelled) setData({ events: [], addedCount: 0, removedCount: 0, sinceDays }); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [entityKind, entityId, authFetch, sinceDays, limit]);
+  const urlFn = ENDPOINT[entityKind];
+  const url = (urlFn && entityId)
+    ? `${urlFn(entityId)}?sinceDays=${sinceDays}&limit=${limit}`
+    : null;
+  // A non-ok/failed fetch leaves `data` null; the derived defaults below render
+  // an empty change set (matches the previous fallback object).
+  const { data, loading } = useFetch(url, { authFetch });
 
   const derived = useMemo(() => {
     if (!data) return { events: [], addedCount: 0, removedCount: 0, added: [], removed: [], addedIds: new Set(), sinceDays };
