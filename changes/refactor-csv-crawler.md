@@ -1,2 +1,0 @@
-- Refactored the csv crawler so its internal functions live in a loadable `CSVCrawler.Functions.ps1` library (dot-sourced by the entry-point script) instead of being trapped in the script's top-level execution body — no change to runtime behavior.
-- Added unit tests for the csv crawler's helper functions (file reading, column validation, system-id resolution, per-system batching and dedup).

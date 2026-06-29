@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Refactored the csv crawler so its internal functions live in a loadable `CSVCrawler.Functions.ps1` library (dot-sourced by the entry-point script) instead of being trapped in the script's top-level execution body — no change to runtime behavior.
+- Added unit tests for the csv crawler's helper functions (file reading, column validation, system-id resolution, per-system batching and dedup).
+
+## Changes in this PR
+
 - Added unit tests for the PowerShell SDK (Graph request/token layer, user/group/governance read functions, write functions, and helpers), the risk-scoring module, and the crawler helper libraries (midPoint REST client, Azure Resource Graph + ARM helpers, and the OData GET/paged request layer) to substantially raise PowerShell code coverage.
 - Fixed `Set-FGGroup`, which previously failed on every call due to a malformed `$PSBoundParameters` reference.
 - Fixed `Confirm-FGAccessPackageResource`, which referenced a non-existent command (a missing hyphen) when adding a group to an access package.
