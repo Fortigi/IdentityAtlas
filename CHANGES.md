@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Expanded automated API test coverage: added unit tests (with the database mocked) across the matrix, tags, categories, admin, permissions, contexts, context-plugins, risk-profile, risk-score, identities, ingest, account-linking, data-export, auth-roles, bulk-list, risk-scoring-run, performance, and org-chart routes — raising route-handler line coverage from roughly half to ~75%.
+
+## Changes in this PR
+
 - Greatly expanded automated UI test coverage: React components are now mounted and exercised in a real DOM (effects, clicks, forms, wizard steps, tab switches) rather than only inspected as source, raising UI line coverage from ~5% to ~64%.
 - Added mount tests for the Plugins, Governance, Risk Scoring, Admin, Access Packages, Department, Context detail, Contexts, Roll-up matrix, Matrix, Matrix filter wizard, New context wizard, Risk profile wizard, Roles & permissions, and Risk score sections — covering their loading, empty, error, and interaction states.
 - Added mount tests for the Systems, Identity detail, and Run detail pages — covering their loading, empty, error, and interaction states.
