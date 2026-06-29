@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Hardened the AI/LLM integration against redirect-based SSRF: outbound provider calls no longer follow HTTP redirects (a redirect could otherwise carry the provider API key to an unintended host).
+- Hardened risk-profile generation against prompt injection: scraped web-page text and free-text hints are now clearly fenced as untrusted data the model must not treat as instructions, and any attempt to forge the fence markers from inside that content is neutralised.
+- Classifier regex patterns are now validated when a classifier set is saved — an invalid or unsupported pattern is rejected up front with the offending pattern listed, instead of being silently skipped later during scoring.
+
+## Changes in this PR
+
 - Extracted the Azure RM crawler's reusable scope/ingest helper functions into a separate loadable library so they can be unit-tested in isolation; the crawler's behaviour is unchanged.
 
 ## Changes in this PR
