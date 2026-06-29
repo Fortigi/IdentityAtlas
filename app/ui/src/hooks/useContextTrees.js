@@ -2,60 +2,33 @@
 // root's subtree. A single hook for the Contexts tab — the tree selector
 // and the tree/list view both consume its output.
 
-import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useFetch } from '@ui/hooks/useFetch';
 
 export function useContextRoots() {
   const { authFetch } = useAuth();
-  const [roots, setRoots] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const reload = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const r = await authFetch('/api/contexts');
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const body = await r.json();
-      setRoots(body.data || []);
-    } catch (err) {
-      console.error('Failed to load context roots:', err);
-      setError(err.message || 'Failed to load contexts');
-    } finally {
-      setLoading(false);
-    }
-  }, [authFetch]);
-
-  useEffect(() => { reload(); }, [reload]);
-
-  return { roots, loading, error, reload };
+  const { data: roots, loading, error, reload } = useFetch('/api/contexts', {
+    authFetch,
+    initialData: [],
+    transform: (body) => body.data || [],
+    onError: (err) => console.error('Failed to load context roots:', err),
+  });
+  return { roots, loading, error: error ? (error.message || 'Failed to load contexts') : null, reload };
 }
 
 export function useContextSubtree(rootId) {
   const { authFetch } = useAuth();
-  const [nodes, setNodes] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const reload = useCallback(async () => {
-    if (!rootId) { setNodes([]); return; }
-    setLoading(true); setError(null);
-    try {
-      const r = await authFetch(`/api/contexts/tree?root=${encodeURIComponent(rootId)}`);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const body = await r.json();
-      setNodes(Array.isArray(body) ? body : []);
-    } catch (err) {
-      console.error('Failed to load subtree:', err);
-      setError(err.message || 'Failed to load subtree');
-    } finally {
-      setLoading(false);
-    }
-  }, [authFetch, rootId]);
-
-  useEffect(() => { reload(); }, [reload]);
-
-  return { nodes, loading, error, reload };
+  const { data: nodes, loading, error, reload } = useFetch(
+    rootId ? `/api/contexts/tree?root=${encodeURIComponent(rootId)}` : null,
+    {
+      authFetch,
+      enabled: !!rootId,
+      initialData: [],
+      transform: (body) => (Array.isArray(body) ? body : []),
+      onError: (err) => console.error('Failed to load subtree:', err),
+    },
+  );
+  return { nodes, loading, error: error ? (error.message || 'Failed to load subtree') : null, reload };
 }
 
 // Flattens a nested tree (children-of-children) into an indent-aware list.
