@@ -92,6 +92,18 @@ export async function chatWithSavedConfig(args) {
   return chat(cfg, args);
 }
 
+// Strip the raw upstream response body out of a provider error before it reaches
+// the client (M-2 — info leak). Provider adapters throw
+// "<Provider> API error <status>: <body>"; we keep the actionable
+// "<Provider> API error <status>" and drop the body. Our own messages (timeout,
+// "no config") carry no upstream body and pass through unchanged. Callers log the
+// full detail server-side.
+function clientSafeLlmError(err) {
+  const msg = String(err?.message || 'LLM request failed');
+  const m = msg.match(/^(.*?\berror \d{3})\b/);
+  return m ? m[1] : msg;
+}
+
 // Test the configuration with a tiny request. Used by the "Test" button in the
 // admin UI. Returns { ok: true, model, latencyMs } or { ok: false, error }.
 export async function testLLMConfig({ provider, model, endpoint, deployment, apiVersion, apiKey }) {
@@ -113,7 +125,8 @@ export async function testLLMConfig({ provider, model, endpoint, deployment, api
     });
     return { ok: true, model: r.model, latencyMs: Date.now() - start, sample: r.text.slice(0, 80) };
   } catch (err) {
-    return { ok: false, error: err.message };
+    console.error('LLM test failed:', err.message);
+    return { ok: false, error: clientSafeLlmError(err) };
   }
 }
 
@@ -144,7 +157,8 @@ export async function listModelsForConfig({ provider, apiKey, endpoint, apiVersi
     });
     return { ok: true, models: r.models };
   } catch (err) {
-    return { ok: false, error: err.message };
+    console.error('LLM model list failed:', err.message);
+    return { ok: false, error: clientSafeLlmError(err) };
   }
 }
 
