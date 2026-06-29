@@ -189,7 +189,7 @@ router.get('/admin/export/curated', exportBulk, async (req, res) => {
         FROM "GovernanceCategories" c
         LEFT JOIN "GovernanceCategoryAssignments" ca ON ca."categoryId" = c.id
         LEFT JOIN "Resources" ap
-          ON LOWER(ap.id) = ca."resourceId"
+          ON LOWER(ap.id::text) = LOWER(ca."resourceId")
           AND ap."resourceType" = 'BusinessRole'
         ORDER BY c.name, ca."resourceId"
       `);
