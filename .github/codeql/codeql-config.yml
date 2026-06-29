@@ -16,3 +16,10 @@ paths-ignore:
   # endpoint + object search) on behalf of the admin wizard. Same rationale as
   # omada/discover.js: admin-supplied URL, scheme-validated, admin auth required.
   - tools/crawlers/midpoint/discover.js
+
+  # docs/coverage/** is generated JavaScript — ReportGenerator's HTML coverage
+  # report, committed to the docs tree by coverage.yml on every merge to main.
+  # It's not our source and is regenerated each run, so CodeQL findings in it
+  # (e.g. js/trivial-conditional in class.js) can't be meaningfully fixed — any
+  # edit is overwritten on the next coverage build. Exclude the whole tree.
+  - docs/coverage/**
