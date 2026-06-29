@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
 import MatrixScopePanel from './MatrixScopePanel';
-import { renderWithProviders, makeAuthFetch, screen, userEvent, waitFor } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, screen, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const filter = {
   rowType: 'principal',
