@@ -761,21 +761,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#graphresourceclusters" class="md-nav__link">
+  <a href="#resource-clusters-moved-out-of-dedicated-tables" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GraphResourceClusters
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#graphresourceclustermembers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GraphResourceClusterMembers
+        Resource clusters (moved out of dedicated tables)
       
     </span>
   </a>
@@ -1256,6 +1245,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Export (Power Query)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Template Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1506,6 +1551,34 @@
     
   
     Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/resource-cluster-algorithm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Cluster Algorithm
   
 
     
@@ -1820,6 +1893,34 @@
     
   
     Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/effective-access-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
   
 
     
@@ -2701,6 +2802,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ci-scope-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Scope Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3029,21 +3158,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#graphresourceclusters" class="md-nav__link">
+  <a href="#resource-clusters-moved-out-of-dedicated-tables" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GraphResourceClusters
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#graphresourceclustermembers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GraphResourceClusterMembers
+        Resource clusters (moved out of dedicated tables)
       
     </span>
   </a>
@@ -3181,12 +3299,8 @@
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                                               structuralScore
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                                               propagatedScore
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                                              overrideAdjustment
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>                                         GraphResourceClusters
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>                                           └─ groups of related resources
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                                         GraphResourceClusterMembers
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                                           └─ which resources belong to each cluster
 </code></pre></div>
+<p>Resource clustering is no longer a risk-scoring table — it runs as a context-algorithm plugin (see "Resource clusters" below).</p>
 <p>Scoring reads the <strong>inputs</strong> and writes the <strong>outputs</strong>. The inputs change only when you regenerate the risk profile / classifiers. The outputs are overwritten on every scoring run (with analyst overrides preserved). Account linking is a separate engine — see <a href="../../architecture/account-linking/">Account Linking</a>.</p>
 <hr />
 <h2 id="entity-relationship-diagram">Entity Relationship Diagram<a class="headerlink" href="#entity-relationship-diagram" title="Permanent link">&para;</a></h2>
@@ -3222,27 +3336,7 @@
         datetime generatedAt
         string llmProvider
         string classifierJson
-    }
-    GraphResourceClusters {
-        string id PK
-        string displayName
-        string clusterType
-        int aggregateRiskScore
-        string riskTier
-        string ownerUserId
-        string ownerDisplayName
-        datetime scoredAt
-    }
-    GraphResourceClusterMembers {
-        string clusterId PK
-        string resourceType PK
-        string resourceId PK
-        string resourceName
-        int resourceRiskScore
-        bool isNonProduction
-    }
-
-    GraphResourceClusters ||--o{ GraphResourceClusterMembers : "contains"</code></pre>
+    }</code></pre>
 <p>The <code>RiskScores</code> table links back to the core model by <code>entityId</code> matching the <code>id</code> column on <code>Principals</code>, <code>Resources</code>, <code>Identities</code>, or <code>Contexts</code>. There is no FK constraint — this is intentional, so risk scores can be queried independently of whether the source entity still exists.</p>
 <hr />
 <h2 id="table-reference">Table Reference<a class="headerlink" href="#table-reference" title="Permanent link">&para;</a></h2>
@@ -3468,117 +3562,28 @@
 </table>
 <p>The engine is deterministic — no LLM and no <code>New-FGCorrelationRuleset</code> / <code>Save-FGCorrelationRuleset</code> step. See <a href="../../architecture/account-linking/">Account Linking</a>.</p>
 <hr />
-<h3 id="graphresourceclusters">GraphResourceClusters<a class="headerlink" href="#graphresourceclusters" title="Permanent link">&para;</a></h3>
-<p>Groups of related resources identified by <code>Save-FGResourceClusters</code>. A cluster aggregates resources that share a classifier match or a common display name stem. Each cluster has an aggregate risk score and an optional analyst-assigned owner for remediation accountability.</p>
-<table>
-<thead>
-<tr>
-<th>Property</th>
-<th>Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Primary Key</td>
-<td><code>id</code></td>
-</tr>
-<tr>
-<td>Audit history</td>
-<td>No</td>
-</tr>
-<tr>
-<td>Created by</td>
-<td><code>Save-FGResourceClusters</code></td>
-</tr>
-</tbody>
-</table>
-<p>Key columns:</p>
-<table>
-<thead>
-<tr>
-<th>Column</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>displayName</code></td>
-<td>Human-readable cluster name (derived from classifier or shared stem)</td>
-</tr>
-<tr>
-<td><code>clusterType</code></td>
-<td><code>Classifier</code> (grouped by risk classifier) or <code>NameStem</code> (grouped by display name prefix)</td>
-</tr>
-<tr>
-<td><code>aggregateRiskScore</code></td>
-<td>Weighted average of member resource risk scores</td>
-</tr>
-<tr>
-<td><code>riskTier</code></td>
-<td>Tier of the aggregate score</td>
-</tr>
-<tr>
-<td><code>ownerUserId</code> / <code>ownerDisplayName</code></td>
-<td>Analyst-assigned owner for remediation tracking</td>
-</tr>
-<tr>
-<td><code>ownerAssignedBy</code></td>
-<td>Identity of the analyst who assigned the owner</td>
-</tr>
-<tr>
-<td><code>scoredAt</code></td>
-<td>When the cluster was last computed</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h3 id="graphresourceclustermembers">GraphResourceClusterMembers<a class="headerlink" href="#graphresourceclustermembers" title="Permanent link">&para;</a></h3>
-<p>The detail rows for each cluster — one row per resource in the cluster.</p>
-<table>
-<thead>
-<tr>
-<th>Property</th>
-<th>Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Primary Key</td>
-<td>Composite: <code>clusterId</code> + <code>resourceType</code> + <code>resourceId</code></td>
-</tr>
-<tr>
-<td>Audit history</td>
-<td>No</td>
-</tr>
-<tr>
-<td>Created by</td>
-<td><code>Save-FGResourceClusters</code></td>
-</tr>
-</tbody>
-</table>
-<p>Key columns: <code>resourceName</code>, <code>resourceRiskScore</code>, <code>resourceRiskTier</code>, <code>isNonProduction</code> (BIT — non-production resources are included but weighted down in the aggregate), <code>matchedOn</code> (which field matched the classifier), <code>matchDetail</code>.</p>
+<h3 id="resource-clusters-moved-out-of-dedicated-tables">Resource clusters (moved out of dedicated tables)<a class="headerlink" href="#resource-clusters-moved-out-of-dedicated-tables" title="Permanent link">&para;</a></h3>
+<p>The legacy <code>GraphResourceClusters</code> / <code>GraphResourceClusterMembers</code> tables were <strong>dropped</strong> in migration <code>019_drop_legacy_clusters.sql</code>. Resource clustering now runs as a registered <strong>context-algorithm plugin</strong> (<code>contexts/plugins/resource-cluster/</code>): a cluster is just a generated <a href="../data-model/#contexts">Context</a>, and its members live in <code>ContextMembers</code> — the same unified surface as every other context. See the <a href="../../architecture/resource-cluster-algorithm/">resource-cluster algorithm</a> and the <a href="../../risk-scoring/plugin-architecture/">risk-scoring plugin architecture</a>.</p>
 <hr />
 <h2 id="initialization-order">Initialization Order<a class="headerlink" href="#initialization-order" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c"># 1. Create the RiskScores table (also adds riskScore/riskTier columns to Principals and Resources)</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">Initialize-FGRiskScoreTables</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c"># 2. Generate org context profile (one-time, contacts LLM)</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nb">New-FGRiskProfile</span> <span class="n">-Domain</span> <span class="s2">&quot;yourcompany.com&quot;</span> <span class="n">-LLMProvider</span> <span class="n">Anthropic</span> <span class="n">-LLMApiKey</span> <span class="nv">$key</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c"># 3. Generate classifiers from the profile (one-time, contacts LLM)</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nb">New-FGRiskClassifiers</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c"># 4. Score all entities (run after each sync)</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nb">Invoke-FGRiskScoring</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c"># 5. Cluster related resources (optional, run after scoring)</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="nb">Save-FGResourceClusters</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c"># 1. (No action needed) The RiskScores table — plus the riskScore/riskTier columns</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c">#    on Principals and Resources — is created automatically by migration</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c">#    004_risk_scoring.sql when the web container starts.</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c"># 2. Generate org context profile (one-time, contacts LLM)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nb">New-FGRiskProfile</span> <span class="n">-Domain</span> <span class="s2">&quot;yourcompany.com&quot;</span> <span class="n">-LLMProvider</span> <span class="n">Anthropic</span> <span class="n">-LLMApiKey</span> <span class="nv">$key</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c"># 3. Generate classifiers from the profile (one-time, contacts LLM)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nb">New-FGRiskClassifiers</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c"># 4. Score all entities (run after each sync)</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nb">Invoke-FGRiskScoring</span>
 </code></pre></div>
-<p>Steps 2 and 3 only need to run once, or when your organization's risk posture changes significantly. Steps 4 and 5 run on a schedule alongside your regular data sync.</p>
+<p>Steps 2 and 3 only need to run once, or when your organization's risk posture changes significantly. Step 4 runs on a schedule alongside your regular data sync. Resource clustering runs separately as a context-algorithm plugin (see "Resource clusters" above).</p>
 <hr />
 <h2 id="score-history">Score History<a class="headerlink" href="#score-history" title="Permanent link">&para;</a></h2>
 <p><code>RiskScores</code> is overwritten by each scoring run. Analyst overrides (<code>riskOverride</code>, <code>riskOverrideReason</code>) are preserved across re-scoring runs.</p>
-<p>The other risk tables (<code>GraphRiskProfiles</code>, <code>GraphRiskClassifiers</code>, <code>GraphResourceClusters</code>, <code>GraphResourceClusterMembers</code>) are also overwritten in place when regenerated. (Account-to-identity matching is no longer a risk table — see <code>AccountLinkingConfig</code> / <code>AccountLinkingRuns</code> above.)</p>
+<p>The other risk tables (<code>GraphRiskProfiles</code>, <code>GraphRiskClassifiers</code>) are also overwritten in place when regenerated. (Resource clustering is no longer a risk table — it runs as a context-algorithm plugin; account-to-identity matching lives in <code>AccountLinkingConfig</code> / <code>AccountLinkingRuns</code> above.)</p>
 
 
 
