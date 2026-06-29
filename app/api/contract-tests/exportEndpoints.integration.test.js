@@ -130,4 +130,20 @@ describe('Power Query export endpoints — paging contract', () => {
     expect(p2.status).toBe(200);
     expect(p2.body.total).toBeNull();
   });
+
+  it('/api/context-list + /api/context-members: flat lists page with the total-on-page-1 contract', async () => {
+    const cl = await agent.get('/api/context-list?limit=100&offset=0').set('Authorization', tok);
+    expect(cl.status).toBe(200);
+    expect(typeof cl.body.total).toBe('number');
+    expect(cl.body.data.some(c => c.displayName === 'ExportVIP' && c.contextType === 'Tag')).toBe(true);
+
+    const cm = await agent.get('/api/context-members?limit=100&offset=0').set('Authorization', tok);
+    expect(cm.status).toBe(200);
+    expect(typeof cm.body.total).toBe('number');
+    expect(cm.body.data.some(m => m.memberId === firstPrincipalId && m.memberType === 'Principal')).toBe(true);
+
+    const cl2 = await agent.get('/api/context-list?limit=1&offset=1').set('Authorization', tok);
+    expect(cl2.status).toBe(200);
+    expect(cl2.body.total).toBeNull(); // count-on-page-1
+  });
 });

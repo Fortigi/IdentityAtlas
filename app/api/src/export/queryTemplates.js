@@ -145,4 +145,6 @@ export const QUERIES = [
   { sheet: 'Identities',             endpoint: 'identities',             m: paginatedQuery('identities') },
   { sheet: 'IdentityMembers',        endpoint: 'identity-members',       m: paginatedQuery('identity-members') },
   { sheet: 'ResourceRelationships',  endpoint: 'resource-relationships', m: paginatedQuery('resource-relationships') },
+  { sheet: 'Contexts',               endpoint: 'context-list',           m: paginatedQuery('context-list') },
+  { sheet: 'ContextMembers',         endpoint: 'context-members',        m: paginatedQuery('context-members') },
 ];
