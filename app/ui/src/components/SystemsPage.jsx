@@ -1,5 +1,6 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useFetch } from '@ui/hooks/useFetch';
 import EmptyState from './EmptyState';
 
 function formatRelativeTime(dateStr) {
@@ -24,26 +25,12 @@ function parseJsonArray(val) {
 
 export default function SystemsPage() {
   const { authFetch } = useAuth();
-  const [systems, setSystems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { data: systems, loading, error } = useFetch('/api/systems', {
+    authFetch,
+    initialData: [],
+    transform: (d) => (Array.isArray(d) ? d : d.data || []),
+  });
   const [expandedId, setExpandedId] = useState(null);
-
-  const fetchSystems = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await authFetch('/api/systems');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setSystems(Array.isArray(data) ? data : data.data || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [authFetch]);
-
-  useEffect(() => { fetchSystems(); }, [fetchSystems]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading systems...</div>;
@@ -54,7 +41,7 @@ export default function SystemsPage() {
       <div className="max-w-4xl mx-auto">
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6">
           <h2 className="text-red-800 dark:text-red-300 font-semibold">Error loading systems</h2>
-          <p className="text-red-600 dark:text-red-400 mt-1 text-sm">{error}</p>
+          <p className="text-red-600 dark:text-red-400 mt-1 text-sm">{error.message}</p>
         </div>
       </div>
     );

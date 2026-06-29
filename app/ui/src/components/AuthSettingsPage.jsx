@@ -1,5 +1,6 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useFetch } from '@ui/hooks/useFetch';
 import { useIsAdmin } from '@ui/auth/usePermissions';
 import RolesPermissionsSection from './RolesPermissionsSection';
 
@@ -26,27 +27,9 @@ function CopyableCommand({ command }) {
 export default function AuthSettingsPage() {
   const { authFetch } = useAuth();
   const isAdmin = useIsAdmin();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [state, setState] = useState(null);
+  const { data: state, loading, error, reload } = useFetch('/api/admin/auth-settings', { authFetch });
 
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-
-  const refresh = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await authFetch('/api/admin/auth-settings');
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setState(await r.json());
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { refresh(); }, [authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading && !state) {
     return <div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading authentication settings...</div>;
@@ -111,8 +94,8 @@ export default function AuthSettingsPage() {
           </div>
         </div>
 
-        {error && <div className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</div>}
-        <button onClick={refresh} className="mt-3 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">↻ Refresh</button>
+        {error && <div className="mt-3 text-sm text-red-600 dark:text-red-400">{error.message}</div>}
+        <button onClick={reload} className="mt-3 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">↻ Refresh</button>
       </div>
 
       {/* ─── Roles & Permissions (visible only with admin.auth) ─── */}

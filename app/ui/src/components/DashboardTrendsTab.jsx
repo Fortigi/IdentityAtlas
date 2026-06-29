@@ -4,8 +4,9 @@
 // The chart series start as a single point on the day the snapshot
 // table was introduced and grow over time. No historical backfill.
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useFetch } from '@ui/hooks/useFetch';
 import TimeSeriesChart from './TimeSeriesChart';
 
 const RANGE_OPTIONS = [
@@ -18,21 +19,7 @@ const RANGE_OPTIONS = [
 export default function DashboardTrendsTab() {
   const { authFetch } = useAuth();
   const [days, setDays] = useState(90);
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    authFetch(`/api/admin/dashboard-timeseries?days=${days}`)
-      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-      .then(d => { if (!cancelled) setData(d); })
-      .catch(err => { if (!cancelled) setError(err.message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [authFetch, days]);
+  const { data, loading, error } = useFetch(`/api/admin/dashboard-timeseries?days=${days}`, { authFetch });
 
   const rows = data?.data || [];
 
@@ -81,7 +68,7 @@ export default function DashboardTrendsTab() {
 
       {error && (
         <div className="rounded-lg border border-rose-200 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 p-3 text-sm text-rose-700 dark:text-rose-300">
-          Failed to load: {error}
+          Failed to load: {error.message}
         </div>
       )}
 
