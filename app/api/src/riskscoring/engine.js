@@ -147,14 +147,23 @@ export function isExcludedMatch(matchedText) {
 // backreferences). Those — and any genuinely invalid pattern — throw on compile
 // and are logged + skipped, which is the safe outcome for an untrusted pattern.
 // Exported for unit tests.
+// Clean + compile a single untrusted regex string with the RE2 engine
+// (linear-time, no catastrophic backtracking). Strips Perl/Python inline flag
+// groups the LLM sometimes emits, then compiles case-insensitively. Throws on an
+// invalid or RE2-unsupported pattern (lookaround, backreferences). Exported so
+// save-time validation (routes/riskProfiles.js, M-6) can reject exactly the
+// patterns the scoring engine would otherwise have to skip at run time.
+export function compilePattern(p) {
+  const cleaned = p.replace(/^\(\?[imsx]+\)/, '').replace(/\(\?[imsx]+\)/g, '');
+  return new RE2(cleaned, 'i');
+}
+
 export function compileClassifier(c) {
   const compiled = [];
   for (const p of (c.patterns || [])) {
     if (typeof p !== 'string' || !p.trim()) continue;
-    // Strip unsupported inline flag groups (Perl/Python syntax)
-    const cleaned = p.replace(/^\(\?[imsx]+\)/, '').replace(/\(\?[imsx]+\)/g, '');
     try {
-      compiled.push(new RE2(cleaned, 'i'));
+      compiled.push(compilePattern(p));
     } catch (err) {
       console.warn(`Classifier '${c.id || '(unknown)'}': skipping unsupported/invalid regex '${p}' — ${err.message}`);
     }

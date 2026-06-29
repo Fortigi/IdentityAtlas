@@ -9,7 +9,7 @@
 //   - the weighted final-score formula
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { compileClassifier, scoreOne, tierFor, isNonProduction } from './engine.js';
+import { compileClassifier, compilePattern, scoreOne, tierFor, isNonProduction } from './engine.js';
 
 // ─── tierFor ──────────────────────────────────────────────────────
 
@@ -91,6 +91,18 @@ describe('isNonProduction', () => {
 });
 
 // ─── compileClassifier ────────────────────────────────────────────
+
+describe('compilePattern (M-6 save-time validation)', () => {
+  it('compiles a normal anchored pattern', () => {
+    expect(() => compilePattern('\\bdomain\\s*admin\\b')).not.toThrow();
+  });
+  it('strips Perl/Python inline flag groups before compiling', () => {
+    expect(() => compilePattern('(?i)admin')).not.toThrow();
+  });
+  it('throws on an RE2-unsupported lookaround (so save-time validation can reject it)', () => {
+    expect(() => compilePattern('(?=secret)admin')).toThrow();
+  });
+});
 
 describe('compileClassifier', () => {
   let warnSpy;
