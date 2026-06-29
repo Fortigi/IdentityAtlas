@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Dashboard landing page now loads its stats and version through the shared fetch lifecycle, removing a React Compiler set-state-in-effect warning. Load-error vs empty-database handling and the Retry button are unchanged.
+
+## Changes in this PR
+
 - Read-only API tokens (the credentials behind the Excel / Power Query export) are now **automatically revoked after 90 days without use**, so a token embedded in a workbook nobody refreshes anymore no longer lingers as live read access. The threshold is configurable via the `READ_TOKEN_IDLE_DAYS` setting (set it to `0` to turn idle-revocation off). Auto-revoked tokens stay listed in the Existing tokens table (marked revoked) for audit.
 
 ## Changes in this PR
