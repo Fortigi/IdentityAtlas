@@ -23,6 +23,7 @@ import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
 import { purgeExpiredTombstones } from './ingest/tombstonePurge.js';
+import { revokeIdleTokens } from './auth/readTokens.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
 
@@ -135,8 +136,27 @@ function startHistoryPruneJob() {
   const PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
   const FIRST_RUN_DELAY_MS = 60 * 1000;
   const DEFAULT_DAYS = 180;
+  const DEFAULT_TOKEN_IDLE_DAYS = 90;
 
   async function prune() {
+    // Auto-revoke read API tokens (fgr_…) idle longer than READ_TOKEN_IDLE_DAYS
+    // (default 90; 0 disables). Independent of history retention so it still runs
+    // when that's switched off — keeps forgotten Power Query / BI credentials from
+    // lingering as live read access.
+    try {
+      const idleCfg = await db.queryOne(
+        `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = $1`,
+        ['READ_TOKEN_IDLE_DAYS']
+      );
+      const idleDays = idleCfg ? parseInt(idleCfg.configValue, 10) : DEFAULT_TOKEN_IDLE_DAYS;
+      const revoked = await revokeIdleTokens(idleDays);
+      for (const t of revoked) {
+        console.log(`Read-token auto-revoke: revoked "${t.name}" (${t.tokenPrefix}…) — idle over ${idleDays} days`);
+      }
+    } catch (err) {
+      console.error('Read-token idle revoke failed (will retry next interval):', err.message);
+    }
+
     try {
       const r = await db.queryOne(
         `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = $1`,

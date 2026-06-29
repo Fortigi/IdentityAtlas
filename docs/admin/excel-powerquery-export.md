@@ -64,6 +64,22 @@ token with its prefix, creation date, and last-used timestamp. Click
 **Revoke** to invalidate any token immediately — workbooks using that
 token stop refreshing on their next attempt.
 
+### Automatic revocation of idle tokens
+
+Tokens that go unused for too long are revoked automatically, so a
+credential embedded in a workbook that nobody refreshes anymore doesn't
+linger as live read access. A token counts as "used" whenever a request
+authenticates with it (every workbook refresh); the clock falls back to
+the creation date for a token that was never used.
+
+The threshold defaults to **90 days** and is controlled by the
+`READ_TOKEN_IDLE_DAYS` key in `WorkerConfig`. Set it to `0` to disable
+idle revocation entirely, or to a different number of days to suit your
+policy. The sweep runs shortly after startup and every six hours
+thereafter; an idle token is therefore revoked within a few hours of
+crossing the threshold. Revoking is not deletion — idle-revoked tokens
+still appear in the **Existing tokens** table (marked revoked) for audit.
+
 ## How the token is used against the API
 
 The workbook's M code reads the token from the `AuthToken` named range

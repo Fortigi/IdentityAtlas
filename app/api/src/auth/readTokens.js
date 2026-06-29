@@ -66,6 +66,27 @@ export async function revokeToken(id) {
   return r.rowCount > 0;
 }
 
+// Auto-revoke read tokens that have gone idle — not used (no request) for more
+// than `idleDays` days. "Used" is `lastUsedAt`; tokens that were never used fall
+// back to `createdAt` so a token minted-and-forgotten still ages out. Already
+// revoked rows are skipped. Returns the rows revoked (id/name/prefix) so the
+// caller can log them. `idleDays <= 0` disables the sweep (returns []).
+//
+// `client` defaults to the shared connection module but accepts any object with
+// a pg-compatible `.query(sql, params)` — the contract test passes a test pool.
+export async function revokeIdleTokens(idleDays, client = db) {
+  if (!Number.isFinite(idleDays) || idleDays <= 0) return [];
+  const r = await client.query(
+    `UPDATE "ReadApiKeys"
+        SET revoked = TRUE
+      WHERE revoked = FALSE
+        AND COALESCE("lastUsedAt", "createdAt") < now() - ($1::int * interval '1 day')
+      RETURNING id, name, "tokenPrefix", "lastUsedAt", "createdAt"`,
+    [idleDays]
+  );
+  return r.rows;
+}
+
 // Look up an active token by its plaintext value (called by authMiddleware on
 // every request that uses an `fgr_` bearer). Returns the row or null. Also
 // updates lastUsedAt fire-and-forget — we don't await it because we don't want
