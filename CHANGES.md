@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a documentation page on the soft-delete / tombstone lifecycle: why removed entities are kept rather than hard-deleted, how a re-appearing entity is automatically re-activated, where deleted items are hidden or shown (list "include deleted" toggle, detail-page badge, matrix exclusion), and how the retention/purge job finalizes tombstones (governed by the shared history-retention window).
+
+## Changes in this PR
+
 - Corrected the data-model documentation to match the current Contexts model: entities no longer carry a single `contextId` column — context membership is now a many-to-many relationship via the `ContextMembers` join table, and every Context has a variant (synced / generated / manual) and a targetType (Identity / Resource / Principal / System). The conceptual hierarchy, entity-relationship diagram, and table reference were all updated to reflect the v6 redesign.
 
 ## Changes in this PR
