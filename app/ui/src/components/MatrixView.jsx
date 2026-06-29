@@ -552,9 +552,10 @@ export default function MatrixView({
   // Apply custom drag-row order on top of the default AP staircase sort. All
   // subject/resource selection happens through the filter wizard, so there
   // are no per-column filters to apply here any more.
+  const { getOrderedGroups } = rowOrderHook;
   const orderedGroups = useMemo(() => {
-    return rowOrderHook.getOrderedGroups(apSortedGroups);
-  }, [apSortedGroups, rowOrderHook.getOrderedGroups]);
+    return getOrderedGroups(apSortedGroups);
+  }, [apSortedGroups, getOrderedGroups]);
 
   const groupIds = useMemo(() => orderedGroups.map(g => g.id), [orderedGroups]);
 

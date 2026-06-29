@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripSiblingPrefix, dedupeSegments, computeChildLabels } from './ContextTreeView.jsx';
+import { stripSiblingPrefix, dedupeSegments, computeChildLabels } from './ContextTreeView.helpers.js';
 
 const node = (id, displayName) => ({ id, displayName });
 

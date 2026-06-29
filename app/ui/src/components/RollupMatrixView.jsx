@@ -83,7 +83,10 @@ export default function RollupMatrixView({
   // The Gaps view has no meaning for an aggregated count — fall back to All.
   const mode = managedFilter === 'gaps' ? 'all' : managedFilter;
   // Business-role columns only in the resources-and-roles view, governed-inclusive.
-  const visibleRoles = (!rolesOnly && rollupContent !== 'resources-only' && mode !== 'unmanaged') ? businessRoles : [];
+  const visibleRoles = useMemo(
+    () => (!rolesOnly && rollupContent !== 'resources-only' && mode !== 'unmanaged') ? businessRoles : [],
+    [rolesOnly, rollupContent, mode, businessRoles]
+  );
 
   // (resourceId|groupValue) -> { direct, governed } for the resources views.
   const countMap = useMemo(() => {

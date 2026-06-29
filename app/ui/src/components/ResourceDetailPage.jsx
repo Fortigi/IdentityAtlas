@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
-import RiskScoreSection, { RISK_FIELDS } from './RiskScoreSection';
+import RiskScoreSection from './RiskScoreSection';
+import { RISK_FIELDS } from './RiskScoreSection.constants.js';
 import DeletedBadge from './DeletedBadge';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 
