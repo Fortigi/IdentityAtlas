@@ -9,9 +9,9 @@ Line coverage across the project's automated test suites, regenerated on every m
 | Suite | Line | Branch | Method | Lines covered |
 |-------|------|--------|--------|---------------|
 | [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 69.0% | 57.1% | 73.4% | 5,909 / 8,561 |
-| [UI (React / Vitest)](../coverage/ui/index.html) | 64.5% | 52.9% | 50.9% | 4,496 / 6,961 |
+| [UI (React / Vitest)](../coverage/ui/index.html) | 64.5% | 52.8% | 50.9% | 4,479 / 6,943 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 41.1% | — | 91.8% | 2,184 / 5,309 |
-| **Overall** | **60.4%** | | | **12,589 / 20,831** |
+| **Overall** | **60.4%** | | | **12,572 / 20,813** |
 
 ## Browsable reports
 
@@ -21,4 +21,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-06-29 16:18 UTC from commit `b45a7415`._
+_Generated 2026-06-29 17:17 UTC from commit `e9ab5da3`._
