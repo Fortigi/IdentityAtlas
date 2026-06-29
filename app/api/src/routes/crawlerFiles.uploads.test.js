@@ -97,7 +97,11 @@ describe('crawler-configs/:configId/files — real upload/list/delete cycle', ()
     // basename() reduces '../../etc/passwd' to just 'passwd' — confirm the
     // delete can only ever touch a file inside this config's own folder, by
     // planting a decoy 'passwd' file there and confirming only THAT gets
-    // removed — the real /etc/passwd is never touched.
+    // removed. Together these assertions prove containment: had the traversal
+    // escaped, `deleted` would not be the bare 'passwd' and the in-folder decoy
+    // would survive. (We deliberately don't assert on a real OS file like
+    // /etc/passwd — that sentinel is Linux-only and the checks below already
+    // prove the path was sanitised, portably.)
     const configDir = join(UPLOAD_ROOT_DIR, 'csv-501');
     const decoy = join(configDir, 'passwd');
     mkdirSync(configDir, { recursive: true });
@@ -107,9 +111,8 @@ describe('crawler-configs/:configId/files — real upload/list/delete cycle', ()
     const res = await request(makeApp())
       .delete('/api/admin/crawler-configs/501/files/' + encodeURIComponent('../../etc/passwd'));
     expect(res.status).toBe(200);
-    expect(res.body.deleted).toBe('passwd');
-    expect(existsSync(decoy)).toBe(false);
-    expect(existsSync('/etc/passwd')).toBe(true); // the real file, untouched
+    expect(res.body.deleted).toBe('passwd'); // basename stripped '../../etc/'
+    expect(existsSync(decoy)).toBe(false);   // the contained file was the delete target
   });
 
   it('deletes the uploaded file; subsequent list is empty', async () => {
