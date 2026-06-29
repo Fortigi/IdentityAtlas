@@ -264,14 +264,105 @@ Describe 'Invoke-FGGetDeltaRequest' {
     }
 }
 
-# ─── Get-FGGroupChildrenParallel ────────────────────────────────────────────────
-Describe 'Get-FGGroupChildrenParallel' {
+# ─── Invoke-FGGroupChildFetch ───────────────────────────────────────────────────
+# The per-group fetch/retry/paginate logic, extracted out of the -Parallel block so
+# it runs (and is coverage-instrumented) in the main runspace. Invoke-RestMethod and
+# Start-Sleep are mocked so no real HTTP / waiting occurs.
+Describe 'Invoke-FGGroupChildFetch' {
 
-    # The parallel ForEach-Object block runs in fresh runspaces that can't see
-    # Pester mocks, so we exercise the parent-thread setup + token guard without
-    # entering the network path: with no token available the function throws
-    # before the parallel block. This covers the loop entry, batch slicing, and
-    # the "no access token" guard.
+    It 'emits one record per child from a single page' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ value = @(
+            [pscustomobject]@{ id = 'm1'; '@odata.type' = '#microsoft.graph.user' }
+            [pscustomobject]@{ id = 'm2'; '@odata.type' = '#microsoft.graph.group' }
+        ) } }
+        $out = @(Invoke-FGGroupChildFetch -Group ([pscustomobject]@{ id = 'g1' }) -Token 'tok' -ChildPath 'members')
+        $out.Count | Should -Be 2
+        $out[0].kind | Should -Be 'record'
+        $out[0].resourceId | Should -Be 'g1'
+        $out[0].principalId | Should -Be 'm1'
+        $out[1].childType | Should -Be '#microsoft.graph.group'
+    }
+
+    It 'follows @odata.nextLink across pages' {
+        $script:page = 0
+        Mock Invoke-RestMethod {
+            $script:page++
+            if ($script:page -eq 1) {
+                [pscustomobject]@{ value = @([pscustomobject]@{ id = 'a' }); '@odata.nextLink' = 'https://graph/next' }
+            } else {
+                [pscustomobject]@{ value = @([pscustomobject]@{ id = 'b' }) }
+            }
+        }
+        $out = @(Invoke-FGGroupChildFetch -Group ([pscustomobject]@{ id = 'g1' }) -Token 'tok' -ChildPath 'members')
+        $out.principalId | Should -Be @('a', 'b')
+        Should -Invoke Invoke-RestMethod -Times 2
+    }
+
+    It 'retries a transient 429 then succeeds' {
+        Mock Start-Sleep { }
+        $script:n = 0
+        Mock Invoke-RestMethod {
+            $script:n++
+            if ($script:n -eq 1) {
+                $resp = [pscustomobject]@{ StatusCode = [pscustomobject]@{ value__ = 429 } }
+                $ex = [System.Exception]::new('Too Many Requests')
+                $ex | Add-Member -NotePropertyName Response -NotePropertyValue $resp -Force
+                throw $ex
+            }
+            [pscustomobject]@{ value = @([pscustomobject]@{ id = 'ok' }) }
+        }
+        $out = @(Invoke-FGGroupChildFetch -Group ([pscustomobject]@{ id = 'g1' }) -Token 'tok' -ChildPath 'owners')
+        $out.principalId | Should -Be 'ok'
+        Should -Invoke Start-Sleep -Times 1
+    }
+
+    It 'retries a connection error with no status code' {
+        Mock Start-Sleep { }
+        $script:m = 0
+        Mock Invoke-RestMethod {
+            $script:m++
+            if ($script:m -eq 1) { throw [System.Exception]::new('connection reset') }
+            [pscustomobject]@{ value = @([pscustomobject]@{ id = 'recovered' }) }
+        }
+        $out = @(Invoke-FGGroupChildFetch -Group ([pscustomobject]@{ id = 'g1' }) -Token 'tok' -ChildPath 'members')
+        $out.principalId | Should -Be 'recovered'
+    }
+
+    It 'returns a single error object on a permanent (404) failure' {
+        Mock Start-Sleep { }
+        Mock Invoke-RestMethod {
+            $resp = [pscustomobject]@{ StatusCode = [pscustomobject]@{ value__ = 404 } }
+            $ex = [System.Exception]::new('Not Found')
+            $ex | Add-Member -NotePropertyName Response -NotePropertyValue $resp -Force
+            throw $ex
+        }
+        $out = @(Invoke-FGGroupChildFetch -Group ([pscustomobject]@{ id = 'g1' }) -Token 'tok' -ChildPath 'members')
+        $out.Count | Should -Be 1
+        $out[0].kind | Should -Be 'error'
+        $out[0].resourceId | Should -Be 'g1'
+        $out[0].message | Should -Be 'Not Found'
+    }
+
+    It 'gives up with an error object after exhausting retries on a persistent 503' {
+        Mock Start-Sleep { }
+        Mock Invoke-RestMethod {
+            $resp = [pscustomobject]@{ StatusCode = [pscustomobject]@{ value__ = 503 } }
+            $ex = [System.Exception]::new('Service Unavailable')
+            $ex | Add-Member -NotePropertyName Response -NotePropertyValue $resp -Force
+            throw $ex
+        }
+        $out = @(Invoke-FGGroupChildFetch -Group ([pscustomobject]@{ id = 'g1' }) -Token 'tok' -ChildPath 'members')
+        $out[0].kind | Should -Be 'error'
+        # initial attempt + 3 retries = 4 calls (maxAttempts)
+        Should -Invoke Invoke-RestMethod -Times 4
+    }
+}
+
+# ─── Get-FGGroupChildrenParallel ────────────────────────────────────────────────
+# The actual -Parallel execution is isolated in Invoke-FGGroupChildBatchParallel
+# (runspace code can't be mocked/instrumented). Mocking that seam lets us cover the
+# batch loop, token refresh, result fold and progress reporting in the main runspace.
+Describe 'Get-FGGroupChildrenParallel' {
 
     AfterEach {
         Remove-Variable -Name AccessToken -Scope Global -ErrorAction SilentlyContinue
@@ -282,6 +373,51 @@ Describe 'Get-FGGroupChildrenParallel' {
         $groups = @([pscustomobject]@{ id = 'g1' })
         { Get-FGGroupChildrenParallel -Groups $groups -ChildPath 'members' `
             -RecordBuilder { param($o) $o } } | Should -Throw '*No Graph access token*'
+    }
+
+    It 'folds parallel records via the RecordBuilder and counts errors' {
+        $Global:AccessToken = 'tok'
+        Mock Invoke-FGGroupChildBatchParallel {
+            @(
+                [pscustomobject]@{ kind = 'record'; resourceId = 'g1'; principalId = 'm1' }
+                [pscustomobject]@{ kind = 'record'; resourceId = 'g1'; principalId = 'm2' }
+                [pscustomobject]@{ kind = 'error';  resourceId = 'g2'; message = 'boom' }
+            )
+        }
+        $groups = @([pscustomobject]@{ id = 'g1' }, [pscustomobject]@{ id = 'g2' })
+        $result = Get-FGGroupChildrenParallel -Groups $groups -ChildPath 'members' `
+            -RecordBuilder { param($o) @{ resourceId = $o.resourceId; principalId = $o.principalId } }
+
+        $result.records.Count | Should -Be 2
+        $result.errorCount | Should -Be 1
+        $result.records[0].principalId | Should -Be 'm1'
+    }
+
+    It 'processes the groups in batches of BatchSize' {
+        $Global:AccessToken = 'tok'
+        Mock Invoke-FGGroupChildBatchParallel { @() }
+        $groups = 1..5 | ForEach-Object { [pscustomobject]@{ id = "g$_" } }
+        Get-FGGroupChildrenParallel -Groups $groups -ChildPath 'members' -BatchSize 2 `
+            -RecordBuilder { param($o) $o } | Out-Null
+        # 5 groups / batch size 2 = 3 batches
+        Should -Invoke Invoke-FGGroupChildBatchParallel -Times 3
+    }
+
+    It 'refreshes the token and reports progress (with an error tag) for each batch' {
+        $Global:AccessToken = 'tok'
+        # Include an error so the "· N errors" progress-detail branch is exercised.
+        Mock Invoke-FGGroupChildBatchParallel {
+            @([pscustomobject]@{ kind = 'error'; resourceId = 'g1'; message = 'boom' })
+        }
+        Mock Update-FGAccessTokenIfExpired { }
+        Mock Update-CrawlerProgress { }
+        $groups = @([pscustomobject]@{ id = 'g1' })
+        $result = Get-FGGroupChildrenParallel -Groups $groups -ChildPath 'members' `
+            -ProgressStep 'Sync' -ProgressStartPct 10 -ProgressEndPct 20 `
+            -RecordBuilder { param($o) $o }
+        $result.errorCount | Should -Be 1
+        Should -Invoke Update-FGAccessTokenIfExpired -Times 1
+        Should -Invoke Update-CrawlerProgress -Times 1 -ParameterFilter { $Detail -like '*1 errors*' }
     }
 }
 
@@ -310,5 +446,103 @@ Describe 'Write-Phase' {
     It 'attaches a records hashtable when supplied' {
         Write-Phase -Name 'Sync Owners' -Duration ([TimeSpan]::Zero) -Records @{ inserted = 9 }
         $script:phases[0].records.inserted | Should -Be 9
+    }
+}
+
+Describe 'ConvertTo-FilterValue' {
+    It 'returns the value unchanged when either value or sample is null' {
+        ConvertTo-FilterValue -Value 'x' -Sample $null | Should -Be 'x'
+        ConvertTo-FilterValue -Value $null -Sample 'y' | Should -BeNullOrEmpty
+    }
+
+    It 'coerces truthy strings to $true against a bool sample' {
+        foreach ($t in 'true', '1', 'yes', 'on', 'TRUE', ' On ') {
+            ConvertTo-FilterValue -Value $t -Sample $true | Should -BeTrue
+        }
+    }
+
+    It 'coerces falsy strings to $false against a bool sample' {
+        foreach ($f in 'false', '0', 'no', 'off', 'FALSE') {
+            ConvertTo-FilterValue -Value $f -Sample $true | Should -BeFalse
+        }
+    }
+
+    It 'passes a real bool through unchanged against a bool sample' {
+        ConvertTo-FilterValue -Value $true -Sample $false | Should -BeTrue
+    }
+
+    It 'coerces a numeric string to an int against an int sample' {
+        $r = ConvertTo-FilterValue -Value '42' -Sample 7
+        $r | Should -Be 42
+        $r | Should -BeOfType [int]
+    }
+
+    It 'returns the original value for a non-numeric string against an int sample' {
+        ConvertTo-FilterValue -Value 'abc' -Sample 7 | Should -Be 'abc'
+    }
+
+    It 'passes values through unchanged against a string sample' {
+        ConvertTo-FilterValue -Value 'Engineering' -Sample 'Sales' | Should -Be 'Engineering'
+    }
+}
+
+Describe 'New-OwnershipResourceId' {
+    It 'is deterministic and shaped like a GUID' {
+        $a = New-OwnershipResourceId -GroupId 'grp-1'
+        $b = New-OwnershipResourceId -GroupId 'grp-1'
+        $a | Should -Be $b
+        $a | Should -Match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    }
+
+    It 'produces distinct ids for distinct groups' {
+        (New-OwnershipResourceId -GroupId 'grp-1') | Should -Not -Be (New-OwnershipResourceId -GroupId 'grp-2')
+    }
+}
+
+Describe 'New-OAuth2ScopeResourceId' {
+    It 'is deterministic for the same client/api/scope triple' {
+        $a = New-OAuth2ScopeResourceId -ClientSpId 'c' -TargetApiSpId 'api' -Scope 'User.Read'
+        $b = New-OAuth2ScopeResourceId -ClientSpId 'c' -TargetApiSpId 'api' -Scope 'User.Read'
+        $a | Should -Be $b
+        $a | Should -Match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    }
+
+    It 'changes when any component of the triple changes' {
+        $base = New-OAuth2ScopeResourceId -ClientSpId 'c' -TargetApiSpId 'api' -Scope 'User.Read'
+        (New-OAuth2ScopeResourceId -ClientSpId 'c2'  -TargetApiSpId 'api'  -Scope 'User.Read') | Should -Not -Be $base
+        (New-OAuth2ScopeResourceId -ClientSpId 'c'   -TargetApiSpId 'api2' -Scope 'User.Read') | Should -Not -Be $base
+        (New-OAuth2ScopeResourceId -ClientSpId 'c'   -TargetApiSpId 'api'  -Scope 'Mail.Read') | Should -Not -Be $base
+    }
+}
+
+Describe 'New-AppRoleResourceId' {
+    It 'is deterministic for the same SP/appRole pair' {
+        $a = New-AppRoleResourceId -SpId 'sp' -AppRoleId 'role'
+        $b = New-AppRoleResourceId -SpId 'sp' -AppRoleId 'role'
+        $a | Should -Be $b
+        $a | Should -Match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    }
+
+    It 'produces distinct ids for distinct app roles on the same SP' {
+        (New-AppRoleResourceId -SpId 'sp' -AppRoleId 'r1') | Should -Not -Be (New-AppRoleResourceId -SpId 'sp' -AppRoleId 'r2')
+    }
+}
+
+Describe 'Resolve-DirectoryRolePrincipalType' {
+    It 'maps a service principal odata type' {
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ '@odata.type' = '#microsoft.graph.servicePrincipal' }) | Should -Be 'ServicePrincipal'
+    }
+
+    It 'maps a group odata type' {
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ '@odata.type' = '#microsoft.graph.group' }) | Should -Be 'Group'
+    }
+
+    It 'maps a user odata type' {
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' }) | Should -Be 'User'
+    }
+
+    It 'defaults to User for an unknown or missing odata type' {
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ '@odata.type' = '#microsoft.graph.device' }) | Should -Be 'User'
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ id = 'x' }) | Should -Be 'User'
     }
 }

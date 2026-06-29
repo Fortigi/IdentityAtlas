@@ -290,6 +290,81 @@ function Invoke-FGGetDeltaRequest {
 #     reports progress to the UI
 #
 # Output: a hashtable @{ records = @(...); errorCount = N }
+# Fetch one group's children (members/owners) with pagination + transient-error
+# retry. Returns one [pscustomobject] per child (kind='record') or a single
+# kind='error' object if the group fails after maxAttempts. Pulled out of the
+# ForEach-Object -Parallel block in Get-FGGroupChildrenParallel so the retry /
+# pagination / error logic is unit-testable in the main runspace (code running
+# inside -Parallel runspaces cannot be reached by mocks or coverage).
+function Invoke-FGGroupChildFetch {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Group,
+        [Parameter(Mandatory)] [string]$Token,
+        [Parameter(Mandatory)] [string]$ChildPath
+    )
+
+    $headers = @{ Authorization = "Bearer $Token" }
+    $uri     = "https://graph.microsoft.com/beta/groups/$($Group.id)/$ChildPath`?`$select=id&`$top=999"
+
+    $items = [System.Collections.Generic.List[object]]::new()
+    $attempt = 0
+    $maxAttempts = 4
+
+    while ($uri) {
+        $attempt++
+        try {
+            $resp = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get -TimeoutSec 60 -ErrorAction Stop
+            if ($resp.value) { foreach ($v in $resp.value) { $items.Add($v) } }
+            $uri = $resp.'@odata.nextLink'
+            $attempt = 0  # reset on success for nextLink retries
+        }
+        catch {
+            $status = $null
+            try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
+            # Retry transient errors with backoff. Skip the group entirely
+            # if we're still failing after maxAttempts.
+            if (($status -eq 429 -or ($status -ge 500 -and $status -lt 600) -or -not $status) -and $attempt -lt $maxAttempts) {
+                Start-Sleep -Seconds ([Math]::Pow(2, $attempt))
+                continue
+            }
+            # Permanent failure — surface but don't break the whole batch
+            [pscustomobject]@{ kind = 'error'; resourceId = $Group.id; message = $_.Exception.Message }
+            return
+        }
+    }
+
+    foreach ($child in $items) {
+        [pscustomobject]@{
+            kind        = 'record'
+            resourceId  = $Group.id
+            principalId = $child.id
+            childType   = $child.'@odata.type'
+        }
+    }
+}
+
+# Run Invoke-FGGroupChildFetch across a batch of groups in parallel runspaces.
+# The fetch function is re-established inside each runspace via $using (runspaces
+# don't inherit the caller's functions). Isolated behind its own function so the
+# batch loop / fold logic in Get-FGGroupChildrenParallel can be tested by mocking
+# this (the -Parallel body itself can't be mocked or coverage-instrumented).
+function Invoke-FGGroupChildBatchParallel {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [array]$Batch,
+        [Parameter(Mandatory)] [string]$Token,
+        [Parameter(Mandatory)] [string]$ChildPath,
+        [int]$ThrottleLimit = 16
+    )
+
+    $fetchDef = ${function:Invoke-FGGroupChildFetch}.ToString()
+    $Batch | ForEach-Object -Parallel {
+        ${function:Invoke-FGGroupChildFetch} = $using:fetchDef
+        Invoke-FGGroupChildFetch -Group $_ -Token $using:Token -ChildPath $using:ChildPath
+    } -ThrottleLimit $ThrottleLimit
+}
+
 function Get-FGGroupChildrenParallel {
     [CmdletBinding()]
     param(
@@ -321,53 +396,10 @@ function Get-FGGroupChildrenParallel {
         $end = [Math]::Min($i + $BatchSize - 1, $totalGroups - 1)
         $batch = $Groups[$i..$end]
 
-        # Run the batch in parallel. Each runspace returns an array of [pscustomobject]:
-        #   - { kind='record';  resourceId; principalId; childType; ... } for each child
-        #   - { kind='error';   resourceId; message } when a group fails after retries
-        $batchOutput = $batch | ForEach-Object -Parallel {
-            $g            = $_
-            $token        = $using:token
-            $childPathLoc = $using:ChildPath
-
-            $headers = @{ Authorization = "Bearer $token" }
-            $uri     = "https://graph.microsoft.com/beta/groups/$($g.id)/$childPathLoc`?`$select=id&`$top=999"
-
-            $items = [System.Collections.Generic.List[object]]::new()
-            $attempt = 0
-            $maxAttempts = 4
-
-            while ($uri) {
-                $attempt++
-                try {
-                    $resp = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get -TimeoutSec 60 -ErrorAction Stop
-                    if ($resp.value) { foreach ($v in $resp.value) { $items.Add($v) } }
-                    $uri = $resp.'@odata.nextLink'
-                    $attempt = 0  # reset on success for nextLink retries
-                }
-                catch {
-                    $status = $null
-                    try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
-                    # Retry transient errors with backoff. Skip the group entirely
-                    # if we're still failing after maxAttempts.
-                    if (($status -eq 429 -or ($status -ge 500 -and $status -lt 600) -or -not $status) -and $attempt -lt $maxAttempts) {
-                        Start-Sleep -Seconds ([Math]::Pow(2, $attempt))
-                        continue
-                    }
-                    # Permanent failure — surface but don't break the whole batch
-                    [pscustomobject]@{ kind = 'error'; resourceId = $g.id; message = $_.Exception.Message }
-                    return
-                }
-            }
-
-            foreach ($child in $items) {
-                [pscustomobject]@{
-                    kind        = 'record'
-                    resourceId  = $g.id
-                    principalId = $child.id
-                    childType   = $child.'@odata.type'
-                }
-            }
-        } -ThrottleLimit $ThrottleLimit
+        # Fetch each group's children in parallel. Each result is a [pscustomobject]
+        # with kind='record' (a child) or kind='error' (a group that failed after
+        # retries). See Invoke-FGGroupChildBatchParallel / Invoke-FGGroupChildFetch.
+        $batchOutput = Invoke-FGGroupChildBatchParallel -Batch $batch -Token $token -ChildPath $ChildPath -ThrottleLimit $ThrottleLimit
 
         # Fold parallel results into the totals (parent thread, not parallel).
         # Note: PowerShell's parser rejects `$list.Add(& $sb $arg)` because the
@@ -425,4 +457,79 @@ function Get-UserAttrValue {
         return $null
     }
     return $User.$AttrName
+}
+
+# Coerce a configured filter value to the type of the sample attribute value, so a
+# JSON-string config ("true", "42") compares correctly against a typed Graph value.
+function ConvertTo-FilterValue {
+    [CmdletBinding()]
+    param($Value, $Sample)
+    if ($null -eq $Value -or $null -eq $Sample) { return $Value }
+    if ($Sample -is [bool]) {
+        if ($Value -is [bool]) { return $Value }
+        $s = "$Value".Trim().ToLower()
+        if ($s -in @('true','1','yes','on'))  { return $true }
+        if ($s -in @('false','0','no','off')) { return $false }
+    }
+    if ($Sample -is [int] -or $Sample -is [long]) {
+        $n = 0; if ([int]::TryParse("$Value", [ref]$n)) { return $n }
+    }
+    return $Value
+}
+
+# Deterministic UUID for a group's synthetic "Owner @ <group>" GroupOwnership resource.
+function New-OwnershipResourceId {
+    [CmdletBinding()]
+    param([string]$GroupId)
+    $seed = "entraid-ownership:${GroupId}"
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
+        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
+    } finally {
+        $md5.Dispose()
+    }
+    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+}
+
+# Deterministic UUID for a (clientSP, targetApiSP, scope) DelegatedPermission resource.
+function New-OAuth2ScopeResourceId {
+    [CmdletBinding()]
+    param([string]$ClientSpId, [string]$TargetApiSpId, [string]$Scope)
+    $hashInput = "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($hashInput)
+        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
+    } finally {
+        $md5.Dispose()
+    }
+    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+}
+
+# Deterministic UUID for a (servicePrincipal, appRole) AppRole resource.
+function New-AppRoleResourceId {
+    [CmdletBinding()]
+    param([string]$SpId, [string]$AppRoleId)
+    $seed = "entraid-approle:${SpId}:${AppRoleId}"
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
+        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
+    } finally {
+        $md5.Dispose()
+    }
+    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+}
+
+# Map a directory-role member's @odata.type to a principalType.
+function Resolve-DirectoryRolePrincipalType {
+    [CmdletBinding()]
+    param($Principal)
+    switch -Wildcard ($Principal.'@odata.type') {
+        '*servicePrincipal' { 'ServicePrincipal'; break }
+        '*group'            { 'Group'; break }
+        '*user'             { 'User'; break }
+        default             { 'User' }
+    }
 }
