@@ -1,1 +1,2 @@
 - Extracted the Entra ID crawler's remaining inline helper functions (filter-value coercion, ownership/OAuth2-scope/app-role resource-id generation, directory-role principal-type resolution) into the loadable helper library so they can be unit-tested in isolation; the crawler's behaviour is unchanged.
+- Refactored the parallel group-children fetch so the per-group fetch/retry/pagination logic is a testable function and the parallel execution is isolated behind a thin seam; the crawler's behaviour is unchanged.
