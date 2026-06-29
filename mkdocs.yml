@@ -97,6 +97,8 @@ nav:
       - Using Identity Atlas:
           - Role Mining UI: ui/overview.md
           - Local Development: ui/local-dev.md
+          - Excel Export (Power Query): admin/excel-powerquery-export.md
+          - Excel Template Authoring: admin/excel-template-authoring.md
 
   - Concepts:
       - Risk Scoring:
@@ -105,6 +107,7 @@ nav:
           - AI Agents: risk-scoring/ai-agents.md
           - Engine Design: risk-scoring/design.md
           - Plugin Architecture: risk-scoring/plugin-architecture.md
+          - Resource Cluster Algorithm: architecture/resource-cluster-algorithm.md
       - Architecture:
           - Docker Setup: architecture/docker-setup.md
           - Portable Windows Launcher: architecture/desktop-portable.md
@@ -115,6 +118,7 @@ nav:
           - LLM & Risk Scoring Internals: architecture/llm-and-risk-scoring.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - Account Linking: architecture/account-linking.md
+          - Effective Access Engine: architecture/effective-access-engine.md
       - Operations:
           - Azure Deployment: architecture/azure-deployment-walkthrough.md
           - Azure Deployment Reference: architecture/azure-deployment.md
@@ -142,6 +146,7 @@ nav:
       - Contributing:
           - CI Pipeline: contributing/ci-pipeline.md
           - UI Style Guide: contributing/style-guide.md
+          - CI Scope Testing: architecture/ci-scope-testing.md
       - User Experience:
           - Assessment & Remediation: ux/assessment.md
       - Security:
