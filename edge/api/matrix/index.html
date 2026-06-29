@@ -3375,7 +3375,7 @@
 <pre class="mermaid"><code>flowchart TD
     F[Active Filters] --&gt; US[User attribute filters\ndepartment, jobTitle, __userTag]
     F --&gt; RS[Relationship filters\ngroupDisplayName, membershipType]
-    US --&gt;|Server-side SQL WHERE| DB[Azure SQL]
+    US --&gt;|Server-side SQL WHERE| DB[PostgreSQL]
     RS --&gt;|Client-side JS filter| Browser[Browser]
     DB --&gt; Browser</code></pre>
 <h3 id="server-side-filters">Server-Side Filters<a class="headerlink" href="#server-side-filters" title="Permanent link">&para;</a></h3>

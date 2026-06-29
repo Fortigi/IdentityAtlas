@@ -3563,7 +3563,7 @@
 <p><strong>Reads From:</strong> <code>GraphCategoryAssignments</code> + <code>GraphCategories</code></p>
 <hr />
 <h2 id="tag-management">Tag Management<a class="headerlink" href="#tag-management" title="Permanent link">&para;</a></h2>
-<p>Tags are free-form labels for users and resources. Unlike categories, an entity can have <strong>multiple tags</strong>, and tags are scoped by <code>entityType</code> (<code>user</code> or <code>group</code>). Tags are stored in <code>GraphTags</code> and <code>GraphTagAssignments</code>.</p>
+<p>Tags are free-form labels for users and resources. Unlike categories, an entity can have <strong>multiple tags</strong>, and tags are scoped by <code>entityType</code> (<code>user</code> or <code>group</code>). Tags read/write through <code>GraphTags</code> and <code>GraphTagAssignments</code>, which since the v6 Contexts redesign are <strong>backward-compatibility views</strong> over the unified <code>Contexts</code> model (<code>contextType='Tag'</code>), not standalone base tables.</p>
 <h3 id="get-apitags">GET /api/tags<a class="headerlink" href="#get-apitags" title="Permanent link">&para;</a></h3>
 <p>List all tags, optionally filtered by entity type.</p>
 <p><strong>Query Parameters</strong></p>
