@@ -314,8 +314,8 @@ var assemblies = [
   {
     "name": "tools/crawlers/entra-id",
     "classes": [
-      { "name": "tools/crawlers/entra-id/EntraIDCrawler.Functions", "rp": "entra_id_Functions.html", "cl": 125, "ucl": 57, "cal": 182, "tl": 428, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/entra-id/Start-EntraIDCrawler", "rp": "entra_id_tools_crawlers_entra_id_Start_EntraIDCrawler.html", "cl": 0, "ucl": 1253, "cal": 1253, "tl": 2301, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/entra-id/EntraIDCrawler.Functions", "rp": "entra_id_Functions.html", "cl": 195, "ucl": 20, "cal": 215, "tl": 534, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/entra-id/Start-EntraIDCrawler", "rp": "entra_id_tools_crawlers_entra_id_Start_EntraIDCrawler.html", "cl": 0, "ucl": 1221, "cal": 1221, "tl": 2237, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
     "name": "tools/crawlers/midpoint",
