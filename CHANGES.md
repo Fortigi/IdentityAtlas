@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Outbound AI/LLM provider calls now have a request timeout and a response-size cap, so a hung or runaway provider can no longer hold a request open indefinitely or exhaust server memory.
+- LLM and risk-profile endpoints no longer return raw upstream provider error details to the browser — failures now show a generic message (the full detail is logged server-side). The Admin → LLM Settings "Test" button still reports the provider and HTTP status so a bad key/endpoint is diagnosable, without echoing the raw provider response.
+
+## Changes in this PR
+
 - Refactored the entra-id crawler so its internal functions live in a loadable `EntraIDCrawler.Functions.ps1` library (dot-sourced by the entry-point script) instead of being trapped in the script's top-level execution body — no change to runtime behavior.
 - Added unit tests for the entra-id crawler's helper functions (batched and chunked ingest, Graph delta-token persistence, delta-aware paginated fetching, per-phase tracking, user attribute resolution).
 

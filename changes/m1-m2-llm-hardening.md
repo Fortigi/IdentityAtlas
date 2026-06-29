@@ -1,2 +1,0 @@
-- Outbound AI/LLM provider calls now have a request timeout and a response-size cap, so a hung or runaway provider can no longer hold a request open indefinitely or exhaust server memory.
-- LLM and risk-profile endpoints no longer return raw upstream provider error details to the browser — failures now show a generic message (the full detail is logged server-side). The Admin → LLM Settings "Test" button still reports the provider and HTTP status so a bad key/endpoint is diagnosable, without echoing the raw provider response.
