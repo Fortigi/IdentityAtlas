@@ -15,10 +15,10 @@ function Set-FGGroup {
     $URI = "https://graph.microsoft.com/beta/groups/$ObjectId"
     $Body = @{}
 
-    if(PSBoundParameters.ContainsKey('Description')){
+    if($PSBoundParameters.ContainsKey('Description')){
         $Body.Add("Description", $Description)
     }
-    if(PSBoundParameters.ContainsKey('Displayname')){
+    if($PSBoundParameters.ContainsKey('Displayname')){
         $Body.Add("Displayname", $Displayname)
     }
 

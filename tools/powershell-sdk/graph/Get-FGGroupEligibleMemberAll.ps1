@@ -69,7 +69,11 @@ function Get-FGGroupEligibleMemberAll {
     }
     Catch {
         Write-Progress -Activity "Getting All Group Eligible Members" -Completed
-        Write-Error "Failed to retrieve eligible group members: $_"
+        # -ErrorAction Continue so this stays non-terminating even when the ambient
+        # $ErrorActionPreference is 'Stop' (crawlers and the GitHub Actions pwsh
+        # shell both set Stop) — otherwise the Write-Error would terminate here and
+        # the intended graceful `Return $null` would never run.
+        Write-Error "Failed to retrieve eligible group members: $_" -ErrorAction Continue
         Return $null
     }
 }

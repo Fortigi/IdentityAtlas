@@ -117,11 +117,11 @@ function Get-FGServicePrincipalWithSync {
 
         # Deduplicate by id
         $seen = @{}
-        $spList = [System.Collections.Generic.List[PSObject]]::new(
-            @($spList | Where-Object {
-                if ($seen[$_.id]) { $false } else { $seen[$_.id] = $true; $true }
-            })
-        )
+        $deduped = [System.Collections.Generic.List[PSObject]]::new()
+        foreach ($sp in $spList) {
+            if (-not $seen[$sp.id]) { $seen[$sp.id] = $true; $deduped.Add($sp) }
+        }
+        $spList = $deduped
     }
 
     $AllServicePrincipals = $spList.ToArray()
