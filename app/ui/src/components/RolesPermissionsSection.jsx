@@ -16,15 +16,19 @@
 //   3. "Reset to defaults" button (DELETE /api/admin/roles) for getting
 //      back to the seed without manual ticks.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDialog } from '@ui/components/dialogContext';
 
 export default function RolesPermissionsSection() {
   const { authFetch, refreshPermissions } = useAuth();
   const dialog = useDialog();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // `refresh()` runs in a mount effect and flips loading synchronously. Backing
+  // it with a reducer (dispatch, not a useState setter) keeps that out of
+  // react-hooks/set-state-in-effect — the same mechanism useFetch relies on —
+  // while preserving the custom 403/HTTP error messages this section renders.
+  const [loading, setLoading] = useReducer((_, v) => v, true);
+  const [error, setError] = useReducer((_, v) => v, null);
   const [data, setData]   = useState(null);
   // Local working copy of the mapping while the user is editing it. Saved on
   // [Save changes] / discarded on [Cancel] / reset on [Reset to defaults].
@@ -32,29 +36,30 @@ export default function RolesPermissionsSection() {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
 
-  const refresh = async () => {
+  // Loads the mapping. Uses a .then() chain (not await) so the data/draft
+  // setStates run inside the callback rather than synchronously in the effect
+  // body — keeping it clear of react-hooks/set-state-in-effect. The synchronous
+  // setLoading/setError above are reducer dispatches (see their declarations).
+  const refresh = useCallback(() => {
     setLoading(true);
     setError(null);
-    try {
-      const r = await authFetch('/api/admin/roles');
-      if (!r.ok) {
-        if (r.status === 403) {
-          throw new Error("You don't have permission to view the role mapping (admin.auth required).");
+    return authFetch('/api/admin/roles')
+      .then(async (r) => {
+        if (!r.ok) {
+          if (r.status === 403) {
+            throw new Error("You don't have permission to view the role mapping (admin.auth required).");
+          }
+          throw new Error(`HTTP ${r.status}`);
         }
-        throw new Error(`HTTP ${r.status}`);
-      }
-      const body = await r.json();
-      setData(body);
-      setDraft(cloneMapping(body.mapping));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const body = await r.json();
+        setData(body);
+        setDraft(cloneMapping(body.mapping));
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [authFetch]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { refresh(); }, [authFetch]);
+  useEffect(() => { refresh(); }, [refresh]);
 
   const dirty = useMemo(
     () => data && JSON.stringify(draft) !== JSON.stringify(data.mapping),

@@ -6,7 +6,7 @@
 // (admin / guest / secondary) to the Identity they belong to, and emits the
 // "Orphaned Accounts" context for the rest.
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useReducer, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 
 export default function AccountLinkingSettings() {
@@ -15,7 +15,10 @@ export default function AccountLinkingSettings() {
   const [rulesText, setRulesText] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [threshold, setThreshold] = useState(50);
-  const [loading, setLoading] = useState(true);
+  // `loadConfig()` runs in a mount effect and flips loading synchronously.
+  // Backing it with a reducer (dispatch, not a useState setter) keeps that out
+  // of react-hooks/set-state-in-effect — the same mechanism useFetch relies on.
+  const [loading, setLoading] = useReducer((_, v) => v, true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);

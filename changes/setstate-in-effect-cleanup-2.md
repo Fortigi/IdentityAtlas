@@ -1,0 +1,1 @@
+- Reworked the Roles & Permissions admin matrix and the Account Linking settings page to remove two React Compiler set-state-in-effect warnings. Loading, saving, custom permission/error messages, and config editing all behave exactly as before.
