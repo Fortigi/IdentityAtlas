@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
+import { useFetch } from '@ui/hooks/useFetch';
 import { useAuth } from '@ui/auth/AuthGate';
 import { formatDate } from '@ui/utils/formatters';
 
@@ -89,33 +90,15 @@ const STATUS_STYLES = {
 // ═══════════════════════════════════════════════════════════
 export default function GovernancePage() {
   const { authFetch } = useAuth();
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const [categories, setCategories] = useState(null);
+  // Summary drives the page's loading/error; categories is a best-effort
+  // secondary fetch (feeds the filter dropdown) — its own errors are ignored,
+  // matching the previous Promise.all where a categories failure fell back to [].
+  const { data: summary, loading, error } = useFetch('/api/governance/summary', { authFetch });
+  const { data: categories } = useFetch('/api/governance/categories', { authFetch, initialData: [] });
 
   const [drilldown, setDrilldown] = useState(null);
   const [drilldownOpen, setDrilldownOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    Promise.all([
-      authFetch('/api/governance/summary').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
-      authFetch('/api/governance/categories').then(r => r.ok ? r.json() : []).catch(() => []),
-    ])
-      .then(([summaryData, cats]) => {
-        if (!cancelled) {
-          setSummary(summaryData);
-          setCategories(cats);
-        }
-      })
-      .catch(e => { if (!cancelled) setError(e.message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [authFetch]);
 
   const loadDrilldown = useCallback((filter, category) => {
     setDrilldown({ filter, category, data: null, loading: true });
@@ -146,7 +129,7 @@ export default function GovernancePage() {
     return (
       <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-6">
         <h2 className="text-red-800 dark:text-red-300 font-semibold">Error loading certification data</h2>
-        <p className="text-red-600 dark:text-red-400 mt-1 text-sm">{error}</p>
+        <p className="text-red-600 dark:text-red-400 mt-1 text-sm">{error.message}</p>
       </div>
     );
   }
