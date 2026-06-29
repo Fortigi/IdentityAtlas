@@ -572,6 +572,11 @@ export default function App() {
       <main id="main-content" className="p-6">
         <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
           {isDetailPage ? (
+            // renderDetailPage reads detailCacheRef — an intentional mutable
+            // per-tab render-cache (cachedData for instant detail display).
+            // Making it state would re-render the whole app on every cache
+            // write, which is exactly what the ref avoids.
+            // eslint-disable-next-line react-hooks/refs
             renderDetailPage()
           ) : page === 'dashboard' ? (
             <DashboardPage onNavigate={navigate} />

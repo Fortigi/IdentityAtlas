@@ -12,6 +12,11 @@ export default function AuthGate({ children }) {
   });
   const msalRef = useRef(null);
   const configRef = useRef(null);
+  // Render-time mirror of the MSAL instance + auth config. The refs above are
+  // read by the login/logout callbacks (allowed); this state lets the render
+  // body derive `account`/`authEnabled` without reading a ref during render
+  // (react-hooks/refs — refs read in render aren't tracked by React Compiler).
+  const [authData, setAuthData] = useState({ msal: null, config: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -21,6 +26,7 @@ export default function AuthGate({ children }) {
         const res = await fetch('/api/auth-config');
         const config = await res.json();
         configRef.current = config;
+        if (!cancelled) setAuthData(d => ({ ...d, config }));
 
         if (!config.enabled) {
           if (!cancelled) setState({ phase: 'ready', error: null });
@@ -53,6 +59,7 @@ export default function AuthGate({ children }) {
 
         await pca.initialize();
         msalRef.current = pca;
+        if (!cancelled) setAuthData(d => ({ ...d, msal: pca }));
 
         // Handle redirect return (user coming back from Entra ID login)
         const response = await pca.handleRedirectPromise();
@@ -169,8 +176,8 @@ export default function AuthGate({ children }) {
     return <AuthSetupRequired platform={state.config.platform} />;
   }
 
-  const account = msalRef.current?.getActiveAccount() || null;
-  const authEnabled = configRef.current?.enabled !== false;
+  const account = authData.msal?.getActiveAccount() || null;
+  const authEnabled = authData.config?.enabled !== false;
 
   return (
     <AuthContext.Provider value={{

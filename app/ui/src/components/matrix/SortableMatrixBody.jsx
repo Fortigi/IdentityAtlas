@@ -76,6 +76,11 @@ export default function SortableMatrixBody({
   }, [onDragEnd]);
   const handleDragCancel = useCallback(() => setDragging(false), []);
 
+  // NOTE: react-hooks/incompatible-library warns here — TanStack Virtual's
+  // useVirtualizer returns functions React Compiler can't safely memoize, so it
+  // skips compiling this component. This is an upstream limitation; the warning
+  // is left as a tracker until a @tanstack/react-virtual release fixes React
+  // Compiler compatibility, at which point we bump the dep and it clears itself.
   const virtualizer = useVirtualizer({
     count: orderedGroups.length,
     getScrollElement: () => scrollRef.current,
