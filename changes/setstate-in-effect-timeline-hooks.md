@@ -1,1 +1,0 @@
-- Internal code-quality: converted the `useTimeline` and `useRecentChanges` entity-history hooks to the shared `useFetch` hook, clearing more `react-hooks/set-state-in-effect` warnings. No user-facing behaviour change.
