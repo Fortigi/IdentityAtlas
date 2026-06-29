@@ -162,7 +162,7 @@ describe('AdminPage (mounted)', () => {
     // Locale-agnostic: the component formats via toLocaleString(), so build the
     // expected text the same way (the thousands separator differs per locale —
     // en-US "12,345" vs en-NL "12.345"). Escape it for the regex.
-    const rows = (12345).toLocaleString().replace(/[.,]/g, '\\$&');
+    const rows = (12345).toLocaleString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     expect(await screen.findByText(new RegExp(`${rows} history rows stored`))).toBeInTheDocument();
     expect(screen.getByText('Danger Zone')).toBeInTheDocument();
   });
