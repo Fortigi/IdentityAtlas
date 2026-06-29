@@ -147,6 +147,22 @@ npm ci
 npm test
 ```
 
+> **Troubleshooting — `Cannot find module './build/Release/re2.node'`:**
+> `re2` is a native addon that must be compiled for your OS + Node version. If
+> `node_modules` were installed on a different platform (e.g. inside the
+> Docker/Linux image and then opened on a Windows/macOS host) or with
+> `--ignore-scripts`, its binary won't match and every test that imports it
+> (e.g. `src/contexts/plugins/manager-hierarchy.test.js`) fails at load time.
+> Fix it by rebuilding the binary for your machine:
+> ```bash
+> cd app/api && npm rebuild re2
+> ```
+> This is a local-setup issue only — every production distribution ships a
+> `re2` binary that matches its target: the Docker image builds/fetches it for
+> Linux during `npm ci`, and the portable desktop ZIP downloads the
+> `win32-x64` prebuilt for its bundled Node at build time. Only a local
+> checkout whose `node_modules` came from a different platform is affected.
+
 **What it tests** (`src/ingest/validation.test.js`, 53 test cases):
 - `validateEnvelope`: required fields, array bounds (0–50 000), `syncMode`/`idGeneration` enums, `idPrefix` requirement, `systems` endpoint skips `systemId`
 - `validateRecords` for `principals`: required `displayName`, UUID enforcement on `id`/`managerId`, all `principalType` enum values, `maxLength` on string fields, non-string rejection
