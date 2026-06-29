@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Corrected the data-model documentation to match the current Contexts model: entities no longer carry a single `contextId` column — context membership is now a many-to-many relationship via the `ContextMembers` join table, and every Context has a variant (synced / generated / manual) and a targetType (Identity / Resource / Principal / System). The conceptual hierarchy, entity-relationship diagram, and table reference were all updated to reflect the v6 redesign.
+
+## Changes in this PR
+
 - More documentation accuracy fixes: the risk-scoring data-model doc no longer documents the dropped `GraphResourceClusters`/`GraphResourceClusterMembers` tables (resource clustering is now a context-algorithm plugin), and its initialization order is corrected (the risk tables are created automatically by a migration at startup, not by a manual cmdlet).
 - The ingest OpenAPI spec now states its scope explicitly and points to the API reference for the authenticated read API it does not cover.
 - Added several previously-unlisted pages to the documentation navigation (effective-access engine, resource-cluster algorithm, Excel export & template authoring, CI scope testing).
