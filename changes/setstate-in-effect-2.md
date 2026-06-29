@@ -1,0 +1,1 @@
+- Internal code-quality: converted the Contexts data hooks (`useContextRoots`, `useContextSubtree`) to the shared `useFetch` hook, clearing more `react-hooks/set-state-in-effect` warnings. No user-facing behaviour change.
