@@ -94,6 +94,7 @@ Before writing any utility function, helper, constant, or component — **search
 - `auth/AuthGate.js` — `useAuth()` hook and `AuthContext` (component provider is `auth/AuthGateProvider.jsx`)
 - `hooks/useEntityPage.js` — search, filter, tags, and pagination for list pages
 - `hooks/useDebouncedValue.js` — `useDebouncedValue(value, delay)` hook
+- `hooks/useFetch.js` — `useFetch(url, { authFetch, enabled?, transform?, initialData?, onError? }) → { data, loading, error, reload }`. The shared GET-fetch lifecycle (loading/error/abort-on-unmount-or-dep-change). **Prefer this over hand-rolling a `useState`+`useEffect` fetch** — it uses `useReducer` internally so it doesn't trip `react-hooks/set-state-in-effect` (a synchronous `setLoading(true)` at the top of an effect does). Use it for a single GET → single data shape; bespoke cases (multiple `Promise.all` fetches, polling, locally-mutated results) still hand-roll. `error` is an `Error` (render `error.message`).
 - `components/dialogContext.js` + `components/DialogProvider.jsx` — the in-app replacement for the browser's native `alert`/`confirm`/`prompt` (which are blocked by the `local/no-native-dialogs` ESLint rule — they don't theme/dark-mode and block the thread). `DialogProvider` is mounted once at the app root (`main.jsx`); call `const dialog = useDialog()` and use its **async** API. **Never call `window.alert/confirm/prompt`.** See "In-app dialogs" below.
 - `components/ConfidenceBar.jsx` — correlation confidence bar
 - `components/DetailSection.jsx` — `Section` and `CollapsibleSection` for detail pages
