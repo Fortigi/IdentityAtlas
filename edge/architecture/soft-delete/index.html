@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/azure-deployment/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/soft-delete/">
       
       
-        <link rel="prev" href="../azure-deployment-walkthrough/">
+        <link rel="prev" href="../audit-history/">
       
       
-        <link rel="next" href="../scaling/">
+        <link rel="next" href="../matrix-scope-statistics/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Azure Deployment Reference - Identity Atlas</title>
+        <title>Soft-Delete & Tombstones - Identity Atlas</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#azure-deployment-simple-shape" class="md-skip">
+        <a href="#soft-delete-tombstone-lifecycle" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Azure Deployment Reference
+              Soft-Delete & Tombstones
             
           </span>
         </div>
@@ -1437,8 +1437,10 @@
                 
   
   
+    
   
   
+  
     
     
     
@@ -1452,13 +1454,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
         
           
           <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
@@ -1479,7 +1479,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1634,10 +1634,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../soft-delete/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soft-Delete & Tombstones
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1653,6 +1680,131 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-soft-delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why soft-delete
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#which-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which tables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-tombstone-soft-delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Tombstone (soft-delete)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-re-activation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Re-activation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-purge-retention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Purge (retention)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-deleted-entities-appear" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where deleted entities appear
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#relationship-to-_history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relationship to _history
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#admin-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin API
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1810,8 +1962,6 @@
                 
   
   
-    
-  
   
   
     
@@ -1827,11 +1977,13 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
         
           
           <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
@@ -1852,7 +2004,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1895,37 +2047,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Azure Deployment Reference
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../azure-deployment/" class="md-nav__link">
         
   
   
@@ -1941,186 +2066,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#what-you-get" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What you get
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#sizing-pick-at-deploy-time" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sizing — pick at deploy time
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#fast-and-snappy-design-choices" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        "Fast and snappy" design choices
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#byo-log-analytics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        BYO Log Analytics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-it-deploys-timing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How it deploys (timing)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#first-run-post-deploy-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        First-run post-deploy steps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#operational-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Operational notes
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Operational notes">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#updating-the-container-images" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Updating the container images
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#logs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Logs
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#postgres-access" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Postgres access
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#tearing-down" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Tearing down
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#decisions-taken-and-why" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Decisions taken (and why)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#limitations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Limitations
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#file-index" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        File index
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -3154,10 +3099,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-you-get" class="md-nav__link">
+  <a href="#why-soft-delete" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What you get
+        Why soft-delete
       
     </span>
   </a>
@@ -3165,10 +3110,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sizing-pick-at-deploy-time" class="md-nav__link">
+  <a href="#which-tables" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sizing — pick at deploy time
+        Which tables
       
     </span>
   </a>
@@ -3176,66 +3121,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#fast-and-snappy-design-choices" class="md-nav__link">
+  <a href="#lifecycle" class="md-nav__link">
     <span class="md-ellipsis">
       
-        "Fast and snappy" design choices
+        Lifecycle
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#byo-log-analytics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        BYO Log Analytics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-it-deploys-timing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How it deploys (timing)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#first-run-post-deploy-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        First-run post-deploy steps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#operational-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Operational notes
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Operational notes">
+    <nav class="md-nav" aria-label="Lifecycle">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#updating-the-container-images" class="md-nav__link">
+  <a href="#1-tombstone-soft-delete" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Updating the container images
+        1. Tombstone (soft-delete)
       
     </span>
   </a>
@@ -3243,10 +3144,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#logs" class="md-nav__link">
+  <a href="#2-re-activation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Logs
+        2. Re-activation
       
     </span>
   </a>
@@ -3254,21 +3155,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#postgres-access" class="md-nav__link">
+  <a href="#3-purge-retention" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Postgres access
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#tearing-down" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Tearing down
+        3. Purge (retention)
       
     </span>
   </a>
@@ -3281,10 +3171,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#decisions-taken-and-why" class="md-nav__link">
+  <a href="#where-deleted-entities-appear" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Decisions taken (and why)
+        Where deleted entities appear
       
     </span>
   </a>
@@ -3292,10 +3182,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#limitations" class="md-nav__link">
+  <a href="#relationship-to-_history" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Limitations
+        Relationship to _history
       
     </span>
   </a>
@@ -3303,10 +3193,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#file-index" class="md-nav__link">
+  <a href="#admin-api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        File index
+        Admin API
       
     </span>
   </a>
@@ -3382,10 +3272,10 @@
     
     
       <li class="md-path__item">
-        <a href="../azure-deployment-walkthrough/" class="md-path__link">
+        <a href="../docker-setup/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Operations
+    Architecture
   </span>
 
         </a>
@@ -3407,311 +3297,123 @@
   
 
 
-<h1 id="azure-deployment-simple-shape">Azure deployment — Simple shape<a class="headerlink" href="#azure-deployment-simple-shape" title="Permanent link">&para;</a></h1>
-<blockquote>
-<p>Companion to the Bicep in <a href="https://github.com/Fortigi/IdentityAtlas/tree/main/azure"><code>/azure</code></a>.
-One-click install: see the <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/README.md#deploy-to-azure">README's Deploy to Azure button</a>.
-<strong>Target:</strong> customers whose networking is owned by a central CCoE. No VNet, no private endpoints, no public IP that you provision.</p>
-</blockquote>
-<h2 id="what-you-get">What you get<a class="headerlink" href="#what-you-get" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                                    Internet
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                                       │
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                                       ▼  https://&lt;app&gt;.azurewebsites.net
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                                       │  (Microsoft-managed TLS cert)
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                    ┌──────────────────────────────────────┐
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                    │  App Service Plan (Linux)            │
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                    │  ┌──────────────────────────────┐    │
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                    │  │  App Service                 │    │
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                    │  │  Pulls ghcr.io/fortigi/      │    │
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                    │  │   identity-atlas:latest      │    │
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>                    │  │  Mounts /data/uploads        │    │
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>                    │  │  KV refs for master key +    │    │
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                    │  │   DB password                │    │
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                    │  └──────────────────────────────┘    │
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                    └──────────────────────────────────────┘
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>                                       │
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>            ┌──────────────────────────┼─────────────────────────────┐
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>            ▼                          ▼                             ▼
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>   ┌──────────────────┐     ┌────────────────────┐        ┌──────────────────┐
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>   │ Postgres Flex    │     │ Azure Files share  │        │ Key Vault         │
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>   │ Public endpoint, │     │ (Storage Account)  │        │ Public endpoint,  │
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>   │ &quot;Allow Azure     │     │ /data/uploads      │        │ RBAC-only.        │
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>   │  services&quot;       │     │ shared with worker │        │ master key +      │
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>   │ firewall rule    │     └────────────────────┘        │ DB password.      │
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>   └──────────────────┘                                   └──────────────────┘
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>                ─── Container Apps Environment (Consumption, no VNet) ───
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>                                       │
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>                                       ▼
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>                    ┌──────────────────────────────────────┐
-<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>                    │  Container App: worker (always-on)   │
-<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>                    │  Pulls ghcr.io/fortigi/              │
-<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>                    │   identity-atlas-worker:latest       │
-<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>                    │  Mounts the same /data/uploads share │
-<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>                    │  Polls App Service /api for queued   │
-<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>                    │   crawler jobs every 60s             │
-<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>                    └──────────────────────────────────────┘
-</code></pre></div>
-<p><strong>Inventory: 8 resource families</strong> (App Service Plan + App Service, Postgres, Storage, Key Vault, Log Analytics, ACA Environment, ACA App, managed identities). No VNet, no private endpoints, no NSG.</p>
-<h2 id="sizing-pick-at-deploy-time">Sizing — pick at deploy time<a class="headerlink" href="#sizing-pick-at-deploy-time" title="Permanent link">&para;</a></h2>
-<p>The Deploy-to-Azure form shows a <code>sizeProfile</code> dropdown. Pick what matches your tenant.</p>
+<h1 id="soft-delete-tombstone-lifecycle">Soft-Delete &amp; Tombstone Lifecycle<a class="headerlink" href="#soft-delete-tombstone-lifecycle" title="Permanent link">&para;</a></h1>
+<p>When an entity disappears from a source system, Identity Atlas does <strong>not</strong> immediately hard-delete it. Instead the ingest engine <em>tombstones</em> the row by stamping a <code>deletedAt</code> timestamp, keeps it for a retention window, and only finally removes it with a purge job. This keeps leavers and removed resources auditable, prevents cross-system references from dangling, and lets a re-appearing entity come back to life automatically.</p>
+<p>Introduced in migration <code>040_soft_delete.sql</code>; the matrix exclusion is migration <code>041_matrix_view_exclude_deleted.sql</code>.</p>
+<h2 id="why-soft-delete">Why soft-delete<a class="headerlink" href="#why-soft-delete" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Auditability.</strong> A user who left, or a group that was removed, stays queryable (with its history) instead of vanishing the moment a sync no longer sees it.</li>
+<li><strong>No dangling cross-system references.</strong> An Azure RM role assignment can target a service principal that Entra ID later deletes. Hard-deleting the principal would orphan the assignment; tombstoning keeps the reference resolvable.</li>
+<li><strong>Cheap re-activation.</strong> Source systems routinely drop and re-add objects (a disabled-then-re-enabled account, a delta blip). A tombstone that clears itself on the next sync avoids churn in history and identity links.</li>
+</ul>
+<h2 id="which-tables">Which tables<a class="headerlink" href="#which-tables" title="Permanent link">&para;</a></h2>
+<p><code>deletedAt TIMESTAMPTZ</code> (nullable) was added to the three tables whose rows represent live source-system state:</p>
 <table>
 <thead>
 <tr>
-<th>Profile</th>
-<th>App Service</th>
-<th>Postgres</th>
-<th>Worker</th>
-<th>~€/mo</th>
-<th>Use case</th>
+<th>Table</th>
+<th>Tombstoned on disappearance</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>xs</strong></td>
-<td>B1 (1 vCPU / 1.75 GB)</td>
-<td>B1ms Burstable (1 vCPU / 2 GB)</td>
-<td>0.25 vCPU / 0.5 GB</td>
-<td><strong>45</strong></td>
-<td>Demo / proof-of-concept / non-production</td>
+<td><code>Principals</code></td>
+<td>✅</td>
 </tr>
 <tr>
-<td><strong>s</strong> ✅ default</td>
-<td>B2 (2 vCPU / 3.5 GB)</td>
-<td>B2s Burstable (2 vCPU / 4 GB)</td>
-<td>0.25 vCPU / 0.5 GB</td>
-<td><strong>79</strong></td>
-<td>Small production — single team of analysts, &lt; 10k principals</td>
+<td><code>Resources</code></td>
+<td>✅</td>
 </tr>
 <tr>
-<td><strong>m</strong></td>
-<td>S1 (+ staging slot)</td>
-<td>B2s Burstable</td>
-<td>0.25 vCPU / 0.5 GB</td>
-<td><strong>113</strong></td>
-<td>Mid-sized, 10-25k principals, blue/green deploys</td>
-</tr>
-<tr>
-<td><strong>l</strong></td>
-<td>P1v3 (2 vCPU / 8 GB)</td>
-<td>D2ds_v5 GeneralPurpose (2 vCPU / 8 GB)</td>
-<td>0.5 vCPU / 1 GB</td>
-<td><strong>244</strong></td>
-<td>Large tenant, 25-50k principals, sustained throughput</td>
-</tr>
-<tr>
-<td><strong>xl</strong></td>
-<td>P2v3 (4 vCPU / 16 GB)</td>
-<td>D4ds_v5 GeneralPurpose (4 vCPU / 16 GB)</td>
-<td>0.5 vCPU / 1 GB</td>
-<td><strong>469</strong></td>
-<td>Enterprise — 50k+ principals, multiple concurrent analyst teams</td>
+<td><code>ResourceAssignments</code></td>
+<td>✅</td>
 </tr>
 </tbody>
 </table>
-<p>(All West Europe, ex VAT, single replica, no HA, Linux. Costs assume BYO Log Analytics; add ~€3-5/mo if a new workspace is created.)</p>
-<p><strong>Scaling later</strong> = re-click the button (or rerun <code>deploy.ps1</code>) with a different <code>sizeProfile</code>. Azure resizes the App Service Plan + Postgres in place — no data loss, ~2-3 min of Postgres downtime while the SKU swap happens.</p>
-<p><strong>One-way ratchet:</strong> <code>l</code> and <code>xl</code> use Postgres <code>GeneralPurpose</code>. You can't scale a Postgres Flex server from <code>GeneralPurpose</code> back to <code>Burstable</code> — only within the same tier. Pick <code>l</code>/<code>xl</code> only when you actually need the GP compute.</p>
-<h2 id="fast-and-snappy-design-choices">"Fast and snappy" design choices<a class="headerlink" href="#fast-and-snappy-design-choices" title="Permanent link">&para;</a></h2>
+<p>Every other table still hard-deletes on scoped-delete. A partial index (<code>WHERE "deletedAt" IS NOT NULL</code>) backs each column — it only indexes the small set of tombstoned rows, which is all the purge and "show deleted" queries need; the common <code>deletedAt IS NULL</code> (live) filter needs no index because almost every row is live.</p>
+<h2 id="lifecycle">Lifecycle<a class="headerlink" href="#lifecycle" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a> source removes entity                re-sync sees it again
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>        │                                     │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        ▼                                     ▼
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>   ┌─────────┐   deletedAt = now()      ┌──────────┐  deletedAt = NULL   ┌──────┐
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   │  LIVE   │ ───────────────────────▶ │ TOMBSTONE│ ──────────────────▶ │ LIVE │
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>   └─────────┘                          └────┬─────┘                     └──────┘
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                                             │ older than HISTORY_RETENTION_DAYS
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                                             ▼
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                                        ┌─────────┐
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                                        │  PURGED │  (hard DELETE; final &#39;D&#39; row in _history)
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>                                        └─────────┘
+</code></pre></div>
+<h3 id="1-tombstone-soft-delete">1. Tombstone (soft-delete)<a class="headerlink" href="#1-tombstone-soft-delete" title="Permanent link">&para;</a></h3>
+<p>The ingest engine stamps <code>deletedAt = now()</code> instead of deleting, in two situations:</p>
 <ul>
-<li><strong>Always On</strong> on the App Service Plan (B1+) — no cold start on first request.</li>
-<li><strong>Worker as ACA App, always-on</strong> — <code>Sync now</code> picks up jobs within 60s (matches the docker-compose worker behaviour).</li>
-<li><strong>App Service health probe</strong> on <code>/api/health</code> — drops sick replicas before users hit them.</li>
-<li><strong>Postgres autogrow on, HA off</strong> — no failover blip during a sync.</li>
-<li><strong>Materialised matrix view refreshed at end of every crawl</strong> — matrix renders from indexed pre-computed rows.</li>
+<li><strong>Delta removal</strong> — a Graph <code>/delta</code> payload marks an object <code>@removed</code> (<code>routes/ingest.js</code>).</li>
+<li><strong>Full-sync absence</strong> — an entity present in the DB but missing from a full-sync batch, within the crawl's scope (<code>ingest/engine.js</code> scoped delete).</li>
 </ul>
-<p>xs has caveats under concurrent load (3+ analysts on the matrix); it's labelled "non-production." Default <code>s</code> is where snappy starts being free of caveats.</p>
-<h2 id="byo-log-analytics">BYO Log Analytics<a class="headerlink" href="#byo-log-analytics" title="Permanent link">&para;</a></h2>
-<p>If your CCoE owns a central Log Analytics workspace and you want logs forwarded there instead of creating a new one, fill in <strong>one</strong> of these two parameter pairs:</p>
-<p><strong>Option 1 — workspace ID (preferred, 1 field):</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>existingLogAnalyticsWorkspaceId: /subscriptions/&lt;sub&gt;/resourceGroups/&lt;rg&gt;/providers/Microsoft.OperationalInsights/workspaces/&lt;name&gt;
-</code></pre></div>
-The template uses an <code>existing</code> resource lookup to derive the workspace customer ID + shared key. <strong>The deployer needs <code>Log Analytics Reader</code> on the workspace.</strong></p>
-<p><strong>Option 2 — customer ID + key (fallback when you can't read the workspace, 2 fields):</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>existingLogAnalyticsCustomerId: &lt;GUID&gt;     (shown in the LA &quot;Overview&quot; blade as &quot;Workspace ID&quot;)
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>existingLogAnalyticsSharedKey:  &lt;primary or secondary key&gt;
-</code></pre></div>
-Use this when the deployer can't be granted Reader. The template plumbs the values through directly; no read access needed.</p>
-<p><strong>Leave all three empty</strong> → template creates a fresh workspace in your resource group (~€3-5/mo).</p>
-<p>The deployment's outputs include <code>logAnalyticsCreated: true|false</code> so you can tell which path was taken.</p>
-<h2 id="how-it-deploys-timing">How it deploys (timing)<a class="headerlink" href="#how-it-deploys-timing" title="Permanent link">&para;</a></h2>
-<ol>
-<li><strong>Storage, Log Analytics (or lookup), Managed Identities, Key Vault</strong> — all parallel, &lt; 1 min.</li>
-<li><strong>Bootstrap deployment script</strong> — runs as the deployScript managed identity. Generates the master key + Postgres admin password, writes both to KV. ~30 s.</li>
-<li><strong>Postgres Flexible Server</strong> — slowest single step, ~3-4 min.</li>
-<li><strong>App Service Plan + App Service</strong> — App Service starts the container image (first pull from ghcr.io, ~1-2 min).</li>
-<li><strong>Container Apps Environment + Worker App</strong> — ~2 min.</li>
-</ol>
-<p><strong>Total: ~5-7 minutes</strong> wall clock. Output: the public URL of your Identity Atlas.</p>
-<h2 id="first-run-post-deploy-steps">First-run post-deploy steps<a class="headerlink" href="#first-run-post-deploy-steps" title="Permanent link">&para;</a></h2>
-<ol>
-<li><strong>Open the App URL.</strong> First paint takes ~20-30s while the App Service container warms up (subsequent loads are sub-second because Always On is enabled).</li>
-<li><strong>Admin → Crawlers</strong> → "Load demo data" to explore, or "Add Crawler" to connect Microsoft Graph.</li>
-<li><strong>(Optional) Admin → Authentication</strong> to switch on Entra ID sign-in. Until then the app is open (so an IP allow-list at the App Service level is the recommended interim).</li>
-</ol>
-<h2 id="operational-notes">Operational notes<a class="headerlink" href="#operational-notes" title="Permanent link">&para;</a></h2>
-<h3 id="updating-the-container-images">Updating the container images<a class="headerlink" href="#updating-the-container-images" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c"># Restart the App Service — re-pulls the :latest tag from ghcr.io</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">az</span> <span class="n">webapp</span> <span class="n">restart</span> <span class="p">-</span><span class="n">-name</span> <span class="p">&lt;</span><span class="n">namePrefix</span><span class="p">&gt;</span><span class="n">-web</span> <span class="p">-</span><span class="n">-resource-group</span> <span class="p">&lt;</span><span class="n">rg</span><span class="p">&gt;</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c"># Restart the worker — same</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">az</span> <span class="n">containerapp</span> <span class="n">revision</span> <span class="n">restart</span> <span class="p">-</span><span class="n">-name</span> <span class="p">&lt;</span><span class="n">namePrefix</span><span class="p">&gt;</span><span class="n">-worker</span> <span class="p">-</span><span class="n">-resource-group</span> <span class="p">&lt;</span><span class="n">rg</span><span class="p">&gt;</span> <span class="p">-</span><span class="n">-revision</span> <span class="p">&lt;</span><span class="n">latestRevisionName</span><span class="p">&gt;</span>
-</code></pre></div>
-<p>To pin to a specific version instead of <code>:latest</code>, redeploy with <code>webImage=ghcr.io/fortigi/identity-atlas:&lt;tag&gt;</code> and the matching <code>workerImage</code>.</p>
-<h3 id="logs">Logs<a class="headerlink" href="#logs" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># App Service stdout, live</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>az<span class="w"> </span>webapp<span class="w"> </span>log<span class="w"> </span>tail<span class="w"> </span>--name<span class="w"> </span>&lt;namePrefix&gt;-web<span class="w"> </span>--resource-group<span class="w"> </span>&lt;rg&gt;
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Worker container logs, live</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>az<span class="w"> </span>containerapp<span class="w"> </span>logs<span class="w"> </span>show<span class="w"> </span>--name<span class="w"> </span>&lt;namePrefix&gt;-worker<span class="w"> </span>--resource-group<span class="w"> </span>&lt;rg&gt;<span class="w"> </span>--follow
-</code></pre></div>
-<p>Or query Log Analytics (whether created here or BYO):
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">AppServiceConsoleLogs</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">_ResourceId</span><span class="w"> </span><span class="n">endswith</span><span class="w"> </span><span class="s">&quot;&lt;namePrefix&gt;-web&quot;</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">ContainerAppConsoleLogs_CL</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">ContainerAppName_s</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">&quot;&lt;namePrefix&gt;-worker&quot;</span>
-</code></pre></div></p>
-<h3 id="postgres-access">Postgres access<a class="headerlink" href="#postgres-access" title="Permanent link">&para;</a></h3>
-<p>Postgres has a public endpoint with a firewall rule allowing Azure services. To run psql from a workstation:
-1. Add a temporary firewall rule for your IP: <code>az postgres flexible-server firewall-rule create --resource-group &lt;rg&gt; --name &lt;pgname&gt; --rule-name temp-yourip --start-ip-address &lt;ip&gt; --end-ip-address &lt;ip&gt;</code>.
-2. Fetch the admin password from Key Vault: <code>az keyvault secret show --vault-name &lt;kv&gt; --name postgres-admin-password --query value -o tsv</code>.
-3. <code>psql "postgres://identityatlas:&lt;pw&gt;@&lt;pgFqdn&gt;:5432/identity_atlas?sslmode=require"</code>.
-4. Delete the firewall rule when done.</p>
-<h3 id="tearing-down">Tearing down<a class="headerlink" href="#tearing-down" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>az<span class="w"> </span>group<span class="w"> </span>delete<span class="w"> </span>--name<span class="w"> </span>&lt;rg&gt;<span class="w"> </span>--yes
-</code></pre></div>
-<p>Key Vault has soft delete + purge protection (7-day retention). To redeploy with the same KV name within those 7 days, either wait or use a different <code>namePrefix</code>.</p>
-<h2 id="decisions-taken-and-why">Decisions taken (and why)<a class="headerlink" href="#decisions-taken-and-why" title="Permanent link">&para;</a></h2>
+<p>The update is guarded by <code>deletedAt IS NULL</code>, so the original deletion timestamp stays <strong>stable</strong> across subsequent syncs — re-running a crawl that still doesn't see the entity won't keep moving the clock forward.</p>
+<h3 id="2-re-activation">2. Re-activation<a class="headerlink" href="#2-re-activation" title="Permanent link">&para;</a></h3>
+<p>On the next ingest that <em>does</em> include the entity, the upsert's <code>ON CONFLICT … DO UPDATE</code> sets <code>deletedAt = NULL</code> — the row is simply live again, with its history intact. No manual step is required.</p>
+<h3 id="3-purge-retention">3. Purge (retention)<a class="headerlink" href="#3-purge-retention" title="Permanent link">&para;</a></h3>
+<p><code>purgeExpiredTombstones()</code> (<code>ingest/tombstonePurge.js</code>) hard-deletes tombstones older than the retention window:</p>
+<ul>
+<li><strong>Retention</strong> is the single <code>WorkerConfig</code> value <code>HISTORY_RETENTION_DAYS</code> (default <strong>180</strong>) — the same window that prunes the <code>_history</code> audit log, so a tombstone and its history age out together. Setting it to <code>0</code> (or an invalid value) <strong>disables</strong> the purge (tombstones are kept indefinitely).</li>
+<li><strong>Order</strong> is <code>ResourceAssignments</code> → <code>Principals</code> → <code>Resources</code>, so a hard-deleted holder or target never briefly leaves a dangling assignment.</li>
+<li><strong>When</strong> it runs: at API startup (<code>bootstrap.js</code>) and on demand via the admin endpoint below.</li>
+</ul>
+<h2 id="where-deleted-entities-appear">Where deleted entities appear<a class="headerlink" href="#where-deleted-entities-appear" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Decision</th>
-<th>Choice</th>
-<th>Why</th>
+<th>Surface</th>
+<th>Behaviour</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Architecture</strong></td>
-<td>App Service + Postgres Flex + ACA worker</td>
-<td>Matches the customer's CCoE pattern — no networking provisioning.</td>
+<td><strong>List endpoints</strong> (<code>/api/resources</code>, principals/users, tags)</td>
+<td>Soft-deleted rows are hidden by default. Pass <code>?includeDeleted=true</code> to include them.</td>
 </tr>
 <tr>
-<td><strong>Postgres endpoint</strong></td>
-<td>Public + "Allow Azure services" firewall</td>
-<td>App Service outbound IPs come from a Microsoft-owned pool; this rule covers them without enumeration.</td>
+<td><strong>Role-mining UI lists</strong></td>
+<td>A <strong>"Include deleted"</strong> toggle (<code>useEntityPage</code> → <code>includeDeleted</code>); deleted rows show a <code>DeletedBadge</code>.</td>
 </tr>
 <tr>
-<td><strong>Key Vault endpoint</strong></td>
-<td>Public, RBAC-only</td>
-<td>Access is gated by <code>Key Vault Secrets User</code> role, not network. Anonymous access returns 403.</td>
+<td><strong>Detail pages</strong></td>
+<td>Always shown, with a <strong>"Deleted in source"</strong> badge — including the entity's deleted assignments.</td>
 </tr>
 <tr>
-<td><strong>App Service image source</strong></td>
-<td>Direct pull from public <code>ghcr.io</code></td>
-<td>No ACR needed (~€5/mo saved + simpler deploy). Add ACR later if a tenant demands a private registry.</td>
-</tr>
-<tr>
-<td><strong>Worker model</strong></td>
-<td>ACA App (always-on), not ACA Job</td>
-<td>"Sync now" should respond in &lt;2 s. Job would have a 60-300 s schedule lag.</td>
-</tr>
-<tr>
-<td><strong>Master key + DB password</strong></td>
-<td>Generated by deployment script, stored in KV, exposed to the app via KV references</td>
-<td>Zero secrets in the template, the deployment history, or ARM. App reads them via managed identity at startup.</td>
-</tr>
-<tr>
-<td><strong>Auth</strong></td>
-<td><code>AUTH_ENABLED=false</code> by default</td>
-<td>Avoids requiring an App Registration before first login. Configurable post-deploy via Admin → Authentication.</td>
-</tr>
-<tr>
-<td><strong>HA</strong></td>
-<td>Off</td>
-<td>Single-replica everywhere. Keeps cost predictable.</td>
-</tr>
-<tr>
-<td><strong>Application Insights</strong></td>
-<td>Skipped</td>
-<td>Log Analytics covers stdout + system metrics. AI is for distributed tracing, not needed at this scale.</td>
-</tr>
-<tr>
-<td><strong>VNet integration</strong></td>
-<td>Not in the Simple shape</td>
-<td>If a customer demands private Postgres / KV later, a separate "Isolated" template will add it with the customer's CCoE-provided subnet IDs.</td>
+<td><strong>Matrix</strong> (<code>vw_ResourceUserPermissionAssignments</code>)</td>
+<td><strong>Excluded.</strong> The matview filters out any cell whose assignment, holder, or target is tombstoned (<code>deletedAt IS NULL</code> + <code>NOT EXISTS</code> a deleted principal/resource), so the live access picture never shows access via a deleted entity. <code>NOT EXISTS</code> (not a join) is used so a row whose endpoint is merely missing is kept — only explicit tombstones are excluded.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<h2 id="relationship-to-_history">Relationship to <code>_history</code><a class="headerlink" href="#relationship-to-_history" title="Permanent link">&para;</a></h2>
+<p>The <code>_history</code> audit table remains the deep trail:</p>
 <ul>
-<li><strong>No HA / zone-redundancy.</strong> Single AZ, single replica. Adding zone redundancy is two Bicep params away — future iteration.</li>
-<li><strong>No custom domain on App Service.</strong> Free <code>*.azurewebsites.net</code> cert covers v1. Custom domain + customer TLS cert is a 2-step manual setup post-deploy.</li>
-<li><strong>No GitHub Actions deploy workflow.</strong> Use Deploy-to-Azure button + <code>deploy.ps1</code> for now.</li>
-<li><strong>No Entra App Registration auto-creation.</strong> Done manually if/when enabling Entra auth.</li>
-<li><strong>Public Postgres / KV endpoints.</strong> A future "Isolated" template will add private endpoints when a customer wants them.</li>
+<li>The soft-delete is recorded as an <strong><code>U</code></strong> (update) row (deletedAt going from NULL to a timestamp).</li>
+<li>The eventual purge is recorded as the final <strong><code>D</code></strong> (delete) row.</li>
 </ul>
-<h2 id="file-index">File index<a class="headerlink" href="#file-index" title="Permanent link">&para;</a></h2>
+<p>So even after a tombstone is purged from the live tables, the fact that the entity existed — and when it was removed — survives in <code>_history</code> until that, too, ages past <code>HISTORY_RETENTION_DAYS</code>.</p>
+<h2 id="admin-api">Admin API<a class="headerlink" href="#admin-api" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>File</th>
+<th>Endpoint</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/azure/main.bicep"><code>azure/main.bicep</code></a></td>
-<td>Top-level orchestrator</td>
+<td><code>GET /api/admin/history-retention</code></td>
+<td>Read the current <code>retentionDays</code> + total <code>_history</code> row count.</td>
 </tr>
 <tr>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/azure/main.json"><code>azure/main.json</code></a></td>
-<td>Compiled ARM (used by the Deploy to Azure button)</td>
-</tr>
-<tr>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/azure/main.parameters.example.json"><code>azure/main.parameters.example.json</code></a></td>
-<td>Example parameter file</td>
-</tr>
-<tr>
-<td><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/azure/deploy.ps1"><code>azure/deploy.ps1</code></a></td>
-<td>CLI deploy + post-deploy summary</td>
-</tr>
-<tr>
-<td><code>azure/modules/log-analytics.bicep</code></td>
-<td>New workspace OR BYO lookup OR pass-through</td>
-</tr>
-<tr>
-<td><code>azure/modules/storage.bicep</code></td>
-<td>Storage Account + Azure Files share</td>
-</tr>
-<tr>
-<td><code>azure/modules/identities.bicep</code></td>
-<td>2 user-assigned managed identities</td>
-</tr>
-<tr>
-<td><code>azure/modules/key-vault.bicep</code></td>
-<td>Key Vault + RBAC (public endpoint)</td>
-</tr>
-<tr>
-<td><code>azure/modules/bootstrap.bicep</code></td>
-<td>One-shot deployment script for secrets</td>
-</tr>
-<tr>
-<td><code>azure/modules/postgres.bicep</code></td>
-<td>Postgres Flex + firewall</td>
-</tr>
-<tr>
-<td><code>azure/modules/app-service.bicep</code></td>
-<td>App Service Plan + App Service for Containers</td>
-</tr>
-<tr>
-<td><code>azure/modules/aca-env.bicep</code></td>
-<td>Container Apps Environment (Consumption)</td>
-</tr>
-<tr>
-<td><code>azure/modules/aca-app-worker.bicep</code></td>
-<td>Worker Container App (always-on)</td>
+<td><code>POST /api/admin/history-retention/prune</code></td>
+<td>Prune <code>_history</code> <strong>and</strong> purge expired tombstones now, using the configured retention.</td>
 </tr>
 </tbody>
 </table>
+<p>See also <a href="../audit-history/">Audit History</a> for the <code>_history</code> model the retention window is shared with.</p>
 
 
 
