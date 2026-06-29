@@ -10,7 +10,7 @@
 //   POST /api/matrix/scope-timeseries   — reconstructed historic timeline
 //   POST /api/matrix/scope-breakdown    — per-department breakdown
 
-import { Fragment, useEffect, useMemo, useState, useCallback } from 'react';
+import { Fragment, useEffect, useMemo, useState, useReducer, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
 import TimeSeriesChart from '@ui/components/TimeSeriesChart';
@@ -83,19 +83,48 @@ function MetricChart({ title, points, metric, color, isPct }) {
   );
 }
 
+// Live-stats fetch state. A reducer (rather than useState) keeps the
+// synchronous loading/idle transitions out of the effect body, so they don't
+// trip react-hooks/set-state-in-effect.
+function statsReducer(s, a) {
+  switch (a.type) {
+    case 'idle':    return { data: null, loading: false };
+    case 'loading': return { data: s.data, loading: true };
+    case 'success': return { data: a.data, loading: false };
+    case 'settled': return { data: s.data, loading: false }; // fetch rejected — keep prior data
+    default:        return s;
+  }
+}
+
+// Trends + breakdown + department drill-down fetch state, in one reducer for the
+// same reason. `drill` lives here so the fetch can clear it without a
+// synchronous setState in the effect.
+function trendsReducer(s, a) {
+  switch (a.type) {
+    case 'loading':  return { ...s, loading: true, drill: null };
+    case 'success':  return { series: a.series, breakdown: a.breakdown, loading: false, drill: s.drill };
+    case 'settled':  return { ...s, loading: false };
+    case 'setDrill': return { ...s, drill: a.drill };
+    default:         return s;
+  }
+}
+
 export default function MatrixScopePanel({ filter }) {
   const { authFetch } = useAuth();
   const debouncedFilter = useDebouncedValue(filter, 400);
   const filterKey = useMemo(() => JSON.stringify(debouncedFilter || null), [debouncedFilter]);
 
-  const [stats, setStats] = useState(null);
-  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsState, statsDispatch] = useReducer(statsReducer, { data: null, loading: false });
+  const stats = statsState.data;
+  const statsLoading = statsState.loading;
   const [expanded, setExpanded] = useState(false);
 
-  const [series, setSeries] = useState(null);     // { points, historyStart, retentionDays, scopeMode }
-  const [breakdown, setBreakdown] = useState(null); // { attribute, groups }
-  const [trendsLoading, setTrendsLoading] = useState(false);
-  const [drill, setDrill] = useState(null);        // { key, points } for an expanded department
+  const [trendsState, trendsDispatch] = useReducer(
+    trendsReducer, { series: null, breakdown: null, loading: false, drill: null });
+  const series = trendsState.series;        // { points, historyStart, retentionDays, scopeMode }
+  const breakdown = trendsState.breakdown;  // { attribute, groups }
+  const trendsLoading = trendsState.loading;
+  const drill = trendsState.drill;          // { key, points } for an expanded department
 
   const post = useCallback((path, body) =>
     authFetch(path, {
@@ -106,35 +135,33 @@ export default function MatrixScopePanel({ filter }) {
 
   // Live stats — refetch whenever the (debounced) filter changes.
   useEffect(() => {
-    if (!debouncedFilter) { setStats(null); return; }
+    if (!debouncedFilter) { statsDispatch({ type: 'idle' }); return undefined; }
     let cancelled = false;
-    setStatsLoading(true);
+    statsDispatch({ type: 'loading' });
     post('/api/matrix/scope-stats', { filter: debouncedFilter })
-      .then(d => { if (!cancelled) setStats(d); })
-      .finally(() => { if (!cancelled) setStatsLoading(false); });
+      .then(d => { if (!cancelled) statsDispatch({ type: 'success', data: d }); })
+      .catch(() => { if (!cancelled) statsDispatch({ type: 'settled' }); });
     return () => { cancelled = true; };
   }, [filterKey, debouncedFilter, post]);
 
   // Trends + breakdown — only once the panel is expanded, and on filter change.
   useEffect(() => {
-    if (!expanded || !debouncedFilter) return;
+    if (!expanded || !debouncedFilter) return undefined;
     let cancelled = false;
-    setTrendsLoading(true);
-    setDrill(null);
+    trendsDispatch({ type: 'loading' });
     Promise.all([
       post('/api/matrix/scope-timeseries', { filter: debouncedFilter }),
       post('/api/matrix/scope-breakdown?attribute=department', { filter: debouncedFilter }),
     ]).then(([ts, bd]) => {
       if (cancelled) return;
-      setSeries(ts);
-      setBreakdown(bd);
-    }).finally(() => { if (!cancelled) setTrendsLoading(false); });
+      trendsDispatch({ type: 'success', series: ts, breakdown: bd });
+    }).catch(() => { if (!cancelled) trendsDispatch({ type: 'settled' }); });
     return () => { cancelled = true; };
   }, [expanded, filterKey, debouncedFilter, post]);
 
   const toggleDrill = useCallback(async (groupKey) => {
     if (!groupKey || groupKey === '(none)') return;
-    if (drill?.key === groupKey) { setDrill(null); return; }
+    if (drill?.key === groupKey) { trendsDispatch({ type: 'setDrill', drill: null }); return; }
     const attr = breakdown?.attribute || 'department';
     const deptFilter = {
       ...debouncedFilter,
@@ -143,9 +170,9 @@ export default function MatrixScopePanel({ filter }) {
         exclude: debouncedFilter.subject?.exclude || [],
       },
     };
-    setDrill({ key: groupKey, points: null });
+    trendsDispatch({ type: 'setDrill', drill: { key: groupKey, points: null } });
     const ts = await post('/api/matrix/scope-timeseries', { filter: deptFilter });
-    setDrill({ key: groupKey, points: ts?.points || [] });
+    trendsDispatch({ type: 'setDrill', drill: { key: groupKey, points: ts?.points || [] } });
   }, [drill, breakdown, debouncedFilter, post]);
 
   if (!filter) return null;
