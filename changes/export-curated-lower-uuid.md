@@ -1,1 +1,0 @@
-- Fixed: **Admin → Data → "Export curated data"** failed with a generic "Export failed" error whenever any business-role categories existed. The category export query applied a text-lowercasing function directly to the resource UUID column, which PostgreSQL rejects; it now lowercases the UUID as text (matching the import path), so the export completes.

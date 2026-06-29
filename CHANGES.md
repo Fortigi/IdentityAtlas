@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed: **Admin → Data → "Export curated data"** failed with a generic "Export failed" error whenever any business-role categories existed. The category export query applied a text-lowercasing function directly to the resource UUID column, which PostgreSQL rejects; it now lowercases the UUID as text (matching the import path), so the export completes.
+
+## Changes in this PR
+
 - Added a documentation page on the soft-delete / tombstone lifecycle: why removed entities are kept rather than hard-deleted, how a re-appearing entity is automatically re-activated, where deleted items are hidden or shown (list "include deleted" toggle, detail-page badge, matrix exclusion), and how the retention/purge job finalizes tombstones (governed by the shared history-retention window).
 
 ## Changes in this PR
