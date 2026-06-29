@@ -312,3 +312,101 @@ Describe 'Write-Phase' {
         $script:phases[0].records.inserted | Should -Be 9
     }
 }
+
+Describe 'ConvertTo-FilterValue' {
+    It 'returns the value unchanged when either value or sample is null' {
+        ConvertTo-FilterValue -Value 'x' -Sample $null | Should -Be 'x'
+        ConvertTo-FilterValue -Value $null -Sample 'y' | Should -BeNullOrEmpty
+    }
+
+    It 'coerces truthy strings to $true against a bool sample' {
+        foreach ($t in 'true', '1', 'yes', 'on', 'TRUE', ' On ') {
+            ConvertTo-FilterValue -Value $t -Sample $true | Should -BeTrue
+        }
+    }
+
+    It 'coerces falsy strings to $false against a bool sample' {
+        foreach ($f in 'false', '0', 'no', 'off', 'FALSE') {
+            ConvertTo-FilterValue -Value $f -Sample $true | Should -BeFalse
+        }
+    }
+
+    It 'passes a real bool through unchanged against a bool sample' {
+        ConvertTo-FilterValue -Value $true -Sample $false | Should -BeTrue
+    }
+
+    It 'coerces a numeric string to an int against an int sample' {
+        $r = ConvertTo-FilterValue -Value '42' -Sample 7
+        $r | Should -Be 42
+        $r | Should -BeOfType [int]
+    }
+
+    It 'returns the original value for a non-numeric string against an int sample' {
+        ConvertTo-FilterValue -Value 'abc' -Sample 7 | Should -Be 'abc'
+    }
+
+    It 'passes values through unchanged against a string sample' {
+        ConvertTo-FilterValue -Value 'Engineering' -Sample 'Sales' | Should -Be 'Engineering'
+    }
+}
+
+Describe 'New-OwnershipResourceId' {
+    It 'is deterministic and shaped like a GUID' {
+        $a = New-OwnershipResourceId -GroupId 'grp-1'
+        $b = New-OwnershipResourceId -GroupId 'grp-1'
+        $a | Should -Be $b
+        $a | Should -Match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    }
+
+    It 'produces distinct ids for distinct groups' {
+        (New-OwnershipResourceId -GroupId 'grp-1') | Should -Not -Be (New-OwnershipResourceId -GroupId 'grp-2')
+    }
+}
+
+Describe 'New-OAuth2ScopeResourceId' {
+    It 'is deterministic for the same client/api/scope triple' {
+        $a = New-OAuth2ScopeResourceId -ClientSpId 'c' -TargetApiSpId 'api' -Scope 'User.Read'
+        $b = New-OAuth2ScopeResourceId -ClientSpId 'c' -TargetApiSpId 'api' -Scope 'User.Read'
+        $a | Should -Be $b
+        $a | Should -Match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    }
+
+    It 'changes when any component of the triple changes' {
+        $base = New-OAuth2ScopeResourceId -ClientSpId 'c' -TargetApiSpId 'api' -Scope 'User.Read'
+        (New-OAuth2ScopeResourceId -ClientSpId 'c2'  -TargetApiSpId 'api'  -Scope 'User.Read') | Should -Not -Be $base
+        (New-OAuth2ScopeResourceId -ClientSpId 'c'   -TargetApiSpId 'api2' -Scope 'User.Read') | Should -Not -Be $base
+        (New-OAuth2ScopeResourceId -ClientSpId 'c'   -TargetApiSpId 'api'  -Scope 'Mail.Read') | Should -Not -Be $base
+    }
+}
+
+Describe 'New-AppRoleResourceId' {
+    It 'is deterministic for the same SP/appRole pair' {
+        $a = New-AppRoleResourceId -SpId 'sp' -AppRoleId 'role'
+        $b = New-AppRoleResourceId -SpId 'sp' -AppRoleId 'role'
+        $a | Should -Be $b
+        $a | Should -Match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    }
+
+    It 'produces distinct ids for distinct app roles on the same SP' {
+        (New-AppRoleResourceId -SpId 'sp' -AppRoleId 'r1') | Should -Not -Be (New-AppRoleResourceId -SpId 'sp' -AppRoleId 'r2')
+    }
+}
+
+Describe 'Resolve-DirectoryRolePrincipalType' {
+    It 'maps a service principal odata type' {
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ '@odata.type' = '#microsoft.graph.servicePrincipal' }) | Should -Be 'ServicePrincipal'
+    }
+
+    It 'maps a group odata type' {
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ '@odata.type' = '#microsoft.graph.group' }) | Should -Be 'Group'
+    }
+
+    It 'maps a user odata type' {
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' }) | Should -Be 'User'
+    }
+
+    It 'defaults to User for an unknown or missing odata type' {
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ '@odata.type' = '#microsoft.graph.device' }) | Should -Be 'User'
+        Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ id = 'x' }) | Should -Be 'User'
+    }
+}

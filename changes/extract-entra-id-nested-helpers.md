@@ -1,0 +1,1 @@
+- Extracted the Entra ID crawler's remaining inline helper functions (filter-value coercion, ownership/OAuth2-scope/app-role resource-id generation, directory-role principal-type resolution) into the loadable helper library so they can be unit-tested in isolation; the crawler's behaviour is unchanged.

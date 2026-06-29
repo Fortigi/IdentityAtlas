@@ -426,3 +426,78 @@ function Get-UserAttrValue {
     }
     return $User.$AttrName
 }
+
+# Coerce a configured filter value to the type of the sample attribute value, so a
+# JSON-string config ("true", "42") compares correctly against a typed Graph value.
+function ConvertTo-FilterValue {
+    [CmdletBinding()]
+    param($Value, $Sample)
+    if ($null -eq $Value -or $null -eq $Sample) { return $Value }
+    if ($Sample -is [bool]) {
+        if ($Value -is [bool]) { return $Value }
+        $s = "$Value".Trim().ToLower()
+        if ($s -in @('true','1','yes','on'))  { return $true }
+        if ($s -in @('false','0','no','off')) { return $false }
+    }
+    if ($Sample -is [int] -or $Sample -is [long]) {
+        $n = 0; if ([int]::TryParse("$Value", [ref]$n)) { return $n }
+    }
+    return $Value
+}
+
+# Deterministic UUID for a group's synthetic "Owner @ <group>" GroupOwnership resource.
+function New-OwnershipResourceId {
+    [CmdletBinding()]
+    param([string]$GroupId)
+    $seed = "entraid-ownership:${GroupId}"
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
+        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
+    } finally {
+        $md5.Dispose()
+    }
+    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+}
+
+# Deterministic UUID for a (clientSP, targetApiSP, scope) DelegatedPermission resource.
+function New-OAuth2ScopeResourceId {
+    [CmdletBinding()]
+    param([string]$ClientSpId, [string]$TargetApiSpId, [string]$Scope)
+    $hashInput = "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($hashInput)
+        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
+    } finally {
+        $md5.Dispose()
+    }
+    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+}
+
+# Deterministic UUID for a (servicePrincipal, appRole) AppRole resource.
+function New-AppRoleResourceId {
+    [CmdletBinding()]
+    param([string]$SpId, [string]$AppRoleId)
+    $seed = "entraid-approle:${SpId}:${AppRoleId}"
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
+        $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
+    } finally {
+        $md5.Dispose()
+    }
+    return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
+}
+
+# Map a directory-role member's @odata.type to a principalType.
+function Resolve-DirectoryRolePrincipalType {
+    [CmdletBinding()]
+    param($Principal)
+    switch -Wildcard ($Principal.'@odata.type') {
+        '*servicePrincipal' { 'ServicePrincipal'; break }
+        '*group'            { 'Group'; break }
+        '*user'             { 'User'; break }
+        default             { 'User' }
+    }
+}

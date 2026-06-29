@@ -431,21 +431,6 @@ if ($SyncPrincipals) {
 
         # Coerce filter value to match the attribute's runtime type — booleans
         # need a real $true/$false (PowerShell -eq is type-strict for booleans)
-        function ConvertTo-FilterValue {
-            param($Value, $Sample)
-            if ($null -eq $Value -or $null -eq $Sample) { return $Value }
-            if ($Sample -is [bool]) {
-                if ($Value -is [bool]) { return $Value }
-                $s = "$Value".Trim().ToLower()
-                if ($s -in @('true','1','yes','on'))  { return $true }
-                if ($s -in @('false','0','no','off')) { return $false }
-            }
-            if ($Sample -is [int] -or $Sample -is [long]) {
-                $n = 0; if ([int]::TryParse("$Value", [ref]$n)) { return $n }
-            }
-            return $Value
-        }
-
         $identityUsers = $users | Where-Object {
             $val = Get-UserAttrValue -User $_ -AttrName $attr
             $coercedValue = ConvertTo-FilterValue -Value $filterValue -Sample $val
@@ -968,19 +953,6 @@ if ($SyncAssignments) {
     # upsert the same rows.
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing assignments (group owners)..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing group owners' -Pct 51 -Detail "0 of $totalGroups groups"
-
-    function New-OwnershipResourceId {
-        param([string]$GroupId)
-        $seed = "entraid-ownership:${GroupId}"
-        $md5 = [System.Security.Cryptography.MD5]::Create()
-        try {
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
-            $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
-        } finally {
-            $md5.Dispose()
-        }
-        return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
-    }
 
     $ownerResult = Get-FGGroupChildrenParallel `
         -Groups $groups -ChildPath 'owners' -ThrottleLimit 16 `
@@ -1537,19 +1509,6 @@ if ($SyncOAuth2Grants) {
     # Deterministic UUID v3-style over MD5 — mirrors normalizeRecords in
     # app/api/src/ingest/normalization.js so the same input always yields the
     # same ID whether generated here or server-side.
-    function New-OAuth2ScopeResourceId {
-        param([string]$ClientSpId, [string]$TargetApiSpId, [string]$Scope)
-        $hashInput = "entraid-oauth2-scope:${ClientSpId}:${TargetApiSpId}:${Scope}"
-        $md5 = [System.Security.Cryptography.MD5]::Create()
-        try {
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($hashInput)
-            $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
-        } finally {
-            $md5.Dispose()
-        }
-        return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
-    }
-
     try {
         $grants = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/oauth2PermissionGrants?`$top=999"
         $total = @($grants).Count
@@ -1749,19 +1708,6 @@ if ($SyncAppRoles) {
 
     # Deterministic UUID v3-style over MD5 — same approach as the OAuth2
     # scope IDs. Mirrors normalizeRecords in app/api/src/ingest/normalization.js.
-    function New-AppRoleResourceId {
-        param([string]$SpId, [string]$AppRoleId)
-        $seed = "entraid-approle:${SpId}:${AppRoleId}"
-        $md5 = [System.Security.Cryptography.MD5]::Create()
-        try {
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($seed)
-            $hex = ([System.BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-','').ToLower()
-        } finally {
-            $md5.Dispose()
-        }
-        return "$($hex.Substring(0,8))-$($hex.Substring(8,4))-$($hex.Substring(12,4))-$($hex.Substring(16,4))-$($hex.Substring(20,12))"
-    }
-
     $DEFAULT_ROLE_ID = '00000000-0000-0000-0000-000000000000'
 
     try {
@@ -2059,16 +2005,6 @@ if ($SyncDirectoryRoles) {
     Update-CrawlerProgress -Step 'Syncing directory roles' -Pct 75 -Detail 'Fetching role definitions from Microsoft Graph...'
 
     # Map a Graph directory-object @odata.type to our principalType vocabulary.
-    function Resolve-DirectoryRolePrincipalType {
-        param($Principal)
-        switch -Wildcard ($Principal.'@odata.type') {
-            '*servicePrincipal' { 'ServicePrincipal'; break }
-            '*group'            { 'Group'; break }
-            '*user'             { 'User'; break }
-            default             { 'User' }
-        }
-    }
-
     try {
         # 1. Role catalog. /roleDefinitions returns the full set of built-in
         #    roles plus any custom roles. id == templateId for built-ins.
