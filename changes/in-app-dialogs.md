@@ -1,1 +1,0 @@
-- Replaced the browser's native `alert`/`confirm`/`prompt` pop-ups with themed in-app dialogs and toast notifications — dark-mode aware, non-blocking, and consistent with the rest of the UI.

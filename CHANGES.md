@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Replaced the browser's native `alert`/`confirm`/`prompt` pop-ups with themed in-app dialogs and toast notifications — dark-mode aware, non-blocking, and consistent with the rest of the UI.
+
+## Changes in this PR
+
 - Internal code-quality cleanup: resolved the React hook and fast-refresh ESLint warnings in the UI (dependency-array fixes, moving shared constants/helpers into component-only modules, and ref-during-render handling). No user-facing behaviour change; improves dev hot-reload and removes console noise.
 
 ## Changes in this PR
