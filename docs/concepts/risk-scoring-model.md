@@ -21,12 +21,9 @@ GraphRiskClassifiers                           directScore
                                                structuralScore
                                                propagatedScore
                                               overrideAdjustment
-
-                                         GraphResourceClusters
-                                           └─ groups of related resources
-                                         GraphResourceClusterMembers
-                                           └─ which resources belong to each cluster
 ```
+
+Resource clustering is no longer a risk-scoring table — it runs as a context-algorithm plugin (see "Resource clusters" below).
 
 Scoring reads the **inputs** and writes the **outputs**. The inputs change only when you regenerate the risk profile / classifiers. The outputs are overwritten on every scoring run (with analyst overrides preserved). Account linking is a separate engine — see [Account Linking](../architecture/account-linking.md).
 
@@ -68,26 +65,6 @@ erDiagram
         string llmProvider
         string classifierJson
     }
-    GraphResourceClusters {
-        string id PK
-        string displayName
-        string clusterType
-        int aggregateRiskScore
-        string riskTier
-        string ownerUserId
-        string ownerDisplayName
-        datetime scoredAt
-    }
-    GraphResourceClusterMembers {
-        string clusterId PK
-        string resourceType PK
-        string resourceId PK
-        string resourceName
-        int resourceRiskScore
-        bool isNonProduction
-    }
-
-    GraphResourceClusters ||--o{ GraphResourceClusterMembers : "contains"
 ```
 
 The `RiskScores` table links back to the core model by `entityId` matching the `id` column on `Principals`, `Resources`, `Identities`, or `Contexts`. There is no FK constraint — this is intentional, so risk scores can be queried independently of whether the source entity still exists.
@@ -189,49 +166,18 @@ The engine is deterministic — no LLM and no `New-FGCorrelationRuleset` / `Save
 
 ---
 
-### GraphResourceClusters
+### Resource clusters (moved out of dedicated tables)
 
-Groups of related resources identified by `Save-FGResourceClusters`. A cluster aggregates resources that share a classifier match or a common display name stem. Each cluster has an aggregate risk score and an optional analyst-assigned owner for remediation accountability.
-
-| Property | Value |
-|---|---|
-| Primary Key | `id` |
-| Audit history | No |
-| Created by | `Save-FGResourceClusters` |
-
-Key columns:
-
-| Column | Description |
-|---|---|
-| `displayName` | Human-readable cluster name (derived from classifier or shared stem) |
-| `clusterType` | `Classifier` (grouped by risk classifier) or `NameStem` (grouped by display name prefix) |
-| `aggregateRiskScore` | Weighted average of member resource risk scores |
-| `riskTier` | Tier of the aggregate score |
-| `ownerUserId` / `ownerDisplayName` | Analyst-assigned owner for remediation tracking |
-| `ownerAssignedBy` | Identity of the analyst who assigned the owner |
-| `scoredAt` | When the cluster was last computed |
-
----
-
-### GraphResourceClusterMembers
-
-The detail rows for each cluster — one row per resource in the cluster.
-
-| Property | Value |
-|---|---|
-| Primary Key | Composite: `clusterId` + `resourceType` + `resourceId` |
-| Audit history | No |
-| Created by | `Save-FGResourceClusters` |
-
-Key columns: `resourceName`, `resourceRiskScore`, `resourceRiskTier`, `isNonProduction` (BIT — non-production resources are included but weighted down in the aggregate), `matchedOn` (which field matched the classifier), `matchDetail`.
+The legacy `GraphResourceClusters` / `GraphResourceClusterMembers` tables were **dropped** in migration `019_drop_legacy_clusters.sql`. Resource clustering now runs as a registered **context-algorithm plugin** (`contexts/plugins/resource-cluster/`): a cluster is just a generated [Context](data-model.md#contexts), and its members live in `ContextMembers` — the same unified surface as every other context. See the [resource-cluster algorithm](../architecture/resource-cluster-algorithm.md) and the [risk-scoring plugin architecture](../risk-scoring/plugin-architecture.md).
 
 ---
 
 ## Initialization Order
 
 ```powershell
-# 1. Create the RiskScores table (also adds riskScore/riskTier columns to Principals and Resources)
-Initialize-FGRiskScoreTables
+# 1. (No action needed) The RiskScores table — plus the riskScore/riskTier columns
+#    on Principals and Resources — is created automatically by migration
+#    004_risk_scoring.sql when the web container starts.
 
 # 2. Generate org context profile (one-time, contacts LLM)
 New-FGRiskProfile -Domain "yourcompany.com" -LLMProvider Anthropic -LLMApiKey $key
@@ -241,12 +187,9 @@ New-FGRiskClassifiers
 
 # 4. Score all entities (run after each sync)
 Invoke-FGRiskScoring
-
-# 5. Cluster related resources (optional, run after scoring)
-Save-FGResourceClusters
 ```
 
-Steps 2 and 3 only need to run once, or when your organization's risk posture changes significantly. Steps 4 and 5 run on a schedule alongside your regular data sync.
+Steps 2 and 3 only need to run once, or when your organization's risk posture changes significantly. Step 4 runs on a schedule alongside your regular data sync. Resource clustering runs separately as a context-algorithm plugin (see "Resource clusters" above).
 
 ---
 
@@ -254,4 +197,4 @@ Steps 2 and 3 only need to run once, or when your organization's risk posture ch
 
 `RiskScores` is overwritten by each scoring run. Analyst overrides (`riskOverride`, `riskOverrideReason`) are preserved across re-scoring runs.
 
-The other risk tables (`GraphRiskProfiles`, `GraphRiskClassifiers`, `GraphResourceClusters`, `GraphResourceClusterMembers`) are also overwritten in place when regenerated. (Account-to-identity matching is no longer a risk table — see `AccountLinkingConfig` / `AccountLinkingRuns` above.)
+The other risk tables (`GraphRiskProfiles`, `GraphRiskClassifiers`) are also overwritten in place when regenerated. (Resource clustering is no longer a risk table — it runs as a context-algorithm plugin; account-to-identity matching lives in `AccountLinkingConfig` / `AccountLinkingRuns` above.)

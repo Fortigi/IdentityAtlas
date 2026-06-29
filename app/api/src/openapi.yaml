@@ -6,6 +6,13 @@ info:
     REST API for ingesting authorization data from any source system into Identity Atlas.
     Crawlers authenticate with API keys (Bearer token) and POST batches of records.
     The API handles validation, bulk merge, scoped delete detection, and temporal versioning.
+
+    **Scope:** this specification covers only the **ingest + crawler-admin** surface —
+    the endpoints crawlers and the crawler-management UI call. The authenticated
+    **read API** consumed by the web UI (matrix & permissions, identities, resources,
+    governance & business roles, risk scores, contexts, entity detail, org-chart, tags,
+    account-linking — 100+ routes) is **not** described here; see the API reference under
+    `docs/api/` for those.
   contact:
     name: Fortigi
     url: https://github.com/Fortigi/IdentityAtlas
