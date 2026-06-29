@@ -86,7 +86,14 @@ export async function llmFetch(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
   try {
-    const resp = await fetch(url, { ...options, signal: controller.signal });
+    const resp = await fetch(url, { ...options, signal: controller.signal, redirect: 'manual' });
+    // M-3 (SSRF): never auto-follow a redirect. A 3xx to an internal address
+    // would carry the provider api-key / authorization header with it (the Azure
+    // host is only allowlist-validated on the *initial* URL). The real provider
+    // endpoints answer 200 directly, so a redirect here is unexpected and refused.
+    if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400)) {
+      throw new Error('LLM provider attempted an unexpected redirect; refusing to follow');
+    }
     const bodyText = await readCappedBody(resp, LLM_MAX_RESPONSE_BYTES);
     return { ok: resp.ok, status: resp.status, bodyText };
   } catch (e) {

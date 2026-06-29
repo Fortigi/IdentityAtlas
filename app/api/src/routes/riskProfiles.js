@@ -18,6 +18,7 @@ import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
 import { chatWithSavedConfig, isLLMConfigured, getLLMConfig } from '../llm/service.js';
 import { scrapeAll, buildLLMContextFromScrapes } from '../llm/scraper.js';
+import { compilePattern } from '../riskscoring/engine.js';
 import {
   profileGenerationPrompt,
   profileRefinementPrompt,
@@ -405,11 +406,33 @@ router.post('/risk-classifiers/generate', gate, async (req, res) => {
 });
 
 // Save a classifier set
+// Validate every classifier regex at save time (M-6) — compile each with the
+// same RE2 engine the scorer uses, so an invalid or RE2-unsupported pattern
+// (lookaround, backreferences, or LLM-injected junk) is rejected up front rather
+// than silently skipped at scoring time.
+function findInvalidClassifierPatterns(classifiers) {
+  const bad = [];
+  for (const group of ['groupClassifiers', 'userClassifiers', 'agentClassifiers']) {
+    for (const c of (classifiers?.[group] || [])) {
+      for (const p of (c?.patterns || [])) {
+        if (typeof p !== 'string' || !p.trim()) continue;
+        try { compilePattern(p); }
+        catch (err) { bad.push({ classifier: c.id || c.label || '(unnamed)', pattern: p, reason: err.message }); }
+      }
+    }
+  }
+  return bad;
+}
+
 router.post('/risk-classifiers', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const { displayName, profileId, classifiers, makeActive } = req.body || {};
   if (!displayName) return res.status(400).json({ error: 'displayName is required' });
   if (!classifiers) return res.status(400).json({ error: 'classifiers is required' });
+  const invalidPatterns = findInvalidClassifierPatterns(classifiers);
+  if (invalidPatterns.length > 0) {
+    return res.status(400).json({ error: 'One or more classifier patterns are invalid or unsupported', invalidPatterns });
+  }
   try {
     const llmCfg = await getLLMConfig().catch(() => null);
     const versionRow = await db.queryOne(

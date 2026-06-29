@@ -151,6 +151,19 @@ describe('llmFetch hardening (M-1)', () => {
   });
 });
 
+// M-3 — llmFetch must never auto-follow a redirect (a 3xx to an internal host
+// would carry the provider api-key with it).
+describe('llmFetch redirect refusal (M-3 SSRF)', () => {
+  it('refuses an opaque redirect instead of following it', async () => {
+    global.fetch = vi.fn(async () => ({ type: 'opaqueredirect', ok: false, status: 0, headers: { get: () => null }, text: async () => '' }));
+    await expect(llmFetch('https://api.example/v1')).rejects.toThrow(/redirect/i);
+  });
+  it('refuses a 3xx redirect status', async () => {
+    global.fetch = vi.fn(async () => ({ ok: false, status: 302, headers: { get: () => null }, text: async () => '' }));
+    await expect(llmFetch('https://api.example/v1')).rejects.toThrow(/redirect/i);
+  });
+});
+
 describe('chat dispatch errors', () => {
   it('rejects an unknown provider', async () => {
     await expect(

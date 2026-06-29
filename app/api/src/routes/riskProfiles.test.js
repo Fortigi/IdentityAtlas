@@ -42,6 +42,25 @@ describe('POST /risk-profiles — validation', () => {
   });
 });
 
+describe('POST /risk-classifiers — pattern validation (M-6)', () => {
+  it('400 with the offending list when a classifier pattern is invalid/unsupported', async () => {
+    const res = await request(app).post('/api/risk-classifiers').send({
+      displayName: 'set1',
+      classifiers: { groupClassifiers: [{ id: 'g1', patterns: ['(?=lookahead)admin'] }] },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.invalidPatterns).toHaveLength(1);
+    expect(res.body.invalidPatterns[0].pattern).toBe('(?=lookahead)admin');
+  });
+  it('does not reject valid patterns at the validation step', async () => {
+    const res = await request(app).post('/api/risk-classifiers').send({
+      displayName: 'set1',
+      classifiers: { groupClassifiers: [{ id: 'g1', patterns: ['\\bdomain admin\\b'] }] },
+    });
+    expect(res.body.invalidPatterns).toBeUndefined();
+  });
+});
+
 describe('GET /risk-profiles/:id — branching', () => {
   it('400 when the id is not an integer', async () => {
     const res = await request(app).get('/api/risk-profiles/abc');
