@@ -3500,17 +3500,17 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>       └─ ResourceAssignments (what access each account holds)
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>            └─ Resources (what is being accessed)
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>Contexts (organizational/structural trees — system-scoped)
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  └─ Identities  (contextId: HR org unit, department)
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  └─ Principals  (contextId: AD OU, Entra admin unit)
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  └─ Resources   (contextId: resource classification, location)
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>Systems (technical sync root — each Principal, Resource, and Context belongs to one System)
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>Contexts (organizational/structural trees — synced, generated, or manual)
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  └─ ContextMembers (which entities belong to each context)
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>       └─ Identities / Principals / Resources / Systems  (by memberType)
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>Systems (technical sync root — each Principal, Resource, and synced Context belongs to one System)
 </code></pre></div>
-<p><strong>Why Identity is the root:</strong> A real person (Identity) may have multiple accounts (Principals) across different source systems. The organizational context — department, team, cost center — belongs to the <em>person</em>, not to each individual account. Identities carry a <code>contextId</code> that represents their place in the HR/governance org structure.</p>
-<p><strong>Why Principals and Resources also have a contextId:</strong> Source systems have their own organizational structures that are distinct from the HR org chart. Active Directory has OUs, Entra ID has administrative units, resource management systems have classification hierarchies. These structures are valuable for risk scoring, policy evaluation, and reporting — but they belong to the <em>system</em>, not to the person. A Principal's <code>contextId</code> captures its position in the source system's own hierarchy, independent of the Identity's HR context.</p>
-<p><strong>Multiple independent context trees:</strong> Each <code>(systemId, contextType)</code> combination forms an independent tree. An HR system produces a Department tree linked to Identities. Active Directory produces an OU tree linked to Principals. A resource classification system produces a Category tree linked to Resources. These trees coexist in the same Contexts table, scoped by <code>systemId</code>.</p>
-<p><strong>Why Systems are the sync root:</strong> At ingestion time, every Principal, Resource, and Context must belong to a System. This enables multi-tenant and multi-system deployments without ambiguity.</p>
+<p><strong>Why Identity is the root:</strong> A real person (Identity) may have multiple accounts (Principals) across different source systems. Organizational context — department, team, cost center — belongs to the <em>person</em>, not to each individual account, so it is modelled as Contexts whose members are Identities.</p>
+<p><strong>Membership is many-to-many (since v6):</strong> Entities do <strong>not</strong> carry a <code>contextId</code> column. Membership lives in the explicit <code>ContextMembers</code> join table (<code>contextId</code> + <code>memberType</code> + <code>memberId</code>), so a single Identity, Principal, or Resource can belong to <em>many</em> contexts at once — an HR department <strong>and</strong> a location <strong>and</strong> a tag — without picking a "primary" one. (Before the v6 Contexts redesign in migration <code>018_context_redesign.sql</code>, each entity had a single <code>contextId</code> FK; those columns were dropped.)</p>
+<p><strong>Why each Context has a <code>targetType</code>:</strong> A context groups exactly one kind of entity — <code>Identity</code>, <code>Principal</code>, <code>Resource</code>, or <code>System</code>. An HR department tree targets Identities; an Active Directory OU tree targets Principals; a resource-classification tree targets Resources. They coexist in the same <code>Contexts</code> table, discriminated by <code>targetType</code> + <code>contextType</code>.</p>
+<p><strong>Three variants:</strong> Every context is <code>synced</code> (ingested from a source system), <code>generated</code> (emitted by a context-algorithm plugin — org-chart derivation, clustering, orphan detection), or <code>manual</code> (analyst-curated, including tags). See <a href="../../architecture/context-redesign/">context-redesign</a>.</p>
+<p><strong>Why Systems are the sync root:</strong> At ingestion time, every Principal, Resource, and synced Context must belong to a System. This enables multi-tenant and multi-system deployments without ambiguity.</p>
 <hr />
 <h2 id="entity-relationship-diagram">Entity Relationship Diagram<a class="headerlink" href="#entity-relationship-diagram" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>erDiagram
@@ -3521,7 +3521,6 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         string employeeId
         string department
         string jobTitle
-        guid contextId FK
         guid primaryPrincipalId FK
         guid managerIdentityId FK
         bool isHrAnchored
@@ -3549,7 +3548,6 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         int systemId FK
         string displayName
         string resourceType
-        guid contextId FK
         string extendedAttributes
         guid catalogId
         decimal riskScore
@@ -3559,16 +3557,24 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         int systemId FK
         string displayName
         string principalType
-        guid contextId FK
         string extendedAttributes
         decimal riskScore
     }
     Contexts {
         guid id PK
-        int systemId FK
-        string displayName
+        string variant
+        string targetType
         string contextType
+        string displayName
         guid parentContextId FK
+        int scopeSystemId FK
+        guid sourceAlgorithmId FK
+    }
+    ContextMembers {
+        guid contextId FK
+        string memberType
+        guid memberId
+        string addedBy
     }
     ResourceAssignments {
         guid resourceId FK
@@ -3605,13 +3611,14 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
     }
 
     Identities ||--o{ IdentityMembers : "aggregates"
-    Identities }o--o| Contexts : "HR org context"
     Principals ||--o{ IdentityMembers : "linked via"
-    Principals }o--o| Contexts : "system org context"
-    Resources }o--o| Contexts : "classification context"
+    Contexts ||--o{ ContextMembers : "has members"
+    ContextMembers }o--|| Identities : "memberType=Identity"
+    ContextMembers }o--|| Principals : "memberType=Principal"
+    ContextMembers }o--|| Resources : "memberType=Resource"
     Systems ||--o{ Resources : "hosts"
     Systems ||--o{ Principals : "hosts"
-    Systems ||--o{ Contexts : "scopes"
+    Systems ||--o{ Contexts : "scopes (synced)"
     Resources ||--o{ ResourceAssignments : "granted via"
     Principals |o--o{ ResourceAssignments : "receives (account-level)"
     Identities |o--o{ ResourceAssignments : "receives (person-level)"
@@ -3623,7 +3630,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <h2 id="table-reference">Table Reference<a class="headerlink" href="#table-reference" title="Permanent link">&para;</a></h2>
 <h3 id="identities">Identities<a class="headerlink" href="#identities" title="Permanent link">&para;</a></h3>
 <p>Real persons aggregated across multiple accounts and source systems. An Identity is the result of account linking: one human may have an Entra ID user, a service account, and a privileged admin account — all linked to one Identity record. Links come from a crawler's IdentityFilter (authoritative, score-less) or from the deterministic <a href="../../architecture/account-linking/">Account Linking</a> engine (orphan accounts attached with a confidence score).</p>
-<p>Identities carry the <code>contextId</code> because organizational context (department, team) belongs to the <em>person</em>, not to their individual accounts.</p>
+<p>Organizational context (department, team) belongs to the <em>person</em>, not to their individual accounts, so an Identity's context memberships live in <code>ContextMembers</code> (<code>memberType='Identity'</code>) — an Identity can belong to several contexts at once.</p>
 <table>
 <thead>
 <tr>
@@ -3646,7 +3653,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </tr>
 </tbody>
 </table>
-<p>Key columns: <code>displayName</code>, <code>email</code>, <code>employeeId</code>, <code>department</code>, <code>jobTitle</code>, <code>contextId</code>, <code>primaryPrincipalId</code>, <code>managerIdentityId</code>.</p>
+<p>Key columns: <code>displayName</code>, <code>email</code>, <code>employeeId</code>, <code>department</code>, <code>jobTitle</code>, <code>primaryPrincipalId</code>, <code>managerIdentityId</code>.</p>
 <p>Account-linking columns: <code>isHrAnchored</code>, <code>hrAccountId</code>, <code>accountCount</code>, <code>linkSignals</code> (JSONB), <code>linkConfidence</code>, <code>linkedAt</code>. These were renamed from <code>correlationSignals</code> / <code>correlationConfidence</code> / <code>correlatedAt</code> in migration <code>030_account_linking.sql</code>.</p>
 <div class="admonition note">
 <p class="admonition-title"><code>orphanStatus</code> is retired</p>
@@ -3680,8 +3687,8 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <p>Per-account link columns (renamed in migration <code>030_account_linking.sql</code>): <code>linkConfidence</code>, <code>linkSignals</code>, <code>accountType</code>, <code>accountTypePattern</code>, plus <code>analystOverride</code> (<code>confirmed</code> / <code>rejected</code> / <code>moved</code>). Crawler-sourced links carry no <code>linkConfidence</code> (NULL); Account Linking writes scored links and honours <code>analystOverride</code> on every re-run.</p>
 <hr />
 <h3 id="contexts">Contexts<a class="headerlink" href="#contexts" title="Permanent link">&para;</a></h3>
-<p>Organizational and structural groupings from any source system. A Context can represent an HR department, an AD organizational unit, an Entra ID administrative unit, a resource classification category, or any other hierarchy. The <code>contextType</code> column discriminates between them; the <code>systemId</code> column scopes them to a source system.</p>
-<p><strong>Multiple independent context trees:</strong> Each <code>(systemId, contextType)</code> combination forms its own tree. These trees are independent — an HR department tree, an AD OU tree, and a resource classification tree all coexist in the same table without interfering.</p>
+<p>Organizational and structural groupings — synced from a source system, generated by a plugin, or manually curated. A Context can represent an HR department, an AD organizational unit, an Entra ID administrative unit, a resource classification category, a tag, a cluster, or any other grouping. The <code>contextType</code> column discriminates between them, <code>targetType</code> declares which kind of entity they group, and <code>scopeSystemId</code> scopes synced contexts to a source system.</p>
+<p><strong>Multiple independent context trees:</strong> Each <code>(scopeSystemId, targetType, contextType)</code> combination forms its own tree. These trees are independent — an HR department tree, an AD OU tree, and a resource classification tree all coexist in the same table without interfering.</p>
 <table>
 <thead>
 <tr>
@@ -3730,14 +3737,15 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </tr>
 </tbody>
 </table>
-<p><strong>Which entities carry a contextId:</strong></p>
+<p><strong>Membership lives in <code>ContextMembers</code>, not on the entity:</strong> Since the v6 redesign there is <strong>no <code>contextId</code> column</strong> on Identities, Principals, or Resources. Instead the <code>ContextMembers</code> join table records membership as (<code>contextId</code>, <code>memberType</code>, <code>memberId</code>), so any entity can belong to <strong>multiple</strong> contexts at once:</p>
 <ul>
-<li><strong>Identities</strong> — HR/governance org context. "This person belongs to Finance &gt; Accounts Payable."</li>
-<li><strong>Principals</strong> — Source system org context. "This AD account lives in OU=Admins,OU=Amsterdam."</li>
-<li><strong>Resources</strong> — Classification or grouping context. "This SharePoint site is classified as Confidential &gt; Finance Data."</li>
+<li>An <strong>Identity</strong> can be in an HR department context <em>and</em> a location context <em>and</em> a tag.</li>
+<li>A <strong>Principal</strong> can be in an AD OU context <em>and</em> an Entra administrative-unit context.</li>
+<li>A <strong>Resource</strong> can be in a classification context <em>and</em> a generated cluster.</li>
 </ul>
-<p>Each entity has a single <code>contextId</code> column. If an entity needs to participate in multiple context trees (e.g., an Identity has both an HR department and a location), use the primary governance context as <code>contextId</code> and store secondary context references in <code>extendedAttributes</code>.</p>
-<p><strong>Context and policy-driven access:</strong> When an assignment is driven by an Identity's context (e.g., "all Finance employees get access to SharePoint Finance"), the governing rule is captured in <code>AssignmentPolicies.policyConditions</code> as a JSON condition referencing the <code>contextId</code>. The assignment row in <code>ResourceAssignments</code> records the <em>result</em>; the policy row records the <em>rule</em>. This keeps assignments clean while the "why" remains auditable through the policy chain.</p>
+<p><code>ContextMembers.addedBy</code> records provenance — <code>sync</code> (from a crawler), <code>algorithm</code> (a context plugin), or <code>analyst</code> (manual).</p>
+<p><strong>Three variants</strong> (the <code>variant</code> column): <code>synced</code> (ingested from a source system), <code>generated</code> (emitted by a context-algorithm plugin — org-chart derivation, resource clustering, orphan detection), or <code>manual</code> (analyst-curated, including tags). <strong><code>targetType</code></strong> (<code>Identity</code> / <code>Resource</code> / <code>Principal</code> / <code>System</code>) declares which kind of entity a context groups.</p>
+<p><strong>Context and policy-driven access:</strong> When an assignment is driven by an Identity's context (e.g., "all Finance employees get access to SharePoint Finance"), the governing rule is captured in <code>AssignmentPolicies.policyConditions</code> as a JSON condition referencing the context. The assignment row in <code>ResourceAssignments</code> records the <em>result</em>; the policy row records the <em>rule</em>. This keeps assignments clean while the "why" remains auditable through the policy chain.</p>
 <table>
 <thead>
 <tr>
@@ -3748,20 +3756,20 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <tbody>
 <tr>
 <td>Primary Key</td>
-<td><code>id</code> GUID</td>
+<td><code>Contexts.id</code> GUID; <code>ContextMembers</code> keyed on (<code>contextId</code>, <code>memberId</code>)</td>
 </tr>
 <tr>
 <td>Audit history</td>
-<td>No</td>
+<td>Yes for <code>Contexts</code> (via <code>_history</code> trigger); no for <code>ContextMembers</code></td>
 </tr>
 <tr>
 <td>Created by</td>
-<td>Migration <code>001_core_schema.sql</code></td>
+<td>Migration <code>018_context_redesign.sql</code> (replaced the legacy <code>OrgUnits</code> / per-entity <code>contextId</code> shape)</td>
 </tr>
 </tbody>
 </table>
-<p>Key columns: <code>displayName</code>, <code>contextType</code>, <code>systemId</code>, <code>parentContextId</code> (self-referencing for hierarchy).</p>
-<p><strong>contextType values:</strong> <code>Department</code>, <code>Division</code>, <code>CostCenter</code>, <code>Team</code>, <code>Office</code>, <code>Project</code>, <code>Location</code>, <code>OrgUnit</code>, <code>AdministrativeUnit</code>, <code>Classification</code>, or any custom string.</p>
+<p>Key columns (<code>Contexts</code>): <code>variant</code>, <code>targetType</code>, <code>contextType</code>, <code>displayName</code>, <code>parentContextId</code> (self-referencing for hierarchy), <code>scopeSystemId</code>, <code>sourceAlgorithmId</code> / <code>sourceRunId</code> (provenance for generated contexts), <code>directMemberCount</code> / <code>totalMemberCount</code>.</p>
+<p><strong>contextType values:</strong> <code>Department</code>, <code>Division</code>, <code>CostCenter</code>, <code>Team</code>, <code>Office</code>, <code>Project</code>, <code>Location</code>, <code>OrgUnit</code>, <code>AdministrativeUnit</code>, <code>Classification</code>, <code>Tag</code>, or any custom string.</p>
 <div class="admonition note">
 <p class="admonition-title">Tags can target Identities</p>
 <p>Tags are stored as manual Contexts (<code>contextType='Tag'</code>). As of migration <code>031_tags_identity_targettype.sql</code>, tags support <code>targetType='Identity'</code> in addition to <code>Principal</code> and <code>Resource</code>, so an analyst can tag an identity directly. The <code>GraphTags</code> backward-compat view surfaces <code>targetType='Identity'</code> rows as <code>entityType='identity'</code>.</p>
@@ -3817,7 +3825,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </tr>
 </tbody>
 </table>
-<p>Key columns: <code>displayName</code>, <code>resourceType</code>, <code>systemId</code>, <code>contextId</code> (optional — classification or grouping context), <code>extendedAttributes</code> (JSON), <code>catalogId</code>, <code>isHidden</code>, <code>riskScore</code>.</p>
+<p>Key columns: <code>displayName</code>, <code>resourceType</code>, <code>systemId</code>, <code>extendedAttributes</code> (JSON), <code>catalogId</code>, <code>isHidden</code>, <code>riskScore</code>. Classification/grouping is via <code>ContextMembers</code> (<code>memberType='Resource'</code>), not a column.</p>
 <hr />
 <h3 id="resourceassignments">ResourceAssignments<a class="headerlink" href="#resourceassignments" title="Permanent link">&para;</a></h3>
 <p>Captures who has access to what, and how. The <code>assignmentType</code> column distinguishes direct membership from PIM-eligible access from governed (IGA-driven) access.</p>
@@ -3900,7 +3908,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </tr>
 </tbody>
 </table>
-<p>Key columns: <code>displayName</code>, <code>principalType</code>, <code>systemId</code>, <code>contextId</code> (optional — source system org structure, e.g. AD OU), <code>extendedAttributes</code> (JSON), <code>riskScore</code>.</p>
+<p>Key columns: <code>displayName</code>, <code>principalType</code>, <code>systemId</code>, <code>extendedAttributes</code> (JSON), <code>riskScore</code>. Source-system org placement (e.g. AD OU) is via <code>ContextMembers</code> (<code>memberType='Principal'</code>), not a column.</p>
 <hr />
 <h3 id="principalactivity">PrincipalActivity<a class="headerlink" href="#principalactivity" title="Permanent link">&para;</a></h3>
 <p>High-frequency activity signals: sign-ins, per-app usage, AI agent invocations. This table is intentionally <strong>not</strong> tracked by audit triggers. See <a href="#activity-data-principalactivity">Activity Data</a> below for the reason.</p>
