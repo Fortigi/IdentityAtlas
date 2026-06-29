@@ -1,1 +1,0 @@
-- Internal code-quality cleanup: resolved the React hook and fast-refresh ESLint warnings in the UI (dependency-array fixes, moving shared constants/helpers into component-only modules, and ref-during-render handling). No user-facing behaviour change; improves dev hot-reload and removes console noise.

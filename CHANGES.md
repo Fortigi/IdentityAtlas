@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal code-quality cleanup: resolved the React hook and fast-refresh ESLint warnings in the UI (dependency-array fixes, moving shared constants/helpers into component-only modules, and ref-during-render handling). No user-facing behaviour change; improves dev hot-reload and removes console noise.
+
+## Changes in this PR
+
 - Fixed: **Admin → Data → "Export curated data"** failed with a generic "Export failed" error whenever any business-role categories existed. The category export query applied a text-lowercasing function directly to the resource UUID column, which PostgreSQL rejects; it now lowercases the UUID as text (matching the import path), so the export completes.
 
 ## Changes in this PR
