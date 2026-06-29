@@ -1,1 +1,2 @@
 - Reworked the Admin page's data loading (Power Query tokens, history retention, LLM settings, risk-scoring features) and its tab/provider state handling to remove six React Compiler set-state-in-effect warnings. All Admin sub-tabs load, save, and reset exactly as before.
+- Reworked the risk-profile wizard's elapsed-time counters to remove two more React Compiler set-state-in-effect warnings; the "N seconds elapsed" indicators behave exactly as before.
