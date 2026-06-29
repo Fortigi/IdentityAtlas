@@ -109,7 +109,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
       }
     } catch (err) { console.error(`Failed to fetch ${entityType}s:`, err); }
     if (version === fetchVersion.current) setLoading(false);
-  }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint, includeDeleted]);
+  }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint, includeDeleted, entityType]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 

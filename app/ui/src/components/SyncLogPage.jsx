@@ -119,7 +119,7 @@ export default function SyncLogPage({ navigate, onOpenDetail }) {
     }
     out.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
     return out;
-  }, [logs, runs, linkRuns, riskRuns, navigate, onOpenDetail]);
+  }, [logs, runs, linkRuns, riskRuns, navigate]);
 
   const counts = useMemo(() => {
     const c = { all: entries.length, crawler: 0, plugin: 0, linking: 0, scoring: 0 };

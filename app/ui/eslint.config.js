@@ -22,7 +22,7 @@ const NATIVE_DIALOG_ALLOWLIST = [
 ];
 
 export default [
-  { ignores: ['dist', 'playwright-report', 'test-results'] },
+  { ignores: ['dist', 'playwright-report', 'test-results', 'coverage'] },
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {

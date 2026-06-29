@@ -339,7 +339,7 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
     return () => { cancelled = true; };
   }, [departmentName, authFetch, node, onCacheData]);
 
-  const directMembers = node?.members || [];
+  const directMembers = useMemo(() => node?.members || [], [node]);
   const allMembers = useMemo(() => node ? collectAllMembers(node) : [], [node]);
   const indirectMembers = useMemo(
     () => allMembers.filter(m => !directMembers.some(dm => dm.id === m.id)),

@@ -137,6 +137,11 @@ export function usePermissions(userLimit = 25, activeFilters = [], contextFilter
     return res.json();
   }, [authFetch]);
 
+  // Mirrors data.length so the effect can pick spinner type without depending on
+  // `data` — adding data.length to the effect deps would re-run the fetch every
+  // time the result size changes, double-fetching on initial load.
+  const dataLenRef = useRef(0);
+
   // Fetch data when debounced server parameters change
   useEffect(() => {
     const controller = new AbortController();
@@ -145,7 +150,7 @@ export function usePermissions(userLimit = 25, activeFilters = [], contextFilter
     async function fetchData() {
       try {
         // Full loading spinner on initial load; subtle refreshing indicator on subsequent fetches
-        if (data.length === 0) setLoading(true);
+        if (dataLenRef.current === 0) setLoading(true);
         setRefreshing(true);
 
         const [permResult, apRes] = await Promise.all([
@@ -155,6 +160,7 @@ export function usePermissions(userLimit = 25, activeFilters = [], contextFilter
 
         if (cancelled) return;
         setData(permResult.data);
+        dataLenRef.current = permResult.data?.length || 0;
         setTotalUsers(permResult.totalUsers);
         setManagedByPackages(permResult.managedByPackages || []);
 
