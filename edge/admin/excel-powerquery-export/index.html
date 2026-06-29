@@ -1190,6 +1190,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Rotating or retiring tokens">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automatic-revocation-of-idle-tokens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic revocation of idle tokens
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3132,6 +3149,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Rotating or retiring tokens">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automatic-revocation-of-idle-tokens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic revocation of idle tokens
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3379,6 +3413,19 @@ The <strong>Existing tokens</strong> table on the same page lists every outstand
 token with its prefix, creation date, and last-used timestamp. Click
 <strong>Revoke</strong> to invalidate any token immediately — workbooks using that
 token stop refreshing on their next attempt.</p>
+<h3 id="automatic-revocation-of-idle-tokens">Automatic revocation of idle tokens<a class="headerlink" href="#automatic-revocation-of-idle-tokens" title="Permanent link">&para;</a></h3>
+<p>Tokens that go unused for too long are revoked automatically, so a
+credential embedded in a workbook that nobody refreshes anymore doesn't
+linger as live read access. A token counts as "used" whenever a request
+authenticates with it (every workbook refresh); the clock falls back to
+the creation date for a token that was never used.</p>
+<p>The threshold defaults to <strong>90 days</strong> and is controlled by the
+<code>READ_TOKEN_IDLE_DAYS</code> key in <code>WorkerConfig</code>. Set it to <code>0</code> to disable
+idle revocation entirely, or to a different number of days to suit your
+policy. The sweep runs shortly after startup and every six hours
+thereafter; an idle token is therefore revoked within a few hours of
+crossing the threshold. Revoking is not deletion — idle-revoked tokens
+still appear in the <strong>Existing tokens</strong> table (marked revoked) for audit.</p>
 <h2 id="how-the-token-is-used-against-the-api">How the token is used against the API<a class="headerlink" href="#how-the-token-is-used-against-the-api" title="Permanent link">&para;</a></h2>
 <p>The workbook's M code reads the token from the <code>AuthToken</code> named range
 and sends it on every request:</p>
