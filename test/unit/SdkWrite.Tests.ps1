@@ -417,6 +417,101 @@ Describe 'Update-FGConfig' {
         $result = Update-FGConfig -ConfigFile $cfgPath -Silent -WarningAction SilentlyContinue
         $result | Should -BeNullOrEmpty
     }
+
+    It 'throws when the config file is empty / unparseable' {
+        $cfgPath = Join-Path $TestDrive 'cfg-empty.json'
+        Set-Content -Path $cfgPath -Value ''
+        { Update-FGConfig -ConfigFile $cfgPath } | Should -Throw '*Failed to parse config file*'
+    }
+
+    It 'warns and returns when the template file is empty / unparseable' {
+        $cfgPath = Join-Path $TestDrive 'cfg-badtpl.json'
+        $tplPath = Join-Path $TestDrive 'template-empty.json'
+        @{ Azure = @{} } | ConvertTo-Json | Set-Content -Path $cfgPath
+        Set-Content -Path $tplPath -Value ''
+        Mock -ModuleName IdentityAtlas Join-Path { $tplPath } -ParameterFilter { $ChildPath -like '*tenantname.json.template' }
+
+        $result = Update-FGConfig -ConfigFile $cfgPath -Silent -WarningAction SilentlyContinue
+        $result | Should -BeNullOrEmpty
+    }
+
+    It 'interactively adds a confirmed missing Sync sub-key and saves the file' {
+        $cfgPath = Join-Path $TestDrive 'cfg-syncadd.json'
+        $tplPath = Join-Path $TestDrive 'template-sync.json'
+        @{ Azure = @{}; Sync = @{ EntraGroups = @{} } } |
+            ConvertTo-Json -Depth 5 | Set-Content -Path $cfgPath
+        @{ Azure = @{}; Sync = @{ EntraGroups = @{}; Principals = @{ on = $true } } } |
+            ConvertTo-Json -Depth 5 | Set-Content -Path $tplPath
+
+        Mock -ModuleName IdentityAtlas Join-Path { $tplPath } -ParameterFilter { $ChildPath -like '*tenantname.json.template' }
+        Mock -ModuleName IdentityAtlas Read-Host { 'Y' }
+
+        $result = Update-FGConfig -ConfigFile $cfgPath
+        $result.Added | Should -Contain 'Sync.Principals'
+        $saved = Get-Content -Path $cfgPath -Raw | ConvertFrom-Json
+        $saved.Sync.Principals.on | Should -Be $true
+    }
+
+    It 'truncates a long default preview when prompting' {
+        # Template section whose compact-JSON default exceeds 120 chars triggers
+        # the Substring(0,117)+"..." preview branch.
+        $cfgPath = Join-Path $TestDrive 'cfg-trunc.json'
+        $tplPath = Join-Path $TestDrive 'template-long.json'
+        @{ Azure = @{} } | ConvertTo-Json | Set-Content -Path $cfgPath
+        @{
+            Azure       = @{}
+            RiskScoring = @{
+                enabled    = $false
+                classifier = 'a-very-long-default-classifier-name-that-keeps-going-and-going'
+                weights    = @{ admin = 10; guest = 1; external = 5; stale = 3; orphan = 7 }
+                thresholds = @{ low = 1; medium = 5; high = 9; critical = 99 }
+            }
+        } | ConvertTo-Json -Depth 5 | Set-Content -Path $tplPath
+
+        Mock -ModuleName IdentityAtlas Join-Path { $tplPath } -ParameterFilter { $ChildPath -like '*tenantname.json.template' }
+        Mock -ModuleName IdentityAtlas Read-Host { 'N' }
+
+        Update-FGConfig -ConfigFile $cfgPath | Out-Null
+        Should -Invoke -ModuleName IdentityAtlas Read-Host -Times 1
+    }
+
+    It 'truncates a long default preview for a missing Sync sub-key' {
+        $cfgPath = Join-Path $TestDrive 'cfg-trunc-sync.json'
+        $tplPath = Join-Path $TestDrive 'template-long-sync.json'
+        @{ Azure = @{}; Sync = @{ EntraGroups = @{} } } |
+            ConvertTo-Json -Depth 5 | Set-Content -Path $cfgPath
+        @{
+            Azure = @{}
+            Sync  = @{
+                EntraGroups = @{}
+                Principals  = @{
+                    enabled    = $true
+                    attributes = @('displayName', 'mail', 'department', 'jobTitle', 'manager', 'employeeId', 'officeLocation')
+                    filters    = @{ includeGuests = $false; onlyEnabled = $true; minLastSignIn = '2020-01-01' }
+                }
+            }
+        } | ConvertTo-Json -Depth 6 | Set-Content -Path $tplPath
+
+        Mock -ModuleName IdentityAtlas Join-Path { $tplPath } -ParameterFilter { $ChildPath -like '*tenantname.json.template' }
+        Mock -ModuleName IdentityAtlas Read-Host { 'N' }
+
+        Update-FGConfig -ConfigFile $cfgPath | Out-Null
+        Should -Invoke -ModuleName IdentityAtlas Read-Host -Times 1
+    }
+
+    It 'warns but does not throw when saving the updated config fails' {
+        $cfgPath = Join-Path $TestDrive 'cfg-savefail.json'
+        $tplPath = Join-Path $TestDrive 'template-savefail.json'
+        @{ Azure = @{} } | ConvertTo-Json | Set-Content -Path $cfgPath
+        @{ Azure = @{}; RiskScoring = @{ enabled = $true } } |
+            ConvertTo-Json -Depth 5 | Set-Content -Path $tplPath
+
+        Mock -ModuleName IdentityAtlas Join-Path { $tplPath } -ParameterFilter { $ChildPath -like '*tenantname.json.template' }
+        Mock -ModuleName IdentityAtlas Read-Host { 'Y' }
+        Mock -ModuleName IdentityAtlas Set-Content { throw 'disk full' } -ParameterFilter { $Path -eq $cfgPath }
+
+        { Update-FGConfig -ConfigFile $cfgPath -WarningAction SilentlyContinue } | Should -Not -Throw
+    }
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -547,6 +642,81 @@ Describe 'Get-FGSecureConfigValue' {
         $val | Should -Be 'typedSecret'
         $after = Get-Content -Path $p -Raw | ConvertFrom-Json
         $after.Graph.PSObject.Properties.Name | Should -Contain 'ClientSecret_Encrypted'
+    }
+
+    It 'creates missing intermediate objects along a deep property path' {
+        $p = Join-Path $TestDrive 'get-deep.json'
+        @{ Other = 'x' } | ConvertTo-Json | Set-Content -Path $p
+        $ss = ConvertTo-SecureString 'deepSecret' -AsPlainText -Force
+        Mock -ModuleName IdentityAtlas Read-Host { $ss }
+
+        $val = Get-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Azure.Sql.Password'
+
+        $val | Should -Be 'deepSecret'
+        $after = Get-Content -Path $p -Raw | ConvertFrom-Json
+        $after.Azure.Sql.PSObject.Properties.Name | Should -Contain 'Password_Encrypted'
+    }
+
+    It 'returns a SecureString from the migrate path when -AsSecureString is set' {
+        $p = Join-Path $TestDrive 'get-migrate-ss.json'
+        @{ Graph = @{ ClientSecret = 'legacyPlain' } } | ConvertTo-Json | Set-Content -Path $p
+        $val = Get-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret' -AsSecureString
+        $val | Should -BeOfType ([System.Security.SecureString])
+    }
+
+    It 'returns a SecureString from the prompt path when -AsSecureString is set' {
+        $p = Join-Path $TestDrive 'get-prompt-ss.json'
+        @{ Graph = @{} } | ConvertTo-Json | Set-Content -Path $p
+        $ss = ConvertTo-SecureString 'promptSecret' -AsPlainText -Force
+        Mock -ModuleName IdentityAtlas Read-Host { $ss }
+        $val = Get-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret' -AsSecureString
+        $val | Should -BeOfType ([System.Security.SecureString])
+    }
+
+    It 're-prompts after an empty entry when -AllowEmpty is not set' {
+        $p = Join-Path $TestDrive 'get-retry.json'
+        @{ Graph = @{} } | ConvertTo-Json | Set-Content -Path $p
+        $script:scPromptNo = 0
+        Mock -ModuleName IdentityAtlas Read-Host {
+            $script:scPromptNo++
+            if ($script:scPromptNo -eq 1) { [System.Security.SecureString]::new() }
+            else { ConvertTo-SecureString 'secondTry' -AsPlainText -Force }
+        }
+        $val = Get-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret'
+        $val | Should -Be 'secondTry'
+        Should -Invoke -ModuleName IdentityAtlas Read-Host -Times 2
+    }
+
+    It 'removes a pre-existing empty plaintext key when prompting for a new value' {
+        $p = Join-Path $TestDrive 'get-emptykey.json'
+        # Empty plaintext counts as "absent" (whitespace), so we prompt — but the key
+        # still exists and must be removed before saving the encrypted value.
+        @{ Graph = @{ ClientSecret = '' } } | ConvertTo-Json | Set-Content -Path $p
+        Mock -ModuleName IdentityAtlas Read-Host { ConvertTo-SecureString 'fresh' -AsPlainText -Force }
+
+        $val = Get-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret'
+
+        $val | Should -Be 'fresh'
+        $after = Get-Content -Path $p -Raw | ConvertFrom-Json
+        $after.Graph.PSObject.Properties.Name | Should -Not -Contain 'ClientSecret'
+        $after.Graph.PSObject.Properties.Name | Should -Contain 'ClientSecret_Encrypted'
+    }
+
+    It 'falls back to prompting when a stored blob cannot be decrypted (foreign user)' {
+        $p = Join-Path $TestDrive 'get-foreign.json'
+        @{ Graph = @{ ClientSecret_Encrypted = 'unreadable-blob' } } | ConvertTo-Json | Set-Content -Path $p
+        Mock -ModuleName IdentityAtlas ConvertTo-SecureString { throw 'key not valid' }
+        # Build the prompt result without ConvertTo-SecureString (which is mocked to throw above).
+        Mock -ModuleName IdentityAtlas Read-Host {
+            $s = [System.Security.SecureString]::new()
+            foreach ($c in 'recovered'.ToCharArray()) { $s.AppendChar($c) }
+            $s.MakeReadOnly()
+            $s
+        }
+
+        $val = Get-FGSecureConfigValue -ConfigPath $p -PropertyPath 'Graph.ClientSecret' -WarningAction SilentlyContinue
+
+        $val | Should -Be 'recovered'
     }
 }
 

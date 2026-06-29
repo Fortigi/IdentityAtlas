@@ -382,6 +382,46 @@ Describe 'Get-FGServicePrincipalWithSync' {
         $r = Get-FGServicePrincipalWithSync -Filter "displayName eq 'x'" -IncludeCloudSync 6>$null
         $r.AppType | Should -Be 'Cloud Sync'
     }
+
+    It 'discovers candidates via the known-appId / HR-name / tag queries and deduplicates by id when no filter is given' {
+        # Every discovery query (3 known appIds + 6 HR patterns + 2 tag queries) returns
+        # the same SP, so the dedup-by-id step must collapse them to a single candidate.
+        Mock -ModuleName IdentityAtlas Invoke-FGGetRequest {
+            [pscustomobject]@{ id = 'sp-dup'; displayName = 'Workday'; appId = 'w-app'; tags = @() }
+        }
+        Mock -ModuleName IdentityAtlas Get-FGSynchronizationJob { [pscustomobject]@{ id = 'job.1' } }
+
+        $r = Get-FGServicePrincipalWithSync 6>$null
+
+        @($r).Count | Should -Be 1
+        $r.DisplayName | Should -Be 'Workday'
+        # 3 known appIds + 6 HR name patterns + gallery tag + SCIM tag = 11 discovery queries
+        Should -Invoke -ModuleName IdentityAtlas Invoke-FGGetRequest -Times 11
+    }
+
+    It 'continues silently when checking a service principal for sync jobs throws' {
+        Mock -ModuleName IdentityAtlas Invoke-FGGetRequest {
+            [pscustomobject]@{ id = 'sp-err'; displayName = 'Broken App'; appId = 'b'; tags = @() }
+        }
+        Mock -ModuleName IdentityAtlas Get-FGSynchronizationJob { throw 'permission denied' }
+
+        $r = Get-FGServicePrincipalWithSync -Filter "displayName eq 'Broken App'" 6>$null
+
+        @($r).Count | Should -Be 0
+    }
+
+    It 'tolerates a schema-retrieval failure when -IncludeSchema is set' {
+        Mock -ModuleName IdentityAtlas Invoke-FGGetRequest {
+            [pscustomobject]@{ id = 'sp-sf2'; displayName = 'SCIM App'; appId = 's2'; tags = @() }
+        }
+        Mock -ModuleName IdentityAtlas Get-FGSynchronizationJob { [pscustomobject]@{ id = 'scim.9' } }
+        Mock -ModuleName IdentityAtlas Get-FGSynchronizationSchema { throw 'schema unavailable' }
+
+        $r = Get-FGServicePrincipalWithSync -Filter "displayName eq 'SCIM App'" -IncludeSchema 6>$null
+
+        $r.PSObject.Properties.Name | Should -Contain 'Schemas'
+        $r.Schemas | Should -BeNullOrEmpty
+    }
 }
 
 Describe 'Get-FGAttributeMapping' {

@@ -505,4 +505,24 @@ Describe 'Get-FGEntraPortalLink — Application type' {
     It 'returns $null for whitespace-only id' {
         Get-FGEntraPortalLink -Id '   ' -Type 'User' | Should -BeNullOrEmpty
     }
+    It 'produces a User profile blade URL' {
+        $link = Get-FGEntraPortalLink -Id $script:objId -Type 'User'
+        $link | Should -Match 'UserProfileMenuBlade'
+        $link | Should -Match ([regex]::Escape($script:objId))
+    }
+    It 'produces a Group details blade URL' {
+        $link = Get-FGEntraPortalLink -Id $script:objId -Type 'Group'
+        $link | Should -Match 'GroupDetailsMenuBlade'
+        $link | Should -Match ([regex]::Escape($script:objId))
+    }
+    It 'produces a ServicePrincipal (Enterprise App) URL with appId when supplied' {
+        $link = Get-FGEntraPortalLink -Id $script:objId -AppId $script:appId -Type 'ServicePrincipal'
+        $link | Should -Match 'ManagedAppMenuBlade'
+        $link | Should -Match ([regex]::Escape($script:appId))
+    }
+    It 'produces a ServicePrincipal URL without the appId segment when appId is missing' {
+        $link = Get-FGEntraPortalLink -Id $script:objId -Type 'ServicePrincipal'
+        $link | Should -Match 'ManagedAppMenuBlade'
+        $link | Should -Not -Match '/appId/'
+    }
 }
