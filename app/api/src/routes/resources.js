@@ -120,25 +120,35 @@ router.get('/resources', async (req, res) => {
     // Returns every Resources column so the same endpoint feeds the UI grid
     // AND the Power Query Excel export (which auto-expands extendedAttributes
     // into first-class ext_* columns). The UI ignores fields it doesn't need.
-    const result = await request.query(`
-      SELECT r.id, r."displayName", r."description", r."resourceType", r."systemId", r."enabled",
-             r."createdDateTime", r."extendedAttributes",
-             r."mail", r."visibility", r."externalId",
-             r."catalogId", r."isHidden", r."modifiedDateTime",
-             r."riskScore", r."riskTier", r."deletedAt",
+    // Page first, then resolve tags only for the page rows; count only on page 1.
+    // (Same export-pagination fix as /api/users — the per-row tag subquery used to
+    // run for every offset+limit row before OFFSET discarded the first `offset`,
+    // quadratic across an export and slow enough to time out a deep page.)
+    const baseSql = `
+      WITH page AS (
+        SELECT r.id, r."displayName", r."description", r."resourceType", r."systemId", r."enabled",
+               r."createdDateTime", r."extendedAttributes",
+               r."mail", r."visibility", r."externalId",
+               r."catalogId", r."isHidden", r."modifiedDateTime",
+               r."riskScore", r."riskTier", r."deletedAt"
+          FROM "Resources" r
+          ${resourceTagJoin}
+         WHERE ${where}
+         ORDER BY r."displayName"
+         LIMIT @limit OFFSET @offset
+      )
+      SELECT page.*,
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" IN ('resource', 'group')
-               WHERE ta."entityId" = UPPER(r.id::text)
+               WHERE ta."entityId" = UPPER(page.id::text)
              ) AS "tagString"
-        FROM "Resources" r
-        ${resourceTagJoin}
-       WHERE ${where}
-       ORDER BY r."displayName"
-       LIMIT @limit OFFSET @offset;
-
-      SELECT COUNT(*)::int AS total FROM "Resources" r ${resourceTagJoin} WHERE ${where};
-    `);
+        FROM page
+       ORDER BY page."displayName"`;
+    const sql = offset === 0
+      ? `${baseSql};\nSELECT COUNT(*)::int AS total FROM "Resources" r ${resourceTagJoin} WHERE ${where};`
+      : baseSql;
+    const result = await request.query(sql);
 
     const data = result.recordsets[0].map(row => {
       const { tagString, extendedAttributes, ...rest } = row;
@@ -158,7 +168,7 @@ router.get('/resources', async (req, res) => {
       };
     });
 
-    res.json({ data, total: result.recordsets[1][0].total });
+    res.json({ data, total: result.recordsets[1]?.[0]?.total ?? null });
   } catch (err) {
     console.error('GET /resources failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });

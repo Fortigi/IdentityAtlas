@@ -204,39 +204,55 @@ router.get('/identities', async (req, res) => {
     };
     const orderBy = ALLOWED_SORTS[sort] || '"displayName" ASC';
 
-    // Count + paginated data are independent — run them in parallel too.
-    const countReq = timedRequest(p, 'identity-count', res);
-    for (const [k, v] of Object.entries(inputs)) countReq.input(k, v);
-
+    // Page first, then resolve tags only for the page rows; count only on page 1.
+    // (Same export-pagination fix as /api/users — the per-row tag subquery used to
+    // run for every offset+limit row before OFFSET discarded the first `offset`,
+    // quadratic across an export and slow enough to time out a deep page.)
     const dataReq = timedRequest(p, 'identity-list', res);
     for (const [k, v] of Object.entries(inputs)) dataReq.input(k, v);
     dataReq.input('pageOffset', pageOffset);
     dataReq.input('pageLimit', pageLimit);
 
-    const [countResult, dataResult] = await Promise.all([
-      countReq.query(`SELECT COUNT(*)::int AS total FROM "Identities" i ${identityTagJoin} ${where}`),
-      dataReq.query(`
+    const dataPromise = dataReq.query(`
+      WITH page AS (
         SELECT i.id, i."displayName", i."primaryPrincipalId" AS "primaryAccountId", i.email AS "primaryAccountUpn",
           i."accountCount", NULL AS "accountTypes",
           i."linkConfidence", NULL AS "linkSignals", i.department, i."jobTitle",
           NULL AS "managerId", i.email AS mail,
           i."givenName", i.surname, i."employeeId", i."companyName", NULL AS "employeeType",
           i.city, i.country, i."officeLocation",
-          NULL AS "accountEnabled", i."linkedAt",
-          (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
-             FROM "GraphTagAssignments" ta
-             INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" = 'identity'
-            WHERE ta."entityId" = UPPER(i.id::text)
-          ) AS "tagString"
+          NULL AS "accountEnabled", i."linkedAt"
           ${hasHrCols ? ', i."isHrAnchored", NULL AS "hrAccountId", i."orphanStatus"' : ''}
         FROM "Identities" i
         ${identityTagJoin}
         ${where}
         ORDER BY ${orderBy}
         LIMIT @pageLimit OFFSET @pageOffset
-      `),
-    ]);
-    const total = countResult.recordset[0].total;
+      )
+      SELECT page.*,
+        (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
+           FROM "GraphTagAssignments" ta
+           INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" = 'identity'
+          WHERE ta."entityId" = UPPER(page.id::text)
+        ) AS "tagString"
+      FROM page
+      ORDER BY ${orderBy}
+    `);
+
+    let total = null;
+    let dataResult;
+    if (pageOffset === 0) {
+      const countReq = timedRequest(p, 'identity-count', res);
+      for (const [k, v] of Object.entries(inputs)) countReq.input(k, v);
+      const [countResult, dr] = await Promise.all([
+        countReq.query(`SELECT COUNT(*)::int AS total FROM "Identities" i ${identityTagJoin} ${where}`),
+        dataPromise,
+      ]);
+      total = countResult.recordset[0].total;
+      dataResult = dr;
+    } else {
+      dataResult = await dataPromise;
+    }
     const data = dataResult.recordset.map(row => {
       const { tagString, ...rest } = row;
       return { ...rest, tags: parseTagString(tagString) };
