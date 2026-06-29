@@ -5,7 +5,7 @@
 // calls are intentionally avoided so the test suite stays fast and runs offline.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { chat, SUPPORTED_PROVIDERS, DEFAULT_MODELS } from './providers.js';
+import { chat, llmFetch, SUPPORTED_PROVIDERS, DEFAULT_MODELS } from './providers.js';
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -114,6 +114,40 @@ describe('chat: azure-openai', () => {
     await expect(
       chat({ provider: 'azure-openai', apiKey: 'k', endpoint: 'https://myresource.openai.azure.com' }, { system: '', messages: [{ role: 'user', content: 'hi' }] })
     ).rejects.toThrow(/deployment is required/);
+  });
+});
+
+// M-1 — every outbound provider call goes through llmFetch, which bounds the
+// call with an AbortController timeout and caps the response body size.
+describe('llmFetch hardening (M-1)', () => {
+  it('passes an AbortSignal so the call is time-bounded, and returns {ok,status,bodyText}', async () => {
+    let sawSignal = false;
+    global.fetch = vi.fn(async (_url, opts) => {
+      sawSignal = opts.signal instanceof AbortSignal;
+      return { ok: true, status: 200, headers: { get: () => null }, text: async () => '{"x":1}' };
+    });
+    const r = await llmFetch('https://api.example/v1');
+    expect(sawSignal).toBe(true);
+    expect(r).toEqual({ ok: true, status: 200, bodyText: '{"x":1}' });
+  });
+
+  it('maps an AbortError (timeout) to a clear "timed out" error, not the raw abort', async () => {
+    global.fetch = vi.fn(async () => {
+      const e = new Error('The operation was aborted');
+      e.name = 'AbortError';
+      throw e;
+    });
+    await expect(llmFetch('https://api.example/v1')).rejects.toThrow(/timed out/i);
+  });
+
+  it('rejects a response whose Content-Length exceeds the cap (no unbounded read)', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: (k) => (k === 'content-length' ? String(64 * 1024 * 1024) : null) },
+      text: async () => 'should-not-be-read',
+    }));
+    await expect(llmFetch('https://api.example/v1')).rejects.toThrow(/too large/i);
   });
 });
 

@@ -61,7 +61,7 @@ router.put('/admin/llm/config', gate, async (req, res) => {
     res.json({ ok: true, config: saved });
   } catch (err) {
     console.error('PUT /admin/llm/config failed:', err.message);
-    res.status(500).json({ error: err.message || 'Failed to save LLM config' });
+    res.status(500).json({ error: 'Failed to save LLM config' });
   }
 });
 
@@ -105,7 +105,7 @@ router.post('/admin/llm/test', gate, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('POST /admin/llm/test failed:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'LLM test failed' });
   }
 });
 
@@ -126,7 +126,7 @@ router.post('/admin/llm/models', gate, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('POST /admin/llm/models failed:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'Failed to list models' });
   }
 });
 
@@ -137,7 +137,8 @@ router.get('/admin/llm/status', gate, async (_req, res) => {
     const configured = await isLLMConfigured();
     res.json({ configured });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /admin/llm/status failed:', err.message);
+    res.status(500).json({ error: 'Failed to check LLM status' });
   }
 });
 

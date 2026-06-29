@@ -83,7 +83,7 @@ router.post('/risk-profiles/scrape', gate, async (req, res) => {
     res.json({ results: summary, count: summary.length });
   } catch (err) {
     console.error('scrape failed:', err.message);
-    res.status(500).json({ error: 'Scrape failed', message: err.message });
+    res.status(500).json({ error: 'Scrape failed' });
   }
 });
 
@@ -152,7 +152,7 @@ router.post('/risk-profiles/generate', gate, async (req, res) => {
     });
   } catch (err) {
     console.error('profile generate failed:', err.message);
-    res.status(500).json({ error: 'Profile generation failed', message: err.message });
+    res.status(500).json({ error: 'Profile generation failed' });
   }
 });
 
@@ -208,7 +208,7 @@ router.post('/risk-profiles/refine', gate, async (req, res) => {
     });
   } catch (err) {
     console.error('profile refine failed:', err.message);
-    res.status(500).json({ error: 'Profile refinement failed', message: err.message });
+    res.status(500).json({ error: 'Profile refinement failed' });
   }
 });
 
@@ -255,7 +255,7 @@ router.post('/risk-profiles', gate, async (req, res) => {
     res.status(201).json({ id: ins.id, version: ins.version, createdAt: ins.createdAt, isActive: !!makeActive });
   } catch (err) {
     console.error('profile save failed:', err.message);
-    res.status(500).json({ error: 'Save failed', message: err.message });
+    res.status(500).json({ error: 'Save failed' });
   }
 });
 
@@ -400,7 +400,7 @@ router.post('/risk-classifiers/generate', gate, async (req, res) => {
     res.json({ classifiers: parsed, llmModel: llmResp.model, usage: llmResp.usage });
   } catch (err) {
     console.error('classifier generate failed:', err.message);
-    res.status(500).json({ error: 'Generation failed', message: err.message });
+    res.status(500).json({ error: 'Generation failed' });
   }
 });
 
@@ -436,7 +436,7 @@ router.post('/risk-classifiers', gate, async (req, res) => {
     res.status(201).json({ id: ins.id, version: ins.version, createdAt: ins.createdAt });
   } catch (err) {
     console.error('classifier save failed:', err.message);
-    res.status(500).json({ error: 'Save failed', message: err.message });
+    res.status(500).json({ error: 'Save failed' });
   }
 });
 

@@ -46,6 +46,59 @@ const DEFAULT_MODELS = {
   'azure-openai': null, // must be supplied by config (the deployment name)
 };
 
+// ─── Shared fetch hardening (M-1) ───────────────────────────────────
+// Every outbound provider call goes through llmFetch so a hung or runaway
+// provider can't tie up a request indefinitely or exhaust memory:
+//   - An AbortController timeout bounds the whole call — connect AND body read,
+//     so a slow-drip body is caught too, not just stalled headers.
+//   - The body is read with a hard byte cap, so a malicious/buggy provider
+//     can't stream an unbounded response into memory.
+// Returns { ok, status, bodyText } so each adapter keeps its own status/JSON
+// handling (callers JSON.parse bodyText on success, slice it for error text).
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 120_000;
+const LLM_MAX_RESPONSE_BYTES = 16 * 1024 * 1024; // 16 MB — far above any real chat / model-list payload
+
+async function readCappedBody(resp, maxBytes) {
+  // Fast reject if the server advertises an over-cap body.
+  const declared = Number(resp.headers?.get?.('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error(`LLM response too large (${declared} bytes > ${maxBytes}-byte cap)`);
+  }
+  const reader = resp.body?.getReader?.();
+  if (!reader) return resp.text(); // no readable stream; platform already bounded it
+  const chunks = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) throw new Error(`LLM response exceeded ${maxBytes}-byte cap`);
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+export async function llmFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+  try {
+    const resp = await fetch(url, { ...options, signal: controller.signal });
+    const bodyText = await readCappedBody(resp, LLM_MAX_RESPONSE_BYTES);
+    return { ok: resp.ok, status: resp.status, bodyText };
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      throw new Error(`LLM request timed out after ${Math.round(LLM_TIMEOUT_MS / 1000)}s`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Anthropic ──────────────────────────────────────────────────────
 async function chatAnthropic({ apiKey, model, system, messages, temperature, maxTokens }) {
   const url = 'https://api.anthropic.com/v1/messages';
@@ -56,7 +109,7 @@ async function chatAnthropic({ apiKey, model, system, messages, temperature, max
     system,
     messages: messages.map(m => ({ role: m.role, content: m.content })),
   };
-  const r = await fetch(url, {
+  const { ok, status, bodyText } = await llmFetch(url, {
     method: 'POST',
     headers: {
       'x-api-key': apiKey,
@@ -65,11 +118,8 @@ async function chatAnthropic({ apiKey, model, system, messages, temperature, max
     },
     body: JSON.stringify(body),
   });
-  if (!r.ok) {
-    const errBody = await r.text().catch(() => '');
-    throw new Error(`Anthropic API error ${r.status}: ${errBody.slice(0, 500)}`);
-  }
-  const json = await r.json();
+  if (!ok) throw new Error(`Anthropic API error ${status}: ${bodyText.slice(0, 500)}`);
+  const json = JSON.parse(bodyText);
   const text = (json.content || [])
     .filter(c => c.type === 'text')
     .map(c => c.text)
@@ -97,7 +147,7 @@ async function chatOpenAI({ apiKey, model, system, messages, temperature, maxTok
     temperature: temperature ?? DEFAULT_TEMPERATURE,
     messages: fullMessages,
   };
-  const r = await fetch(url, {
+  const { ok, status, bodyText } = await llmFetch(url, {
     method: 'POST',
     headers: {
       'authorization': `Bearer ${apiKey}`,
@@ -105,11 +155,8 @@ async function chatOpenAI({ apiKey, model, system, messages, temperature, maxTok
     },
     body: JSON.stringify(body),
   });
-  if (!r.ok) {
-    const errBody = await r.text().catch(() => '');
-    throw new Error(`OpenAI API error ${r.status}: ${errBody.slice(0, 500)}`);
-  }
-  const json = await r.json();
+  if (!ok) throw new Error(`OpenAI API error ${status}: ${bodyText.slice(0, 500)}`);
+  const json = JSON.parse(bodyText);
   return {
     text: json.choices?.[0]?.message?.content || '',
     model: json.model || body.model,
@@ -139,7 +186,7 @@ async function chatAzureOpenAI({ apiKey, model, system, messages, temperature, m
     temperature: temperature ?? DEFAULT_TEMPERATURE,
     messages: fullMessages,
   };
-  const r = await fetch(requestUrl.href, {
+  const { ok, status, bodyText } = await llmFetch(requestUrl.href, {
     method: 'POST',
     headers: {
       'api-key': apiKey,
@@ -147,11 +194,8 @@ async function chatAzureOpenAI({ apiKey, model, system, messages, temperature, m
     },
     body: JSON.stringify(body),
   });
-  if (!r.ok) {
-    const errBody = await r.text().catch(() => '');
-    throw new Error(`Azure OpenAI error ${r.status}: ${errBody.slice(0, 500)}`);
-  }
-  const json = await r.json();
+  if (!ok) throw new Error(`Azure OpenAI error ${status}: ${bodyText.slice(0, 500)}`);
+  const json = JSON.parse(bodyText);
   return {
     text: json.choices?.[0]?.message?.content || '',
     model: json.model || dep,
@@ -251,14 +295,11 @@ function anthropicSpeedHint(id) {
 }
 
 async function listModelsAnthropic({ apiKey }) {
-  const r = await fetch('https://api.anthropic.com/v1/models', {
+  const { ok, status, bodyText } = await llmFetch('https://api.anthropic.com/v1/models', {
     headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
   });
-  if (!r.ok) {
-    const err = await r.text().catch(() => '');
-    throw new Error(`Anthropic models API error ${r.status}: ${err.slice(0, 300)}`);
-  }
-  const json = await r.json();
+  if (!ok) throw new Error(`Anthropic models API error ${status}: ${bodyText.slice(0, 300)}`);
+  const json = JSON.parse(bodyText);
   const models = (json.data || [])
     .filter(m => m.id)
     .map(m => {
@@ -309,14 +350,11 @@ function openAISpeedHint(id) {
 }
 
 async function listModelsOpenAI({ apiKey }) {
-  const r = await fetch('https://api.openai.com/v1/models', {
+  const { ok, status, bodyText } = await llmFetch('https://api.openai.com/v1/models', {
     headers: { 'authorization': `Bearer ${apiKey}` },
   });
-  if (!r.ok) {
-    const err = await r.text().catch(() => '');
-    throw new Error(`OpenAI models API error ${r.status}: ${err.slice(0, 300)}`);
-  }
-  const json = await r.json();
+  if (!ok) throw new Error(`OpenAI models API error ${status}: ${bodyText.slice(0, 300)}`);
+  const json = JSON.parse(bodyText);
   // Filter to chat-capable models
   const models = (json.data || [])
     .filter(m => m.id && /^(gpt-|o[1-9])/i.test(m.id))
@@ -333,12 +371,9 @@ async function listModelsAzureOpenAI({ apiKey, endpoint, apiVersion }) {
   const ver = apiVersion || '2024-08-01-preview';
   const requestUrl = new URL('/openai/deployments', baseUrl.origin);
   requestUrl.searchParams.set('api-version', ver);
-  const r = await fetch(requestUrl.href, { headers: { 'api-key': apiKey } });
-  if (!r.ok) {
-    const err = await r.text().catch(() => '');
-    throw new Error(`Azure OpenAI deployments API error ${r.status}: ${err.slice(0, 300)}`);
-  }
-  const json = await r.json();
+  const { ok, status, bodyText } = await llmFetch(requestUrl.href, { headers: { 'api-key': apiKey } });
+  if (!ok) throw new Error(`Azure OpenAI deployments API error ${status}: ${bodyText.slice(0, 300)}`);
+  const json = JSON.parse(bodyText);
   // Azure returns deployments — each `id` is the deployment name to use as `model`
   const models = (json.data || [])
     .filter(d => d.id)
