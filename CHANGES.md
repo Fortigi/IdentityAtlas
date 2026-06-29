@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- More documentation accuracy fixes: the risk-scoring data-model doc no longer documents the dropped `GraphResourceClusters`/`GraphResourceClusterMembers` tables (resource clustering is now a context-algorithm plugin), and its initialization order is corrected (the risk tables are created automatically by a migration at startup, not by a manual cmdlet).
+- The ingest OpenAPI spec now states its scope explicitly and points to the API reference for the authenticated read API it does not cover.
+- Added several previously-unlisted pages to the documentation navigation (effective-access engine, resource-cluster algorithm, Excel export & template authoring, CI scope testing).
+- Documentation accuracy fixes: the API reference now shows PostgreSQL (was "Azure SQL"), the non-existent `/api/org-units` endpoint is replaced with the real org/context endpoints (`/api/contexts/tree`, `/api/org-chart`), the version-history example uses the actual `changedAt`/`diff` shape instead of legacy SQL-Server temporal columns, the data-model version label is aligned, the tag tables are noted as backward-compatibility views over Contexts, and the legacy "(FortigiGraph)" suffix is dropped from the README title.
+
+## Changes in this PR
+
 - Extracted the Entra ID crawler's remaining inline helper functions (filter-value coercion, ownership/OAuth2-scope/app-role resource-id generation, directory-role principal-type resolution) into the loadable helper library so they can be unit-tested in isolation; the crawler's behaviour is unchanged.
 - Refactored the parallel group-children fetch so the per-group fetch/retry/pagination logic is a testable function and the parallel execution is isolated behind a thin seam; the crawler's behaviour is unchanged.
 
