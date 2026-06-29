@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Documentation accuracy fixes: the API reference now shows PostgreSQL (was "Azure SQL"), the non-existent `/api/org-units` endpoint is replaced with the real org/context endpoints (`/api/contexts/tree`, `/api/org-chart`), the version-history example uses the actual `changedAt`/`diff` shape instead of legacy SQL-Server temporal columns, the data-model version label is aligned, the tag tables are noted as backward-compatibility views over Contexts, and the legacy "(FortigiGraph)" suffix is dropped from the README title.
+
+## Changes in this PR
+
 - Hardened the AI/LLM integration against redirect-based SSRF: outbound provider calls no longer follow HTTP redirects (a redirect could otherwise carry the provider API key to an unintended host).
 - Hardened risk-profile generation against prompt injection: scraped web-page text and free-text hints are now clearly fenced as untrusted data the model must not treat as instructions, and any attempt to forge the fence markers from inside that content is neutralised.
 - Classifier regex patterns are now validated when a classifier set is saved — an invalid or unsupported pattern is rejected up front with the offending pattern listed, instead of being silently skipped later during scoring.
