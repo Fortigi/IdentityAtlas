@@ -94,6 +94,7 @@ Before writing any utility function, helper, constant, or component — **search
 - `auth/AuthGate.js` — `useAuth()` hook and `AuthContext` (component provider is `auth/AuthGateProvider.jsx`)
 - `hooks/useEntityPage.js` — search, filter, tags, and pagination for list pages
 - `hooks/useDebouncedValue.js` — `useDebouncedValue(value, delay)` hook
+- `components/dialogContext.js` + `components/DialogProvider.jsx` — the in-app replacement for the browser's native `alert`/`confirm`/`prompt` (which are blocked by the `local/no-native-dialogs` ESLint rule — they don't theme/dark-mode and block the thread). `DialogProvider` is mounted once at the app root (`main.jsx`); call `const dialog = useDialog()` and use its **async** API. **Never call `window.alert/confirm/prompt`.** See "In-app dialogs" below.
 - `components/ConfidenceBar.jsx` — correlation confidence bar
 - `components/DetailSection.jsx` — `Section` and `CollapsibleSection` for detail pages
 - `components/ScheduleEditor.jsx` — one schedule-entry editor (frequency/hour/minute/day/syncMode), used by every crawler wizard's Schedule step and Risk Scoring; props: `schedule: {frequency, hour?, minute?, day?, syncMode}`, `onChange(updated)`, `onRemove()` — the component is uncontrolled-by-index, so the caller owns the schedules array and supplies one `schedule`/`onChange`/`onRemove` per entry (see `tools/crawlers/omada/ConfigWizard.jsx`'s Schedule step for the list-of-entries pattern)
@@ -108,6 +109,40 @@ Before writing any utility function, helper, constant, or component — **search
 - `utils/crawlerCredentials.js` — `canSubmitCredentials(authMethod, fields, isEdit)`, `buildCredentialFields(authMethod, fields)`, `SECRET_PLACEHOLDER`; covers all auth methods used by crawlers
 
 If the same logic already exists in one file and you're about to write it in a second, stop and extract it instead. Three or more files with the same code is a mandatory extraction — don't leave it for later.
+
+## In-app dialogs (no native `alert`/`confirm`/`prompt`)
+
+The browser's native dialogs are **banned** — the `local/no-native-dialogs` ESLint rule fails the build on `alert()`, `confirm()`, or `prompt()`. They block the main thread and can't be themed (no dark mode). Use the shared `useDialog()` hook instead; its provider is mounted once at the app root in `main.jsx` (and in the mount-test harness `renderWithProviders`, so component tests get it for free).
+
+```jsx
+import { useDialog } from '@ui/components/dialogContext';
+
+function MyThing() {
+  const dialog = useDialog();
+
+  async function onDelete() {
+    // confirm/prompt are ASYNC — they resolve when the user acts.
+    if (!(await dialog.confirm({ message: 'Delete this?', confirmLabel: 'Delete', danger: true }))) return;
+    await authFetch(url, { method: 'DELETE' });
+  }
+
+  async function onRename() {
+    const name = await dialog.prompt({ title: 'Rename', message: 'New name?', defaultValue: cur });
+    if (!name) return;           // null = cancelled
+    // ...
+  }
+
+  function onSaved() {
+    dialog.toast('Saved', { variant: 'success' });   // non-blocking, auto-dismiss top-right
+    dialog.alert('Something went wrong');             // alert() → an error-variant toast
+  }
+}
+```
+
+- `confirm(opts) → Promise<boolean>` and `prompt(opts) → Promise<string|null>` render as modals (reusing `ModalPrimitives`). Always `await` them; converting a handler that called `confirm()` means making it `async`.
+- `toast(message, opts)` / `alert(message, opts)` are fire-and-forget toasts (`variant`: `info`/`success`/`error`/`warning`).
+- `opts`: `message`, `title?`, `confirmLabel?`, `cancelLabel?`, `danger?` (red confirm button), `defaultValue?`/`placeholder?` (prompt), `width?`.
+- **Testing**: drive the dialog like a real user — click the confirm button by its `confirmLabel`, or type into the prompt's textbox then click confirm. See `components/DialogProvider.mount.test.jsx`.
 
 ## Key UI Behaviors
 

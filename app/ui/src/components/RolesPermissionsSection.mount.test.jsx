@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createElement as h } from 'react';
 import RolesPermissionsSection from './RolesPermissionsSection';
-import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, userEvent } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 
 // Shape returned by GET /api/admin/roles.
 function makeData(overrides = {}) {
@@ -191,11 +191,17 @@ describe('RolesPermissionsSection (mounted)', () => {
 
     await screen.findByText('Roles & Permissions');
     await user.click(screen.getByText('+ Add role'));
+    // Prompt is now an in-app modal: type the role name into its (autofocused)
+    // input and confirm.
+    await screen.findByText('Add role');
+    await user.keyboard('Servicedesk');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
     expect(await screen.findByText('Servicedesk')).toBeInTheDocument();
 
-    // Remove the newly-added role via its ✕ button.
+    // Remove the newly-added role via its ✕ button, then confirm in the dialog.
     const removeBtn = screen.getByTitle('Remove role "Servicedesk"');
     await user.click(removeBtn);
+    await user.click(await screen.findByRole('button', { name: 'Remove' }));
     expect(screen.queryByText('Servicedesk')).not.toBeInTheDocument();
   });
 
@@ -206,11 +212,13 @@ describe('RolesPermissionsSection (mounted)', () => {
 
     await screen.findByText('Roles & Permissions');
     await user.click(screen.getByText('Reset to defaults'));
+    // Confirm in the in-app dialog.
+    await user.click(await screen.findByRole('button', { name: 'Reset' }));
 
-    expect(authFetch).toHaveBeenCalledWith(
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(
       '/api/admin/roles',
       expect.objectContaining({ method: 'DELETE' }),
-    );
+    ));
     expect(await screen.findByText('Reverted to defaults.')).toBeInTheDocument();
   });
 
@@ -223,18 +231,22 @@ describe('RolesPermissionsSection (mounted)', () => {
 
     await screen.findByText('Roles & Permissions');
     await user.click(screen.getByText('Reset to defaults'));
+    await user.click(await screen.findByRole('button', { name: 'Reset' }));
 
     expect(await screen.findByText('cannot reset')).toBeInTheDocument();
   });
 
-  it('cancelling the Add-role prompt is a no-op', async () => {
-    window.prompt.mockReturnValueOnce('   '); // whitespace-only -> trimmed to nothing
+  it('cancelling the Add-role dialog is a no-op', async () => {
     renderWithProviders(h(RolesPermissionsSection), { auth: { authFetch: routes() } });
     const user = userEvent.setup();
 
     await screen.findByText('Roles & Permissions');
     const before = screen.getAllByText('all (*)').length;
     await user.click(screen.getByText('+ Add role'));
+    // Dismiss the prompt dialog without entering anything (scope to the dialog
+    // form — the page has its own Cancel buttons).
+    const input = await screen.findByRole('textbox');
+    await user.click(within(input.closest('form')).getByRole('button', { name: 'Cancel' }));
     expect(screen.getAllByText('all (*)')).toHaveLength(before);
   });
 });

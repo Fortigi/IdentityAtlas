@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDebouncedValue } from './useDebouncedValue';
+import { useDialog } from '@ui/components/dialogContext';
 
 const PAGE_SIZE = 100;
 
@@ -19,6 +20,7 @@ const PAGE_SIZE = 100;
  *   The caller is expected to memoise this object so its identity is stable per intended value.
  */
 export default function useEntityPage({ authFetch, entityType, listEndpoint, columnsEndpoint, tagFilterKey, baseFilters }) {
+  const dialog = useDialog();
   // Data state
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -183,7 +185,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
         await fetchTags();
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Failed to create tag');
+        dialog.alert(err.error || 'Failed to create tag');
       }
     } finally { setBusy(false); }
   };
@@ -217,7 +219,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
       });
       if (res.ok) {
         const json = await res.json();
-        alert(`Tagged ${json.inserted} ${entityType}s`);
+        dialog.toast(`Tagged ${json.inserted} ${entityType}s`, { variant: 'success' });
       }
       setActionTag('');
       await Promise.all([fetchItems(), fetchTags()]);
@@ -239,7 +241,7 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   };
 
   const deleteTag = async (tagId) => {
-    if (!confirm('Delete this tag and all its assignments?')) return;
+    if (!(await dialog.confirm({ message: 'Delete this tag and all its assignments?', confirmLabel: 'Delete', danger: true }))) return;
     setBusy(true);
     try {
       await authFetch(`/api/tags/${tagId}`, { method: 'DELETE' });

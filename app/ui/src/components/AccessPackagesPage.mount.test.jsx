@@ -256,7 +256,8 @@ describe('AccessPackagesPage (mounted)', () => {
     const deleteBtns = screen.getAllByTitle('Delete category');
     await user.click(deleteBtns[0]);
 
-    expect(window.confirm).toHaveBeenCalled();
+    // Confirm via the in-app dialog (replaces the native confirm()).
+    await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => {
       expect(authFetch).toHaveBeenCalledWith(
         '/api/categories/1',

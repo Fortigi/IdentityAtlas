@@ -18,9 +18,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useDialog } from '@ui/components/dialogContext';
 
 export default function RolesPermissionsSection() {
   const { authFetch, refreshPermissions } = useAuth();
+  const dialog = useDialog();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData]   = useState(null);
@@ -135,7 +137,7 @@ export default function RolesPermissionsSection() {
   };
 
   const handleReset = async () => {
-    if (!confirm('Reset to the built-in Admin / RoleMiner / Servicedesk defaults? Any custom roles will be removed.')) return;
+    if (!(await dialog.confirm({ message: 'Reset to the built-in Admin / RoleMiner / Servicedesk defaults? Any custom roles will be removed.', confirmLabel: 'Reset', danger: true }))) return;
     setSaving(true);
     setSaveMessage(null);
     try {
@@ -155,8 +157,8 @@ export default function RolesPermissionsSection() {
     }
   };
 
-  const handleAddRole = () => {
-    const name = prompt('Role name (must match the role string in the Entra app registration):');
+  const handleAddRole = async () => {
+    const name = await dialog.prompt({ title: 'Add role', message: 'Role name (must match the role string in the Entra app registration):', confirmLabel: 'Add' });
     if (!name) return;
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -166,8 +168,8 @@ export default function RolesPermissionsSection() {
     });
   };
 
-  const handleRemoveRole = (role) => {
-    if (!confirm(`Remove role "${role}" from the mapping? Users who only have this role in their token will fall back to having no permissions.`)) return;
+  const handleRemoveRole = async (role) => {
+    if (!(await dialog.confirm({ message: `Remove role "${role}" from the mapping? Users who only have this role in their token will fall back to having no permissions.`, confirmLabel: 'Remove', danger: true }))) return;
     setDraft(prev => {
       const next = { ...prev };
       delete next[role];
