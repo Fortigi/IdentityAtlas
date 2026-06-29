@@ -234,6 +234,24 @@ describe('AdminPage (mounted)', () => {
     expect(screen.getByRole('option', { name: 'Anthropic Claude' })).toBeInTheDocument();
   });
 
+  it('switches the LLM provider through the render-time model reset without crashing', async () => {
+    renderAdmin();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'LLM Settings' }));
+    await screen.findByText('LLM Provider');
+
+    // The provider <select> starts on the saved 'anthropic' value. Switching it
+    // drives config.provider through the render-time provider-change handling
+    // (which clears any discovered model list).
+    const selects = screen.getAllByRole('combobox');
+    const providerSelect = selects.find((s) => s.value === 'anthropic') || selects[0];
+    await user.selectOptions(providerSelect, 'azure-openai');
+
+    expect(providerSelect.value).toBe('azure-openai');
+    // Card still renders — the provider-change reset ran during render.
+    expect(screen.getByText('LLM Provider')).toBeInTheDocument();
+  });
+
   it('runs an LLM connection test and surfaces the result', async () => {
     const authFetch = makeAuthFetch((url) => {
       if (String(url).includes('/api/admin/llm/test')) {
