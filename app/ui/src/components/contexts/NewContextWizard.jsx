@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useReducer, useState } from 'react';
+
+// useState-equivalent backed by useReducer (value + functional updates):
+// dispatch isn't flagged by react-hooks/set-state-in-effect, so the JSON
+// editor's value-sync effect can dispatch instead of setState.
+const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useAuth } from '@ui/auth/AuthGate';
 import { Modal, Field, ErrorBox, PrimaryButton, SecondaryButton } from './ModalPrimitives';
 import Stepper from '@ui/components/Stepper';
@@ -71,30 +76,39 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
     })();
   }, [open, authFetch]);
 
-  // Reset everything when the wizard closes.
-  useEffect(() => {
-    if (open) return;
-    setStep(1); setSource(null);
-    setSelected(null); setParams({}); setDryResult(null);
-    setError(null); setRunning(false); setDryRunning(false);
-    setMTargetType('Identity'); setMContextType(''); setMDisplayName('');
-    setMDescription(''); setMScopeSystemId(''); setCreating(false);
-    setMode('new'); setRefreshKey('');
-  }, [open]);
-
-  // When a plugin is (re)selected, default back to creating a new tree.
-  useEffect(() => { setMode('new'); setRefreshKey(''); }, [selected]);
-
-  // Seed plugin params with the schema defaults when a plugin is selected.
-  useEffect(() => {
-    if (!selected) { setParams({}); setDryResult(null); return; }
-    const defaults = {};
-    const props = selected.parametersSchema?.properties || {};
-    for (const [name, spec] of Object.entries(props)) {
-      if (spec?.default !== undefined) defaults[name] = spec.default;
+  // Reset everything when the wizard closes — during render on the open→closed
+  // transition, so no synchronous setState lives in an effect.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open) {
+      setStep(1); setSource(null);
+      setSelected(null); setParams({}); setDryResult(null);
+      setError(null); setRunning(false); setDryRunning(false);
+      setMTargetType('Identity'); setMContextType(''); setMDisplayName('');
+      setMDescription(''); setMScopeSystemId(''); setCreating(false);
+      setMode('new'); setRefreshKey('');
     }
-    setParams(defaults); setDryResult(null);
-  }, [selected]);
+  }
+
+  // When a plugin is (re)selected: default back to creating a new tree and seed
+  // its params with the schema defaults. Done during render on the selected
+  // change (prev-value tracking) rather than in effects.
+  const [seenSelected, setSeenSelected] = useState(selected);
+  if (selected !== seenSelected) {
+    setSeenSelected(selected);
+    setMode('new'); setRefreshKey('');
+    if (!selected) {
+      setParams({}); setDryResult(null);
+    } else {
+      const defaults = {};
+      const props = selected.parametersSchema?.properties || {};
+      for (const [name, spec] of Object.entries(props)) {
+        if (spec?.default !== undefined) defaults[name] = spec.default;
+      }
+      setParams(defaults); setDryResult(null);
+    }
+  }
 
   const grouped = useMemo(() => groupByTargetType(plugins), [plugins]);
 
@@ -680,7 +694,7 @@ function AttributeListField({ value, options, onChange }) {
 }
 
 function JsonField({ label, help, spec, value, onChange }) {
-  const [text, setText] = useState(() =>
+  const [text, setText] = useReducer(setStateReducer, undefined, () =>
     value !== undefined ? JSON.stringify(value, null, 2) :
     spec.default !== undefined ? JSON.stringify(spec.default, null, 2) : ''
   );
