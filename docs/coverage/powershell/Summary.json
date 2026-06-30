@@ -1,22 +1,22 @@
 {
   "summary": {
-    "generatedon": "2026-06-30T15:17:46Z",
+    "generatedon": "2026-06-30T16:50:18Z",
     "parser": "JaCoCo",
     "assemblies": 11,
     "classes": 123,
     "files": 123,
-    "coveredlines": 2184,
+    "coveredlines": 2186,
     "uncoveredlines": 3125,
-    "coverablelines": 5309,
-    "totallines": 12220,
+    "coverablelines": 5311,
+    "totallines": 12236,
     "linecoverage": 41.1,
     "coveredbranches": 0,
     "totalbranches": 0,
-    "coveredmethods": 203,
-    "fullcoveredmethods": 179,
-    "totalmethods": 221,
+    "coveredmethods": 204,
+    "fullcoveredmethods": 180,
+    "totalmethods": 222,
     "methodcoverage": 91.8,
-    "fullmethodcoverage": 80.9
+    "fullmethodcoverage": 81
  },
   "coverage": {
     "assemblies": [
@@ -32,8 +32,8 @@
         { "name": "tools/crawlers/custom-connector/Start-CustomConnector", "coverage": 0, "coveredlines": 0, "coverablelines": 1, "totallines": 10, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
       { "name": "tools/crawlers/demo", "classes": 1, "coverage": 0, "coveredlines": 0, "coverablelines": 22, "totallines": 67, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2, "classesinassembly": [
         { "name": "tools/crawlers/demo/Start-DemoCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 22, "totallines": 67, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 2 } ] },
-      { "name": "tools/crawlers/entra-id", "classes": 2, "coverage": 13.5, "coveredlines": 195, "coverablelines": 1436, "totallines": 2771, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 88.2, "fullmethodcoverage": 76.4, "coveredmethods": 15, "fullcoveredmethods": 13, "totalmethods": 17, "classesinassembly": [
-        { "name": "tools/crawlers/entra-id/EntraIDCrawler.Functions", "coverage": 90.6, "coveredlines": 195, "coverablelines": 215, "totallines": 534, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 93.7, "fullmethodcoverage": 81.2, "coveredmethods": 15, "fullcoveredmethods": 13, "totalmethods": 16 },
+      { "name": "tools/crawlers/entra-id", "classes": 2, "coverage": 13.6, "coveredlines": 197, "coverablelines": 1438, "totallines": 2787, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 88.8, "fullmethodcoverage": 77.7, "coveredmethods": 16, "fullcoveredmethods": 14, "totalmethods": 18, "classesinassembly": [
+        { "name": "tools/crawlers/entra-id/EntraIDCrawler.Functions", "coverage": 90.7, "coveredlines": 197, "coverablelines": 217, "totallines": 550, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 94.1, "fullmethodcoverage": 82.3, "coveredmethods": 16, "fullcoveredmethods": 14, "totalmethods": 17 },
         { "name": "tools/crawlers/entra-id/Start-EntraIDCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 1221, "totallines": 2237, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
       { "name": "tools/crawlers/midpoint", "classes": 3, "coverage": 37.5, "coveredlines": 316, "coverablelines": 841, "totallines": 1700, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 95.2, "fullmethodcoverage": 83.3, "coveredmethods": 40, "fullcoveredmethods": 35, "totalmethods": 42, "classesinassembly": [
         { "name": "tools/crawlers/midpoint/Invoke-MidpointApi", "coverage": 96.7, "coveredlines": 239, "coverablelines": 247, "totallines": 689, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 82.7, "coveredmethods": 29, "fullcoveredmethods": 24, "totalmethods": 29 },

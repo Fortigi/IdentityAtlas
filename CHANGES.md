@@ -1,5 +1,17 @@
 ## Changes in this PR
 
+- Added a **Risky App Consent** context plugin (Admin → Plugins) — the app-reputation companion to Risky Consent. It flags principals who consented to a **known-malicious OAuth app** (matched against the free, public OAuthSentry threat feed of apps seen in consent-phishing / BEC / AiTM campaigns) or to a **suspicious app** by heuristic — a self-registered / unverified publisher, or an app only one or two people consented to (the classic targeted-consent-phishing signal). It creates **"Risky App Consent — Malicious"** and **"Risky App Consent — Suspicious"** contexts you can build a matrix on. The threat feed needs no account or key and is best-effort: if it can't be reached the heuristics still run. The feed URL, whether to use it, the heuristics, and the low-prevalence threshold are all configurable when you run the plugin.
+
+## Changes in this PR
+
+- Fixed **duplicate Azure resources** in the Resources list (every Azure resource appeared twice). A full Azure crawl was tagging its resource batch with a scope label that matched none of the stored rows, so the full-sync clean-up step never removed superseded rows — when the internal resource id changed (during the Resource Graph rewrite), the old copies were stranded instead of being cleaned up. The crawl now reconciles each resource type correctly, so a fresh Azure RM crawl removes the leftover duplicates and keeps deleted Azure resources from lingering. (Run an Azure RM crawl after upgrading to clear existing duplicates.)
+
+## Changes in this PR
+
+- Fixed the resources list showing the **same delegated permission many times** (e.g. "Calendars.ReadWrite on Microsoft Graph" appearing five times). Each row is actually a *different application's* consent to that permission; the name just didn't say which app. Delegated-permission resources are now named with the consenting app — e.g. "Calendars.ReadWrite on Microsoft Graph (via Amazon Alexa)" — so they're distinct and scannable. (Takes effect after the next Entra ID crawl.)
+
+## Changes in this PR
+
 - Added a **Risky Consent** context plugin (Admin → Plugins). It classifies every delegated (OAuth) and application permission consent by risk using a curated risk map (e.g. `Group.ReadWrite.All`, `Mail.ReadWrite`, `Sites.ReadWrite.All` = High; `Directory.Read.All`, `Calendars.ReadWrite` = Medium; `openid`/`User.Read` = Low), then creates one context per risk tier — **"Risky Consent — High"** and **"Risky Consent — Medium"** — with every principal that holds such a consent as a member. Build a matrix on these contexts to find exactly which principals have granted risky consent. Tiers, systems, whether to include application permissions, and the default tier for unknown permissions are all configurable when you run the plugin.
 
 ## Changes in this PR

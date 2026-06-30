@@ -533,3 +533,18 @@ function Resolve-DirectoryRolePrincipalType {
         default             { 'User' }
     }
 }
+
+# Build the display name for a DelegatedPermission resource. A DelegatedPermission is one per
+# (clientSP, targetApiSP, scope), so the same scope consented by many apps is many distinct
+# resources; including the consenting app keeps them apart in the resources grid instead of
+# looking like duplicates. Falls back to "<scope> on <target>" when the client name is unknown.
+function Format-FGDelegatedPermissionName {
+    [CmdletBinding()]
+    param(
+        [string]$Scope,
+        [string]$TargetName,
+        [string]$ClientName
+    )
+    if ($ClientName) { "$Scope on $TargetName (via $ClientName)" }
+    else { "$Scope on $TargetName" }
+}
