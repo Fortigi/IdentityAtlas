@@ -127,3 +127,50 @@ function Sort-MidpointContextsTopologically {
     foreach ($rec in $remaining) { $sorted.Add($rec) }
     return @($sorted)
 }
+
+# Maps one midPoint RoleType → a Resource record. The caller resolves $ResourceType
+# (archetype/subtype classification) and $ArchetypeNames and passes them in.
+# Verbatim from the inline Roles `Add-ResByType $rt ([PSCustomObject]@{ ... })`.
+function ConvertTo-MidpointRoleResourceRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Role,
+        [string]$ResourceType,
+        [string[]]$ArchetypeNames = @()
+    )
+    return [PSCustomObject]@{
+        id                 = [string]$Role.oid
+        externalId         = [string]$Role.oid
+        displayName        = (Get-MidpointString $Role.displayName (Get-MidpointString $Role.name $Role.oid))
+        resourceType       = $ResourceType
+        governanceResource = ($ResourceType -eq 'BusinessRole')
+        description        = (Get-MidpointString $Role.description '')
+        enabled            = (Test-MidpointEnabled $Role)
+        extendedAttributes = @{
+            name       = (Get-MidpointString $Role.name '')
+            identifier = (Get-MidpointString $Role.identifier '')
+            roleType   = (Get-MidpointString $Role.subtype (Get-MidpointString $Role.roleType ''))
+            archetype  = ($ArchetypeNames -join ', ')
+        }
+    }
+}
+
+# Maps one midPoint ServiceType → a Resource record (always resourceType='Service';
+# the role archetype classifier must not bleed into services). Verbatim from the
+# inline Services `Add-ResByType 'Service' ([PSCustomObject]@{ ... })`.
+function ConvertTo-MidpointServiceResourceRecord {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Service)
+    return [PSCustomObject]@{
+        id                 = [string]$Service.oid
+        externalId         = [string]$Service.oid
+        displayName        = (Get-MidpointString $Service.displayName (Get-MidpointString $Service.name $Service.oid))
+        resourceType       = 'Service'
+        description        = (Get-MidpointString $Service.description '')
+        enabled            = (Test-MidpointEnabled $Service)
+        extendedAttributes = @{
+            name       = (Get-MidpointString $Service.name '')
+            identifier = (Get-MidpointString $Service.identifier '')
+        }
+    }
+}

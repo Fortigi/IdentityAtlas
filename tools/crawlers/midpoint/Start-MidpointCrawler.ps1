@@ -282,21 +282,8 @@ if ($Sync.roles -or $Sync.services) {
                 $subs      = Get-MidpointStringList $r.subtype; if ($subs.Count -eq 0) { $subs = Get-MidpointStringList $r.roleType }
                 $archNames = Get-MidpointArchetypeNames -Obj $r -LabelsByOid $ArchetypeLabelsByOid
                 $rt        = Resolve-MappedResourceType -Rows $ArchetypeMapping -ArchetypeNames $archNames -Subtypes $subs -Default 'BusinessRole'
-                Add-ResByType $rt ([PSCustomObject]@{
-                    id           = $oid
-                    externalId   = $oid
-                    displayName  = $disp
-                    resourceType = $rt
-                    governanceResource = ($rt -eq 'BusinessRole')
-                    description  = (Get-MidpointString $r.description '')
-                    enabled      = (Test-MidpointEnabled $r)
-                    extendedAttributes = @{
-                        name       = (Get-MidpointString $r.name '')
-                        identifier = (Get-MidpointString $r.identifier '')
-                        roleType   = (Get-MidpointString $r.subtype (Get-MidpointString $r.roleType ''))
-                        archetype  = ($archNames -join ', ')
-                    }
-                })
+                # Record shaping lives in ConvertTo-MidpointRoleResourceRecord.
+                Add-ResByType $rt (ConvertTo-MidpointRoleResourceRecord -Role $r -ResourceType $rt -ArchetypeNames $archNames)
                 [void]$SyncedResourceIds.Add($oid)
             }
         } catch { Add-PhaseError 'Roles' $_.Exception.Message }
@@ -311,18 +298,7 @@ if ($Sync.roles -or $Sync.services) {
                 if (-not $oid -or -not $disp) { continue }
                 # Services are always 'Service'. archetypeMapping is a *role* classifier — its
                 # catch-all row must not bleed into services (that would override their default).
-                Add-ResByType 'Service' ([PSCustomObject]@{
-                    id           = $oid
-                    externalId   = $oid
-                    displayName  = $disp
-                    resourceType = 'Service'
-                    description  = (Get-MidpointString $s.description '')
-                    enabled      = (Test-MidpointEnabled $s)
-                    extendedAttributes = @{
-                        name       = (Get-MidpointString $s.name '')
-                        identifier = (Get-MidpointString $s.identifier '')
-                    }
-                })
+                Add-ResByType 'Service' (ConvertTo-MidpointServiceResourceRecord -Service $s)
                 [void]$SyncedResourceIds.Add($oid)
             }
         } catch { Add-PhaseError 'Services' $_.Exception.Message }

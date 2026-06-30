@@ -123,3 +123,35 @@ Describe 'Sort-MidpointContextsTopologically' {
         @(Sort-MidpointContextsTopologically -Records @()).Count | Should -Be 0
     }
 }
+
+Describe 'ConvertTo-MidpointRoleResourceRecord' {
+
+    It 'maps a role to a Resource carrying the resolved type, archetype and governance flag' {
+        $role = [pscustomobject]@{ oid = 'r-1'; displayName = 'Finance Approver'; description = 'd'; subtype = 'business'; identifier = 'FIN-APR' }
+        $rec = ConvertTo-MidpointRoleResourceRecord -Role $role -ResourceType 'BusinessRole' -ArchetypeNames @('Business Role', 'Org')
+        $rec.id                 | Should -Be 'r-1'
+        $rec.resourceType       | Should -Be 'BusinessRole'
+        $rec.governanceResource | Should -BeTrue
+        $rec.displayName        | Should -Be 'Finance Approver'
+        $rec.extendedAttributes.identifier | Should -Be 'FIN-APR'
+        $rec.extendedAttributes.archetype  | Should -Be 'Business Role, Org'
+    }
+
+    It 'sets governanceResource = $false for a non-BusinessRole type' {
+        $role = [pscustomobject]@{ oid = 'r-2'; name = 'app-role' }
+        (ConvertTo-MidpointRoleResourceRecord -Role $role -ResourceType 'ApplicationRole').governanceResource | Should -BeFalse
+    }
+}
+
+Describe 'ConvertTo-MidpointServiceResourceRecord' {
+
+    It 'maps a service to a Service resource (no governance flag)' {
+        $svc = [pscustomobject]@{ oid = 's-1'; displayName = 'Payroll'; description = 'd'; identifier = 'PAY'; activation = [pscustomobject]@{ effectiveStatus = 'enabled' } }
+        $rec = ConvertTo-MidpointServiceResourceRecord -Service $svc
+        $rec.id           | Should -Be 's-1'
+        $rec.resourceType | Should -Be 'Service'
+        $rec.enabled      | Should -BeTrue
+        $rec.extendedAttributes.identifier | Should -Be 'PAY'
+        $rec.PSObject.Properties.Name | Should -Not -Contain 'governanceResource'
+    }
+}
