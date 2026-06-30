@@ -990,7 +990,14 @@ export default function MatrixView({
       // grid too tall — a self-sustaining overflow). scrollY corrects that.
       const vh = document.documentElement.clientHeight;
       const gridTop = el.getBoundingClientRect().top + window.scrollY;
-      setGridMaxH(Math.max(240, vh - gridTop - below));
+      // Fit the grid into the remaining viewport so ONLY the grid scrolls. Use
+      // the available space directly (so the page never gets a second
+      // scrollbar); a fixed 240px floor on a short viewport with tall chrome
+      // (e.g. gridTop ~530 on an 800px viewport leaves ~206px) overflowed the
+      // page by ~30px. A small 160px floor keeps the grid usable without
+      // re-introducing the overflow in any realistic viewport.
+      const avail = vh - gridTop - below;
+      setGridMaxH(Math.max(160, avail));
     };
     measure();
     const raf = requestAnimationFrame(measure);

@@ -7,11 +7,14 @@ function formatMs(ms) {
   return ms.toFixed(1) + 'ms';
 }
 
+// 700-tier text passes WCAG AA on the matching durationBg() 50-tier cells
+// (the 600 tier was ~3:1, below 4.5); the dark: variant keeps it legible on the
+// dark 900/20 cells.
 function durationColor(ms) {
-  if (ms < 200) return 'text-green-600';
-  if (ms < 1000) return 'text-yellow-600';
-  if (ms < 5000) return 'text-orange-600';
-  return 'text-red-600';
+  if (ms < 200) return 'text-green-700 dark:text-green-400';
+  if (ms < 1000) return 'text-yellow-700 dark:text-yellow-400';
+  if (ms < 5000) return 'text-orange-700 dark:text-orange-400';
+  return 'text-red-700 dark:text-red-400';
 }
 
 function durationBg(ms) {
@@ -180,7 +183,7 @@ export default function PerfPage() {
       <div className="mt-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs text-gray-500 dark:text-gray-400">
         <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Tips for analysis</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>Check browser DevTools &rarr; Network tab &rarr; Timing section for <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">Server-Timing</code> breakdown per request</li>
+          <li>Check browser DevTools &rarr; Network tab &rarr; Timing section for <code className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-1 rounded">Server-Timing</code> breakdown per request</li>
           <li>Use <strong>Export JSON</strong> to download all captured metrics and share them for detailed analysis</li>
           <li>SQL breakdown shows time per individual query &mdash; look for queries taking &gt; 1s</li>
           <li>The P95 column shows the duration that 95% of requests are faster than &mdash; useful for identifying intermittent slowness</li>
@@ -322,7 +325,7 @@ function RequestList({ entries }) {
                   <span className="text-gray-800 dark:text-gray-100 break-all">{entry.url || entry.route}</span>
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <span className={`text-xs font-medium ${entry.statusCode < 400 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`text-xs font-medium ${entry.statusCode < 400 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                     {entry.statusCode}
                   </span>
                 </td>

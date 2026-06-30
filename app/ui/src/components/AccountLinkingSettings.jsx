@@ -157,6 +157,7 @@ export default function AccountLinkingSettings() {
           higher requires stronger evidence. Weaker links still show their score on the identity for analyst review.
         </p>
         <input
+          aria-label="Auto-link certainty threshold (percent)"
           type="range" min="0" max="100" step="5" value={threshold}
           onChange={e => setThreshold(Number(e.target.value))}
           className="w-full accent-blue-600"
@@ -189,6 +190,7 @@ export default function AccountLinkingSettings() {
           <code> onlyLinkTypes</code>. Edit and Save to apply to the next run.
         </p>
         <textarea
+          aria-label="Linking rules (JSON)"
           value={rulesText}
           onChange={e => setRulesText(e.target.value)}
           spellCheck={false}

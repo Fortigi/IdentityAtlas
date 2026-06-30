@@ -44,7 +44,7 @@ export default function MatrixColumnHeaders({
             colSpan={infoColumnCount}
             className="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1"
           >
-            <div className="text-[11px] text-gray-500 dark:text-gray-400 font-normal">
+            <div className="text-[11px] text-gray-600 dark:text-gray-400 font-normal">
               {rowIdx === 0 ? <div className="text-[10px]">Drag rows to reorder</div> : null}
               <div className="font-medium text-gray-600 dark:text-gray-300">{friendlyLabel(String(row.attribute).replace(/^ext\./, ''))}</div>
             </div>
@@ -125,7 +125,7 @@ export default function MatrixColumnHeaders({
       {/* Final row: User names — the only sticky header row on vertical scroll */}
       <tr>
         {/* Corner cells for row info headers */}
-        <th className="sticky left-0 top-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400"
+        <th className="sticky left-0 top-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-[10px] text-gray-600 dark:text-gray-400"
             style={{ minWidth: '24px' }}>
         </th>
         <th className="sticky top-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 text-left font-medium"
@@ -235,12 +235,12 @@ export default function MatrixColumnHeaders({
         })}
 
         {/* Right metadata column headers row 2 — # | Description */}
-        <th className="sticky top-0 z-20 border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none"
+        <th className="sticky top-0 z-20 border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 text-[10px] text-gray-600 dark:text-gray-400 font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 select-none"
             onClick={onSortByCount}
             title="Sort by member count (descending)">
           <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># &#x25BC;</div>
         </th>
-        <th className="sticky top-0 z-20 border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 font-medium text-left"
+        <th className="sticky top-0 z-20 border-b border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 font-medium text-left"
             style={{ minWidth: '500px' }}>
           Description
         </th>

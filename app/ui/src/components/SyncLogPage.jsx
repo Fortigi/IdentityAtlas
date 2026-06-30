@@ -164,7 +164,7 @@ export default function SyncLogPage({ navigate, onOpenDetail }) {
                   : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
-              {c.label} <span className="opacity-70">{counts[c.key] ?? 0}</span>
+              {c.label} <span className="opacity-90">{counts[c.key] ?? 0}</span>
             </button>
           ))}
         </div>

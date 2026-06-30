@@ -58,7 +58,7 @@ export default function MatrixToolbar({
       {canExport && (
         <button
           onClick={onExportExcel}
-          className="px-2 py-1 rounded text-xs text-white bg-green-600 hover:bg-green-700 border border-green-700 font-medium"
+          className="px-2 py-1 rounded text-xs text-white bg-green-700 hover:bg-green-800 border border-green-800 font-medium"
           title="Export matrix to Excel (.xlsx)"
         >
           Export Excel

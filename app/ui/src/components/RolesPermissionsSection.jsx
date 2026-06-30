@@ -363,6 +363,7 @@ function PermissionGroup({ group, items, roles, draft, togglePerm }) {
               <td key={role} className="text-center align-middle px-3 py-2">
                 <input
                   type="checkbox"
+                  aria-label={`${item.label || item.key} for ${role}`}
                   checked={effective}
                   onChange={() => togglePerm(role, item.key)}
                   className={hasWildcard ? 'opacity-60' : ''}
