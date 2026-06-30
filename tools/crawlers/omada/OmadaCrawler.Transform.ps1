@@ -89,3 +89,68 @@ function ConvertTo-OmadaIdentityRecord {
         }
     }
 }
+
+# Maps one Omada Orgunit entity → a synced context record, carrying the parent
+# hierarchy link. Map-ContextTypeToAtlas (OmadaCrawler.Functions.ps1) resolves the
+# context type. Verbatim from the inline Orgunit `ForEach-Object { ... }` block.
+function ConvertTo-OmadaOrgUnitContextRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $OrgUnit,
+        [string]$DefaultContextType
+    )
+    $CtxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $OrgUnit.OUTYPE -Fallback $DefaultContextType)
+    $ParentUid = Get-OmadaRefUid -Ref $OrgUnit.PARENTOU
+    return [PSCustomObject]@{
+        id              = [string]$OrgUnit.UId
+        externalId      = [string]$OrgUnit.UId
+        displayName     = if ($OrgUnit.NAME) { $OrgUnit.NAME } else { $OrgUnit.DisplayName }
+        contextType     = $CtxType
+        variant         = 'synced'
+        targetType      = 'Identity'
+        parentContextId = if ($ParentUid) { $ParentUid } else { $Null }
+    }
+}
+
+# Maps one flat (non-hierarchical) Omada context entity → a synced context record.
+# Verbatim from the inline flat-context `ForEach-Object { ... }` block.
+function ConvertTo-OmadaFlatContextRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Item,
+        [string]$ContextType
+    )
+    return [PSCustomObject]@{
+        id          = [string]$Item.UId
+        externalId  = [string]$Item.UId
+        displayName = if ($Item.NAME) { $Item.NAME } else { $Item.DisplayName }
+        contextType = $ContextType
+        variant     = 'synced'
+        targetType  = 'Identity'
+    }
+}
+
+# Topologically sorts context records so a parent always precedes its children
+# (records with an unresolved/absent parent come first). Any records left in a
+# cycle after MaxPasses are appended as-is. Verbatim from the inline sort.
+function Sort-OmadaContextsTopologically {
+    [CmdletBinding()]
+    param($Records)
+    $Sorted    = [System.Collections.Generic.List[object]]::new()
+    $Remaining = [System.Collections.Generic.List[object]]::new(@($Records))
+    $Inserted  = [System.Collections.Generic.HashSet[string]]::new()
+    $Pass = 0; $MaxPasses = @($Records).Count + 1
+    while ($Remaining.Count -gt 0 -and $Pass -lt $MaxPasses) {
+        $Pass++
+        $NextRem = [System.Collections.Generic.List[object]]::new()
+        foreach ($Rec in $Remaining) {
+            $ParentId = $Rec.parentContextId
+            if (-not $ParentId -or $Inserted.Contains($ParentId)) {
+                $Sorted.Add($Rec); $Inserted.Add($Rec.id) | Out-Null
+            } else { $NextRem.Add($Rec) }
+        }
+        $Remaining = $NextRem
+    }
+    foreach ($Rec in $Remaining) { $Sorted.Add($Rec) }
+    return @($Sorted)
+}

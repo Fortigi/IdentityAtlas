@@ -20,8 +20,16 @@ BeforeAll {
 
     # Omada reference helpers used by the transforms.
     . (Join-Path $script:omadaRoot 'Get-OmadaHelpers.ps1')
+    # Map-ContextTypeToAtlas (reads $script:TypeMappings) — used by the Orgunit mapper.
+    . (Join-Path $script:omadaRoot 'OmadaCrawler.Functions.ps1')
     # The unit under test.
     . (Join-Path $script:omadaRoot 'OmadaCrawler.Transform.ps1')
+
+    # Context-type mapping the Orgunit mapper resolves through, mirroring the
+    # Start script's Configuration-region defaults.
+    $script:TypeMappings = @{
+        contextTypeToIdentityAtlas = @{ 'OrgUnit' = 'OrgUnit'; 'Organisational Unit' = 'OrgUnit'; Department = 'Department' }
+    }
 }
 
 Describe 'Get-OmadaIdentityType' {
@@ -92,5 +100,64 @@ Describe 'ConvertTo-OmadaIdentityRecord' {
         $rec = ConvertTo-OmadaIdentityRecord -Identity $id
         $rec.extendedAttributes.manager        | Should -Be 'Boss A; Boss B'
         $rec.extendedAttributes.explicitOwners | Should -Be 'Owner X'
+    }
+}
+
+Describe 'ConvertTo-OmadaOrgUnitContextRecord' {
+
+    It 'maps an Orgunit to a synced context, resolving type and parent link' {
+        $ou = [pscustomobject]@{
+            UId = 'ou-1'; NAME = 'Sales'
+            OUTYPE = [pscustomobject]@{ Value = 'Organisational Unit' }
+            PARENTOU = [pscustomobject]@{ UId = 'ou-root' }
+        }
+        $rec = ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $ou -DefaultContextType 'OrgUnit'
+        $rec.id              | Should -Be 'ou-1'
+        $rec.displayName     | Should -Be 'Sales'
+        $rec.contextType     | Should -Be 'OrgUnit'
+        $rec.variant         | Should -Be 'synced'
+        $rec.targetType      | Should -Be 'Identity'
+        $rec.parentContextId | Should -Be 'ou-root'
+    }
+
+    It 'leaves parentContextId null for a root Orgunit' {
+        $ou = [pscustomobject]@{ UId = 'ou-root'; NAME = 'Root' }
+        (ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $ou -DefaultContextType 'OrgUnit').parentContextId | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'ConvertTo-OmadaFlatContextRecord' {
+
+    It 'maps a flat context entity, falling back to DisplayName when NAME is empty' {
+        $rec = ConvertTo-OmadaFlatContextRecord -Item ([pscustomobject]@{ UId = 'l-1'; DisplayName = 'HQ' }) -ContextType 'Location'
+        $rec.id          | Should -Be 'l-1'
+        $rec.displayName | Should -Be 'HQ'
+        $rec.contextType | Should -Be 'Location'
+        $rec.targetType  | Should -Be 'Identity'
+    }
+}
+
+Describe 'Sort-OmadaContextsTopologically' {
+
+    It 'orders parents before their children regardless of input order' {
+        $records = @(
+            [pscustomobject]@{ id = 'c'; parentContextId = 'b' }
+            [pscustomobject]@{ id = 'b'; parentContextId = 'a' }
+            [pscustomobject]@{ id = 'a'; parentContextId = $null }
+        )
+        $sorted = Sort-OmadaContextsTopologically -Records $records
+        ($sorted | ForEach-Object { $_.id }) -join '' | Should -Be 'abc'
+    }
+
+    It 'still emits every record even when a parent reference forms a cycle' {
+        $records = @(
+            [pscustomobject]@{ id = 'x'; parentContextId = 'y' }
+            [pscustomobject]@{ id = 'y'; parentContextId = 'x' }
+        )
+        @(Sort-OmadaContextsTopologically -Records $records).Count | Should -Be 2
+    }
+
+    It 'returns an empty array for no records' {
+        @(Sort-OmadaContextsTopologically -Records @()).Count | Should -Be 0
     }
 }

@@ -360,49 +360,16 @@ if ($SyncContexts) {
             Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
 
             if ($EntitySet -eq 'Orgunit') {
-                # Orgunit has a parent hierarchy — topological sort required
+                # Orgunit has a parent hierarchy — topological sort required.
+                # Per-record shaping + the sort live in OmadaCrawler.Transform.ps1.
                 $RawRecords = @($Items | ForEach-Object {
-                    $CtxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $_.OUTYPE -Fallback $ContextType)
-                    $ParentUid = Get-OmadaRefUid -Ref $_.PARENTOU
-                    [PSCustomObject]@{
-                        id              = [string]$_.UId
-                        externalId      = [string]$_.UId
-                        displayName     = if ($_.NAME) { $_.NAME } else { $_.DisplayName }
-                        contextType     = $CtxType
-                        variant         = 'synced'
-                        targetType      = 'Identity'
-                        parentContextId = if ($ParentUid) { $ParentUid } else { $Null }
-                    }
+                    ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $_ -DefaultContextType $ContextType
                 } | Where-Object { $_.externalId -and $_.displayName })
-
-                # Topological sort — parents before children
-                $Records   = [System.Collections.Generic.List[object]]::new()
-                $Remaining = [System.Collections.Generic.List[object]]::new($RawRecords)
-                $Inserted  = [System.Collections.Generic.HashSet[string]]::new()
-                $Pass = 0; $MaxPasses = $RawRecords.Count + 1
-                while ($Remaining.Count -gt 0 -and $Pass -lt $MaxPasses) {
-                    $Pass++
-                    $NextRem = [System.Collections.Generic.List[object]]::new()
-                    foreach ($Rec in $Remaining) {
-                        $ParentId = $Rec.parentContextId
-                        if (-not $ParentId -or $Inserted.Contains($ParentId)) {
-                            $Records.Add($Rec); $Inserted.Add($Rec.id) | Out-Null
-                        } else { $NextRem.Add($Rec) }
-                    }
-                    $Remaining = $NextRem
-                }
-                foreach ($Rec in $Remaining) { $Records.Add($Rec) }
+                $Records = Sort-OmadaContextsTopologically -Records $RawRecords
             } else {
                 # Flat context type — no hierarchy
                 $Records = @($Items | ForEach-Object {
-                    [PSCustomObject]@{
-                        id          = [string]$_.UId
-                        externalId  = [string]$_.UId
-                        displayName = if ($_.NAME) { $_.NAME } else { $_.DisplayName }
-                        contextType = $ContextType
-                        variant     = 'synced'
-                        targetType  = 'Identity'
-                    }
+                    ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
                 } | Where-Object { $_.externalId -and $_.displayName })
             }
 
