@@ -152,6 +152,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Functions.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.Transform.ps1')
 
 # ─── Main ─────────────────────────────────────────────────────────
 
@@ -216,6 +217,12 @@ if (-not $systemId) {
 Write-Host "  System ID: $systemId" -ForegroundColor Green
 
 $syncStart = Get-Date
+
+# Sentinel resourceId for aggregate per-principal activity rows (the DEFAULT on
+# the PrincipalActivity.resourceId column). Shared by the Principals and Service
+# Principals phases — defined here, not inside a phase, so neither phase depends
+# on the other having run first.
+$aggResourceId = '00000000-0000-0000-0000-000000000000'
 
 # Per-phase timings. Each major `if ($Sync...)` block stops a Stopwatch at
 # its end and records the elapsed time here. Printed as a table at the end
@@ -336,47 +343,10 @@ if ($SyncPrincipals) {
 
     Update-CrawlerProgress -Detail "Building $($users.Count) user records..."
 
+    # Per-user record shaping lives in ConvertTo-EntraPrincipalRecord
+    # (EntraIDCrawler.Transform.ps1) so it can be unit-tested without a tenant.
     $records = @($users | ForEach-Object {
-        $rec = @{
-            id               = $_.id
-            displayName      = $_.displayName
-            email            = $_.mail ?? $_.userPrincipalName
-            accountEnabled   = [bool]$_.accountEnabled
-            principalType    = 'User'
-            givenName        = $_.givenName
-            surname          = $_.surname
-            department       = $_.department
-            jobTitle         = $_.jobTitle
-            companyName      = $_.companyName
-            employeeId       = $_.employeeId
-            createdDateTime  = $_.createdDateTime
-        }
-        # Manager relationship (from $expand=manager)
-        if ($_.manager -and $_.manager.id) {
-            $rec['managerId'] = $_.manager.id
-        }
-
-        # Build extendedAttributes: userType, externalUserState, custom attrs.
-        # `signInActivity` DELIBERATELY does NOT live here anymore — it used
-        # to, but the four timestamps change on every crawl and a jsonb
-        # rewrite triggers a _history row per user per day. Activity data
-        # now goes to the purpose-built PrincipalActivity table, which is
-        # not audited. See migrations/017_principal_activity.sql.
-        $ext = @{}
-        if ($_.userType)          { $ext['userType']          = $_.userType }
-        if ($_.externalUserState) { $ext['externalUserState'] = $_.externalUserState }
-        if ($CustomUserAttributes.Count -gt 0) {
-            foreach ($attr in $CustomUserAttributes) {
-                $val = Get-UserAttrValue -User $_ -AttrName $attr
-                if ($null -ne $val -and $val -ne '') { $ext[$attr] = $val }
-            }
-        }
-        # Identity-Atlas-calculated fields: portal Link and *_OuPath derived
-        # from any DN-shaped value in the record. Runs last so it sees both
-        # the core attributes above and every CustomUserAttribute.
-        Add-FGEntraCalculatedAttributes -Object $_ -Ext $ext -Type 'User' | Out-Null
-        if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
-        $rec
+        ConvertTo-EntraPrincipalRecord -User $_ -CustomUserAttributes $CustomUserAttributes
     })
 
     Update-CrawlerProgress -Detail "Uploading $($records.Count) users to ingest API..."
@@ -398,23 +368,9 @@ if ($SyncPrincipals) {
     # them to /ingest/principal-activity with resourceId set to the
     # AGG_RESOURCE_ID sentinel (the DEFAULT on the column) produces one
     # aggregate row per user.
-    $aggResourceId = '00000000-0000-0000-0000-000000000000'
     $activityRecords = @($users | ForEach-Object {
-        $sia = $_.signInActivity
-        if ($null -eq $sia) { return }
-        $rec = @{
-            principalId   = $_.id
-            resourceId    = $aggResourceId
-            activityType  = 'SignIn'
-        }
-        if ($sia.lastSignInDateTime)                { $rec['lastSignInDateTime']                = $sia.lastSignInDateTime }
-        if ($sia.lastNonInteractiveSignInDateTime)  { $rec['lastNonInteractiveSignInDateTime']  = $sia.lastNonInteractiveSignInDateTime }
-        if ($sia.lastSuccessfulSignInDateTime)      { $rec['lastSuccessfulSignInDateTime']      = $sia.lastSuccessfulSignInDateTime }
-        # Only emit a record if we have at least one timestamp — users who
-        # have never signed in would otherwise produce a row with just the
-        # key columns and no meaningful payload.
-        if ($rec.Count -gt 3) { $rec }
-    })
+        ConvertTo-EntraSignInActivityRecord -User $_
+    } | Where-Object { $_ })
     if ($activityRecords.Count -gt 0) {
         Update-CrawlerProgress -Detail "Uploading $($activityRecords.Count) user sign-in activity records..."
         Send-IngestBatch -Endpoint 'ingest/principal-activity' -SystemId $systemId -SyncMode 'delta' `
