@@ -119,7 +119,7 @@ jobs:
           tags: identity-atlas-web:qa
           build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          cache-to: type=gha,mode=min,scope=web
 
       - name: Build worker image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -130,7 +130,7 @@ jobs:
           load: true
           tags: identity-atlas-worker:qa
           cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=max,scope=worker
+          cache-to: type=gha,mode=min,scope=worker
 
       # ── Smoke test: start the stack and verify it boots ─────────────
       - name: Start stack
@@ -201,7 +201,7 @@ jobs:
             ${{ env.REGISTRY }}/fortigi/identity-atlas:${{ steps.version.outputs.version }}
           build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          cache-to: type=gha,mode=min,scope=web
 
       - name: Push worker image (release tag → latest)
         if: steps.config.outputs.channel == 'release'
@@ -214,7 +214,7 @@ jobs:
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:latest
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=max,scope=worker
+          cache-to: type=gha,mode=min,scope=worker
 
       - name: Push web image (pre-release tag → beta)
         if: steps.config.outputs.channel == 'beta'
@@ -228,7 +228,7 @@ jobs:
             ${{ env.REGISTRY }}/fortigi/identity-atlas:${{ steps.version.outputs.version }}
           build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          cache-to: type=gha,mode=min,scope=web
 
       - name: Push worker image (pre-release tag → beta)
         if: steps.config.outputs.channel == 'beta'
@@ -241,7 +241,7 @@ jobs:
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:beta
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=max,scope=worker
+          cache-to: type=gha,mode=min,scope=worker
 
       - name: Push web image (main → edge)
         if: steps.config.outputs.channel == 'main'
@@ -255,7 +255,7 @@ jobs:
             ${{ env.REGISTRY }}/fortigi/identity-atlas:${{ steps.version.outputs.version }}
           build-args: MODULE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          cache-to: type=gha,mode=min,scope=web
 
       - name: Push worker image (main → edge)
         if: steps.config.outputs.channel == 'main'
@@ -268,4 +268,4 @@ jobs:
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:edge
             ${{ env.REGISTRY }}/fortigi/identity-atlas-worker:${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=max,scope=worker
+          cache-to: type=gha,mode=min,scope=worker
