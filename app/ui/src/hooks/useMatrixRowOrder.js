@@ -8,25 +8,32 @@ function getStorageKey(department) {
   return `fgraph-roworder-${department || 'all'}`;
 }
 
-export function useMatrixRowOrder(department, defaultGroupIds) {
-  const [rowOrder, setRowOrder] = useState(null);
+// Read a saved row order for a department from localStorage, discarding any
+// order written by an older ROW_ORDER_VERSION. Returns the order or null.
+function readStoredOrder(department) {
+  try {
+    const raw = localStorage.getItem(getStorageKey(department));
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved.order && saved.version === ROW_ORDER_VERSION) return saved.order;
+      // Discard stale order from an older version
+      localStorage.removeItem(getStorageKey(department));
+    }
+  } catch {}
+  return null;
+}
 
-  // Load from localStorage when department changes
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(getStorageKey(department));
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (saved.order && saved.version === ROW_ORDER_VERSION) {
-          setRowOrder(saved.order);
-          return;
-        }
-        // Discard stale order from older version
-        localStorage.removeItem(getStorageKey(department));
-      }
-    } catch {}
-    setRowOrder(null);
-  }, [department]);
+export function useMatrixRowOrder(department, defaultGroupIds) {
+  const [rowOrder, setRowOrder] = useState(() => readStoredOrder(department));
+
+  // Reload the saved order when the department changes. Done during render
+  // (prev-value tracking) rather than in an effect, so it doesn't trip
+  // react-hooks/set-state-in-effect.
+  const [seenDept, setSeenDept] = useState(department);
+  if (department !== seenDept) {
+    setSeenDept(department);
+    setRowOrder(readStoredOrder(department));
+  }
 
   // Save when order changes
   useEffect(() => {

@@ -1,0 +1,1 @@
+- The matrix custom row-order hook was reworked to remove a React Compiler set-state-in-effect warning. Saved row orders are now read from storage on first render and reloaded when the department changes, with the same persistence and "reset to default" behavior as before.
