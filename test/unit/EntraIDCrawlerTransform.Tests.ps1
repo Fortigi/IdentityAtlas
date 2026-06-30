@@ -617,3 +617,61 @@ Describe 'ConvertTo-EntraAppRoleIndirectAssignments' {
         @($rows).Count | Should -Be 0
     }
 }
+
+Describe 'ConvertTo-EntraRoleResourceRecord' {
+
+    It 'maps a roleDefinition to an EntraRole and flattens + dedups allowedResourceActions' {
+        $rd = [pscustomobject]@{
+            id = 'rd1'; displayName = 'Global Administrator'; description = 'd'; isEnabled = $true
+            templateId = 't1'; isBuiltIn = $true; version = '1'
+            rolePermissions = @(
+                [pscustomobject]@{ allowedResourceActions = @('a/read', 'a/write') }
+                [pscustomobject]@{ allowedResourceActions = @('a/read', 'b/read') }   # a/read duplicated
+            )
+        }
+        $rec = ConvertTo-EntraRoleResourceRecord -RoleDefinition $rd
+        $rec['resourceType'] | Should -Be 'EntraRole'
+        $rec['enabled']      | Should -BeTrue
+        @($rec['extendedAttributes']['allowedResourceActions']).Count | Should -Be 3
+        $rec['extendedAttributes']['permissionCount'] | Should -Be 3
+        $rec['extendedAttributes']['isBuiltIn']       | Should -BeTrue
+    }
+}
+
+Describe 'ConvertTo-EntraDirectoryRoleAssignment' {
+
+    It 'maps an active assignment to a Direct EntraRole assignment with resolved principalType' {
+        $ra = [pscustomobject]@{ id = 'ra1'; roleDefinitionId = 'rd1'; principalId = 'u1'; directoryScopeId = '/'; principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' } }
+        $rec = ConvertTo-EntraDirectoryRoleAssignment -RoleAssignment $ra
+        $rec['resourceId']     | Should -Be 'rd1'
+        $rec['assignmentType'] | Should -Be 'Direct'
+        $rec['resourceType']   | Should -Be 'EntraRole'
+        $rec['principalType']  | Should -Be 'User'
+        $rec['extendedAttributes']['roleAssignmentId'] | Should -Be 'ra1'
+    }
+
+    It 'resolves a servicePrincipal principal type' {
+        $ra = [pscustomobject]@{ id = 'ra2'; roleDefinitionId = 'rd1'; principalId = 'sp1'; principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.servicePrincipal' } }
+        (ConvertTo-EntraDirectoryRoleAssignment -RoleAssignment $ra)['principalType'] | Should -Be 'ServicePrincipal'
+    }
+
+    It 'returns $null when principal or role is missing' {
+        ConvertTo-EntraDirectoryRoleAssignment -RoleAssignment ([pscustomobject]@{ roleDefinitionId = 'rd1' }) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'ConvertTo-EntraDirectoryRoleEligibility' {
+
+    It 'maps an eligibility instance to an Eligible EntraRole assignment carrying expiry' {
+        $e = [pscustomobject]@{ roleDefinitionId = 'rd1'; principalId = 'u1'; endDateTime = '2026-12-31T00:00:00Z'; memberType = 'Direct'; directoryScopeId = '/'; principal = [pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' } }
+        $rec = ConvertTo-EntraDirectoryRoleEligibility -Eligibility $e
+        $rec['assignmentType']     | Should -Be 'Eligible'
+        $rec['resourceType']       | Should -Be 'EntraRole'
+        $rec['expirationDateTime'] | Should -Be '2026-12-31T00:00:00Z'
+        $rec['extendedAttributes']['memberType'] | Should -Be 'Direct'
+    }
+
+    It 'returns $null when principal or role is missing' {
+        ConvertTo-EntraDirectoryRoleEligibility -Eligibility ([pscustomobject]@{ principalId = 'u1' }) | Should -BeNullOrEmpty
+    }
+}

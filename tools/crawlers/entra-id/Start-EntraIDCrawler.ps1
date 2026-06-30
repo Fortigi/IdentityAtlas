@@ -1602,31 +1602,7 @@ if ($SyncDirectoryRoles) {
         $roleDefs = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleDefinitions")
         Write-Host "  Fetched $($roleDefs.Count) role definitions" -ForegroundColor Gray
 
-        $roleRecords = foreach ($rd in $roleDefs) {
-            $actions = [System.Collections.Generic.List[string]]::new()
-            foreach ($rp in @($rd.rolePermissions)) {
-                foreach ($a in @($rp.allowedResourceActions)) {
-                    if ($a) { $actions.Add([string]$a) }
-                }
-            }
-            $uniqueActions = @($actions | Select-Object -Unique)
-            @{
-                id           = $rd.id
-                displayName  = $rd.displayName
-                description  = $rd.description
-                resourceType = 'EntraRole'
-                enabled      = [bool]$rd.isEnabled
-                extendedAttributes = @{
-                    templateId             = $rd.templateId
-                    isBuiltIn              = [bool]$rd.isBuiltIn
-                    isEnabled              = [bool]$rd.isEnabled
-                    roleVersion            = $rd.version
-                    allowedResourceActions = $uniqueActions
-                    permissionCount        = $uniqueActions.Count
-                }
-            }
-        }
-        $roleRecords = @($roleRecords)
+        $roleRecords = @($roleDefs | ForEach-Object { ConvertTo-EntraRoleResourceRecord -RoleDefinition $_ })
 
         # 2. Active assignments (permanent + currently-activated PIM). $expand=principal
         #    gives us the principal's @odata.type so we can set principalType
@@ -1635,18 +1611,8 @@ if ($SyncDirectoryRoles) {
         try {
             $roleAssignments = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleAssignments?`$expand=principal")
             foreach ($ra in $roleAssignments) {
-                if (-not $ra.principalId -or -not $ra.roleDefinitionId) { continue }
-                $activeList.Add(@{
-                    resourceId     = $ra.roleDefinitionId
-                    principalId    = $ra.principalId
-                    principalType  = (Resolve-DirectoryRolePrincipalType -Principal $ra.principal)
-                    assignmentType = 'Direct'
-                    resourceType   = 'EntraRole'
-                    extendedAttributes = @{
-                        roleAssignmentId = $ra.id
-                        directoryScopeId = $ra.directoryScopeId
-                    }
-                })
+                $activeRec = ConvertTo-EntraDirectoryRoleAssignment -RoleAssignment $ra
+                if ($activeRec) { $activeList.Add($activeRec) }
             }
         } catch {
             Write-Host "    /roleAssignments failed: $($_.Exception.Message)" -ForegroundColor DarkYellow
@@ -1658,19 +1624,8 @@ if ($SyncDirectoryRoles) {
         try {
             $eligibility = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleEligibilityScheduleInstances?`$expand=principal")
             foreach ($e in $eligibility) {
-                if (-not $e.principalId -or -not $e.roleDefinitionId) { continue }
-                $eligibleList.Add(@{
-                    resourceId         = $e.roleDefinitionId
-                    principalId        = $e.principalId
-                    principalType      = (Resolve-DirectoryRolePrincipalType -Principal $e.principal)
-                    assignmentType     = 'Eligible'
-                    resourceType       = 'EntraRole'
-                    expirationDateTime = $e.endDateTime
-                    extendedAttributes = @{
-                        memberType       = $e.memberType
-                        directoryScopeId = $e.directoryScopeId
-                    }
-                })
+                $eligibleRec = ConvertTo-EntraDirectoryRoleEligibility -Eligibility $e
+                if ($eligibleRec) { $eligibleList.Add($eligibleRec) }
             }
         } catch {
             Write-Host "    /roleEligibilityScheduleInstances failed (PIM may be unavailable): $($_.Exception.Message)" -ForegroundColor DarkYellow

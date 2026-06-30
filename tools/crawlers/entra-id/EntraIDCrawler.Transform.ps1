@@ -669,3 +669,75 @@ function ConvertTo-EntraAppRoleIndirectAssignments {
     }
     return @($out)
 }
+
+# Maps one directory roleDefinition → an EntraRole resource, flattening and
+# de-duping rolePermissions[].allowedResourceActions for risk scoring.
+# Verbatim from the inline `foreach ($rd in $roleDefs) { ... }` block.
+function ConvertTo-EntraRoleResourceRecord {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $RoleDefinition)
+    $actions = [System.Collections.Generic.List[string]]::new()
+    foreach ($rp in @($RoleDefinition.rolePermissions)) {
+        foreach ($a in @($rp.allowedResourceActions)) {
+            if ($a) { $actions.Add([string]$a) }
+        }
+    }
+    $uniqueActions = @($actions | Select-Object -Unique)
+    return @{
+        id           = $RoleDefinition.id
+        displayName  = $RoleDefinition.displayName
+        description  = $RoleDefinition.description
+        resourceType = 'EntraRole'
+        enabled      = [bool]$RoleDefinition.isEnabled
+        extendedAttributes = @{
+            templateId             = $RoleDefinition.templateId
+            isBuiltIn              = [bool]$RoleDefinition.isBuiltIn
+            isEnabled              = [bool]$RoleDefinition.isEnabled
+            roleVersion            = $RoleDefinition.version
+            allowedResourceActions = $uniqueActions
+            permissionCount        = $uniqueActions.Count
+        }
+    }
+}
+
+# Maps one active directory-role assignment → a Direct EntraRole assignment, or
+# $null when principal/role is missing. principalType comes from
+# Resolve-DirectoryRolePrincipalType (EntraIDCrawler.Functions.ps1).
+# Verbatim from the inline `foreach ($ra in $roleAssignments) { ... }` block.
+function ConvertTo-EntraDirectoryRoleAssignment {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $RoleAssignment)
+    if (-not $RoleAssignment.principalId -or -not $RoleAssignment.roleDefinitionId) { return $null }
+    return @{
+        resourceId     = $RoleAssignment.roleDefinitionId
+        principalId    = $RoleAssignment.principalId
+        principalType  = (Resolve-DirectoryRolePrincipalType -Principal $RoleAssignment.principal)
+        assignmentType = 'Direct'
+        resourceType   = 'EntraRole'
+        extendedAttributes = @{
+            roleAssignmentId = $RoleAssignment.id
+            directoryScopeId = $RoleAssignment.directoryScopeId
+        }
+    }
+}
+
+# Maps one PIM-eligible directory-role schedule instance → an Eligible EntraRole
+# assignment, or $null when principal/role is missing. Verbatim from the inline
+# `foreach ($e in $eligibility) { ... }` block.
+function ConvertTo-EntraDirectoryRoleEligibility {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Eligibility)
+    if (-not $Eligibility.principalId -or -not $Eligibility.roleDefinitionId) { return $null }
+    return @{
+        resourceId         = $Eligibility.roleDefinitionId
+        principalId        = $Eligibility.principalId
+        principalType      = (Resolve-DirectoryRolePrincipalType -Principal $Eligibility.principal)
+        assignmentType     = 'Eligible'
+        resourceType       = 'EntraRole'
+        expirationDateTime = $Eligibility.endDateTime
+        extendedAttributes = @{
+            memberType       = $Eligibility.memberType
+            directoryScopeId = $Eligibility.directoryScopeId
+        }
+    }
+}
