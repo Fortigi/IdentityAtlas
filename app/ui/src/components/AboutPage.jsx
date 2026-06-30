@@ -96,7 +96,7 @@ export default function AboutPage() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">About Identity Atlas</h1>
         <p className="mt-2 text-gray-500 dark:text-gray-400">
           Identity Atlas is an open-source role-mining and identity governance platform built by{' '}
-          <a href="https://fortigi.nl" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Fortigi</a>.
+          <a href="https://fortigi.nl" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Fortigi</a>.
           It pulls authorization data from Microsoft Graph and other systems into a PostgreSQL database and
           surfaces it through a React role-mining UI.
         </p>

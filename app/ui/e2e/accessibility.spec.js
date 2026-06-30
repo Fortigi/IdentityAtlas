@@ -30,6 +30,30 @@ for (const tab of ALL_NAV_TABS.filter(t => !A11Y_DEFERRED.has(t.key))) {
   });
 }
 
+// Admin sub-tabs: a "tabs in tabs" surface not reachable from ALL_NAV_TABS.
+// Discovered from the live DOM (the [data-testid="admin-subtabs"] nav renders one
+// button per ADMIN_TABS entry) so a newly added sub-tab is axe-checked
+// automatically — same drift-proof guarantee, without importing the React-coupled
+// adminTabs module. One test loops every sub-tab and reports which one failed.
+test('Admin sub-tabs have no critical accessibility violations', async ({ page }) => {
+  await page.goto(`${BASE}/#admin`);
+  await page.waitForLoadState('networkidle');
+  const tabs = page.locator('[data-testid="admin-subtabs"] button');
+  const count = await tabs.count();
+  expect(count, 'admin sub-tabs should render').toBeGreaterThan(0);
+  for (let i = 0; i < count; i++) {
+    const label = (await tabs.nth(i).textContent())?.trim();
+    await tabs.nth(i).click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(600); // let the sub-tab's data/forms settle
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa'])
+      .analyze();
+    const serious = results.violations.filter(v => v.impact === 'critical' || v.impact === 'serious');
+    expect(serious, `A11y violations on Admin → ${label}: ${serious.map(v => v.id).join(', ')}`).toHaveLength(0);
+  }
+});
+
 // Skip-to-content link: the first focusable element must let keyboard users
 // jump past the nav to the main content (added with the a11y baseline).
 test('a "Skip to main content" link targets the main region', async ({ page }) => {

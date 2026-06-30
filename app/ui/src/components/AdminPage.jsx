@@ -709,7 +709,7 @@ function CuratedDataSection() {
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Export and import manually curated data — user tags, group/resource tags, and business role categories —
           so they can be restored after recreating an environment.
-          Analyst overrides are managed separately via <code className="bg-gray-100 dark:bg-gray-700 dark:text-gray-300 px-1 rounded text-xs">Export-FGCuratedData</code>.
+          Analyst overrides are managed separately via <code className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-1 rounded text-xs">Export-FGCuratedData</code>.
         </p>
 
         {/* Buttons */}
@@ -906,6 +906,7 @@ function HistoryRetentionSection() {
           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Retention (days)</label>
           <input
             type="number"
+            aria-label="History retention (days)"
             min="0"
             max="3650"
             value={days}
@@ -1258,6 +1259,7 @@ function LLMSettingsSection() {
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Provider</label>
             <select
+              aria-label="LLM provider"
               value={config.provider}
               onChange={e => setConfig(c => ({ ...c, provider: e.target.value }))}
               className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-200"
@@ -1579,7 +1581,7 @@ function RiskScoringSection({ onRiskScoresRefresh }) {
 function AdminSubTabs({ activeTab, onTabChange, tabs }) {
   return (
     <div className="border-b border-gray-200 dark:border-gray-700 mb-4">
-      <nav className="flex gap-1 -mb-px">
+      <nav className="flex gap-1 -mb-px" data-testid="admin-subtabs">
         {tabs.map(tab => (
           <button
             key={tab.key}
