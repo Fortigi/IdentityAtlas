@@ -133,4 +133,53 @@ router.get('/resource-relationships', async (req, res) => {
   }
 });
 
+// ─── GET /api/context-list ───────────────────────────────────────
+// Flat listing of ALL contexts (departments, OUs, tags, clusters, ...). The
+// per-root /api/contexts endpoint returns only top-level contexts; the export
+// needs every row. Optional ?systemId filters synced contexts by scope system.
+router.get('/context-list', async (req, res) => {
+  const { limit, offset, systemId } = parsePaging(req);
+  try {
+    const where = systemId !== null ? `WHERE c."scopeSystemId" = $1` : '';
+    const result = await runListAndCount({
+      table: 'Contexts',
+      alias: 'c',
+      columns: `c.id, c.variant, c."targetType", c."contextType", c."displayName",
+                c.description, c."parentContextId", c."scopeSystemId",
+                c."directMemberCount", c."totalMemberCount", c."extendedAttributes"`,
+      orderBy: `c."contextType", c."displayName"`,
+      dataWhere: where, countWhere: where,
+      systemId, limit, offset,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('GET /context-list failed:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/context-members ────────────────────────────────────
+// Flat listing of context membership — which entity (by memberType + memberId)
+// belongs to which context. Optional ?systemId filters via the context's scope.
+router.get('/context-members', async (req, res) => {
+  const { limit, offset, systemId } = parsePaging(req);
+  try {
+    const where = systemId !== null
+      ? `WHERE EXISTS (SELECT 1 FROM "Contexts" c WHERE c.id = cm."contextId" AND c."scopeSystemId" = $1)`
+      : '';
+    const result = await runListAndCount({
+      table: 'ContextMembers',
+      alias: 'cm',
+      columns: `cm."contextId", cm."memberType", cm."memberId", cm."addedBy", cm."addedAt"`,
+      orderBy: `cm."contextId", cm."memberId"`,
+      dataWhere: where, countWhere: where,
+      systemId, limit, offset,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('GET /context-members failed:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
