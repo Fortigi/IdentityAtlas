@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a **Risky App Consent** context plugin (Admin → Plugins) — the app-reputation companion to Risky Consent. It flags principals who consented to a **known-malicious OAuth app** (matched against the free, public OAuthSentry threat feed of apps seen in consent-phishing / BEC / AiTM campaigns) or to a **suspicious app** by heuristic — a self-registered / unverified publisher, or an app only one or two people consented to (the classic targeted-consent-phishing signal). It creates **"Risky App Consent — Malicious"** and **"Risky App Consent — Suspicious"** contexts you can build a matrix on. The threat feed needs no account or key and is best-effort: if it can't be reached the heuristics still run. The feed URL, whether to use it, the heuristics, and the low-prevalence threshold are all configurable when you run the plugin.
+
+## Changes in this PR
+
 - Fixed **duplicate Azure resources** in the Resources list (every Azure resource appeared twice). A full Azure crawl was tagging its resource batch with a scope label that matched none of the stored rows, so the full-sync clean-up step never removed superseded rows — when the internal resource id changed (during the Resource Graph rewrite), the old copies were stranded instead of being cleaned up. The crawl now reconciles each resource type correctly, so a fresh Azure RM crawl removes the leftover duplicates and keeps deleted Azure resources from lingering. (Run an Azure RM crawl after upgrading to clear existing duplicates.)
 
 ## Changes in this PR
