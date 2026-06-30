@@ -398,7 +398,18 @@ $gSeen = [System.Collections.Generic.HashSet[string]]::new()
 $Grants = @($Grants | Where-Object { $gSeen.Add("$($_.resourceId)|$($_.principalId)|$($_.assignmentType)") })
 Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Contains edges (final)" -ForegroundColor Gray
 
-Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = 'AzureScope' } -Records $ScopeResources | Out-Null
+# Reconcile per resourceType. A full-sync batch only tombstones rows matching its scope
+# tag, and these scope nodes are a mix of AzureSubscription / AzureResourceGroup / AzureResource
+# (plus MG / Root). Sending them all under a single 'AzureScope' tag matched no stored row, so a
+# full sync never reconciled anything — stale rows (e.g. left behind when the node-id derivation
+# changed) were never tombstoned, which is what produced duplicate Azure resources. Grouping the
+# send by resourceType makes each batch reconcile its own rows. Only types present this run are
+# sent, so a run that doesn't discover a given type (e.g. no management groups configured) leaves
+# that type's rows untouched rather than wiping them.
+foreach ($rt in @($ScopeResources | ForEach-Object { $_.resourceType } | Sort-Object -Unique)) {
+    $rtBatch = @($ScopeResources | Where-Object { $_.resourceType -eq $rt })
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = $rt } -Records $rtBatch | Out-Null
+}
 Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ relationshipType = 'Contains' } -Records $ContainsEdges | Out-Null
 
 # ─── Orphan handling: principals the Entra ID crawler hasn't loaded ─────────────
