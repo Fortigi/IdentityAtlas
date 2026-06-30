@@ -217,38 +217,12 @@ if ($Sync.orgs) {
     try {
         $orgs = @(Invoke-MidpointSearch -Type 'orgs' -PageSize $PageSize)
         Write-Host "  $($orgs.Count) orgs from midPoint" -ForegroundColor Gray
+        # Per-org record shaping + the parent-before-child topo-sort live in
+        # MidpointCrawler.Transform.ps1.
         $raw = @($orgs | ForEach-Object {
-            [PSCustomObject]@{
-                id              = [string]$_.oid
-                externalId      = [string]$_.oid
-                displayName     = (Get-MidpointString $_.displayName (Get-MidpointString $_.name $_.oid))
-                contextType     = (Resolve-MappedValue -Values (Get-MidpointStringList $_.subtype) -Rows $OrgContextMapping -KeyName 'orgSubtype' -ValName 'contextType' -Default 'OrgUnit')
-                variant         = 'synced'
-                targetType      = 'Identity'
-                scopeSystemId   = $MidpointSystemId
-                parentContextId = (Get-MidpointRefOid $_.parentOrgRef $null)
-            }
+            ConvertTo-MidpointOrgContextRecord -Org $_ -OrgContextMapping $OrgContextMapping -SystemId $MidpointSystemId
         } | Where-Object { $_.id -and $_.displayName })
-
-        # Topological sort — parents before children (FK on parentContextId)
-        $records   = [System.Collections.Generic.List[object]]::new()
-        $remaining = [System.Collections.Generic.List[object]]::new($raw)
-        $present   = [System.Collections.Generic.HashSet[string]]::new(); $raw | ForEach-Object { [void]$present.Add($_.id) }
-        $inserted  = [System.Collections.Generic.HashSet[string]]::new()
-        $pass = 0; $maxPass = $raw.Count + 1
-        while ($remaining.Count -gt 0 -and $pass -lt $maxPass) {
-            $pass++; $next = [System.Collections.Generic.List[object]]::new()
-            foreach ($rec in $remaining) {
-                $p = $rec.parentContextId
-                # A parent outside the synced set is treated as a root (null it out)
-                if (-not $p -or -not $present.Contains($p) -or $inserted.Contains($p)) {
-                    if ($p -and -not $present.Contains($p)) { $rec.parentContextId = $null }
-                    $records.Add($rec); [void]$inserted.Add($rec.id)
-                } else { $next.Add($rec) }
-            }
-            $remaining = $next
-        }
-        foreach ($rec in $remaining) { $records.Add($rec) }
+        $records = Sort-MidpointContextsTopologically -Records $raw
 
         # Scope the reconcile by variant + scopeSystemId only (NOT contextType): with org→contextType
         # remapping a single sync can emit several context types, and this crawler owns every synced

@@ -80,3 +80,46 @@ Describe 'New-MidpointIdentityMemberRecord' {
         $rec.isPrimary   | Should -BeTrue
     }
 }
+
+Describe 'ConvertTo-MidpointOrgContextRecord' {
+
+    It 'maps an org to a synced context, defaulting contextType to OrgUnit and resolving the parent ref' {
+        $org = [pscustomobject]@{ oid = 'org-1'; displayName = 'Sales'; parentOrgRef = [pscustomobject]@{ oid = 'org-root' } }
+        $rec = ConvertTo-MidpointOrgContextRecord -Org $org -OrgContextMapping @() -SystemId 7
+        $rec.id              | Should -Be 'org-1'
+        $rec.displayName     | Should -Be 'Sales'
+        $rec.contextType     | Should -Be 'OrgUnit'
+        $rec.variant         | Should -Be 'synced'
+        $rec.targetType      | Should -Be 'Identity'
+        $rec.scopeSystemId   | Should -Be 7
+        $rec.parentContextId | Should -Be 'org-root'
+    }
+
+    It 'leaves parentContextId null for a root org' {
+        $rec = ConvertTo-MidpointOrgContextRecord -Org ([pscustomobject]@{ oid = 'org-root'; name = 'Root' }) -SystemId 7
+        $rec.parentContextId | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Sort-MidpointContextsTopologically' {
+
+    It 'orders parents before children regardless of input order' {
+        $records = @(
+            [pscustomobject]@{ id = 'c'; parentContextId = 'b' }
+            [pscustomobject]@{ id = 'b'; parentContextId = 'a' }
+            [pscustomobject]@{ id = 'a'; parentContextId = $null }
+        )
+        $sorted = Sort-MidpointContextsTopologically -Records $records
+        ($sorted | ForEach-Object { $_.id }) -join '' | Should -Be 'abc'
+    }
+
+    It 'nulls out a parent that is outside the synced set (treats it as a root)' {
+        $records = @([pscustomobject]@{ id = 'x'; parentContextId = 'not-synced' })
+        $sorted = Sort-MidpointContextsTopologically -Records $records
+        $sorted[0].parentContextId | Should -BeNullOrEmpty
+    }
+
+    It 'returns an empty array for no records' {
+        @(Sort-MidpointContextsTopologically -Records @()).Count | Should -Be 0
+    }
+}

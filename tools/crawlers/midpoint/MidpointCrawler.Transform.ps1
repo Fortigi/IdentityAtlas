@@ -77,3 +77,53 @@ function New-MidpointIdentityMemberRecord {
         isPrimary   = $true
     }
 }
+
+# Maps one midPoint OrgType → a synced context record. $OrgContextMapping remaps
+# org subtype → contextType (default OrgUnit). Verbatim from the inline Orgs-phase
+# `$orgs | ForEach-Object { ... }` block.
+function ConvertTo-MidpointOrgContextRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Org,
+        $OrgContextMapping = @(),
+        [int]$SystemId
+    )
+    return [PSCustomObject]@{
+        id              = [string]$Org.oid
+        externalId      = [string]$Org.oid
+        displayName     = (Get-MidpointString $Org.displayName (Get-MidpointString $Org.name $Org.oid))
+        contextType     = (Resolve-MappedValue -Values (Get-MidpointStringList $Org.subtype) -Rows $OrgContextMapping -KeyName 'orgSubtype' -ValName 'contextType' -Default 'OrgUnit')
+        variant         = 'synced'
+        targetType      = 'Identity'
+        scopeSystemId   = $SystemId
+        parentContextId = (Get-MidpointRefOid $Org.parentOrgRef $null)
+    }
+}
+
+# Topologically sorts context records so a parent precedes its children. A parent
+# OID outside the synced set is treated as a root (its parentContextId is nulled
+# out to avoid an FK violation). Verbatim from the inline Orgs-phase sort.
+function Sort-MidpointContextsTopologically {
+    [CmdletBinding()]
+    param($Records)
+    $recs      = @($Records)
+    $sorted    = [System.Collections.Generic.List[object]]::new()
+    $remaining = [System.Collections.Generic.List[object]]::new($recs)
+    $present   = [System.Collections.Generic.HashSet[string]]::new(); $recs | ForEach-Object { [void]$present.Add($_.id) }
+    $inserted  = [System.Collections.Generic.HashSet[string]]::new()
+    $pass = 0; $maxPass = $recs.Count + 1
+    while ($remaining.Count -gt 0 -and $pass -lt $maxPass) {
+        $pass++; $next = [System.Collections.Generic.List[object]]::new()
+        foreach ($rec in $remaining) {
+            $p = $rec.parentContextId
+            # A parent outside the synced set is treated as a root (null it out)
+            if (-not $p -or -not $present.Contains($p) -or $inserted.Contains($p)) {
+                if ($p -and -not $present.Contains($p)) { $rec.parentContextId = $null }
+                $sorted.Add($rec); [void]$inserted.Add($rec.id)
+            } else { $next.Add($rec) }
+        }
+        $remaining = $next
+    }
+    foreach ($rec in $remaining) { $sorted.Add($rec) }
+    return @($sorted)
+}
