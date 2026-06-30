@@ -509,32 +509,46 @@ router.get('/users', async (req, res) => {
     }
     where += filterWhere;
 
-    // Two-statement query: data + count, returned as recordsets[0] and [1].
-    // Returns the FULL Principals row (every column on the table) so the same
-    // endpoint feeds both the UI table (which ignores extra columns) and the
-    // Excel Power Query export (which auto-expands extendedAttributes into
-    // first-class columns). The UI side is unaffected — extra fields fall
-    // through to the JSON without rendering.
-    const result = await request.query(`
-      SELECT u.id, u."displayName", u."email" AS "userPrincipalName",
-             u."department", u."jobTitle", u."companyName", u."accountEnabled",
-             u."principalType", u."systemId", u."externalId",
-             u."givenName", u."surname", u."employeeId", u."managerId",
-             u."createdDateTime", u."extendedAttributes",
-             u."riskScore", u."riskTier", u."deletedAt",
+    // Paginate FIRST (cheap), then resolve the per-row tag string only for the
+    // page's rows. The tagString subquery used to sit in the top-level SELECT, so
+    // Postgres evaluated it for every offset+limit row before OFFSET discarded the
+    // first `offset` — O(offset) view-subqueries per page, quadratic across an
+    // export, and slow enough on a large tenant to time out a deep page (the 500
+    // the Power Query export hit). The CTE confines the subquery to the <=limit
+    // page rows, making per-page cost ~constant regardless of depth.
+    //
+    // Returns the FULL Principals row so the same endpoint feeds both the UI table
+    // and the Excel export (which auto-expands extendedAttributes).
+    //
+    // COUNT(*) runs only on the first page: the Excel workbook reads `total` once
+    // from page 1 and then pages by row count, so re-counting the whole table on
+    // every page was pure waste.
+    const baseSql = `
+      WITH page AS (
+        SELECT u.id, u."displayName", u."email" AS "userPrincipalName",
+               u."department", u."jobTitle", u."companyName", u."accountEnabled",
+               u."principalType", u."systemId", u."externalId",
+               u."givenName", u."surname", u."employeeId", u."managerId",
+               u."createdDateTime", u."extendedAttributes",
+               u."riskScore", u."riskTier", u."deletedAt"
+          FROM "Principals" u
+          ${userTagJoin}
+         WHERE ${where}
+         ORDER BY u."displayName"
+         LIMIT @limit OFFSET @offset
+      )
+      SELECT page.*,
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" = 'user'
-               WHERE ta."entityId" = UPPER(u.id::text)
+               WHERE ta."entityId" = UPPER(page.id::text)
              ) AS "tagString"
-        FROM "Principals" u
-        ${userTagJoin}
-       WHERE ${where}
-       ORDER BY u."displayName"
-       LIMIT @limit OFFSET @offset;
-
-      SELECT COUNT(*)::int AS total FROM "Principals" u ${userTagJoin} WHERE ${where};
-    `);
+        FROM page
+       ORDER BY page."displayName"`;
+    const sql = offset === 0
+      ? `${baseSql};\nSELECT COUNT(*)::int AS total FROM "Principals" u ${userTagJoin} WHERE ${where};`
+      : baseSql;
+    const result = await request.query(sql);
 
     const data = result.recordsets[0].map(r => {
       const { tagString, extendedAttributes, ...rest } = r;
@@ -547,7 +561,7 @@ router.get('/users', async (req, res) => {
       return { ...rest, extendedAttributes: parsedExt, tags: parseTags(tagString) };
     });
 
-    res.json({ data, total: result.recordsets[1][0].total });
+    res.json({ data, total: result.recordsets[1]?.[0]?.total ?? null });
   } catch (err) {
     console.error('GET /users failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -619,29 +633,38 @@ router.get('/groups', async (req, res) => {
     }
     where += filterWhere;
 
-    const result = await request.query(`
-      SELECT r.id, r."displayName", r."resourceType", r."resourceType" AS "groupTypeCalculated",
-             r."description", r."systemId", r."enabled",
+    // Page first, then resolve tags only for the page rows; count only on page 1.
+    // Same fix as GET /users — stops deep export pages from re-running the per-row
+    // tag subquery over every discarded offset row (quadratic → deep-page timeout).
+    const baseSql = `
+      WITH page AS (
+        SELECT r.id, r."displayName", r."resourceType", r."resourceType" AS "groupTypeCalculated",
+               r."description", r."systemId", r."enabled"
+          FROM "Resources" r
+          ${groupTagJoin}
+         WHERE ${where}
+         ORDER BY r."displayName"
+         LIMIT @limit OFFSET @offset
+      )
+      SELECT page.*,
              (SELECT string_agg(t.id::text || ':' || t."name" || ':' || t."color", '|')
                 FROM "GraphTagAssignments" ta
                 INNER JOIN "GraphTags" t ON ta."tagId" = t.id AND t."entityType" IN ('resource', 'group')
-               WHERE ta."entityId" = UPPER(r.id::text)
+               WHERE ta."entityId" = UPPER(page.id::text)
              ) AS "tagString"
-        FROM "Resources" r
-        ${groupTagJoin}
-       WHERE ${where}
-       ORDER BY r."displayName"
-       LIMIT @limit OFFSET @offset;
-
-      SELECT COUNT(*)::int AS total FROM "Resources" r ${groupTagJoin} WHERE ${where};
-    `);
+        FROM page
+       ORDER BY page."displayName"`;
+    const sql = offset === 0
+      ? `${baseSql};\nSELECT COUNT(*)::int AS total FROM "Resources" r ${groupTagJoin} WHERE ${where};`
+      : baseSql;
+    const result = await request.query(sql);
 
     const data = result.recordsets[0].map(r => {
       const { tagString, ...rest } = r;
       return { ...rest, tags: parseTags(tagString) };
     });
 
-    res.json({ data, total: result.recordsets[1][0].total });
+    res.json({ data, total: result.recordsets[1]?.[0]?.total ?? null });
   } catch (err) {
     console.error('GET /groups failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
