@@ -13,10 +13,10 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { authMiddleware } from './middleware/auth.js';
+import { resolveModuleVersion } from './version.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import permissionsRouter from './routes/permissions.js';
 import matrixRouter from './routes/matrix.js';
@@ -62,24 +62,10 @@ const isProduction = process.env.NODE_ENV === 'production';
 // compose file will see a warning on the Dashboard.
 const MIN_COMPOSE_FILE_VERSION = 1;
 
-// Resolve module version: env var (set during deployment) → fallback to .psd1 manifest
-let moduleVersion = process.env.MODULE_VERSION || null;
-if (!moduleVersion) {
-  // Try to read the version from the .psd1 manifest. Two paths:
-  //   1. /app/setup/IdentityAtlas.psd1 — mounted by docker-compose.yml for local dev
-  //   2. ../../../setup/IdentityAtlas.psd1 — works when running outside Docker (e.g. npm start)
-  const candidates = [
-    '/app/setup/IdentityAtlas.psd1',
-    join(__dirname, '../../../setup/IdentityAtlas.psd1'),
-  ];
-  for (const p of candidates) {
-    try {
-      const content = readFileSync(p, 'utf-8');
-      const match = content.match(/ModuleVersion\s*=\s*'([^']+)'/);
-      if (match) { moduleVersion = match[1]; break; }
-    } catch { /* not available at this path */ }
-  }
-}
+// Resolve module version: env var (set on the published images) → fallback to
+// the .psd1 manifest (source / dev / local builds). Shared with the auto-update
+// channel logic via version.js so both always agree.
+const moduleVersion = resolveModuleVersion();
 
 // Helper: read a feature flag override from WorkerConfig (overrides the env var)
 async function getFeatureOverride(key) {
