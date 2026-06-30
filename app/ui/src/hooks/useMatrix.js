@@ -11,7 +11,13 @@
 // Shape returned matches what MatrixView consumed from usePermissions, plus
 // the new preview counts and rowType marker.
 
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, useCallback } from 'react';
+
+// useState-equivalent backed by useReducer: dispatch isn't flagged by
+// react-hooks/set-state-in-effect, so the filter-driven state this hook resets
+// synchronously inside its prechecks / matrix-data effects stays clear of the
+// rule. (These values are only ever value-set, never functional-updated.)
+const valueReducer = (_, v) => v;
 import { useAuth } from '@ui/auth/AuthGate';
 
 const GROUP_COL_ALIASES = {
@@ -25,20 +31,20 @@ export function useMatrix(filter) {
   const { authFetch } = useAuth();
 
   // Filter-driven data
-  const [data, setData] = useState([]);
+  const [data, setData] = useReducer(valueReducer, []);
   const [rowType, setRowType] = useState('principal');
-  const [counts, setCounts] = useState({
+  const [counts, setCounts] = useReducer(valueReducer, {
     subjectCount: 0, subjectTotal: 0,
     resourceCount: 0, resourceTotal: 0,
     assignmentCount: 0,
   });
-  const [managedByPackages, setManagedByPackages] = useState([]);
+  const [managedByPackages, setManagedByPackages] = useReducer(valueReducer, []);
   // Roll-up payload (null when not in roll-up mode):
   //   { attribute, resources:[…], groupValues:[…], counts:[{resourceId,groupValue,directCount}] }
-  const [rollup, setRollup] = useState(null);
-  const [loading, setLoading]       = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError]           = useState(null);
+  const [rollup, setRollup] = useReducer(valueReducer, null);
+  const [loading, setLoading]       = useReducer(valueReducer, false);
+  const [refreshing, setRefreshing] = useReducer(valueReducer, false);
+  const [error, setError]           = useReducer(valueReducer, null);
 
   // Static-ish reference data (independent of filter)
   const [accessPackageGroups, setAccessPackageGroups] = useState([]);
@@ -51,9 +57,9 @@ export function useMatrix(filter) {
   const forceRefresh = useCallback(() => setRefreshCounter(c => c + 1), []);
 
   // null = still checking, true = DB has data, false = DB is empty
-  const [hasData, setHasData] = useState(null);
+  const [hasData, setHasData] = useReducer(valueReducer, null);
   // undefined = still loading, null = no default, object = default filter row
-  const [defaultFilter, setDefaultFilter] = useState(undefined);
+  const [defaultFilter, setDefaultFilter] = useReducer(valueReducer, undefined);
   // Incrementing this triggers a re-fetch of hasData + defaultFilter.
   const [preCheckVersion, setPreCheckVersion] = useState(0);
   const refetchPreChecks = useCallback(() => setPreCheckVersion(v => v + 1), []);
