@@ -1,0 +1,1 @@
+- Fixed the badge shown at the start of an open detail tab: Identity tabs now show "ID" (they previously showed "AP", the access-package badge), and run tabs show "RUN" instead of "AP".

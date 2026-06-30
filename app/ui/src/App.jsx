@@ -5,6 +5,7 @@ import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
 import { ThemeContext } from './contexts/ThemeContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
+import { tabBadge } from './utils/tabBadge';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy-load page components (route-based code splitting)
@@ -539,7 +540,7 @@ export default function App() {
           {detailTabs.map(tab => {
             const tabKey = `${tab.type}:${tab.id}`;
             const isActive = page === tabKey;
-            const icon = tab.type === 'user' ? 'U' : tab.type === 'resource' ? 'R' : tab.type === 'group' ? 'G' : tab.type === 'department' ? 'D' : tab.type === 'context' ? 'C' : 'AP';
+            const icon = tabBadge(tab.type);
             const iconBg = tab.type === 'user' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : tab.type === 'resource' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : tab.type === 'group' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : tab.type === 'department' ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' : tab.type === 'context' ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300';
             return (
               <button
