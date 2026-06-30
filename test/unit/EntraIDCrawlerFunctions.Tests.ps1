@@ -546,3 +546,19 @@ Describe 'Resolve-DirectoryRolePrincipalType' {
         Resolve-DirectoryRolePrincipalType -Principal ([pscustomobject]@{ id = 'x' }) | Should -Be 'User'
     }
 }
+
+# ─── Format-FGDelegatedPermissionName ────────────────────────────────────────────
+Describe 'Format-FGDelegatedPermissionName' {
+    It 'includes the consenting app so same-scope/different-app rows are distinct' {
+        Format-FGDelegatedPermissionName -Scope 'Calendars.ReadWrite' -TargetName 'Microsoft Graph' -ClientName 'Amazon Alexa' |
+            Should -Be 'Calendars.ReadWrite on Microsoft Graph (via Amazon Alexa)'
+    }
+    It 'omits the via-suffix when the client name is empty' {
+        Format-FGDelegatedPermissionName -Scope 'User.Read' -TargetName 'Microsoft Graph' -ClientName '' |
+            Should -Be 'User.Read on Microsoft Graph'
+    }
+    It 'omits the via-suffix when the client name is null' {
+        Format-FGDelegatedPermissionName -Scope 'User.Read' -TargetName 'Microsoft Graph' -ClientName $null |
+            Should -Be 'User.Read on Microsoft Graph'
+    }
+}
