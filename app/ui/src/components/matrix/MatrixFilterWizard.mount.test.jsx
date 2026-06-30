@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { createElement as h } from 'react';
+import { createElement as h, useState } from 'react';
 import MatrixFilterWizard from './MatrixFilterWizard';
 import {
   renderWithProviders, makeAuthFetch, jsonResponse,
@@ -132,6 +132,32 @@ describe('MatrixFilterWizard (mounted)', () => {
     // Back → Resources.
     await user.click(screen.getByText('Back'));
     expect(await screen.findByText(/appear as columns/i)).toBeInTheDocument();
+  });
+
+  it('resets back to the Setup step when reopened after navigating away', async () => {
+    // A stateful harness toggles `open` so the closed→open reset (now done
+    // during render rather than in an effect) runs through React normally.
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return h('div', null,
+        h('button', { onClick: () => setOpen((o) => !o) }, 'toggle'),
+        h(MatrixFilterWizard, { open, onApply: vi.fn(), onClose: () => setOpen(false) }),
+      );
+    }
+    renderWithProviders(h(Harness), { auth: { authFetch: makeFetch() } });
+    const user = userEvent.setup();
+
+    // Advance from Setup → Subjects.
+    await screen.findByText('User accounts');
+    await user.click(screen.getByText('Next'));
+    expect(await screen.findByText(/appear as rows/i)).toBeInTheDocument();
+
+    // Close then reopen — the wizard must be back on the Setup step.
+    await user.click(screen.getByText('toggle')); // close
+    await user.click(screen.getByText('toggle')); // reopen
+    expect(await screen.findByText('Create matrix')).toBeInTheDocument();
+    expect(screen.getByText('User accounts')).toBeInTheDocument();
+    expect(screen.queryByText(/appear as rows/i)).not.toBeInTheDocument();
   });
 
   it('toggles the "Include inherited access" checkbox on the Resources step', async () => {

@@ -173,14 +173,19 @@ export default function MatrixFilterWizard({
   const [saving, setSaving]   = useState(false);
   const [saveError, setSaveError] = useState(null);
 
-  // Reset state when reopened.
-  useEffect(() => {
-    if (!open) return;
-    setFilter(structuredClone(initialFilter || EMPTY_FILTER));
-    setManaged(initialManaged);
-    setStep('setup');
-    setError(null);
-  }, [open, initialFilter, initialManaged]);
+  // Reset state when reopened. Done during render on the closed→open
+  // transition (React's "adjusting state when a prop changes" pattern) rather
+  // than in an effect, so it doesn't trip react-hooks/set-state-in-effect.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setFilter(structuredClone(initialFilter || EMPTY_FILTER));
+      setManaged(initialManaged);
+      setStep('setup');
+      setError(null);
+    }
+  }
 
   // Load saved filters and column schemas when the modal opens.
   useEffect(() => {
