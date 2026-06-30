@@ -18,10 +18,19 @@ BeforeAll {
     $script:repoRoot    = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:midpointDir = Join-Path $script:repoRoot 'tools\crawlers\midpoint'
 
-    # midPoint pure helpers used by the transforms.
+    # midPoint pure helpers used by the transforms (Get-MidpointString,
+    # Test-MidpointEnabled, Format-AccountLabel, ...).
     . (Join-Path $script:midpointDir 'Invoke-MidpointApi.ps1')
     # The unit under test.
     . (Join-Path $script:midpointDir 'MidpointCrawler.Transform.ps1')
+
+    # Get-MidpointShadowLabel (MidpointCrawler.Functions.ps1) builds a label from
+    # cross-phase script state; stub it so the account-shadow transform stays
+    # hermetic. The stub echoes the inputs so the wiring can be asserted.
+    function Get-MidpointShadowLabel {
+        param($Shadow, $ShadowOid, $ResourceOid)
+        "label:$($Shadow.name)@$ResourceOid"
+    }
 }
 
 Describe 'ConvertTo-MidpointIdentityRecord' {
@@ -153,5 +162,45 @@ Describe 'ConvertTo-MidpointServiceResourceRecord' {
         $rec.enabled      | Should -BeTrue
         $rec.extendedAttributes.identifier | Should -Be 'PAY'
         $rec.PSObject.Properties.Name | Should -Not -Contain 'governanceResource'
+    }
+}
+
+Describe 'ConvertTo-MidpointAccountShadowRecord' {
+
+    It 'maps an account shadow to a User principal with the shadow label and ext attrs' {
+        $s = [pscustomobject]@{ name = 'jdoe'; objectClass = 'inetOrgPerson'; intent = 'default'; activation = [pscustomobject]@{ effectiveStatus = 'enabled' } }
+        $rec = ConvertTo-MidpointAccountShadowRecord -Shadow $s -ShadowOid 'sh-1' -ResourceOid 'res-ad' -Kind 'account'
+        $rec.id             | Should -Be 'sh-1'
+        $rec.principalType  | Should -Be 'User'
+        $rec.accountEnabled | Should -BeTrue
+        $rec.displayName    | Should -Be 'label:jdoe@res-ad'
+        $rec.extendedAttributes.accountName | Should -Be 'jdoe'
+        $rec.extendedAttributes.resourceOid | Should -Be 'res-ad'
+        $rec.extendedAttributes.kind        | Should -Be 'account'
+        $rec.extendedAttributes.source      | Should -Be 'midpoint-shadow'
+    }
+}
+
+Describe 'ConvertTo-MidpointEntitlementResourceRecord' {
+
+    It 'maps an entitlement shadow to an Entitlement resource' {
+        $s = [pscustomobject]@{ name = 'CN=Finance,OU=Groups'; objectClass = 'group'; intent = 'default' }
+        $rec = ConvertTo-MidpointEntitlementResourceRecord -Shadow $s -ShadowOid 'ent-1' -ResourceOid 'res-ad'
+        $rec.id           | Should -Be 'ent-1'
+        $rec.resourceType | Should -Be 'Entitlement'
+        $rec.extendedAttributes.resourceOid | Should -Be 'res-ad'
+        $rec.extendedAttributes.source      | Should -Be 'midpoint-entitlement'
+    }
+}
+
+Describe 'New-MidpointEntitlementAssignmentRecord' {
+
+    It 'builds a Direct entitlement assignment recording the source account' {
+        $rec = New-MidpointEntitlementAssignmentRecord -EntitlementOid 'ent-1' -OwnerOid 'usr-1' -ViaAccount 'sh-9'
+        $rec.resourceId     | Should -Be 'ent-1'
+        $rec.principalId    | Should -Be 'usr-1'
+        $rec.assignmentType | Should -Be 'Direct'
+        $rec.resourceType   | Should -Be 'Entitlement'
+        $rec.extendedAttributes.viaAccount | Should -Be 'sh-9'
     }
 }

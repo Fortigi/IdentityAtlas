@@ -174,3 +174,74 @@ function ConvertTo-MidpointServiceResourceRecord {
         }
     }
 }
+
+# Maps one midPoint account-kind ShadowType → an account Principal record on its
+# resource system. Get-MidpointShadowLabel (MidpointCrawler.Functions.ps1) builds
+# the readable label. Verbatim from the inline `$acctBySystem[$sysId].Add(...)`.
+function ConvertTo-MidpointAccountShadowRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Shadow,
+        [string]$ShadowOid,
+        [string]$ResourceOid,
+        [string]$Kind
+    )
+    return [PSCustomObject]@{
+        id             = $ShadowOid
+        externalId     = $ShadowOid
+        displayName    = (Get-MidpointShadowLabel -Shadow $Shadow -ShadowOid $ShadowOid -ResourceOid $ResourceOid)
+        principalType  = 'User'
+        accountEnabled = (Test-MidpointEnabled $Shadow)
+        extendedAttributes = @{
+            accountName = (Get-MidpointString $Shadow.name '')
+            resourceOid = $ResourceOid
+            objectClass = (Get-MidpointString $Shadow.objectClass '')
+            kind        = $Kind
+            intent      = (Get-MidpointString $Shadow.intent '')
+            source      = 'midpoint-shadow'
+        }
+    }
+}
+
+# Maps one midPoint entitlement-kind ShadowType (e.g. an AD group) → an Entitlement
+# Resource record. Verbatim from the inline `$entBySystem[$sysId].Add(...)`.
+function ConvertTo-MidpointEntitlementResourceRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Shadow,
+        [string]$ShadowOid,
+        [string]$ResourceOid
+    )
+    return [PSCustomObject]@{
+        id           = $ShadowOid
+        externalId   = $ShadowOid
+        displayName  = (Format-AccountLabel (Get-MidpointString $Shadow.name $ShadowOid))
+        resourceType = 'Entitlement'
+        extendedAttributes = @{
+            accountName = (Get-MidpointString $Shadow.name '')
+            resourceOid = $ResourceOid
+            objectClass = (Get-MidpointString $Shadow.objectClass '')
+            intent      = (Get-MidpointString $Shadow.intent '')
+            source      = 'midpoint-entitlement'
+        }
+    }
+}
+
+# Builds one Direct account->entitlement ResourceAssignment (consolidated on the
+# owner focus principal; the source account is recorded in viaAccount).
+# Verbatim from the inline `Add-IngestStreamRecord -Record ([PSCustomObject]@{...})`.
+function New-MidpointEntitlementAssignmentRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$EntitlementOid,
+        [Parameter(Mandatory)] [string]$OwnerOid,
+        [string]$ViaAccount
+    )
+    return [PSCustomObject]@{
+        resourceId         = $EntitlementOid
+        principalId        = $OwnerOid
+        assignmentType     = 'Direct'
+        resourceType       = 'Entitlement'
+        extendedAttributes = @{ viaAccount = $ViaAccount }
+    }
+}

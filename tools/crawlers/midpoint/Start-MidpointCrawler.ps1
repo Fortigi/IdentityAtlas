@@ -397,40 +397,14 @@ if ($Sync.shadows -and $Sync.users) {
 
                 if ($kind -eq 'account') {
                     if (-not $acctBySystem.ContainsKey($sysId)) { $acctBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
-                    $acctBySystem[$sysId].Add([PSCustomObject]@{
-                        id             = $shadowOid
-                        externalId     = $shadowOid
-                        displayName    = (Get-MidpointShadowLabel -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid)
-                        principalType  = 'User'
-                        accountEnabled = (Test-MidpointEnabled $s)
-                        extendedAttributes = @{
-                            accountName = (Get-MidpointString $s.name '')
-                            resourceOid = $resOid
-                            objectClass = (Get-MidpointString $s.objectClass '')
-                            kind        = $kind
-                            intent      = (Get-MidpointString $s.intent '')
-                            source      = 'midpoint-shadow'
-                        }
-                    })
+                    $acctBySystem[$sysId].Add((ConvertTo-MidpointAccountShadowRecord -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid -Kind $kind))
                     if ($ShadowOidToUserOid.ContainsKey($shadowOid)) {
                         $shadowMembers.Add([PSCustomObject]@{ identityId = $ShadowOidToUserOid[$shadowOid]; principalId = $shadowOid; accountType = 'Account'; isPrimary = $false })
                     }
                 }
                 elseif ($kind -eq 'entitlement') {
                     if (-not $entBySystem.ContainsKey($sysId)) { $entBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
-                    $entBySystem[$sysId].Add([PSCustomObject]@{
-                        id           = $shadowOid
-                        externalId   = $shadowOid
-                        displayName  = (Format-AccountLabel (Get-MidpointString $s.name $shadowOid))
-                        resourceType = 'Entitlement'
-                        extendedAttributes = @{
-                            accountName = (Get-MidpointString $s.name '')
-                            resourceOid = $resOid
-                            objectClass = (Get-MidpointString $s.objectClass '')
-                            intent      = (Get-MidpointString $s.intent '')
-                            source      = 'midpoint-entitlement'
-                        }
-                    })
+                    $entBySystem[$sysId].Add((ConvertTo-MidpointEntitlementResourceRecord -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid))
                     [void]$SyncedResourceIds.Add($shadowOid)
                     # Index by DN so construction/associationTargetSearch inducements (which
                     # filter on attributes/ri:dn) can later be resolved to this entitlement's
@@ -488,7 +462,7 @@ if ($Sync.shadows -and $Sync.users) {
                     if (-not $entAssignStreams.ContainsKey($sysId)) {
                         $entAssignStreams[$sysId] = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId $sysId -Scope @{ assignmentType = 'Direct'; resourceType = 'Entitlement' }
                     }
-                    Add-IngestStreamRecord -Stream $entAssignStreams[$sysId] -Record ([PSCustomObject]@{ resourceId = $entOid; principalId = $ownerOid; assignmentType = 'Direct'; resourceType = 'Entitlement'; extendedAttributes = @{ viaAccount = $shadowOid } })
+                    Add-IngestStreamRecord -Stream $entAssignStreams[$sysId] -Record (New-MidpointEntitlementAssignmentRecord -EntitlementOid $entOid -OwnerOid $ownerOid -ViaAccount $shadowOid)
                 }
                 if ($s.association) {
                     foreach ($assoc in @($s.association)) {
