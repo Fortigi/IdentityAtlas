@@ -283,3 +283,80 @@ function ConvertTo-OmadaEntitlementRelationships {
     }
     return @($out)
 }
+
+# Builds one governed Direct assignment from an Omada Resourceassignment (fanned
+# out to a specific user account). Verbatim from the inline `$RaBySys[...].Add(...)`.
+function New-OmadaRoleAssignmentRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$ResourceUid,
+        [Parameter(Mandatory)] [string]$PrincipalId,
+        [Parameter(Mandatory)] $RoleAssignment
+    )
+    return [PSCustomObject]@{
+        resourceId         = $ResourceUid
+        principalId        = $PrincipalId
+        assignmentType     = 'Direct'
+        governed           = $true
+        extendedAttributes = @{ validFrom = $RoleAssignment.VALIDFROM; validTo = $RoleAssignment.VALIDTO }
+    }
+}
+
+# Maps a Calculated Resource Assignment (connected-system account) → a derived
+# Principal record, building the display name from CRA Attributes.
+# Verbatim from the inline `$CaPrincipalsBySys[...].Add(...)` block.
+function ConvertTo-OmadaCraPrincipalRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $CalculatedAssignment,
+        [string]$AccountKey,
+        [string]$AccountName,
+        [string]$ResType
+    )
+    $Fn    = if ($CalculatedAssignment.Attributes.'FIRSTNAME') { ($CalculatedAssignment.Attributes.'FIRSTNAME' -join ' ').Trim() } else { '' }
+    $Ln    = if ($CalculatedAssignment.Attributes.'LASTNAME')  { ($CalculatedAssignment.Attributes.'LASTNAME'  -join ' ').Trim() } else { '' }
+    $Email = if ($CalculatedAssignment.Attributes.'EMAIL')     { ($CalculatedAssignment.Attributes.'EMAIL'     | Select-Object -First 1) } else { $Null }
+    $DName = "$Fn $Ln".Trim(); if (-not $DName) { $DName = $AccountName }
+    return [PSCustomObject]@{
+        id             = $AccountKey
+        externalId     = $AccountName
+        displayName    = $DName
+        email          = $Email
+        principalType  = 'User'
+        accountEnabled = ($CalculatedAssignment.Status -eq $True)
+        extendedAttributes = @{ accountType = $ResType }
+    }
+}
+
+# Maps a Calculated Resource Assignment → a governed Direct assignment, flattening
+# reasons and preserving status/isManaged in extendedAttributes.
+# Verbatim from the inline CRA `$Rec = [PSCustomObject]@{ ... }` block.
+function ConvertTo-OmadaCraAssignmentRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $CalculatedAssignment,
+        [Parameter(Mandatory)] [string]$ResourceUid,
+        [Parameter(Mandatory)] [string]$PrincipalId,
+        [string]$ResType,
+        [string]$AccountName
+    )
+    $Reasons = if ($CalculatedAssignment.Reasons) {
+        @($CalculatedAssignment.Reasons | ForEach-Object { $_.Description }) -join '; '
+    } else { '' }
+    $ExtAttr = @{
+        validFrom   = $CalculatedAssignment.ValidFrom
+        validTo     = $CalculatedAssignment.ValidTo
+        status      = if ($CalculatedAssignment.Status -eq $True) { 'Enabled' } else { 'Disabled' }
+        reasons     = $Reasons
+        accountType = $ResType
+        accountName = $AccountName
+        isManaged   = [bool]$CalculatedAssignment.IsManaged
+    }
+    return [PSCustomObject]@{
+        resourceId         = $ResourceUid
+        principalId        = $PrincipalId
+        assignmentType     = 'Direct'
+        governed           = $true
+        extendedAttributes = $ExtAttr
+    }
+}

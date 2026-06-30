@@ -793,13 +793,7 @@ if ($SyncAssignments) {
             if (-not $RaBySys.ContainsKey($SysKey)) { $RaBySys[$SysKey] = [System.Collections.Generic.List[object]]::new() }
 
             foreach ($UserUid in $UserUids) {
-                $RaBySys[$SysKey].Add([PSCustomObject]@{
-                    resourceId         = $ResourceUid
-                    principalId        = $UserUid
-                    assignmentType     = 'Direct'
-                    governed           = $true
-                    extendedAttributes = @{ validFrom = $Item.VALIDFROM; validTo = $Item.VALIDTO }
-                })
+                $RaBySys[$SysKey].Add((New-OmadaRoleAssignmentRecord -ResourceUid $ResourceUid -PrincipalId $UserUid -RoleAssignment $Item))
             }
         }
 
@@ -857,23 +851,10 @@ if ($SyncAssignments) {
                 if (-not $AccountKey) { continue }
                 $PrincipalUid = $AccountKey
 
-                $Fn    = if ($Item.Attributes.'FIRSTNAME') { ($Item.Attributes.'FIRSTNAME' -join ' ').Trim() } else { '' }
-                $Ln    = if ($Item.Attributes.'LASTNAME')  { ($Item.Attributes.'LASTNAME'  -join ' ').Trim() } else { '' }
-                $Email = if ($Item.Attributes.'EMAIL')     { ($Item.Attributes.'EMAIL'     | Select-Object -First 1) } else { $Null }
-                $DName = "$Fn $Ln".Trim(); if (-not $DName) { $DName = $AccountName }
-
                 if (-not $CaPrincipalsBySys.ContainsKey($SysKey)) {
                     $CaPrincipalsBySys[$SysKey] = [System.Collections.Generic.List[object]]::new()
                 }
-                $CaPrincipalsBySys[$SysKey].Add([PSCustomObject]@{
-                    id             = $AccountKey
-                    externalId     = $AccountName
-                    displayName    = $DName
-                    email          = $Email
-                    principalType  = 'User'
-                    accountEnabled = ($Item.Status -eq $True)
-                    extendedAttributes = @{ accountType = $ResType }
-                })
+                $CaPrincipalsBySys[$SysKey].Add((ConvertTo-OmadaCraPrincipalRecord -CalculatedAssignment $Item -AccountKey $AccountKey -AccountName $AccountName -ResType $ResType))
 
                 # IdentityMember: link this account to its Identity (person-type only — FK guard)
                 if ($IdentityUidInIdentitiesTable.Contains($IdentityUid)) {
@@ -887,30 +868,10 @@ if ($SyncAssignments) {
 
             if (-not $PrincipalUid) { continue }
 
-            # extendedAttributes: status, reasons, validFrom, validTo, accountType
-            $Reasons = if ($Item.Reasons) {
-                @($Item.Reasons | ForEach-Object { $_.Description }) -join '; '
-            } else { '' }
-            $ExtAttr = @{
-                validFrom   = $Item.ValidFrom
-                validTo     = $Item.ValidTo
-                status      = if ($Item.Status -eq $True) { 'Enabled' } else { 'Disabled' }
-                reasons     = $Reasons
-                accountType = $ResType
-                accountName = $AccountName
-            }
-
             # CRA rows are effective provisioning configured in Omada's governance
-            # structure → real Direct memberships, flagged governed=true. IsManaged
-            # is preserved in extendedAttributes for reference.
-            $ExtAttr.isManaged = [bool]$Item.IsManaged
-            $Rec = [PSCustomObject]@{
-                resourceId         = $ResourceUid
-                principalId        = $PrincipalUid
-                assignmentType     = 'Direct'
-                governed           = $true
-                extendedAttributes = $ExtAttr
-            }
+            # structure → real Direct memberships, flagged governed=true. Record
+            # shaping lives in ConvertTo-OmadaCraAssignmentRecord.
+            $Rec = ConvertTo-OmadaCraAssignmentRecord -CalculatedAssignment $Item -ResourceUid $ResourceUid -PrincipalId $PrincipalUid -ResType $ResType -AccountName $AccountName
             if (-not $CaAssignmentsBySys.ContainsKey($SysKey)) { $CaAssignmentsBySys[$SysKey] = [System.Collections.Generic.List[object]]::new() }
             $CaAssignmentsBySys[$SysKey].Add($Rec)
         }  # end foreach $Item in $CaPage

@@ -260,3 +260,59 @@ Describe 'ConvertTo-OmadaEntitlementRelationships' {
         @(ConvertTo-OmadaEntitlementRelationships -Resource ([pscustomobject]@{ UId = 'p' })).Count | Should -Be 0
     }
 }
+
+Describe 'New-OmadaRoleAssignmentRecord' {
+
+    It 'builds a governed Direct assignment with validity in extendedAttributes' {
+        $item = [pscustomobject]@{ VALIDFROM = '2026-01-01'; VALIDTO = '2026-12-31' }
+        $rec = New-OmadaRoleAssignmentRecord -ResourceUid 'res-1' -PrincipalId 'usr-1' -RoleAssignment $item
+        $rec.resourceId     | Should -Be 'res-1'
+        $rec.principalId    | Should -Be 'usr-1'
+        $rec.assignmentType | Should -Be 'Direct'
+        $rec.governed       | Should -BeTrue
+        $rec.extendedAttributes.validFrom | Should -Be '2026-01-01'
+    }
+}
+
+Describe 'ConvertTo-OmadaCraPrincipalRecord' {
+
+    It 'derives a connected-system principal, building displayName from CRA attributes' {
+        $cra = [pscustomobject]@{
+            Status = $true
+            Attributes = [pscustomobject]@{ FIRSTNAME = @('Frank'); LASTNAME = @('Ng'); EMAIL = @('frank@x.com') }
+        }
+        $rec = ConvertTo-OmadaCraPrincipalRecord -CalculatedAssignment $cra -AccountKey 'acct-key' -AccountName 'frankng' -ResType 'AD Account'
+        $rec.id             | Should -Be 'acct-key'
+        $rec.externalId     | Should -Be 'frankng'
+        $rec.displayName    | Should -Be 'Frank Ng'
+        $rec.email          | Should -Be 'frank@x.com'
+        $rec.accountEnabled | Should -BeTrue
+        $rec.extendedAttributes.accountType | Should -Be 'AD Account'
+    }
+
+    It 'falls back to AccountName when no name attributes are present' {
+        $cra = [pscustomobject]@{ Status = $false; Attributes = [pscustomobject]@{} }
+        (ConvertTo-OmadaCraPrincipalRecord -CalculatedAssignment $cra -AccountKey 'k' -AccountName 'svc_acct').displayName | Should -Be 'svc_acct'
+    }
+}
+
+Describe 'ConvertTo-OmadaCraAssignmentRecord' {
+
+    It 'builds a governed Direct assignment, flattening reasons and status' {
+        $cra = [pscustomobject]@{
+            ValidFrom = '2026-01-01'; ValidTo = '2026-12-31'; Status = $true; IsManaged = $true
+            Reasons = @([pscustomobject]@{ Description = 'Role X' }, [pscustomobject]@{ Description = 'Policy Y' })
+        }
+        $rec = ConvertTo-OmadaCraAssignmentRecord -CalculatedAssignment $cra -ResourceUid 'res-9' -PrincipalId 'prn-9' -ResType 'AD' -AccountName 'a'
+        $rec.assignmentType | Should -Be 'Direct'
+        $rec.governed       | Should -BeTrue
+        $rec.extendedAttributes.status    | Should -Be 'Enabled'
+        $rec.extendedAttributes.reasons   | Should -Be 'Role X; Policy Y'
+        $rec.extendedAttributes.isManaged | Should -BeTrue
+    }
+
+    It 'records status Disabled when the CRA status is false' {
+        $cra = [pscustomobject]@{ Status = $false }
+        (ConvertTo-OmadaCraAssignmentRecord -CalculatedAssignment $cra -ResourceUid 'r' -PrincipalId 'p').extendedAttributes.status | Should -Be 'Disabled'
+    }
+}
