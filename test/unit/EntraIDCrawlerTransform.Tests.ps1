@@ -221,3 +221,34 @@ Describe 'ConvertTo-EntraSpActivityRecord' {
         ConvertTo-EntraSpActivityRecord -ServicePrincipal $sp -Activity ([pscustomobject]@{}) | Should -BeNullOrEmpty
     }
 }
+
+Describe 'ConvertTo-EntraGroupResourceRecord' {
+
+    It 'maps a group to an EntraGroup resource with joined groupTypes' {
+        $group = [pscustomobject]@{
+            id = 'g1'; displayName = 'Sales'; description = 'Sales team'; mail = 'sales@contoso.com'
+            visibility = 'Private'; createdDateTime = '2019-01-01T00:00:00Z'
+            groupTypes = @('Unified'); securityEnabled = $false; mailEnabled = $true
+        }
+        $rec = ConvertTo-EntraGroupResourceRecord -Group $group
+        $rec['id']                            | Should -Be 'g1'
+        $rec['resourceType']                  | Should -Be 'EntraGroup'
+        $rec['enabled']                       | Should -BeTrue
+        $rec['mail']                          | Should -Be 'sales@contoso.com'
+        $rec['extendedAttributes']['groupTypes']      | Should -Be 'Unified'
+        $rec['extendedAttributes']['securityEnabled'] | Should -BeFalse
+        $rec['extendedAttributes']['mailEnabled']     | Should -BeTrue
+    }
+
+    It 'joins multiple groupTypes into a comma string' {
+        $group = [pscustomobject]@{ id = 'g2'; displayName = 'X'; groupTypes = @('Unified','DynamicMembership') }
+        (ConvertTo-EntraGroupResourceRecord -Group $group)['extendedAttributes']['groupTypes'] | Should -Be 'Unified,DynamicMembership'
+    }
+
+    It 'copies non-null custom group attributes into extendedAttributes' {
+        $group = [pscustomobject]@{ id = 'g3'; displayName = 'Y'; fgGroupDN = 'CN=Y,OU=Groups'; emptyAttr = $null }
+        $rec = ConvertTo-EntraGroupResourceRecord -Group $group -CustomGroupAttributes @('fgGroupDN','emptyAttr')
+        $rec['extendedAttributes']['fgGroupDN'] | Should -Be 'CN=Y,OU=Groups'
+        $rec['extendedAttributes'].ContainsKey('emptyAttr') | Should -BeFalse
+    }
+}

@@ -782,28 +782,7 @@ if ($SyncResources) {
     $groups = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/groups?`$select=$groupSelect&`$top=999"
 
     $records = @($groups | ForEach-Object {
-        $ext = @{
-            groupTypes      = ($_.groupTypes -join ',')
-            securityEnabled = $_.securityEnabled
-            mailEnabled     = $_.mailEnabled
-        }
-        foreach ($attr in $CustomGroupAttributes) {
-            if ($_.$attr -ne $null) { $ext[$attr] = $_.$attr }
-        }
-        # Portal Link + *_OuPath for any DN-shaped custom attr (fgGroupDN,
-        # onPremisesDistinguishedName via CustomGroupAttributes, etc.).
-        Add-FGEntraCalculatedAttributes -Object $_ -Ext $ext -Type 'Group' | Out-Null
-        @{
-            id              = $_.id
-            displayName     = $_.displayName
-            description     = $_.description
-            resourceType    = 'EntraGroup'
-            mail            = $_.mail
-            visibility      = $_.visibility
-            enabled         = $true
-            createdDateTime = $_.createdDateTime
-            extendedAttributes = $ext
-        }
+        ConvertTo-EntraGroupResourceRecord -Group $_ -CustomGroupAttributes $CustomGroupAttributes
     })
 
     Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `

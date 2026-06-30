@@ -165,3 +165,35 @@ function ConvertTo-EntraSpActivityRecord {
     if ($rec.Count -gt 3) { return $rec }
     return $null
 }
+
+# Maps one Graph group → an ingest/resources record (resourceType='EntraGroup').
+# Verbatim from the inline `$groups | ForEach-Object { ... }` block.
+function ConvertTo-EntraGroupResourceRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Group,
+        [string[]]$CustomGroupAttributes = @()
+    )
+    $ext = @{
+        groupTypes      = ($Group.groupTypes -join ',')
+        securityEnabled = $Group.securityEnabled
+        mailEnabled     = $Group.mailEnabled
+    }
+    foreach ($attr in $CustomGroupAttributes) {
+        if ($null -ne $Group.$attr) { $ext[$attr] = $Group.$attr }
+    }
+    # Portal Link + *_OuPath for any DN-shaped custom attr (fgGroupDN,
+    # onPremisesDistinguishedName via CustomGroupAttributes, etc.).
+    Add-FGEntraCalculatedAttributes -Object $Group -Ext $ext -Type 'Group' | Out-Null
+    return @{
+        id                 = $Group.id
+        displayName        = $Group.displayName
+        description        = $Group.description
+        resourceType       = 'EntraGroup'
+        mail               = $Group.mail
+        visibility         = $Group.visibility
+        enabled            = $true
+        createdDateTime    = $Group.createdDateTime
+        extendedAttributes = $ext
+    }
+}
