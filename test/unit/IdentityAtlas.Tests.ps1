@@ -606,9 +606,12 @@ Describe 'Postgres Schema Files' {
         (Get-ChildItem $script:migrationsDir -Filter '*.sql').Count | Should -BeGreaterOrEqual 1
     }
 
-    It 'all migrations are numbered NNN_*.sql' {
+    It 'all migrations are numbered NNN_*.sql (optional letter suffix for inserts, e.g. 044a_)' {
+        # The optional [a-z] after the 3 digits lets a migration be slotted between two existing
+        # numbers without renumbering — e.g. 044a_ sorts after 044_ and before 045_, so the runner
+        # (which orders by filename) applies it in the right place.
         $bad = Get-ChildItem $script:migrationsDir -Filter '*.sql' | Where-Object {
-            $_.Name -notmatch '^\d{3}_[a-z_]+\.sql$'
+            $_.Name -notmatch '^\d{3}[a-z]?_[a-z_]+\.sql$'
         }
         $bad | Should -BeNullOrEmpty -Because "bad names: $($bad.Name -join ', ')"
     }
