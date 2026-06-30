@@ -293,7 +293,7 @@ var assemblies = [
       { "name": "src/accountlinking/classifier.js", "rp": "src_accountlinking_classifier.js.html", "cl": 57, "ucl": 1, "cal": 58, "tl": 130, "cb": 74, "tb": 90, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/accountlinking/defaultRules.js", "rp": "src_accountlinking_defaultRules.js.html", "cl": 1, "ucl": 0, "cal": 1, "tl": 22, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/accountlinking/engine.js", "rp": "src_accountlinking_engine.js.html", "cl": 110, "ucl": 20, "cal": 130, "tl": 315, "cb": 68, "tb": 112, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "src/app.js", "rp": "src_app.js.html", "cl": 76, "ucl": 24, "cal": 100, "tl": 373, "cb": 17, "tb": 65, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/app.js", "rp": "src_app.js.html", "cl": 69, "ucl": 24, "cal": 93, "tl": 359, "cb": 12, "tb": 59, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/auth/permissionManifest.js", "rp": "src_auth_permissionManifest.js.html", "cl": 3, "ucl": 0, "cal": 3, "tl": 57, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/auth/permissions.js", "rp": "src_auth_permissions.js.html", "cl": 17, "ucl": 0, "cal": 17, "tl": 85, "cb": 10, "tb": 10, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/auth/readTokens.js", "rp": "src_auth_readTokens.js.html", "cl": 17, "ucl": 10, "cal": 27, "tl": 109, "cb": 10, "tb": 19, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
@@ -393,11 +393,12 @@ var assemblies = [
       { "name": "src/secrets/crawlerSecrets.js", "rp": "src_secrets_crawlerSecrets.js.html", "cl": 21, "ucl": 7, "cal": 28, "tl": 68, "cb": 10, "tb": 16, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/secrets/migrateCrawlerSecrets.js", "rp": "src_secrets_migrateCrawlerSecrets.js.html", "cl": 14, "ucl": 2, "cal": 16, "tl": 48, "cb": 4, "tb": 4, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/secrets/vault.js", "rp": "src_secrets_vault.js.html", "cl": 40, "ucl": 13, "cal": 53, "tl": 165, "cb": 4, "tb": 9, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "src/updates/channel.js", "rp": "src_updates_channel.js.html", "cl": 12, "ucl": 0, "cal": 12, "tl": 33, "cb": 22, "tb": 22, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/updates/channel.js", "rp": "src_updates_channel.js.html", "cl": 12, "ucl": 0, "cal": 12, "tl": 35, "cb": 20, "tb": 20, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/updates/checkForUpdates.js", "rp": "src_updates_checkForUpdates.js.html", "cl": 1, "ucl": 25, "cal": 26, "tl": 96, "cb": 9, "tb": 26, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/updates/detect.js", "rp": "src_updates_detect.js.html", "cl": 36, "ucl": 0, "cal": 36, "tl": 79, "cb": 24, "tb": 31, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/updates/job.js", "rp": "src_updates_job.js.html", "cl": 0, "ucl": 7, "cal": 7, "tl": 19, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/updates/versionCompare.js", "rp": "src_updates_versionCompare.js.html", "cl": 25, "ucl": 0, "cal": 25, "tl": 48, "cb": 40, "tb": 41, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/version.js", "rp": "src_version.js.html", "cl": 9, "ucl": 0, "cal": 9, "tl": 31, "cb": 6, "tb": 6, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
 ];
 
