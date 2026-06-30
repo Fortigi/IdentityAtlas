@@ -63,7 +63,10 @@ export default [
       // violations must be fixed (e.g. a .then() chain, a reducer-backed state,
       // or a render-time "adjust state on prop change") rather than reintroduced.
       'react-hooks/set-state-in-effect': 'error',
-      'react-hooks/refs': 'warn',
+      // Also clean (0 violations), so enforce it too — together these are the
+      // React Compiler-aware lint rules. Reading/writing ref.current during
+      // render must move into an effect or event handler.
+      'react-hooks/refs': 'error',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
