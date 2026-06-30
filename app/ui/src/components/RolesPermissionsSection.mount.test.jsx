@@ -127,6 +127,27 @@ describe('RolesPermissionsSection (mounted)', () => {
     expect(await screen.findByText(/Saved\. Refresh other open browser tabs/i)).toBeInTheDocument();
   });
 
+  it('re-fetches the mapping from the server after a successful save', async () => {
+    // Pins the converted loader's reuse path: refresh() runs again after a PUT.
+    let gets = 0;
+    const authFetch = makeAuthFetch((url, opts = {}) => {
+      const method = opts.method || 'GET';
+      if (method === 'GET') { gets += 1; return makeData(); }
+      return jsonResponse({ ok: true }); // PUT
+    });
+    renderWithProviders(h(RolesPermissionsSection), { auth: { authFetch } });
+    const user = userEvent.setup();
+    await screen.findByText('Roles & Permissions');
+    const afterMount = gets; // one GET from the mount load
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    await user.click(checkboxes[checkboxes.length - 1]);
+    await user.click(screen.getByText('Save changes'));
+    await screen.findByText(/Saved\. Refresh other open browser tabs/i);
+
+    await waitFor(() => expect(gets).toBeGreaterThan(afterMount));
+  });
+
   it('shows a save error message with hint when PUT fails', async () => {
     const authFetch = methodRoutes(() =>
       jsonResponse({ error: 'self-lockout', hint: 'keep admin.auth' }, { ok: false, status: 409 }),
