@@ -360,3 +360,20 @@ function ConvertTo-OmadaCraAssignmentRecord {
         extendedAttributes = $ExtAttr
     }
 }
+
+# Builds one context-member link (Identity → context). The three Context Members
+# sources (Contextassignment, direct identity refs, Employment) all emit this exact
+# shape. Verbatim from the inline `$CtxMemberRecords.Add([PSCustomObject]@{ ... })`.
+function New-OmadaContextMemberRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$ContextId,
+        [Parameter(Mandatory)] [string]$MemberId
+    )
+    return [PSCustomObject]@{
+        contextId  = $ContextId
+        memberId   = $MemberId   # Identity.UId → matches Identities table
+        memberType = 'Identity'
+        addedBy    = 'sync'
+    }
+}

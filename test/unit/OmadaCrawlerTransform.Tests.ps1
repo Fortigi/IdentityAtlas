@@ -316,3 +316,14 @@ Describe 'ConvertTo-OmadaCraAssignmentRecord' {
         (ConvertTo-OmadaCraAssignmentRecord -CalculatedAssignment $cra -ResourceUid 'r' -PrincipalId 'p').extendedAttributes.status | Should -Be 'Disabled'
     }
 }
+
+Describe 'New-OmadaContextMemberRecord' {
+
+    It 'builds an Identity context-member link' {
+        $rec = New-OmadaContextMemberRecord -ContextId 'ctx-1' -MemberId 'idu-1'
+        $rec.contextId  | Should -Be 'ctx-1'
+        $rec.memberId   | Should -Be 'idu-1'
+        $rec.memberType | Should -Be 'Identity'
+        $rec.addedBy    | Should -Be 'sync'
+    }
+}

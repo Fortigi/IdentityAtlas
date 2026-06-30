@@ -577,12 +577,7 @@ if ($SyncContextMembers) {
             # empty, causing FK violations if the Contexts table is empty (e.g. cloud with no Orgunit entity set).
             if ($SyncedContextIds.Count -eq 0 -or -not $SyncedContextIds.Contains($ContextUid)) { continue }
             if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
-            $CtxMemberRecords.Add([PSCustomObject]@{
-                contextId  = $ContextUid
-                memberId   = $IdentUid   # Identity.UId → matches Identities table
-                memberType = 'Identity'
-                addedBy    = 'sync'
-            })
+            $CtxMemberRecords.Add((New-OmadaContextMemberRecord -ContextId $ContextUid -MemberId $IdentUid))
         }
 
         # ── Source 2: Direct context reference fields on Identity (OUREF, COUNTRY, etc.) ──
@@ -599,12 +594,7 @@ if ($SyncContextMembers) {
                 foreach ($Field in $FieldsToCheck.Keys) {
                     $ContextUid = Get-OmadaRefUid -Ref $Ident.$Field
                     if (-not $ContextUid -or -not $SyncedContextIds.Contains($ContextUid)) { continue }
-                    $CtxMemberRecords.Add([PSCustomObject]@{
-                        contextId  = $ContextUid
-                        memberId   = $IdentUid
-                        memberType = 'Identity'
-                        addedBy    = 'sync'
-                    })
+                    $CtxMemberRecords.Add((New-OmadaContextMemberRecord -ContextId $ContextUid -MemberId $IdentUid))
                 }
             }
         }
@@ -621,12 +611,7 @@ if ($SyncContextMembers) {
                     if (-not $IdentUid -or -not $ContextUid) { continue }
                     if (-not $SyncedContextIds.Contains($ContextUid)) { continue }
                     if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
-                    $CtxMemberRecords.Add([PSCustomObject]@{
-                        contextId  = $ContextUid
-                        memberId   = $IdentUid
-                        memberType = 'Identity'
-                        addedBy    = 'sync'
-                    })
+                    $CtxMemberRecords.Add((New-OmadaContextMemberRecord -ContextId $ContextUid -MemberId $IdentUid))
                 }
                 Write-Host "  Employment-based context links added from $($EmpItems.Count) employment records" -ForegroundColor Gray
             } catch {
