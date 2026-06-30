@@ -245,3 +245,39 @@ function New-MidpointEntitlementAssignmentRecord {
         extendedAttributes = @{ viaAccount = $ViaAccount }
     }
 }
+
+# Builds one governed Direct role/service assignment (governance membership). $Grant
+# is 'direct' (user.assignment[]) or 'inherited' (user.roleMembershipRef[]). Verbatim
+# from the two near-identical inline `$ra.Add([PSCustomObject]@{ ... })` blocks.
+function New-MidpointGovernanceAssignmentRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$ResourceId,
+        [Parameter(Mandatory)] [string]$PrincipalId,
+        [string]$ResourceType,
+        [Parameter(Mandatory)] [string]$Grant
+    )
+    return [PSCustomObject]@{
+        resourceId         = $ResourceId
+        principalId        = $PrincipalId
+        assignmentType     = 'Direct'
+        governed           = $true
+        resourceType       = $ResourceType
+        extendedAttributes = @{ grant = $Grant }
+    }
+}
+
+# Builds one Contains resource relationship (parent role -> child role/service/
+# entitlement). Verbatim from the inline `$rr.Add([PSCustomObject]@{ ... })` blocks.
+function New-MidpointContainsRelationship {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$ParentResourceId,
+        [Parameter(Mandatory)] [string]$ChildResourceId
+    )
+    return [PSCustomObject]@{
+        parentResourceId = $ParentResourceId
+        childResourceId  = $ChildResourceId
+        relationshipType = 'Contains'
+    }
+}

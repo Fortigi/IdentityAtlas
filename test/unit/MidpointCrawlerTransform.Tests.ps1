@@ -204,3 +204,30 @@ Describe 'New-MidpointEntitlementAssignmentRecord' {
         $rec.extendedAttributes.viaAccount | Should -Be 'sh-9'
     }
 }
+
+Describe 'New-MidpointGovernanceAssignmentRecord' {
+
+    It 'builds a governed Direct assignment with the grant marker (direct)' {
+        $rec = New-MidpointGovernanceAssignmentRecord -ResourceId 'r-1' -PrincipalId 'u-1' -ResourceType 'BusinessRole' -Grant 'direct'
+        $rec.resourceId     | Should -Be 'r-1'
+        $rec.principalId    | Should -Be 'u-1'
+        $rec.assignmentType | Should -Be 'Direct'
+        $rec.governed       | Should -BeTrue
+        $rec.resourceType   | Should -Be 'BusinessRole'
+        $rec.extendedAttributes.grant | Should -Be 'direct'
+    }
+
+    It 'carries grant = inherited for roleMembershipRef-derived links' {
+        (New-MidpointGovernanceAssignmentRecord -ResourceId 'r-2' -PrincipalId 'u-2' -ResourceType 'Service' -Grant 'inherited').extendedAttributes.grant | Should -Be 'inherited'
+    }
+}
+
+Describe 'New-MidpointContainsRelationship' {
+
+    It 'builds a Contains relationship from parent to child resource' {
+        $rec = New-MidpointContainsRelationship -ParentResourceId 'role-1' -ChildResourceId 'ent-1'
+        $rec.parentResourceId | Should -Be 'role-1'
+        $rec.childResourceId  | Should -Be 'ent-1'
+        $rec.relationshipType | Should -Be 'Contains'
+    }
+}

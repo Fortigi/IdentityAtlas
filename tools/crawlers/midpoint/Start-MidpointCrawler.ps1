@@ -548,14 +548,7 @@ if ($Sync.assignments -and $Sync.users -and $AllUsers) {
                 if (-not $seen.Add("$targetOid|$uoid")) { continue }
                 # Resources.id = role/service oid and Principals.id = user oid (native-id
                 # ingest), so reference them directly by id — no externalId resolution needed.
-                $ra.Add([PSCustomObject]@{
-                    resourceId         = $targetOid
-                    principalId        = $uoid
-                    assignmentType     = 'Direct'
-                    governed           = $true
-                    resourceType       = $ResourceOidToType[$targetOid]
-                    extendedAttributes = @{ grant = 'direct' }
-                })
+                $ra.Add((New-MidpointGovernanceAssignmentRecord -ResourceId $targetOid -PrincipalId $uoid -ResourceType $ResourceOidToType[$targetOid] -Grant 'direct'))
             }
         }
 
@@ -572,14 +565,7 @@ if ($Sync.assignments -and $Sync.users -and $AllUsers) {
                 if (-not (Test-MidpointDefaultRelation (Get-MidpointRefRelation $m ''))) { continue }
                 if (-not $SyncedResourceIds.Contains($targetOid)) { continue }
                 if (-not $seen.Add("$targetOid|$uoid")) { continue }   # already emitted as direct → keep that
-                $ra.Add([PSCustomObject]@{
-                    resourceId         = $targetOid
-                    principalId        = $uoid
-                    assignmentType     = 'Direct'
-                    governed           = $true
-                    resourceType       = $ResourceOidToType[$targetOid]
-                    extendedAttributes = @{ grant = 'inherited' }
-                })
+                $ra.Add((New-MidpointGovernanceAssignmentRecord -ResourceId $targetOid -PrincipalId $uoid -ResourceType $ResourceOidToType[$targetOid] -Grant 'inherited'))
             }
         }
         # Governance memberships are real Direct assignments on the role/service,
@@ -614,7 +600,7 @@ if ($Sync.roleNesting -and $AllRoles) {
                     if (-not $childOid -or $tt -notin @('RoleType', 'ServiceType')) { continue }
                     if (-not $SyncedResourceIds.Contains($childOid)) { continue }
                     if (-not $seen.Add("$parentOid|$childOid")) { continue }
-                    $rr.Add([PSCustomObject]@{ parentResourceId = $parentOid; childResourceId = $childOid; relationshipType = 'Contains' })
+                    $rr.Add((New-MidpointContainsRelationship -ParentResourceId $parentOid -ChildResourceId $childOid))
                     $nTargetRef++
                     continue
                 }
@@ -630,7 +616,7 @@ if ($Sync.roleNesting -and $AllRoles) {
                     if (-not $entOid) { $nUnresolved++; continue }
                     if (-not $SyncedResourceIds.Contains($entOid)) { $nUnresolved++; continue }
                     if (-not $seen.Add("$parentOid|$entOid")) { continue }
-                    $rr.Add([PSCustomObject]@{ parentResourceId = $parentOid; childResourceId = $entOid; relationshipType = 'Contains' })
+                    $rr.Add((New-MidpointContainsRelationship -ParentResourceId $parentOid -ChildResourceId $entOid))
                     $nConstruction++
                 }
             }
