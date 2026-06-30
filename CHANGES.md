@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added an **Admin → Updates** screen showing the running version and release channel, whether a newer version is available, a switch to turn **automatic updates** on or off, and a history of update checks and installed updates. A **Check now** button runs an immediate check. (Pinned deployments are detected and the switch is disabled with an explanation.)
+
+## Changes in this PR
+
 - Fixed a startup crash when upgrading to recent builds: the database migration that simplifies how access assignments are stored could fail with a "duplicate key" error on real data, leaving the web container in a restart loop (shown as an "Application Error" page). The migration now safely merges duplicate assignments instead of failing, so the upgrade completes and the app starts normally.
 
 ## Changes in this PR
