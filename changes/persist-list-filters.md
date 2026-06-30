@@ -1,1 +1,0 @@
-- Fixed search and filters being lost on list pages (Identities, Users, Groups, Resources) after opening one of the results and returning to the list — your search, column filters, "include deleted" toggle, and sort are now kept for the rest of the session.
