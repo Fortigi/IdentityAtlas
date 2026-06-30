@@ -207,3 +207,79 @@ function ConvertTo-OmadaIdentityMemberRecord {
         accountType = 'Primary'
     }
 }
+
+# Maps one Omada Resource entity → an ingest/resources record, or $null when it has
+# no UId/name. Map-ResourceCategory (OmadaCrawler.Functions.ps1) resolves the Atlas
+# resourceType; $UserGroupMap resolves USERGROUPREF -> display name. The caller keeps
+# the system-grouping. Verbatim from the inline `foreach ($Item in $AllResources)`.
+function ConvertTo-OmadaResourceRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Resource,
+        [hashtable]$UserGroupMap = @{}
+    )
+    $OmadaCat   = if ($Resource.ROLECATEGORY)   { [string]$Resource.ROLECATEGORY.Value }   else { '' }
+    $AtlasType  = Map-ResourceCategory -Category $OmadaCat
+    $SysName    = Get-OmadaRefValue -Ref $Resource.SYSTEMREF   -Fallback ''
+    $RoleType   = Get-OmadaRefValue -Ref $Resource.ROLETYPEREF -Fallback ''
+    $FolderName = Get-OmadaRefValue -Ref $Resource.ROLEFOLDER  -Fallback ''
+    $Status     = if ($Resource.RESOURCESTATUS) { [string]$Resource.RESOURCESTATUS.Value } else { 'Active' }
+    $Enabled    = $Status -notin @('Inactive', 'Disabled', 'Deleted')
+    $ExtId      = [string]$Resource.UId
+    $DispName   = if ($Resource.NAME) { $Resource.NAME } else { $Resource.DisplayName }
+    if (-not $ExtId -or -not $DispName) { return $null }
+
+    $UgUId  = Get-OmadaRefUid -Ref $Resource.USERGROUPREF
+    $UgName = if ($UgUId -and $UserGroupMap.ContainsKey($UgUId)) { $UserGroupMap[$UgUId] } else { '' }
+
+    $ExplicitOwner = ''
+    if ($Resource.EXPLICITOWNER -and $Resource.EXPLICITOWNER.Count -gt 0) {
+        $ExplicitOwner = ($Resource.EXPLICITOWNER | ForEach-Object { $_.DisplayName }) -join '; '
+    }
+    $ManualOwner = ''
+    if ($Resource.MANUALOWNER -and $Resource.MANUALOWNER.Count -gt 0) {
+        $ManualOwner = ($Resource.MANUALOWNER | ForEach-Object { $_.DisplayName }) -join '; '
+    }
+
+    return [PSCustomObject]@{
+        id                 = $ExtId
+        externalId         = $ExtId
+        displayName        = $DispName
+        resourceType       = $AtlasType
+        governanceResource = ($AtlasType -eq 'BusinessRole')
+        description        = $Resource.DESCRIPTION
+        enabled            = $Enabled
+        extendedAttributes = @{
+            resourceCategory  = $OmadaCat
+            resourceType      = $RoleType          # ROLETYPEREF.DisplayName
+            roleFolder        = $FolderName        # ROLEFOLDER.DisplayName
+            skipProvisioning  = if ($Null -ne $Resource.SKIPPROVISIONING) { [bool]$Resource.SKIPPROVISIONING } else { $False }
+            userGroupName     = $UgName            # USERGROUPREF → Usergroup.DisplayName
+            explicitOwner     = $ExplicitOwner     # EXPLICITOWNER collection
+            manualOwner       = $ManualOwner        # MANUALOWNER collection
+            omadaSystem       = $SysName
+        }
+    }
+}
+
+# Extracts the Contains relationships (parent -> each CHILDROLES child) from one
+# Omada Resource. Returns an array (empty when no children). Verbatim from the
+# inline `foreach ($Child in $Item.CHILDROLES)` block.
+function ConvertTo-OmadaEntitlementRelationships {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Resource)
+    if (-not $Resource.CHILDROLES) { return @() }
+    $out = [System.Collections.Generic.List[object]]::new()
+    $ParentUid = [string]$Resource.UId
+    foreach ($Child in $Resource.CHILDROLES) {
+        $ChildUid = Get-OmadaRefUid -Ref $Child
+        if ($ChildUid) {
+            $out.Add([PSCustomObject]@{
+                parentResourceId = $ParentUid   # direct UUID FK to Resources.id
+                childResourceId  = $ChildUid    # direct UUID FK to Resources.id
+                relationshipType = 'Contains'
+            })
+        }
+    }
+    return @($out)
+}

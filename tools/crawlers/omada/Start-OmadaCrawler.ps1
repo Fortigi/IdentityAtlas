@@ -684,54 +684,13 @@ if ($SyncResources) {
 
         Write-Step "Building resource records from $($AllResources.Count) Omada resources..."
         # Group resources by connected system (SYSTEMREF) for correct scoped-delete
+        # Per-resource record shaping lives in ConvertTo-OmadaResourceRecord
+        # (OmadaCrawler.Transform.ps1); the system grouping stays here.
         $BySysUId = @{}
         foreach ($Item in $AllResources) {
-            $OmadaCat    = if ($Item.ROLECATEGORY)    { [string]$Item.ROLECATEGORY.Value }   else { '' }
-            $AtlasType   = Map-ResourceCategory -Category $OmadaCat
-
-            $SysUId      = Get-OmadaRefUid  -Ref $Item.SYSTEMREF
-            $SysName     = Get-OmadaRefValue -Ref $Item.SYSTEMREF   -Fallback ''
-            $RoleType    = Get-OmadaRefValue -Ref $Item.ROLETYPEREF  -Fallback ''
-            $FolderName  = Get-OmadaRefValue -Ref $Item.ROLEFOLDER   -Fallback ''
-            $Status      = if ($Item.RESOURCESTATUS) { [string]$Item.RESOURCESTATUS.Value } else { 'Active' }
-            $Enabled     = $Status -notin @('Inactive', 'Disabled', 'Deleted')
-            $ExtId       = [string]$Item.UId
-            $DispName    = if ($Item.NAME) { $Item.NAME } else { $Item.DisplayName }
-            if (-not $ExtId -or -not $DispName) { continue }
-
-            # USERGROUPREF — look up name from pre-fetched map
-            $UgUId   = Get-OmadaRefUid -Ref $Item.USERGROUPREF
-            $UgName  = if ($UgUId -and $UserGroupMap.ContainsKey($UgUId)) { $UserGroupMap[$UgUId] } else { '' }
-
-            # Owner references (EXPLICITOWNER, MANUALOWNER) — take first if collection
-            $ExplicitOwner = ''
-            if ($Item.EXPLICITOWNER -and $Item.EXPLICITOWNER.Count -gt 0) {
-                $ExplicitOwner = ($Item.EXPLICITOWNER | ForEach-Object { $_.DisplayName }) -join '; '
-            }
-            $ManualOwner = ''
-            if ($Item.MANUALOWNER -and $Item.MANUALOWNER.Count -gt 0) {
-                $ManualOwner = ($Item.MANUALOWNER | ForEach-Object { $_.DisplayName }) -join '; '
-            }
-
-            $Rec = [PSCustomObject]@{
-                id                 = $ExtId
-                externalId         = $ExtId
-                displayName        = $DispName
-                resourceType       = $AtlasType
-                governanceResource = ($AtlasType -eq 'BusinessRole')
-                description        = $Item.DESCRIPTION
-                enabled            = $Enabled
-                extendedAttributes = @{
-                    resourceCategory  = $OmadaCat
-                    resourceType      = $RoleType          # ROLETYPEREF.DisplayName
-                    roleFolder        = $FolderName        # ROLEFOLDER.DisplayName
-                    skipProvisioning  = if ($Null -ne $Item.SKIPPROVISIONING) { [bool]$Item.SKIPPROVISIONING } else { $False }
-                    userGroupName     = $UgName            # USERGROUPREF → Usergroup.DisplayName
-                    explicitOwner     = $ExplicitOwner     # EXPLICITOWNER collection
-                    manualOwner       = $ManualOwner        # MANUALOWNER collection
-                    omadaSystem       = $SysName
-                }
-            }
+            $Rec = ConvertTo-OmadaResourceRecord -Resource $Item -UserGroupMap $UserGroupMap
+            if (-not $Rec) { continue }
+            $SysUId = Get-OmadaRefUid -Ref $Item.SYSTEMREF
             $Key = if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
             if (-not $BySysUId.ContainsKey($Key)) { $BySysUId[$Key] = [System.Collections.Generic.List[object]]::new() }
             $BySysUId[$Key].Add($Rec)
@@ -773,19 +732,12 @@ if ($SyncEntitlements) {
             Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $T) -Records @{ relationships = 0 }
         } else {
             Write-Step "Extracting entitlements (CHILDROLES) from $($AllResources.Count) resources..."
+            # CHILDROLES → Contains relationship extraction lives in
+            # ConvertTo-OmadaEntitlementRelationships (OmadaCrawler.Transform.ps1).
             $RelRecords = [System.Collections.Generic.List[object]]::new()
             foreach ($Item in $AllResources) {
-                if (-not $Item.CHILDROLES) { continue }
-                $ParentUid = [string]$Item.UId
-                foreach ($Child in $Item.CHILDROLES) {
-                    $ChildUid = Get-OmadaRefUid -Ref $Child
-                    if ($ChildUid) {
-                        $RelRecords.Add([PSCustomObject]@{
-                            parentResourceId = $ParentUid   # direct UUID FK to Resources.id
-                            childResourceId  = $ChildUid    # direct UUID FK to Resources.id
-                            relationshipType = 'Contains'
-                        })
-                    }
+                foreach ($Rel in (ConvertTo-OmadaEntitlementRelationships -Resource $Item)) {
+                    $RelRecords.Add($Rel)
                 }
             }
 

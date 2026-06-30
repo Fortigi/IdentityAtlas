@@ -31,6 +31,11 @@ BeforeAll {
         contextTypeToIdentityAtlas  = @{ 'OrgUnit' = 'OrgUnit'; 'Organisational Unit' = 'OrgUnit'; Department = 'Department' }
         identityTypeToIdentityAtlas = @{ Employee = 'User'; Contractor = 'ExternalUser'; 'Service Account' = 'ServicePrincipal' }
     }
+    # Map-ResourceCategory iterates this ordered list; '' is the catch-all.
+    $script:ResourceCategoryMapping = @(
+        @{ category = 'Business Role'; resourceType = 'BusinessRole' }
+        @{ category = '';             resourceType = 'Resource' }
+    )
 }
 
 Describe 'Get-OmadaIdentityType' {
@@ -203,5 +208,55 @@ Describe 'ConvertTo-OmadaIdentityMemberRecord' {
         ConvertTo-OmadaIdentityMemberRecord -Account ([pscustomobject]@{ UId = 'a'; Inactive = $true }) -IdentityLookup $lookup -IdentityTypesForIdentityTable $person | Should -BeNullOrEmpty
         ConvertTo-OmadaIdentityMemberRecord -Account ([pscustomobject]@{ UId = 'a' }) -IdentityLookup $lookup -IdentityTypesForIdentityTable $person | Should -BeNullOrEmpty
         ConvertTo-OmadaIdentityMemberRecord -Account ([pscustomobject]@{ UId = 'a'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }) -IdentityLookup $lookup -IdentityTypesForIdentityTable $person | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'ConvertTo-OmadaResourceRecord' {
+
+    It 'maps a resource, resolves category, owners and usergroup name' {
+        $res = [pscustomobject]@{
+            UId = 'res-1'; NAME = 'Finance Role'; DESCRIPTION = 'd'
+            ROLECATEGORY = [pscustomobject]@{ Value = 'Business Role' }
+            USERGROUPREF = [pscustomobject]@{ UId = 'ug-1' }
+            EXPLICITOWNER = @([pscustomobject]@{ DisplayName = 'Owner A' })
+            RESOURCESTATUS = [pscustomobject]@{ Value = 'Active' }
+        }
+        $rec = ConvertTo-OmadaResourceRecord -Resource $res -UserGroupMap @{ 'ug-1' = 'Finance Group' }
+        $rec.id                 | Should -Be 'res-1'
+        $rec.resourceType       | Should -Be 'BusinessRole'
+        $rec.governanceResource | Should -BeTrue
+        $rec.enabled            | Should -BeTrue
+        $rec.extendedAttributes.userGroupName | Should -Be 'Finance Group'
+        $rec.extendedAttributes.explicitOwner | Should -Be 'Owner A'
+    }
+
+    It 'marks resources with an inactive status as disabled' {
+        $res = [pscustomobject]@{ UId = 'res-2'; NAME = 'Old'; RESOURCESTATUS = [pscustomobject]@{ Value = 'Disabled' } }
+        (ConvertTo-OmadaResourceRecord -Resource $res).enabled | Should -BeFalse
+    }
+
+    It 'returns $null when the resource has no UId or name' {
+        ConvertTo-OmadaResourceRecord -Resource ([pscustomobject]@{ NAME = 'No id' }) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'ConvertTo-OmadaEntitlementRelationships' {
+
+    It 'emits one Contains relationship per CHILDROLES child' {
+        $res = [pscustomobject]@{
+            UId = 'parent-1'
+            CHILDROLES = @([pscustomobject]@{ UId = 'child-1' }, [pscustomobject]@{ UId = 'child-2' })
+        }
+        $rels = ConvertTo-OmadaEntitlementRelationships -Resource $res
+        @($rels).Count | Should -Be 2
+        $rels | ForEach-Object {
+            $_.parentResourceId | Should -Be 'parent-1'
+            $_.relationshipType | Should -Be 'Contains'
+        }
+        ($rels | ForEach-Object { $_.childResourceId } | Sort-Object) -join ',' | Should -Be 'child-1,child-2'
+    }
+
+    It 'returns an empty array when the resource has no CHILDROLES' {
+        @(ConvertTo-OmadaEntitlementRelationships -Resource ([pscustomobject]@{ UId = 'p' })).Count | Should -Be 0
     }
 }
