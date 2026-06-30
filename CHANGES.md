@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Reworked the Roles & Permissions admin matrix and the Account Linking settings page to remove two React Compiler set-state-in-effect warnings. Loading, saving, custom permission/error messages, and config editing all behave exactly as before.
+
+## Changes in this PR
+
 - Reworked the Admin page's data loading (Power Query tokens, history retention, LLM settings, risk-scoring features) and its tab/provider state handling to remove six React Compiler set-state-in-effect warnings. All Admin sub-tabs load, save, and reset exactly as before.
 - Reworked the matrix scope-statistics panel's live-stats and trends/breakdown loading to remove two more React Compiler set-state-in-effect warnings; the counts, governed split, trends timeline and department drill-down all behave as before.
 
