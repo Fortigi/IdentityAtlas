@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   renderHook,
   act,
@@ -13,7 +13,11 @@ import useEntityPage from '@ui/hooks/useEntityPage';
 const LIST = '/api/users';
 const COLUMNS = '/api/users/columns';
 
-function setup({ handler, baseFilters } = {}) {
+// useEntityPage now persists search/filters/sort to sessionStorage (issue #192),
+// so each test must start from a clean slate to stay isolated.
+beforeEach(() => sessionStorage.clear());
+
+function setup({ handler, baseFilters, entityType = 'user' } = {}) {
   const af = makeAuthFetch(
     handler || {
       [COLUMNS]: [
@@ -27,11 +31,11 @@ function setup({ handler, baseFilters } = {}) {
     }
   );
   const { wrapper } = makeWrapper({ auth: { authFetch: af } });
-  const { result } = renderHook(
+  const { result, unmount } = renderHook(
     () =>
       useEntityPage({
         authFetch: af,
-        entityType: 'user',
+        entityType,
         listEndpoint: LIST,
         columnsEndpoint: COLUMNS,
         tagFilterKey: '__userTag',
@@ -39,7 +43,7 @@ function setup({ handler, baseFilters } = {}) {
       }),
     { wrapper }
   );
-  return { af, result };
+  return { af, result, unmount };
 }
 
 // Pull the last list request URL out of the mock's call list.
@@ -269,5 +273,46 @@ describe('useEntityPage', () => {
 
     act(() => result.current.addFilter('__userTag', 'VIP'));
     await waitFor(() => expect(result.current.activeTagFilter).toBe('VIP'));
+  });
+
+  it('persists search, filters and sort across an unmount and restores them on remount (#192)', async () => {
+    // Apply a search + filter + sort, then unmount the page (as happens when a
+    // result is opened in a detail tab).
+    const first = setup();
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    act(() => first.result.current.setSearch('alice'));
+    act(() => first.result.current.addFilter('department', 'Sales'));
+    act(() => first.result.current.setIncludeDeleted(true));
+    act(() => first.result.current.toggleSort('displayName'));
+    await waitFor(() => expect(first.result.current.debouncedSearch).toBe('alice'));
+    first.unmount();
+
+    // Remount a fresh hook for the same entity type — state comes back.
+    const second = setup();
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+    expect(second.result.current.search).toBe('alice');
+    expect(second.result.current.activeFilters).toEqual([{ field: 'department', value: 'Sales' }]);
+    expect(second.result.current.includeDeleted).toBe(true);
+    expect(second.result.current.sortCol).toBe('displayName');
+
+    // ...and the restored search drives the list query on remount.
+    await waitFor(() => {
+      const url = lastListUrl(second.af);
+      expect(url).toContain('search=alice');
+      expect(decodeURIComponent(url)).toContain('"department":"Sales"');
+    });
+  });
+
+  it('keeps persisted state isolated per entity type', async () => {
+    const users = setup({ entityType: 'user' });
+    await waitFor(() => expect(users.result.current.loading).toBe(false));
+    act(() => users.result.current.setSearch('only-users'));
+    await waitFor(() => expect(users.result.current.debouncedSearch).toBe('only-users'));
+    users.unmount();
+
+    // A different entity type must not inherit the user-page search.
+    const groups = setup({ entityType: 'group' });
+    await waitFor(() => expect(groups.result.current.loading).toBe(false));
+    expect(groups.result.current.search).toBe('');
   });
 });
