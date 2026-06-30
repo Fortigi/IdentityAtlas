@@ -69,7 +69,7 @@ export async function runUpdateCheck({ source = 'scheduler', fetchImpl } = {}) {
 
   let latestVersion = null;
   let updateAvailable = false;
-  let status = 'up-to-date';
+  let status;
   let detail = null;
 
   try {
