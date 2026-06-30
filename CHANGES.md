@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added the foundation for in-app auto-updates: Identity Atlas now runs a **daily check** for a newer version on its release channel (`edge` / `beta` / `latest`) and records every check and applied update in an update log. A new **auto-update switch** (off by default, `admin.systems`-gated) controls whether updates are applied automatically. The app never touches Docker itself — applying an update is handled by a small, deployment-specific helper (Docker host / Azure / local), so the same mechanism works on every setup. (This change ships the backend, detection, daily check and API; the Admin → Updates screen and the helper scripts follow in separate changes.)
+
+## Changes in this PR
+
 - The Excel / Power Query data export now includes **Contexts** and **Context Members** sheets — so you can export every context (departments, OUs, administrative units, tags, generated clusters) and the membership rows showing which entity belongs to which context, alongside the existing Principals / Resources / Assignments data.
 
 ## Changes in this PR
