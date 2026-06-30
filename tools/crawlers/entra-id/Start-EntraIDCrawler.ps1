@@ -950,36 +950,13 @@ if ($SyncGovernance) {
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (catalogs)..." -ForegroundColor Cyan
         $catalogs = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageCatalogs?`$top=999"
 
-        $catRecords = @($catalogs | ForEach-Object {
-            @{
-                id              = $_.id
-                displayName     = $_.displayName
-                description     = $_.description
-                catalogType     = $_.catalogType
-                enabled         = [bool]$_.isPublished
-                createdDateTime = $_.createdDateTime
-                modifiedDateTime = $_.modifiedDateTime
-            }
-        })
+        $catRecords = @($catalogs | ForEach-Object { ConvertTo-EntraGovernanceCatalogRecord -Catalog $_ })
         Send-IngestBatch -Endpoint 'ingest/governance/catalogs' -SystemId $systemId -SyncMode 'full' -Records $catRecords
 
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access packages -> business roles)..." -ForegroundColor Cyan
         $accessPackages = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages?`$top=999"
 
-        $apRecords = @($accessPackages | ForEach-Object {
-            @{
-                id              = $_.id
-                displayName     = $_.displayName
-                description     = $_.description
-                resourceType    = 'BusinessRole'
-                governanceResource = $true
-                catalogId       = $_.catalogId
-                isHidden        = [bool]$_.isHidden
-                enabled         = $true
-                createdDateTime = $_.createdDateTime
-                modifiedDateTime = $_.modifiedDateTime
-            }
-        })
+        $apRecords = @($accessPackages | ForEach-Object { ConvertTo-EntraAccessPackageRecord -AccessPackage $_ })
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
             -Scope @{ resourceType = 'BusinessRole' } -Records $apRecords
 
@@ -1125,30 +1102,8 @@ if ($SyncGovernance) {
             $policies = Invoke-FGGetRequest -URI "https://graph.microsoft.com/v1.0/identityGovernance/entitlementManagement/assignmentPolicies?`$expand=accessPackage"
             $polRecords = @()
             foreach ($pol in $policies) {
-                $apId = if ($pol.accessPackage) { $pol.accessPackage.id } else { $pol.accessPackageId }
-                if (-not $apId) { continue }
-                $hasAutoAdd = $false
-                $hasAutoRemove = $false
-                if ($pol.automaticRequestSettings) {
-                    $hasAutoAdd    = [bool]$pol.automaticRequestSettings.requestAccessForAllowedTargets
-                    $hasAutoRemove = [bool]$pol.automaticRequestSettings.removeAccessWhenTargetLeavesAllowedTargets
-                }
-                $hasReview = $false
-                if ($pol.reviewSettings) {
-                    $hasReview = [bool]$pol.reviewSettings.isEnabled
-                }
-                $polRecords += @{
-                    id                 = $pol.id
-                    resourceId         = $apId
-                    displayName        = $pol.displayName
-                    description        = $pol.description
-                    allowedTargetScope = $pol.allowedTargetScope
-                    hasAutoAddRule     = $hasAutoAdd
-                    hasAutoRemoveRule  = $hasAutoRemove
-                    hasAccessReview    = $hasReview
-                    reviewSettings     = $pol.reviewSettings
-                    policyConditions   = $pol.requestorSettings
-                }
+                $polRec = ConvertTo-EntraAssignmentPolicyRecord -Policy $pol
+                if ($polRec) { $polRecords += $polRec }
             }
             if ($polRecords.Count -gt 0) {
                 Send-IngestBatch -Endpoint 'ingest/governance/policies' -SystemId $systemId -SyncMode 'full' -Records $polRecords

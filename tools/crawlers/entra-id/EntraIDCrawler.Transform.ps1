@@ -307,3 +307,70 @@ function ConvertTo-EntraPimRecord {
         expirationDateTime = $EligibilityRow.expirationDateTime
     }
 }
+
+# Maps one entitlement-management catalog → an ingest/governance/catalogs record.
+# Verbatim from the inline `$catalogs | ForEach-Object { ... }` block.
+function ConvertTo-EntraGovernanceCatalogRecord {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Catalog)
+    return @{
+        id               = $Catalog.id
+        displayName      = $Catalog.displayName
+        description      = $Catalog.description
+        catalogType      = $Catalog.catalogType
+        enabled          = [bool]$Catalog.isPublished
+        createdDateTime  = $Catalog.createdDateTime
+        modifiedDateTime = $Catalog.modifiedDateTime
+    }
+}
+
+# Maps one access package → an ingest/resources record (resourceType='BusinessRole',
+# governanceResource). Verbatim from the inline `$accessPackages | ForEach-Object`.
+function ConvertTo-EntraAccessPackageRecord {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $AccessPackage)
+    return @{
+        id                 = $AccessPackage.id
+        displayName        = $AccessPackage.displayName
+        description        = $AccessPackage.description
+        resourceType       = 'BusinessRole'
+        governanceResource = $true
+        catalogId          = $AccessPackage.catalogId
+        isHidden           = [bool]$AccessPackage.isHidden
+        enabled            = $true
+        createdDateTime    = $AccessPackage.createdDateTime
+        modifiedDateTime   = $AccessPackage.modifiedDateTime
+    }
+}
+
+# Maps one assignment policy → an ingest/governance/policies record, or $null when
+# the access-package id can't be resolved. Verbatim from the inline
+# `foreach ($pol in $policies) { ... }` block.
+function ConvertTo-EntraAssignmentPolicyRecord {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Policy)
+    $apId = if ($Policy.accessPackage) { $Policy.accessPackage.id } else { $Policy.accessPackageId }
+    if (-not $apId) { return $null }
+    $hasAutoAdd = $false
+    $hasAutoRemove = $false
+    if ($Policy.automaticRequestSettings) {
+        $hasAutoAdd    = [bool]$Policy.automaticRequestSettings.requestAccessForAllowedTargets
+        $hasAutoRemove = [bool]$Policy.automaticRequestSettings.removeAccessWhenTargetLeavesAllowedTargets
+    }
+    $hasReview = $false
+    if ($Policy.reviewSettings) {
+        $hasReview = [bool]$Policy.reviewSettings.isEnabled
+    }
+    return @{
+        id                 = $Policy.id
+        resourceId         = $apId
+        displayName        = $Policy.displayName
+        description        = $Policy.description
+        allowedTargetScope = $Policy.allowedTargetScope
+        hasAutoAddRule     = $hasAutoAdd
+        hasAutoRemoveRule  = $hasAutoRemove
+        hasAccessReview    = $hasReview
+        reviewSettings     = $Policy.reviewSettings
+        policyConditions   = $Policy.requestorSettings
+    }
+}

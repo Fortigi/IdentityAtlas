@@ -352,3 +352,61 @@ Describe 'ConvertTo-EntraPimRecord' {
         $rec['expirationDateTime'] | Should -Be '2026-12-31T00:00:00Z'
     }
 }
+
+Describe 'ConvertTo-EntraGovernanceCatalogRecord' {
+
+    It 'maps a catalog and derives enabled from isPublished' {
+        $cat = [pscustomobject]@{ id = 'c1'; displayName = 'General'; description = 'd'; catalogType = 'UserManaged'; isPublished = $true; createdDateTime = '2020-01-01T00:00:00Z'; modifiedDateTime = '2021-01-01T00:00:00Z' }
+        $rec = ConvertTo-EntraGovernanceCatalogRecord -Catalog $cat
+        $rec['id']      | Should -Be 'c1'
+        $rec['enabled'] | Should -BeTrue
+        $rec['catalogType'] | Should -Be 'UserManaged'
+    }
+
+    It 'maps enabled = $false for an unpublished catalog' {
+        $cat = [pscustomobject]@{ id = 'c2'; displayName = 'Draft'; isPublished = $false }
+        (ConvertTo-EntraGovernanceCatalogRecord -Catalog $cat)['enabled'] | Should -BeFalse
+    }
+}
+
+Describe 'ConvertTo-EntraAccessPackageRecord' {
+
+    It 'maps an access package to a governance BusinessRole resource' {
+        $ap = [pscustomobject]@{ id = 'ap1'; displayName = 'Finance Access'; description = 'd'; catalogId = 'c1'; isHidden = $false; createdDateTime = '2022-01-01T00:00:00Z'; modifiedDateTime = '2022-06-01T00:00:00Z' }
+        $rec = ConvertTo-EntraAccessPackageRecord -AccessPackage $ap
+        $rec['resourceType']       | Should -Be 'BusinessRole'
+        $rec['governanceResource'] | Should -BeTrue
+        $rec['enabled']            | Should -BeTrue
+        $rec['catalogId']          | Should -Be 'c1'
+        $rec['isHidden']           | Should -BeFalse
+    }
+}
+
+Describe 'ConvertTo-EntraAssignmentPolicyRecord' {
+
+    It 'resolves apId from the expanded accessPackage and reads auto/review flags' {
+        $pol = [pscustomobject]@{
+            id = 'p1'; displayName = 'Auto policy'; description = 'd'; allowedTargetScope = 'allMemberUsers'
+            accessPackage = [pscustomobject]@{ id = 'ap1' }
+            automaticRequestSettings = [pscustomobject]@{ requestAccessForAllowedTargets = $true; removeAccessWhenTargetLeavesAllowedTargets = $true }
+            reviewSettings = [pscustomobject]@{ isEnabled = $true }
+        }
+        $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy $pol
+        $rec['resourceId']        | Should -Be 'ap1'
+        $rec['hasAutoAddRule']    | Should -BeTrue
+        $rec['hasAutoRemoveRule'] | Should -BeTrue
+        $rec['hasAccessReview']   | Should -BeTrue
+    }
+
+    It 'falls back to accessPackageId and defaults flags to $false when settings are absent' {
+        $pol = [pscustomobject]@{ id = 'p2'; accessPackageId = 'ap2' }
+        $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy $pol
+        $rec['resourceId']        | Should -Be 'ap2'
+        $rec['hasAutoAddRule']    | Should -BeFalse
+        $rec['hasAccessReview']   | Should -BeFalse
+    }
+
+    It 'returns $null when no access-package id can be resolved' {
+        ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p3' }) | Should -BeNullOrEmpty
+    }
+}
