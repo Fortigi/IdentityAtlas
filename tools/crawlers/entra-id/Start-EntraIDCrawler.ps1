@@ -152,6 +152,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Functions.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.Transform.ps1')
 
 # ─── Main ─────────────────────────────────────────────────────────
 
@@ -216,6 +217,12 @@ if (-not $systemId) {
 Write-Host "  System ID: $systemId" -ForegroundColor Green
 
 $syncStart = Get-Date
+
+# Sentinel resourceId for aggregate per-principal activity rows (the DEFAULT on
+# the PrincipalActivity.resourceId column). Shared by the Principals and Service
+# Principals phases — defined here, not inside a phase, so neither phase depends
+# on the other having run first.
+$aggResourceId = '00000000-0000-0000-0000-000000000000'
 
 # Per-phase timings. Each major `if ($Sync...)` block stops a Stopwatch at
 # its end and records the elapsed time here. Printed as a table at the end
@@ -336,47 +343,10 @@ if ($SyncPrincipals) {
 
     Update-CrawlerProgress -Detail "Building $($users.Count) user records..."
 
+    # Per-user record shaping lives in ConvertTo-EntraPrincipalRecord
+    # (EntraIDCrawler.Transform.ps1) so it can be unit-tested without a tenant.
     $records = @($users | ForEach-Object {
-        $rec = @{
-            id               = $_.id
-            displayName      = $_.displayName
-            email            = $_.mail ?? $_.userPrincipalName
-            accountEnabled   = [bool]$_.accountEnabled
-            principalType    = 'User'
-            givenName        = $_.givenName
-            surname          = $_.surname
-            department       = $_.department
-            jobTitle         = $_.jobTitle
-            companyName      = $_.companyName
-            employeeId       = $_.employeeId
-            createdDateTime  = $_.createdDateTime
-        }
-        # Manager relationship (from $expand=manager)
-        if ($_.manager -and $_.manager.id) {
-            $rec['managerId'] = $_.manager.id
-        }
-
-        # Build extendedAttributes: userType, externalUserState, custom attrs.
-        # `signInActivity` DELIBERATELY does NOT live here anymore — it used
-        # to, but the four timestamps change on every crawl and a jsonb
-        # rewrite triggers a _history row per user per day. Activity data
-        # now goes to the purpose-built PrincipalActivity table, which is
-        # not audited. See migrations/017_principal_activity.sql.
-        $ext = @{}
-        if ($_.userType)          { $ext['userType']          = $_.userType }
-        if ($_.externalUserState) { $ext['externalUserState'] = $_.externalUserState }
-        if ($CustomUserAttributes.Count -gt 0) {
-            foreach ($attr in $CustomUserAttributes) {
-                $val = Get-UserAttrValue -User $_ -AttrName $attr
-                if ($null -ne $val -and $val -ne '') { $ext[$attr] = $val }
-            }
-        }
-        # Identity-Atlas-calculated fields: portal Link and *_OuPath derived
-        # from any DN-shaped value in the record. Runs last so it sees both
-        # the core attributes above and every CustomUserAttribute.
-        Add-FGEntraCalculatedAttributes -Object $_ -Ext $ext -Type 'User' | Out-Null
-        if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
-        $rec
+        ConvertTo-EntraPrincipalRecord -User $_ -CustomUserAttributes $CustomUserAttributes
     })
 
     Update-CrawlerProgress -Detail "Uploading $($records.Count) users to ingest API..."
@@ -398,23 +368,9 @@ if ($SyncPrincipals) {
     # them to /ingest/principal-activity with resourceId set to the
     # AGG_RESOURCE_ID sentinel (the DEFAULT on the column) produces one
     # aggregate row per user.
-    $aggResourceId = '00000000-0000-0000-0000-000000000000'
     $activityRecords = @($users | ForEach-Object {
-        $sia = $_.signInActivity
-        if ($null -eq $sia) { return }
-        $rec = @{
-            principalId   = $_.id
-            resourceId    = $aggResourceId
-            activityType  = 'SignIn'
-        }
-        if ($sia.lastSignInDateTime)                { $rec['lastSignInDateTime']                = $sia.lastSignInDateTime }
-        if ($sia.lastNonInteractiveSignInDateTime)  { $rec['lastNonInteractiveSignInDateTime']  = $sia.lastNonInteractiveSignInDateTime }
-        if ($sia.lastSuccessfulSignInDateTime)      { $rec['lastSuccessfulSignInDateTime']      = $sia.lastSuccessfulSignInDateTime }
-        # Only emit a record if we have at least one timestamp — users who
-        # have never signed in would otherwise produce a row with just the
-        # key columns and no meaningful payload.
-        if ($rec.Count -gt 3) { $rec }
-    })
+        ConvertTo-EntraSignInActivityRecord -User $_
+    } | Where-Object { $_ })
     if ($activityRecords.Count -gt 0) {
         Update-CrawlerProgress -Detail "Uploading $($activityRecords.Count) user sign-in activity records..."
         Send-IngestBatch -Endpoint 'ingest/principal-activity' -SystemId $systemId -SyncMode 'delta' `
@@ -578,40 +534,11 @@ if ($SyncServicePrincipals) {
         AIAgent          = New-Object System.Collections.ArrayList
     }
 
+    # Per-SP record shaping + classification lives in
+    # ConvertTo-EntraServicePrincipalRecord (EntraIDCrawler.Transform.ps1).
     foreach ($sp in $sps) {
-        $pt = Get-FGServicePrincipalType -ServicePrincipal $sp -AINamePatterns $AINamePatterns
-
-        $rec = @{
-            id             = $sp.id
-            displayName    = $sp.displayName
-            accountEnabled = [bool]$sp.accountEnabled
-            principalType  = $pt
-        }
-        if ($sp.createdDateTime) { $rec['createdDateTime'] = $sp.createdDateTime }
-
-        # Everything that isn't a first-class column but is useful for filters
-        # or risk signals lives in extendedAttributes. We stringify arrays
-        # (tags, servicePrincipalNames) because jsonb_typeof filters arrays out
-        # of the filter-dropdown discovery and a comma-joined string keeps the
-        # key discoverable.
-        $ext = @{}
-        if ($sp.appId)                   { $ext['appId']                   = $sp.appId }
-        if ($sp.servicePrincipalType)    { $ext['servicePrincipalType']    = $sp.servicePrincipalType }
-        if ($sp.appOwnerOrganizationId)  { $ext['appOwnerOrganizationId']  = $sp.appOwnerOrganizationId }
-        if ($sp.publisherName)           { $ext['publisherName']           = $sp.publisherName }
-        if ($sp.homepage)                { $ext['homepage']                = $sp.homepage }
-        if ($sp.notes)                   { $ext['notes']                   = $sp.notes }
-        if ($sp.tags -and $sp.tags.Count -gt 0) {
-            $ext['tags'] = ($sp.tags -join ',')
-        }
-        if ($sp.servicePrincipalNames -and $sp.servicePrincipalNames.Count -gt 0) {
-            $ext['servicePrincipalNames'] = ($sp.servicePrincipalNames -join ',')
-        }
-        # Portal Link + any *_OuPath fields from DN-shaped extension attrs.
-        Add-FGEntraCalculatedAttributes -Object $sp -Ext $ext -Type 'ServicePrincipal' | Out-Null
-        if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
-
-        [void]$buckets[$pt].Add($rec)
+        $rec = ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp -AINamePatterns $AINamePatterns
+        [void]$buckets[$rec.principalType].Add($rec)
     }
 
     Write-Host ("  Classified: {0} ServicePrincipal / {1} ManagedIdentity / {2} AIAgent" -f `
@@ -663,32 +590,8 @@ if ($SyncServicePrincipals) {
         }
 
         $spActivityRecords = @($sps | ForEach-Object {
-            $a = $activityByAppId[$_.appId]
-            if (-not $a) { return }
-            $rec = @{
-                principalId  = $_.id
-                resourceId   = $aggResourceId
-                activityType = 'ServicePrincipalSignIn'
-            }
-            if ($a.lastSignInActivity.lastSignInDateTime) {
-                $rec['lastSignInDateTime'] = $a.lastSignInActivity.lastSignInDateTime
-            }
-            if ($a.lastNonInteractiveSignInActivity.lastSignInDateTime) {
-                $rec['lastNonInteractiveSignInDateTime'] = $a.lastNonInteractiveSignInActivity.lastSignInDateTime
-            }
-            # applicationAuthenticationClientSignInActivity + delegatedClientSignInActivity
-            # aren't first-class columns — they're SP-specific signals so we keep
-            # them in extendedAttributes for risk scoring and detail-page display.
-            $ext = @{}
-            if ($a.applicationAuthenticationClientSignInActivity.lastSignInDateTime) {
-                $ext['lastApplicationAuthSignInDateTime'] = $a.applicationAuthenticationClientSignInActivity.lastSignInDateTime
-            }
-            if ($a.delegatedClientSignInActivity.lastSignInDateTime) {
-                $ext['lastDelegatedClientSignInDateTime'] = $a.delegatedClientSignInActivity.lastSignInDateTime
-            }
-            if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
-            if ($rec.Count -gt 3) { $rec }
-        })
+            ConvertTo-EntraSpActivityRecord -ServicePrincipal $_ -Activity $activityByAppId[$_.appId] -AggregateResourceId $aggResourceId
+        } | Where-Object { $_ })
 
         if ($spActivityRecords.Count -gt 0) {
             Update-CrawlerProgress -Detail "Uploading $($spActivityRecords.Count) SP sign-in activity records..."
@@ -761,48 +664,13 @@ if ($SyncSignInLogs) {
         $totalEvents = 0
         $sliceFailures = @()
 
-        # Local function: fold one event into $agg. Pulled out of the loop
-        # to keep the pipeline lambda tight and avoid duplicated logic
-        # between the two phases that need it (currently just this one,
-        # but it would be the easy place to add more granular activity
-        # types later).
-        $foldEvent = {
-            param($ev)
-            if (-not $ev.userId -or -not $ev.appId) { $script:_signin_skipped++; return }
-            $spId = $appIdToSpId[$ev.appId]
-            if (-not $spId) { $script:_signin_skipped++; return }
-            $key = "$($ev.userId)|$spId"
-            $entry = $agg[$key]
-            if (-not $entry) {
-                $entry = @{
-                    principalId  = $ev.userId
-                    resourceId   = $spId
-                    activityType = 'SignInPerApp'
-                    lastSignInDateTime = $ev.createdDateTime
-                    lastSuccessfulSignInDateTime = $null
-                    lastFailedSignInDateTime = $null
-                    signInCount = 0
-                }
-                $agg[$key] = $entry
-            }
-            if ($ev.createdDateTime -gt $entry.lastSignInDateTime) {
-                $entry.lastSignInDateTime = $ev.createdDateTime
-            }
-            $entry.signInCount++
-            $errorCode = $ev.status.errorCode
-            if ($null -ne $errorCode -and [int]$errorCode -eq 0) {
-                if (-not $entry.lastSuccessfulSignInDateTime -or $ev.createdDateTime -gt $entry.lastSuccessfulSignInDateTime) {
-                    $entry.lastSuccessfulSignInDateTime = $ev.createdDateTime
-                }
-            } else {
-                if (-not $entry.lastFailedSignInDateTime -or $ev.createdDateTime -gt $entry.lastFailedSignInDateTime) {
-                    $entry.lastFailedSignInDateTime = $ev.createdDateTime
-                }
-            }
-        }
-        # $script:_signin_skipped is incremented inside the script block above;
-        # the alternative ($script:skipped) would clash with similarly-named
-        # vars in adjacent phases.
+        # Per-event aggregation lives in Add-EntraSignInEventToAggregate
+        # (EntraIDCrawler.Transform.ps1): it folds one event into $agg (passed by
+        # reference) and returns $false when the event is skipped. The skip
+        # counter stays in $script: scope so it survives the streaming
+        # ForEach-Object below (a plain local wouldn't propagate out of the
+        # pipeline block) and doesn't clash with similarly-named vars in
+        # adjacent phases.
         $script:_signin_skipped = 0
 
         $nowUtc = (Get-Date).ToUniversalTime()
@@ -819,7 +687,9 @@ if ($SyncSignInLogs) {
                 # result to a variable first would buffer the whole slice
                 # and defeat the streaming.
                 Invoke-FGGetRequestStream -URI $sliceUri | ForEach-Object {
-                    & $foldEvent $_
+                    if (-not (Add-EntraSignInEventToAggregate -SignInEvent $_ -Aggregate $agg -AppIdToSpId $appIdToSpId)) {
+                        $script:_signin_skipped++
+                    }
                     $sliceCount++
                 }
                 $totalEvents += $sliceCount
@@ -879,28 +749,7 @@ if ($SyncResources) {
     $groups = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/groups?`$select=$groupSelect&`$top=999"
 
     $records = @($groups | ForEach-Object {
-        $ext = @{
-            groupTypes      = ($_.groupTypes -join ',')
-            securityEnabled = $_.securityEnabled
-            mailEnabled     = $_.mailEnabled
-        }
-        foreach ($attr in $CustomGroupAttributes) {
-            if ($_.$attr -ne $null) { $ext[$attr] = $_.$attr }
-        }
-        # Portal Link + *_OuPath for any DN-shaped custom attr (fgGroupDN,
-        # onPremisesDistinguishedName via CustomGroupAttributes, etc.).
-        Add-FGEntraCalculatedAttributes -Object $_ -Ext $ext -Type 'Group' | Out-Null
-        @{
-            id              = $_.id
-            displayName     = $_.displayName
-            description     = $_.description
-            resourceType    = 'EntraGroup'
-            mail            = $_.mail
-            visibility      = $_.visibility
-            enabled         = $true
-            createdDateTime = $_.createdDateTime
-            extendedAttributes = $ext
-        }
+        ConvertTo-EntraGroupResourceRecord -Group $_ -CustomGroupAttributes $CustomGroupAttributes
     })
 
     Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
@@ -970,41 +819,15 @@ if ($SyncAssignments) {
     }
 
     # Build ownership resources (one per owned group), HasOwnership relationships,
-    # and the owner assignments (Direct to the ownership resource).
+    # and the owner assignments (Direct to the ownership resource). Shaping lives
+    # in ConvertTo-EntraGroupOwnership (EntraIDCrawler.Transform.ps1).
     $groupNameById = @{}
     foreach ($g in $groups) { $groupNameById[$g.id] = $g.displayName }
 
-    $ownershipResMap = @{}   # ownershipId -> resource record
-    $ownershipRelMap = @{}   # "groupId|ownershipId" -> relationship record
-    $ownerAssns = [System.Collections.Generic.List[object]]::new()
-    foreach ($ow in $rawOwners) {
-        $ownId = New-OwnershipResourceId -GroupId $ow.groupId
-        if (-not $ownershipResMap.ContainsKey($ownId)) {
-            $gname = $groupNameById[$ow.groupId]
-            if (-not $gname) { $gname = '(group)' }
-            $ownershipResMap[$ownId] = @{
-                id                 = $ownId
-                displayName        = "Owner @ $gname"
-                resourceType       = 'GroupOwnership'
-                externalId         = "entraid-ownership:$($ow.groupId)"
-                extendedAttributes = @{ ownedResourceId = $ow.groupId }
-            }
-            $ownershipRelMap["$($ow.groupId)|$ownId"] = @{
-                parentResourceId = $ow.groupId
-                childResourceId  = $ownId
-                relationshipType = 'HasOwnership'
-            }
-        }
-        $ownerAssns.Add(@{
-            resourceId     = $ownId
-            principalId    = $ow.principalId
-            assignmentType = 'Direct'
-            resourceType   = 'GroupOwnership'
-        })
-    }
-    $ownershipResources = @($ownershipResMap.Values)
-    $ownershipRels      = @($ownershipRelMap.Values)
-    $ownerRecords       = @($ownerAssns)
+    $ownership = ConvertTo-EntraGroupOwnership -RawOwners $rawOwners -GroupNameById $groupNameById
+    $ownershipResources = $ownership.resources
+    $ownershipRels      = $ownership.relationships
+    $ownerRecords       = $ownership.assignments
 
     # Send unconditionally (even when empty) so a full-sync reconcile clears
     # ownership resources/relationships/assignments for groups that lost owners.
@@ -1086,15 +909,7 @@ if ($SyncPim) {
             # Group output by source group to compute pimGroupCount accurately
             $groupSet = @{}
             foreach ($r in $batchOutput) {
-                $pimRecordsList.Add(@{
-                    resourceId         = $r.resourceId
-                    principalId        = $r.principalId
-                    principalType      = $r.principalType
-                    assignmentType     = $r.assignmentType
-                    resourceType       = 'EntraGroup'
-                    state              = $r.state
-                    expirationDateTime = $r.expirationDateTime
-                })
+                $pimRecordsList.Add((ConvertTo-EntraPimRecord -EligibilityRow $r))
                 $groupSet[$r.resourceId] = $true
             }
             $pimGroupCount += $groupSet.Count
@@ -1135,36 +950,13 @@ if ($SyncGovernance) {
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (catalogs)..." -ForegroundColor Cyan
         $catalogs = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageCatalogs?`$top=999"
 
-        $catRecords = @($catalogs | ForEach-Object {
-            @{
-                id              = $_.id
-                displayName     = $_.displayName
-                description     = $_.description
-                catalogType     = $_.catalogType
-                enabled         = [bool]$_.isPublished
-                createdDateTime = $_.createdDateTime
-                modifiedDateTime = $_.modifiedDateTime
-            }
-        })
+        $catRecords = @($catalogs | ForEach-Object { ConvertTo-EntraGovernanceCatalogRecord -Catalog $_ })
         Send-IngestBatch -Endpoint 'ingest/governance/catalogs' -SystemId $systemId -SyncMode 'full' -Records $catRecords
 
         Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access packages -> business roles)..." -ForegroundColor Cyan
         $accessPackages = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages?`$top=999"
 
-        $apRecords = @($accessPackages | ForEach-Object {
-            @{
-                id              = $_.id
-                displayName     = $_.displayName
-                description     = $_.description
-                resourceType    = 'BusinessRole'
-                governanceResource = $true
-                catalogId       = $_.catalogId
-                isHidden        = [bool]$_.isHidden
-                enabled         = $true
-                createdDateTime = $_.createdDateTime
-                modifiedDateTime = $_.modifiedDateTime
-            }
-        })
+        $apRecords = @($accessPackages | ForEach-Object { ConvertTo-EntraAccessPackageRecord -AccessPackage $_ })
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
             -Scope @{ resourceType = 'BusinessRole' } -Records $apRecords
 
@@ -1184,16 +976,8 @@ if ($SyncGovernance) {
                     # stall the whole loop for minutes.
                     $apDetail = Invoke-FGGetRequest -MaxRetries 1 -TimeoutSec 30 -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages/$($ap.id)?`$expand=accessPackageResourceRoleScopes(`$expand=accessPackageResourceRole,accessPackageResourceScope)"
                     foreach ($rrs in @($apDetail.accessPackageResourceRoleScopes)) {
-                        $scope = $rrs.accessPackageResourceScope
-                        $role = $rrs.accessPackageResourceRole
-                        if (-not $scope -or -not $scope.originId) { continue }
-                        $relRecords += @{
-                            parentResourceId = $ap.id
-                            childResourceId  = $scope.originId
-                            relationshipType = 'Contains'
-                            roleName         = if ($role) { $role.displayName } else { 'Member' }
-                            roleOriginSystem = if ($role) { $role.originSystem } else { 'AadGroup' }
-                        }
+                        $rel = ConvertTo-EntraAccessPackageScopeRelationship -RoleScope $rrs -AccessPackageId $ap.id
+                        if ($rel) { $relRecords += $rel }
                     }
                 } catch {
                     Write-Host "  Skipping AP $($ap.displayName): $($_.Exception.Message)" -ForegroundColor Yellow
@@ -1246,30 +1030,12 @@ if ($SyncGovernance) {
             $assignRecords = [System.Collections.Generic.List[hashtable]]::new()
             $seenKeys = @{}
             Invoke-FGGetRequestStream -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=500" | ForEach-Object {
-                $a = $_
-                $apId = if ($a.accessPackage) { $a.accessPackage.id } else { $null }
-                $targetId = if ($a.target) { $a.target.objectId } else { $null }
-                if (-not $apId -or -not $targetId) { return }
-
-                $state = $a.assignmentState
-                # Skip non-active states (Expired, Removed, Denied)
-                if ($state -and $state -notin @('Delivered','PendingApproval','Active')) { return }
-
-                $key = "$apId|$targetId"
+                $apaRec = ConvertTo-EntraAccessPackageAssignmentRecord -Assignment $_
+                if (-not $apaRec) { return }
+                $key = "$($apaRec.resourceId)|$($apaRec.principalId)"
                 if ($seenKeys.ContainsKey($key)) { return }
                 $seenKeys[$key] = $true
-
-                $assignRecords.Add(@{
-                    resourceId         = $apId
-                    principalId        = $targetId
-                    principalType      = 'User'
-                    assignmentType     = 'Direct'
-                    resourceType       = 'BusinessRole'
-                    governed           = $true
-                    state              = $state
-                    assignmentStatus   = $a.assignmentStatus
-                    expirationDateTime = $a.expiredDateTime
-                })
+                $assignRecords.Add($apaRec)
             }
             # Convert to array for Send-IngestBatch (downstream code uses
             # .Count and indexed access).
@@ -1310,30 +1076,8 @@ if ($SyncGovernance) {
             $policies = Invoke-FGGetRequest -URI "https://graph.microsoft.com/v1.0/identityGovernance/entitlementManagement/assignmentPolicies?`$expand=accessPackage"
             $polRecords = @()
             foreach ($pol in $policies) {
-                $apId = if ($pol.accessPackage) { $pol.accessPackage.id } else { $pol.accessPackageId }
-                if (-not $apId) { continue }
-                $hasAutoAdd = $false
-                $hasAutoRemove = $false
-                if ($pol.automaticRequestSettings) {
-                    $hasAutoAdd    = [bool]$pol.automaticRequestSettings.requestAccessForAllowedTargets
-                    $hasAutoRemove = [bool]$pol.automaticRequestSettings.removeAccessWhenTargetLeavesAllowedTargets
-                }
-                $hasReview = $false
-                if ($pol.reviewSettings) {
-                    $hasReview = [bool]$pol.reviewSettings.isEnabled
-                }
-                $polRecords += @{
-                    id                 = $pol.id
-                    resourceId         = $apId
-                    displayName        = $pol.displayName
-                    description        = $pol.description
-                    allowedTargetScope = $pol.allowedTargetScope
-                    hasAutoAddRule     = $hasAutoAdd
-                    hasAutoRemoveRule  = $hasAutoRemove
-                    hasAccessReview    = $hasReview
-                    reviewSettings     = $pol.reviewSettings
-                    policyConditions   = $pol.requestorSettings
-                }
+                $polRec = ConvertTo-EntraAssignmentPolicyRecord -Policy $pol
+                if ($polRec) { $polRecords += $polRec }
             }
             if ($polRecords.Count -gt 0) {
                 Send-IngestBatch -Endpoint 'ingest/governance/policies' -SystemId $systemId -SyncMode 'full' -Records $polRecords
@@ -1558,18 +1302,7 @@ if ($SyncOAuth2Grants) {
             $clientIds = [System.Collections.Generic.HashSet[string]]::new()
             foreach ($g in $userGrants) { [void]$clientIds.Add($g.clientId) }
             $clientRecords = @($clientIds | ForEach-Object {
-                $info = $spInfo[$_]
-                $rec = @{
-                    id           = $_
-                    displayName  = $info.displayName
-                    resourceType = 'Application'
-                    enabled      = $true
-                }
-                $ext = @{}
-                if ($info.appId)         { $ext['appId']         = $info.appId }
-                if ($info.publisherName) { $ext['publisherName'] = $info.publisherName }
-                if ($ext.Count -gt 0)    { $rec['extendedAttributes'] = $ext }
-                $rec
+                ConvertTo-EntraOAuth2ClientResource -ClientId $_ -SpInfo $spInfo[$_]
             })
             Update-CrawlerProgress -Detail "Uploading $($clientRecords.Count) client apps..."
             Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
@@ -1579,78 +1312,14 @@ if ($SyncOAuth2Grants) {
             # One Resource per (clientSpId, targetApiSpId, scope). The scope
             # string is space-separated — split it so analysts can filter on
             # individual scopes like "Mail.Read".
-            $scopeResourceMap = @{}   # scopeResId → record
-            $relMap           = @{}   # "parent|child" → record
-            $assignments      = [System.Collections.Generic.List[object]]::new()
+            $scopeGraph = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $userGrants -SpInfo $spInfo
 
-            foreach ($g in $userGrants) {
-                $clientId   = $g.clientId
-                $targetId   = $g.resourceId
-                $userId     = $g.principalId
-                if (-not $clientId -or -not $targetId -or -not $userId) { continue }
-
-                $clientInfo = $spInfo[$clientId]
-                $targetInfo = $spInfo[$targetId]
-                $clientName = if ($clientInfo) { $clientInfo.displayName } else { $clientId }
-                $targetName = if ($targetInfo) { $targetInfo.displayName } else { $targetId }
-
-                $scopeTokens = @()
-                if ($g.scope) {
-                    $scopeTokens = @($g.scope -split '\s+' | Where-Object { $_ -ne '' })
-                }
-                if ($scopeTokens.Count -eq 0) { continue }
-
-                foreach ($scope in $scopeTokens) {
-                    $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
-                    if (-not $scopeResourceMap.ContainsKey($scopeResId)) {
-                        $scopeResourceMap[$scopeResId] = @{
-                            id           = $scopeResId
-                            displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
-                            resourceType = 'DelegatedPermission'
-                            enabled      = $true
-                            extendedAttributes = @{
-                                clientSpId           = $clientId
-                                clientDisplayName    = $clientName
-                                targetApiSpId        = $targetId
-                                targetApiDisplayName = $targetName
-                                scope                = $scope
-                            }
-                        }
-                    }
-                    $relKey = "$clientId|$scopeResId"
-                    if (-not $relMap.ContainsKey($relKey)) {
-                        $relMap[$relKey] = @{
-                            parentResourceId = $clientId
-                            childResourceId  = $scopeResId
-                            relationshipType = 'DelegatesScope'
-                            roleName         = $scope
-                            roleOriginSystem = 'OAuth2'
-                        }
-                    }
-                    $assignments.Add(@{
-                        resourceId     = $scopeResId
-                        principalId    = $userId
-                        principalType  = 'User'
-                        assignmentType = 'Direct'
-                        resourceType   = 'DelegatedPermission'
-                        extendedAttributes = @{
-                            grantId              = $g.id
-                            clientSpId           = $clientId
-                            clientDisplayName    = $clientName
-                            targetApiSpId        = $targetId
-                            targetApiDisplayName = $targetName
-                            scope                = $scope
-                        }
-                    })
-                }
-            }
-
-            $scopeRecords = @($scopeResourceMap.Values)
+            $scopeRecords = @($scopeGraph.resources)
             Update-CrawlerProgress -Detail "Uploading $($scopeRecords.Count) scope resources..."
             Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
                 -Scope @{ resourceType = 'DelegatedPermission' } -Records $scopeRecords
 
-            $relRecords = @($relMap.Values)
+            $relRecords = @($scopeGraph.relationships)
             Update-CrawlerProgress -Detail "Uploading $($relRecords.Count) scope relationships..."
             Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $systemId -SyncMode 'full' `
                 -Scope @{ relationshipType = 'DelegatesScope' } -Records $relRecords
@@ -1662,7 +1331,7 @@ if ($SyncOAuth2Grants) {
             # (client, api) combos could collide at the PK. Unlikely in practice
             # — but a HashSet is cheap insurance.
             $seen = @{}
-            $assignRecords = @($assignments | Where-Object {
+            $assignRecords = @($scopeGraph.assignments | Where-Object {
                 $k = "$($_.resourceId)|$($_.principalId)"
                 if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
             })
@@ -1741,18 +1410,7 @@ if ($SyncAppRoles) {
             # Build a role catalog. Always include the "default access" role —
             # for SPs configured with appRoleAssignmentRequired=true but no
             # custom roles, assignments fall back to the zero-GUID role id.
-            $rolesByGuid = @{}
-            foreach ($role in @($sp.appRoles)) {
-                if ($role -and $role.id) { $rolesByGuid[$role.id] = $role }
-            }
-            if (-not $rolesByGuid.ContainsKey($DEFAULT_ROLE_ID)) {
-                $rolesByGuid[$DEFAULT_ROLE_ID] = [PSCustomObject]@{
-                    id          = $DEFAULT_ROLE_ID
-                    displayName = 'Default Access'
-                    value       = $null
-                    description = 'No specific role defined; basic access to the application.'
-                }
-            }
+            $rolesByGuid = Get-EntraAppRoleCatalog -ServicePrincipal $sp -DefaultRoleId $DEFAULT_ROLE_ID
 
             # Fetch assignments. SPs without any assignments still emit
             # Application + AppRole Resources so the catalog is browseable.
@@ -1769,18 +1427,7 @@ if ($SyncAppRoles) {
             # Emit Application Resource (idempotent — OAuth2 phase may already
             # have written this same record, but the ingest endpoint upserts).
             if (-not $appResourceMap.ContainsKey($sp.id)) {
-                $rec = @{
-                    id           = $sp.id
-                    displayName  = $sp.displayName
-                    resourceType = 'Application'
-                    enabled      = $true
-                }
-                $ext = @{}
-                if ($sp.appId)                      { $ext['appId']                      = $sp.appId }
-                if ($sp.appRoleAssignmentRequired)  { $ext['appRoleAssignmentRequired']  = $true }
-                if ($sp.servicePrincipalType)       { $ext['servicePrincipalType']       = $sp.servicePrincipalType }
-                if ($ext.Count -gt 0)               { $rec['extendedAttributes']         = $ext }
-                $appResourceMap[$sp.id] = $rec
+                $appResourceMap[$sp.id] = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $sp
             }
 
             foreach ($a in $assignments) {
@@ -1801,46 +1448,16 @@ if ($SyncAppRoles) {
 
                 if (-not $appRoleMap.ContainsKey($roleResId)) {
                     $roleName = if ($role.displayName) { $role.displayName } else { 'Default Access' }
-                    $appRoleMap[$roleResId] = @{
-                        id           = $roleResId
-                        displayName  = "$roleName on $($sp.displayName)"
-                        resourceType = 'AppRole'
-                        enabled      = $true
-                        extendedAttributes = @{
-                            applicationSpId        = $sp.id
-                            applicationDisplayName = $sp.displayName
-                            appRoleId              = $roleId
-                            appRoleDisplayName     = $roleName
-                            appRoleValue           = $role.value
-                        }
-                    }
+                    $appRoleMap[$roleResId] = New-EntraAppRoleResourceRecord -ServicePrincipal $sp -Role $role -RoleResourceId $roleResId
                     $relKey = "$($sp.id)|$roleResId"
                     if (-not $relMap.ContainsKey($relKey)) {
-                        $relMap[$relKey] = @{
-                            parentResourceId = $sp.id
-                            childResourceId  = $roleResId
-                            relationshipType = 'HasAppRole'
-                            roleName         = $roleName
-                            roleOriginSystem = 'EntraID'
-                        }
+                        $relMap[$relKey] = New-EntraAppRoleRelationshipRecord -ServicePrincipal $sp -RoleResourceId $roleResId -RoleName $roleName
                     }
                 }
 
                 switch ($a.principalType) {
                     'User' {
-                        $directAssns.Add(@{
-                            resourceId     = $roleResId
-                            principalId    = $a.principalId
-                            principalType  = 'User'
-                            assignmentType = 'Direct'
-                            resourceType   = 'AppRole'
-                            extendedAttributes = @{
-                                appRoleAssignmentId = $a.id
-                                appRoleId           = $roleId
-                                createdDateTime     = $a.createdDateTime
-                                resourceDisplayName = $sp.displayName
-                            }
-                        })
+                        $directAssns.Add((New-EntraAppRoleAssignmentRecord -RoleResourceId $roleResId -Assignment $a -RoleId $roleId -PrincipalType 'User' -AppDisplayName $sp.displayName))
                     }
                     'Group' {
                         if (-not $groupAssns.ContainsKey($a.principalId)) {
@@ -1858,19 +1475,7 @@ if ($SyncAppRoles) {
                         # itself filters out group-typed principals via its
                         # INNER JOIN to Principals, so this row only surfaces in
                         # the nested-groups expand — not as a stray column.
-                        $directAssns.Add(@{
-                            resourceId     = $roleResId
-                            principalId    = $a.principalId
-                            principalType  = 'Group'
-                            assignmentType = 'Direct'
-                            resourceType   = 'AppRole'
-                            extendedAttributes = @{
-                                appRoleAssignmentId = $a.id
-                                appRoleId           = $roleId
-                                createdDateTime     = $a.createdDateTime
-                                resourceDisplayName = $sp.displayName
-                            }
-                        })
+                        $directAssns.Add((New-EntraAppRoleAssignmentRecord -RoleResourceId $roleResId -Assignment $a -RoleId $roleId -PrincipalType 'Group' -AppDisplayName $sp.displayName))
                     }
                     default {
                         # ServicePrincipal or other — skip for v1.
@@ -1898,22 +1503,8 @@ if ($SyncAppRoles) {
             $userIds = @($members |
                 Where-Object { $_.'@odata.type' -eq '#microsoft.graph.user' } |
                 ForEach-Object { $_.id })
-            foreach ($roleAssn in $groupAssns[$groupId]) {
-                foreach ($uid in $userIds) {
-                    $indirectAssns.Add(@{
-                        resourceId     = $roleAssn.roleResId
-                        principalId    = $uid
-                        principalType  = 'User'
-                        assignmentType = 'Indirect'
-                        resourceType   = 'AppRole'
-                        extendedAttributes = @{
-                            viaGroupId          = $groupId
-                            appRoleId           = $roleAssn.roleId
-                            sourceAssignmentId  = $roleAssn.sourceAssignmentId
-                            resourceDisplayName = $roleAssn.appName
-                        }
-                    })
-                }
+            foreach ($r in (ConvertTo-EntraAppRoleIndirectAssignments -RoleAssignments $groupAssns[$groupId] -UserIds $userIds -GroupId $groupId)) {
+                $indirectAssns.Add($r)
             }
         }
 
@@ -2011,31 +1602,7 @@ if ($SyncDirectoryRoles) {
         $roleDefs = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleDefinitions")
         Write-Host "  Fetched $($roleDefs.Count) role definitions" -ForegroundColor Gray
 
-        $roleRecords = foreach ($rd in $roleDefs) {
-            $actions = [System.Collections.Generic.List[string]]::new()
-            foreach ($rp in @($rd.rolePermissions)) {
-                foreach ($a in @($rp.allowedResourceActions)) {
-                    if ($a) { $actions.Add([string]$a) }
-                }
-            }
-            $uniqueActions = @($actions | Select-Object -Unique)
-            @{
-                id           = $rd.id
-                displayName  = $rd.displayName
-                description  = $rd.description
-                resourceType = 'EntraRole'
-                enabled      = [bool]$rd.isEnabled
-                extendedAttributes = @{
-                    templateId             = $rd.templateId
-                    isBuiltIn              = [bool]$rd.isBuiltIn
-                    isEnabled              = [bool]$rd.isEnabled
-                    roleVersion            = $rd.version
-                    allowedResourceActions = $uniqueActions
-                    permissionCount        = $uniqueActions.Count
-                }
-            }
-        }
-        $roleRecords = @($roleRecords)
+        $roleRecords = @($roleDefs | ForEach-Object { ConvertTo-EntraRoleResourceRecord -RoleDefinition $_ })
 
         # 2. Active assignments (permanent + currently-activated PIM). $expand=principal
         #    gives us the principal's @odata.type so we can set principalType
@@ -2044,18 +1611,8 @@ if ($SyncDirectoryRoles) {
         try {
             $roleAssignments = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleAssignments?`$expand=principal")
             foreach ($ra in $roleAssignments) {
-                if (-not $ra.principalId -or -not $ra.roleDefinitionId) { continue }
-                $activeList.Add(@{
-                    resourceId     = $ra.roleDefinitionId
-                    principalId    = $ra.principalId
-                    principalType  = (Resolve-DirectoryRolePrincipalType -Principal $ra.principal)
-                    assignmentType = 'Direct'
-                    resourceType   = 'EntraRole'
-                    extendedAttributes = @{
-                        roleAssignmentId = $ra.id
-                        directoryScopeId = $ra.directoryScopeId
-                    }
-                })
+                $activeRec = ConvertTo-EntraDirectoryRoleAssignment -RoleAssignment $ra
+                if ($activeRec) { $activeList.Add($activeRec) }
             }
         } catch {
             Write-Host "    /roleAssignments failed: $($_.Exception.Message)" -ForegroundColor DarkYellow
@@ -2067,19 +1624,8 @@ if ($SyncDirectoryRoles) {
         try {
             $eligibility = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleEligibilityScheduleInstances?`$expand=principal")
             foreach ($e in $eligibility) {
-                if (-not $e.principalId -or -not $e.roleDefinitionId) { continue }
-                $eligibleList.Add(@{
-                    resourceId         = $e.roleDefinitionId
-                    principalId        = $e.principalId
-                    principalType      = (Resolve-DirectoryRolePrincipalType -Principal $e.principal)
-                    assignmentType     = 'Eligible'
-                    resourceType       = 'EntraRole'
-                    expirationDateTime = $e.endDateTime
-                    extendedAttributes = @{
-                        memberType       = $e.memberType
-                        directoryScopeId = $e.directoryScopeId
-                    }
-                })
+                $eligibleRec = ConvertTo-EntraDirectoryRoleEligibility -Eligibility $e
+                if ($eligibleRec) { $eligibleList.Add($eligibleRec) }
             }
         } catch {
             Write-Host "    /roleEligibilityScheduleInstances failed (PIM may be unavailable): $($_.Exception.Message)" -ForegroundColor DarkYellow
