@@ -468,28 +468,10 @@ if ($SyncAccounts) {
         Write-Host "  $($AllAccounts.Count) account records from Omada" -ForegroundColor Gray
 
         Write-Step "Building $($AllAccounts.Count) account records..."
+        # Per-account record shaping lives in ConvertTo-OmadaAccountRecord
+        # (OmadaCrawler.Transform.ps1).
         $AccountRecords = @($AllAccounts | Where-Object { -not $_.Inactive } | ForEach-Object {
-            $ExtId = [string]$_.UId
-            $Name  = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
-            if (-not $Name) { $Name = $_.DisplayName }
-
-            # Resolve principalType from the linked Identity's IDENTITYTYPE
-            $PrincipalType = 'User'
-            $IdentId = if ($_.IDENTITYREF) { [string]$_.IDENTITYREF.IDENTITYID } else { $Null }
-            if ($IdentId -and $IdentityLookup.ContainsKey($IdentId)) {
-                $PrincipalType = Map-IdentityTypeToAtlas -OmadaType $IdentityLookup[$IdentId].identityType
-            }
-
-            [PSCustomObject]@{
-                id                 = $ExtId  # Omada UId is a valid UUID
-                externalId         = $ExtId
-                displayName        = $Name
-                email              = $_.EMAIL
-                principalType      = $PrincipalType
-                accountEnabled     = $True
-                jobTitle           = $_.JOBTITLE
-                extendedAttributes = @{ userName = $_.UserName }
-            }
+            ConvertTo-OmadaAccountRecord -Account $_ -IdentityLookup $IdentityLookup
         } | Where-Object { $_.externalId -and $_.displayName })
 
         foreach ($PType in @('User', 'ExternalUser', 'ServicePrincipal')) {
@@ -541,20 +523,12 @@ if ($SyncIdentities -and $AllIdentities -and $SyncAccounts -and $AllAccounts) {
     $T = [datetime]::UtcNow
     Write-Host "`nIdentity Members:" -ForegroundColor Cyan
     try {
+        # Per-account link shaping lives in ConvertTo-OmadaIdentityMemberRecord
+        # (OmadaCrawler.Transform.ps1); it returns $null for accounts to skip.
         $MemberRecords = [System.Collections.Generic.List[object]]::new()
         foreach ($Acc in $AllAccounts) {
-            if ($Acc.Inactive) { continue }
-            $IdentId = if ($Acc.IDENTITYREF) { [string]$Acc.IDENTITYREF.IDENTITYID } else { $Null }
-            if (-not $IdentId -or -not $IdentityLookup.ContainsKey($IdentId)) { continue }
-            # Only link accounts whose identity type is stored in the Identities table.
-            # Non-person identities (Machine, etc.) are not in Identities → skip to avoid FK errors.
-            $IdentEntry = $IdentityLookup[$IdentId]
-            if ($IdentityTypesForIdentityTable -notcontains $IdentEntry.identityType) { continue }
-            $MemberRecords.Add([PSCustomObject]@{
-                identityId  = $IdentEntry.uid                 # direct UUID FK to Identities.id
-                principalId = [string]$Acc.UId                # direct UUID FK to Principals.id
-                accountType = 'Primary'
-            })
+            $Member = ConvertTo-OmadaIdentityMemberRecord -Account $Acc -IdentityLookup $IdentityLookup -IdentityTypesForIdentityTable $IdentityTypesForIdentityTable
+            if ($Member) { $MemberRecords.Add($Member) }
         }
 
         Write-Step "Ingesting $($MemberRecords.Count) identity-member links..."

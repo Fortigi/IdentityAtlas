@@ -28,7 +28,8 @@ BeforeAll {
     # Context-type mapping the Orgunit mapper resolves through, mirroring the
     # Start script's Configuration-region defaults.
     $script:TypeMappings = @{
-        contextTypeToIdentityAtlas = @{ 'OrgUnit' = 'OrgUnit'; 'Organisational Unit' = 'OrgUnit'; Department = 'Department' }
+        contextTypeToIdentityAtlas  = @{ 'OrgUnit' = 'OrgUnit'; 'Organisational Unit' = 'OrgUnit'; Department = 'Department' }
+        identityTypeToIdentityAtlas = @{ Employee = 'User'; Contractor = 'ExternalUser'; 'Service Account' = 'ServicePrincipal' }
     }
 }
 
@@ -159,5 +160,48 @@ Describe 'Sort-OmadaContextsTopologically' {
 
     It 'returns an empty array for no records' {
         @(Sort-OmadaContextsTopologically -Records @()).Count | Should -Be 0
+    }
+}
+
+Describe 'ConvertTo-OmadaAccountRecord' {
+
+    It 'maps an account and resolves principalType from the linked identity' {
+        $lookup = @{ 'ID-1' = @{ uid = 'idu-1'; identityType = 'Contractor' } }
+        $acc = [pscustomobject]@{
+            UId = 'acc-1'; FIRSTNAME = 'Eve'; LASTNAME = 'Jones'; EMAIL = 'eve@contoso.com'
+            JOBTITLE = 'Consultant'; UserName = 'evej'
+            IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' }
+        }
+        $rec = ConvertTo-OmadaAccountRecord -Account $acc -IdentityLookup $lookup
+        $rec.id             | Should -Be 'acc-1'
+        $rec.displayName    | Should -Be 'Eve Jones'
+        $rec.principalType  | Should -Be 'ExternalUser'   # Contractor -> ExternalUser
+        $rec.accountEnabled | Should -BeTrue
+        $rec.extendedAttributes.userName | Should -Be 'evej'
+    }
+
+    It 'defaults principalType to User when the identity is not in the lookup' {
+        $acc = [pscustomobject]@{ UId = 'acc-2'; FIRSTNAME = 'No'; LASTNAME = 'Link' }
+        (ConvertTo-OmadaAccountRecord -Account $acc -IdentityLookup @{}).principalType | Should -Be 'User'
+    }
+}
+
+Describe 'ConvertTo-OmadaIdentityMemberRecord' {
+
+    It 'links an account to its identity when the identity type is person-stored' {
+        $lookup = @{ 'ID-1' = @{ uid = 'idu-1'; identityType = 'Employee' } }
+        $acc = [pscustomobject]@{ UId = 'acc-1'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }
+        $rec = ConvertTo-OmadaIdentityMemberRecord -Account $acc -IdentityLookup $lookup -IdentityTypesForIdentityTable @('Employee')
+        $rec.identityId  | Should -Be 'idu-1'
+        $rec.principalId | Should -Be 'acc-1'
+        $rec.accountType | Should -Be 'Primary'
+    }
+
+    It 'returns $null for inactive accounts, unknown identities, or non-person types' {
+        $lookup = @{ 'ID-1' = @{ uid = 'idu-1'; identityType = 'Machine' } }
+        $person = @('Employee')
+        ConvertTo-OmadaIdentityMemberRecord -Account ([pscustomobject]@{ UId = 'a'; Inactive = $true }) -IdentityLookup $lookup -IdentityTypesForIdentityTable $person | Should -BeNullOrEmpty
+        ConvertTo-OmadaIdentityMemberRecord -Account ([pscustomobject]@{ UId = 'a' }) -IdentityLookup $lookup -IdentityTypesForIdentityTable $person | Should -BeNullOrEmpty
+        ConvertTo-OmadaIdentityMemberRecord -Account ([pscustomobject]@{ UId = 'a'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }) -IdentityLookup $lookup -IdentityTypesForIdentityTable $person | Should -BeNullOrEmpty
     }
 }

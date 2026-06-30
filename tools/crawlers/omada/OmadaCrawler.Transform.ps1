@@ -154,3 +154,56 @@ function Sort-OmadaContextsTopologically {
     foreach ($Rec in $Remaining) { $Sorted.Add($Rec) }
     return @($Sorted)
 }
+
+# Maps one Omada User entity → an ingest/principals record, resolving principalType
+# from the linked Identity's type via $IdentityLookup (IDENTITYID -> { uid; identityType })
+# and Map-IdentityTypeToAtlas. Verbatim from the inline account `ForEach-Object`.
+function ConvertTo-OmadaAccountRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Account,
+        [hashtable]$IdentityLookup = @{}
+    )
+    $ExtId = [string]$Account.UId
+    $Name  = "$($Account.FIRSTNAME) $($Account.LASTNAME)".Trim()
+    if (-not $Name) { $Name = $Account.DisplayName }
+
+    $PrincipalType = 'User'
+    $IdentId = if ($Account.IDENTITYREF) { [string]$Account.IDENTITYREF.IDENTITYID } else { $Null }
+    if ($IdentId -and $IdentityLookup.ContainsKey($IdentId)) {
+        $PrincipalType = Map-IdentityTypeToAtlas -OmadaType $IdentityLookup[$IdentId].identityType
+    }
+
+    return [PSCustomObject]@{
+        id                 = $ExtId  # Omada UId is a valid UUID
+        externalId         = $ExtId
+        displayName        = $Name
+        email              = $Account.EMAIL
+        principalType      = $PrincipalType
+        accountEnabled     = $True
+        jobTitle           = $Account.JOBTITLE
+        extendedAttributes = @{ userName = $Account.UserName }
+    }
+}
+
+# Maps one Omada User entity → an ingest/identity-members link, or $null when the
+# account is inactive, has no resolvable identity, or its identity type isn't stored
+# in the Identities table (avoids FK violations). Verbatim from the inline loop body.
+function ConvertTo-OmadaIdentityMemberRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Account,
+        [hashtable]$IdentityLookup = @{},
+        $IdentityTypesForIdentityTable = @()
+    )
+    if ($Account.Inactive) { return $null }
+    $IdentId = if ($Account.IDENTITYREF) { [string]$Account.IDENTITYREF.IDENTITYID } else { $Null }
+    if (-not $IdentId -or -not $IdentityLookup.ContainsKey($IdentId)) { return $null }
+    $IdentEntry = $IdentityLookup[$IdentId]
+    if ($IdentityTypesForIdentityTable -notcontains $IdentEntry.identityType) { return $null }
+    return [PSCustomObject]@{
+        identityId  = $IdentEntry.uid   # direct UUID FK to Identities.id
+        principalId = [string]$Account.UId   # direct UUID FK to Principals.id
+        accountType = 'Primary'
+    }
+}
