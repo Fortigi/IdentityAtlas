@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useReducer, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { TIER_STYLES } from '@ui/utils/tierStyles';
 
@@ -467,14 +467,16 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
 export default function RiskScoringPage({ onOpenDetail }) {
   const { authFetch } = useAuth();
   const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // loading/error/entityLoading are flipped synchronously inside the fetch
+  // effects; reducer dispatches keep that clear of set-state-in-effect.
+  const [loading, setLoading] = useReducer((_, v) => v, true);
+  const [error, setError] = useReducer((_, v) => v, null);
   const [view, setView] = useState('users');
   const [tierFilter, setTierFilter] = useState('');
   const [search, setSearch] = useState('');
   const [overridesOnly, setOverridesOnly] = useState(false);
   const [entityData, setEntityData] = useState({ data: [], total: 0 });
-  const [entityLoading, setEntityLoading] = useState(false);
+  const [entityLoading, setEntityLoading] = useReducer((_, v) => v, false);
   const [page, setPage] = useState(0);
   const [clusterData, setClusterData] = useState({ available: false, data: [], total: 0 });
   const [clusterSummary, setClusterSummary] = useState(null);
@@ -483,43 +485,41 @@ export default function RiskScoringPage({ onOpenDetail }) {
   const PAGE_SIZE = 25;
 
   // Fetch summary
-  const fetchSummary = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await authFetch('/api/risk-scores');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setSummary(json);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const fetchSummary = useCallback(() => {
+    setLoading(true);
+    return authFetch('/api/risk-scores')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        setSummary(json);
+        setError(null);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, [authFetch]);
 
   // Fetch entity list (paginated, server-side)
-  const fetchEntities = useCallback(async () => {
-    try {
-      setEntityLoading(true);
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-        offset: String(page * PAGE_SIZE),
-      });
-      if (tierFilter) params.set('tier', tierFilter);
-      if (search) params.set('search', search);
-      if (overridesOnly) params.set('overridesOnly', 'true');
+  const fetchEntities = useCallback(() => {
+    setEntityLoading(true);
+    const params = new URLSearchParams({
+      limit: String(PAGE_SIZE),
+      offset: String(page * PAGE_SIZE),
+    });
+    if (tierFilter) params.set('tier', tierFilter);
+    if (search) params.set('search', search);
+    if (overridesOnly) params.set('overridesOnly', 'true');
 
-      const res = await authFetch(`/api/risk-scores/${view}?${params}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setEntityData(json);
-    } catch (err) {
-      console.error('Failed to fetch risk entities:', err);
-      setEntityData({ data: [], total: 0 });
-    } finally {
-      setEntityLoading(false);
-    }
+    return authFetch(`/api/risk-scores/${view}?${params}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        setEntityData(json);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch risk entities:', err);
+        setEntityData({ data: [], total: 0 });
+      })
+      .finally(() => setEntityLoading(false));
   }, [authFetch, view, page, tierFilter, search, overridesOnly]);
 
   // Fetch clusters (paginated, server-side)

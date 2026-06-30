@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useReducer, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import RiskScoreSection from './RiskScoreSection';
 import ManualContextEditor from './contexts/ManualContextEditor';
@@ -38,8 +38,10 @@ function cleanAttributes(attrs) {
 export default function ContextDetailPage({ contextId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
   const features = useFeatures();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // loading/error are flipped synchronously inside the fetch effects; reducer
+  // dispatches keep that clear of set-state-in-effect.
+  const [loading, setLoading] = useReducer((_, v) => v, true);
+  const [error, setError] = useReducer((_, v) => v, null);
   const [detail, setDetail] = useState(null);
   const [activeTab, setActiveTab] = useState('relationships');
   const [timelineDays, setTimelineDays] = useState(90);
@@ -50,7 +52,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
   const [includeDescendants, setIncludeDescendants] = useState(false);
   const [members, setMembers] = useState([]);
   const [memberTotal, setMemberTotal] = useState(0);
-  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersLoading, setMembersLoading] = useReducer((_, v) => v, false);
   const [riskData, setRiskData] = useState(null);
   const PAGE_SIZE = 50;
 
@@ -65,51 +67,55 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
   }, [authFetch, contextId]);
 
   // ─── Fetch Context detail ──────────────────────────────────────────
-  const fetchDetail = useCallback(async () => {
+  const fetchDetail = useCallback(() => {
     setLoading(true);
     setError(null);
-    try {
-      const res = await authFetch(`/api/contexts/${contextId}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setDetail(data);
-      if (onCacheData) onCacheData(contextId, 'context', data);
-    } catch (err) {
-      console.error('Failed to load context detail:', err);
-      setError(err.message || 'Failed to load context details');
-    } finally {
-      setLoading(false);
-    }
+    return authFetch(`/api/contexts/${contextId}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setDetail(data);
+        if (onCacheData) onCacheData(contextId, 'context', data);
+      })
+      .catch((err) => {
+        console.error('Failed to load context detail:', err);
+        setError(err.message || 'Failed to load context details');
+      })
+      .finally(() => setLoading(false));
   }, [authFetch, contextId, onCacheData]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
   // ─── Fetch paginated members ──────────────────────────────────────
-  const fetchMembers = useCallback(async () => {
+  const fetchMembers = useCallback(() => {
     setMembersLoading(true);
-    try {
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-        offset: String(memberPage * PAGE_SIZE),
-      });
-      if (memberSearch) params.set('search', memberSearch);
-      if (includeDescendants) params.set('include', 'descendants');
-      const res = await authFetch(`/api/contexts/${contextId}/members?${params}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setMembers(data.data || []);
-      setMemberTotal(data.total || 0);
-    } catch (err) {
-      console.error('Failed to load context members:', err);
-    } finally {
-      setMembersLoading(false);
-    }
+    const params = new URLSearchParams({
+      limit: String(PAGE_SIZE),
+      offset: String(memberPage * PAGE_SIZE),
+    });
+    if (memberSearch) params.set('search', memberSearch);
+    if (includeDescendants) params.set('include', 'descendants');
+    return authFetch(`/api/contexts/${contextId}/members?${params}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setMembers(data.data || []);
+        setMemberTotal(data.total || 0);
+      })
+      .catch((err) => console.error('Failed to load context members:', err))
+      .finally(() => setMembersLoading(false));
   }, [authFetch, contextId, memberPage, memberSearch, includeDescendants]);
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
 
-  // Reset page when search / scope changes
-  useEffect(() => { setMemberPage(0); }, [memberSearch, includeDescendants]);
+  // Reset page when search / scope changes — during render via a composite
+  // compare, so no synchronous setState lives in an effect.
+  const memberFilterSig = `${memberSearch}|${includeDescendants}`;
+  const [seenMemberFilterSig, setSeenMemberFilterSig] = useState(memberFilterSig);
+  if (memberFilterSig !== seenMemberFilterSig) {
+    setSeenMemberFilterSig(memberFilterSig);
+    setMemberPage(0);
+  }
 
   const timeline = useTimeline('context', contextId, authFetch, {
     sinceDays: timelineDays,

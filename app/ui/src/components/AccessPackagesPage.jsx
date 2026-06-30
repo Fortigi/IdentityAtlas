@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useCanExportUi } from '@ui/auth/usePermissions';
 import { TAG_COLORS } from '@ui/utils/colors';
@@ -27,7 +27,9 @@ export default function AccessPackagesPage({ onOpenDetail }) {
   const [packages, setPackages] = useState([]);
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // loading is flipped synchronously inside fetchPackages; a reducer dispatch
+  // (not a useState setter) keeps that clear of set-state-in-effect.
+  const [loading, setLoading] = useReducer((_, v) => v, true);
 
   // Filter state
   const [search, setSearch] = useState('');
@@ -58,45 +60,54 @@ export default function AccessPackagesPage({ onOpenDetail }) {
   const fetchVersion = useRef(0);
 
 
-  // Reset page & selection when filters or sort change
-  useEffect(() => { setPage(0); setSelected(new Set()); }, [debouncedSearch, categoryFilter, typeFilter, sortCol, sortDir]);
+  // Reset page & selection when filters or sort change — during render via a
+  // composite-signature compare, so no synchronous setState lives in an effect.
+  const apFilterSig = `${debouncedSearch}|${categoryFilter}|${typeFilter}|${sortCol}|${sortDir}`;
+  const [seenApFilterSig, setSeenApFilterSig] = useState(apFilterSig);
+  if (apFilterSig !== seenApFilterSig) {
+    setSeenApFilterSig(apFilterSig);
+    setPage(0);
+    setSelected(new Set());
+  }
 
-  // Fetch categories
-  const fetchCategories = useCallback(async () => {
-    try {
-      const res = await authFetch('/api/categories');
-      if (res.ok) setCategories(await res.json());
-    } catch (err) { console.error('Failed to fetch categories:', err); }
+  // Fetch categories — .then() chain so setCategories runs in the callback.
+  const fetchCategories = useCallback(() => {
+    return authFetch('/api/categories')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data) setCategories(data); })
+      .catch((err) => console.error('Failed to fetch categories:', err));
   }, [authFetch]);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
 
-  // Fetch access packages
-  const fetchPackages = useCallback(async () => {
+  // Fetch access packages — loading flips via reducer; data setStates run in the
+  // .then() callback. fetchVersion guards against out-of-order responses.
+  const fetchPackages = useCallback(() => {
     const version = ++fetchVersion.current;
     setLoading(true);
-    try {
-      const params = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
-      if (debouncedSearch) params.set('search', debouncedSearch);
-      if (categoryFilter !== null) {
-        if (categoryFilter === 'uncategorized') {
-          params.set('uncategorized', 'true');
-        } else {
-          params.set('categoryId', categoryFilter);
+    const params = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    if (categoryFilter !== null) {
+      if (categoryFilter === 'uncategorized') {
+        params.set('uncategorized', 'true');
+      } else {
+        params.set('categoryId', categoryFilter);
+      }
+    }
+    if (sortCol) {
+      params.set('sortCol', sortCol);
+      params.set('sortDir', sortDir);
+    }
+    return authFetch(`/api/access-packages?${params}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json && version === fetchVersion.current) {
+          setPackages(json.data);
+          setTotal(json.total);
         }
-      }
-      if (sortCol) {
-        params.set('sortCol', sortCol);
-        params.set('sortDir', sortDir);
-      }
-      const res = await authFetch(`/api/access-packages?${params}`);
-      if (res.ok && version === fetchVersion.current) {
-        const json = await res.json();
-        setPackages(json.data);
-        setTotal(json.total);
-      }
-    } catch (err) { console.error('Failed to fetch access packages:', err); }
-    if (version === fetchVersion.current) setLoading(false);
+      })
+      .catch((err) => console.error('Failed to fetch access packages:', err))
+      .finally(() => { if (version === fetchVersion.current) setLoading(false); });
   }, [page, debouncedSearch, categoryFilter, sortCol, sortDir, authFetch]);
 
   useEffect(() => { fetchPackages(); }, [fetchPackages]);

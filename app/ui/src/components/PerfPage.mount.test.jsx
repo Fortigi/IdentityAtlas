@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createElement as h } from 'react';
 import PerfPage from './PerfPage';
-import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const enabledSummary = {
   enabled: true,
@@ -185,6 +185,23 @@ describe('PerfPage (mounted)', () => {
 
     await user.click(screen.getByText('Refresh'));
     expect(authFetch).toHaveBeenCalledWith('/api/perf');
+  });
+
+  it('re-fetches the metrics when Refresh is clicked', async () => {
+    // Pins the converted fetchData (.then chain) reuse: clicking Refresh issues
+    // another GET /api/perf.
+    const authFetch = routes();
+    renderWithProviders(h(PerfPage), { auth: { authFetch } });
+    const user = userEvent.setup();
+    await screen.findByText('Performance Metrics');
+    const before = authFetch.mock.calls.filter((c) => String(c[0]) === '/api/perf').length;
+
+    await user.click(screen.getByText('Refresh'));
+
+    await waitFor(() => {
+      const after = authFetch.mock.calls.filter((c) => String(c[0]) === '/api/perf').length;
+      expect(after).toBeGreaterThan(before);
+    });
   });
 
   it('toggles auto-refresh on', async () => {

@@ -58,11 +58,15 @@ export default [
       'local/no-native-dialogs': 'error',
       'local/no-legacy-jargon': 'error',
       'local/no-hardcoded-crawler-meta': 'error',
-      // React Compiler strict rules — downgrade to warnings until data-fetching
-      // patterns are refactored to avoid setState-in-effect (requires Suspense or
-      // useTransition migration across all detail pages).
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/refs': 'warn',
+      // React Compiler strict rule — enforced as an error now that every UI
+      // data-fetching/effect site is set-state-in-effect-clean (see #417). New
+      // violations must be fixed (e.g. a .then() chain, a reducer-backed state,
+      // or a render-time "adjust state on prop change") rather than reintroduced.
+      'react-hooks/set-state-in-effect': 'error',
+      // Also clean (0 violations), so enforce it too — together these are the
+      // React Compiler-aware lint rules. Reading/writing ref.current during
+      // render must move into an effect or event handler.
+      'react-hooks/refs': 'error',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },

@@ -124,26 +124,26 @@ export default function AuthGate({ children }) {
   // Pull the server's view of "what permissions does this signed-in user have."
   // Stable callback so consumers can re-trigger after editing the role mapping
   // — see the Admin → Roles & Permissions save flow.
-  const refreshPermissions = useCallback(async () => {
-    try {
-      const res = await authFetch('/api/auth-me');
-      if (!res.ok) {
-        // Surface the failure as "no permissions resolved" — UI gating then
-        // hides write controls, which is the safe default for a degraded auth
-        // state. A loud retry banner would be better but is out of scope here.
-        setPermState({ permissions: new Set(), roles: [], hasWildcard: false, loaded: true });
-        return;
-      }
-      const body = await res.json();
-      setPermState({
-        permissions: new Set(body.permissions || []),
-        roles: body.roles || [],
-        hasWildcard: !!body.hasWildcard,
-        loaded: true,
-      });
-    } catch {
-      setPermState({ permissions: new Set(), roles: [], hasWildcard: false, loaded: true });
-    }
+  // A .then() chain (not await) so the setPermState calls run inside the
+  // callbacks rather than synchronously after an await — keeping the effect
+  // that calls refreshPermissions() clear of react-hooks/set-state-in-effect.
+  // A failure/degraded auth surfaces as "no permissions resolved"; UI gating
+  // then hides write controls, which is the safe default.
+  const refreshPermissions = useCallback(() => {
+    const degraded = () => setPermState({ permissions: new Set(), roles: [], hasWildcard: false, loaded: true });
+    return authFetch('/api/auth-me')
+      .then((res) => {
+        if (!res.ok) { degraded(); return undefined; }
+        return res.json().then((body) => {
+          setPermState({
+            permissions: new Set(body.permissions || []),
+            roles: body.roles || [],
+            hasWildcard: !!body.hasWildcard,
+            loaded: true,
+          });
+        });
+      })
+      .catch(degraded);
   }, [authFetch]);
 
   // Fetch permissions once we have a sign-in. authEnabled=false also gets a
