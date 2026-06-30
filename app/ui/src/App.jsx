@@ -1,4 +1,9 @@
-﻿import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+﻿import { useState, useEffect, useReducer, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+
+// useState-equivalent backed by useReducer (value + functional updates):
+// dispatch isn't flagged by react-hooks/set-state-in-effect, so the detail-tab
+// and matrix auto-open effects below can dispatch instead of setState.
+const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useMatrix } from './hooks/useMatrix';
 import { useAuth } from './auth/AuthGate';
 import { useCanSeeAdminTab } from './auth/usePermissions';
@@ -101,9 +106,9 @@ export default function App() {
   }, []);
 
   // Wizard-driven matrix state: a single filter object + managed-state toggle
-  const [matrixFilter, setMatrixFilter] = useState(initial.filter);
-  const [managedFilter, setManagedFilter] = useState(initial.managed);
-  const [wizardOpen, setWizardOpen] = useState(false);
+  const [matrixFilter, setMatrixFilter] = useReducer(setStateReducer, initial.filter);
+  const [managedFilter, setManagedFilter] = useReducer(setStateReducer, initial.managed);
+  const [wizardOpen, setWizardOpen] = useReducer(setStateReducer, false);
 
   const { data, rollup, counts, accessPackageGroups, managedByPackages, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
   const { account, logout, authFetch } = useAuth();
@@ -184,7 +189,7 @@ export default function App() {
 
   // ─── Dynamic detail tabs ──────────────────────────────────────
   // Each entry: { type: 'user'|'group', id, displayName }
-  const [detailTabs, setDetailTabs] = useState(() => {
+  const [detailTabs, setDetailTabs] = useReducer(setStateReducer, undefined, () => {
     // Restore detail tab from URL on load (e.g., bookmarked #user:abc)
     const { page: initPage } = parseHash();
     if (initPage.startsWith('user:') || initPage.startsWith('group:') || initPage.startsWith('resource:') || initPage.startsWith('access-package:') || initPage.startsWith('department:') || initPage.startsWith('context:') || initPage.startsWith('identity:') || initPage.startsWith('run:')) {

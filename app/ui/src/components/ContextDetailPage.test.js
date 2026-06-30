@@ -8,8 +8,9 @@ const src = readFileSync(join(here, 'ContextDetailPage.jsx'), 'utf8');
 
 describe('ContextDetailPage', () => {
   it('has loading + error state', () => {
-    expect(src).toContain('const [loading, setLoading] = useState(true);');
-    expect(src).toContain('const [error, setError] = useState(null);');
+    // loading/error are reducer-backed (set-state-in-effect cleanup, #417).
+    expect(src).toContain('const [loading, setLoading] = useReducer((_, v) => v, true);');
+    expect(src).toContain('const [error, setError] = useReducer((_, v) => v, null);');
   });
 
   it('renders a distinct error UI with a retry that re-runs the fetch', () => {

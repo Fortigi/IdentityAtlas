@@ -8,7 +8,8 @@ const src = readFileSync(join(here, 'AccessPackagesPage.jsx'), 'utf8');
 
 describe('AccessPackagesPage', () => {
   it('has a loading state', () => {
-    expect(src).toContain('const [loading, setLoading] = useState(true);');
+    // loading is reducer-backed (set-state-in-effect cleanup, #417).
+    expect(src).toContain('const [loading, setLoading] = useReducer((_, v) => v, true);');
     expect(src).toContain('Loading business roles...');
   });
 
