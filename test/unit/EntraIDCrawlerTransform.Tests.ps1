@@ -252,3 +252,42 @@ Describe 'ConvertTo-EntraGroupResourceRecord' {
         $rec['extendedAttributes'].ContainsKey('emptyAttr') | Should -BeFalse
     }
 }
+
+Describe 'ConvertTo-EntraGroupOwnership' {
+
+    It 'emits one GroupOwnership resource + HasOwnership relationship per owned group, and a Direct assignment per owner' {
+        $rawOwners = @(
+            @{ groupId = 'g1'; principalId = 'u1' }
+            @{ groupId = 'g1'; principalId = 'u2' }   # second owner of the same group
+            @{ groupId = 'g2'; principalId = 'u1' }
+        )
+        $out = ConvertTo-EntraGroupOwnership -RawOwners $rawOwners -GroupNameById @{ g1 = 'Sales'; g2 = 'Eng' }
+
+        # One resource and one relationship per distinct owned group (g1, g2).
+        $out.resources.Count     | Should -Be 2
+        $out.relationships.Count | Should -Be 2
+        # One assignment per owner pair (3).
+        $out.assignments.Count   | Should -Be 3
+
+        $out.resources | ForEach-Object { $_.resourceType | Should -Be 'GroupOwnership' }
+        ($out.resources | Where-Object { $_.displayName -eq 'Owner @ Sales' }) | Should -Not -BeNullOrEmpty
+        $out.relationships | ForEach-Object { $_.relationshipType | Should -Be 'HasOwnership' }
+        $out.assignments | ForEach-Object {
+            $_.assignmentType | Should -Be 'Direct'
+            $_.resourceType   | Should -Be 'GroupOwnership'
+        }
+    }
+
+    It 'falls back to "(group)" when the group name is unknown' {
+        $out = ConvertTo-EntraGroupOwnership -RawOwners @(@{ groupId = 'gX'; principalId = 'u1' }) -GroupNameById @{}
+        $out.resources[0].displayName | Should -Be 'Owner @ (group)'
+        $out.resources[0].externalId  | Should -Be 'entraid-ownership:gX'
+    }
+
+    It 'returns empty collections for no owners' {
+        $out = ConvertTo-EntraGroupOwnership -RawOwners @() -GroupNameById @{}
+        $out.resources.Count     | Should -Be 0
+        $out.relationships.Count | Should -Be 0
+        $out.assignments.Count   | Should -Be 0
+    }
+}

@@ -197,3 +197,50 @@ function ConvertTo-EntraGroupResourceRecord {
         extendedAttributes = $ext
     }
 }
+
+# Builds the group-ownership graph from raw (groupId, principalId) owner pairs:
+# one GroupOwnership resource per owned group, a HasOwnership relationship to the
+# group, and a Direct owner assignment per pair. Returns a hashtable with
+# .resources / .relationships / .assignments. New-OwnershipResourceId gives the
+# deterministic ownership id (EntraIDCrawler.Functions.ps1). Verbatim from the
+# inline `foreach ($ow in $rawOwners) { ... }` block.
+function ConvertTo-EntraGroupOwnership {
+    [CmdletBinding()]
+    param(
+        $RawOwners,
+        [hashtable]$GroupNameById = @{}
+    )
+    $resMap = @{}   # ownershipId -> resource record
+    $relMap = @{}   # "groupId|ownershipId" -> relationship record
+    $assns  = [System.Collections.Generic.List[object]]::new()
+    foreach ($ow in $RawOwners) {
+        $ownId = New-OwnershipResourceId -GroupId $ow.groupId
+        if (-not $resMap.ContainsKey($ownId)) {
+            $gname = $GroupNameById[$ow.groupId]
+            if (-not $gname) { $gname = '(group)' }
+            $resMap[$ownId] = @{
+                id                 = $ownId
+                displayName        = "Owner @ $gname"
+                resourceType       = 'GroupOwnership'
+                externalId         = "entraid-ownership:$($ow.groupId)"
+                extendedAttributes = @{ ownedResourceId = $ow.groupId }
+            }
+            $relMap["$($ow.groupId)|$ownId"] = @{
+                parentResourceId = $ow.groupId
+                childResourceId  = $ownId
+                relationshipType = 'HasOwnership'
+            }
+        }
+        $assns.Add(@{
+            resourceId     = $ownId
+            principalId    = $ow.principalId
+            assignmentType = 'Direct'
+            resourceType   = 'GroupOwnership'
+        })
+    }
+    return @{
+        resources     = @($resMap.Values)
+        relationships = @($relMap.Values)
+        assignments   = @($assns)
+    }
+}

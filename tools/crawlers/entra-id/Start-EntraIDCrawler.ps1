@@ -852,41 +852,15 @@ if ($SyncAssignments) {
     }
 
     # Build ownership resources (one per owned group), HasOwnership relationships,
-    # and the owner assignments (Direct to the ownership resource).
+    # and the owner assignments (Direct to the ownership resource). Shaping lives
+    # in ConvertTo-EntraGroupOwnership (EntraIDCrawler.Transform.ps1).
     $groupNameById = @{}
     foreach ($g in $groups) { $groupNameById[$g.id] = $g.displayName }
 
-    $ownershipResMap = @{}   # ownershipId -> resource record
-    $ownershipRelMap = @{}   # "groupId|ownershipId" -> relationship record
-    $ownerAssns = [System.Collections.Generic.List[object]]::new()
-    foreach ($ow in $rawOwners) {
-        $ownId = New-OwnershipResourceId -GroupId $ow.groupId
-        if (-not $ownershipResMap.ContainsKey($ownId)) {
-            $gname = $groupNameById[$ow.groupId]
-            if (-not $gname) { $gname = '(group)' }
-            $ownershipResMap[$ownId] = @{
-                id                 = $ownId
-                displayName        = "Owner @ $gname"
-                resourceType       = 'GroupOwnership'
-                externalId         = "entraid-ownership:$($ow.groupId)"
-                extendedAttributes = @{ ownedResourceId = $ow.groupId }
-            }
-            $ownershipRelMap["$($ow.groupId)|$ownId"] = @{
-                parentResourceId = $ow.groupId
-                childResourceId  = $ownId
-                relationshipType = 'HasOwnership'
-            }
-        }
-        $ownerAssns.Add(@{
-            resourceId     = $ownId
-            principalId    = $ow.principalId
-            assignmentType = 'Direct'
-            resourceType   = 'GroupOwnership'
-        })
-    }
-    $ownershipResources = @($ownershipResMap.Values)
-    $ownershipRels      = @($ownershipRelMap.Values)
-    $ownerRecords       = @($ownerAssns)
+    $ownership = ConvertTo-EntraGroupOwnership -RawOwners $rawOwners -GroupNameById $groupNameById
+    $ownershipResources = $ownership.resources
+    $ownershipRels      = $ownership.relationships
+    $ownerRecords       = $ownership.assignments
 
     # Send unconditionally (even when empty) so a full-sync reconcile clears
     # ownership resources/relationships/assignments for groups that lost owners.
