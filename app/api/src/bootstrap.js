@@ -24,6 +24,7 @@ import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
 import { purgeExpiredTombstones } from './ingest/tombstonePurge.js';
 import { revokeIdleTokens } from './auth/readTokens.js';
+import { startUpdateCheckJob } from './updates/job.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
 
@@ -361,6 +362,7 @@ export async function bootstrapWorker() {
       console.warn('Tag-root bootstrap skipped:', err.message);
     }
     startHistoryPruneJob();
+    startUpdateCheckJob();
     startScheduler();
     // Reap stale jobs: on every web container start, mark ALL jobs stuck in
     // 'running' or 'queued' as failed. After a container restart, no worker
