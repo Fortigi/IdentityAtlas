@@ -43,8 +43,7 @@ The credibility list — facts that back up the claims. Use these as slide foote
 - Built by **Fortigi**, a Dutch identity & access management consultancy that does
   this work for enterprise customers across Europe.
 - Grew out of a real internal tool used on real engagements — not a greenfield
-  guess at what practitioners need. (See [History](../history.md) and
-  [Founder Story](founder-story.md).)
+  guess at what practitioners need. (See [History](../history.md).)
 
 *Sources: [README](https://github.com/Fortigi/IdentityAtlas), [docs home](../index.md),
 [History](../history.md), [About](../about.md).*

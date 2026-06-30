@@ -51,7 +51,7 @@ deploy, with encrypted secrets and a documented schema. Some risk-scoring layers
 
 [Fortigi](https://www.fortigi.nl), a Dutch identity & access management
 consultancy. Identity Atlas started as an internal tool used on real engagements
-and grew into a product. See the [Founder Story](founder-story.md).
+and grew into a product. See [About](../about.md) and [History](../history.md).
 
 ### Where's the source / how do I contribute?
 

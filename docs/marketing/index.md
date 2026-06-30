@@ -27,7 +27,7 @@ Good prompts to start from:
 
 - "Draft a 6-slide deck introducing Identity Atlas to a security-team audience, using `key-messages.md` and `use-cases.md`."
 - "Write a 700-word launch blog post leading with the multi-system angle from `product-brief.md`."
-- "Turn `founder-story.md` into a LinkedIn post in the first person."
+- "Draft a LinkedIn post announcing Identity Atlas, using `key-messages.md` and `proof-points.md`."
 
 ## Contents
 
@@ -38,7 +38,6 @@ Good prompts to start from:
 | [Features](features.md) | The four pillars, in benefit language |
 | [Use Cases](use-cases.md) | Concrete scenarios to anchor stories and demos |
 | [Proof Points](proof-points.md) | The credibility list — open source, local-first, one-click Azure, etc. |
-| [Founder Story](founder-story.md) | The personal back-story behind the product |
 | [FAQ](faq.md) | Common questions, with public-safe answers |
 | [Boilerplate](boilerplate.md) | About-Fortigi paragraph, links, license, the one-liner |
 
