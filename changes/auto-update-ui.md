@@ -1,0 +1,1 @@
+- Added an **Admin → Updates** screen showing the running version and release channel, whether a newer version is available, a switch to turn **automatic updates** on or off, and a history of update checks and installed updates. A **Check now** button runs an immediate check. (Pinned deployments are detected and the switch is disabled with an explanation.)

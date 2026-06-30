@@ -12,6 +12,7 @@ const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
 const RiskProfileWizard = lazy(() => import('./RiskProfileWizard'));
 const AccountLinkingSettings = lazy(() => import('./AccountLinkingSettings'));
+const UpdatesSettings = lazy(() => import('./UpdatesSettings'));
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -1703,6 +1704,12 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
         {activeTab === 'auth' && (
           <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
             <AuthSettingsPage />
+          </Suspense>
+        )}
+
+        {activeTab === 'updates' && (
+          <Suspense fallback={<div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>}>
+            <UpdatesSettings />
           </Suspense>
         )}
 

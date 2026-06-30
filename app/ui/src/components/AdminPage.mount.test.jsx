@@ -140,7 +140,7 @@ describe('AdminPage (mounted)', () => {
   it('renders the admin shell with all sub-tabs visible', async () => {
     renderAdmin();
     expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
-    for (const label of ['Crawlers', 'Plugins', 'Account Linking', 'Risk Scoring', 'LLM Settings', 'Performance', 'Authentication', 'Data', 'About']) {
+    for (const label of ['Crawlers', 'Plugins', 'Account Linking', 'Risk Scoring', 'LLM Settings', 'Performance', 'Authentication', 'Data', 'Updates', 'About']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
   });
