@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a **Risky Consent** context plugin (Admin → Plugins). It classifies every delegated (OAuth) and application permission consent by risk using a curated risk map (e.g. `Group.ReadWrite.All`, `Mail.ReadWrite`, `Sites.ReadWrite.All` = High; `Directory.Read.All`, `Calendars.ReadWrite` = Medium; `openid`/`User.Read` = Low), then creates one context per risk tier — **"Risky Consent — High"** and **"Risky Consent — Medium"** — with every principal that holds such a consent as a member. Build a matrix on these contexts to find exactly which principals have granted risky consent. Tiers, systems, whether to include application permissions, and the default tier for unknown permissions are all configurable when you run the plugin.
+
+## Changes in this PR
+
 - Fixed search and filters being lost on list pages (Identities, Users, Groups, Resources) after opening one of the results and returning to the list — your search, column filters, "include deleted" toggle, and sort are now kept for the rest of the session.
 
 ## Changes in this PR
