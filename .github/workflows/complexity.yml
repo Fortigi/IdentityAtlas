@@ -10,10 +10,17 @@ name: Complexity ratchet
 on:
   pull_request:
     branches: [main]
+    # Skip-hygiene: a PR that changes ONLY docs / a version bump / the ratchet
+    # baseline has no code to re-measure, so the gate doesn't run. `.ci/**` covers
+    # a pure re-baseline (no code change) — it's self-consistent by construction
+    # (the baseline was generated from that exact code via --update), and a real
+    # code change that also re-baselines still runs, since paths-ignore only skips
+    # when EVERY changed file matches.
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
       - 'setup/IdentityAtlas.psd1'
+      - '.ci/**'
   workflow_dispatch:
 
 concurrency:
