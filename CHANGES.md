@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Context Plugins admin page now loads its plugin trees and catalog through the shared fetch lifecycle, removing a React Compiler set-state-in-effect warning. The list, empty state, load-error message, and Refresh button behave as before.
+
+## Changes in this PR
+
 - Dashboard landing page now loads its stats and version through the shared fetch lifecycle, removing a React Compiler set-state-in-effect warning. Load-error vs empty-database handling and the Retry button are unchanged.
 
 ## Changes in this PR
