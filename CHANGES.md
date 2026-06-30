@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed **duplicate Azure resources** in the Resources list (every Azure resource appeared twice). A full Azure crawl was tagging its resource batch with a scope label that matched none of the stored rows, so the full-sync clean-up step never removed superseded rows — when the internal resource id changed (during the Resource Graph rewrite), the old copies were stranded instead of being cleaned up. The crawl now reconciles each resource type correctly, so a fresh Azure RM crawl removes the leftover duplicates and keeps deleted Azure resources from lingering. (Run an Azure RM crawl after upgrading to clear existing duplicates.)
+
+## Changes in this PR
+
 - Fixed the resources list showing the **same delegated permission many times** (e.g. "Calendars.ReadWrite on Microsoft Graph" appearing five times). Each row is actually a *different application's* consent to that permission; the name just didn't say which app. Delegated-permission resources are now named with the consenting app — e.g. "Calendars.ReadWrite on Microsoft Graph (via Amazon Alexa)" — so they're distinct and scannable. (Takes effect after the next Entra ID crawl.)
 
 ## Changes in this PR
