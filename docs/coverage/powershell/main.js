@@ -290,10 +290,10 @@ var assemblies = [
   {
     "name": "tools/crawlers/azure-rm",
     "classes": [
-      { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Functions", "rp": "azure_rm_Functions.html", "cl": 32, "ucl": 0, "cal": 32, "tl": 129, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Functions", "rp": "azure_rm_Functions.html", "cl": 38, "ucl": 0, "cal": 38, "tl": 147, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/azure-rm/Get-AzureRGHelpers", "rp": "azure_rm_tools_crawlers_azure_rm_Get_AzureRGHelpers.html", "cl": 66, "ucl": 1, "cal": 67, "tl": 219, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/azure-rm/Get-AzureRMHelpers", "rp": "azure_rm_tools_crawlers_azure_rm_Get_AzureRMHelpers.html", "cl": 41, "ucl": 0, "cal": 41, "tl": 121, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/azure-rm/Start-AzureRMCrawler", "rp": "azure_rm_tools_crawlers_azure_rm_Start_AzureRMCrawler.html", "cl": 0, "ucl": 265, "cal": 265, "tl": 475, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/azure-rm/Start-AzureRMCrawler", "rp": "azure_rm_tools_crawlers_azure_rm_Start_AzureRMCrawler.html", "cl": 0, "ucl": 267, "cal": 267, "tl": 486, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
     "name": "tools/crawlers/csv",

@@ -1,30 +1,30 @@
 {
   "summary": {
-    "generatedon": "2026-06-30T16:50:18Z",
+    "generatedon": "2026-06-30T16:54:57Z",
     "parser": "JaCoCo",
     "assemblies": 11,
     "classes": 123,
     "files": 123,
-    "coveredlines": 2186,
-    "uncoveredlines": 3125,
-    "coverablelines": 5311,
-    "totallines": 12236,
-    "linecoverage": 41.1,
+    "coveredlines": 2192,
+    "uncoveredlines": 3127,
+    "coverablelines": 5319,
+    "totallines": 12265,
+    "linecoverage": 41.2,
     "coveredbranches": 0,
     "totalbranches": 0,
-    "coveredmethods": 204,
-    "fullcoveredmethods": 180,
-    "totalmethods": 222,
-    "methodcoverage": 91.8,
-    "fullmethodcoverage": 81
+    "coveredmethods": 205,
+    "fullcoveredmethods": 181,
+    "totalmethods": 223,
+    "methodcoverage": 91.9,
+    "fullmethodcoverage": 81.1
  },
   "coverage": {
     "assemblies": [
-      { "name": "tools/crawlers/azure-rm", "classes": 4, "coverage": 34.3, "coveredlines": 139, "coverablelines": 405, "totallines": 944, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 80.7, "fullmethodcoverage": 76.9, "coveredmethods": 21, "fullcoveredmethods": 20, "totalmethods": 26, "classesinassembly": [
-        { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Functions", "coverage": 100, "coveredlines": 32, "coverablelines": 32, "totallines": 129, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 7 },
+      { "name": "tools/crawlers/azure-rm", "classes": 4, "coverage": 35.1, "coveredlines": 145, "coverablelines": 413, "totallines": 973, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 81.4, "fullmethodcoverage": 77.7, "coveredmethods": 22, "fullcoveredmethods": 21, "totalmethods": 27, "classesinassembly": [
+        { "name": "tools/crawlers/azure-rm/AzureRMCrawler.Functions", "coverage": 100, "coveredlines": 38, "coverablelines": 38, "totallines": 147, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 8, "fullcoveredmethods": 8, "totalmethods": 8 },
         { "name": "tools/crawlers/azure-rm/Get-AzureRGHelpers", "coverage": 98.5, "coveredlines": 66, "coverablelines": 67, "totallines": 219, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 85.7, "coveredmethods": 7, "fullcoveredmethods": 6, "totalmethods": 7 },
         { "name": "tools/crawlers/azure-rm/Get-AzureRMHelpers", "coverage": 100, "coveredlines": 41, "coverablelines": 41, "totallines": 121, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 7, "fullcoveredmethods": 7, "totalmethods": 7 },
-        { "name": "tools/crawlers/azure-rm/Start-AzureRMCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 265, "totallines": 475, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 5 } ] },
+        { "name": "tools/crawlers/azure-rm/Start-AzureRMCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 267, "totallines": 486, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 5 } ] },
       { "name": "tools/crawlers/csv", "classes": 2, "coverage": 28.7, "coveredlines": 111, "coverablelines": 386, "totallines": 640, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 85.7, "fullmethodcoverage": 85.7, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 7, "classesinassembly": [
         { "name": "tools/crawlers/csv/CSVCrawler.Functions", "coverage": 100, "coveredlines": 111, "coverablelines": 111, "totallines": 217, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
         { "name": "tools/crawlers/csv/Start-CSVCrawler", "coverage": 0, "coveredlines": 0, "coverablelines": 275, "totallines": 423, "branchcoverage": null, "coveredbranches": 0, "totalbranches": 0, "methodcoverage": 0, "fullmethodcoverage": 0, "coveredmethods": 0, "fullcoveredmethods": 0, "totalmethods": 1 } ] },
