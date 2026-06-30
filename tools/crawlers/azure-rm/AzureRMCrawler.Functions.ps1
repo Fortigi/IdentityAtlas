@@ -127,3 +127,21 @@ function Get-ParentScopePath {
     if ($ScopePath -match '^(/subscriptions/[^/]+)/providers/')                       { return $matches[1] }
     return $null
 }
+
+# Group resource records by their resourceType, preserving first-seen order. A full-sync ingest
+# batch only reconciles (tombstones) rows matching its scope tag; the Azure scope nodes span
+# several resourceTypes, so they must be sent one batch per type or the reconcile matches nothing
+# (which is what left duplicate Azure resources behind after a node-id change). Returns an ordered
+# map of resourceType -> List[record]. Empty input yields an empty map (nothing is reconciled,
+# so a run that discovers no resources never wipes existing ones).
+function Group-FGRecordsByResourceType {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Records)
+    $groups = [ordered]@{}
+    foreach ($rec in $Records) {
+        $rt = [string]$rec.resourceType
+        if (-not $groups.Contains($rt)) { $groups[$rt] = [System.Collections.Generic.List[object]]::new() }
+        $groups[$rt].Add($rec)
+    }
+    return $groups
+}

@@ -406,9 +406,9 @@ Write-Host "  $($ScopeResources.Count) scope nodes, $($ContainsEdges.Count) Cont
 # send by resourceType makes each batch reconcile its own rows. Only types present this run are
 # sent, so a run that doesn't discover a given type (e.g. no management groups configured) leaves
 # that type's rows untouched rather than wiping them.
-foreach ($rt in @($ScopeResources | ForEach-Object { $_.resourceType } | Sort-Object -Unique)) {
-    $rtBatch = @($ScopeResources | Where-Object { $_.resourceType -eq $rt })
-    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = $rt } -Records $rtBatch | Out-Null
+$rtGroups = Group-FGRecordsByResourceType -Records $ScopeResources
+foreach ($rt in $rtGroups.Keys) {
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ resourceType = $rt } -Records @($rtGroups[$rt]) | Out-Null
 }
 Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode $SyncMode -Scope @{ relationshipType = 'Contains' } -Records $ContainsEdges | Out-Null
 
