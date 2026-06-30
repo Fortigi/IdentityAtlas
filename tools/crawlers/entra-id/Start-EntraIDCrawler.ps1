@@ -1410,18 +1410,7 @@ if ($SyncAppRoles) {
             # Build a role catalog. Always include the "default access" role —
             # for SPs configured with appRoleAssignmentRequired=true but no
             # custom roles, assignments fall back to the zero-GUID role id.
-            $rolesByGuid = @{}
-            foreach ($role in @($sp.appRoles)) {
-                if ($role -and $role.id) { $rolesByGuid[$role.id] = $role }
-            }
-            if (-not $rolesByGuid.ContainsKey($DEFAULT_ROLE_ID)) {
-                $rolesByGuid[$DEFAULT_ROLE_ID] = [PSCustomObject]@{
-                    id          = $DEFAULT_ROLE_ID
-                    displayName = 'Default Access'
-                    value       = $null
-                    description = 'No specific role defined; basic access to the application.'
-                }
-            }
+            $rolesByGuid = Get-EntraAppRoleCatalog -ServicePrincipal $sp -DefaultRoleId $DEFAULT_ROLE_ID
 
             # Fetch assignments. SPs without any assignments still emit
             # Application + AppRole Resources so the catalog is browseable.
@@ -1438,18 +1427,7 @@ if ($SyncAppRoles) {
             # Emit Application Resource (idempotent — OAuth2 phase may already
             # have written this same record, but the ingest endpoint upserts).
             if (-not $appResourceMap.ContainsKey($sp.id)) {
-                $rec = @{
-                    id           = $sp.id
-                    displayName  = $sp.displayName
-                    resourceType = 'Application'
-                    enabled      = $true
-                }
-                $ext = @{}
-                if ($sp.appId)                      { $ext['appId']                      = $sp.appId }
-                if ($sp.appRoleAssignmentRequired)  { $ext['appRoleAssignmentRequired']  = $true }
-                if ($sp.servicePrincipalType)       { $ext['servicePrincipalType']       = $sp.servicePrincipalType }
-                if ($ext.Count -gt 0)               { $rec['extendedAttributes']         = $ext }
-                $appResourceMap[$sp.id] = $rec
+                $appResourceMap[$sp.id] = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $sp
             }
 
             foreach ($a in $assignments) {
@@ -1470,46 +1448,16 @@ if ($SyncAppRoles) {
 
                 if (-not $appRoleMap.ContainsKey($roleResId)) {
                     $roleName = if ($role.displayName) { $role.displayName } else { 'Default Access' }
-                    $appRoleMap[$roleResId] = @{
-                        id           = $roleResId
-                        displayName  = "$roleName on $($sp.displayName)"
-                        resourceType = 'AppRole'
-                        enabled      = $true
-                        extendedAttributes = @{
-                            applicationSpId        = $sp.id
-                            applicationDisplayName = $sp.displayName
-                            appRoleId              = $roleId
-                            appRoleDisplayName     = $roleName
-                            appRoleValue           = $role.value
-                        }
-                    }
+                    $appRoleMap[$roleResId] = New-EntraAppRoleResourceRecord -ServicePrincipal $sp -Role $role -RoleResourceId $roleResId
                     $relKey = "$($sp.id)|$roleResId"
                     if (-not $relMap.ContainsKey($relKey)) {
-                        $relMap[$relKey] = @{
-                            parentResourceId = $sp.id
-                            childResourceId  = $roleResId
-                            relationshipType = 'HasAppRole'
-                            roleName         = $roleName
-                            roleOriginSystem = 'EntraID'
-                        }
+                        $relMap[$relKey] = New-EntraAppRoleRelationshipRecord -ServicePrincipal $sp -RoleResourceId $roleResId -RoleName $roleName
                     }
                 }
 
                 switch ($a.principalType) {
                     'User' {
-                        $directAssns.Add(@{
-                            resourceId     = $roleResId
-                            principalId    = $a.principalId
-                            principalType  = 'User'
-                            assignmentType = 'Direct'
-                            resourceType   = 'AppRole'
-                            extendedAttributes = @{
-                                appRoleAssignmentId = $a.id
-                                appRoleId           = $roleId
-                                createdDateTime     = $a.createdDateTime
-                                resourceDisplayName = $sp.displayName
-                            }
-                        })
+                        $directAssns.Add((New-EntraAppRoleAssignmentRecord -RoleResourceId $roleResId -Assignment $a -RoleId $roleId -PrincipalType 'User' -AppDisplayName $sp.displayName))
                     }
                     'Group' {
                         if (-not $groupAssns.ContainsKey($a.principalId)) {
@@ -1527,19 +1475,7 @@ if ($SyncAppRoles) {
                         # itself filters out group-typed principals via its
                         # INNER JOIN to Principals, so this row only surfaces in
                         # the nested-groups expand — not as a stray column.
-                        $directAssns.Add(@{
-                            resourceId     = $roleResId
-                            principalId    = $a.principalId
-                            principalType  = 'Group'
-                            assignmentType = 'Direct'
-                            resourceType   = 'AppRole'
-                            extendedAttributes = @{
-                                appRoleAssignmentId = $a.id
-                                appRoleId           = $roleId
-                                createdDateTime     = $a.createdDateTime
-                                resourceDisplayName = $sp.displayName
-                            }
-                        })
+                        $directAssns.Add((New-EntraAppRoleAssignmentRecord -RoleResourceId $roleResId -Assignment $a -RoleId $roleId -PrincipalType 'Group' -AppDisplayName $sp.displayName))
                     }
                     default {
                         # ServicePrincipal or other — skip for v1.

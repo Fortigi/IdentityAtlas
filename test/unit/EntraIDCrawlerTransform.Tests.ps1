@@ -518,3 +518,80 @@ Describe 'ConvertTo-EntraOAuth2ScopeGraph' {
         $out.assignments.Count | Should -Be 0
     }
 }
+
+Describe 'ConvertTo-EntraAppRoleApplicationResource' {
+
+    It 'maps an enterprise app SP to an Application resource with flags in ext' {
+        $sp = [pscustomobject]@{ id = 'sp1'; displayName = 'CRM'; appId = 'app-1'; appRoleAssignmentRequired = $true; servicePrincipalType = 'Application' }
+        $rec = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $sp
+        $rec['resourceType'] | Should -Be 'Application'
+        $rec['extendedAttributes']['appId']                     | Should -Be 'app-1'
+        $rec['extendedAttributes']['appRoleAssignmentRequired'] | Should -BeTrue
+    }
+}
+
+Describe 'Get-EntraAppRoleCatalog' {
+
+    It 'indexes appRoles by id and always adds the Default Access role' {
+        $sp = [pscustomobject]@{ appRoles = @([pscustomobject]@{ id = 'r1'; displayName = 'Reader' }) }
+        $cat = Get-EntraAppRoleCatalog -ServicePrincipal $sp -DefaultRoleId '0000'
+        $cat['r1'].displayName   | Should -Be 'Reader'
+        $cat['0000'].displayName | Should -Be 'Default Access'
+    }
+
+    It 'synthesizes only the default role for an SP with no appRoles' {
+        $cat = Get-EntraAppRoleCatalog -ServicePrincipal ([pscustomobject]@{ appRoles = @() }) -DefaultRoleId '0000'
+        $cat.Count | Should -Be 1
+        $cat.ContainsKey('0000') | Should -BeTrue
+    }
+}
+
+Describe 'New-EntraAppRoleResourceRecord' {
+
+    It 'builds an AppRole resource named "<role> on <app>" with role detail in ext' {
+        $sp   = [pscustomobject]@{ id = 'sp1'; displayName = 'CRM' }
+        $role = [pscustomobject]@{ id = 'r1'; displayName = 'Reader'; value = 'Reader.Role' }
+        $rec  = New-EntraAppRoleResourceRecord -ServicePrincipal $sp -Role $role -RoleResourceId 'res-1'
+        $rec['id']           | Should -Be 'res-1'
+        $rec['displayName']  | Should -Be 'Reader on CRM'
+        $rec['resourceType'] | Should -Be 'AppRole'
+        $rec['extendedAttributes']['appRoleId']    | Should -Be 'r1'
+        $rec['extendedAttributes']['appRoleValue'] | Should -Be 'Reader.Role'
+    }
+
+    It 'falls back to "Default Access" when the role has no displayName' {
+        $rec = New-EntraAppRoleResourceRecord -ServicePrincipal ([pscustomobject]@{ id = 'sp1'; displayName = 'CRM' }) -Role ([pscustomobject]@{ id = '0000' }) -RoleResourceId 'res-0'
+        $rec['displayName'] | Should -Be 'Default Access on CRM'
+    }
+}
+
+Describe 'New-EntraAppRoleRelationshipRecord' {
+
+    It 'builds a HasAppRole relationship from app to role' {
+        $rec = New-EntraAppRoleRelationshipRecord -ServicePrincipal ([pscustomobject]@{ id = 'sp1' }) -RoleResourceId 'res-1' -RoleName 'Reader'
+        $rec['parentResourceId'] | Should -Be 'sp1'
+        $rec['childResourceId']  | Should -Be 'res-1'
+        $rec['relationshipType'] | Should -Be 'HasAppRole'
+        $rec['roleOriginSystem'] | Should -Be 'EntraID'
+    }
+}
+
+Describe 'New-EntraAppRoleAssignmentRecord' {
+
+    It 'builds a Direct AppRole assignment carrying the requested principalType' {
+        $a = [pscustomobject]@{ id = 'asn1'; principalId = 'u1'; createdDateTime = '2026-01-01T00:00:00Z' }
+        $rec = New-EntraAppRoleAssignmentRecord -RoleResourceId 'res-1' -Assignment $a -RoleId 'r1' -PrincipalType 'User' -AppDisplayName 'CRM'
+        $rec['resourceId']     | Should -Be 'res-1'
+        $rec['principalId']    | Should -Be 'u1'
+        $rec['principalType']  | Should -Be 'User'
+        $rec['assignmentType'] | Should -Be 'Direct'
+        $rec['resourceType']   | Should -Be 'AppRole'
+        $rec['extendedAttributes']['appRoleAssignmentId'] | Should -Be 'asn1'
+        $rec['extendedAttributes']['resourceDisplayName'] | Should -Be 'CRM'
+    }
+
+    It 'stamps principalType Group when asked' {
+        $a = [pscustomobject]@{ id = 'asn2'; principalId = 'g1' }
+        (New-EntraAppRoleAssignmentRecord -RoleResourceId 'res-1' -Assignment $a -RoleId 'r1' -PrincipalType 'Group')['principalType'] | Should -Be 'Group'
+    }
+}
