@@ -22,6 +22,7 @@ export const ADMIN_TABS = [
 
   { key: 'auth',            label: 'Authentication',   description: 'Single sign-on and role / permission management',                      requires: ['admin.auth'] },
   { key: 'data',            label: 'Data',             description: 'Export/import curated data and clean the database',                    requires: ['data.export.ui', 'admin.csv-import', 'admin.systems', 'admin.read-tokens', 'data.export.apikey'] },
+  { key: 'updates',         label: 'Updates',          description: 'Automatic updates and version history',                                requires: ['admin.systems'] },
   { key: 'about',           label: 'About',            description: 'License, version, and software bill of materials' },
 ];
 
