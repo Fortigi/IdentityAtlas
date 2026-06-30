@@ -66,11 +66,16 @@ services:
       DATABASE_URL: "postgres://${POSTGRES_USER:-identity_atlas}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-identity_atlas}"
       AUTH_ENABLED: "${AUTH_ENABLED:-false}"
       PORT:         "3001"
+      # Release channel this deployment tracks (edge|beta|latest, or a pinned
+      # version). The auto-update check uses it to compare against the right
+      # "newest version". Mirrors the IMAGE_TAG that selects the image above;
+      # if unset, the channel is inferred from the running version.
+      IMAGE_TAG:    "${IMAGE_TAG:-latest}"
       # Compose file version — the API checks this to warn users when their
       # local docker-compose.prod.yml is outdated. Bump this number whenever
       # the compose file changes in a way that affects runtime behavior
       # (new env vars, volume mounts, group_add, etc.).
-      COMPOSE_FILE_VERSION: "1"
+      COMPOSE_FILE_VERSION: "2"
       # Master key for the secrets vault (LLM API keys, scraper credentials).
       # If unset, the bootstrap auto-generates one and persists it to
       # /data/uploads/.master-key inside the job_data volume. For real production

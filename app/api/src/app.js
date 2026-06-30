@@ -48,6 +48,7 @@ import jobsRouter from './routes/jobs.js';
 import crawlerFilesRouter from './routes/crawlerFiles.js';
 import dataExportRouter from './routes/dataExport.js';
 import bulkListsRouter from './routes/bulkLists.js';
+import updatesRouter from './routes/updates.js';
 import { isAuthEnabled, getTenantId, getClientId } from './config/authConfig.js';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
@@ -335,6 +336,8 @@ export function createApp() {
   app.use('/api', authMiddleware, governanceRouter);
   // Bulk list endpoints used by Power Query / BI tools (read API keys honoured)
   app.use('/api', authMiddleware, bulkListsRouter);
+  // Auto-update status/intent/log + the admin toggle (admin.systems gated writes)
+  app.use('/api', authMiddleware, updatesRouter);
   // Read API token CRUD + Excel workbook download (admin-scoped). Per-handler
   // gates in the router separate "create your own token" (data.export.apikey)
   // from "list/revoke any token in tenant" (admin.read-tokens) and the workbook
