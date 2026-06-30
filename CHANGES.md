@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Completed the React Compiler set-state-in-effect cleanup across the remaining UI (performance metrics, entity detail pages, context tree, and other views/hooks) and enabled the `react-hooks/set-state-in-effect` lint rule as a build error so the pattern can't be reintroduced. No change to behavior.
+
+## Changes in this PR
+
 - Fixed the **Admin → Updates** screen showing a blank current version (and defaulting the channel to "latest") on source / development / local installs where the version isn't provided as an environment variable. The update logic now falls back to reading the version manifest, exactly like the rest of the app, so the running version and channel are detected correctly on every kind of deployment.
 
 ## Changes in this PR
