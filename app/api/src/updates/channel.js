@@ -6,14 +6,16 @@
 // file passes it into the container. When it's absent (older compose, Azure, a
 // local run), fall back to inferring the channel from the running version string.
 
+import { resolveModuleVersion } from '../version.js';
+
 const CHANNELS = new Set(['edge', 'beta', 'latest']);
 const PINNED_RE = /^\d+\.\d+\.\d+\.\d+$/; // a fully-pinned image tag, e.g. 5.2.1.0
 
-export function resolveChannel(env = process.env) {
+export function resolveChannel(env = process.env, read) {
   const tag = (env.IMAGE_TAG || '').trim().toLowerCase();
   if (CHANNELS.has(tag)) return tag;
   if (tag && PINNED_RE.test(tag)) return 'pinned'; // pinned deployments don't auto-jump
-  return inferChannelFromVersion(env.MODULE_VERSION);
+  return inferChannelFromVersion(resolveModuleVersion(env, read));
 }
 
 // Best-effort channel from the MODULE_VERSION baked into the image:
@@ -28,6 +30,6 @@ export function inferChannelFromVersion(version) {
   return 'latest';
 }
 
-export function getCurrentVersion(env = process.env) {
-  return env.MODULE_VERSION || null;
+export function getCurrentVersion(env = process.env, read) {
+  return resolveModuleVersion(env, read);
 }

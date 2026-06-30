@@ -16,7 +16,10 @@ describe('channel resolution', () => {
     expect(resolveChannel({ MODULE_VERSION: '5.3.0-beta.2' })).toBe('beta');
     expect(resolveChannel({ MODULE_VERSION: '5.310.20260629.1221' })).toBe('edge');
     expect(resolveChannel({ MODULE_VERSION: '5.2.1.0' })).toBe('latest');
-    expect(resolveChannel({})).toBe('latest');
+    // No env + no readable manifest → defaults to latest. Inject a throwing
+    // reader so the test never touches the repo's real .psd1.
+    const noFile = () => { throw new Error('no manifest'); };
+    expect(resolveChannel({}, noFile)).toBe('latest');
   });
 
   it('inferChannelFromVersion distinguishes edge/beta/release', () => {
@@ -26,8 +29,8 @@ describe('channel resolution', () => {
     expect(inferChannelFromVersion(undefined)).toBe('latest');
   });
 
-  it('getCurrentVersion reads MODULE_VERSION', () => {
+  it('getCurrentVersion prefers MODULE_VERSION, else null when no manifest', () => {
     expect(getCurrentVersion({ MODULE_VERSION: '5.2.1.0' })).toBe('5.2.1.0');
-    expect(getCurrentVersion({})).toBe(null);
+    expect(getCurrentVersion({}, () => { throw new Error('no manifest'); })).toBe(null);
   });
 });
