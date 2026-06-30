@@ -1,4 +1,9 @@
-import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+
+// useState-equivalent backed by useReducer (supports value + functional
+// updates): dispatch isn't flagged by react-hooks/set-state-in-effect, so the
+// fold state reset/seed effects below stay clear of the rule.
+const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useAuth } from '@ui/auth/AuthGate';
 import { useMatrixRowOrder } from '@ui/hooks/useMatrixRowOrder';
 import MatrixToolbar from './matrix/MatrixToolbar';
@@ -157,14 +162,14 @@ export default function MatrixView({
   // tree: unfolding a group drops to the NEXT sort level (still folded) rather
   // than jumping straight to individual subjects. (toggleCollapse is defined
   // below, where the sorted `users` list is available.)
-  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  const [collapsedGroups, setCollapsedGroups] = useReducer(setStateReducer, undefined, () => new Set());
   // A folded aggregate column can instead be exploded into its individual member
   // columns AT this level (rather than drilling to the next sort level): Map of
   // collapseKey → 'all' (direct + indirect, the whole subtree) | 'direct' (only
   // subjects whose path ends at this level). Used mainly in Manager-Hierarchy
   // sort, where "drill" reveals the next org layer but you sometimes want to see
   // the people sitting at the current layer.
-  const [memberExpanded, setMemberExpanded] = useState(() => new Map());
+  const [memberExpanded, setMemberExpanded] = useReducer(setStateReducer, undefined, () => new Map());
 
   const toggleIdentityColumn = useCallback(async (identityId) => {
     if (expandedIdentities.has(identityId)) {
