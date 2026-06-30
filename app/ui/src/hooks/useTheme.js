@@ -18,15 +18,17 @@ export function useTheme() {
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   );
 
-  // Track OS preference changes when in auto mode
+  // Track the OS preference at all times so `osDark` is always fresh — it only
+  // affects the result in 'auto' mode, so subscribing in every mode is
+  // harmless. Subscribing once (rather than re-subscribing per mode and
+  // synchronously catching up with a setState inside the effect) keeps a
+  // setState out of the effect body (react-hooks/set-state-in-effect).
   useEffect(() => {
-    if (mode !== 'auto') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = (e) => setOsDark(e.matches);
     mq.addEventListener('change', handler);
-    setOsDark(mq.matches);
     return () => mq.removeEventListener('change', handler);
-  }, [mode]);
+  }, []);
 
   const isDark = mode === 'dark' || (mode === 'auto' && osDark);
 
