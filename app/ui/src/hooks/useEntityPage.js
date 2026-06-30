@@ -1,5 +1,6 @@
 import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
 import { useDebouncedValue } from './useDebouncedValue';
+import usePersistedState from './usePersistedState';
 import { useDialog } from '@ui/components/dialogContext';
 
 const PAGE_SIZE = 100;
@@ -21,6 +22,11 @@ const PAGE_SIZE = 100;
  */
 export default function useEntityPage({ authFetch, entityType, listEndpoint, columnsEndpoint, tagFilterKey, baseFilters }) {
   const dialog = useDialog();
+  // Filter/search/sort state is persisted per entity type so it survives the
+  // list page unmounting when a result is opened in a detail tab and remounting
+  // when the user comes back (issue #192). `entityType` is stable for the life
+  // of the page, so these keys are stable across renders.
+  const skey = (k) => (entityType ? `iatlas.list.${entityType}.${k}` : null);
   // Data state
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -32,21 +38,23 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   // Column discovery for filters
   const [availableColumns, setAvailableColumns] = useState([]);
   const [columnsLoading, setColumnsLoading] = useState(true);
-  const [activeFilters, setActiveFilters] = useState([]);
+  const [activeFilters, setActiveFilters] = usePersistedState(skey('filters'), []);
 
   // Filter state
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = usePersistedState(skey('search'), '');
   const debouncedSearch = useDebouncedValue(search, 400);
+  // Page resets to 0 on return — the persisted filters/search are what matter,
+  // and starting at page 1 avoids landing on a now-empty page if the data moved.
   const [page, setPage] = useState(0);
   // Soft-deleted (tombstoned) entities are hidden by default; this reveals them.
-  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [includeDeleted, setIncludeDeleted] = usePersistedState(skey('includeDeleted'), false);
 
-  // Selection state
+  // Selection state (transient — never persisted)
   const [selected, setSelected] = useState(new Set());
 
   // Sort state
-  const [sortCol, setSortCol] = useState(null);
-  const [sortDir, setSortDir] = useState('asc');
+  const [sortCol, setSortCol] = usePersistedState(skey('sortCol'), null);
+  const [sortDir, setSortDir] = usePersistedState(skey('sortDir'), 'asc');
 
   // Tag creation state
   const [showCreateTag, setShowCreateTag] = useState(false);
@@ -165,11 +173,11 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   // Filter helpers
   const addFilter = useCallback((field, value) => {
     setActiveFilters(prev => [...prev.filter(f => f.field !== field), { field, value }]);
-  }, []);
+  }, [setActiveFilters]);
 
   const removeFilter = useCallback((field) => {
     setActiveFilters(prev => prev.filter(f => f.field !== field));
-  }, []);
+  }, [setActiveFilters]);
 
   const clearAllFilters = () => {
     setActiveFilters([]);
