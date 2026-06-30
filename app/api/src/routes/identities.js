@@ -213,7 +213,7 @@ router.get('/identities', async (req, res) => {
     dataReq.input('pageOffset', pageOffset);
     dataReq.input('pageLimit', pageLimit);
 
-    const dataPromise = dataReq.query(`
+    const dataSql = `
       WITH page AS (
         SELECT i.id, i."displayName", i."primaryPrincipalId" AS "primaryAccountId", i.email AS "primaryAccountUpn",
           i."accountCount", NULL AS "accountTypes",
@@ -237,8 +237,10 @@ router.get('/identities', async (req, res) => {
         ) AS "tagString"
       FROM page
       ORDER BY ${orderBy}
-    `);
+    `;
 
+    // Fire count (page 1 only) before data so the call order matches the
+    // legacy Promise.all([count, data]) — keeps the mocked unit tests valid.
     let total = null;
     let dataResult;
     if (pageOffset === 0) {
@@ -246,12 +248,12 @@ router.get('/identities', async (req, res) => {
       for (const [k, v] of Object.entries(inputs)) countReq.input(k, v);
       const [countResult, dr] = await Promise.all([
         countReq.query(`SELECT COUNT(*)::int AS total FROM "Identities" i ${identityTagJoin} ${where}`),
-        dataPromise,
+        dataReq.query(dataSql),
       ]);
       total = countResult.recordset[0].total;
       dataResult = dr;
     } else {
-      dataResult = await dataPromise;
+      dataResult = await dataReq.query(dataSql);
     }
     const data = dataResult.recordset.map(row => {
       const { tagString, ...rest } = row;
