@@ -231,6 +231,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        with:
+          # Current BuildKit → type=gha uses the Actions Cache Service v2 (the
+          # legacy v1 service was retired). See docker-publish.yml.
+          driver-opts: image=moby/buildkit:buildx-stable-1
 
       - name: Build web image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -241,6 +245,7 @@ jobs:
           load: true
           tags: identity-atlas-web:ci
           cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=min,scope=web,ignore-error=true
 
       - name: Build worker image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -251,6 +256,7 @@ jobs:
           load: true
           tags: identity-atlas-worker:ci
           cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=min,scope=worker,ignore-error=true
 
       - name: Start stack
         run: docker compose -f docker-compose.ci.yml up -d
@@ -699,6 +705,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        with:
+          # Current BuildKit → type=gha uses the Actions Cache Service v2 (the
+          # legacy v1 service was retired). See docker-publish.yml.
+          driver-opts: image=moby/buildkit:buildx-stable-1
 
       - name: Build web image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -709,6 +719,7 @@ jobs:
           load: true
           tags: identity-atlas-web:ci
           cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=min,scope=web,ignore-error=true
 
       - name: Build worker image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -719,6 +730,7 @@ jobs:
           load: true
           tags: identity-atlas-worker:ci
           cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=min,scope=worker,ignore-error=true
 
       - name: Start stack
         run: docker compose -f docker-compose.ci.yml up -d
@@ -805,6 +817,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        with:
+          # Current BuildKit → type=gha uses the Actions Cache Service v2 (the
+          # legacy v1 service was retired). See docker-publish.yml.
+          driver-opts: image=moby/buildkit:buildx-stable-1
 
       - name: Build web image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -815,6 +831,7 @@ jobs:
           load: true
           tags: identity-atlas-web:ci
           cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=min,scope=web,ignore-error=true
 
       - name: Build worker image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -825,6 +842,7 @@ jobs:
           load: true
           tags: identity-atlas-worker:ci
           cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=min,scope=worker,ignore-error=true
 
       - name: Start stack
         run: docker compose -f docker-compose.ci.yml up -d
