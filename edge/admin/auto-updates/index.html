@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/account-linking/">
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/admin/auto-updates/">
       
       
-        <link rel="prev" href="../crawler-architecture/">
+        <link rel="prev" href="../../architecture/effective-access-engine/">
       
       
-        <link rel="next" href="../effective-access-engine/">
+        <link rel="next" href="../../architecture/azure-deployment-walkthrough/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Account Linking - Identity Atlas</title>
+        <title>Automatic Updates - Identity Atlas</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#account-linking-architecture" class="md-skip">
+        <a href="#automatic-updates" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Account Linking
+              Automatic Updates
             
           </span>
         </div>
@@ -793,7 +793,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../csv-import-schema/" class="md-nav__link">
+      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
         
   
   
@@ -905,7 +905,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../omada-crawler-datamodel/" class="md-nav__link">
+      <a href="../../architecture/omada-crawler-datamodel/" class="md-nav__link">
         
   
   
@@ -1079,7 +1079,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
+      <a href="../excel-powerquery-export/" class="md-nav__link">
         
   
   
@@ -1107,7 +1107,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
+      <a href="../excel-template-authoring/" class="md-nav__link">
         
   
   
@@ -1404,7 +1404,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../resource-cluster-algorithm/" class="md-nav__link">
+      <a href="../../architecture/resource-cluster-algorithm/" class="md-nav__link">
         
   
   
@@ -1412,553 +1412,6 @@
     
   
     Resource Cluster Algorithm
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-          
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_2">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Architecture
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../docker-setup/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Docker Setup
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../desktop-portable/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Portable Windows Launcher
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../branching-strategy/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Release & Branching Strategy
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../ingest-api/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Ingest API
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../audit-history/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Audit History
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../soft-delete/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Soft-Delete & Tombstones
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../matrix-scope-statistics/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Matrix Scope Statistics
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../llm-and-risk-scoring/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    LLM & Risk Scoring Internals
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../crawler-architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Crawler Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Account Linking
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Account Linking
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#purpose" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Purpose
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-deterministic-engine" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The deterministic engine
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The deterministic engine">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#the-dictionary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The dictionary
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#graded-name-matching-ambiguity-guard" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Graded name matching + ambiguity guard
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#candidate-scope-orphans-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Candidate scope = orphans only
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#confidence-scoring-writes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Confidence scoring + writes
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scheduling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Scheduling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-orphaned-accounts-context" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The "Orphaned Accounts" context
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#crawler-account-linking-ownership-split" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Crawler / Account-Linking ownership split
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        API
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related-references" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related references
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../effective-access-engine/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Effective Access Engine
   
 
     
@@ -2005,17 +1458,17 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    Operations
+    Architecture
   
 
     
@@ -2026,12 +1479,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Operations
+    Architecture
   
 
           </label>
@@ -2044,14 +1497,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../admin/auto-updates/" class="md-nav__link">
+      <a href="../../architecture/docker-setup/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Automatic Updates
+    Docker Setup
   
 
     
@@ -2072,7 +1525,538 @@
   
   
     <li class="md-nav__item">
-      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
+      <a href="../../architecture/desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/branching-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release & Branching Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/soft-delete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soft-Delete & Tombstones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/effective-access-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatic Updates
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatic Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-admin-updates-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Admin → Updates screen
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Admin → Updates screen">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#channel-awareness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel awareness
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#turning-it-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turning it on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker-host-cron-or-systemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker host (cron or systemd)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#azure-container-apps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Azure Container Apps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local install
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-not-auto-updated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not auto-updated
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keeping-components-in-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keeping components in step
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
         
   
   
@@ -2100,7 +2084,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../azure-deployment/" class="md-nav__link">
+      <a href="../../architecture/azure-deployment/" class="md-nav__link">
         
   
   
@@ -2128,7 +2112,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../scaling/" class="md-nav__link">
+      <a href="../../architecture/scaling/" class="md-nav__link">
         
   
   
@@ -2156,7 +2140,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../demo-dataset/" class="md-nav__link">
+      <a href="../../architecture/demo-dataset/" class="md-nav__link">
         
   
   
@@ -2878,7 +2862,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ci-scope-testing/" class="md-nav__link">
+      <a href="../../architecture/ci-scope-testing/" class="md-nav__link">
         
   
   
@@ -3149,66 +3133,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#purpose" class="md-nav__link">
+  <a href="#the-admin-updates-screen" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Purpose
+        The Admin → Updates screen
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-deterministic-engine" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The deterministic engine
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The deterministic engine">
+    <nav class="md-nav" aria-label="The Admin → Updates screen">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#the-dictionary" class="md-nav__link">
+  <a href="#channel-awareness" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The dictionary
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#graded-name-matching-ambiguity-guard" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Graded name matching + ambiguity guard
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#candidate-scope-orphans-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Candidate scope = orphans only
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#confidence-scoring-writes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Confidence scoring + writes
+        Channel awareness
       
     </span>
   </a>
@@ -3221,10 +3161,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scheduling" class="md-nav__link">
+  <a href="#turning-it-on" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Scheduling
+        Turning it on
       
     </span>
   </a>
@@ -3232,10 +3172,60 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-orphaned-accounts-context" class="md-nav__link">
+  <a href="#the-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The "Orphaned Accounts" context
+        The agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker-host-cron-or-systemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker host (cron or systemd)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#azure-container-apps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Azure Container Apps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local install
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-not-auto-updated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not auto-updated
       
     </span>
   </a>
@@ -3243,32 +3233,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#crawler-account-linking-ownership-split" class="md-nav__link">
+  <a href="#keeping-components-in-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Crawler / Account-Linking ownership split
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        API
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related-references" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related references
+        Keeping components in step
       
     </span>
   </a>
@@ -3344,10 +3312,10 @@
     
     
       <li class="md-path__item">
-        <a href="../docker-setup/" class="md-path__link">
+        <a href="./" class="md-path__link">
           
   <span class="md-ellipsis">
-    Architecture
+    Operations
   </span>
 
         </a>
@@ -3369,220 +3337,89 @@
   
 
 
-<h1 id="account-linking-architecture">Account Linking — architecture<a class="headerlink" href="#account-linking-architecture" title="Permanent link">&para;</a></h1>
-<blockquote>
-<p><strong>Status:</strong> current as of June 2026.
-Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/030_account_linking.sql"><code>030_account_linking.sql</code></a> and the <a href="../context-redesign/">Context Redesign</a> (the <code>orphaned-accounts</code> plugin).</p>
-</blockquote>
-<h2 id="purpose">Purpose<a class="headerlink" href="#purpose" title="Permanent link">&para;</a></h2>
-<p>Most directory-only deployments have <strong>no IGA platform</strong> feeding authoritative identities. Entra ID alone gives you accounts, not people: one person frequently owns a primary account, an admin account (<code>adm-jdoe</code>), a guest invite, and the odd secondary account. Without a correlation step, each of those shows up as its own row everywhere.</p>
-<p>Account Linking is the step that attaches those orphan accounts to an existing Identity, with a confidence score, so the matrix, the identity graph, and risk scoring can reason about the <em>person</em>. It is <strong>deterministic — there is no LLM</strong>. The match logic is an editable dictionary of weighted signals plus regex account-type rules; an analyst tunes it from Admin → Account Linking and reviews the results.</p>
-<p>This replaces the v4 PowerShell "account correlation" job (and the abandoned v5 LLM correlation wizard). See <a href="../../history/">History</a>.</p>
-<h2 id="the-deterministic-engine">The deterministic engine<a class="headerlink" href="#the-deterministic-engine" title="Permanent link">&para;</a></h2>
-<p>The engine lives in <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/accountlinking/"><code>app/api/src/accountlinking/</code></a>:</p>
-<table>
-<thead>
-<tr>
-<th>Module</th>
-<th>Responsibility</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>defaultRules.js</code></td>
-<td>The shipped default dictionary (<code>DEFAULT_RULES</code>).</td>
-</tr>
-<tr>
-<td><code>classifier.js</code></td>
-<td>Pure helpers: account-type classification, email-local-part / prefix handling, name parsing, graded name matching. Regex rules are compiled with <strong>RE2</strong> (linear-time, ReDoS-safe).</td>
-</tr>
-<tr>
-<td><code>engine.js</code></td>
-<td><code>scoreMatch</code>, <code>buildLinks</code> (pure scoring), and <code>runLinking(runId, configId)</code> (the DB-writing run).</td>
-</tr>
-</tbody>
-</table>
-<p>A run is top-down: for each existing Identity, find orphan accounts that belong to that person and attach them.</p>
-<h3 id="the-dictionary">The dictionary<a class="headerlink" href="#the-dictionary" title="Permanent link">&para;</a></h3>
-<p>The dictionary is shipped with sensible defaults (<code>DEFAULT_RULES</code>) and is editable per-tenant via <code>AccountLinkingConfig.rules</code>. It has four parts:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>{
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  &quot;signals&quot;: [
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    { &quot;name&quot;: &quot;employeeId&quot;,  &quot;type&quot;: &quot;exact&quot;,  &quot;field&quot;: &quot;employeeId&quot;, &quot;weight&quot;: 95 },
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    { &quot;name&quot;: &quot;email&quot;,       &quot;type&quot;: &quot;exact&quot;,  &quot;field&quot;: &quot;email&quot;,      &quot;weight&quot;: 90 },
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    { &quot;name&quot;: &quot;emailPrefix&quot;, &quot;type&quot;: &quot;prefix&quot;, &quot;field&quot;: &quot;email&quot;,      &quot;weight&quot;: 80,
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>      &quot;stripPrefixes&quot;: [&quot;adm-&quot;, &quot;adm_&quot;, &quot;a-&quot;, &quot;a_&quot;, &quot;admin-&quot;, &quot;admin_&quot;, &quot;ext-&quot;, &quot;ext_&quot;, &quot;svc-&quot;, &quot;s-&quot;] },
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    { &quot;name&quot;: &quot;fullName&quot;,       &quot;type&quot;: &quot;name&quot;, &quot;level&quot;: &quot;full&quot;,           &quot;weight&quot;: 60 },
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    { &quot;name&quot;: &quot;surnameInitial&quot;, &quot;type&quot;: &quot;name&quot;, &quot;level&quot;: &quot;surnameInitial&quot;, &quot;weight&quot;: 45 }
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  ],
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>  &quot;accountTypeRules&quot;: [
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    { &quot;accountType&quot;: &quot;Admin&quot;,   &quot;priority&quot;: 1, &quot;patterns&quot;: [&quot;^adm[-_]&quot;, &quot;^a[-_]&quot;, &quot;[-_]admin@&quot;, &quot;\\badmin\\b&quot;, &quot;\\(adm&quot;] },
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    { &quot;accountType&quot;: &quot;Guest&quot;,   &quot;priority&quot;: 1, &quot;patterns&quot;: [&quot;#ext#&quot;] },
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    { &quot;accountType&quot;: &quot;Service&quot;, &quot;priority&quot;: 2, &quot;patterns&quot;: [&quot;^svc[-_]&quot;, &quot;^s[-_]&quot;, &quot;\\bservice account\\b&quot;] },
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    { &quot;accountType&quot;: &quot;Shared&quot;,  &quot;priority&quot;: 3, &quot;patterns&quot;: [&quot;\\broom\\b&quot;, &quot;\\bequipment\\b&quot;, &quot;\\bshared\\b&quot;, &quot;\\bmailbox\\b&quot;] }
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>  ],
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>  &quot;linkThreshold&quot;: 50,
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>  &quot;onlyLinkTypes&quot;: [&quot;Admin&quot;, &quot;Guest&quot;, &quot;Secondary&quot;]
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>}
+<h1 id="automatic-updates">Automatic updates<a class="headerlink" href="#automatic-updates" title="Permanent link">&para;</a></h1>
+<p>Identity Atlas can keep itself current. The design splits the job in two so it
+works the same on every deployment — Docker, Azure, or a local install — without
+ever giving the application access to your container runtime:</p>
+<ul>
+<li><strong>The app decides.</strong> It checks once a day for a newer version on its release
+  channel, records what it finds, and exposes an <strong>auto-update switch</strong>. This is
+  the brain — it lives in the app and is identical everywhere.</li>
+<li><strong>A small agent applies.</strong> A deployment-specific helper (a cron job, a systemd
+  timer, an Azure scheduled job) asks the app "should I update?" and, if so,
+  pulls the new image and recreates the containers. This is the hands — it's the
+  only part that differs per platform, and the only part with the privilege to
+  change what's running.</li>
+</ul>
+<p>The app never touches Docker or Azure itself, so there's no socket to mount and
+no new attack surface inside the container.</p>
+<h2 id="the-admin-updates-screen">The Admin → Updates screen<a class="headerlink" href="#the-admin-updates-screen" title="Permanent link">&para;</a></h2>
+<p><strong>Admin → Updates</strong> shows:</p>
+<ul>
+<li>the <strong>running version</strong> and the <strong>release channel</strong> (<code>edge</code>, <code>beta</code>, <code>latest</code>,
+  or a pinned version),</li>
+<li>whether a <strong>newer version is available</strong> on that channel,</li>
+<li>the <strong>automatic updates</strong> switch, and</li>
+<li>a <strong>history</strong> of checks and installed updates.</li>
+</ul>
+<p><strong>Check now</strong> runs an immediate check. The daily check runs on its own ~24h
+after startup and every day after.</p>
+<h3 id="channel-awareness">Channel awareness<a class="headerlink" href="#channel-awareness" title="Permanent link">&para;</a></h3>
+<p>Updates never cross channels: an <code>edge</code> deployment is only offered newer <code>edge</code>
+builds, <code>beta</code> only newer betas, <code>latest</code> only newer releases. The channel comes
+from the <code>IMAGE_TAG</code> your compose file uses (passed into the container); if it's
+not set, the app infers it from the running version. A deployment pinned to a
+fixed version (e.g. <code>5.2.1.0</code>) is detected as <strong>pinned</strong> and the switch is
+disabled — pinned means pinned.</p>
+<h2 id="turning-it-on">Turning it on<a class="headerlink" href="#turning-it-on" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Open <strong>Admin → Updates</strong> and turn <strong>Automatic updates</strong> on.</li>
+<li>Install the agent for your platform (below) on a daily schedule.</li>
+</ol>
+<p>With the switch <strong>off</strong>, the app still checks daily and shows the newest
+available version — you just apply it yourself (<code>docker compose pull &amp;&amp; up -d</code>,
+or roll the Azure revision).</p>
+<h2 id="the-agent">The agent<a class="headerlink" href="#the-agent" title="Permanent link">&para;</a></h2>
+<p>All agents call <code>GET /api/updates/intent</code>, which returns whether an update should
+be applied and to which version. They need <strong>read access</strong> to that endpoint — no
+token if <code>AUTH_ENABLED=false</code>, otherwise a <strong>read API token</strong> (<code>fgr_…</code>) created
+in <strong>Admin → Data → Power Query</strong>. They do <strong>not</strong> need admin credentials: the
+app detects the installed version on its next check, so the history fills in
+automatically.</p>
+<h3 id="docker-host-cron-or-systemd">Docker host (cron or systemd)<a class="headerlink" href="#docker-host-cron-or-systemd" title="Permanent link">&para;</a></h3>
+<p>The agent script lives at <code>tools/auto-update/identityatlas-autoupdate.sh</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># cron — nightly at 03:30</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="m">30</span><span class="w"> </span><span class="m">3</span><span class="w"> </span>*<span class="w"> </span>*<span class="w"> </span>*<span class="w">  </span><span class="nv">IA_COMPOSE_FILE</span><span class="o">=</span>/opt/identityatlas/docker-compose.prod.yml<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">            </span>/opt/identityatlas/tools/auto-update/identityatlas-autoupdate.sh<span class="w"> </span>&gt;&gt;<span class="w"> </span>/var/log/ia-update.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
 </code></pre></div>
+<p>Or with systemd, using the provided unit + timer:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cp<span class="w"> </span>tools/auto-update/identityatlas-autoupdate.<span class="o">{</span>service,timer<span class="o">}</span><span class="w"> </span>/etc/systemd/system/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>identityatlas-autoupdate.timer
+</code></pre></div>
+<p>Environment: <code>IA_API_URL</code> (default <code>http://localhost:3001</code>), <code>IA_COMPOSE_FILE</code>,
+<code>IA_READ_TOKEN</code> (only if auth is on), <code>IA_SERVICES</code> (default <code>web worker</code>).</p>
+<h3 id="azure-container-apps">Azure Container Apps<a class="headerlink" href="#azure-container-apps" title="Permanent link">&para;</a></h3>
+<p>Use <code>tools/auto-update/identityatlas-autoupdate-azure.sh</code> from an Azure
+Automation runbook, a scheduled Container Apps Job, or a GitHub Actions cron with
+an Azure login. It re-deploys the channel tag, which pulls that tag's current
+digest into a new revision. Set <code>IA_API_URL</code>, <code>IA_RESOURCE_GROUP</code>, <code>IA_WEB_APP</code>
+(and optionally <code>IA_WORKER_APP</code>), and <code>IA_CHANNEL</code> to match the deployment.</p>
+<h3 id="local-install">Local install<a class="headerlink" href="#local-install" title="Permanent link">&para;</a></h3>
+<p>Point the Docker agent script at the local compose file from the OS scheduler
+(cron on macOS/Linux, Task Scheduler on Windows running it via Git Bash/WSL).</p>
+<h2 id="what-is-not-auto-updated">What is <em>not</em> auto-updated<a class="headerlink" href="#what-is-not-auto-updated" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><code>signals</code></strong> — weighted match rules. An orphan links to the candidate identity with the highest <em>summed</em> weight that clears <code>linkThreshold</code>. Strong signals (<code>employeeId</code>, <code>email</code> exact, <code>emailPrefix</code> after stripping a known prefix) are near-certain; name signals are softer (see below).</li>
-<li><strong><code>accountTypeRules</code></strong> — regex patterns that classify an account's type. Lowest <code>priority</code> wins; the matched pattern is recorded on the link (<code>accountTypePattern</code>). Anything that matches nothing is <code>Secondary</code> (a plain extra human account). Directory metadata is the strongest guest signal: <code>userType=Guest</code> or an <code>#ext#</code> UPN short-circuits to <code>Guest</code> before the regexes run.</li>
-<li><strong><code>linkThreshold</code></strong> — the minimum confidence to auto-link, surfaced as the <strong>certainty slider</strong> in the admin UI. The shipped default is <code>50</code>, which links name-only matches (they land around 45–60) at honest, low confidence; raise it to require stronger evidence.</li>
-<li><strong><code>onlyLinkTypes</code></strong> — only these account types are attached to a person. <code>Service</code> and <code>Shared</code> accounts are deliberately left out so they fall through to the Orphaned Accounts context rather than being glued onto a person.</li>
+<li><strong>PostgreSQL</strong> is pinned to <code>postgres:16-alpine</code> and is never rolled by the
+  agent — database major-version upgrades are a deliberate, manual operation.</li>
+<li><strong>Schema migrations</strong> run automatically when the new web container starts, and
+  are <strong>fail-closed</strong>: if a migration fails the container refuses to start, so a
+  half-migrated database can't serve traffic.</li>
 </ul>
-<h3 id="graded-name-matching-ambiguity-guard">Graded name matching + ambiguity guard<a class="headerlink" href="#graded-name-matching-ambiguity-guard" title="Permanent link">&para;</a></h3>
-<p>Names are parsed from <code>displayName</code> (falling back to <code>givenName</code>/<code>surname</code>) with role/company qualifiers like <code>(OGD)</code>, <code>[extern]</code>, or <code>(ADM-azure)</code> stripped, so <code>Euson, Robin (OGD)</code> and <code>(ADM-azure) Euson, Robin</code> both reduce to <code>{euson, robin}</code>. Both <code>Surname, Given</code> and <code>Given Surname</code> orderings are handled.</p>
-<p><code>nameMatchLevel</code> returns the strongest of:</p>
-<table>
-<thead>
-<tr>
-<th>Level</th>
-<th>Meaning</th>
-<th>Default weight</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>full</code></td>
-<td>same surname <strong>and</strong> same given name</td>
-<td>60</td>
-</tr>
-<tr>
-<td><code>surnameInitial</code></td>
-<td>same surname <strong>and</strong> same given initial (e.g. <code>r.euson</code> vs <code>robin.euson</code>)</td>
-<td>45</td>
-</tr>
-<tr>
-<td><code>none</code></td>
-<td>otherwise (surname-only is treated as no match)</td>
-<td>—</td>
-</tr>
-</tbody>
-</table>
-<p>The two name signals are mutually exclusive — only the signal whose <code>level</code> equals the computed best level fires.</p>
-<p><strong>Ambiguity guard:</strong> a <em>name-only</em> best match (no strong email/employeeId signal) that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess.</p>
-<h3 id="candidate-scope-orphans-only">Candidate scope = orphans only<a class="headerlink" href="#candidate-scope-orphans-only" title="Permanent link">&para;</a></h3>
-<p>The only accounts the engine ever considers are <strong>orphan Principals</strong> — Principals with no <code>IdentityMembers</code> row — excluding <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, and <code>AIAgent</code> principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key, so only plausible identities are scored.</p>
-<h3 id="confidence-scoring-writes">Confidence scoring + writes<a class="headerlink" href="#confidence-scoring-writes" title="Permanent link">&para;</a></h3>
-<p><code>scoreMatch</code> sums the weights of every matched signal, capped at 100. <code>buildLinks</code> keeps the highest-scoring candidate above <code>linkThreshold</code> per orphan. When <code>runLinking</code> writes the links into <code>IdentityMembers</code>:</p>
-<ul>
-<li>A non-primary member row is created (or updated) with <code>linkConfidence</code>, <code>linkSignals</code> (stored as a CSV string), <code>accountType</code>, and <code>accountTypePattern</code>.</li>
-<li>Per-identity rollups are written back to <code>Identities</code>: <code>accountCount</code>, <code>linkConfidence</code> (the best newly-linked account), <code>linkSignals</code> (the union), and <code>linkedAt</code>.</li>
-<li><strong>Analyst decisions win.</strong> A member with any <code>analystOverride</code> is never overwritten, and an account the analyst marked <code>rejected</code> is never re-linked to anyone.</li>
-</ul>
-<h2 id="scheduling">Scheduling<a class="headerlink" href="#scheduling" title="Permanent link">&para;</a></h2>
-<p>Account Linking runs on a schedule and on demand. Configuration and run history mirror the risk-scoring substrate (<code>RiskClassifiers</code> / <code>ScoringRuns</code>):</p>
-<table>
-<thead>
-<tr>
-<th>Table</th>
-<th>Role</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>AccountLinkingConfig</code></td>
-<td>Single active config row: <code>rules</code> (the dictionary), <code>schedules</code> (array), <code>isActive</code>, <code>updatedBy</code>.</td>
-</tr>
-<tr>
-<td><code>AccountLinkingRuns</code></td>
-<td>One row per run: <code>status</code>, <code>step</code>, <code>pct</code>, <code>candidatesScanned</code>, <code>linksCreated</code>, <code>linksUpdated</code>, <code>skippedAnalystOverride</code>, <code>orphansRemaining</code>, timestamps, <code>triggeredBy</code>.</td>
-</tr>
-</tbody>
-</table>
-<p><a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/scheduler.js"><code>scheduler.js</code></a> ticks every 60 s. Each tick it loads active configs that have at least one schedule, matches each <code>schedule</code> against the current minute, and queues a run (<code>triggeredBy = 'scheduler'</code>). A 55-minute look-back on <code>AccountLinkingRuns</code> prevents double-firing across container restarts. Runs are fire-and-forget — <code>runLinking</code> records its own progress and errors into the <code>AccountLinkingRuns</code> row, the same pattern manual runs use.</p>
-<h2 id="the-orphaned-accounts-context">The "Orphaned Accounts" context<a class="headerlink" href="#the-orphaned-accounts-context" title="Permanent link">&para;</a></h2>
-<p>Orphan-ness is <strong>never modelled as a property</strong> on the principal — it is context membership. The <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/orphaned-accounts.js"><code>orphaned-accounts</code></a> context plugin (a <code>targetType: 'Principal'</code> generated context) emits a tree of every Principal not linked to any Identity, sub-grouped by detected account type (<code>Admin</code> / <code>Guest</code> / <code>Service</code> / <code>Shared</code> / <code>Secondary</code>). It runs:</p>
-<ul>
-<li>standalone from Admin → Contexts, and</li>
-<li>automatically as the final step of every Account Linking run, so the context always reflects what linking could not attach.</li>
-</ul>
-<p>The future principals-clustering plugin refines this set into thematic contexts.</p>
-<h2 id="crawler-account-linking-ownership-split">Crawler / Account-Linking ownership split<a class="headerlink" href="#crawler-account-linking-ownership-split" title="Permanent link">&para;</a></h2>
-<p>Two writers touch <code>IdentityMembers</code>, with a clean division:</p>
-<ul>
-<li><strong>The crawler owns score-less source links.</strong> When a source system (e.g. an Omada IGA feed, or Entra's IdentityFilter) already knows that an account belongs to an identity, the crawler ingests that <code>IdentityMembers</code> row with <strong>no</strong> <code>linkConfidence</code> (NULL). These are authoritative, not guesses.</li>
-<li><strong>Account Linking owns scored links.</strong> It only attaches orphans — accounts the crawler did <em>not</em> already link — and always writes a <code>linkConfidence</code>.</li>
-<li><strong>Analyst overrides win over both.</strong> <code>analystOverride</code> (<code>confirmed</code> / <code>rejected</code> / <code>moved</code>) is set via <code>PUT /api/identities/:id/members/:userId/override</code> and respected by every re-run.</li>
-</ul>
-<div class="admonition note">
-<p class="admonition-title">Reconcile behaviour</p>
-<p>A full crawl's <code>IdentityMembers</code> reconcile <strong>preserves</strong> the scored (Account Linking) and analyst-overridden rows rather than deleting accounts the crawler didn't re-send. The reconcile delete in <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/ingest/engine.js"><code>ingest/engine.js</code></a> (<code>scopedDelete</code>) skips any target row that carries a <code>linkConfidence</code> or an <code>analystOverride</code> — so a crawler full-sync only ever removes the score-less source links it owns, never Account Linking's or an analyst's. (The guard is a no-op for every other table, where neither column exists.)</p>
-</div>
-<h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
-<p>All endpoints are mounted under <code>/api</code>. Config writes and run starts are gated by the <strong><code>admin.crawlers</code></strong> permission (the same gate as risk-scoring runs); reads of config and runs are open to any signed-in user.</p>
-<table>
-<thead>
-<tr>
-<th>Method</th>
-<th>Path</th>
-<th>Gate</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>GET</code></td>
-<td><code>/account-linking/config</code></td>
-<td>—</td>
-<td>Active config, or the shipped defaults (<code>defaults: true</code>) when none exists.</td>
-</tr>
-<tr>
-<td><code>PUT</code></td>
-<td><code>/account-linking/config</code></td>
-<td><code>admin.crawlers</code></td>
-<td>Upsert the single config row (<code>rules</code>, <code>schedules</code>, <code>isActive</code>).</td>
-</tr>
-<tr>
-<td><code>POST</code></td>
-<td><code>/account-linking/runs</code></td>
-<td><code>admin.crawlers</code></td>
-<td>Start a run. Returns <code>202</code> + the new run row; runs in the background.</td>
-</tr>
-<tr>
-<td><code>GET</code></td>
-<td><code>/account-linking/runs</code></td>
-<td>—</td>
-<td>The 50 most recent runs, newest first.</td>
-</tr>
-<tr>
-<td><code>GET</code></td>
-<td><code>/account-linking/runs/:id</code></td>
-<td>—</td>
-<td>Single-run status (for the polling UI).</td>
-</tr>
-</tbody>
-</table>
-<p>The analyst-facing override endpoints live on the identities route and are gated separately by <code>data.write.identity</code>:</p>
-<table>
-<thead>
-<tr>
-<th>Method</th>
-<th>Path</th>
-<th>Gate</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PUT</code></td>
-<td><code>/identities/:id/members/:userId/override</code></td>
-<td><code>data.write.identity</code></td>
-</tr>
-<tr>
-<td><code>DELETE</code></td>
-<td><code>/identities/:id/members/:userId/override</code></td>
-<td><code>data.write.identity</code></td>
-</tr>
-</tbody>
-</table>
-<h2 id="related-references">Related references<a class="headerlink" href="#related-references" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Engine + dictionary — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/accountlinking"><code>app/api/src/accountlinking/*</code></a></li>
-<li>Run/config API — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/routes/accountLinking.js"><code>app/api/src/routes/accountLinking.js</code></a></li>
-<li>Orphaned Accounts plugin — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/contexts/plugins/orphaned-accounts.js"><code>app/api/src/contexts/plugins/orphaned-accounts.js</code></a></li>
-<li>Schema — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/030_account_linking.sql"><code>030_account_linking.sql</code></a></li>
-<li>Scheduler — <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/scheduler.js"><code>app/api/src/scheduler.js</code></a></li>
-</ul>
+<h2 id="keeping-components-in-step">Keeping components in step<a class="headerlink" href="#keeping-components-in-step" title="Permanent link">&para;</a></h2>
+<p>The agent updates <strong>web and worker together</strong> so they never drift apart, and the
+web container runs the schema migrations on boot (fail-closed). Detection of
+web/worker/database version skew — a banner when a partial or interrupted update
+leaves components out of step — is surfaced on the Updates screen as well.</p>
 
 
 
