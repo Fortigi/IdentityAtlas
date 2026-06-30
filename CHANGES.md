@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the badge shown at the start of an open detail tab: Identity tabs now show "ID" (they previously showed "AP", the access-package badge), and run tabs show "RUN" instead of "AP".
+
+## Changes in this PR
+
 - Completed the React Compiler set-state-in-effect cleanup across the remaining UI (performance metrics, entity detail pages, context tree, and other views/hooks) and enabled the `react-hooks/set-state-in-effect` lint rule as a build error so the pattern can't be reintroduced. No change to behavior.
 
 ## Changes in this PR
