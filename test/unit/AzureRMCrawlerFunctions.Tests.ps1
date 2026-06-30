@@ -185,3 +185,32 @@ Describe 'Get-ParentScopePath' {
         Get-ParentScopePath -ScopePath '/providers/Microsoft.Management/managementGroups/mg1' | Should -BeNullOrEmpty
     }
 }
+
+# ─── Group-FGRecordsByResourceType ───────────────────────────────────────────────
+Describe 'Group-FGRecordsByResourceType' {
+    It 'groups records by resourceType so each type can be reconciled in its own full-sync batch' {
+        $recs = @(
+            @{ id = 's1';  resourceType = 'AzureSubscription' },
+            @{ id = 'rg1'; resourceType = 'AzureResourceGroup' },
+            @{ id = 'r1';  resourceType = 'AzureResource' },
+            @{ id = 'r2';  resourceType = 'AzureResource' }
+        )
+        $g = Group-FGRecordsByResourceType -Records $recs
+        $g.Keys.Count | Should -Be 3
+        @($g['AzureResource']).Count | Should -Be 2
+        @($g['AzureSubscription']).Count | Should -Be 1
+        @($g['AzureResourceGroup']).Count | Should -Be 1
+    }
+
+    It 'preserves first-seen type order' {
+        $recs = @(
+            @{ id = 'a'; resourceType = 'AzureSubscription' },
+            @{ id = 'b'; resourceType = 'AzureResource' }
+        )
+        (Group-FGRecordsByResourceType -Records $recs).Keys | Select-Object -First 1 | Should -Be 'AzureSubscription'
+    }
+
+    It 'returns an empty map for no records (so a run reconciles nothing rather than wiping rows)' {
+        (Group-FGRecordsByResourceType -Records @()).Keys.Count | Should -Be 0
+    }
+}
