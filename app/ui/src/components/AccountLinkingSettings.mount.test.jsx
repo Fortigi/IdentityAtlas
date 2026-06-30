@@ -78,6 +78,29 @@ describe('AccountLinkingSettings (mounted)', () => {
     );
   });
 
+  it('re-fetches the config from the server after a successful save', async () => {
+    // Pins the converted loader's reuse path: loadConfig() runs again after a PUT.
+    let gets = 0;
+    const authFetch = makeAuthFetch((url, opts = {}) => {
+      const u = String(url);
+      if (u.includes('/api/account-linking/config')) {
+        if ((opts.method || 'GET') === 'GET') { gets += 1; return config; }
+        return jsonResponse({ ok: true }); // PUT
+      }
+      if (u.includes('/api/account-linking/runs')) return { status: 'idle' };
+      return jsonResponse({ ok: true });
+    });
+    renderWithProviders(h(AccountLinkingSettings), { auth: { authFetch } });
+    const user = userEvent.setup();
+    await screen.findByText('Account Linking');
+    const afterMount = gets; // one GET from the mount load
+
+    await user.click(screen.getByText('Save'));
+    await screen.findByText('Saved.');
+
+    await waitFor(() => expect(gets).toBeGreaterThan(afterMount));
+  });
+
   it('rejects invalid JSON in the rules editor', async () => {
     renderWithProviders(h(AccountLinkingSettings), { auth: { authFetch: routes() } });
     await screen.findByText('Account Linking');
