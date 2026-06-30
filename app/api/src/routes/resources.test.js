@@ -84,6 +84,16 @@ describe('GET /resources — list', () => {
     await request(app).get('/api/resources');
     expect(captured.sql).toContain(`r."resourceType" <> 'BusinessRole'`);
   });
+
+  it('includes BusinessRole resources when ?includeBusinessRoles=true (governance export)', async () => {
+    await request(app).get('/api/resources?includeBusinessRoles=true');
+    expect(captured.sql).not.toContain(`r."resourceType" <> 'BusinessRole'`);
+  });
+
+  it('selects the governanceResource flag so business roles are identifiable', async () => {
+    await request(app).get('/api/resources?includeBusinessRoles=true');
+    expect(captured.sql).toContain('"governanceResource"');
+  });
 });
 
 describe('GET /resources/:id — detail', () => {

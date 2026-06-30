@@ -44,7 +44,7 @@ let
   FetchPage = (offset as number) =>
       Json.Document(Web.Contents(BaseUrl, [
           RelativePath = "ENDPOINT_PATH",
-          Query = [limit = Text.From(PageSize), offset = Text.From(offset)],
+          Query = [limit = Text.From(PageSize), offset = Text.From(offset)EXTRA_QUERY],
           Headers = Headers
       ])),
   First = FetchPage(0),
@@ -97,8 +97,19 @@ in
   ExtExpanded
 `.trim();
 
-function paginatedQuery(endpointPath) {
-  return PAGINATED_FETCH.replace('ENDPOINT_PATH', endpointPath);
+// `extraQuery` lets a feed pin extra fixed query-string params into every page
+// fetch (e.g. Resources passes includeBusinessRoles=true so the governance
+// resources the UI hides are included in the export). Keys are emitted as M
+// record fields alongside limit/offset; values are sent as strings.
+function paginatedQuery(endpointPath, extraQuery) {
+  const extra = extraQuery
+    ? Object.entries(extraQuery)
+        .map(([k, v]) => `, ${k} = "${v}"`)
+        .join('')
+    : '';
+  return PAGINATED_FETCH
+    .replace('ENDPOINT_PATH', endpointPath)
+    .replace('EXTRA_QUERY', extra);
 }
 
 // `/api/systems` predates the {data,total} convention used by every other
@@ -140,11 +151,18 @@ function arrayQuery(endpointPath) {
 export const QUERIES = [
   { sheet: 'Systems',                endpoint: 'systems',                m: arrayQuery('systems') },
   { sheet: 'Principals',             endpoint: 'users',                  m: paginatedQuery('users') },
-  { sheet: 'Resources',              endpoint: 'resources',              m: paginatedQuery('resources') },
+  { sheet: 'Resources',              endpoint: 'resources',              m: paginatedQuery('resources', { includeBusinessRoles: 'true' }) },
   { sheet: 'Assignments',            endpoint: 'assignments',            m: paginatedQuery('assignments') },
   { sheet: 'Identities',             endpoint: 'identities',             m: paginatedQuery('identities') },
   { sheet: 'IdentityMembers',        endpoint: 'identity-members',       m: paginatedQuery('identity-members') },
   { sheet: 'ResourceRelationships',  endpoint: 'resource-relationships', m: paginatedQuery('resource-relationships') },
   { sheet: 'Contexts',               endpoint: 'context-list',           m: paginatedQuery('context-list') },
   { sheet: 'ContextMembers',         endpoint: 'context-members',        m: paginatedQuery('context-members') },
+  // Governance (SOLL) layer — catalogs that group business roles / access
+  // packages, the policies that govern how they're granted, the request/
+  // approval workflow, and access-review (certification) outcomes.
+  { sheet: 'GovernanceCatalogs',     endpoint: 'governance-catalogs',    m: paginatedQuery('governance-catalogs') },
+  { sheet: 'AssignmentPolicies',     endpoint: 'assignment-policies',    m: paginatedQuery('assignment-policies') },
+  { sheet: 'AssignmentRequests',     endpoint: 'assignment-requests',    m: paginatedQuery('assignment-requests') },
+  { sheet: 'CertificationDecisions', endpoint: 'certification-decisions', m: paginatedQuery('certification-decisions') },
 ];
