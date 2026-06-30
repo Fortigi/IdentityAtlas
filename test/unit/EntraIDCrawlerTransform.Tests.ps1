@@ -464,3 +464,57 @@ Describe 'ConvertTo-EntraAccessPackageAssignmentRecord' {
         ConvertTo-EntraAccessPackageAssignmentRecord -Assignment ([pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' } }) | Should -BeNullOrEmpty
     }
 }
+
+Describe 'ConvertTo-EntraOAuth2ClientResource' {
+
+    It 'maps a client SP to an Application resource with appId/publisher in extendedAttributes' {
+        $rec = ConvertTo-EntraOAuth2ClientResource -ClientId 'c1' -SpInfo @{ displayName = 'My App'; appId = 'app-1'; publisherName = 'Contoso' }
+        $rec['id']           | Should -Be 'c1'
+        $rec['displayName']  | Should -Be 'My App'
+        $rec['resourceType'] | Should -Be 'Application'
+        $rec['enabled']      | Should -BeTrue
+        $rec['extendedAttributes']['appId']         | Should -Be 'app-1'
+        $rec['extendedAttributes']['publisherName'] | Should -Be 'Contoso'
+    }
+
+    It 'omits extendedAttributes when appId and publisher are absent' {
+        $rec = ConvertTo-EntraOAuth2ClientResource -ClientId 'c2' -SpInfo @{ displayName = 'Bare' }
+        $rec.ContainsKey('extendedAttributes') | Should -BeFalse
+    }
+}
+
+Describe 'ConvertTo-EntraOAuth2ScopeGraph' {
+
+    It 'splits a multi-scope grant into one resource/relationship/assignment per scope' {
+        $grant = [pscustomobject]@{ id = 'gr1'; clientId = 'c1'; resourceId = 'api1'; principalId = 'u1'; scope = 'Mail.Read User.Read' }
+        $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants @($grant) -SpInfo @{ c1 = @{ displayName = 'Client' }; api1 = @{ displayName = 'Graph' } }
+        $out.resources.Count     | Should -Be 2
+        $out.relationships.Count | Should -Be 2
+        $out.assignments.Count   | Should -Be 2
+        $out.resources     | ForEach-Object { $_.resourceType | Should -Be 'DelegatedPermission' }
+        $out.relationships | ForEach-Object { $_.relationshipType | Should -Be 'DelegatesScope'; $_.parentResourceId | Should -Be 'c1' }
+        $out.assignments   | ForEach-Object { $_.assignmentType | Should -Be 'Direct'; $_.principalId | Should -Be 'u1' }
+        ($out.assignments.extendedAttributes.scope | Sort-Object) -join ',' | Should -Be 'Mail.Read,User.Read'
+    }
+
+    It 'dedups the resource/relationship across users but keeps one assignment per user' {
+        $grants = @(
+            [pscustomobject]@{ id = 'g1'; clientId = 'c1'; resourceId = 'api1'; principalId = 'u1'; scope = 'Mail.Read' }
+            [pscustomobject]@{ id = 'g2'; clientId = 'c1'; resourceId = 'api1'; principalId = 'u2'; scope = 'Mail.Read' }
+        )
+        $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $grants -SpInfo @{ c1 = @{ displayName = 'Client' }; api1 = @{ displayName = 'Graph' } }
+        $out.resources.Count     | Should -Be 1
+        $out.relationships.Count | Should -Be 1
+        $out.assignments.Count   | Should -Be 2
+    }
+
+    It 'skips grants missing client/target/user, and grants with no scope' {
+        $grants = @(
+            [pscustomobject]@{ id = 'g1'; clientId = 'c1'; resourceId = 'api1'; principalId = $null; scope = 'Mail.Read' }   # no user
+            [pscustomobject]@{ id = 'g2'; clientId = 'c1'; resourceId = 'api1'; principalId = 'u1'; scope = '' }              # no scope
+        )
+        $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $grants -SpInfo @{}
+        $out.resources.Count   | Should -Be 0
+        $out.assignments.Count | Should -Be 0
+    }
+}

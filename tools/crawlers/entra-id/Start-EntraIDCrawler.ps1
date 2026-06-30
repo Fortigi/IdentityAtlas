@@ -1302,18 +1302,7 @@ if ($SyncOAuth2Grants) {
             $clientIds = [System.Collections.Generic.HashSet[string]]::new()
             foreach ($g in $userGrants) { [void]$clientIds.Add($g.clientId) }
             $clientRecords = @($clientIds | ForEach-Object {
-                $info = $spInfo[$_]
-                $rec = @{
-                    id           = $_
-                    displayName  = $info.displayName
-                    resourceType = 'Application'
-                    enabled      = $true
-                }
-                $ext = @{}
-                if ($info.appId)         { $ext['appId']         = $info.appId }
-                if ($info.publisherName) { $ext['publisherName'] = $info.publisherName }
-                if ($ext.Count -gt 0)    { $rec['extendedAttributes'] = $ext }
-                $rec
+                ConvertTo-EntraOAuth2ClientResource -ClientId $_ -SpInfo $spInfo[$_]
             })
             Update-CrawlerProgress -Detail "Uploading $($clientRecords.Count) client apps..."
             Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
@@ -1323,78 +1312,14 @@ if ($SyncOAuth2Grants) {
             # One Resource per (clientSpId, targetApiSpId, scope). The scope
             # string is space-separated — split it so analysts can filter on
             # individual scopes like "Mail.Read".
-            $scopeResourceMap = @{}   # scopeResId → record
-            $relMap           = @{}   # "parent|child" → record
-            $assignments      = [System.Collections.Generic.List[object]]::new()
+            $scopeGraph = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $userGrants -SpInfo $spInfo
 
-            foreach ($g in $userGrants) {
-                $clientId   = $g.clientId
-                $targetId   = $g.resourceId
-                $userId     = $g.principalId
-                if (-not $clientId -or -not $targetId -or -not $userId) { continue }
-
-                $clientInfo = $spInfo[$clientId]
-                $targetInfo = $spInfo[$targetId]
-                $clientName = if ($clientInfo) { $clientInfo.displayName } else { $clientId }
-                $targetName = if ($targetInfo) { $targetInfo.displayName } else { $targetId }
-
-                $scopeTokens = @()
-                if ($g.scope) {
-                    $scopeTokens = @($g.scope -split '\s+' | Where-Object { $_ -ne '' })
-                }
-                if ($scopeTokens.Count -eq 0) { continue }
-
-                foreach ($scope in $scopeTokens) {
-                    $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
-                    if (-not $scopeResourceMap.ContainsKey($scopeResId)) {
-                        $scopeResourceMap[$scopeResId] = @{
-                            id           = $scopeResId
-                            displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
-                            resourceType = 'DelegatedPermission'
-                            enabled      = $true
-                            extendedAttributes = @{
-                                clientSpId           = $clientId
-                                clientDisplayName    = $clientName
-                                targetApiSpId        = $targetId
-                                targetApiDisplayName = $targetName
-                                scope                = $scope
-                            }
-                        }
-                    }
-                    $relKey = "$clientId|$scopeResId"
-                    if (-not $relMap.ContainsKey($relKey)) {
-                        $relMap[$relKey] = @{
-                            parentResourceId = $clientId
-                            childResourceId  = $scopeResId
-                            relationshipType = 'DelegatesScope'
-                            roleName         = $scope
-                            roleOriginSystem = 'OAuth2'
-                        }
-                    }
-                    $assignments.Add(@{
-                        resourceId     = $scopeResId
-                        principalId    = $userId
-                        principalType  = 'User'
-                        assignmentType = 'Direct'
-                        resourceType   = 'DelegatedPermission'
-                        extendedAttributes = @{
-                            grantId              = $g.id
-                            clientSpId           = $clientId
-                            clientDisplayName    = $clientName
-                            targetApiSpId        = $targetId
-                            targetApiDisplayName = $targetName
-                            scope                = $scope
-                        }
-                    })
-                }
-            }
-
-            $scopeRecords = @($scopeResourceMap.Values)
+            $scopeRecords = @($scopeGraph.resources)
             Update-CrawlerProgress -Detail "Uploading $($scopeRecords.Count) scope resources..."
             Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
                 -Scope @{ resourceType = 'DelegatedPermission' } -Records $scopeRecords
 
-            $relRecords = @($relMap.Values)
+            $relRecords = @($scopeGraph.relationships)
             Update-CrawlerProgress -Detail "Uploading $($relRecords.Count) scope relationships..."
             Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $systemId -SyncMode 'full' `
                 -Scope @{ relationshipType = 'DelegatesScope' } -Records $relRecords
@@ -1406,7 +1331,7 @@ if ($SyncOAuth2Grants) {
             # (client, api) combos could collide at the PK. Unlikely in practice
             # — but a HashSet is cheap insurance.
             $seen = @{}
-            $assignRecords = @($assignments | Where-Object {
+            $assignRecords = @($scopeGraph.assignments | Where-Object {
                 $k = "$($_.resourceId)|$($_.principalId)"
                 if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
             })

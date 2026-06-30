@@ -420,3 +420,109 @@ function ConvertTo-EntraAccessPackageAssignmentRecord {
         expirationDateTime = $Assignment.expiredDateTime
     }
 }
+
+# Maps a distinct OAuth2 client SP id (+ its resolved info) → an Application
+# resource record. Verbatim from the inline `$clientIds | ForEach-Object` block.
+function ConvertTo-EntraOAuth2ClientResource {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$ClientId,
+        $SpInfo
+    )
+    $rec = @{
+        id           = $ClientId
+        displayName  = $SpInfo.displayName
+        resourceType = 'Application'
+        enabled      = $true
+    }
+    $ext = @{}
+    if ($SpInfo.appId)         { $ext['appId']         = $SpInfo.appId }
+    if ($SpInfo.publisherName) { $ext['publisherName'] = $SpInfo.publisherName }
+    if ($ext.Count -gt 0)      { $rec['extendedAttributes'] = $ext }
+    return $rec
+}
+
+# Builds the OAuth2 delegated-grant graph from per-user consent grants: one
+# DelegatedPermission resource per (client, api, scope), a DelegatesScope
+# relationship from the client app, and a Direct assignment per consenting user.
+# Returns a hashtable with .resources / .relationships / .assignments (the caller
+# dedups assignments). $SpInfo maps an SP id -> @{ displayName; appId; publisherName }.
+# New-OAuth2ScopeResourceId / Format-FGDelegatedPermissionName come from
+# EntraIDCrawler.Functions.ps1. Verbatim from the inline `foreach ($g in $userGrants)`.
+function ConvertTo-EntraOAuth2ScopeGraph {
+    [CmdletBinding()]
+    param(
+        $UserGrants,
+        [hashtable]$SpInfo = @{}
+    )
+    $scopeResourceMap = @{}   # scopeResId -> record
+    $relMap           = @{}   # "parent|child" -> record
+    $assignments      = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($g in $UserGrants) {
+        $clientId = $g.clientId
+        $targetId = $g.resourceId
+        $userId   = $g.principalId
+        if (-not $clientId -or -not $targetId -or -not $userId) { continue }
+
+        $clientInfo = $SpInfo[$clientId]
+        $targetInfo = $SpInfo[$targetId]
+        $clientName = if ($clientInfo) { $clientInfo.displayName } else { $clientId }
+        $targetName = if ($targetInfo) { $targetInfo.displayName } else { $targetId }
+
+        $scopeTokens = @()
+        if ($g.scope) {
+            $scopeTokens = @($g.scope -split '\s+' | Where-Object { $_ -ne '' })
+        }
+        if ($scopeTokens.Count -eq 0) { continue }
+
+        foreach ($scope in $scopeTokens) {
+            $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
+            if (-not $scopeResourceMap.ContainsKey($scopeResId)) {
+                $scopeResourceMap[$scopeResId] = @{
+                    id           = $scopeResId
+                    displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
+                    resourceType = 'DelegatedPermission'
+                    enabled      = $true
+                    extendedAttributes = @{
+                        clientSpId           = $clientId
+                        clientDisplayName    = $clientName
+                        targetApiSpId        = $targetId
+                        targetApiDisplayName = $targetName
+                        scope                = $scope
+                    }
+                }
+            }
+            $relKey = "$clientId|$scopeResId"
+            if (-not $relMap.ContainsKey($relKey)) {
+                $relMap[$relKey] = @{
+                    parentResourceId = $clientId
+                    childResourceId  = $scopeResId
+                    relationshipType = 'DelegatesScope'
+                    roleName         = $scope
+                    roleOriginSystem = 'OAuth2'
+                }
+            }
+            $assignments.Add(@{
+                resourceId     = $scopeResId
+                principalId    = $userId
+                principalType  = 'User'
+                assignmentType = 'Direct'
+                resourceType   = 'DelegatedPermission'
+                extendedAttributes = @{
+                    grantId              = $g.id
+                    clientSpId           = $clientId
+                    clientDisplayName    = $clientName
+                    targetApiSpId        = $targetId
+                    targetApiDisplayName = $targetName
+                    scope                = $scope
+                }
+            })
+        }
+    }
+    return @{
+        resources     = @($scopeResourceMap.Values)
+        relationships = @($relMap.Values)
+        assignments   = @($assignments)
+    }
+}
