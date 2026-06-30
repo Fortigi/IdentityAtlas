@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed: the Excel / Power Query data export could be very slow or fail outright (a 500 partway through) on large tenants. The user, group, resource, and identity list endpoints evaluated a per-row tag lookup across the entire offset range on every page, and re-counted the whole table on every page — so deep pages got slow enough to time out. They now paginate first (resolving tags only for the rows on the page) and compute the total once, so each page stays fast regardless of how deep the export has paged. The assignment / identity-member / relationship bulk endpoints likewise count only on the first page.
+
+## Changes in this PR
+
 - Reworked the Roles & Permissions admin matrix and the Account Linking settings page to remove two React Compiler set-state-in-effect warnings. Loading, saving, custom permission/error messages, and config editing all behave exactly as before.
 
 ## Changes in this PR
