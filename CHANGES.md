@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The matrix custom row-order hook was reworked to remove a React Compiler set-state-in-effect warning. Saved row orders are now read from storage on first render and reloaded when the department changes, with the same persistence and "reset to default" behavior as before.
+
+## Changes in this PR
+
 - The matrix filter wizard's reset-on-reopen logic was reworked to remove a React Compiler set-state-in-effect warning. Reopening the wizard still returns it to the first (Setup) step with a fresh copy of the active filter, exactly as before.
 
 ## Changes in this PR
