@@ -1,30 +1,24 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { ALL_NAV_TABS } from '../src/utils/navTabs.js';
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
 
-const pages = [
-  { name: 'Home', hash: '' },
-  { name: 'Users', hash: '#users' },
-  { name: 'Resources', hash: '#resources' },
-  { name: 'Systems', hash: '#systems' },
-  { name: 'Logs', hash: '#sync-log' },
-];
-
-// Skipped: the lime-on-white theme has color-contrast issues and search
-// inputs are missing <label> elements. These are real a11y issues that will
-// be addressed when we add theme selection (high-contrast theme option).
-// Re-enable after the theme work lands. Tracked in #471.
-for (const p of pages) {
-  test.skip(`${p.name} page has no critical accessibility violations`, async ({ page }) => {
-    await page.goto(`${BASE}/${p.hash}`);
+// Drift-proof page list: iterate the app's single source of truth for top-level
+// pages (ALL_NAV_TABS) rather than a hardcoded copy. A new page MUST be added to
+// ALL_NAV_TABS to appear in the nav, so it is automatically axe-checked here —
+// nothing to forget to update. Enforced (#471): zero serious/critical WCAG
+// 2A/2AA violations on every nav page (the global-setup enables optional tabs).
+for (const tab of ALL_NAV_TABS) {
+  test(`${tab.label} page has no critical accessibility violations`, async ({ page }) => {
+    await page.goto(`${BASE}/#${tab.key}`);
     await page.waitForLoadState('networkidle');
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa'])
       .analyze();
     const serious = results.violations.filter(v => v.impact === 'critical' || v.impact === 'serious');
-    expect(serious, `A11y violations on ${p.name}: ${serious.map(v => v.id).join(', ')}`).toHaveLength(0);
+    expect(serious, `A11y violations on ${tab.label}: ${serious.map(v => v.id).join(', ')}`).toHaveLength(0);
   });
 }
 

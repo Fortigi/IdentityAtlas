@@ -254,6 +254,7 @@ export default function EntityListPage({
                 <th className="w-10 px-3 py-2">
                   <input
                     type="checkbox"
+                    aria-label="Select all rows on this page"
                     checked={ep.allOnPageSelected}
                     onChange={ep.toggleSelectAll}
                     className="rounded"
@@ -290,6 +291,7 @@ export default function EntityListPage({
                   <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
+                      aria-label={`Select ${item.displayName || item.name || item.id}`}
                       checked={ep.selected.has(item.id)}
                       onChange={() => ep.toggleSelect(item.id)}
                       className="rounded"

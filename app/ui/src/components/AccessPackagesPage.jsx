@@ -251,7 +251,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
           <button
             onClick={handleExportExcel}
             disabled={!!exportStatus}
-            className="ml-auto px-3 py-1 rounded text-xs text-white bg-green-600 hover:bg-green-700 border border-green-700 font-medium disabled:opacity-50"
+            className="ml-auto px-3 py-1 rounded text-xs text-white bg-green-700 hover:bg-green-800 border border-green-800 font-medium disabled:opacity-50"
             title="Export business roles to Excel (.xlsx)"
           >
             {exportStatus ? exportStatus : 'Export Excel'}
@@ -352,6 +352,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
           className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-56 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
         />
         <select
+          aria-label="Filter by assignment type"
           value={typeFilter || ''}
           onChange={e => setTypeFilter(e.target.value || null)}
           className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs dark:bg-gray-700 dark:text-gray-200"
@@ -380,6 +381,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
           <span className="font-medium text-blue-700 dark:text-blue-300">{selected.size} selected</span>
           <div className="border-l border-blue-200 dark:border-blue-700 h-5" />
           <select
+            aria-label="Assign category to selected"
             value={actionCategory}
             onChange={e => setActionCategory(e.target.value)}
             className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-200"
@@ -427,6 +429,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                 <th className="w-10 px-3 py-2">
                   <input
                     type="checkbox"
+                    aria-label="Select all business roles on this page"
                     checked={allOnPageSelected}
                     onChange={toggleSelectAll}
                     className="rounded"
@@ -481,6 +484,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                   <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
+                      aria-label={`Select ${ap.displayName || ap.name || ap.id}`}
                       checked={selected.has(ap.id)}
                       onChange={() => toggleSelect(ap.id)}
                       className="rounded"
@@ -595,6 +599,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
                   </td>
                   <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                     <select
+                      aria-label={`Category for ${ap.displayName || ap.name || ap.id}`}
                       value={ap.category?.id || ''}
                       onChange={e => assignCategoryToOne(ap.id, e.target.value ? parseInt(e.target.value) : null)}
                       disabled={busy}

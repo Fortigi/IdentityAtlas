@@ -66,14 +66,14 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
 
       <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 space-y-2 text-xs">
         <div className="flex gap-2">
-          <select value={filterTarget} onChange={e => setFilterTarget(e.target.value)} className="flex-1 border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+          <select aria-label="Filter by target type" value={filterTarget} onChange={e => setFilterTarget(e.target.value)} className="flex-1 border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
             <option value="">All targets</option>
             <option value="Identity">Identity</option>
             <option value="Resource">Resource</option>
             <option value="Principal">Principal</option>
             <option value="System">System</option>
           </select>
-          <select value={filterVariant} onChange={e => setFilterVariant(e.target.value)} className="flex-1 border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+          <select aria-label="Filter by variant" value={filterVariant} onChange={e => setFilterVariant(e.target.value)} className="flex-1 border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
             <option value="">All variants</option>
             <option value="synced">Synced</option>
             <option value="generated">Generated</option>
@@ -81,7 +81,7 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
           </select>
         </div>
         {systems.length > 0 && (
-          <select value={filterSystem} onChange={e => setFilterSystem(e.target.value)} className="w-full border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+          <select aria-label="Filter by system" value={filterSystem} onChange={e => setFilterSystem(e.target.value)} className="w-full border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
             <option value="">All systems</option>
             {systems.map(([id, name]) => <option key={id} value={String(id)}>{name}</option>)}
           </select>

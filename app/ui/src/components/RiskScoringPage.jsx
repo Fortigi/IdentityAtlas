@@ -646,7 +646,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Identity Risk Scores</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            Persisted risk scores computed by <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">Invoke-FGRiskScoring</code>
+            Persisted risk scores computed by <code className="text-xs text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 px-1 rounded">Invoke-FGRiskScoring</code>
             {totalOverrides > 0 && (
               <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">
                 ({totalOverrides} analyst override{totalOverrides !== 1 ? 's' : ''})
@@ -831,6 +831,7 @@ export default function RiskScoringPage({ onOpenDetail }) {
             )}
 
             <select
+              aria-label="Filter by risk tier"
               value={tierFilter}
               onChange={e => setTierFilter(e.target.value)}
               className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300"
