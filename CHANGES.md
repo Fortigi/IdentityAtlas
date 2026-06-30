@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the **Admin → Updates** screen showing a blank current version (and defaulting the channel to "latest") on source / development / local installs where the version isn't provided as an environment variable. The update logic now falls back to reading the version manifest, exactly like the rest of the app, so the running version and channel are detected correctly on every kind of deployment.
+
+## Changes in this PR
+
 - Excel Power Query export now distinguishes governed from non-governed assignments (the `governed` flag is included on the Assignments tab).
 - Excel Power Query export now includes business roles / access packages on the Resources tab (previously hidden), with a `governanceResource` flag marking governance resources — so the `Contains` links on the ResourceRelationships tab now join to a named business role.
 - Added four governance tabs to the Excel Power Query workbook: Governance Catalogs, Assignment Policies, Assignment Requests, and Certification Decisions (access-review outcomes).
