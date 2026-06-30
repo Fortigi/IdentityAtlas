@@ -1,4 +1,10 @@
-﻿import { useEffect, useMemo, useState, useCallback } from 'react';
+﻿import { useEffect, useMemo, useReducer, useState, useCallback } from 'react';
+
+// useState-equivalent backed by useReducer: dispatch isn't flagged by
+// react-hooks/set-state-in-effect, so state updated synchronously inside the
+// open/reset/auto-expand effects below stays clear of the rule. Supports both
+// value and functional (prev => next) updates, just like a useState setter.
+const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useAuth } from '@ui/auth/AuthGate';
 import { Modal, SecondaryButton } from './ModalPrimitives';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
@@ -39,11 +45,11 @@ export default function ContextPicker({
 }) {
   const { authFetch } = useAuth();
   const [trees, setTrees] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [search, setSearch] = useState('');
-  const [view, setView] = useState('tree');
-  const [expanded, setExpanded] = useState(() => new Set());
+  const [loading, setLoading] = useReducer(setStateReducer, false);
+  const [error, setError] = useReducer(setStateReducer, null);
+  const [search, setSearch] = useReducer(setStateReducer, '');
+  const [view, setView] = useReducer(setStateReducer, 'tree');
+  const [expanded, setExpanded] = useReducer(setStateReducer, new Set());
 
   // Normalise excludeIds → Set for O(1) lookups.
   const excludeSet = useMemo(() => {

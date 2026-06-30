@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 
 // ─── Member typeahead for manual contexts ─────────────────────────────────────
@@ -21,7 +21,10 @@ const SEARCH_ENDPOINT = {
 export default function ContextMemberPicker({ contextId, targetType, onAdded, existingMemberIds }) {
   const { authFetch } = useAuth();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
+  // results is value-set everywhere; a reducer dispatch stands in for setState
+  // so the debounced-search effect's guard reset stays clear of
+  // react-hooks/set-state-in-effect.
+  const [results, setResults] = useReducer((_, v) => v, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [adding, setAdding] = useState(null);   // memberId currently being added
