@@ -57,15 +57,8 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
   // of wondering whether the request is stuck.
   const [elapsedMs, setElapsedMs] = useState(0);
   const isWorking = generating || refining;
-  // Reset the counter when work stops — during render on the transition, so the
-  // effect body holds no synchronous setState (react-hooks/set-state-in-effect).
-  const [wasWorking, setWasWorking] = useState(isWorking);
-  if (isWorking !== wasWorking) {
-    setWasWorking(isWorking);
-    if (!isWorking) setElapsedMs(0);
-  }
   useEffect(() => {
-    if (!isWorking) return undefined;
+    if (!isWorking) { setElapsedMs(0); return; }
     const start = Date.now();
     const interval = setInterval(() => setElapsedMs(Date.now() - start), 500);
     return () => clearInterval(interval);
@@ -97,13 +90,8 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
   // Elapsed-time tracker for the classifier generation step (separate from
   // the Step 2 chat counter so they can run independently).
   const [classifierElapsedMs, setClassifierElapsedMs] = useState(0);
-  const [wasGenClassifiers, setWasGenClassifiers] = useState(genClassifiers);
-  if (genClassifiers !== wasGenClassifiers) {
-    setWasGenClassifiers(genClassifiers);
-    if (!genClassifiers) setClassifierElapsedMs(0);
-  }
   useEffect(() => {
-    if (!genClassifiers) return undefined;
+    if (!genClassifiers) { setClassifierElapsedMs(0); return; }
     const start = Date.now();
     const interval = setInterval(() => setClassifierElapsedMs(Date.now() - start), 500);
     return () => clearInterval(interval);

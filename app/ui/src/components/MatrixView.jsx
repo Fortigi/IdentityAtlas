@@ -273,15 +273,8 @@ export default function MatrixView({
   const sortHierarchyId = filter?.sortHierarchy?.contextId || null;
   const [hierPaths, setHierPaths] = useState(null); // Map subjectId → short label[]
   const [hierDepth, setHierDepth] = useState(0);
-  // Clear the hierarchy paths when no hierarchy is selected — during render on
-  // the transition, so the fetch effect body holds no synchronous setState.
-  const [seenHierId, setSeenHierId] = useState(sortHierarchyId);
-  if (sortHierarchyId !== seenHierId) {
-    setSeenHierId(sortHierarchyId);
-    if (!sortHierarchyId) { setHierPaths(null); setHierDepth(0); }
-  }
   useEffect(() => {
-    if (!sortHierarchyId) return undefined;
+    if (!sortHierarchyId) { setHierPaths(null); setHierDepth(0); return; }
     let cancelled = false;
     authFetch('/api/matrix/hierarchy-paths', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
