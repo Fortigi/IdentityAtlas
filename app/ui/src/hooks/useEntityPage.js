@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
 import { useDebouncedValue } from './useDebouncedValue';
 import { useDialog } from '@ui/components/dialogContext';
 
@@ -25,7 +25,9 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [tags, setTags] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // loading is flipped synchronously inside fetchItems; a reducer dispatch keeps
+  // that clear of set-state-in-effect.
+  const [loading, setLoading] = useReducer((_, v) => v, true);
 
   // Column discovery for filters
   const [availableColumns, setAvailableColumns] = useState([]);
@@ -57,8 +59,15 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
 
   const fetchVersion = useRef(0);
 
-  // Reset page & selection when filters change
-  useEffect(() => { setPage(0); setSelected(new Set()); }, [debouncedSearch, activeFilters, baseFilters, includeDeleted]);
+  // Reset page & selection when filters change — during render via a
+  // value-signature compare, so no synchronous setState lives in an effect.
+  const filterResetSig = JSON.stringify({ debouncedSearch, activeFilters, baseFilters, includeDeleted });
+  const [seenFilterResetSig, setSeenFilterResetSig] = useState(filterResetSig);
+  if (filterResetSig !== seenFilterResetSig) {
+    setSeenFilterResetSig(filterResetSig);
+    setPage(0);
+    setSelected(new Set());
+  }
 
   // Fetch available columns for filter dropdowns
   useEffect(() => {
@@ -72,11 +81,11 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   }, [authFetch, columnsEndpoint]);
 
   // Fetch tags
-  const fetchTags = useCallback(async () => {
-    try {
-      const res = await authFetch(`/api/tags?entityType=${entityType}`);
-      if (res.ok) setTags(await res.json());
-    } catch (err) { console.error('Failed to fetch tags:', err); }
+  const fetchTags = useCallback(() => {
+    return authFetch(`/api/tags?entityType=${entityType}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data) setTags(data); })
+      .catch((err) => console.error('Failed to fetch tags:', err));
   }, [authFetch, entityType]);
 
   useEffect(() => { fetchTags(); }, [fetchTags]);
@@ -95,22 +104,23 @@ export default function useEntityPage({ authFetch, entityType, listEndpoint, col
   }, [activeFilters, baseFilters]);
 
   // Fetch items
-  const fetchItems = useCallback(async () => {
+  const fetchItems = useCallback(() => {
     const version = ++fetchVersion.current;
     setLoading(true);
-    try {
-      const params = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
-      if (debouncedSearch) params.set('search', debouncedSearch);
-      if (filtersObj) params.set('filters', JSON.stringify(filtersObj));
-      if (includeDeleted) params.set('includeDeleted', 'true');
-      const res = await authFetch(`${listEndpoint}?${params}`);
-      if (res.ok && version === fetchVersion.current) {
-        const json = await res.json();
-        setItems(json.data);
-        setTotal(json.total);
-      }
-    } catch (err) { console.error(`Failed to fetch ${entityType}s:`, err); }
-    if (version === fetchVersion.current) setLoading(false);
+    const params = new URLSearchParams({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    if (filtersObj) params.set('filters', JSON.stringify(filtersObj));
+    if (includeDeleted) params.set('includeDeleted', 'true');
+    return authFetch(`${listEndpoint}?${params}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json && version === fetchVersion.current) {
+          setItems(json.data);
+          setTotal(json.total);
+        }
+      })
+      .catch((err) => console.error(`Failed to fetch ${entityType}s:`, err))
+      .finally(() => { if (version === fetchVersion.current) setLoading(false); });
   }, [page, debouncedSearch, filtersObj, authFetch, listEndpoint, includeDeleted, entityType]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
