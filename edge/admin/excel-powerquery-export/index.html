@@ -3385,12 +3385,12 @@ a single click — no API credentials to paste, no connections to configure.</p>
 <tr>
 <td>Resources</td>
 <td><code>GET /api/resources</code></td>
-<td>Groups, directory roles, app roles, business roles</td>
+<td>Groups, directory roles, app roles <strong>and</strong> business roles / access packages (the <code>governanceResource</code> flag marks the governance ones)</td>
 </tr>
 <tr>
 <td>Assignments</td>
 <td><code>GET /api/assignments</code></td>
-<td>Who has access to what (from <code>ResourceAssignments</code>)</td>
+<td>Who has access to what (from <code>ResourceAssignments</code>). The <code>governed</code> flag splits governed-intent rows from actual access</td>
 </tr>
 <tr>
 <td>Identities</td>
@@ -3405,10 +3405,36 @@ a single click — no API credentials to paste, no connections to configure.</p>
 <tr>
 <td>ResourceRelationships</td>
 <td><code>GET /api/resource-relationships</code></td>
-<td>Parent↔child resource links (Contains, GrantsAccessTo)</td>
+<td>Parent↔child resource links (Contains, GrantsAccessTo) — incl. which groups each business role <code>Contains</code></td>
+</tr>
+<tr>
+<td>GovernanceCatalogs</td>
+<td><code>GET /api/governance-catalogs</code></td>
+<td>Catalogs that group business roles / access packages</td>
+</tr>
+<tr>
+<td>AssignmentPolicies</td>
+<td><code>GET /api/assignment-policies</code></td>
+<td>Rules governing how a business role / access package is granted (auto-add/remove, access-review settings)</td>
+</tr>
+<tr>
+<td>AssignmentRequests</td>
+<td><code>GET /api/assignment-requests</code></td>
+<td>Access request / approval workflow rows</td>
+</tr>
+<tr>
+<td>CertificationDecisions</td>
+<td><code>GET /api/certification-decisions</code></td>
+<td>Access-review (certification) decisions — approve/deny/dontKnow outcomes</td>
 </tr>
 </tbody>
 </table>
+<p>Between them these tabs carry the full governance (SOLL) layer, so an analyst
+can rebuild <strong>any</strong> matrix the web UI shows — including the governed/non-governed
+split and the business-role → group grants — entirely in Excel: join
+<code>Assignments</code> to <code>Resources</code> on <code>resourceId</code>, and <code>ResourceRelationships</code>
+(<code>relationshipType = "Contains"</code>) to <code>Resources</code> on both <code>parentResourceId</code>
+(the business role) and <code>childResourceId</code> (the group it grants).</p>
 <p>The Principals and Resources tabs auto-expand the <code>extendedAttributes</code> JSONB
 column into first-class <code>ext_*</code> columns (<code>ext_userType</code>,
 <code>ext_onPremisesSyncEnabled</code>, <code>ext_signInActivity</code>, <code>ext_appId</code>, etc.). Keys
