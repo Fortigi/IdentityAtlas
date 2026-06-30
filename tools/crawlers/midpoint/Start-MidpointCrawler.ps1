@@ -76,6 +76,7 @@ if ($objects) {
 # phase-error tracking, shadow labelling). Moved out of this script verbatim so they can
 # be unit-tested; dot-sourcing here is equivalent to defining them inline below.
 . (Join-Path $PSScriptRoot 'MidpointCrawler.Functions.ps1')
+. (Join-Path $PSScriptRoot 'MidpointCrawler.Transform.ps1')
 
 # The dispatcher dot-sources Invoke-MidpointApi.ps1 (sibling library) before this
 # entry point runs. For standalone invocation, load it here if absent.
@@ -383,35 +384,11 @@ if ($Sync.users) {
             # principalType via identityTypeMapping (user subtype/employeeType → type; default User).
             $uTypes = Get-MidpointStringList $u.subtype; if ($uTypes.Count -eq 0) { $uTypes = Get-MidpointStringList $u.employeeType }
             $pt = Resolve-MappedValue -Values $uTypes -Rows $IdentityTypeMapping -KeyName 'userType' -ValName 'principalType' -Default 'User'
-            $identRecs.Add([PSCustomObject]@{
-                id          = $oid
-                externalId  = $oid
-                displayName = $name
-                givenName   = (Get-MidpointString $u.givenName '')
-                surname     = (Get-MidpointString $u.familyName '')
-                email       = (Get-MidpointString $u.emailAddress '')
-                employeeId  = (Get-MidpointString $u.employeeNumber '')
-                jobTitle    = (Get-MidpointString $u.title '')
-                department  = $department
-                extendedAttributes = @{
-                    name           = (Get-MidpointString $u.name '')
-                    lifecycleState = (Get-MidpointString $u.lifecycleState '')
-                    emailAddress   = (Get-MidpointString $u.emailAddress '')
-                }
-            })
+            # Per-user record shaping lives in MidpointCrawler.Transform.ps1.
+            $identRecs.Add((ConvertTo-MidpointIdentityRecord -User $u -DisplayName $name -Department $department))
             if (-not $princByType.Contains($pt)) { $princByType[$pt] = [System.Collections.Generic.List[object]]::new() }
-            $princByType[$pt].Add([PSCustomObject]@{
-                id             = $oid
-                externalId     = $oid
-                displayName    = $name
-                email          = (Get-MidpointString $u.emailAddress '')
-                principalType  = $pt
-                accountEnabled = (Test-MidpointEnabled $u)
-                jobTitle       = (Get-MidpointString $u.title '')
-                department     = $department
-                extendedAttributes = @{ name = (Get-MidpointString $u.name ''); source = 'midpoint-focus' }
-            })
-            $memberRecs.Add([PSCustomObject]@{ identityId = $oid; principalId = $oid; accountType = 'Primary'; isPrimary = $true })
+            $princByType[$pt].Add((ConvertTo-MidpointFocusPrincipalRecord -User $u -DisplayName $name -Department $department -PrincipalType $pt))
+            $memberRecs.Add((New-MidpointIdentityMemberRecord -Oid $oid))
 
             # Capture linkRef (shadow OIDs) for the Shadows phase
             $links = $u.linkRef
