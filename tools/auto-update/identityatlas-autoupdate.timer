@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Identity Atlas auto-update agent nightly
+
+[Timer]
+# 03:30 every day, with a randomised delay so many hosts don't hit ghcr at once.
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target

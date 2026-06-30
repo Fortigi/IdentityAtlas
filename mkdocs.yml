@@ -121,6 +121,7 @@ nav:
           - Account Linking: architecture/account-linking.md
           - Effective Access Engine: architecture/effective-access-engine.md
       - Operations:
+          - Automatic Updates: admin/auto-updates.md
           - Azure Deployment: architecture/azure-deployment-walkthrough.md
           - Azure Deployment Reference: architecture/azure-deployment.md
           - Scaling & Load Testing: architecture/scaling.md
