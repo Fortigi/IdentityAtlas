@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
 import RiskScoringPage from './RiskScoringPage';
-import { renderWithProviders, makeAuthFetch, jsonResponse, screen, fireEvent, userEvent } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, jsonResponse, screen, fireEvent, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 
 // ─── Fixtures ────────────────────────────────────────────────────────
 
@@ -194,6 +194,30 @@ describe('RiskScoringPage (mounted)', () => {
     await user.click(nextBtn);
     const calledUrls = authFetch.mock.calls.map(c => String(c[0]));
     expect(calledUrls.some(u => u.includes('offset=25'))).toBe(true);
+  });
+
+  it('resets to the first page when a filter changes after paginating', async () => {
+    // Regression guard for the render-time page-reset: after paginating to
+    // page 2 (offset 25), changing a filter must drop back to page 1 (offset 0),
+    // not keep the now-stale offset.
+    const authFetch = routes();
+    renderWithProviders(h(RiskScoringPage, { onOpenDetail: () => {} }), { auth: { authFetch } });
+    const user = userEvent.setup();
+    await screen.findByText('Sysadmin');
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(authFetch.mock.calls.some(c => String(c[0]).includes('offset=25'))).toBe(true));
+
+    authFetch.mockClear();
+    fireEvent.change(screen.getByPlaceholderText(/Search users/i), { target: { value: 'alice' } });
+
+    await waitFor(() => {
+      const urls = authFetch.mock.calls.map(c => String(c[0]));
+      expect(urls.some(u => u.includes('search=alice') && u.includes('offset=0'))).toBe(true);
+    });
+    // And crucially NOT the stale page-2 offset.
+    const urls = authFetch.mock.calls.map(c => String(c[0]));
+    expect(urls.some(u => u.includes('search=alice') && u.includes('offset=25'))).toBe(false);
   });
 
   it('invokes onOpenDetail when an entity row is clicked', async () => {

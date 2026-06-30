@@ -211,9 +211,17 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
     return () => { cancelled = true; };
   }, [authFetch, cluster.id]);
 
+  // Clear results when the query is too short — during render on the
+  // transition, so the debounce effect body holds no synchronous setState.
+  const ownerTooShort = !ownerSearch || ownerSearch.length < 2;
+  const [seenOwnerTooShort, setSeenOwnerTooShort] = useState(ownerTooShort);
+  if (ownerTooShort !== seenOwnerTooShort) {
+    setSeenOwnerTooShort(ownerTooShort);
+    if (ownerTooShort) setOwnerResults([]);
+  }
   // Search users for owner assignment
   useEffect(() => {
-    if (!ownerSearch || ownerSearch.length < 2) { setOwnerResults([]); return; }
+    if (ownerTooShort) return undefined;
     const timer = setTimeout(async () => {
       try {
         const res = await authFetch(`/api/risk-scores/users?search=${encodeURIComponent(ownerSearch)}&limit=8`);
@@ -224,7 +232,7 @@ function ClusterDetail({ cluster, authFetch, onClose, onOpenDetail, onRefresh })
       } catch { }
     }, 300);
     return () => clearTimeout(timer);
-  }, [authFetch, ownerSearch]);
+  }, [authFetch, ownerSearch, ownerTooShort]);
 
   const handleAssignOwner = async (user) => {
     setSaving(true);
@@ -567,7 +575,14 @@ export default function RiskScoringPage({ onOpenDetail }) {
   useEffect(() => {
     if (view !== 'clusters') fetchEntities();
   }, [view, fetchEntities]);
-  useEffect(() => { setPage(0); }, [view, tierFilter, search, overridesOnly]);
+  // Reset to the first page when the filters change — during render via a
+  // composite-signature compare, so no synchronous setState lives in an effect.
+  const pageFilterSig = `${view}|${tierFilter}|${search}|${overridesOnly}`;
+  const [seenPageFilterSig, setSeenPageFilterSig] = useState(pageFilterSig);
+  if (pageFilterSig !== seenPageFilterSig) {
+    setSeenPageFilterSig(pageFilterSig);
+    setPage(0);
+  }
 
   if (loading && !summary) {
     return (
