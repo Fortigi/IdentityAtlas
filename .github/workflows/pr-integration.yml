@@ -241,7 +241,7 @@ jobs:
           load: true
           tags: identity-atlas-web:ci
           cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          cache-to: type=gha,mode=min,scope=web
 
       - name: Build worker image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -252,7 +252,7 @@ jobs:
           load: true
           tags: identity-atlas-worker:ci
           cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=max,scope=worker
+          cache-to: type=gha,mode=min,scope=worker
 
       - name: Start stack
         run: docker compose -f docker-compose.ci.yml up -d
@@ -711,7 +711,7 @@ jobs:
           load: true
           tags: identity-atlas-web:ci
           cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          cache-to: type=gha,mode=min,scope=web
 
       - name: Build worker image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -722,7 +722,7 @@ jobs:
           load: true
           tags: identity-atlas-worker:ci
           cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=max,scope=worker
+          cache-to: type=gha,mode=min,scope=worker
 
       - name: Start stack
         run: docker compose -f docker-compose.ci.yml up -d
@@ -819,7 +819,7 @@ jobs:
           load: true
           tags: identity-atlas-web:ci
           cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          cache-to: type=gha,mode=min,scope=web
 
       - name: Build worker image
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -830,7 +830,7 @@ jobs:
           load: true
           tags: identity-atlas-worker:ci
           cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=max,scope=worker
+          cache-to: type=gha,mode=min,scope=worker
 
       - name: Start stack
         run: docker compose -f docker-compose.ci.yml up -d
