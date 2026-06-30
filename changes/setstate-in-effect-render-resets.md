@@ -1,1 +1,0 @@
-- Removed React Compiler set-state-in-effect warnings in the risk-scoring page (first-page reset on filter change, owner search), the matrix view (hierarchy-path reset), and the risk-profile wizard (elapsed-time counters), with no change to behavior. The risk-scoring page now also avoids a redundant stale-page fetch when filters change while paginated.
