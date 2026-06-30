@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The matrix filter wizard's reset-on-reopen logic was reworked to remove a React Compiler set-state-in-effect warning. Reopening the wizard still returns it to the first (Setup) step with a fresh copy of the active filter, exactly as before.
+
+## Changes in this PR
+
 - Context Plugins admin page now loads its plugin trees and catalog through the shared fetch lifecycle, removing a React Compiler set-state-in-effect warning. The list, empty state, load-error message, and Refresh button behave as before.
 
 ## Changes in this PR
