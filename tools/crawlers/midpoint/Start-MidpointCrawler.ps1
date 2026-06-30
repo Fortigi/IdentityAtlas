@@ -653,25 +653,10 @@ if ($Sync.reviews) {
                 $caseId = [string]$case.'@id'
                 $key = "$campOid|$caseId"
                 if (-not $seen.Add($key)) { continue }
-                $wi = $case.workItem; $wi = if ($wi -is [System.Array]) { $wi | Select-Object -First 1 } else { $wi }
-                $comment = if ($wi -and $wi.output) { (Get-MidpointString $wi.output.comment '') } else { '' }
-                $reviewerOid = if ($wi) { Get-MidpointRefOid $wi.assigneeRef $null } else { $null }
-                $rec = [ordered]@{
-                    id                   = (New-StableGuid $key)
-                    resourceId           = $targetOid
-                    principalId          = $principalOid
-                    decision             = (Convert-MidpointOutcome (Get-MidpointString $case.outcome ''))
-                    justification        = $comment
-                    reviewInstanceStatus = $campState
-                    extendedAttributes   = @{ campaign = $campName; campaignOid = $campOid; caseId = $caseId; outcome = (Get-MidpointString $case.outcome '') }
-                }
-                if ($UserOidToName.ContainsKey($principalOid)) { $rec['principalDisplayName'] = $UserOidToName[$principalOid] }
-                # Only set reviewedBy when the reviewer is a synced principal (FK safety).
-                if ($reviewerOid -and $UserOidToName.ContainsKey($reviewerOid)) {
-                    $rec['reviewedBy'] = $reviewerOid
-                    $rec['reviewedByDisplayName'] = $UserOidToName[$reviewerOid]
-                }
-                $cd.Add([PSCustomObject]$rec)
+                # Record shaping lives in ConvertTo-MidpointCertificationDecision.
+                $cd.Add((ConvertTo-MidpointCertificationDecision -Case $case -CaseKey $key -CaseId $caseId `
+                    -PrincipalOid $principalOid -TargetOid $targetOid `
+                    -CampaignName $campName -CampaignOid $campOid -CampaignState $campState -UserOidToName $UserOidToName))
             }
         }
         $R = Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $MidpointSystemId -Records @($cd)

@@ -231,3 +231,34 @@ Describe 'New-MidpointContainsRelationship' {
         $rec.relationshipType | Should -Be 'Contains'
     }
 }
+
+Describe 'ConvertTo-MidpointCertificationDecision' {
+
+    It 'maps a case to a decision, pulling the work-item comment and reviewer when synced' {
+        $case = [pscustomobject]@{
+            outcome = 'accept'
+            workItem = [pscustomobject]@{ output = [pscustomobject]@{ comment = 'looks fine' }; assigneeRef = [pscustomobject]@{ oid = 'rev-1' } }
+        }
+        $rec = ConvertTo-MidpointCertificationDecision -Case $case -CaseKey 'camp-1|c-1' -CaseId 'c-1' `
+            -PrincipalOid 'u-1' -TargetOid 'r-1' -CampaignName 'Q1 Review' -CampaignOid 'camp-1' -CampaignState 'inReview' `
+            -UserOidToName @{ 'u-1' = 'Alice'; 'rev-1' = 'Bob' }
+        $rec.resourceId             | Should -Be 'r-1'
+        $rec.principalId            | Should -Be 'u-1'
+        $rec.justification          | Should -Be 'looks fine'
+        $rec.reviewInstanceStatus   | Should -Be 'inReview'
+        $rec.principalDisplayName   | Should -Be 'Alice'
+        $rec.reviewedBy             | Should -Be 'rev-1'
+        $rec.reviewedByDisplayName  | Should -Be 'Bob'
+        $rec.extendedAttributes.campaign | Should -Be 'Q1 Review'
+        $rec.extendedAttributes.caseId   | Should -Be 'c-1'
+    }
+
+    It 'omits display names and reviewedBy when the OIDs are not synced principals' {
+        $case = [pscustomobject]@{ outcome = 'revoke' }
+        $rec = ConvertTo-MidpointCertificationDecision -Case $case -CaseKey 'camp-1|c-2' -CaseId 'c-2' `
+            -PrincipalOid 'u-x' -TargetOid 'r-1' -CampaignName 'Q1' -CampaignOid 'camp-1' -CampaignState 'open' -UserOidToName @{}
+        $rec.PSObject.Properties.Name | Should -Not -Contain 'principalDisplayName'
+        $rec.PSObject.Properties.Name | Should -Not -Contain 'reviewedBy'
+        $rec.justification | Should -Be ''
+    }
+}

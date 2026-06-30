@@ -281,3 +281,41 @@ function New-MidpointContainsRelationship {
         relationshipType = 'Contains'
     }
 }
+
+# Maps one access-certification case → a CertificationDecisions record. Resolves the
+# work-item comment/reviewer, and only stamps principal/reviewer display names when
+# the OID is a synced principal (FK safety) via the passed $UserOidToName lookup.
+# Verbatim from the inline Reviews `$rec = [ordered]@{ ... }` block.
+function ConvertTo-MidpointCertificationDecision {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Case,
+        [string]$CaseKey,
+        [string]$CaseId,
+        [string]$PrincipalOid,
+        [string]$TargetOid,
+        [string]$CampaignName,
+        [string]$CampaignOid,
+        [string]$CampaignState,
+        [hashtable]$UserOidToName = @{}
+    )
+    $wi = $Case.workItem; $wi = if ($wi -is [System.Array]) { $wi | Select-Object -First 1 } else { $wi }
+    $comment = if ($wi -and $wi.output) { (Get-MidpointString $wi.output.comment '') } else { '' }
+    $reviewerOid = if ($wi) { Get-MidpointRefOid $wi.assigneeRef $null } else { $null }
+    $rec = [ordered]@{
+        id                   = (New-StableGuid $CaseKey)
+        resourceId           = $TargetOid
+        principalId          = $PrincipalOid
+        decision             = (Convert-MidpointOutcome (Get-MidpointString $Case.outcome ''))
+        justification        = $comment
+        reviewInstanceStatus = $CampaignState
+        extendedAttributes   = @{ campaign = $CampaignName; campaignOid = $CampaignOid; caseId = $CaseId; outcome = (Get-MidpointString $Case.outcome '') }
+    }
+    if ($UserOidToName.ContainsKey($PrincipalOid)) { $rec['principalDisplayName'] = $UserOidToName[$PrincipalOid] }
+    # Only set reviewedBy when the reviewer is a synced principal (FK safety).
+    if ($reviewerOid -and $UserOidToName.ContainsKey($reviewerOid)) {
+        $rec['reviewedBy'] = $reviewerOid
+        $rec['reviewedByDisplayName'] = $UserOidToName[$reviewerOid]
+    }
+    return [PSCustomObject]$rec
+}
