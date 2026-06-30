@@ -12,7 +12,9 @@ Drop a folder into `tools/crawlers/<type>/` with `crawler.json` + entry point. N
 ```
 tools/crawlers/<type>/
 ├── crawler.json                ← required manifest
-├── Start-<Type>Crawler.ps1     ← entry point
+├── Start-<Type>Crawler.ps1     ← entry point (thin: orchestration only)
+├── <Type>Crawler.Functions.ps1 ← optional: dot-sourced reusable helpers (Pester-unit-tested)
+├── <Type>Crawler.Transform.ps1 ← optional: dot-sourced pure record-shapers (Pester-unit-tested)
 ├── CrawlerMeta.js              ← UI type picker entry (id, name, description)
 ├── ConfigWizard.jsx            ← optional step-by-step config wizard for the UI
 ├── Summary.jsx                 ← optional config-card summary panel for the UI
@@ -30,6 +32,23 @@ tools/crawlers/<type>/
 **`dev/` subfolder:** for scripts that support development and testing but are not part of the production image. The dispatcher ignores subdirectories entirely — nothing in `dev/` ever runs at runtime. Use it for load-test seeders, fixture generators, and migration helpers. Always include a `dev/README.md`.
 
 See `docs/sync/building-a-crawler.md` for the full authoring guide including the `dev/` folder convention.
+
+### Keep entry points thin — extract testable logic
+
+A `Start-<Type>Crawler.ps1` body runs live I/O the moment it is dot-sourced, so anything inline in it is unreachable by Pester without a real tenant. Keep the entry point to orchestration (auth, fetch, send, progress) and push the parts worth testing into dot-sourced sibling files:
+
+- **`<Type>Crawler.Transform.ps1`** — **pure** record-shapers: one Graph/source object → one ingest record hashtable. Take everything as **explicit parameters** (no `$script:`/scope capture), do no I/O, and `return` the record (or `$null` to signal "skip"). These unit-test directly against in-memory fixtures with zero mocks — the cheapest coverage you can get. Name them `ConvertTo-<Entity>Record` / `ConvertTo-<Entity><Thing>`.
+- **`<Type>Crawler.Functions.ps1`** — reusable helpers whose boundary is a mockable named command (e.g. `Send-IngestBatch` → `Invoke-IngestAPI`). Unit-test by mocking that boundary.
+
+The entry point dot-sources both right after the shared ingest helpers:
+
+```powershell
+. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
+. (Join-Path $PSScriptRoot '<Type>Crawler.Functions.ps1')
+. (Join-Path $PSScriptRoot '<Type>Crawler.Transform.ps1')
+```
+
+Then each phase block shrinks to `... | ForEach-Object { ConvertTo-<Entity>Record -Arg $_ ... }`. Move the body **verbatim** first, add the test, then refactor — and watch for inline state shared *between* phases (a variable set in one phase and read in another): hoist it to the shared setup block so neither phase depends on the other having run. Extracted files must **not** be named `Start-*` (the dispatcher's dependency loader excludes `Start-*` when dot-sourcing). See `tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1` + `test/unit/EntraIDCrawlerTransform.Tests.ps1` for the worked pattern, and the `csv` crawler's `*.Functions.ps1` for the helper variant.
 
 ## PowerShell Style
 
