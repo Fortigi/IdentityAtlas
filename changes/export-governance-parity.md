@@ -1,4 +1,0 @@
-- Excel Power Query export now distinguishes governed from non-governed assignments (the `governed` flag is included on the Assignments tab).
-- Excel Power Query export now includes business roles / access packages on the Resources tab (previously hidden), with a `governanceResource` flag marking governance resources — so the `Contains` links on the ResourceRelationships tab now join to a named business role.
-- Added four governance tabs to the Excel Power Query workbook: Governance Catalogs, Assignment Policies, Assignment Requests, and Certification Decisions (access-review outcomes).
-- Data analysts can now rebuild any governance matrix the web UI shows — including the governed/non-governed split and which resources each business role grants — entirely in Excel.

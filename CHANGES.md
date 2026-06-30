@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Excel Power Query export now distinguishes governed from non-governed assignments (the `governed` flag is included on the Assignments tab).
+- Excel Power Query export now includes business roles / access packages on the Resources tab (previously hidden), with a `governanceResource` flag marking governance resources — so the `Contains` links on the ResourceRelationships tab now join to a named business role.
+- Added four governance tabs to the Excel Power Query workbook: Governance Catalogs, Assignment Policies, Assignment Requests, and Certification Decisions (access-review outcomes).
+- Data analysts can now rebuild any governance matrix the web UI shows — including the governed/non-governed split and which resources each business role grants — entirely in Excel.
+
+## Changes in this PR
+
 - Added reference **auto-update agents** and a setup guide so automatic updates work on any deployment: a Docker-host script (with cron and systemd timer units) and an Azure Container Apps script that apply a new version only when automatic updates are enabled, plus a documentation page explaining the model and per-platform setup. PostgreSQL is never auto-rolled, and schema migrations run fail-closed on startup.
 
 ## Changes in this PR
