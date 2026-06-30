@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
 import PluginsPage from './PluginsPage';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent } from '@ui/test-utils/renderWithProviders';
@@ -55,6 +55,27 @@ describe('PluginsPage (mounted)', () => {
   it('shows the empty state when no trees are configured', async () => {
     renderWithProviders(h(PluginsPage), { auth: { authFetch: routes({ 'context-plugins/trees': { data: [] } }) } });
     expect(await screen.findByText(/No context plugins configured yet/i)).toBeInTheDocument();
+  });
+
+  it('re-fetches the trees list when Refresh is clicked', async () => {
+    let treeCalls = 0;
+    const authFetch = vi.fn((url) => {
+      if (url.includes('context-plugins/trees')) {
+        treeCalls += 1;
+        return Promise.resolve(jsonResponse({ data: treeCalls === 1 ? [] : [tree] }));
+      }
+      if (url.includes('context-plugins')) return Promise.resolve(jsonResponse({ data: [plugin] }));
+      return Promise.resolve(jsonResponse({}));
+    });
+    renderWithProviders(h(PluginsPage), { auth: { authFetch } });
+    const user = userEvent.setup();
+
+    // First load yields the empty state; Refresh re-fetches and the tree appears.
+    await screen.findByText(/No context plugins configured yet/i);
+    await user.click(screen.getByText('Refresh'));
+
+    expect(await screen.findByText('Org Chart')).toBeInTheDocument();
+    expect(treeCalls).toBe(2);
   });
 
   it('surfaces a load error', async () => {

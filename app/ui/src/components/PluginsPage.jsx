@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useFetch } from '@ui/hooks/useFetch';
 import { formatRelativeTime as formatTimeAgo } from '@ui/utils/formatters';
 
 const statusColors = {
@@ -87,10 +88,6 @@ function ConfigForm({ schema, params, onChange }) {
 
 export default function PluginsPage() {
   const { authFetch } = useAuth();
-  const [trees, setTrees] = useState([]);
-  const [plugins, setPlugins] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
 
   // Detail view — keyed by tree so it survives reloads; draft holds edits.
@@ -104,24 +101,15 @@ export default function PluginsPage() {
 
   const key = (t) => `${t.algorithmId}:${t.instanceKey}`;
 
-  const load = useCallback(async () => {
-    try {
-      const [tr, pr] = await Promise.all([
-        authFetch('/api/context-plugins/trees'),
-        authFetch('/api/context-plugins').catch(() => null),
-      ]);
-      if (!tr.ok) throw new Error(`HTTP ${tr.status}`);
-      setTrees((await tr.json()).data || []);
-      if (pr && pr.ok) setPlugins((await pr.json()).data || []);
-      setError(null);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [authFetch]);
-
-  useEffect(() => { load(); }, [load]);
+  // Trees drive the page's loading/error. The plugin catalog is best-effort —
+  // its absence never blocks the trees list, so its own error is ignored.
+  const { data: trees, loading, error, reload: reloadTrees } = useFetch('/api/context-plugins/trees', {
+    authFetch, initialData: [], transform: (d) => d.data || [],
+  });
+  const { data: plugins, reload: reloadPlugins } = useFetch('/api/context-plugins', {
+    authFetch, initialData: [], transform: (d) => d.data || [],
+  });
+  const load = useCallback(() => { reloadTrees(); reloadPlugins(); }, [reloadTrees, reloadPlugins]);
 
   const selected = useMemo(() => trees.find((t) => key(t) === selKey) || null, [trees, selKey]);
   const meta = useMemo(() => plugins.find((p) => p.name === selected?.algo) || null, [plugins, selected]);
@@ -271,13 +259,13 @@ export default function PluginsPage() {
             does and adjust or remove it. Trees refresh automatically after every crawl. Create new ones in Contexts → New.
           </p>
         </div>
-        <button onClick={() => { setLoading(true); load(); }} className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+        <button onClick={load} className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
           Refresh
         </button>
       </div>
 
       {loading && <div className="text-center text-gray-500 dark:text-gray-400 py-10">Loading…</div>}
-      {error && <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4 text-red-700 dark:text-red-300 text-sm">{error}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4 text-red-700 dark:text-red-300 text-sm">{error.message}</div>}
       {!loading && !error && trees.length === 0 && (
         <div className="text-sm text-gray-500 dark:text-gray-400 py-8">No context plugins configured yet. Create one in Contexts → New.</div>
       )}
