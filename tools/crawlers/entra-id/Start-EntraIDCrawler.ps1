@@ -1605,7 +1605,7 @@ if ($SyncOAuth2Grants) {
                     if (-not $scopeResourceMap.ContainsKey($scopeResId)) {
                         $scopeResourceMap[$scopeResId] = @{
                             id           = $scopeResId
-                            displayName  = $(if ($clientName) { "$scope on $targetName (via $clientName)" } else { "$scope on $targetName" })
+                            displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
                             resourceType = 'DelegatedPermission'
                             enabled      = $true
                             extendedAttributes = @{
