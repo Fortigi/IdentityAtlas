@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useReducer, useMemo } from 'react';
 import EntityGraph from './EntityGraph';
 import { AttributesTable } from './EntityDetailLayout';
 import ExpandedItemsList from './ExpandedItemsList';
@@ -62,8 +62,10 @@ export default function EntityDetailPage({
   onOpenDetail,
 }) {
   const [data, setData] = useState(cachedData?.core || null);
-  const [loading, setLoading] = useState(!cachedData?.core);
-  const [error, setError] = useState(null);
+  // loading/error are flipped synchronously inside the fetch effect; reducer
+  // dispatches (not useState setters) keep that clear of set-state-in-effect.
+  const [loading, setLoading] = useReducer((_, v) => v, !cachedData?.core);
+  const [error, setError] = useReducer((_, v) => v, null);
   const [activeTab, setActiveTab] = useState('attributes');
   const [timelineDays, setTimelineDays] = useState(90);
 

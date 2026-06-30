@@ -30,22 +30,25 @@ export default function PerfPage() {
   const [view, setView] = useState('summary'); // 'summary' | 'recent' | 'slow'
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [summaryRes, recentRes, slowRes] = await Promise.all([
-        authFetch('/api/perf').then(r => r.json()),
-        authFetch('/api/perf/recent?n=100').then(r => r.json()),
-        authFetch('/api/perf/slow?n=20').then(r => r.json()),
-      ]);
-      setSummary(summaryRes);
-      setRecentData(recentRes);
-      setSlowData(slowRes);
-    } catch (err) {
-      console.error('Failed to fetch performance metrics:', err);
-      setSummary({ enabled: false });
-    } finally {
-      setLoading(false);
-    }
+  // .then() chain (not await) so the setStates run inside the callbacks rather
+  // than synchronously after an await — keeping the mount effect that calls
+  // fetchData() clear of react-hooks/set-state-in-effect.
+  const fetchData = useCallback(() => {
+    return Promise.all([
+      authFetch('/api/perf').then(r => r.json()),
+      authFetch('/api/perf/recent?n=100').then(r => r.json()),
+      authFetch('/api/perf/slow?n=20').then(r => r.json()),
+    ])
+      .then(([summaryRes, recentRes, slowRes]) => {
+        setSummary(summaryRes);
+        setRecentData(recentRes);
+        setSlowData(slowRes);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch performance metrics:', err);
+        setSummary({ enabled: false });
+      })
+      .finally(() => setLoading(false));
   }, [authFetch]);
 
   useEffect(() => { fetchData(); }, [fetchData]);

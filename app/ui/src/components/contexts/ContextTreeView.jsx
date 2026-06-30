@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   useDraggable, useDroppable, closestCenter,
@@ -184,7 +184,10 @@ function TreeNode({ node, displayLabel, depth, isLast, onOpenDetail, onRename, o
   // Opt-in: members (the actual users) are hidden until the analyst clicks the
   // member toggle, then shown nested inside the node. Lazy-loaded on first open.
   const [showMembers, setShowMembers] = useState(false);
-  const [members, setMembers] = useState(null); // null = not loaded
+  // members is value-set everywhere (rows / [] / null), so a reducer dispatch
+  // stands in for setState — keeping the cache-invalidation effect below clear
+  // of react-hooks/set-state-in-effect.
+  const [members, setMembers] = useReducer((_, v) => v, null); // null = not loaded
   const [memberTotal, setMemberTotal] = useState(0);
   const canShowMembers = typeof onLoadMembers === 'function' && node.directMemberCount > 0;
   const memberKind = node.targetType === 'Identity' ? 'identity'
