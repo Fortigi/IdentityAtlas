@@ -10,15 +10,7 @@ const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
 // ALL_NAV_TABS to appear in the nav, so it is automatically axe-checked here —
 // nothing to forget to update. Enforced (#471): zero serious/critical WCAG
 // 2A/2AA violations on every nav page (the global-setup enables optional tabs).
-//
-// Deferred: the Matrix grid and Business Roles table — when populated — still
-// carry a borderline contrast issue (header text-gray-500 #6a7282 on bg-gray-100
-// #f3f4f6 = 4.39:1, just under 4.5) spread across the grid styling. Tracked as a
-// follow-up to #471; excluded here so the suite stays green and keeps guarding
-// every other page (including any newly added one).
-const A11Y_DEFERRED = new Set(['matrix', 'access-packages']);
-
-for (const tab of ALL_NAV_TABS.filter(t => !A11Y_DEFERRED.has(t.key))) {
+for (const tab of ALL_NAV_TABS) {
   test(`${tab.label} page has no critical accessibility violations`, async ({ page }) => {
     await page.goto(`${BASE}/#${tab.key}`);
     await page.waitForLoadState('networkidle');
