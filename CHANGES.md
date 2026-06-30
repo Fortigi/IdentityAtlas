@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added reference **auto-update agents** and a setup guide so automatic updates work on any deployment: a Docker-host script (with cron and systemd timer units) and an Azure Container Apps script that apply a new version only when automatic updates are enabled, plus a documentation page explaining the model and per-platform setup. PostgreSQL is never auto-rolled, and schema migrations run fail-closed on startup.
+
+## Changes in this PR
+
 - Added an **Admin → Updates** screen showing the running version and release channel, whether a newer version is available, a switch to turn **automatic updates** on or off, and a history of update checks and installed updates. A **Check now** button runs an immediate check. (Pinned deployments are detected and the switch is disabled with an explanation.)
 
 ## Changes in this PR
