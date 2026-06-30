@@ -410,3 +410,57 @@ Describe 'ConvertTo-EntraAssignmentPolicyRecord' {
         ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p3' }) | Should -BeNullOrEmpty
     }
 }
+
+Describe 'ConvertTo-EntraAccessPackageScopeRelationship' {
+
+    It 'maps a role scope to a Contains relationship with role name/origin' {
+        $rrs = [pscustomobject]@{
+            accessPackageResourceScope = [pscustomobject]@{ originId = 'g1' }
+            accessPackageResourceRole  = [pscustomobject]@{ displayName = 'Owner'; originSystem = 'AadGroup' }
+        }
+        $rel = ConvertTo-EntraAccessPackageScopeRelationship -RoleScope $rrs -AccessPackageId 'ap1'
+        $rel['parentResourceId'] | Should -Be 'ap1'
+        $rel['childResourceId']  | Should -Be 'g1'
+        $rel['relationshipType'] | Should -Be 'Contains'
+        $rel['roleName']         | Should -Be 'Owner'
+    }
+
+    It 'defaults roleName/roleOriginSystem when the role is absent' {
+        $rrs = [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{ originId = 'g2' } }
+        $rel = ConvertTo-EntraAccessPackageScopeRelationship -RoleScope $rrs -AccessPackageId 'ap1'
+        $rel['roleName']         | Should -Be 'Member'
+        $rel['roleOriginSystem'] | Should -Be 'AadGroup'
+    }
+
+    It 'returns $null when the scope has no originId' {
+        $rrs = [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{} }
+        ConvertTo-EntraAccessPackageScopeRelationship -RoleScope $rrs -AccessPackageId 'ap1' | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'ConvertTo-EntraAccessPackageAssignmentRecord' {
+
+    It 'maps an active assignment to a governed Direct BusinessRole assignment' {
+        $a = [pscustomobject]@{
+            accessPackage = [pscustomobject]@{ id = 'ap1' }
+            target = [pscustomobject]@{ objectId = 'u1' }
+            assignmentState = 'Delivered'; assignmentStatus = 'Delivered'; expiredDateTime = $null
+        }
+        $rec = ConvertTo-EntraAccessPackageAssignmentRecord -Assignment $a
+        $rec['resourceId']     | Should -Be 'ap1'
+        $rec['principalId']    | Should -Be 'u1'
+        $rec['assignmentType'] | Should -Be 'Direct'
+        $rec['resourceType']   | Should -Be 'BusinessRole'
+        $rec['governed']       | Should -BeTrue
+    }
+
+    It 'returns $null for an inactive assignment state' {
+        $a = [pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' }; target = [pscustomobject]@{ objectId = 'u1' }; assignmentState = 'Expired' }
+        ConvertTo-EntraAccessPackageAssignmentRecord -Assignment $a | Should -BeNullOrEmpty
+    }
+
+    It 'returns $null when the package or target is missing' {
+        ConvertTo-EntraAccessPackageAssignmentRecord -Assignment ([pscustomobject]@{ target = [pscustomobject]@{ objectId = 'u1' } }) | Should -BeNullOrEmpty
+        ConvertTo-EntraAccessPackageAssignmentRecord -Assignment ([pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' } }) | Should -BeNullOrEmpty
+    }
+}

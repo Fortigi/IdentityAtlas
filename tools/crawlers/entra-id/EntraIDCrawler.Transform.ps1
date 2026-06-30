@@ -374,3 +374,49 @@ function ConvertTo-EntraAssignmentPolicyRecord {
         policyConditions   = $Policy.requestorSettings
     }
 }
+
+# Maps one access-package resourceRoleScope → a Contains relationship (access
+# package -> contained group/resource), or $null when the scope has no originId.
+# Verbatim from the inline `foreach ($rrs in ...) { ... }` block.
+function ConvertTo-EntraAccessPackageScopeRelationship {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $RoleScope,
+        [Parameter(Mandatory)] [string]$AccessPackageId
+    )
+    $scope = $RoleScope.accessPackageResourceScope
+    $role  = $RoleScope.accessPackageResourceRole
+    if (-not $scope -or -not $scope.originId) { return $null }
+    return @{
+        parentResourceId = $AccessPackageId
+        childResourceId  = $scope.originId
+        relationshipType = 'Contains'
+        roleName         = if ($role) { $role.displayName } else { 'Member' }
+        roleOriginSystem = if ($role) { $role.originSystem } else { 'AadGroup' }
+    }
+}
+
+# Maps one access-package assignment → a governed Direct BusinessRole assignment,
+# or $null when the package/target is missing or the state is inactive. Caller
+# owns dedup. Verbatim from the inline streaming `ForEach-Object { ... }` block.
+function ConvertTo-EntraAccessPackageAssignmentRecord {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Assignment)
+    $apId     = if ($Assignment.accessPackage) { $Assignment.accessPackage.id } else { $null }
+    $targetId = if ($Assignment.target) { $Assignment.target.objectId } else { $null }
+    if (-not $apId -or -not $targetId) { return $null }
+    $state = $Assignment.assignmentState
+    # Skip non-active states (Expired, Removed, Denied)
+    if ($state -and $state -notin @('Delivered', 'PendingApproval', 'Active')) { return $null }
+    return @{
+        resourceId         = $apId
+        principalId        = $targetId
+        principalType      = 'User'
+        assignmentType     = 'Direct'
+        resourceType       = 'BusinessRole'
+        governed           = $true
+        state              = $state
+        assignmentStatus   = $Assignment.assignmentStatus
+        expirationDateTime = $Assignment.expiredDateTime
+    }
+}

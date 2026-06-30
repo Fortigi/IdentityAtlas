@@ -976,16 +976,8 @@ if ($SyncGovernance) {
                     # stall the whole loop for minutes.
                     $apDetail = Invoke-FGGetRequest -MaxRetries 1 -TimeoutSec 30 -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages/$($ap.id)?`$expand=accessPackageResourceRoleScopes(`$expand=accessPackageResourceRole,accessPackageResourceScope)"
                     foreach ($rrs in @($apDetail.accessPackageResourceRoleScopes)) {
-                        $scope = $rrs.accessPackageResourceScope
-                        $role = $rrs.accessPackageResourceRole
-                        if (-not $scope -or -not $scope.originId) { continue }
-                        $relRecords += @{
-                            parentResourceId = $ap.id
-                            childResourceId  = $scope.originId
-                            relationshipType = 'Contains'
-                            roleName         = if ($role) { $role.displayName } else { 'Member' }
-                            roleOriginSystem = if ($role) { $role.originSystem } else { 'AadGroup' }
-                        }
+                        $rel = ConvertTo-EntraAccessPackageScopeRelationship -RoleScope $rrs -AccessPackageId $ap.id
+                        if ($rel) { $relRecords += $rel }
                     }
                 } catch {
                     Write-Host "  Skipping AP $($ap.displayName): $($_.Exception.Message)" -ForegroundColor Yellow
@@ -1038,30 +1030,12 @@ if ($SyncGovernance) {
             $assignRecords = [System.Collections.Generic.List[hashtable]]::new()
             $seenKeys = @{}
             Invoke-FGGetRequestStream -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=500" | ForEach-Object {
-                $a = $_
-                $apId = if ($a.accessPackage) { $a.accessPackage.id } else { $null }
-                $targetId = if ($a.target) { $a.target.objectId } else { $null }
-                if (-not $apId -or -not $targetId) { return }
-
-                $state = $a.assignmentState
-                # Skip non-active states (Expired, Removed, Denied)
-                if ($state -and $state -notin @('Delivered','PendingApproval','Active')) { return }
-
-                $key = "$apId|$targetId"
+                $apaRec = ConvertTo-EntraAccessPackageAssignmentRecord -Assignment $_
+                if (-not $apaRec) { return }
+                $key = "$($apaRec.resourceId)|$($apaRec.principalId)"
                 if ($seenKeys.ContainsKey($key)) { return }
                 $seenKeys[$key] = $true
-
-                $assignRecords.Add(@{
-                    resourceId         = $apId
-                    principalId        = $targetId
-                    principalType      = 'User'
-                    assignmentType     = 'Direct'
-                    resourceType       = 'BusinessRole'
-                    governed           = $true
-                    state              = $state
-                    assignmentStatus   = $a.assignmentStatus
-                    expirationDateTime = $a.expiredDateTime
-                })
+                $assignRecords.Add($apaRec)
             }
             # Convert to array for Send-IngestBatch (downstream code uses
             # .Count and indexed access).
