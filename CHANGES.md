@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Reworked the Admin page's data loading (Power Query tokens, history retention, LLM settings, risk-scoring features) and its tab/provider state handling to remove six React Compiler set-state-in-effect warnings. All Admin sub-tabs load, save, and reset exactly as before.
+- Reworked the matrix scope-statistics panel's live-stats and trends/breakdown loading to remove two more React Compiler set-state-in-effect warnings; the counts, governed split, trends timeline and department drill-down all behave as before.
+
+## Changes in this PR
+
 - The light/auto/dark theme hook was reworked to remove a React Compiler set-state-in-effect warning. Auto mode still follows the operating-system preference live, and switching or cycling the theme persists exactly as before.
 
 ## Changes in this PR
