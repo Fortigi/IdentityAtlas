@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useFetch } from '@ui/hooks/useFetch';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDialog } from '@ui/components/dialogContext';
 import { ADMIN_TABS, visibleAdminTabs } from './admin/adminTabs';
@@ -407,23 +408,15 @@ function ClassifiersSection() {
 function PowerQueryExportSection() {
   const { authFetch } = useAuth();
   const dialog = useDialog();
-  const [tokens, setTokens] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [newToken, setNewToken] = useState(null); // plaintext shown once
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
 
-  const refresh = useCallback(async () => {
-    try {
-      const r = await authFetch('/api/admin/read-tokens');
-      if (r.ok) setTokens(await r.json());
-    } catch (e) { setError(e.message); }
-    setLoading(false);
-  }, [authFetch]);
-
-  useEffect(() => { refresh(); }, [refresh]);
+  const { data: tokens, loading, reload: refresh } = useFetch('/api/admin/read-tokens', {
+    authFetch, initialData: [], onError: (e) => setError(e.message),
+  });
 
   async function downloadWorkbook() {
     setError(null);
@@ -842,25 +835,21 @@ function HistoryRetentionSection() {
   const { authFetch } = useAuth();
   const [days, setDays] = useState('');
   const [savedDays, setSavedDays] = useState(null);
-  const [totalRows, setTotalRows] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pruning, setPruning] = useState(false);
   const [message, setMessage] = useState(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const r = await authFetch('/api/admin/history-retention');
-      if (r.ok) {
-        const j = await r.json();
-        setDays(String(j.retentionDays));
-        setSavedDays(j.retentionDays);
-        setTotalRows(j.totalRows);
-      }
-    } finally { setLoading(false); }
-  };
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Load the saved retention + row count. `days`/`savedDays` are seeded from
+  // each fetch (re-seeding on reload after a prune) via render-time tracking,
+  // so we don't setState synchronously inside an effect.
+  const { data: retention, loading, reload: load } = useFetch('/api/admin/history-retention', { authFetch });
+  const totalRows = retention?.totalRows ?? null;
+  const [seededRetention, setSeededRetention] = useState(null);
+  if (retention && retention !== seededRetention) {
+    setSeededRetention(retention);
+    setDays(String(retention.retentionDays));
+    setSavedDays(retention.retentionDays);
+  }
 
   const save = async () => {
     setSaving(true);
@@ -1106,7 +1095,6 @@ function DangerZoneSection({ onRefresh }) {
 function LLMSettingsSection() {
   const { authFetch } = useAuth();
   const dialog = useDialog();
-  const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState([]);
   const [defaultModels, setDefaultModels] = useState({});
   const [config, setConfig] = useState({
@@ -1128,30 +1116,28 @@ function LLMSettingsSection() {
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const r = await authFetch('/api/admin/llm/config');
-      if (r.ok) {
-        const j = await r.json();
-        setProviders(j.providers || []);
-        setDefaultModels(j.defaultModels || {});
-        setApiKeySet(!!j.apiKeySet);
-        if (j.config) {
-          setConfig(c => ({
-            ...c,
-            provider:   j.config.provider   || 'anthropic',
-            model:      j.config.model      || '',
-            endpoint:   j.config.endpoint   || '',
-            deployment: j.config.deployment || '',
-            apiVersion: j.config.apiVersion || '',
-            apiKey:     '', // never returned from server
-          }));
-        }
-      }
-    } finally { setLoading(false); }
-  };
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Load the saved config + provider metadata. The editable form is seeded
+  // from each fetch (re-seeding on reload after a save) via render-time
+  // tracking, so we don't setState synchronously inside an effect.
+  const { data: llmData, loading, reload: load } = useFetch('/api/admin/llm/config', { authFetch });
+  const [seededLlm, setSeededLlm] = useState(null);
+  if (llmData && llmData !== seededLlm) {
+    setSeededLlm(llmData);
+    setProviders(llmData.providers || []);
+    setDefaultModels(llmData.defaultModels || {});
+    setApiKeySet(!!llmData.apiKeySet);
+    if (llmData.config) {
+      setConfig(c => ({
+        ...c,
+        provider:   llmData.config.provider   || 'anthropic',
+        model:      llmData.config.model      || '',
+        endpoint:   llmData.config.endpoint   || '',
+        deployment: llmData.config.deployment || '',
+        apiVersion: llmData.config.apiVersion || '',
+        apiKey:     '', // never returned from server
+      }));
+    }
+  }
 
   const isAzure = config.provider === 'azure-openai';
   const placeholderModel = defaultModels[config.provider] || '';
@@ -1247,8 +1233,14 @@ function LLMSettingsSection() {
   };
 
   // Reset the discovered model list whenever the provider changes — a model
-  // list for Anthropic is not valid for OpenAI.
-  useEffect(() => { setModels(null); setModelsError(null); }, [config.provider]);
+  // list for Anthropic is not valid for OpenAI. Done during render (prev-value
+  // tracking) so it doesn't trip react-hooks/set-state-in-effect.
+  const [seenProvider, setSeenProvider] = useState(config.provider);
+  if (config.provider !== seenProvider) {
+    setSeenProvider(config.provider);
+    setModels(null);
+    setModelsError(null);
+  }
 
   if (loading) return <div className="text-sm text-gray-500 dark:text-gray-400 p-6">Loading…</div>;
 
@@ -1454,20 +1446,16 @@ function NewRiskProfileLauncher({ onRiskScoresRefresh }) {
 // ─── Risk Scoring sub-tab — combines profile + classifiers + feature toggle ──
 function RiskScoringSection({ onRiskScoresRefresh }) {
   const { authFetch } = useAuth();
-  const [features, setFeatures] = useState(null);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState(null);
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState(null);
   const [runErr, setRunErr] = useState(null);
 
-  const fetchFeatures = async () => {
-    try {
-      const r = await fetch('/api/features');
-      if (r.ok) setFeatures(await r.json());
-    } catch { /* ignore */ }
-  };
-  useEffect(() => { fetchFeatures(); }, []);
+  // /api/features is public (no auth header needed); use a stable plain-fetch
+  // wrapper so useFetch's identity-based effect doesn't refetch every render.
+  const plainFetch = useCallback((u) => fetch(u), []);
+  const { data: features } = useFetch('/api/features', { authFetch: plainFetch });
 
   const handleToggle = async () => {
     if (!features) return;
@@ -1636,11 +1624,11 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh }
   const visibleTabs = visibleAdminTabs(permissions, hasWildcard);
 
   // If the user was on a now-hidden tab, bounce them to the first visible one.
-  useEffect(() => {
-    if (!visibleTabs.some(t => t.key === activeTab)) {
-      setActiveTab(visibleTabs[0]?.key || 'crawlers');
-    }
-  }, [visibleTabs, activeTab]);
+  // Done during render — setting to a guaranteed-visible tab converges on the
+  // next render, so it doesn't trip react-hooks/set-state-in-effect.
+  if (visibleTabs.length && !visibleTabs.some(t => t.key === activeTab)) {
+    setActiveTab(visibleTabs[0]?.key || 'crawlers');
+  }
 
   useEffect(() => {
     // Update the hash when the user changes sub-tab so reloads land in the same place.
