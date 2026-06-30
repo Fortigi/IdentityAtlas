@@ -91,7 +91,12 @@ router.get('/resources', async (req, res) => {
     if (resourceType) {
       where += ` AND r."resourceType" = @resourceType`;
       request.input('resourceType', resourceType);
-    } else {
+    } else if (req.query.includeBusinessRoles !== 'true') {
+      // The UI grid lists actual-access resources only; business roles /
+      // access packages live on the governance (SOLL) side and are hidden by
+      // default. The Excel export passes ?includeBusinessRoles=true so an
+      // analyst can rebuild the governance matrix — joining a BusinessRole's
+      // `Contains` relationships to the groups it grants — entirely in Excel.
       where += ` AND (r."resourceType" IS NULL OR r."resourceType" <> 'BusinessRole')`;
     }
     if (systemId && /^\d+$/.test(systemId)) {
@@ -126,7 +131,8 @@ router.get('/resources', async (req, res) => {
     // quadratic across an export and slow enough to time out a deep page.)
     const baseSql = `
       WITH page AS (
-        SELECT r.id, r."displayName", r."description", r."resourceType", r."systemId", r."enabled",
+        SELECT r.id, r."displayName", r."description", r."resourceType", r."governanceResource",
+               r."systemId", r."enabled",
                r."createdDateTime", r."extendedAttributes",
                r."mail", r."visibility", r."externalId",
                r."catalogId", r."isHidden", r."modifiedDateTime",

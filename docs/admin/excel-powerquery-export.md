@@ -24,11 +24,22 @@ One `.xlsx` file with these sheets:
 | Settings               | —                                   | `BaseUrl` + `AuthToken` pre-populated named-range cells  |
 | Systems                | `GET /api/systems`                  | Connected systems (Entra ID, Omada, CSV-backed, …)       |
 | Principals             | `GET /api/users`                    | Every principalType — users, service principals, MIs, AI agents |
-| Resources              | `GET /api/resources`                | Groups, directory roles, app roles, business roles       |
-| Assignments            | `GET /api/assignments`              | Who has access to what (from `ResourceAssignments`)      |
+| Resources              | `GET /api/resources`                | Groups, directory roles, app roles **and** business roles / access packages (the `governanceResource` flag marks the governance ones) |
+| Assignments            | `GET /api/assignments`              | Who has access to what (from `ResourceAssignments`). The `governed` flag splits governed-intent rows from actual access |
 | Identities             | `GET /api/identities`               | Real-person identities aggregated from multiple accounts |
 | IdentityMembers        | `GET /api/identity-members`         | Identity ↔ account links                                 |
-| ResourceRelationships  | `GET /api/resource-relationships`   | Parent↔child resource links (Contains, GrantsAccessTo)   |
+| ResourceRelationships  | `GET /api/resource-relationships`   | Parent↔child resource links (Contains, GrantsAccessTo) — incl. which groups each business role `Contains` |
+| GovernanceCatalogs     | `GET /api/governance-catalogs`      | Catalogs that group business roles / access packages     |
+| AssignmentPolicies     | `GET /api/assignment-policies`      | Rules governing how a business role / access package is granted (auto-add/remove, access-review settings) |
+| AssignmentRequests     | `GET /api/assignment-requests`      | Access request / approval workflow rows                  |
+| CertificationDecisions | `GET /api/certification-decisions`  | Access-review (certification) decisions — approve/deny/dontKnow outcomes |
+
+Between them these tabs carry the full governance (SOLL) layer, so an analyst
+can rebuild **any** matrix the web UI shows — including the governed/non-governed
+split and the business-role → group grants — entirely in Excel: join
+`Assignments` to `Resources` on `resourceId`, and `ResourceRelationships`
+(`relationshipType = "Contains"`) to `Resources` on both `parentResourceId`
+(the business role) and `childResourceId` (the group it grants).
 
 The Principals and Resources tabs auto-expand the `extendedAttributes` JSONB
 column into first-class `ext_*` columns (`ext_userType`,

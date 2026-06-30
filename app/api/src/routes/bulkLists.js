@@ -68,9 +68,10 @@ router.get('/assignments', async (req, res) => {
     const result = await runListAndCount({
       table: 'ResourceAssignments',
       alias: 'ra',
-      columns: `ra."resourceId", ra."principalId", ra."assignmentType", ra."systemId",
-                ra."principalType", ra."complianceState", ra."policyId", ra."state",
-                ra."assignmentStatus", ra."expirationDateTime", ra."extendedAttributes"`,
+      columns: `ra."resourceId", ra."principalId", ra."assignmentType", ra."governed",
+                ra."systemId", ra."principalType", ra."complianceState", ra."policyId",
+                ra."state", ra."assignmentStatus", ra."expirationDateTime",
+                ra."extendedAttributes"`,
       orderBy: `ra."resourceId", ra."principalId", ra."assignmentType"`,
       dataWhere:  systemId !== null ? `WHERE ra."systemId" = $1` : '',
       countWhere: systemId !== null ? `WHERE ra."systemId" = $1` : '',
@@ -178,6 +179,109 @@ router.get('/context-members', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('GET /context-members failed:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/governance-catalogs ────────────────────────────────
+// Flat listing of governance catalogs (Entra ID catalogs, SailPoint sources,
+// …) — the containers that group business roles / access packages.
+router.get('/governance-catalogs', async (req, res) => {
+  const { limit, offset, systemId } = parsePaging(req);
+  try {
+    const where = systemId !== null ? `WHERE gc."systemId" = $1` : '';
+    const result = await runListAndCount({
+      table: 'GovernanceCatalogs',
+      alias: 'gc',
+      columns: `gc.id, gc."systemId", gc."displayName", gc.description,
+                gc."catalogType", gc.enabled, gc."isExternallyVisible",
+                gc."externalId", gc."createdDateTime", gc."modifiedDateTime",
+                gc."extendedAttributes"`,
+      orderBy: `gc."displayName"`,
+      dataWhere: where, countWhere: where,
+      systemId, limit, offset,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('GET /governance-catalogs failed:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/assignment-policies ────────────────────────────────
+// Flat listing of assignment policies — the rules (auto-add/remove, access
+// review settings) that govern how a business role / access package is granted.
+router.get('/assignment-policies', async (req, res) => {
+  const { limit, offset, systemId } = parsePaging(req);
+  try {
+    const where = systemId !== null ? `WHERE ap."systemId" = $1` : '';
+    const result = await runListAndCount({
+      table: 'AssignmentPolicies',
+      alias: 'ap',
+      columns: `ap.id, ap."systemId", ap."resourceId", ap."displayName",
+                ap.description, ap."allowedTargetScope", ap."hasAutoAddRule",
+                ap."hasAutoRemoveRule", ap."hasAccessReview",
+                ap."createdDateTime", ap."modifiedDateTime", ap."extendedAttributes"`,
+      orderBy: `ap."displayName"`,
+      dataWhere: where, countWhere: where,
+      systemId, limit, offset,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('GET /assignment-policies failed:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/assignment-requests ────────────────────────────────
+// Flat listing of access requests — the request/approval workflow rows behind
+// governed assignments.
+router.get('/assignment-requests', async (req, res) => {
+  const { limit, offset, systemId } = parsePaging(req);
+  try {
+    const where = systemId !== null ? `WHERE ar."systemId" = $1` : '';
+    const result = await runListAndCount({
+      table: 'AssignmentRequests',
+      alias: 'ar',
+      columns: `ar.id, ar."systemId", ar."resourceId", ar."requestorId",
+                ar."requestType", ar."requestState", ar."requestStatus",
+                ar."isValidationOnly", ar."justification",
+                ar."createdDateTime", ar."completedDateTime", ar."extendedAttributes"`,
+      orderBy: `ar."createdDateTime"`,
+      dataWhere: where, countWhere: where,
+      systemId, limit, offset,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('GET /assignment-requests failed:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/certification-decisions ────────────────────────────
+// Flat listing of access-review decisions (approve/deny/dontKnow) — the
+// outcome rows of governance access reviews / certifications.
+router.get('/certification-decisions', async (req, res) => {
+  const { limit, offset, systemId } = parsePaging(req);
+  try {
+    const where = systemId !== null ? `WHERE cd."systemId" = $1` : '';
+    const result = await runListAndCount({
+      table: 'CertificationDecisions',
+      alias: 'cd',
+      columns: `cd.id, cd."systemId", cd."resourceId", cd."principalId",
+                cd."principalDisplayName", cd."reviewedResourceId",
+                cd."reviewedResourceDisplayName", cd.decision, cd.recommendation,
+                cd.justification, cd."reviewedBy", cd."reviewedByDisplayName",
+                cd."reviewedDateTime", cd."reviewDefinitionId", cd."reviewInstanceId",
+                cd."reviewInstanceStatus", cd."reviewInstanceStartDateTime",
+                cd."reviewInstanceEndDateTime", cd."extendedAttributes"`,
+      orderBy: `cd."reviewedDateTime"`,
+      dataWhere: where, countWhere: where,
+      systemId, limit, offset,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('GET /certification-decisions failed:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

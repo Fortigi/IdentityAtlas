@@ -102,6 +102,16 @@ describe('generateWorkbook', () => {
     expect(principals).not.toMatch(/off\s*=\s*\[off\]/);             // old record-self-ref
   });
 
+  it('pins includeBusinessRoles=true on the Resources feed so governance resources export', () => {
+    // The /api/resources endpoint hides BusinessRole (access package / business
+    // role) resources by default for the UI grid. Without this fixed query
+    // param the export's Resources tab would silently omit the whole governance
+    // (SOLL) layer, and the Contains edges in ResourceRelationships would point
+    // at parent rows that aren't in the workbook.
+    const resources = wb.getWorksheet('Resources').getCell('A6').value;
+    expect(resources).toContain('includeBusinessRoles = "true"');
+  });
+
   it('auto-expands the extendedAttributes JSONB column', () => {
     // Users of the workbook expect sub-keys (userType, onPremisesSyncEnabled,
     // etc.) to appear as first-class columns, not "Record" cells they have
