@@ -1,1 +1,0 @@
-- The Excel / Power Query data export now includes **Contexts** and **Context Members** sheets — so you can export every context (departments, OUs, administrative units, tags, generated clusters) and the membership rows showing which entity belongs to which context, alongside the existing Principals / Resources / Assignments data.

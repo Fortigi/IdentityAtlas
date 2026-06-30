@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The Excel / Power Query data export now includes **Contexts** and **Context Members** sheets — so you can export every context (departments, OUs, administrative units, tags, generated clusters) and the membership rows showing which entity belongs to which context, alongside the existing Principals / Resources / Assignments data.
+
+## Changes in this PR
+
 - Removed React Compiler set-state-in-effect warnings in the risk-scoring page (first-page reset on filter change, owner search), the matrix view (hierarchy-path reset), and the risk-profile wizard (elapsed-time counters), with no change to behavior. The risk-scoring page now also avoids a redundant stale-page fetch when filters change while paginated.
 
 ## Changes in this PR
