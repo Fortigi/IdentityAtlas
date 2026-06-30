@@ -909,15 +909,7 @@ if ($SyncPim) {
             # Group output by source group to compute pimGroupCount accurately
             $groupSet = @{}
             foreach ($r in $batchOutput) {
-                $pimRecordsList.Add(@{
-                    resourceId         = $r.resourceId
-                    principalId        = $r.principalId
-                    principalType      = $r.principalType
-                    assignmentType     = $r.assignmentType
-                    resourceType       = 'EntraGroup'
-                    state              = $r.state
-                    expirationDateTime = $r.expirationDateTime
-                })
+                $pimRecordsList.Add((ConvertTo-EntraPimRecord -EligibilityRow $r))
                 $groupSet[$r.resourceId] = $true
             }
             $pimGroupCount += $groupSet.Count

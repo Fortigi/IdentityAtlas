@@ -290,3 +290,20 @@ function Add-EntraSignInEventToAggregate {
     }
     return $true
 }
+
+# Maps one PIM eligibility row (as emitted by the parallel fetch) → an
+# ingest/resource-assignments record for an Eligible group membership.
+# Verbatim from the inline `foreach ($r in $batchOutput) { ... }` record build.
+function ConvertTo-EntraPimRecord {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $EligibilityRow)
+    return @{
+        resourceId         = $EligibilityRow.resourceId
+        principalId        = $EligibilityRow.principalId
+        principalType      = $EligibilityRow.principalType
+        assignmentType     = $EligibilityRow.assignmentType
+        resourceType       = 'EntraGroup'
+        state              = $EligibilityRow.state
+        expirationDateTime = $EligibilityRow.expirationDateTime
+    }
+}

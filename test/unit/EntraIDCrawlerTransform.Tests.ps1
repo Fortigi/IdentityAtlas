@@ -335,3 +335,20 @@ Describe 'Add-EntraSignInEventToAggregate' {
         $agg['u1|sp1'].lastSuccessfulSignInDateTime | Should -BeNullOrEmpty
     }
 }
+
+Describe 'ConvertTo-EntraPimRecord' {
+
+    It 'maps an eligibility row to an Eligible EntraGroup assignment, carrying state/expiry' {
+        $row = [pscustomobject]@{
+            resourceId = 'g1'; principalId = 'u1'; principalType = 'User'
+            assignmentType = 'Eligible'; state = 'Provisioned'; expirationDateTime = '2026-12-31T00:00:00Z'
+        }
+        $rec = ConvertTo-EntraPimRecord -EligibilityRow $row
+        $rec['resourceId']         | Should -Be 'g1'
+        $rec['principalId']        | Should -Be 'u1'
+        $rec['assignmentType']     | Should -Be 'Eligible'
+        $rec['resourceType']       | Should -Be 'EntraGroup'
+        $rec['state']              | Should -Be 'Provisioned'
+        $rec['expirationDateTime'] | Should -Be '2026-12-31T00:00:00Z'
+    }
+}
