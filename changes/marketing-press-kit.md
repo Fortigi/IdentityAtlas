@@ -1,2 +1,0 @@
-- Added a Marketing & Press Kit section to the documentation — product brief, key messages, features, use cases, proof points, FAQ, and reusable boilerplate — as a public-safe, on-message source for slides and blog posts.
-- Expanded the documentation landing page with a short open-source / self-hosted summary and a link to the new press kit.

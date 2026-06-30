@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Added a Marketing & Press Kit section to the documentation — product brief, key messages, features, use cases, proof points, FAQ, and reusable boilerplate — as a public-safe, on-message source for slides and blog posts.
+- Expanded the documentation landing page with a short open-source / self-hosted summary and a link to the new press kit.
+
+## Changes in this PR
+
 - Added a **Risky App Consent** context plugin (Admin → Plugins) — the app-reputation companion to Risky Consent. It flags principals who consented to a **known-malicious OAuth app** (matched against the free, public OAuthSentry threat feed of apps seen in consent-phishing / BEC / AiTM campaigns) or to a **suspicious app** by heuristic — a self-registered / unverified publisher, or an app only one or two people consented to (the classic targeted-consent-phishing signal). It creates **"Risky App Consent — Malicious"** and **"Risky App Consent — Suspicious"** contexts you can build a matrix on. The threat feed needs no account or key and is best-effort: if it can't be reached the heuristics still run. The feed URL, whether to use it, the heuristics, and the low-prevalence threshold are all configurable when you run the plugin.
 
 ## Changes in this PR
