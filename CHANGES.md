@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed a startup crash when upgrading to recent builds: the database migration that simplifies how access assignments are stored could fail with a "duplicate key" error on real data, leaving the web container in a restart loop (shown as an "Application Error" page). The migration now safely merges duplicate assignments instead of failing, so the upgrade completes and the app starts normally.
+
+## Changes in this PR
+
 - Added the foundation for in-app auto-updates: Identity Atlas now runs a **daily check** for a newer version on its release channel (`edge` / `beta` / `latest`) and records every check and applied update in an update log. A new **auto-update switch** (off by default, `admin.systems`-gated) controls whether updates are applied automatically. The app never touches Docker itself — applying an update is handled by a small, deployment-specific helper (Docker host / Azure / local), so the same mechanism works on every setup. (This change ships the backend, detection, daily check and API; the Admin → Updates screen and the helper scripts follow in separate changes.)
 
 ## Changes in this PR
