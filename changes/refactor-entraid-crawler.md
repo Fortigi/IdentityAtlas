@@ -1,1 +1,0 @@
-- Fixed: service-principal sign-in activity could be written without its aggregate resource link when user sync was disabled in the same run.
