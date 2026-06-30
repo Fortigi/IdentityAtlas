@@ -6,6 +6,10 @@ Most organizations operate with authorization data siloed in Active Directory, E
 
 Identity Atlas solves this by pulling authorization data from every connected system into a unified PostgreSQL data model with full audit history. It runs as a Docker stack and provides a role mining web UI for analysts and LLM-assisted risk scoring for security teams — all configurable from the browser.
 
+It's **open source (MIT)**, **self-hosted** — your identity data never leaves your environment — and built by [Fortigi](about.md), a Dutch identity & access management consultancy, out of a tool used on real engagements. You can have it running with demo data in minutes.
+
+> **New here, or telling someone else about it?** The [Marketing & Press Kit](marketing/index.md) has the short pitch, key messages, and use cases — the fastest way to understand *what you can do with Identity Atlas* and why it exists.
+
 ---
 
 ## Three Core Capabilities
@@ -87,6 +91,7 @@ Open [http://localhost:3001](http://localhost:3001) → click **"Load Demo Data"
 - [Docker Setup](architecture/docker-setup.md) — services, volumes, scaling
 - [Data Model](concepts/data-model.md) — understand the unified schema and how systems map to it
 - [Software Bill of Materials](reference/sbom.md) — complete inventory of components and dependencies
+- [Marketing & Press Kit](marketing/index.md) — the pitch, key messages, and use cases
 - [About](about.md) — creators, contact, and licensing
 - [History](history.md) — how Identity Atlas evolved from the FortigiGraph PowerShell toolkit through v5
 - [GitHub Repository](https://github.com/Fortigi/IdentityAtlas) — source code, issue tracker, and releases

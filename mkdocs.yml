@@ -143,6 +143,15 @@ nav:
       - Test Coverage: reference/coverage.md
 
   - Project:
+      - Marketing & Press Kit:
+          - Overview: marketing/index.md
+          - Product Brief: marketing/product-brief.md
+          - Key Messages: marketing/key-messages.md
+          - Features: marketing/features.md
+          - Use Cases: marketing/use-cases.md
+          - Proof Points: marketing/proof-points.md
+          - FAQ: marketing/faq.md
+          - Boilerplate: marketing/boilerplate.md
       - About Identity Atlas: about.md
       - History: history.md
       - Contributing:
