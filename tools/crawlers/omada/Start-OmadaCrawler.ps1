@@ -205,6 +205,7 @@ $DefaultTypeMappings = @{
 # Dot-sourced into this script's own scope so they read script-scope vars
 # (e.g. $TypeMappings, $ResourceCategoryMapping, $Script:phases) at call time.
 . (Join-Path $PSScriptRoot 'OmadaCrawler.Functions.ps1')
+. (Join-Path $PSScriptRoot 'OmadaCrawler.Transform.ps1')
 
 $TypeMappings = Merge-TypeMappings -Defaults $DefaultTypeMappings -Overrides $Cfg.typeMappings
 $IdentityTypesForIdentityTable = @($TypeMappings['identityTypesForIdentityTable'])
@@ -449,74 +450,20 @@ if ($SyncIdentities) {
         foreach ($Id in $AllIdentities) {
             $Key = [string]$Id.IDENTITYID
             if ($Key) {
-                $IdType = if ($Id.IDENTITYTYPE) { [string]$Id.IDENTITYTYPE.Value } else { 'Employee' }
+                $IdType = Get-OmadaIdentityType -Identity $Id
                 $IdentityLookup[$Key] = @{ uid = [string]$Id.UId; identityType = $IdType }
             }
         }
 
         # Person-type identities go to the Identities table
         $PersonIdentities = @($AllIdentities | Where-Object {
-            $IdType = if ($_.IDENTITYTYPE) { [string]$_.IDENTITYTYPE.Value } else { 'Employee' }
-            $IdentityTypesForIdentityTable -contains $IdType
+            $IdentityTypesForIdentityTable -contains (Get-OmadaIdentityType -Identity $_)
         })
 
+        # Per-identity record shaping lives in ConvertTo-OmadaIdentityRecord
+        # (OmadaCrawler.Transform.ps1) so it can be unit-tested without a live API.
         $IdentRecords = @($PersonIdentities | ForEach-Object {
-            $IdType = if ($_.IDENTITYTYPE)     { [string]$_.IDENTITYTYPE.Value }     else { 'Employee' }
-            $IdCat  = if ($_.IDENTITYCATEGORY) { [string]$_.IDENTITYCATEGORY.Value } else { '' }
-            $FName  = if ($_.FIRSTNAME)        { [string]$_.FIRSTNAME } else { '' }
-            $LName  = if ($_.LASTNAME)         { [string]$_.LASTNAME  } else { '' }
-            $Name   = "$FName $LName".Trim()
-            if (-not $Name) { $Name = $_.DisplayName }
-            [PSCustomObject]@{
-                id                 = [string]$_.UId  # Omada UId is a valid UUID
-                externalId         = [string]$_.UId
-                displayName        = $Name
-                givenName          = $FName
-                surname            = $LName
-                email              = $_.EMAIL
-                employeeId         = $_.EMPLOYEEID
-                jobTitle           = $_.JOBTITLE
-                companyName        = Get-OmadaRefValue -Ref $_.COMPANY -Fallback ''
-                city               = if ($_.CITY)    { [string]$_.CITY    } else { '' }
-                country            = Get-OmadaRefValue -Ref $_.COUNTRY -Fallback ''
-                extendedAttributes = @{
-                    # Identity type/category/status
-                    identityType     = $IdType
-                    identityCategory = $IdCat
-                    identityStatus   = if ($_.IDENTITYSTATUS)   { [string]$_.IDENTITYSTATUS.Value }   else { '' }
-                    identityId       = if ($_.IDENTITYID)        { [string]$_.IDENTITYID }             else { '' }
-                    oisId            = if ($_.OISID)             { [string]$_.OISID }                  else { '' }
-                    # Contact / location
-                    email2           = if ($_.EMAIL2)            { [string]$_.EMAIL2 }                 else { '' }
-                    city             = if ($_.CITY)              { [string]$_.CITY }                   else { '' }
-                    zipCode          = if ($_.ZIPCODE)           { [string]$_.ZIPCODE }                else { '' }
-                    # Validity
-                    validFrom        = $_.VALIDFROM
-                    validTo          = $_.VALIDTO
-                    # Org references (UIds for use as context IDs)
-                    ouRefId          = Get-OmadaRefUid -Ref $_.OUREF
-                    countryId        = Get-OmadaRefUid -Ref $_.COUNTRY
-                    locationId       = Get-OmadaRefUid -Ref $_.LOCATION
-                    buildingId       = Get-OmadaRefUid -Ref $_.BUILDING
-                    businessUnitId   = Get-OmadaRefUid -Ref $_.BUSINESSUNIT
-                    costCenterId     = Get-OmadaRefUid -Ref $_.COSTCENTER
-                    divisionId       = Get-OmadaRefUid -Ref $_.DIVISION
-                    subAreaId        = Get-OmadaRefUid -Ref $_.SUBAREA
-                    jobTitleRefId    = Get-OmadaRefUid -Ref $_.JOBTITLE_REF
-                    # Org display names (human-readable counterparts)
-                    company          = Get-OmadaRefValue -Ref $_.COMPANY       -Fallback ''
-                    ouRefName        = Get-OmadaRefValue -Ref $_.OUREF         -Fallback ''
-                    countryName      = Get-OmadaRefValue -Ref $_.COUNTRY       -Fallback ''
-                    jobTitleRef      = Get-OmadaRefValue -Ref $_.JOBTITLE_REF  -Fallback ''
-                    # Risk
-                    riskScore        = if ($_.RISKSCORE)         { [string]$_.RISKSCORE }              else { '' }
-                    riskLevel        = Get-OmadaRefValue -Ref $_.RISKLEVEL     -Fallback ''
-                    # People references
-                    manager          = ($_.MANAGER        | ForEach-Object { $_.DisplayName }) -join '; '
-                    identityOwner    = Get-OmadaRefValue -Ref $_.IDENTITYOWNER  -Fallback ''
-                    explicitOwners   = ($_.EXPLICITOWNER   | ForEach-Object { $_.DisplayName }) -join '; '
-                }
-            }
+            ConvertTo-OmadaIdentityRecord -Identity $_
         } | Where-Object { $_.externalId -and $_.displayName })
 
         Write-Step "Ingesting $($IdentRecords.Count) identity records..."
