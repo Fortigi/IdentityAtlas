@@ -244,3 +244,49 @@ function ConvertTo-EntraGroupOwnership {
         assignments   = @($assns)
     }
 }
+
+# Folds one /auditLogs/signIns event into the per-(user, app) aggregate hashtable
+# (passed by reference and mutated in place). Returns $true if the event was
+# aggregated, $false if skipped (missing userId/appId, or the app's SP isn't in
+# the index). The caller owns the skip counter. Verbatim from the $foldEvent
+# scriptblock; the $script:_signin_skipped++ side effect became the $false return.
+function Add-EntraSignInEventToAggregate {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $SignInEvent,
+        [Parameter(Mandatory)] [hashtable]$Aggregate,
+        [hashtable]$AppIdToSpId = @{}
+    )
+    if (-not $SignInEvent.userId -or -not $SignInEvent.appId) { return $false }
+    $spId = $AppIdToSpId[$SignInEvent.appId]
+    if (-not $spId) { return $false }
+    $key = "$($SignInEvent.userId)|$spId"
+    $entry = $Aggregate[$key]
+    if (-not $entry) {
+        $entry = @{
+            principalId  = $SignInEvent.userId
+            resourceId   = $spId
+            activityType = 'SignInPerApp'
+            lastSignInDateTime = $SignInEvent.createdDateTime
+            lastSuccessfulSignInDateTime = $null
+            lastFailedSignInDateTime = $null
+            signInCount = 0
+        }
+        $Aggregate[$key] = $entry
+    }
+    if ($SignInEvent.createdDateTime -gt $entry.lastSignInDateTime) {
+        $entry.lastSignInDateTime = $SignInEvent.createdDateTime
+    }
+    $entry.signInCount++
+    $errorCode = $SignInEvent.status.errorCode
+    if ($null -ne $errorCode -and [int]$errorCode -eq 0) {
+        if (-not $entry.lastSuccessfulSignInDateTime -or $SignInEvent.createdDateTime -gt $entry.lastSuccessfulSignInDateTime) {
+            $entry.lastSuccessfulSignInDateTime = $SignInEvent.createdDateTime
+        }
+    } else {
+        if (-not $entry.lastFailedSignInDateTime -or $SignInEvent.createdDateTime -gt $entry.lastFailedSignInDateTime) {
+            $entry.lastFailedSignInDateTime = $SignInEvent.createdDateTime
+        }
+    }
+    return $true
+}

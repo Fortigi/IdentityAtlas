@@ -291,3 +291,47 @@ Describe 'ConvertTo-EntraGroupOwnership' {
         $out.assignments.Count   | Should -Be 0
     }
 }
+
+Describe 'Add-EntraSignInEventToAggregate' {
+
+    It 'returns $false and leaves the aggregate untouched when userId/appId is missing' {
+        $agg = @{}
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ appId = 'a1' }) -Aggregate $agg -AppIdToSpId @{ a1 = 'sp1' } | Should -BeFalse
+        $agg.Count | Should -Be 0
+    }
+
+    It 'returns $false when the appId is not in the SP index' {
+        $agg = @{}
+        $ev = [pscustomobject]@{ userId = 'u1'; appId = 'unknown'; createdDateTime = '2026-01-01T00:00:00Z' }
+        Add-EntraSignInEventToAggregate -SignInEvent $ev -Aggregate $agg -AppIdToSpId @{ a1 = 'sp1' } | Should -BeFalse
+        $agg.Count | Should -Be 0
+    }
+
+    It 'creates a per-(user, app) entry keyed by userId|spId and counts the sign-in' {
+        $agg = @{}
+        $ev = [pscustomobject]@{ userId = 'u1'; appId = 'a1'; createdDateTime = '2026-01-01T00:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+        Add-EntraSignInEventToAggregate -SignInEvent $ev -Aggregate $agg -AppIdToSpId @{ a1 = 'sp1' } | Should -BeTrue
+        $agg['u1|sp1'].principalId  | Should -Be 'u1'
+        $agg['u1|sp1'].resourceId   | Should -Be 'sp1'
+        $agg['u1|sp1'].activityType | Should -Be 'SignInPerApp'
+        $agg['u1|sp1'].signInCount  | Should -Be 1
+        $agg['u1|sp1'].lastSuccessfulSignInDateTime | Should -Be '2026-01-01T00:00:00Z'
+    }
+
+    It 'accumulates a second event into the same entry and advances lastSignInDateTime' {
+        $agg = @{}
+        $map = @{ a1 = 'sp1' }
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-01-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=0 } }) -Aggregate $agg -AppIdToSpId $map | Out-Null
+        Add-EntraSignInEventToAggregate -SignInEvent ([pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-02-01T00:00:00Z'; status=[pscustomobject]@{ errorCode=0 } }) -Aggregate $agg -AppIdToSpId $map | Out-Null
+        $agg['u1|sp1'].signInCount        | Should -Be 2
+        $agg['u1|sp1'].lastSignInDateTime | Should -Be '2026-02-01T00:00:00Z'
+    }
+
+    It 'records a non-zero errorCode as a failed sign-in, not a successful one' {
+        $agg = @{}
+        $ev = [pscustomobject]@{ userId='u1'; appId='a1'; createdDateTime='2026-03-01T00:00:00Z'; status=[pscustomobject]@{ errorCode = 50126 } }
+        Add-EntraSignInEventToAggregate -SignInEvent $ev -Aggregate $agg -AppIdToSpId @{ a1 = 'sp1' } | Should -BeTrue
+        $agg['u1|sp1'].lastFailedSignInDateTime     | Should -Be '2026-03-01T00:00:00Z'
+        $agg['u1|sp1'].lastSuccessfulSignInDateTime | Should -BeNullOrEmpty
+    }
+}

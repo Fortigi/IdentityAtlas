@@ -664,48 +664,13 @@ if ($SyncSignInLogs) {
         $totalEvents = 0
         $sliceFailures = @()
 
-        # Local function: fold one event into $agg. Pulled out of the loop
-        # to keep the pipeline lambda tight and avoid duplicated logic
-        # between the two phases that need it (currently just this one,
-        # but it would be the easy place to add more granular activity
-        # types later).
-        $foldEvent = {
-            param($ev)
-            if (-not $ev.userId -or -not $ev.appId) { $script:_signin_skipped++; return }
-            $spId = $appIdToSpId[$ev.appId]
-            if (-not $spId) { $script:_signin_skipped++; return }
-            $key = "$($ev.userId)|$spId"
-            $entry = $agg[$key]
-            if (-not $entry) {
-                $entry = @{
-                    principalId  = $ev.userId
-                    resourceId   = $spId
-                    activityType = 'SignInPerApp'
-                    lastSignInDateTime = $ev.createdDateTime
-                    lastSuccessfulSignInDateTime = $null
-                    lastFailedSignInDateTime = $null
-                    signInCount = 0
-                }
-                $agg[$key] = $entry
-            }
-            if ($ev.createdDateTime -gt $entry.lastSignInDateTime) {
-                $entry.lastSignInDateTime = $ev.createdDateTime
-            }
-            $entry.signInCount++
-            $errorCode = $ev.status.errorCode
-            if ($null -ne $errorCode -and [int]$errorCode -eq 0) {
-                if (-not $entry.lastSuccessfulSignInDateTime -or $ev.createdDateTime -gt $entry.lastSuccessfulSignInDateTime) {
-                    $entry.lastSuccessfulSignInDateTime = $ev.createdDateTime
-                }
-            } else {
-                if (-not $entry.lastFailedSignInDateTime -or $ev.createdDateTime -gt $entry.lastFailedSignInDateTime) {
-                    $entry.lastFailedSignInDateTime = $ev.createdDateTime
-                }
-            }
-        }
-        # $script:_signin_skipped is incremented inside the script block above;
-        # the alternative ($script:skipped) would clash with similarly-named
-        # vars in adjacent phases.
+        # Per-event aggregation lives in Add-EntraSignInEventToAggregate
+        # (EntraIDCrawler.Transform.ps1): it folds one event into $agg (passed by
+        # reference) and returns $false when the event is skipped. The skip
+        # counter stays in $script: scope so it survives the streaming
+        # ForEach-Object below (a plain local wouldn't propagate out of the
+        # pipeline block) and doesn't clash with similarly-named vars in
+        # adjacent phases.
         $script:_signin_skipped = 0
 
         $nowUtc = (Get-Date).ToUniversalTime()
@@ -722,7 +687,9 @@ if ($SyncSignInLogs) {
                 # result to a variable first would buffer the whole slice
                 # and defeat the streaming.
                 Invoke-FGGetRequestStream -URI $sliceUri | ForEach-Object {
-                    & $foldEvent $_
+                    if (-not (Add-EntraSignInEventToAggregate -SignInEvent $_ -Aggregate $agg -AppIdToSpId $appIdToSpId)) {
+                        $script:_signin_skipped++
+                    }
                     $sliceCount++
                 }
                 $totalEvents += $sliceCount
