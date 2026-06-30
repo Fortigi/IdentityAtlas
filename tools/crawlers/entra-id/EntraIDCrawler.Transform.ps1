@@ -638,3 +638,34 @@ function New-EntraAppRoleAssignmentRecord {
         }
     }
 }
+
+# Expands one group's app-role assignments to per-user Indirect AppRole rows — the
+# cartesian product of the group's role assignments and its transitive user
+# members. Verbatim from the inline nested `foreach ($roleAssn) { foreach ($uid) }`.
+function ConvertTo-EntraAppRoleIndirectAssignments {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $RoleAssignments,
+        $UserIds,
+        [Parameter(Mandatory)] [string]$GroupId
+    )
+    $out = [System.Collections.Generic.List[object]]::new()
+    foreach ($roleAssn in $RoleAssignments) {
+        foreach ($uid in $UserIds) {
+            $out.Add(@{
+                resourceId     = $roleAssn.roleResId
+                principalId    = $uid
+                principalType  = 'User'
+                assignmentType = 'Indirect'
+                resourceType   = 'AppRole'
+                extendedAttributes = @{
+                    viaGroupId          = $GroupId
+                    appRoleId           = $roleAssn.roleId
+                    sourceAssignmentId  = $roleAssn.sourceAssignmentId
+                    resourceDisplayName = $roleAssn.appName
+                }
+            })
+        }
+    }
+    return @($out)
+}

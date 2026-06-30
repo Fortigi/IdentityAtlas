@@ -595,3 +595,25 @@ Describe 'New-EntraAppRoleAssignmentRecord' {
         (New-EntraAppRoleAssignmentRecord -RoleResourceId 'res-1' -Assignment $a -RoleId 'r1' -PrincipalType 'Group')['principalType'] | Should -Be 'Group'
     }
 }
+
+Describe 'ConvertTo-EntraAppRoleIndirectAssignments' {
+
+    It 'produces one Indirect row per (role assignment x member user)' {
+        $roleAssns = @(
+            @{ roleResId = 'res-1'; roleId = 'r1'; sourceAssignmentId = 's1'; appName = 'CRM' }
+            @{ roleResId = 'res-2'; roleId = 'r2'; sourceAssignmentId = 's2'; appName = 'CRM' }
+        )
+        $rows = ConvertTo-EntraAppRoleIndirectAssignments -RoleAssignments $roleAssns -UserIds @('u1','u2','u3') -GroupId 'g1'
+        @($rows).Count | Should -Be 6   # 2 roles x 3 users
+        $rows | ForEach-Object {
+            $_.assignmentType | Should -Be 'Indirect'
+            $_.resourceType   | Should -Be 'AppRole'
+            $_.extendedAttributes.viaGroupId | Should -Be 'g1'
+        }
+    }
+
+    It 'produces nothing when the group has no transitive users' {
+        $rows = ConvertTo-EntraAppRoleIndirectAssignments -RoleAssignments @(@{ roleResId = 'res-1'; roleId = 'r1' }) -UserIds @() -GroupId 'g1'
+        @($rows).Count | Should -Be 0
+    }
+}

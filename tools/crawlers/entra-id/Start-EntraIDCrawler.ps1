@@ -1503,22 +1503,8 @@ if ($SyncAppRoles) {
             $userIds = @($members |
                 Where-Object { $_.'@odata.type' -eq '#microsoft.graph.user' } |
                 ForEach-Object { $_.id })
-            foreach ($roleAssn in $groupAssns[$groupId]) {
-                foreach ($uid in $userIds) {
-                    $indirectAssns.Add(@{
-                        resourceId     = $roleAssn.roleResId
-                        principalId    = $uid
-                        principalType  = 'User'
-                        assignmentType = 'Indirect'
-                        resourceType   = 'AppRole'
-                        extendedAttributes = @{
-                            viaGroupId          = $groupId
-                            appRoleId           = $roleAssn.roleId
-                            sourceAssignmentId  = $roleAssn.sourceAssignmentId
-                            resourceDisplayName = $roleAssn.appName
-                        }
-                    })
-                }
+            foreach ($r in (ConvertTo-EntraAppRoleIndirectAssignments -RoleAssignments $groupAssns[$groupId] -UserIds $userIds -GroupId $groupId)) {
+                $indirectAssns.Add($r)
             }
         }
 
