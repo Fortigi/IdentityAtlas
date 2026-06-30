@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed WCAG 2.1 AA accessibility issues across the app: the header brand text, the Matrix and Business Roles action buttons, the Logs filter counts, and a Risk Scores hint now meet color-contrast minimums; table row-select checkboxes and the Risk Scores / Contexts / Business Roles filter dropdowns now carry screen-reader labels.
+- Re-enabled the accessibility E2E suite (axe-core, WCAG 2A/2AA). It now checks **every** navigation page automatically — derived from the app's nav definition — so newly added pages are covered without updating the test.
+- Fixed a Matrix page double-scrollbar: on short viewports with a tall toolbar the grid could push the whole page past the bottom, adding a second scrollbar. The grid now always fits the remaining viewport so only it scrolls.
+- Extended the accessibility checks to the Admin sub-tabs (Crawlers, Plugins, Account Linking, Risk Scoring, LLM Settings, Performance, Authentication, Data, About) and fixed their WCAG AA issues — most notably the Performance metrics tables (latency values now use a darker, AA-compliant color), the Roles & Permissions grid checkboxes (screen-reader labels), and several filter/threshold/retention controls and `<code>` snippets. The suite discovers the sub-tabs from the page itself, so a new one is checked automatically.
+- Darkened the Matrix grid header text so the matrix and Business Roles pages also pass WCAG AA contrast, and removed the temporary exemption — the accessibility suite now enforces every top-level page and every Admin sub-tab with no exclusions.
+
+## Changes in this PR
+
 - Fixed the badge shown at the start of an open detail tab: Identity tabs now show "ID" (they previously showed "AP", the access-package badge), and run tabs show "RUN" instead of "AP".
 
 ## Changes in this PR
