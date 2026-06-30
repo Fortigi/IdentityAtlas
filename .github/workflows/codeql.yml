@@ -7,6 +7,7 @@ on:
     # merge — they have nothing for CodeQL (JS/TS) to scan, so the run is wasted:
     #   - coverage.yml's "docs: update test coverage report"  → docs/** + *.md
     #   - bump-version.yml's "chore: bump version …"          → CHANGES.md + the psd1
+    #   - complexity-ratchet baseline updates                 → .ci/**
     # paths-ignore skips a push only when EVERY changed file matches, so a real
     # code merge is never skipped. The pull_request trigger is deliberately left
     # unfiltered: if CodeQL is a required status check, a paths-ignore there would
@@ -15,6 +16,7 @@ on:
       - 'docs/**'
       - '**/*.md'
       - 'setup/IdentityAtlas.psd1'
+      - '.ci/**'
   pull_request:
     branches: [main]
   schedule:
