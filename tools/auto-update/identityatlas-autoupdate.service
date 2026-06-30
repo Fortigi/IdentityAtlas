@@ -1,0 +1,13 @@
+[Unit]
+Description=Identity Atlas auto-update agent (checks the app, pulls if enabled)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Point these at your deployment. IA_READ_TOKEN is only needed if AUTH_ENABLED=true.
+Environment=IA_API_URL=http://localhost:3001
+Environment=IA_COMPOSE_FILE=/opt/identityatlas/docker-compose.prod.yml
+# Environment=IA_READ_TOKEN=fgr_xxx
+WorkingDirectory=/opt/identityatlas
+ExecStart=/opt/identityatlas/tools/auto-update/identityatlas-autoupdate.sh
