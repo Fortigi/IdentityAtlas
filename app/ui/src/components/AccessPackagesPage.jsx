@@ -275,7 +275,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
             title={`${c.assignmentCount} business roles — click to filter`}
           >
             {c.name}
-            <span className="text-[10px] opacity-70">({c.assignmentCount})</span>
+            <span className="text-[10px]">({c.assignmentCount})</span>
             <button
               onClick={(e) => { e.stopPropagation(); deleteCategory(c.id); }}
               className="ml-0.5 hover:opacity-100 opacity-50"
