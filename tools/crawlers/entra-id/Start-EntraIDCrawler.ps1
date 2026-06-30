@@ -534,40 +534,11 @@ if ($SyncServicePrincipals) {
         AIAgent          = New-Object System.Collections.ArrayList
     }
 
+    # Per-SP record shaping + classification lives in
+    # ConvertTo-EntraServicePrincipalRecord (EntraIDCrawler.Transform.ps1).
     foreach ($sp in $sps) {
-        $pt = Get-FGServicePrincipalType -ServicePrincipal $sp -AINamePatterns $AINamePatterns
-
-        $rec = @{
-            id             = $sp.id
-            displayName    = $sp.displayName
-            accountEnabled = [bool]$sp.accountEnabled
-            principalType  = $pt
-        }
-        if ($sp.createdDateTime) { $rec['createdDateTime'] = $sp.createdDateTime }
-
-        # Everything that isn't a first-class column but is useful for filters
-        # or risk signals lives in extendedAttributes. We stringify arrays
-        # (tags, servicePrincipalNames) because jsonb_typeof filters arrays out
-        # of the filter-dropdown discovery and a comma-joined string keeps the
-        # key discoverable.
-        $ext = @{}
-        if ($sp.appId)                   { $ext['appId']                   = $sp.appId }
-        if ($sp.servicePrincipalType)    { $ext['servicePrincipalType']    = $sp.servicePrincipalType }
-        if ($sp.appOwnerOrganizationId)  { $ext['appOwnerOrganizationId']  = $sp.appOwnerOrganizationId }
-        if ($sp.publisherName)           { $ext['publisherName']           = $sp.publisherName }
-        if ($sp.homepage)                { $ext['homepage']                = $sp.homepage }
-        if ($sp.notes)                   { $ext['notes']                   = $sp.notes }
-        if ($sp.tags -and $sp.tags.Count -gt 0) {
-            $ext['tags'] = ($sp.tags -join ',')
-        }
-        if ($sp.servicePrincipalNames -and $sp.servicePrincipalNames.Count -gt 0) {
-            $ext['servicePrincipalNames'] = ($sp.servicePrincipalNames -join ',')
-        }
-        # Portal Link + any *_OuPath fields from DN-shaped extension attrs.
-        Add-FGEntraCalculatedAttributes -Object $sp -Ext $ext -Type 'ServicePrincipal' | Out-Null
-        if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
-
-        [void]$buckets[$pt].Add($rec)
+        $rec = ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp -AINamePatterns $AINamePatterns
+        [void]$buckets[$rec.principalType].Add($rec)
     }
 
     Write-Host ("  Classified: {0} ServicePrincipal / {1} ManagedIdentity / {2} AIAgent" -f `
@@ -619,32 +590,8 @@ if ($SyncServicePrincipals) {
         }
 
         $spActivityRecords = @($sps | ForEach-Object {
-            $a = $activityByAppId[$_.appId]
-            if (-not $a) { return }
-            $rec = @{
-                principalId  = $_.id
-                resourceId   = $aggResourceId
-                activityType = 'ServicePrincipalSignIn'
-            }
-            if ($a.lastSignInActivity.lastSignInDateTime) {
-                $rec['lastSignInDateTime'] = $a.lastSignInActivity.lastSignInDateTime
-            }
-            if ($a.lastNonInteractiveSignInActivity.lastSignInDateTime) {
-                $rec['lastNonInteractiveSignInDateTime'] = $a.lastNonInteractiveSignInActivity.lastSignInDateTime
-            }
-            # applicationAuthenticationClientSignInActivity + delegatedClientSignInActivity
-            # aren't first-class columns — they're SP-specific signals so we keep
-            # them in extendedAttributes for risk scoring and detail-page display.
-            $ext = @{}
-            if ($a.applicationAuthenticationClientSignInActivity.lastSignInDateTime) {
-                $ext['lastApplicationAuthSignInDateTime'] = $a.applicationAuthenticationClientSignInActivity.lastSignInDateTime
-            }
-            if ($a.delegatedClientSignInActivity.lastSignInDateTime) {
-                $ext['lastDelegatedClientSignInDateTime'] = $a.delegatedClientSignInActivity.lastSignInDateTime
-            }
-            if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
-            if ($rec.Count -gt 3) { $rec }
-        })
+            ConvertTo-EntraSpActivityRecord -ServicePrincipal $_ -Activity $activityByAppId[$_.appId] -AggregateResourceId $aggResourceId
+        } | Where-Object { $_ })
 
         if ($spActivityRecords.Count -gt 0) {
             Update-CrawlerProgress -Detail "Uploading $($spActivityRecords.Count) SP sign-in activity records..."

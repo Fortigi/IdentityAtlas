@@ -29,6 +29,10 @@ BeforeAll {
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
 
+    # Get-FGServicePrincipalType (pure SDK classifier) — used by
+    # ConvertTo-EntraServicePrincipalRecord.
+    . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
+
     # Add-FGEntraCalculatedAttributes is a Graph SDK helper with its own tests.
     # Stub it so the transform unit stays hermetic; the stub stamps a marker key
     # when the user has a DN, so we can assert the calculated-attrs merge wiring.
@@ -131,5 +135,89 @@ Describe 'ConvertTo-EntraSignInActivityRecord' {
         $rec['lastSignInDateTime']           | Should -Be '2026-01-01T00:00:00Z'
         $rec['lastSuccessfulSignInDateTime'] | Should -Be '2026-01-02T00:00:00Z'
         $rec.ContainsKey('lastNonInteractiveSignInDateTime') | Should -BeFalse
+    }
+}
+
+Describe 'ConvertTo-EntraServicePrincipalRecord' {
+
+    It 'maps core fields and classifies a plain SP as ServicePrincipal' {
+        $sp = [pscustomobject]@{
+            id = 'sp1'; displayName = 'Contoso CRM'; accountEnabled = $true
+            servicePrincipalType = 'Application'; createdDateTime = '2021-05-05T00:00:00Z'
+        }
+        $rec = ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp
+        $rec['id']              | Should -Be 'sp1'
+        $rec['principalType']   | Should -Be 'ServicePrincipal'
+        $rec['accountEnabled']  | Should -BeOfType [bool]
+        $rec['createdDateTime'] | Should -Be '2021-05-05T00:00:00Z'
+    }
+
+    It 'classifies servicePrincipalType=ManagedIdentity as ManagedIdentity' {
+        $sp = [pscustomobject]@{ id = 'sp2'; displayName = 'mi-app'; servicePrincipalType = 'ManagedIdentity' }
+        (ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp)['principalType'] | Should -Be 'ManagedIdentity'
+    }
+
+    It 'classifies a caller-supplied AI name pattern as AIAgent' {
+        $sp = [pscustomobject]@{ id = 'sp3'; displayName = 'svc_ai_helper'; servicePrincipalType = 'Application' }
+        (ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp -AINamePatterns @('svc_ai_'))['principalType'] | Should -Be 'AIAgent'
+    }
+
+    It 'joins tags and servicePrincipalNames arrays into comma strings in extendedAttributes' {
+        $sp = [pscustomobject]@{
+            id = 'sp4'; displayName = 'Plain App'; servicePrincipalType = 'Application'
+            appId = 'app-4'; publisherName = 'Contoso'
+            tags = @('foo','bar'); servicePrincipalNames = @('https://a','https://b')
+        }
+        $rec = ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp
+        $rec['extendedAttributes']['appId']                 | Should -Be 'app-4'
+        $rec['extendedAttributes']['publisherName']         | Should -Be 'Contoso'
+        $rec['extendedAttributes']['tags']                  | Should -Be 'foo,bar'
+        $rec['extendedAttributes']['servicePrincipalNames'] | Should -Be 'https://a,https://b'
+    }
+
+    It 'omits extendedAttributes when there is nothing to add' {
+        # No servicePrincipalType/appId/tags/etc. → classifier defaults to
+        # ServicePrincipal and the ext bag stays empty.
+        $sp = [pscustomobject]@{ id = 'sp5'; displayName = 'Bare' }
+        (ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp).ContainsKey('extendedAttributes') | Should -BeFalse
+    }
+}
+
+Describe 'ConvertTo-EntraSpActivityRecord' {
+
+    It 'returns $null when there is no matched activity row' {
+        $sp = [pscustomobject]@{ id = 'sp1' }
+        ConvertTo-EntraSpActivityRecord -ServicePrincipal $sp -Activity $null | Should -BeNullOrEmpty
+    }
+
+    It 'builds a ServicePrincipalSignIn record from primary timestamps' {
+        $sp = [pscustomobject]@{ id = 'sp1' }
+        $act = [pscustomobject]@{
+            lastSignInActivity = [pscustomobject]@{ lastSignInDateTime = '2026-02-01T00:00:00Z' }
+            lastNonInteractiveSignInActivity = [pscustomobject]@{ lastSignInDateTime = '2026-02-02T00:00:00Z' }
+        }
+        $rec = ConvertTo-EntraSpActivityRecord -ServicePrincipal $sp -Activity $act -AggregateResourceId 'agg'
+        $rec['principalId']                     | Should -Be 'sp1'
+        $rec['activityType']                    | Should -Be 'ServicePrincipalSignIn'
+        $rec['resourceId']                      | Should -Be 'agg'
+        $rec['lastSignInDateTime']              | Should -Be '2026-02-01T00:00:00Z'
+        $rec['lastNonInteractiveSignInDateTime']| Should -Be '2026-02-02T00:00:00Z'
+    }
+
+    It 'emits only the client-variant timestamps into extendedAttributes when no primary timestamps exist' {
+        $sp = [pscustomobject]@{ id = 'sp1' }
+        $act = [pscustomobject]@{
+            applicationAuthenticationClientSignInActivity = [pscustomobject]@{ lastSignInDateTime = '2026-03-01T00:00:00Z' }
+            delegatedClientSignInActivity = [pscustomobject]@{ lastSignInDateTime = '2026-03-02T00:00:00Z' }
+        }
+        $rec = ConvertTo-EntraSpActivityRecord -ServicePrincipal $sp -Activity $act
+        $rec.ContainsKey('lastSignInDateTime') | Should -BeFalse
+        $rec['extendedAttributes']['lastApplicationAuthSignInDateTime'] | Should -Be '2026-03-01T00:00:00Z'
+        $rec['extendedAttributes']['lastDelegatedClientSignInDateTime'] | Should -Be '2026-03-02T00:00:00Z'
+    }
+
+    It 'returns $null when the activity row carries no usable timestamp' {
+        $sp = [pscustomobject]@{ id = 'sp1' }
+        ConvertTo-EntraSpActivityRecord -ServicePrincipal $sp -Activity ([pscustomobject]@{}) | Should -BeNullOrEmpty
     }
 }

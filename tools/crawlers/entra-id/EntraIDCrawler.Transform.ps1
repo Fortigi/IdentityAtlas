@@ -88,3 +88,80 @@ function ConvertTo-EntraSignInActivityRecord {
     if ($rec.Count -gt 3) { return $rec }
     return $null
 }
+
+# Maps one Graph service principal → an ingest/principals record hashtable. The
+# principalType is classified via Get-FGServicePrincipalType (a pure SDK helper);
+# the caller buckets on the returned record's principalType.
+# Verbatim from the inline `foreach ($sp in $sps) { ... }` record build.
+function ConvertTo-EntraServicePrincipalRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $ServicePrincipal,
+        [string[]]$AINamePatterns = @()
+    )
+    $pt = Get-FGServicePrincipalType -ServicePrincipal $ServicePrincipal -AINamePatterns $AINamePatterns
+
+    $rec = @{
+        id             = $ServicePrincipal.id
+        displayName    = $ServicePrincipal.displayName
+        accountEnabled = [bool]$ServicePrincipal.accountEnabled
+        principalType  = $pt
+    }
+    if ($ServicePrincipal.createdDateTime) { $rec['createdDateTime'] = $ServicePrincipal.createdDateTime }
+
+    # Non-column-but-useful fields go in extendedAttributes; arrays are joined
+    # to a string so jsonb filter-discovery keeps the key visible.
+    $ext = @{}
+    if ($ServicePrincipal.appId)                  { $ext['appId']                  = $ServicePrincipal.appId }
+    if ($ServicePrincipal.servicePrincipalType)   { $ext['servicePrincipalType']   = $ServicePrincipal.servicePrincipalType }
+    if ($ServicePrincipal.appOwnerOrganizationId) { $ext['appOwnerOrganizationId'] = $ServicePrincipal.appOwnerOrganizationId }
+    if ($ServicePrincipal.publisherName)          { $ext['publisherName']          = $ServicePrincipal.publisherName }
+    if ($ServicePrincipal.homepage)               { $ext['homepage']               = $ServicePrincipal.homepage }
+    if ($ServicePrincipal.notes)                  { $ext['notes']                  = $ServicePrincipal.notes }
+    if ($ServicePrincipal.tags -and $ServicePrincipal.tags.Count -gt 0) {
+        $ext['tags'] = ($ServicePrincipal.tags -join ',')
+    }
+    if ($ServicePrincipal.servicePrincipalNames -and $ServicePrincipal.servicePrincipalNames.Count -gt 0) {
+        $ext['servicePrincipalNames'] = ($ServicePrincipal.servicePrincipalNames -join ',')
+    }
+    Add-FGEntraCalculatedAttributes -Object $ServicePrincipal -Ext $ext -Type 'ServicePrincipal' | Out-Null
+    if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
+    return $rec
+}
+
+# Maps a service principal + its matched /reports/servicePrincipalSignInActivities
+# row → an ingest/principal-activity record, or $null when there is no activity
+# row or no usable timestamp. The appId→activity join stays in the caller.
+# Verbatim from the inline `$sps | ForEach-Object { ... }` activity build.
+function ConvertTo-EntraSpActivityRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $ServicePrincipal,
+        $Activity,
+        [string]$AggregateResourceId = '00000000-0000-0000-0000-000000000000'
+    )
+    if (-not $Activity) { return $null }
+    $rec = @{
+        principalId  = $ServicePrincipal.id
+        resourceId   = $AggregateResourceId
+        activityType = 'ServicePrincipalSignIn'
+    }
+    if ($Activity.lastSignInActivity.lastSignInDateTime) {
+        $rec['lastSignInDateTime'] = $Activity.lastSignInActivity.lastSignInDateTime
+    }
+    if ($Activity.lastNonInteractiveSignInActivity.lastSignInDateTime) {
+        $rec['lastNonInteractiveSignInDateTime'] = $Activity.lastNonInteractiveSignInActivity.lastSignInDateTime
+    }
+    # applicationAuthenticationClientSignInActivity + delegatedClientSignInActivity
+    # aren't first-class columns — kept in extendedAttributes for risk scoring.
+    $ext = @{}
+    if ($Activity.applicationAuthenticationClientSignInActivity.lastSignInDateTime) {
+        $ext['lastApplicationAuthSignInDateTime'] = $Activity.applicationAuthenticationClientSignInActivity.lastSignInDateTime
+    }
+    if ($Activity.delegatedClientSignInActivity.lastSignInDateTime) {
+        $ext['lastDelegatedClientSignInDateTime'] = $Activity.delegatedClientSignInActivity.lastSignInDateTime
+    }
+    if ($ext.Count -gt 0) { $rec['extendedAttributes'] = $ext }
+    if ($rec.Count -gt 3) { return $rec }
+    return $null
+}
