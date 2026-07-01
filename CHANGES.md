@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal: Omada crawler identity record-shaping extracted into unit-tested pure functions (no functional change).
+
+## Changes in this PR
+
 - Fixed: service-principal sign-in activity could be written without its aggregate resource link when user sync was disabled in the same run.
 
 ## Changes in this PR
