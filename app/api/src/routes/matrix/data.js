@@ -60,6 +60,21 @@ function buildMatrixContext(filter, built, includeInherited, p) {
   };
 }
 
+// Compute the inherited (effective) attribute-fold counts, normalised so the
+// caller needs no null-guards. Returns empty arrays when the opt-in flag is off
+// or the effective-access engine fails (recorded as a warning).
+async function inheritedAttrFold(ctx) {
+  const { filter, built, rowType, includeInherited, p } = ctx;
+  if (!includeInherited) return { groupValues: [], resources: [], counts: [] };
+  try {
+    const inh = await buildInheritedFoldCounts(p, built, rowType, filter.sortAttributes, built.principalCols, filter.rollupCollapsed);
+    return { groupValues: inh?.groupValues || [], resources: inh?.resources || [], counts: inh?.counts || [] };
+  } catch (err) {
+    built.warnings.push('inherited fold failed: ' + err.message);
+    return { groupValues: [], resources: [], counts: [] };
+  }
+}
+
 // ─── Layered ATTRIBUTE fold (server-aggregated, expand-in-place) ───
 // The efficient counterpart of the per-subject attribute fold: columns are
 // the visible attribute-tuple "cut", each cell a Direct count, expanding a
@@ -67,7 +82,7 @@ function buildMatrixContext(filter, built, includeInherited, p) {
 // view as Manager Hierarchy. Set by the wizard for matrices too large to
 // ship every per-subject row.
 async function handleAttributeFold(res, ctx) {
-  const { filter, built, rowType, subjectAlias, subjectJoin, memberIdExpr, subjectIdForFilter, includeInherited, p } = ctx;
+  const { filter, built, rowType, subjectAlias, subjectJoin, memberIdExpr, subjectIdForFilter, p } = ctx;
 
   const subjCols = rowType === 'identity' ? built.identityCols : built.principalCols;
   const attrExprs = [];
@@ -108,15 +123,11 @@ async function handleAttributeFold(res, ctx) {
 
   // Fold inherited (effective) access into the layered attribute fold. Holder
   // tuple keys match the fold's visible key, so they reuse existing columns.
-  let inhFold = null;
-  if (includeInherited) {
-    try { inhFold = await buildInheritedFoldCounts(p, built, rowType, filter.sortAttributes, built.principalCols, filter.rollupCollapsed); }
-    catch (err) { built.warnings.push('inherited fold failed: ' + err.message); }
-  }
+  const inhFold = await inheritedAttrFold(ctx);
 
   // Hide attribute groups with no in-scope assignments — a column only shows
   // if some resource has a Direct (or inherited) count for it.
-  const attrCellIds = new Set([...cellRows.map(c => c.groupValue), ...(inhFold?.groupValues || [])]);
+  const attrCellIds = new Set([...cellRows.map(c => c.groupValue), ...inhFold.groupValues]);
   const nodes = nodeRows
     .filter(r => attrCellIds.has(r.groupValue))
     .map(r => tupleToNode(r.groupValue, r.total, r.childCount))
@@ -127,7 +138,7 @@ async function handleAttributeFold(res, ctx) {
     if (!row.resourceId || resMap.has(row.resourceId)) continue;
     resMap.set(row.resourceId, resourceMeta(row));
   }
-  for (const r of (inhFold?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+  for (const r of inhFold.resources) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
 
   const counts = await scopeCounts(p, res, rowType, built);
   // Always show one header row per chosen attribute (folded groups occupy
@@ -146,7 +157,7 @@ async function handleAttributeFold(res, ctx) {
         resourceId: r.resourceId, groupValue: r.groupValue,
         directCount: r.directCount, governedCount: r.governedCount,
       })),
-      ...(inhFold?.counts || []),
+      ...inhFold.counts,
     ],
     ...counts, totalUsers: counts.subjectTotal, warnings: built.warnings,
   });
@@ -165,6 +176,24 @@ async function handleContextRollup(res, ctx) {
   return handleContextZoom(res, ctx);
 }
 
+// Fold inherited (effective) context counts into a layered/zoom view: merges any
+// new holder resources into `resMap`, and returns the per-node inherited totals,
+// the set of node ids with any (declared or inherited) cell, and the extra
+// counts — all null-guarded so the caller stays flat. `nodeIds` are the nodes
+// the engine should compute effective access at.
+async function inheritedLayerFold(ctx, nodeIds, cells, resMap) {
+  const { built, rowType, includeInherited, p } = ctx;
+  let inhCtx = null;
+  if (includeInherited) {
+    try { inhCtx = await buildInheritedContextCounts(p, built, rowType, nodeIds); }
+    catch (err) { built.warnings.push('inherited context fold failed: ' + err.message); }
+  }
+  const inhTotByNode = new Map((inhCtx?.groupTotals || []).map(t => [t.groupValue, t.total]));
+  for (const r of (inhCtx?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
+  const cellNodeIds = new Set([...cells.map(c => c.groupValue), ...(inhCtx?.groupValues || [])]);
+  return { inhTotByNode, cellNodeIds, counts: inhCtx?.counts || [] };
+}
+
 // ─── Layered hierarchy view (Manager-Hierarchy sort) ───
 // Show the tree as stacked, expand-in-place header rows instead of the
 // one-level-at-a-time zoom. The visible columns are the current cut: the
@@ -173,7 +202,7 @@ async function handleContextRollup(res, ctx) {
 // header row per level; cells count the node's whole subtree (resources on
 // the rows). Expanding a node adds the next level as a new header row.
 async function handleContextLayered(res, ctx) {
-  const { filter, built, rowType, includeInherited, p } = ctx;
+  const { filter, built, rowType, p } = ctx;
 
   const expandedIds = (filter.rollupExpanded || []).filter(isUuid);
   let cutNodes;
@@ -213,18 +242,11 @@ async function handleContextLayered(res, ctx) {
     subjectSql: built.subjectSql, resourceSql: built.resourceSql,
   }))).recordset.map(r => [r.groupValue, { total: r.total, direct: r.direct }]));
 
-  // Fold inherited (effective) access into the org-rollup cells.
-  let inhCtx = null;
-  if (includeInherited) {
-    try { inhCtx = await buildInheritedContextCounts(p, built, rowType, cutNodes.map(n => n.id)); }
-    catch (err) { built.warnings.push('inherited context fold failed: ' + err.message); }
-  }
-  const inhTotByNode = new Map((inhCtx?.groupTotals || []).map(t => [t.groupValue, t.total]));
-  for (const r of (inhCtx?.resources || [])) if (!layerResMap.has(r.resourceId)) layerResMap.set(r.resourceId, r);
-
-  // Hide org branches with no in-scope assignments: a column only shows if
-  // some resource has a Direct (or inherited) count for that node's subtree.
-  const cellNodeIds = new Set([...layerCells.map(c => c.groupValue), ...(inhCtx?.groupValues || [])]);
+  // Fold inherited (effective) access into the org-rollup cells; hides org
+  // branches with no in-scope assignments (a column only shows if some resource
+  // has a Direct or inherited count for that node's subtree).
+  const { inhTotByNode, cellNodeIds, counts: inhCounts } =
+    await inheritedLayerFold(ctx, cutNodes.map(n => n.id), layerCells, layerResMap);
   const visibleNodes = cutNodes
     .filter(n => cellNodeIds.has(n.id))
     .map(n => {
@@ -250,7 +272,7 @@ async function handleContextLayered(res, ctx) {
         resourceId: r.resourceId, groupValue: r.groupValue,
         directCount: r.directCount, governedCount: r.governedCount,
       })),
-      ...(inhCtx?.counts || []),
+      ...inhCounts,
     ],
     ...layerCounts, totalUsers: layerCounts.subjectTotal, warnings: built.warnings,
   });
@@ -348,6 +370,31 @@ async function handleContextZoomRoles(res, ctx, z) {
   });
 }
 
+// SOLL (business-role) count columns for the context-zoom resource view.
+// Returns { businessRoles, roleCounts }; tolerates the business-role view being
+// absent (returns whatever was collected before any failure).
+async function contextZoomBusinessRoles(res, ctx, z) {
+  const { built, rowType, p } = ctx;
+  const { values, identityJoin, ctxSubjectId } = z;
+  const roleCounts = [];
+  try {
+    const brReq = timedRequest(p, `matrix-ctx-roles[${rowType}]`, res);
+    for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
+    const brRows = (await brReq.query(buildContextRolesSql({
+      values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
+      subjectSql: built.subjectSql, resourceSql: built.resourceSql,
+    }))).recordset;
+    const roleMap = new Map();
+    for (const r of brRows) {
+      if (!r.roleId) continue;
+      if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId });
+      roleCounts.push({ resourceId: r.resourceId, roleId: r.roleId, count: r.count });
+    }
+    const businessRoles = [...roleMap.values()].sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+    return { businessRoles, roleCounts };
+  } catch { return { businessRoles: [], roleCounts }; }
+}
+
 // ── Resources on the rows (+ optional business-role count columns) ──
 async function handleContextZoomResources(res, ctx, z) {
   const { filter, built, rowType, includeInherited, p } = ctx;
@@ -380,23 +427,9 @@ async function handleContextZoomResources(res, ctx, z) {
   for (const r of (inhCtx2?.resources || [])) if (!resMap.has(r.resourceId)) resMap.set(r.resourceId, r);
 
   let businessRoles = [];
-  const roleCounts = [];
+  let roleCounts = [];
   if (filter.rollupContent !== 'resources-only') {
-    try {
-      const brReq = timedRequest(p, `matrix-ctx-roles[${rowType}]`, res);
-      for (const [k, v] of Object.entries(built.bindings)) brReq.input(k, v);
-      const brRows = (await brReq.query(buildContextRolesSql({
-        values, identityJoin, subjectId: ctxSubjectId, subjectScope: ctxSubjectId,
-        subjectSql: built.subjectSql, resourceSql: built.resourceSql,
-      }))).recordset;
-      const roleMap = new Map();
-      for (const r of brRows) {
-        if (!r.roleId) continue;
-        if (!roleMap.has(r.roleId)) roleMap.set(r.roleId, { id: r.roleId, displayName: r.roleName || r.roleId });
-        roleCounts.push({ resourceId: r.resourceId, roleId: r.roleId, count: r.count });
-      }
-      businessRoles = [...roleMap.values()].sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
-    } catch { /* business-role view may be absent */ }
+    ({ businessRoles, roleCounts } = await contextZoomBusinessRoles(res, ctx, z));
   }
 
   const mergedCtxTotals = mergeGroupTotals(ctxTotals, inhCtx2?.groupTotals);
