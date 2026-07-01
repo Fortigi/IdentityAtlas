@@ -9,7 +9,7 @@
 //   - the weighted final-score formula
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { compileClassifier, compilePattern, scoreOne, tierFor, isNonProduction } from './engine.js';
+import { compileClassifier, compilePattern, scoreOne, tierFor, isNonProduction, scoreResourceEntity, scorePrincipalEntity } from './engine.js';
 
 // ─── tierFor ──────────────────────────────────────────────────────
 
@@ -242,5 +242,75 @@ describe('scoreOne', () => {
     expect(scoreOne(['Enterprise Admins'], cls).directScore).toBe(100);
     expect(scoreOne(['Domein Beheerders'], cls).directScore).toBe(100); // Dutch variant
     expect(scoreOne(['Some Random Group'], cls).directScore).toBe(0);
+  });
+});
+
+// ─── scoreResourceEntity (layers 1-3, extracted from runScoring) ──────────
+
+describe('scoreResourceEntity', () => {
+  const adminCls = [compileClassifier({ id: 'admin', label: 'Admin', score: 80, tier: 'High', domain: 'iam', patterns: ['admin'] })];
+
+  it('scores all three layers: direct match, small+ownerless group, structural hygiene', () => {
+    const r = { id: 'r1', displayName: 'Global Admins', description: '', extendedAttributes: { isAssignableToRole: true } };
+    const s = scoreResourceEntity(r, {
+      groupClassifiers: adminCls,
+      memberCountMap: new Map([['r1', 3]]),   // small group (1-5) → +5
+      ownerCountMap: new Map(),                // no owner while populated → +5
+    });
+    expect(s.directScore).toBe(80);
+    expect(s.membershipScore).toBe(10);        // small group + no owner
+    expect(s.structuralScore).toBe(18);        // no description (+3) + role-assignable (+15)
+    expect(s.isNonProd).toBe(false);
+  });
+
+  it('applies the non-production discount (×0.25, floor 5) to the direct score', () => {
+    const r = { id: 'r2', displayName: 'Admin-DEV', description: 'x', extendedAttributes: {} };
+    const s = scoreResourceEntity(r, { groupClassifiers: adminCls, memberCountMap: new Map(), ownerCountMap: new Map() });
+    expect(s.isNonProd).toBe(true);
+    expect(s.directScore).toBe(20);            // round(80 × 0.25)
+    expect(s.directReasons.some(x => x.includes('Non-production'))).toBe(true);
+  });
+
+  it('returns a zero direct score when no classifier matches', () => {
+    const r = { id: 'r3', displayName: 'Some Random Group', description: 'has a description', extendedAttributes: {} };
+    const s = scoreResourceEntity(r, { groupClassifiers: adminCls, memberCountMap: new Map(), ownerCountMap: new Map() });
+    expect(s.directScore).toBe(0);
+    expect(s.membershipScore).toBe(0);
+    expect(s.structuralScore).toBe(0);
+  });
+});
+
+// ─── scorePrincipalEntity (layers 1-3, extracted from runScoring) ─────────
+
+describe('scorePrincipalEntity', () => {
+  const baseCtx = (over = {}) => ({
+    userClassifiers: [], agentClassifiers: [], principalOwnerships: new Map(),
+    hierarchyAvailable: false, directReports: new Map(),
+    principalMemberships: new Map(), principalActivity: new Map(), ...over,
+  });
+
+  it('scores structural hygiene: disabled-with-access + guest', () => {
+    const p = { id: 'p1', displayName: 'Jane', accountEnabled: false, extendedAttributes: { userType: 'Guest' } };
+    const s = scorePrincipalEntity(p, baseCtx({ principalMemberships: new Map([['p1', new Set(['r1'])]]) }));
+    expect(s.structuralScore).toBe(10);        // disabled+members (+5) + guest (+5)
+    expect(s.directScore).toBe(0);
+  });
+
+  it('scores ownership load and span of control', () => {
+    const p = { id: 'p2', displayName: 'Boss', accountEnabled: true, extendedAttributes: {} };
+    const s = scorePrincipalEntity(p, baseCtx({
+      principalOwnerships: new Map([['p2', new Set(['a', 'b', 'c', 'd'])]]), // 4 > 3 → +5
+      hierarchyAvailable: true,
+      directReports: new Map([['p2', new Set(['x', 'y', 'z', 'w', 'v'])]]),  // 5 reports → +3
+    }));
+    expect(s.membershipScore).toBe(8);         // owner-of-4 (+5) + 5 reports (+3)
+  });
+
+  it('flags a stale account (last sign-in > 90 days ago)', () => {
+    const old = new Date(Date.now() - 200 * 86400000).toISOString();
+    const p = { id: 'p3', displayName: 'Ghost', accountEnabled: true, extendedAttributes: {} };
+    const s = scorePrincipalEntity(p, baseCtx({ principalActivity: new Map([['p3', { lastSignInDateTime: old }]]) }));
+    expect(s.structuralScore).toBe(10);        // stale sign-in (+10)
+    expect(s.structuralReasons.some(x => x.includes('stale account'))).toBe(true);
   });
 });

@@ -55,6 +55,131 @@ async function maskedConfigForResponse(id, config) {
   return masked;
 }
 
+// Merge an incoming config-patch onto the stored config for PATCH. clientSecret
+// (if a real value, not the mask) is pulled out for the vault; other secret
+// fields are kept from the existing config when blank/masked. Returns the merged
+// config (never carries plaintext clientSecret) + the new secret to vault (if any).
+// Pure. Exported for unit tests.
+export function mergeConfigForUpdate(existingConfig, incomingConfig) {
+  let mergedConfig = (typeof existingConfig === 'string' ? JSON.parse(existingConfig) : existingConfig) || {};
+  let newSecret = null;
+  if (incomingConfig) {
+    const incoming = { ...incomingConfig };
+    // clientSecret goes to the vault; mask or empty means "keep existing"
+    if (incoming.clientSecret && incoming.clientSecret !== SECRET_MASK) newSecret = incoming.clientSecret;
+    // Other secret fields (password, apiToken, cookieString): preserve existing if blank/masked
+    for (const field of SECRET_FIELDS.filter(f => f !== 'clientSecret')) {
+      if (!incoming[field] || incoming[field] === SECRET_MASK) {
+        if (mergedConfig[field]) incoming[field] = mergedConfig[field];
+        else delete incoming[field];
+      }
+    }
+    delete incoming.clientSecret;
+    mergedConfig = { ...mergedConfig, ...incoming };
+  }
+  delete mergedConfig.clientSecret; // never persist plaintext in the JSON
+  return { mergedConfig, newSecret };
+}
+
+// Validate the create-job request body. Returns { jobType, configId,
+// explicitSyncMode } on success, or { error: { status, body } }. Pure.
+// Exported for unit tests.
+export function validateCreateJobBody(body) {
+  const { jobType, configId: rawConfigId, syncMode: explicitSyncMode } = body;
+  const configId = rawConfigId != null ? parseInt(rawConfigId, 10) : null;
+  if (rawConfigId != null && (isNaN(configId) || configId <= 0)) {
+    return { error: { status: 400, body: { error: 'configId must be a positive integer' } } };
+  }
+  if (!jobType || !VALID_JOB_TYPES.includes(jobType)) {
+    return { error: { status: 400, body: { error: `jobType must be one of: ${VALID_JOB_TYPES.join(', ')}` } } };
+  }
+  if (explicitSyncMode !== undefined && explicitSyncMode !== 'full' && explicitSyncMode !== 'delta') {
+    return { error: { status: 400, body: { error: 'syncMode must be "full" or "delta"' } } };
+  }
+  return { jobType, configId, explicitSyncMode };
+}
+
+// Resolve the config a job should run with: inline (no configId) or the stored
+// CrawlerConfigs row. Returns { resolvedConfig, configNextRunMode } or
+// { error: { status, body } }. Exported for unit tests.
+export async function resolveJobConfig(pool, inlineConfig, configId) {
+  if (!configId) return { resolvedConfig: inlineConfig || null, configNextRunMode: null };
+  const cfgResult = await pool.request().input('configId', configId)
+    .query(`SELECT config, "nextRunMode" FROM "CrawlerConfigs" WHERE id = @configId AND "enabled" = TRUE`);
+  if (cfgResult.recordset.length === 0) return { error: { status: 404, body: { error: 'Crawler config not found' } } };
+  // jsonb is auto-parsed by pg; legacy string column may still appear in tests.
+  const raw = cfgResult.recordset[0].config;
+  return {
+    resolvedConfig: (typeof raw === 'string') ? JSON.parse(raw) : raw,
+    configNextRunMode: cfgResult.recordset[0].nextRunMode || 'delta',
+  };
+}
+
+// For file-upload crawler types: resolve the upload folder (the config's stored
+// csvFolder if it's inside CSV_BASE_DIR, else the standard per-config path) and
+// confirm it contains at least one file. Returns { folder } or
+// { error: { status, body } }. Exported for unit tests.
+export function resolveUploadFolder(jobType, configId, resolvedConfig) {
+  if (!configId) {
+    return { error: { status: 400, body: { error: `${jobType} jobs require a configId — inline configs are not supported` } } };
+  }
+  const configCsvFolder = resolvedConfig?.csvFolder;
+  let folder = getUploadFolderPath(jobType, configId);
+  if (configCsvFolder) {
+    // Derive a relative path and rebuild from the trusted base so the resulting
+    // path is constructed from a constant, not raw user data.
+    const relPart = path.relative(CSV_BASE_DIR, path.resolve(configCsvFolder));
+    if (relPart && !relPart.startsWith('..') && !path.isAbsolute(relPart)) {
+      const safeCustom = path.join(CSV_BASE_DIR, relPart);
+      try { readdirSync(safeCustom); folder = safeCustom; } catch { /* fall back to default */ }
+    }
+  }
+  // Check for uploaded files — use try/catch to avoid TOCTOU (existsSync + read).
+  let uploadedFiles = [];
+  try { uploadedFiles = readdirSync(folder); } catch { /* folder missing or unreadable */ }
+  if (uploadedFiles.length === 0) {
+    return { error: { status: 400, body: { error: 'No files found. Upload files or configure the folder path.' } } };
+  }
+  return { folder };
+}
+
+// Prepare the job's stored config: pick the effective syncMode, stamp the source
+// configId, and strip every credential field (vaulted per-job, injected at claim
+// time). Returns { inlineSecret, configToStore, configJson, extraCreds }. Pure.
+// Exported for unit tests.
+export function prepareJobConfig(resolvedConfig, configId, effectiveSyncMode) {
+  const inlineSecret = (!configId && resolvedConfig?.clientSecret) ? resolvedConfig.clientSecret : null;
+  const configToStore = configId
+    ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
+    : (resolvedConfig ? { ...resolvedConfig, _syncMode: effectiveSyncMode } : null);
+  const extraCreds = {};
+  if (configToStore) {
+    delete configToStore.clientSecret;
+    for (const f of OTHER_SECRET_FIELDS) {
+      if (configToStore[f]) { extraCreds[f] = configToStore[f]; delete configToStore[f]; }
+    }
+  }
+  const configJson = configToStore ? JSON.stringify(configToStore) : null;
+  return { inlineSecret, configToStore, configJson, extraCreds };
+}
+
+// Singleton-job types (manifest `singletonJob: true`) allow only one
+// queued/running job at a time. Returns a 409 { status, body } when one is
+// already active, else null. Exported for unit tests.
+export async function checkSingletonConflict(pool, jobType) {
+  if (!isSingletonJob(jobType)) return null;
+  const dup = await pool.request().input('jobType', jobType).query(
+    `SELECT 1 FROM "CrawlerJobs" WHERE "jobType" = @jobType AND status IN ('queued', 'running')`
+  );
+  if (dup.recordset.length > 0) return { status: 409, body: { error: `A ${jobType} job is already queued or running` } };
+  return null;
+}
+
+// Best display name to stamp as the job's creator. Exported for unit tests.
+export function resolveCreatedBy(req) {
+  return req.user?.preferred_username || req.user?.name || 'ui';
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // CRAWLER CONFIGS — Persistent crawler configurations
 // ═══════════════════════════════════════════════════════════════════
@@ -149,25 +274,7 @@ router.patch('/admin/crawler-configs/:id', gate, async (req, res) => {
       .query(`SELECT config, "crawlerType" FROM "CrawlerConfigs" WHERE id = @id`);
     if (existing.recordset.length === 0) return res.status(404).json({ error: 'Config not found' });
 
-    let mergedConfig = (typeof existing.recordset[0].config === "string" ? JSON.parse(existing.recordset[0].config) : existing.recordset[0].config) || {};
-    let newSecret = null;
-    if (config) {
-      const incoming = { ...config };
-      // clientSecret goes to the vault; mask or empty means "keep existing"
-      if (incoming.clientSecret && incoming.clientSecret !== SECRET_MASK) {
-        newSecret = incoming.clientSecret;
-      }
-      // Other secret fields (password, apiToken, cookieString): preserve existing if blank/masked
-      for (const field of SECRET_FIELDS.filter(f => f !== 'clientSecret')) {
-        if (!incoming[field] || incoming[field] === SECRET_MASK) {
-          if (mergedConfig[field]) incoming[field] = mergedConfig[field];
-          else delete incoming[field];
-        }
-      }
-      delete incoming.clientSecret;
-      mergedConfig = { ...mergedConfig, ...incoming };
-    }
-    delete mergedConfig.clientSecret; // never persist plaintext in the JSON
+    const { mergedConfig, newSecret } = mergeConfigForUpdate(existing.recordset[0].config, config);
 
     const crawlerType = existing.recordset[0].crawlerType;
     if (config) {
@@ -248,112 +355,41 @@ router.delete('/admin/crawler-configs/:id', gate, async (req, res) => {
 router.post('/admin/crawler-jobs', gate, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
-  const { jobType, config, configId: rawConfigId, syncMode: explicitSyncMode } = req.body;
-  const configId = rawConfigId != null ? parseInt(rawConfigId, 10) : null;
-  if (rawConfigId != null && (isNaN(configId) || configId <= 0)) {
-    return res.status(400).json({ error: 'configId must be a positive integer' });
-  }
-  if (!jobType || !VALID_JOB_TYPES.includes(jobType)) {
-    return res.status(400).json({ error: `jobType must be one of: ${VALID_JOB_TYPES.join(', ')}` });
-  }
-  if (explicitSyncMode !== undefined && explicitSyncMode !== 'full' && explicitSyncMode !== 'delta') {
-    return res.status(400).json({ error: 'syncMode must be "full" or "delta"' });
-  }
+  const v = validateCreateJobBody(req.body);
+  if (v.error) return res.status(v.error.status).json(v.error.body);
+  const { jobType, configId, explicitSyncMode } = v;
 
   try {
     const pool = await db.getPool();
-    const createdBy = req.user?.preferred_username || req.user?.name || 'ui';
+    const createdBy = resolveCreatedBy(req);
 
-    // Singleton-job types (manifest `singletonJob: true`) allow only one
-    // queued/running job at a time — a second concurrent run is meaningless.
-    if (isSingletonJob(jobType)) {
-      const dup = await pool.request().input('jobType', jobType).query(
-        `SELECT 1 FROM "CrawlerJobs" WHERE "jobType" = @jobType AND status IN ('queued', 'running')`
-      );
-      if (dup.recordset.length > 0) {
-        return res.status(409).json({ error: `A ${jobType} job is already queued or running` });
-      }
-    }
+    const singletonErr = await checkSingletonConflict(pool, jobType);
+    if (singletonErr) return res.status(singletonErr.status).json(singletonErr.body);
 
-    // Resolve config: from configId (stored config) or inline
-    let resolvedConfig = config || null;
-    let configNextRunMode = null;
-    if (configId) {
-      const cfgResult = await pool.request().input('configId', configId)
-        .query(`SELECT config, "nextRunMode" FROM "CrawlerConfigs" WHERE id = @configId AND "enabled" = TRUE`);
-      if (cfgResult.recordset.length === 0) {
-        return res.status(404).json({ error: 'Crawler config not found' });
-      }
-      // jsonb is auto-parsed by pg; legacy string column may still appear in tests.
-      const raw = cfgResult.recordset[0].config;
-      resolvedConfig = (typeof raw === 'string') ? JSON.parse(raw) : raw;
-      configNextRunMode = cfgResult.recordset[0].nextRunMode || 'delta';
-    }
+    // Resolve config: from configId (stored config) or inline.
+    const cfg = await resolveJobConfig(pool, req.body.config, configId);
+    if (cfg.error) return res.status(cfg.error.status).json(cfg.error.body);
+    let { resolvedConfig } = cfg;
 
     // Validate config against the manifest's JSON Schema (all crawler types).
-    // resolvedConfig came from a configId lookup never has clientSecret (it's
-    // vault-only) — validateStoredCrawlerConfig checks the vault instead of
-    // failing on its absence for types whose schema requires it.
+    // A configId-sourced config never has clientSecret (vault-only) —
+    // validateStoredCrawlerConfig checks the vault instead of failing on its
+    // absence for types whose schema requires it.
     const configErr = await validateStoredCrawlerConfig(jobType, resolvedConfig, configId);
     if (configErr) return res.status(400).json({ error: configErr });
 
     // For crawler types that support file uploads (per their manifest), inject
-    // the per-config upload folder so the worker knows where to read files
-    // from. The folder must already exist and contain at least one file.
+    // the per-config upload folder so the worker knows where to read files from.
     if (_crawlerManifests[jobType]?.supportsFileUploads) {
-      if (!configId) {
-        return res.status(400).json({ error: `${jobType} jobs require a configId — inline configs are not supported` });
-      }
-      // Use the config's stored csvFolder if it exists and is within the
-      // allowed base directory, otherwise fall back to the standard upload path.
-      const configCsvFolder = resolvedConfig?.csvFolder;
-      let folder = getUploadFolderPath(jobType, configId);
-      if (configCsvFolder) {
-        // Derive a relative path and rebuild from the trusted base so the
-        // resulting path is constructed from a constant, not raw user data.
-        const relPart = path.relative(CSV_BASE_DIR, path.resolve(configCsvFolder));
-        if (relPart && !relPart.startsWith('..') && !path.isAbsolute(relPart)) {
-          const safeCustom = path.join(CSV_BASE_DIR, relPart);
-          try { readdirSync(safeCustom); folder = safeCustom; } catch { /* fall back to default */ }
-        }
-      }
-      // Check for uploaded files — use try/catch to avoid TOCTOU (existsSync + read)
-      let uploadedFiles = [];
-      try { uploadedFiles = readdirSync(folder); } catch { /* folder missing or unreadable */ }
-      if (uploadedFiles.length === 0) {
-        return res.status(400).json({ error: 'No files found. Upload files or configure the folder path.' });
-      }
-      resolvedConfig = { ...(resolvedConfig || {}), csvFolder: folder };
+      const up = resolveUploadFolder(jobType, configId, resolvedConfig);
+      if (up.error) return res.status(up.error.status).json(up.error.body);
+      resolvedConfig = { ...(resolvedConfig || {}), csvFolder: up.folder };
     }
 
-    // Stamp the source config id into the stored job config so the UI can
-    // tell WHICH config is running when two configs of the same crawlerType
-    // exist. The scheduler already stamps this field on scheduled runs
-    // (see scheduler.js → queueScheduledJob); we were missing the mirror on
-    // manual "Run Now" requests, which made the Crawlers page render the
-    // "Force Stop" button on EVERY config of that type. Workers ignore
-    // unknown fields so this is non-breaking.
-    // Explicit syncMode in the request body wins (the "Run Delta" / "Run
-    // Full" buttons). Falls back to the stored config's nextRunMode toggle,
-    // then delta. Inline configs without a configId still accept an explicit
-    // syncMode so API clients can control it.
-    const effectiveSyncMode = explicitSyncMode || configNextRunMode || 'delta';
-    // Strip all credential fields before storing — they are vaulted per-job and
-    // injected at claim time by injectJobSecret.  Config-based jobs reference the
-    // config's vaulted clientSecret via _scheduledByConfigId; inline jobs get both
-    // clientSecret and any Omada credentials vaulted under the job id.
-    const inlineSecret = (!configId && resolvedConfig?.clientSecret) ? resolvedConfig.clientSecret : null;
-    const configToStore = configId
-      ? { ...(resolvedConfig || {}), _scheduledByConfigId: configId, _syncMode: effectiveSyncMode }
-      : (resolvedConfig ? { ...resolvedConfig, _syncMode: effectiveSyncMode } : null);
-    const extraCreds = {};
-    if (configToStore) {
-      delete configToStore.clientSecret;
-      for (const f of OTHER_SECRET_FIELDS) {
-        if (configToStore[f]) { extraCreds[f] = configToStore[f]; delete configToStore[f]; }
-      }
-    }
-    const configJson = configToStore ? JSON.stringify(configToStore) : null;
+    // Explicit syncMode in the request body wins (the "Run Delta" / "Run Full"
+    // buttons). Falls back to the stored config's nextRunMode toggle, then delta.
+    const effectiveSyncMode = explicitSyncMode || cfg.configNextRunMode || 'delta';
+    const { inlineSecret, configJson, extraCreds } = prepareJobConfig(resolvedConfig, configId, effectiveSyncMode);
 
     const result = await pool.request()
       .input('jobType', jobType)
