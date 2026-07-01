@@ -36,9 +36,6 @@
       24,
       22
     ],
-    "app/api/src/riskscoring/engine.js": [
-      115
-    ],
     "app/api/src/routes/admin.js": [
       39
     ],
@@ -55,21 +52,10 @@
       30,
       21
     ],
-    "app/api/src/routes/ingest.js": [
-      58
-    ],
-    "app/api/src/routes/jobs.js": [
-      51,
-      22
-    ],
-    "app/api/src/routes/matrix/data.js": [
-      150
-    ],
     "app/api/src/routes/permissions.js": [
       46
     ],
     "app/api/src/routes/recentChanges.js": [
-      60,
       30,
       27
     ],
