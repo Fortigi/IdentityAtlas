@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Internal maintainability: decomposed the core `/matrix/data` query handler — previously a single ~680-line function — into a thin dispatcher plus one focused function per view mode (flat grid, roll-up, context roll-up, attribute fold, inherited-access folds). Cyclomatic complexity of the largest function drops from 150 to 18. No change to matrix behaviour, endpoints, or output.
+- Internal maintainability: decomposed the risk-scoring engine's `runScoring` routine — previously a single ~600-line function — into a thin orchestrator plus one function per pass (load, score resources, score principals, membership analysis, propagation, persistence), each now separately unit-tested. Cyclomatic complexity of the largest function drops from 115 to 20. No change to risk scores, tiers, or explanations.
+- Internal maintainability: decomposed the Recent-Changes timeline builder into one focused, unit-tested handler per event type (attribute change, assignment, containment relationship, identity-link). Cyclomatic complexity of the largest function drops from 60 to 6. No change to timeline output.
+- Internal maintainability: decomposed the generic ingest endpoint handler (shared by all 15 ingest routes) into separately unit-tested phases — record defaults, GUID-prefix recovery, scope projection, conflict-filter selection, column discovery, session handling, delete-by-id, and system-id lookup. Cyclomatic complexity of the largest function drops from 58 to 17. No change to the ingest contract or behaviour.
+- Internal maintainability: decomposed the create-crawler-job and update-config handlers into separately unit-tested helpers — body validation, config resolution, upload-folder resolution, secret/credential preparation, singleton-conflict check, and config-merge. Cyclomatic complexity of the largest function drops from 51 to 16. No change to crawler-job behaviour.
+
+## Changes in this PR
+
 - Reworked the **Risky Consent** plugin so its contexts group the risky **grants themselves** (the OAuth/application permission grants) rather than the principals — so you can scope a matrix to a group and read off exactly which users consented to a risky grant. It now also produces **both** kinds of grouping in one plugin: by permission risk (**Risky Consent — High/Medium**) and by app reputation (**Risky App Consent — Malicious/Suspicious**, using the OAuthSentry threat feed + heuristics). The separate Risky App Consent plugin has been merged into it. Removed/merged context algorithms are now automatically disabled so they no longer appear as broken entries in the plugin picker.
 
 ## Changes in this PR
