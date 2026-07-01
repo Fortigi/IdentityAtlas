@@ -17,6 +17,163 @@ import { normalizePresenceQuery, lookupCrawlerPresence } from '../ingest/crawler
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 
+// Normalise a body's records array + fill NOT-NULL key defaults the engine
+// relies on. Pure (mutates `body.records`). Exported for unit tests.
+//   • records may arrive as null from PS crawlers sending delta-only-deletes.
+//   • `governed` is part of the assignment unique key (migration 047), NOT NULL.
+//   • `governanceResource` is NOT NULL on Resources — derived from resourceType.
+export function applyIngestDefaults(entityType, body) {
+  if (!Array.isArray(body.records)) body.records = [];
+  if (entityType === 'resource-assignments' || entityType === 'resource-assignments-identity') {
+    for (const r of body.records) { if (r && r.governed === undefined) r.governed = false; }
+  }
+  if (entityType === 'resources') {
+    for (const r of body.records) {
+      if (r && r.governanceResource === undefined) r.governanceResource = (r.resourceType === 'BusinessRole');
+    }
+  }
+}
+
+// Recover the system-only prefix used to namespace deterministic GUIDs.
+// Callers build idPrefix as "<systemPrefix>-<entitySuffix>" where the suffix is
+// this endpoint's slug (e.g. "context-members"). Stripping that known suffix
+// recovers <systemPrefix> intact even when it contains hyphens, so cross-entity
+// externalId references resolve to the SAME GUID the referenced entity was
+// created under. Pure. Exported for unit tests.
+export function recoverSystemPrefix(entityType, rawIdPrefix) {
+  const idPrefix = rawIdPrefix || '';
+  const entitySuffix = '-' + entityType.split('/').pop();
+  const systemPrefix = idPrefix.endsWith(entitySuffix)
+    ? idPrefix.slice(0, -entitySuffix.length)
+    : idPrefix.split('-')[0];
+  return { idPrefix, systemPrefix };
+}
+
+// Project a caller-supplied scope onto this entity's allowed scope columns.
+// Pure. Exported for unit tests.
+export function buildScope(bodyScope, scopeColumns) {
+  const scope = {};
+  if (bodyScope) {
+    for (const col of scopeColumns) {
+      if (bodyScope[col] !== undefined) scope[col] = bodyScope[col];
+    }
+  }
+  return scope;
+}
+
+// Both resource-assignments endpoints use partial unique indexes (migration 036
+// replaced the composite PK). The returned WHERE clause is required for
+// PostgreSQL to resolve the ON CONFLICT target against the partial index, and is
+// reused as the scope-delete filter to prevent full-sync cross-contamination
+// between the two arms. Pure. Exported for unit tests.
+export function conflictFilterFor(entityType) {
+  return entityType === 'resource-assignments'          ? '"principalId" IS NOT NULL' :
+         entityType === 'resource-assignments-identity' ? '"identityId" IS NOT NULL'  :
+         null;
+}
+
+// Discover a table's real columns (snake_case) and return them camelCased for
+// the normalizer (records arrive in camelCase). Exported for unit tests.
+export async function discoverCoreColumns(tableName) {
+  const colResult = await db.query(
+    `SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = $1`,
+    [tableName]
+  );
+  return colResult.rows.map(r => r.column_name.replace(/_([a-z])/g, (_, c) => c.toUpperCase()));
+}
+
+// Handle the multi-batch session commands (start / continue / end). Returns a
+// { status, body } response to send, or null when this isn't a session request
+// (fall through to the single-batch path). Exported for unit tests.
+export async function handleSessionPath(body, ctx) {
+  const { tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter } = ctx;
+  if (body.syncSession === 'start') {
+    const result = await startSession(null, tableName, keyColumns, normalized, {
+      systemId: body.systemId, scope, syncMode: body.syncMode || 'full',
+      scopeDeleteFilter, conflictFilter,
+    });
+    return { status: 201, body: {
+      syncId: result.syncId, table: tableName,
+      inserted: result.inserted, updated: result.updated, session: 'started',
+    } };
+  }
+  if (body.syncSession === 'continue') {
+    if (!body.syncId || !hasSession(body.syncId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
+    const result = await continueSession(body.syncId, null, normalized, keyColumns);
+    return { status: 200, body: {
+      syncId: result.syncId, table: tableName,
+      inserted: result.inserted, updated: result.updated, session: 'continued',
+    } };
+  }
+  if (body.syncSession === 'end') {
+    if (!body.syncId || !hasSession(body.syncId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
+    const result = await endSession(body.syncId, null, normalized, keyColumns, { syncMode: body.syncMode || 'full' });
+    return { status: 200, body: {
+      syncId: result.syncId, table: tableName,
+      inserted: result.inserted, updated: result.updated, deleted: result.deleted,
+      totalRecords: result.totalRecords, session: 'completed',
+    } };
+  }
+  return null;
+}
+
+// Explicit delete-by-id path (Graph /delta @removed rows). Validates the ids are
+// UUIDs, soft- or hard-deletes them, and adds the count to `result.deleted`.
+// Returns a { status, body } error response, or null on success / no-op.
+// Exported for unit tests.
+export async function applyDeleteByIds(body, tableName, result) {
+  if (!Array.isArray(body.deletedIds) || body.deletedIds.length === 0) return null;
+  // Reject the whole batch if any entry isn't a UUID to avoid ambiguous deletes.
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const bad = body.deletedIds.find(v => typeof v !== 'string' || !uuidRe.test(v));
+  if (bad) return { status: 400, body: { error: `deletedIds must be UUIDs (got '${String(bad).slice(0, 50)}')` } };
+  try {
+    // Soft-delete tables stamp deletedAt (kept for audit); others hard-delete.
+    const delRes = SOFT_DELETE_TABLES.has(tableName)
+      ? await db.query(`UPDATE "${tableName}" SET "deletedAt" = now() WHERE id = ANY($1::uuid[]) AND "deletedAt" IS NULL`, [body.deletedIds])
+      : await db.query(`DELETE FROM "${tableName}" WHERE id = ANY($1::uuid[])`, [body.deletedIds]);
+    result.deleted += delRes.rowCount || 0;
+    return null;
+  } catch (delErr) {
+    console.error(`Delete-by-id failed on ${tableName}:`, delErr.message);
+    return { status: 500, body: { error: 'Delete-by-id failed', message: delErr.message } };
+  }
+}
+
+// Systems endpoint only: resolve the resulting system IDs so crawlers can use
+// them in subsequent calls without hardcoding. Returns an array or undefined.
+// Exported for unit tests.
+export async function lookupSystemIds(entityType, records) {
+  if (entityType !== 'systems' || records.length === 0) return undefined;
+  try {
+    const ids = [];
+    for (const rec of records) {
+      let row;
+      if (rec.tenantId && rec.systemType) {
+        row = await db.queryOne(`SELECT id FROM "Systems" WHERE "tenantId" = $1 AND "systemType" = $2 ORDER BY id DESC LIMIT 1`, [rec.tenantId, rec.systemType]);
+      } else if (rec.displayName) {
+        row = await db.queryOne(`SELECT id FROM "Systems" WHERE "displayName" = $1 ORDER BY id DESC LIMIT 1`, [rec.displayName]);
+      }
+      if (row) ids.push(row.id);
+    }
+    return ids.length > 0 ? ids : undefined;
+  } catch (lookupErr) {
+    console.error('Failed to look up system IDs after ingest:', lookupErr.message);
+    return undefined;
+  }
+}
+
+// Best-effort crawler audit-log row. Fire-and-forget. Exported for unit tests.
+export function writeAuditLog(req, body) {
+  if (!req.crawler) return;
+  db.query(
+    `INSERT INTO "CrawlerAuditLog" ("crawlerId", "action", "endpoint", "recordCount", "statusCode", "ipAddress")
+     VALUES ($1, 'ingest', $2, $3, 201, $4)`,
+    [req.crawler.id, req.originalUrl, body.records.length, (req.ip || '').slice(0, 45)]
+  ).catch(() => {});
+}
+
 function createIngestHandler(entityType) {
   const tableName = ENTITY_TABLE_MAP[entityType];   // snake_case in v5
   const keyColumns = ENTITY_KEY_MAP[entityType];     // camelCase from caller; engine converts
@@ -24,10 +181,7 @@ function createIngestHandler(entityType) {
 
   return async (req, res) => {
     if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-
-    if (!crawlerHasPermission(req, 'ingest')) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
-    }
+    if (!crawlerHasPermission(req, 'ingest')) return res.status(403).json({ error: 'Insufficient permissions' });
 
     const body = req.body;
 
@@ -36,214 +190,51 @@ function createIngestHandler(entityType) {
       console.warn(`Ingest validation failed [${entityType}]:`, envResult.errors);
       return res.status(400).json({ error: 'Validation failed', details: envResult.errors });
     }
-
     if (entityType !== 'systems' && !crawlerHasSystemAccess(req, body.systemId)) {
       return res.status(403).json({ error: `Crawler does not have access to system ${body.systemId}` });
     }
 
-    // Normalise records to an array (may arrive as null from PS crawlers
-    // sending delta-only-deletes — empty arrays serialize to null).
-    if (!Array.isArray(body.records)) body.records = [];
-
-    // `governed` is part of the assignment unique key (migration 047) and NOT
-    // NULL. It's a key column, so the engine always inserts it — default it to
-    // false for crawlers that don't send it (everything except the governance
-    // phase), otherwise the bulk insert would write NULL and violate NOT NULL.
-    if (entityType === 'resource-assignments' || entityType === 'resource-assignments-identity') {
-      for (const r of body.records) { if (r && r.governed === undefined) r.governed = false; }
-    }
-    // `governanceResource` is NOT NULL on Resources. When a crawler doesn't set
-    // it, derive it from the generic governance type (business roles / access
-    // packages are all stored as resourceType='BusinessRole') so every governance
-    // construct is labelled regardless of which crawler produced it (demo, CSV,
-    // future) — and a mixed-type batch never inserts NULL for the column.
-    if (entityType === 'resources') {
-      for (const r of body.records) {
-        if (r && r.governanceResource === undefined) r.governanceResource = (r.resourceType === 'BusinessRole');
-      }
-    }
+    applyIngestDefaults(entityType, body);
 
     const recResult = validateRecords(body.records, entityType, body.idGeneration, body.syncMode);
     if (!recResult.valid) {
       // Both branches are hardcoded literals so syncMode is never tainted (log-injection fix).
       const syncMode = body.syncMode === 'delta' ? 'delta' : 'full';
       console.warn(`Ingest record validation failed (${syncMode} mode): ${recResult.errors.length} error(s)`);
-
       return res.status(400).json({ error: 'Record validation failed', details: recResult.errors });
     }
 
     const startTime = new Date();
-
     try {
-      // Discover target columns for normalisation. The engine also discovers
-      // these on its own; we read them here to know which fields are "core"
-      // (real columns) vs which should go into extendedAttributes JSON.
-      const colResult = await db.query(
-        `SELECT column_name FROM information_schema.columns
-          WHERE table_schema = 'public' AND table_name = $1`,
-        [tableName]
-      );
-      // The schema columns are snake_case; convert back to camelCase for the
-      // normalizer (the records arrive in camelCase).
-      const coreColumns = colResult.rows.map(r =>
-        r.column_name.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
-      );
-
-      // Recover the system-only prefix used to namespace deterministic GUIDs.
-      // Callers build idPrefix as "<systemPrefix>-<entitySuffix>" where the
-      // suffix is this endpoint's slug (e.g. "context-members"). Stripping that
-      // known suffix recovers <systemPrefix> intact even when it contains
-      // hyphens, so cross-entity externalId references resolve to the SAME GUID
-      // the referenced entity was created under. Without this, a hyphenated
-      // systemType broke contextId resolution and blew up the context-members
-      // upsert with ContextMembers_contextId_fkey.
-      const entitySuffix = '-' + entityType.split('/').pop();
-      const idPrefix = body.idPrefix || '';
-      const systemPrefix = idPrefix.endsWith(entitySuffix)
-        ? idPrefix.slice(0, -entitySuffix.length)
-        : idPrefix.split('-')[0];
-
+      const coreColumns = await discoverCoreColumns(tableName);
+      const { idPrefix, systemPrefix } = recoverSystemPrefix(entityType, body.idPrefix);
       const normalized = normalizeRecords(body.records, coreColumns, {
-        idGeneration: body.idGeneration || 'native',
-        idPrefix,
-        systemPrefix,
-        systemId: body.systemId,
+        idGeneration: body.idGeneration || 'native', idPrefix, systemPrefix, systemId: body.systemId,
       });
-
-      const scope = {};
-      if (body.scope) {
-        for (const col of scopeColumns) {
-          if (body.scope[col] !== undefined) scope[col] = body.scope[col];
-        }
-      }
-
-      // Both resource-assignments endpoints use partial unique indexes (migration 036
-      // replaced the composite PK). conflictFilter provides the WHERE clause required
-      // for PostgreSQL to resolve the ON CONFLICT target against the partial index.
-      // scopeDeleteFilter prevents full-sync cross-contamination between the two arms.
-      const conflictFilter =
-        entityType === 'resource-assignments'          ? '"principalId" IS NOT NULL' :
-        entityType === 'resource-assignments-identity' ? '"identityId" IS NOT NULL'  :
-        null;
+      const scope = buildScope(body.scope, scopeColumns);
+      const conflictFilter = conflictFilterFor(entityType);
       const scopeDeleteFilter = conflictFilter;
 
       // ── Session paths ─────────────────────────────────────────────
-      if (body.syncSession === 'start') {
-        const result = await startSession(null, tableName, keyColumns, normalized, {
-          systemId: body.systemId, scope, syncMode: body.syncMode || 'full',
-          scopeDeleteFilter, conflictFilter,
-        });
-        return res.status(201).json({
-          syncId: result.syncId, table: tableName,
-          inserted: result.inserted, updated: result.updated, session: 'started',
-        });
-      }
-      if (body.syncSession === 'continue') {
-        if (!body.syncId || !hasSession(body.syncId)) {
-          return res.status(400).json({ error: 'Invalid or expired syncId' });
-        }
-        const result = await continueSession(body.syncId, null, normalized, keyColumns);
-        return res.status(200).json({
-          syncId: result.syncId, table: tableName,
-          inserted: result.inserted, updated: result.updated, session: 'continued',
-        });
-      }
-      if (body.syncSession === 'end') {
-        if (!body.syncId || !hasSession(body.syncId)) {
-          return res.status(400).json({ error: 'Invalid or expired syncId' });
-        }
-        const result = await endSession(body.syncId, null, normalized, keyColumns, {
-          syncMode: body.syncMode || 'full',
-        });
-        return res.status(200).json({
-          syncId: result.syncId, table: tableName,
-          inserted: result.inserted, updated: result.updated, deleted: result.deleted,
-          totalRecords: result.totalRecords, session: 'completed',
-        });
-      }
+      const sessionRes = await handleSessionPath(body, { tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter });
+      if (sessionRes) return res.status(sessionRes.status).json(sessionRes.body);
 
       // ── Single-batch path ─────────────────────────────────────────
       const result = body.records.length > 0
         ? await ingest(null, tableName, keyColumns, normalized, {
-            syncMode: body.syncMode || 'delta',
-            systemId: body.systemId,
-            scope,
-            scopeDeleteFilter,
-            conflictFilter,
+            syncMode: body.syncMode || 'delta', systemId: body.systemId, scope, scopeDeleteFilter, conflictFilter,
           })
         : { inserted: 0, updated: 0, deleted: 0 };
 
-      // ── Explicit delete-by-id path (for Graph /delta @removed rows) ──
-      // Delta runs can include a list of ids that were removed upstream.
-      // Deleting them individually is O(ids) but the batches are small
-      // (a few hundred on a typical daily delta), and this keeps the
-      // delete contained to the exact ids the caller supplied rather
-      // than relying on scopedDelete's NOT-EXISTS pattern.
-      if (Array.isArray(body.deletedIds) && body.deletedIds.length > 0) {
-        // Filter to UUIDs only — ResourceAssignments/Relationships surrogate
-        // ids and Principals/Resources ids are all UUID in v5. Reject the
-        // whole batch if any entry isn't a UUID to avoid ambiguous deletes.
-        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        const bad = body.deletedIds.find(v => typeof v !== 'string' || !uuidRe.test(v));
-        if (bad) {
-          return res.status(400).json({ error: `deletedIds must be UUIDs (got '${String(bad).slice(0, 50)}')` });
-        }
-        try {
-          // Soft-delete tables stamp deletedAt (kept for audit); others hard-delete.
-          const delRes = SOFT_DELETE_TABLES.has(tableName)
-            ? await db.query(
-                `UPDATE "${tableName}" SET "deletedAt" = now() WHERE id = ANY($1::uuid[]) AND "deletedAt" IS NULL`,
-                [body.deletedIds])
-            : await db.query(
-                `DELETE FROM "${tableName}" WHERE id = ANY($1::uuid[])`,
-                [body.deletedIds]);
-          result.deleted += delRes.rowCount || 0;
-        } catch (delErr) {
-          console.error(`Delete-by-id failed on ${tableName}:`, delErr.message);
-          return res.status(500).json({ error: 'Delete-by-id failed', message: delErr.message });
-        }
-      }
+      const delErr = await applyDeleteByIds(body, tableName, result);
+      if (delErr) return res.status(delErr.status).json(delErr.body);
 
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
                          body.records.length, result.inserted, result.updated, result.deleted, null);
-
-      // Audit log (best effort)
-      if (req.crawler) {
-        db.query(
-          `INSERT INTO "CrawlerAuditLog" ("crawlerId", "action", "endpoint", "recordCount", "statusCode", "ipAddress")
-           VALUES ($1, 'ingest', $2, $3, 201, $4)`,
-          [req.crawler.id, req.originalUrl, body.records.length, (req.ip || '').slice(0, 45)]
-        ).catch(() => {});
-      }
+      writeAuditLog(req, body);
 
       const durationMs = Date.now() - startTime.getTime();
-
-      // Systems endpoint: look up the resulting system IDs and return them so
-      // crawlers can use them in subsequent calls without hardcoding.
-      let systemIds;
-      if (entityType === 'systems' && body.records.length > 0) {
-        try {
-          const ids = [];
-          for (const rec of body.records) {
-            let row;
-            if (rec.tenantId && rec.systemType) {
-              row = await db.queryOne(
-                `SELECT id FROM "Systems" WHERE "tenantId" = $1 AND "systemType" = $2 ORDER BY id DESC LIMIT 1`,
-                [rec.tenantId, rec.systemType]
-              );
-            } else if (rec.displayName) {
-              row = await db.queryOne(
-                `SELECT id FROM "Systems" WHERE "displayName" = $1 ORDER BY id DESC LIMIT 1`,
-                [rec.displayName]
-              );
-            }
-            if (row) ids.push(row.id);
-          }
-          if (ids.length > 0) systemIds = ids;
-        } catch (lookupErr) {
-          console.error('Failed to look up system IDs after ingest:', lookupErr.message);
-        }
-      }
+      const systemIds = await lookupSystemIds(entityType, body.records);
 
       return res.status(201).json({
         table: tableName,
