@@ -1,0 +1,1 @@
+- Internal: midPoint crawler user/identity record-shaping extracted into unit-tested pure functions (no functional change).
