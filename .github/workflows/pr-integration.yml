@@ -41,6 +41,7 @@ on:
       - 'mkdocs.yml'
       - 'setup/IdentityAtlas.psd1'
       - '**.md'
+      - '.ci/**'
 
 # Cancel superseded runs when a PR branch is pushed again — these Docker/load
 # suites are expensive, so don't let a stale run keep burning a runner (F4).

@@ -3,10 +3,31 @@ name: CodeQL
 on:
   push:
     branches: [main]
+    # Skip the automated, code-free commits that land on main after every PR
+    # merge — they have nothing for CodeQL (JS/TS) to scan, so the run is wasted:
+    #   - coverage.yml's "docs: update test coverage report"  → docs/** + *.md
+    #   - bump-version.yml's "chore: bump version …"          → CHANGES.md + the psd1
+    #   - complexity-ratchet baseline updates                 → .ci/**
+    # paths-ignore skips a push only when EVERY changed file matches, so a real
+    # code merge is never skipped. The pull_request trigger is deliberately left
+    # unfiltered: if CodeQL is a required status check, a paths-ignore there would
+    # leave docs-only PRs without a reported check and block their merge.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'setup/IdentityAtlas.psd1'
+      - '.ci/**'
   pull_request:
     branches: [main]
   schedule:
     - cron: '0 2 * * 1' # Weekly on Monday at 02:00 UTC
+
+concurrency:
+  # Cancel a superseded CodeQL run when a new commit is pushed to the same PR —
+  # only the latest commit's scan matters. Never cancel on main: cancel-in-progress
+  # is gated to pull_request events, so every code commit on main is still scanned.
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
