@@ -38,6 +38,7 @@ Good prompts to start from:
 | [Features](features.md) | The four pillars, in benefit language |
 | [Use Cases](use-cases.md) | Concrete scenarios to anchor stories and demos |
 | [Proof Points](proof-points.md) | The credibility list — open source, local-first, one-click Azure, etc. |
+| [Where Identity Atlas Fits](competitive-landscape.md) | Positioning against IGA suites and attack-path tools — the "why this, not what we have?" answer |
 | [FAQ](faq.md) | Common questions, with public-safe answers |
 | [Boilerplate](boilerplate.md) | About-Fortigi paragraph, links, license, the one-liner |
 
