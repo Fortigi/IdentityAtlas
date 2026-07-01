@@ -323,7 +323,8 @@ var assemblies = [
     "classes": [
       { "name": "tools/crawlers/midpoint/Invoke-MidpointApi", "rp": "midpoint_tools_crawlers_midpoint_Invoke_MidpointApi.html", "cl": 239, "ucl": 8, "cal": 247, "tl": 689, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "tools/crawlers/midpoint/MidpointCrawler.Functions", "rp": "midpoint_Functions.html", "cl": 77, "ucl": 0, "cal": 77, "tl": 173, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/midpoint/Start-MidpointCrawler", "rp": "midpoint_tools_crawlers_midpoint_Start_MidpointCrawler.html", "cl": 0, "ucl": 517, "cal": 517, "tl": 838, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/midpoint/MidpointCrawler.Transform", "rp": "midpoint_Transform.html", "cl": 135, "ucl": 0, "cal": 135, "tl": 321, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/midpoint/Start-MidpointCrawler", "rp": "midpoint_tools_crawlers_midpoint_Start_MidpointCrawler.html", "cl": 0, "ucl": 404, "cal": 404, "tl": 710, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
     "name": "tools/crawlers/odata",
