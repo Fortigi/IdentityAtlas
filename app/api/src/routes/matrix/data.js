@@ -27,7 +27,7 @@ const useSql = process.env.USE_SQL === 'true';
 // Shared per-request query context. Every mode below reads the same derived
 // subject-column SELECT, subject join, and member expressions off this object,
 // so the dispatcher computes them once and passes `ctx` to the chosen handler.
-function buildMatrixContext(filter, built, includeInherited, p) {
+export function buildMatrixContext(filter, built, includeInherited, p) {
   const rowType = filter.rowType;
 
   // Dynamic subject-column SELECT — pulls every real column of the chosen

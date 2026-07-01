@@ -280,7 +280,7 @@ export async function startRiskScoringRun(triggeredBy = 'system', { onlyIfConfig
 // One round-trip per signal (classifiers, principals, activity, resources, and
 // the assignment-derived membership/owner indexes). Returns the shared `data`
 // bag the scoring passes read from. Progress steps 1→15% happen here.
-async function loadScoringData(classifierId, updateRun) {
+export async function loadScoringData(classifierId, updateRun) {
   // Load classifier set
   const cls = await db.queryOne(
     classifierId
@@ -486,7 +486,7 @@ export function scoreResourceEntity(r, { groupClassifiers, memberCountMap, owner
 // Layer-3 structural hygiene for a resource (v4 lines 730-756): missing
 // description, mail-enabled security group, role-assignable group, dynamic
 // membership. Capped at CAP_STRUCTURAL.
-function scoreResourceStructural(r) {
+export function scoreResourceStructural(r) {
   let structuralScore = 0;
   const structuralReasons = [];
   const ext = r.extendedAttributes || {};
@@ -516,7 +516,7 @@ function scoreResourceStructural(r) {
 // Resolve a principal's most recent sign-in timestamp, preferring the
 // PrincipalActivity aggregate and falling back to the legacy
 // extendedAttributes.signInActivity path. Returns null-ish when unknown.
-function resolveLastSignIn(actRow, pext) {
+export function resolveLastSignIn(actRow, pext) {
   return (actRow && (actRow.lastSignInDateTime || actRow.lastSuccessfulSignInDateTime)) ||
     pext.lastSignInDateTime ||
     (pext.signInActivity && pext.signInActivity.lastSignInDateTime);
@@ -630,7 +630,7 @@ export function scorePrincipalEntity(p, ctx) {
 
 // ── Pass 1: Score resources (groups, business roles, etc.) ──
 // Done first because user membership analysis below needs group directScores.
-async function scoreAllResources(data, updateRun) {
+export async function scoreAllResources(data, updateRun) {
   const { resources, totalEntities } = data;
   const resourceState = new Map(); // rid -> { directScore, membershipScore, structuralScore, ... }
   let counter = 0;
@@ -645,7 +645,7 @@ async function scoreAllResources(data, updateRun) {
 }
 
 // ── Pass 2: Score principals ──
-async function scoreAllPrincipals(data, updateRun) {
+export async function scoreAllPrincipals(data, updateRun) {
   const { principals, resources, totalEntities } = data;
   await updateRun({ step: 'Scoring principals (direct + structural)', pct: 45 });
   const principalState = new Map(); // pid -> { ... same shape ... }
@@ -662,7 +662,7 @@ async function scoreAllPrincipals(data, updateRun) {
 
 // Build subtree size map once if hierarchy is available. Walks the
 // directReports graph iteratively (BFS) to avoid PowerShell v4's recursion.
-function buildSubtreeCounts(principalState, directReports, hierarchyAvailable) {
+export function buildSubtreeCounts(principalState, directReports, hierarchyAvailable) {
   const subtreeCount = new Map();
   if (!hierarchyAvailable) return subtreeCount;
   for (const [pid] of principalState) {
@@ -684,7 +684,7 @@ function buildSubtreeCounts(principalState, directReports, hierarchyAvailable) {
 // Finish one principal's membership analysis (needs resource direct scores):
 // broad access footprint, member-of-high-risk-group, org subtree size, and
 // manager-of-high-risk-reports. Mutates `state`.
-function analyzeMembershipForPrincipal(pid, state, ctx) {
+export function analyzeMembershipForPrincipal(pid, state, ctx) {
   const { principalMemberships, resourceState, directReports, hierarchyAvailable, principalState, subtreeCount } = ctx;
   const memSet = principalMemberships.get(pid) || new Set();
   const totalGroups = memSet.size + state.ownCount;
@@ -745,7 +745,7 @@ function analyzeMembershipForPrincipal(pid, state, ctx) {
 
 // ── Pass 3: User membership analysis (needs resource direct scores) ──
 // v4 lines 650-710.
-async function analyzeMembership(principalState, resourceState, data, updateRun) {
+export async function analyzeMembership(principalState, resourceState, data, updateRun) {
   const { principalMemberships, directReports, hierarchyAvailable } = data;
   await updateRun({ step: 'Scoring principals (membership)', pct: 62 });
 
@@ -758,7 +758,7 @@ async function analyzeMembership(principalState, resourceState, data, updateRun)
 // of its riskiest neighbour's pre-propagation score. Mutates each target's
 // propagatedScore / propagatedReasons. `label` is 'group' or 'member' for the
 // reason text.
-function propagateInherited(targetState, neighbourSets, neighbourPre, neighbourState, factor, label) {
+export function propagateInherited(targetState, neighbourSets, neighbourPre, neighbourState, factor, label) {
   for (const [id, state] of targetState) {
     const neighbours = neighbourSets.get(id) || new Set();
     let maxPre = 0;
@@ -786,7 +786,7 @@ function propagateInherited(targetState, neighbourSets, neighbourPre, neighbourS
 // ── Pass 4: Cross-entity propagation (one pass) ──
 // v4 lines 814-872. Compute pre-propagation scores, then propagate max
 // group score to users (*0.30) and max user score to groups (*0.25).
-async function propagateRisk(resourceState, principalState, data, updateRun) {
+export async function propagateRisk(resourceState, principalState, data, updateRun) {
   const { principalMemberships, resourceMembers } = data;
   await updateRun({ step: 'Propagating risk across memberships', pct: 75 });
 
@@ -806,7 +806,7 @@ async function propagateRisk(resourceState, principalState, data, updateRun) {
 
 // ── Pass 5: Final score assembly + persistence ──
 // Compute the weighted final score per entity and bulk-upsert into RiskScores.
-async function assembleAndPersist(resourceState, principalState, totalEntities, updateRun) {
+export async function assembleAndPersist(resourceState, principalState, totalEntities, updateRun) {
   await updateRun({ step: 'Finalising scores', pct: 88 });
 
   const finalScore = (s) => Math.min(

@@ -15,8 +15,39 @@ vi.mock('../../perf/sqlTimer.js', () => ({
   timedRequest: () => ({ input() { return this; }, query: async () => ({ recordset: [] }) }),
 }));
 
-const { default: dataRouter } = await import('./data.js');
+const { default: dataRouter, buildMatrixContext } = await import('./data.js');
 const app = express().use(express.json()).use(dataRouter);
+
+// buildMatrixContext is the pure per-request setup extracted from the handler:
+// it derives the subject column SELECT / join / member expressions from rowType.
+describe('buildMatrixContext', () => {
+  const built = {
+    principalCols: [{ name: 'displayName' }, { name: 'email' }, { name: 'department' }],
+    identityCols: [{ name: 'displayName' }, { name: 'jobTitle' }],
+  };
+
+  it('derives principal-mode expressions', () => {
+    const ctx = buildMatrixContext({ rowType: 'principal' }, built, false, {});
+    expect(ctx.subjectAlias).toBe('u');
+    expect(ctx.memberIdExpr).toBe('p."principalId"');
+    expect(ctx.subjectIdForFilter).toBe('p."principalId"');
+    expect(ctx.subjectJoin).toContain('INNER JOIN "Principals" u');
+    expect(ctx.subjectJoin).not.toContain('IdentityMembers');
+    // displayName/email are excluded from the dynamic column list
+    expect(ctx.dynamicSubjectCols).toBe('u."department"');
+  });
+
+  it('derives identity-mode expressions (joins through IdentityMembers)', () => {
+    const ctx = buildMatrixContext({ rowType: 'identity' }, built, true, {});
+    expect(ctx.subjectAlias).toBe('i');
+    expect(ctx.memberIdExpr).toBe('i.id');
+    expect(ctx.memberTypeExpr).toBe(`'Identity'`);
+    expect(ctx.subjectJoin).toContain('IdentityMembers');
+    expect(ctx.subjectJoin).toContain('INNER JOIN "Identities" i');
+    expect(ctx.dynamicSubjectCols).toBe('i."jobTitle"');
+    expect(ctx.includeInherited).toBe(true);
+  });
+});
 
 const EMPTY_PAYLOAD = {
   data: [], rowType: 'principal', managedByPackages: [],
