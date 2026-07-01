@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Internal: midPoint crawler user/identity record-shaping extracted into unit-tested pure functions (no functional change).
+
+## Changes in this PR
+
 - Internal: Omada crawler identity record-shaping extracted into unit-tested pure functions (no functional change).
 
 ## Changes in this PR
