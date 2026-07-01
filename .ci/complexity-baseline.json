@@ -1,0 +1,242 @@
+{
+  "_comment": "Cyclomatic-complexity ratchet baseline. Per file: the sorted list of unit CCs over the language threshold. Only ever lowered (python tools/complexity/ratchet.py --update). See the tool header.",
+  "thresholds": {
+    "ps": 15,
+    "py": 15,
+    "js": 20
+  },
+  "files": {
+    "app/api/src/contexts/plugins/manager-hierarchy.js": [
+      36
+    ],
+    "app/api/src/contexts/plugins/resource-type-tree.js": [
+      32
+    ],
+    "app/api/src/contexts/plugins/risky-app-consent.js": [
+      29
+    ],
+    "app/api/src/contexts/plugins/runner.js": [
+      27
+    ],
+    "app/api/src/effectiveAccess/engine.js": [
+      25
+    ],
+    "app/api/src/ingest/normalization.js": [
+      35
+    ],
+    "app/api/src/ingest/validation.js": [
+      42,
+      24
+    ],
+    "app/api/src/llm/scraper.js": [
+      21
+    ],
+    "app/api/src/matrix/inheritedAccess.js": [
+      24,
+      24,
+      22
+    ],
+    "app/api/src/riskscoring/engine.js": [
+      115
+    ],
+    "app/api/src/routes/admin.js": [
+      39
+    ],
+    "app/api/src/routes/contexts.js": [
+      33,
+      22,
+      21
+    ],
+    "app/api/src/routes/details.js": [
+      46,
+      25
+    ],
+    "app/api/src/routes/identities.js": [
+      30,
+      21
+    ],
+    "app/api/src/routes/ingest.js": [
+      58
+    ],
+    "app/api/src/routes/jobs.js": [
+      51,
+      22
+    ],
+    "app/api/src/routes/matrix/data.js": [
+      150
+    ],
+    "app/api/src/routes/permissions.js": [
+      46
+    ],
+    "app/api/src/routes/recentChanges.js": [
+      60,
+      30,
+      27
+    ],
+    "app/api/src/routes/resources.js": [
+      30,
+      26
+    ],
+    "app/api/src/routes/riskProfiles.js": [
+      25,
+      24
+    ],
+    "app/api/src/routes/riskScores.js": [
+      37,
+      27
+    ],
+    "app/api/src/routes/tags.js": [
+      23,
+      22
+    ],
+    "app/ui/src/App.jsx": [
+      45
+    ],
+    "app/ui/src/components/AccessPackagesPage.jsx": [
+      36
+    ],
+    "app/ui/src/components/AdminPage.jsx": [
+      36
+    ],
+    "app/ui/src/components/AuthSettingsPage.jsx": [
+      26
+    ],
+    "app/ui/src/components/ContextDetailPage.jsx": [
+      35
+    ],
+    "app/ui/src/components/CrawlersPage.jsx": [
+      30,
+      25
+    ],
+    "app/ui/src/components/DashboardPage.jsx": [
+      31
+    ],
+    "app/ui/src/components/DepartmentDetailPage.jsx": [
+      25
+    ],
+    "app/ui/src/components/EntityDetailPage.jsx": [
+      25
+    ],
+    "app/ui/src/components/EntityGraph.jsx": [
+      25
+    ],
+    "app/ui/src/components/MatrixView.jsx": [
+      33,
+      33,
+      23
+    ],
+    "app/ui/src/components/PluginsPage.jsx": [
+      27
+    ],
+    "app/ui/src/components/RiskProfileWizard.jsx": [
+      49
+    ],
+    "app/ui/src/components/RiskScoreSection.jsx": [
+      32
+    ],
+    "app/ui/src/components/RiskScoringPage.jsx": [
+      52,
+      21
+    ],
+    "app/ui/src/components/RollupMatrixView.jsx": [
+      31,
+      30,
+      26
+    ],
+    "app/ui/src/components/SystemsPage.jsx": [
+      24
+    ],
+    "app/ui/src/components/TimeSeriesChart.jsx": [
+      25
+    ],
+    "app/ui/src/components/UpdatesSettings.jsx": [
+      21
+    ],
+    "app/ui/src/components/contexts/ContextPicker.jsx": [
+      26
+    ],
+    "app/ui/src/components/contexts/ContextTreeView.jsx": [
+      41
+    ],
+    "app/ui/src/components/contexts/ManualContextEditor.jsx": [
+      27
+    ],
+    "app/ui/src/components/contexts/NewContextWizard.jsx": [
+      45
+    ],
+    "app/ui/src/components/matrix/MatrixCell.jsx": [
+      22
+    ],
+    "app/ui/src/components/matrix/MatrixColumnHeaders.jsx": [
+      34
+    ],
+    "app/ui/src/components/matrix/MatrixFilterWizard.jsx": [
+      27,
+      26
+    ],
+    "app/ui/src/components/matrix/MatrixGroupRow.jsx": [
+      23
+    ],
+    "app/ui/src/components/matrix/MatrixScopePanel.jsx": [
+      23
+    ],
+    "app/ui/src/hooks/useMatrix.js": [
+      36
+    ],
+    "app/ui/src/utils/crawlerCredentials.js": [
+      27
+    ],
+    "app/ui/src/utils/exportToExcel.js": [
+      25,
+      22
+    ],
+    "setup/docker/Invoke-CrawlerJob.ps1": [
+      29
+    ],
+    "setup/docker/scheduler.ps1": [
+      23
+    ],
+    "test/nightly/Test-RiskScoring.ps1": [
+      41
+    ],
+    "test/nightly/Test-RiskScoringLLM.ps1": [
+      50
+    ],
+    "tools/crawlers/azure-rm/Start-AzureRMCrawler.ps1": [
+      84
+    ],
+    "tools/crawlers/csv/Start-CSVCrawler.ps1": [
+      129
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
+      18
+    ],
+    "tools/crawlers/entra-id/Start-EntraIDCrawler.ps1": [
+      251
+    ],
+    "tools/crawlers/midpoint/Start-MidpointCrawler.ps1": [
+      181
+    ],
+    "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
+      31
+    ],
+    "tools/crawlers/omada/Start-OmadaCrawler.ps1": [
+      235
+    ],
+    "tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
+      17
+    ],
+    "tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
+      35
+    ],
+    "tools/powershell-sdk/graph/Update-FGConfig.ps1": [
+      28
+    ],
+    "tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1": [
+      16
+    ],
+    "tools/update-sbom-doc.py": [
+      21
+    ]
+  }
+}
