@@ -1,0 +1,1 @@
+- Internal maintainability: decomposed the core `/matrix/data` query handler — previously a single ~680-line function — into a thin dispatcher plus one focused function per view mode (flat grid, roll-up, context roll-up, attribute fold, inherited-access folds). Cyclomatic complexity of the largest function drops from 150 to 24. No change to matrix behaviour, endpoints, or output.
