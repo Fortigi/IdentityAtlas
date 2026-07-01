@@ -276,6 +276,634 @@ export async function startRiskScoringRun(triggeredBy = 'system', { onlyIfConfig
   return run;
 }
 
+// ── Load phase ──
+// One round-trip per signal (classifiers, principals, activity, resources, and
+// the assignment-derived membership/owner indexes). Returns the shared `data`
+// bag the scoring passes read from. Progress steps 1→15% happen here.
+async function loadScoringData(classifierId, updateRun) {
+  // Load classifier set
+  const cls = await db.queryOne(
+    classifierId
+      ? `SELECT * FROM "RiskClassifiers" WHERE id = $1`
+      : `SELECT * FROM "RiskClassifiers" WHERE "isActive" = true ORDER BY "createdAt" DESC LIMIT 1`,
+    classifierId ? [classifierId] : []
+  );
+  if (!cls) throw new Error('No classifier set found. Generate one first.');
+
+  const cfg = cls.classifiers || {};
+  const groupClassifiers = (cfg.groupClassifiers || []).map(compileClassifier);
+  const userClassifiers  = (cfg.userClassifiers  || []).map(compileClassifier);
+  const agentClassifiers = (cfg.agentClassifiers || []).map(compileClassifier);
+
+  // ── Load principals ──
+  await updateRun({ step: 'Loading principals', pct: 5 });
+  const principals = await db.query(
+    `SELECT id, "displayName", email, "jobTitle", department, "principalType",
+            "companyName", "givenName", "surname", "employeeId", "externalId",
+            "accountEnabled", "managerId", "extendedAttributes"
+       FROM "Principals"`
+  );
+
+  // ── Load per-principal activity aggregates ──
+  // PrincipalActivity supersedes the old extendedAttributes.signInActivity.
+  // We only need the aggregate rows (resourceId = AGG_RESOURCE_ID) and
+  // only the latest-sign-in timestamp for stale-account detection. The
+  // engine keeps a backwards-compat fallback for ext-attr data until
+  // the first full re-crawl lands. Missing table (migration not yet
+  // applied) is tolerated — the query catches and returns an empty map.
+  const principalActivity = new Map();
+  try {
+    const act = await db.query(
+      `SELECT "principalId",
+              "lastSignInDateTime",
+              "lastNonInteractiveSignInDateTime",
+              "lastSuccessfulSignInDateTime"
+         FROM "PrincipalActivity"
+        WHERE "resourceId" = '00000000-0000-0000-0000-000000000000'
+          AND "activityType" IN ('SignIn', 'ServicePrincipalSignIn')`
+    );
+    for (const row of act.rows) {
+      principalActivity.set(String(row.principalId), row);
+    }
+  } catch (err) {
+    console.warn('PrincipalActivity not available (pre-017 DB?):', err.message);
+  }
+
+  // Build manager → direct reports index for hierarchy analysis. Only used
+  // when the Entra crawler has populated managerId — if the column is empty
+  // across the board, hierarchy signals gracefully degrade to 0.
+  const directReports = new Map(); // managerId -> Set<reportPid>
+  for (const p of principals.rows) {
+    if (p.managerId) {
+      const mid = String(p.managerId);
+      if (!directReports.has(mid)) directReports.set(mid, new Set());
+      directReports.get(mid).add(String(p.id));
+    }
+  }
+  const hierarchyAvailable = directReports.size > 0;
+  // ── Load resources ──
+  await updateRun({ step: 'Loading resources', pct: 8 });
+  const resources = await db.query(
+    `SELECT id, "displayName", description, "resourceType", mail, "externalId",
+            "extendedAttributes"
+       FROM "Resources"`
+  );
+
+  // ── Load assignment-derived structural data ──
+  // One round-trip per signal; the data is small compared to the scoring loop.
+  await updateRun({ step: 'Loading memberships', pct: 12 });
+
+  // Member counts per resource (Direct memberships for total headcount; the
+  // governed flag is orthogonal — every row is an effective membership).
+  const memberCountRows = await db.query(
+    `SELECT "resourceId"::text AS rid, COUNT(*)::int AS cnt
+       FROM "ResourceAssignments"
+      WHERE "assignmentType" = 'Direct'
+      GROUP BY "resourceId"`
+  );
+  const memberCountMap = new Map(memberCountRows.rows.map(r => [r.rid, r.cnt]));
+
+  // Owner counts per resource
+  const ownerCountRows = await db.query(
+    `SELECT "resourceId"::text AS rid, COUNT(*)::int AS cnt
+       FROM "ResourceAssignments"
+      WHERE "assignmentType" = 'Owner'
+      GROUP BY "resourceId"`
+  );
+  const ownerCountMap = new Map(ownerCountRows.rows.map(r => [r.rid, r.cnt]));
+
+  // Build bidirectional index: principal → list of resource ids (memberships)
+  //                           resource  → list of principal ids (members)
+  // We only follow Direct memberships for propagation — Owner is a different
+  // relationship (admin control, not "has access to") and would double-count
+  // privileged users.
+  const assignmentRows = await db.query(
+    `SELECT "principalId"::text AS pid, "resourceId"::text AS rid
+       FROM "ResourceAssignments"
+      WHERE "assignmentType" = 'Direct'`
+  );
+  const principalMemberships = new Map(); // pid -> Set<rid>
+  const resourceMembers      = new Map(); // rid -> Set<pid>
+  for (const a of assignmentRows.rows) {
+    if (!principalMemberships.has(a.pid)) principalMemberships.set(a.pid, new Set());
+    principalMemberships.get(a.pid).add(a.rid);
+    if (!resourceMembers.has(a.rid)) resourceMembers.set(a.rid, new Set());
+    resourceMembers.get(a.rid).add(a.pid);
+  }
+
+  // Ownerships: principal → list of resource ids they own
+  const ownerRows = await db.query(
+    `SELECT "principalId"::text AS pid, "resourceId"::text AS rid
+       FROM "ResourceAssignments"
+      WHERE "assignmentType" = 'Owner'`
+  );
+  const principalOwnerships = new Map();
+  for (const a of ownerRows.rows) {
+    if (!principalOwnerships.has(a.pid)) principalOwnerships.set(a.pid, new Set());
+    principalOwnerships.get(a.pid).add(a.rid);
+  }
+
+  const totalEntities = principals.rows.length + resources.rows.length;
+  await updateRun({ totalEntities, scoredEntities: 0, step: 'Scoring resources (direct)', pct: 15 });
+
+  return {
+    groupClassifiers, userClassifiers, agentClassifiers,
+    principals, resources, principalActivity, directReports, hierarchyAvailable,
+    memberCountMap, ownerCountMap, principalMemberships, resourceMembers, principalOwnerships,
+    totalEntities,
+  };
+}
+
+// Score one resource (group / business role / etc.) against layers 1-3: direct
+// classifier match (+ non-production discount), membership analysis (small
+// group, no owner), and structural hygiene. Pure — no DB, no progress
+// side-effects. Exported for unit tests.
+export function scoreResourceEntity(r, { groupClassifiers, memberCountMap, ownerCountMap }) {
+  const extFields = flattenExtended(r.extendedAttributes).map((v, i) => [`ext[${i}]`, v]);
+
+  // ── Layer 1: direct classifier match ──
+  let { directScore, matches } = scoreOne(
+    [
+      ['displayName', r.displayName],
+      ['description', r.description],
+      ['mail',        r.mail],
+      ['externalId',  r.externalId],
+      ...extFields,
+    ],
+    groupClassifiers
+  );
+
+  // Non-production discount (v4 lines 495-500). Applied to directScore only.
+  const nonProd = isNonProduction(r.displayName);
+  const directReasons = [];
+  if (matches.length > 0) {
+    const top = matches.reduce((a, b) => (b.score > a.score ? b : a));
+    directReasons.push(`Matched '${top.label || top.id}' on ${top.matchedField} [+${top.score}]`);
+  }
+  if (nonProd && directScore > 0) {
+    const before = directScore;
+    directScore = Math.max(5, Math.round(directScore * 0.25));
+    directReasons.push(`Non-production environment detected — direct score ${before} → ${directScore} (×0.25)`);
+  }
+
+  // ── Layer 2: membership analysis (groups) ──
+  // v4 lines 609-630
+  let membershipScore = 0;
+  const membershipReasons = [];
+  const memCount = memberCountMap.get(String(r.id)) || 0;
+  const ownCount = ownerCountMap.get(String(r.id)) || 0;
+
+  if (memCount > 0 && memCount <= 5) {
+    membershipScore += 5;
+    membershipReasons.push(`Small group with ${memCount} member(s) — concentrated access risk [+5]`);
+  }
+  if (memCount > 0 && ownCount === 0) {
+    membershipScore += 5;
+    membershipReasons.push(`No owner assigned while having ${memCount} member(s) — ungoverned group [+5]`);
+  }
+  membershipScore = Math.min(CAP_MEMBERSHIP, membershipScore);
+
+  // ── Layer 3: structural hygiene (groups) ──
+  const { structuralScore, structuralReasons } = scoreResourceStructural(r);
+
+  return {
+    row: r,
+    directScore,
+    membershipScore,
+    structuralScore,
+    propagatedScore: 0, // filled in by pass 3
+    matches,
+    isNonProd: nonProd,
+    directReasons,
+    membershipReasons,
+    structuralReasons,
+    propagatedReasons: [],
+    memCount,
+    ownCount,
+  };
+}
+
+// Layer-3 structural hygiene for a resource (v4 lines 730-756): missing
+// description, mail-enabled security group, role-assignable group, dynamic
+// membership. Capped at CAP_STRUCTURAL.
+function scoreResourceStructural(r) {
+  let structuralScore = 0;
+  const structuralReasons = [];
+  const ext = r.extendedAttributes || {};
+
+  if (!r.description || String(r.description).trim() === '') {
+    structuralScore += 3;
+    structuralReasons.push('No description set — poor documentation hygiene [+3]');
+  }
+  const mailEnabled = ext.mailEnabled === true || ext.mailEnabled === 'true';
+  const securityEnabled = ext.securityEnabled === true || ext.securityEnabled === 'true';
+  if (mailEnabled && securityEnabled) {
+    structuralScore += 3;
+    structuralReasons.push('Mail-enabled security group — dual-purpose increases attack surface [+3]');
+  }
+  const roleAssignable = ext.isAssignableToRole === true || ext.isAssignableToRole === 'true';
+  if (roleAssignable) {
+    structuralScore += 15;
+    structuralReasons.push('Role-assignable group — can be assigned Entra ID directory roles [+15]');
+  }
+  if (ext.membershipRuleProcessingState === 'On') {
+    structuralScore += 3;
+    structuralReasons.push('Dynamic membership rule active — membership changes automatically [+3]');
+  }
+  return { structuralScore: Math.min(CAP_STRUCTURAL, structuralScore), structuralReasons };
+}
+
+// Resolve a principal's most recent sign-in timestamp, preferring the
+// PrincipalActivity aggregate and falling back to the legacy
+// extendedAttributes.signInActivity path. Returns null-ish when unknown.
+function resolveLastSignIn(actRow, pext) {
+  return (actRow && (actRow.lastSignInDateTime || actRow.lastSuccessfulSignInDateTime)) ||
+    pext.lastSignInDateTime ||
+    (pext.signInActivity && pext.signInActivity.lastSignInDateTime);
+}
+
+// Score one principal (user / agent) against layers 1-3: direct classifier
+// match, ownership + span-of-control, and structural hygiene (disabled with
+// access, guest, stale sign-in). High-risk-group membership is finished later
+// in the membership pass. Pure. Exported for unit tests.
+export function scorePrincipalEntity(p, ctx) {
+  const {
+    userClassifiers, agentClassifiers, principalOwnerships,
+    hierarchyAvailable, directReports, principalMemberships, principalActivity,
+  } = ctx;
+
+  const isAgent = ['ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent'].includes(p.principalType);
+  const activeCls = isAgent && agentClassifiers.length > 0 ? agentClassifiers : userClassifiers;
+  const extFields = flattenExtended(p.extendedAttributes).map((v, i) => [`ext[${i}]`, v]);
+
+  // ── Layer 1: direct classifier match ──
+  const { directScore, matches } = scoreOne(
+    [
+      ['displayName', p.displayName],
+      ['email',       p.email],
+      ['jobTitle',    p.jobTitle],
+      ['department',  p.department],
+      ['companyName', p.companyName],
+      ['givenName',   p.givenName],
+      ['surname',     p.surname],
+      ['employeeId',  p.employeeId],
+      ['externalId',  p.externalId],
+      ...extFields,
+    ],
+    activeCls
+  );
+  const directReasons = [];
+  if (matches.length > 0) {
+    const top = matches.reduce((a, b) => (b.score > a.score ? b : a));
+    directReasons.push(`Matched '${top.label || top.id}' on ${top.matchedField} [+${top.score}]`);
+  }
+
+  // ── Layer 2 (partial): ownerships + hierarchy. High-risk-group-
+  // membership signals need group scores, so we finish user membership
+  // in pass 3. Hierarchy signals are only meaningful when Entra sync has
+  // populated Principals.managerId; they gracefully degrade to 0 when it
+  // hasn't (see hierarchyAvailable flag above). v4 lines 684-710.
+  let membershipScore = 0;
+  const membershipReasons = [];
+  const ownCount = (principalOwnerships.get(String(p.id)) || new Set()).size;
+  if (ownCount > 3) {
+    membershipScore += 5;
+    membershipReasons.push(`Owner of ${ownCount} groups — high administrative responsibility [+5]`);
+  }
+
+  // Span of control — number of direct reports
+  if (hierarchyAvailable) {
+    const directCount = (directReports.get(String(p.id)) || new Set()).size;
+    if (directCount >= 5) {
+      // v4 formula: min(15, 3 + floor((directCount - 5) / 3) * 3)
+      const points = Math.min(15, 3 + Math.floor((directCount - 5) / 3) * 3);
+      membershipScore += points;
+      membershipReasons.push(`${directCount} direct reports — wide span of control [+${points}]`);
+    }
+  }
+
+  // ── Layer 3: structural hygiene (users) ──
+  // v4 lines 764-786
+  let structuralScore = 0;
+  const structuralReasons = [];
+  const pext = p.extendedAttributes || {};
+  const memSet = principalMemberships.get(String(p.id)) || new Set();
+  const memCount = memSet.size;
+
+  if (p.accountEnabled === false && memCount > 0) {
+    structuralScore += 5;
+    structuralReasons.push(`Account is disabled but still has ${memCount} group membership(s) [+5]`);
+  }
+  const userType = pext.userType || pext.UserType;
+  if (userType === 'Guest') {
+    structuralScore += 5;
+    structuralReasons.push('External guest account — higher risk for data exfiltration [+5]');
+  }
+  // Stale sign-in. Primary source is PrincipalActivity (populated by the Entra
+  // crawler); falls back to the legacy extendedAttributes.signInActivity path.
+  const lastSignIn = resolveLastSignIn(principalActivity.get(String(p.id)), pext);
+  if (lastSignIn) {
+    const days = Math.floor((Date.now() - new Date(lastSignIn).getTime()) / 86400000);
+    if (days > 90) {
+      structuralScore += 10;
+      structuralReasons.push(`Last sign-in ${days} days ago — stale account with active permissions [+10]`);
+    }
+  }
+  structuralScore = Math.min(CAP_STRUCTURAL, structuralScore);
+
+  return {
+    row: p,
+    isAgent,
+    directScore,
+    membershipScore,
+    structuralScore,
+    propagatedScore: 0,
+    matches,
+    directReasons,
+    membershipReasons,
+    structuralReasons,
+    propagatedReasons: [],
+    memCount,
+    ownCount,
+  };
+}
+
+// ── Pass 1: Score resources (groups, business roles, etc.) ──
+// Done first because user membership analysis below needs group directScores.
+async function scoreAllResources(data, updateRun) {
+  const { resources, totalEntities } = data;
+  const resourceState = new Map(); // rid -> { directScore, membershipScore, structuralScore, ... }
+  let counter = 0;
+  for (const r of resources.rows) {
+    resourceState.set(String(r.id), scoreResourceEntity(r, data));
+    counter++;
+    if (counter % 500 === 0) {
+      await updateRun({ scoredEntities: counter, pct: 15 + Math.floor((counter / totalEntities) * 25) });
+    }
+  }
+  return resourceState;
+}
+
+// ── Pass 2: Score principals ──
+async function scoreAllPrincipals(data, updateRun) {
+  const { principals, resources, totalEntities } = data;
+  await updateRun({ step: 'Scoring principals (direct + structural)', pct: 45 });
+  const principalState = new Map(); // pid -> { ... same shape ... }
+  let counter = 0;
+  for (const p of principals.rows) {
+    principalState.set(String(p.id), scorePrincipalEntity(p, data));
+    counter++;
+    if (counter % 500 === 0) {
+      await updateRun({ scoredEntities: resources.rows.length + counter, pct: 45 + Math.floor((counter / totalEntities) * 15) });
+    }
+  }
+  return principalState;
+}
+
+// Build subtree size map once if hierarchy is available. Walks the
+// directReports graph iteratively (BFS) to avoid PowerShell v4's recursion.
+function buildSubtreeCounts(principalState, directReports, hierarchyAvailable) {
+  const subtreeCount = new Map();
+  if (!hierarchyAvailable) return subtreeCount;
+  for (const [pid] of principalState) {
+    if (!directReports.has(pid)) { subtreeCount.set(pid, 0); continue; }
+    const seen = new Set();
+    const queue = [...directReports.get(pid)];
+    while (queue.length > 0) {
+      const next = queue.shift();
+      if (seen.has(next)) continue;
+      seen.add(next);
+      const reports = directReports.get(next);
+      if (reports) for (const r of reports) queue.push(r);
+    }
+    subtreeCount.set(pid, seen.size);
+  }
+  return subtreeCount;
+}
+
+// Finish one principal's membership analysis (needs resource direct scores):
+// broad access footprint, member-of-high-risk-group, org subtree size, and
+// manager-of-high-risk-reports. Mutates `state`.
+function analyzeMembershipForPrincipal(pid, state, ctx) {
+  const { principalMemberships, resourceState, directReports, hierarchyAvailable, principalState, subtreeCount } = ctx;
+  const memSet = principalMemberships.get(pid) || new Set();
+  const totalGroups = memSet.size + state.ownCount;
+
+  // Broad access footprint: in >15 groups → +3 per 3 above, capped at 15
+  if (totalGroups > 15) {
+    const points = Math.min(15, Math.floor((totalGroups - 15) / 3) * 3);
+    if (points > 0) {
+      state.membershipScore += points;
+      state.membershipReasons.push(`Member of ${totalGroups} groups (above threshold of 15) — broad access footprint [+${points}]`);
+    }
+  }
+
+  // Member of any high-risk group (direct score ≥ 70): +15, once only
+  let highRiskMembership = null;
+  let highRiskGroupScore = 0;
+  for (const rid of memSet) {
+    const rs = resourceState.get(rid);
+    if (rs && rs.directScore >= 70 && rs.directScore > highRiskGroupScore) {
+      highRiskGroupScore = rs.directScore;
+      highRiskMembership = rs;
+    }
+  }
+  if (highRiskMembership) {
+    state.membershipScore += 15;
+    state.membershipReasons.push(
+      `Member of high-risk group '${highRiskMembership.row.displayName}' ` +
+      `(direct score ${highRiskMembership.directScore}) — elevated privilege exposure [+15]`
+    );
+  }
+
+  // Hierarchy signals (only if managerId is populated in the tenant)
+  if (hierarchyAvailable) {
+    // Large org subtree: v4 ≥100→+15, ≥50→+12, ≥25→+10, ≥10→+5
+    const subtree = subtreeCount.get(pid) || 0;
+    if (subtree >= 10) {
+      const subtreePoints = subtree >= 100 ? 15 : subtree >= 50 ? 12 : subtree >= 25 ? 10 : 5;
+      state.membershipScore += subtreePoints;
+      state.membershipReasons.push(`${subtree} total reports in org subtree — large blast radius [+${subtreePoints}]`);
+    }
+
+    // Manager of high-risk direct reports: +5 per high-risk report, cap 15
+    const reports = directReports.get(pid) || new Set();
+    let highRiskReports = 0;
+    for (const reportPid of reports) {
+      const rs = principalState.get(reportPid);
+      if (rs && rs.directScore >= 70) highRiskReports++;
+    }
+    if (highRiskReports > 0) {
+      const mgrPoints = Math.min(15, highRiskReports * 5);
+      state.membershipScore += mgrPoints;
+      state.membershipReasons.push(`Manager of ${highRiskReports} high-risk direct report(s) — inherited responsibility [+${mgrPoints}]`);
+    }
+  }
+
+  state.membershipScore = Math.min(CAP_MEMBERSHIP, state.membershipScore);
+}
+
+// ── Pass 3: User membership analysis (needs resource direct scores) ──
+// v4 lines 650-710.
+async function analyzeMembership(principalState, resourceState, data, updateRun) {
+  const { principalMemberships, directReports, hierarchyAvailable } = data;
+  await updateRun({ step: 'Scoring principals (membership)', pct: 62 });
+
+  const subtreeCount = buildSubtreeCounts(principalState, directReports, hierarchyAvailable);
+  const ctx = { principalMemberships, resourceState, directReports, hierarchyAvailable, principalState, subtreeCount };
+  for (const [pid, state] of principalState) analyzeMembershipForPrincipal(pid, state, ctx);
+}
+
+// One direction of the cross-entity propagation: each target inherits `factor`
+// of its riskiest neighbour's pre-propagation score. Mutates each target's
+// propagatedScore / propagatedReasons. `label` is 'group' or 'member' for the
+// reason text.
+function propagateInherited(targetState, neighbourSets, neighbourPre, neighbourState, factor, label) {
+  for (const [id, state] of targetState) {
+    const neighbours = neighbourSets.get(id) || new Set();
+    let maxPre = 0;
+    let maxName = null;
+    for (const nid of neighbours) {
+      const pre = neighbourPre.get(nid) || 0;
+      if (pre > maxPre) {
+        maxPre = pre;
+        maxName = neighbourState.get(nid)?.row?.displayName;
+      }
+    }
+    if (maxPre > 0) {
+      const prop = Math.round(maxPre * factor);
+      state.propagatedScore = prop;
+      if (prop > 0) {
+        state.propagatedReasons.push(
+          `Inherits ${Math.round(factor * 100)}% of riskiest ${label} ` +
+          `'${maxName}' (score ${maxPre}) = ${prop} [+${prop}]`
+        );
+      }
+    }
+  }
+}
+
+// ── Pass 4: Cross-entity propagation (one pass) ──
+// v4 lines 814-872. Compute pre-propagation scores, then propagate max
+// group score to users (*0.30) and max user score to groups (*0.25).
+async function propagateRisk(resourceState, principalState, data, updateRun) {
+  const { principalMemberships, resourceMembers } = data;
+  await updateRun({ step: 'Propagating risk across memberships', pct: 75 });
+
+  const preProp = (s) => Math.round(
+    W_DIRECT * s.directScore + W_MEMBERSHIP * s.membershipScore + W_STRUCTURAL * s.structuralScore
+  );
+  const resourcePre = new Map();
+  for (const [rid, rs] of resourceState) resourcePre.set(rid, preProp(rs));
+  const principalPre = new Map();
+  for (const [pid, ps] of principalState) principalPre.set(pid, preProp(ps));
+
+  // Group → User: user inherits 30% of their riskiest group's pre-prop score.
+  propagateInherited(principalState, principalMemberships, resourcePre, resourceState, PROP_GROUP_TO_USER, 'group');
+  // User → Group: group inherits 25% of its riskiest member's pre-prop score.
+  propagateInherited(resourceState, resourceMembers, principalPre, principalState, PROP_USER_TO_GROUP, 'member');
+}
+
+// ── Pass 5: Final score assembly + persistence ──
+// Compute the weighted final score per entity and bulk-upsert into RiskScores.
+async function assembleAndPersist(resourceState, principalState, totalEntities, updateRun) {
+  await updateRun({ step: 'Finalising scores', pct: 88 });
+
+  const finalScore = (s) => Math.min(
+    100,
+    Math.round(
+      W_DIRECT * s.directScore +
+      W_MEMBERSHIP * s.membershipScore +
+      W_STRUCTURAL * s.structuralScore +
+      W_PROPAGATED * s.propagatedScore
+    )
+  );
+
+  const makeRow = (entityType, id, s) => {
+    const final = finalScore(s);
+    return {
+      entityId: id,
+      entityType,
+      riskScore: final,
+      riskTier: tierFor(final),
+      riskDirectScore: s.directScore,
+      riskMembershipScore: s.membershipScore,
+      riskStructuralScore: s.structuralScore,
+      riskPropagatedScore: s.propagatedScore,
+      riskClassifierMatches: s.matches,
+      riskExplanation: {
+        direct:     { score: s.directScore,     reasons: s.directReasons },
+        membership: { score: s.membershipScore, reasons: s.membershipReasons },
+        structural: { score: s.structuralScore, reasons: s.structuralReasons },
+        propagated: { score: s.propagatedScore, reasons: s.propagatedReasons },
+      },
+    };
+  };
+
+  const allScores = [];
+  for (const [rid, s] of resourceState)  allScores.push(makeRow('Resource',  rid, s));
+  for (const [pid, s] of principalState) allScores.push(makeRow('Principal', pid, s));
+
+  // ── Persist into RiskScores ──
+  await updateRun({ step: 'Writing RiskScores', pct: 92, scoredEntities: totalEntities });
+
+  // Wipe and bulk-insert. Postgres ON CONFLICT keeps it idempotent across reruns.
+  await db.tx(async (client) => {
+    await client.query(`DELETE FROM "RiskScores"`);
+    // Batch insert in chunks of 1000
+    const CHUNK = 1000;
+    for (let i = 0; i < allScores.length; i += CHUNK) {
+      const chunk = allScores.slice(i, i + CHUNK);
+      const values = [];
+      const params = [];
+      let pi = 1;
+      for (const s of chunk) {
+        values.push(`($${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, now())`);
+        params.push(
+          s.entityId,
+          s.entityType,
+          s.riskScore,
+          s.riskTier,
+          s.riskDirectScore,
+          s.riskMembershipScore,
+          s.riskStructuralScore,
+          s.riskPropagatedScore,
+          JSON.stringify(s.riskExplanation),
+          JSON.stringify(s.riskClassifierMatches),
+        );
+      }
+      await client.query(
+        `INSERT INTO "RiskScores"
+           ("entityId","entityType","riskScore","riskTier","riskDirectScore","riskMembershipScore",
+            "riskStructuralScore","riskPropagatedScore","riskExplanation","riskClassifierMatches","riskScoredAt")
+         VALUES ${values.join(',')}
+         ON CONFLICT ("entityId","entityType") DO UPDATE SET
+           "riskScore" = EXCLUDED."riskScore",
+           "riskTier" = EXCLUDED."riskTier",
+           "riskDirectScore" = EXCLUDED."riskDirectScore",
+           "riskMembershipScore" = EXCLUDED."riskMembershipScore",
+           "riskStructuralScore" = EXCLUDED."riskStructuralScore",
+           "riskPropagatedScore" = EXCLUDED."riskPropagatedScore",
+           "riskExplanation" = EXCLUDED."riskExplanation",
+           "riskClassifierMatches" = EXCLUDED."riskClassifierMatches",
+           "riskScoredAt" = now()`,
+        params
+      );
+    }
+  });
+
+  await updateRun({
+    status: 'completed',
+    step: 'Complete',
+    pct: 100,
+    scoredEntities: totalEntities,
+    completedAt: new Date(),
+  });
+}
+
+// Orchestrator: mark the run row running, then drive the five scoring passes in
+// order (load → resources → principals → membership → propagation → persist).
+// Each pass is its own function above; this stays a thin, linear pipeline.
 export async function runScoring(runId, classifierId = null) {
   const updateRun = async (fields) => {
     const setClauses = Object.keys(fields).map((k, i) => `"${k}" = $${i + 2}`).join(', ');
@@ -287,586 +915,13 @@ export async function runScoring(runId, classifierId = null) {
 
   try {
     await updateRun({ status: 'running', step: 'Loading classifiers', pct: 1 });
-
-    // Load classifier set
-    const cls = await db.queryOne(
-      classifierId
-        ? `SELECT * FROM "RiskClassifiers" WHERE id = $1`
-        : `SELECT * FROM "RiskClassifiers" WHERE "isActive" = true ORDER BY "createdAt" DESC LIMIT 1`,
-      classifierId ? [classifierId] : []
-    );
-    if (!cls) throw new Error('No classifier set found. Generate one first.');
-
-    const data = cls.classifiers || {};
-    const groupClassifiers = (data.groupClassifiers || []).map(compileClassifier);
-    const userClassifiers  = (data.userClassifiers  || []).map(compileClassifier);
-    const agentClassifiers = (data.agentClassifiers || []).map(compileClassifier);
-
-    // ── Load principals ──
-    await updateRun({ step: 'Loading principals', pct: 5 });
-    const principals = await db.query(
-      `SELECT id, "displayName", email, "jobTitle", department, "principalType",
-              "companyName", "givenName", "surname", "employeeId", "externalId",
-              "accountEnabled", "managerId", "extendedAttributes"
-         FROM "Principals"`
-    );
-
-    // ── Load per-principal activity aggregates ──
-    // PrincipalActivity supersedes the old extendedAttributes.signInActivity.
-    // We only need the aggregate rows (resourceId = AGG_RESOURCE_ID) and
-    // only the latest-sign-in timestamp for stale-account detection. The
-    // engine keeps a backwards-compat fallback for ext-attr data until
-    // the first full re-crawl lands. Missing table (migration not yet
-    // applied) is tolerated — the query catches and returns an empty map.
-    const principalActivity = new Map();
-    try {
-      const act = await db.query(
-        `SELECT "principalId",
-                "lastSignInDateTime",
-                "lastNonInteractiveSignInDateTime",
-                "lastSuccessfulSignInDateTime"
-           FROM "PrincipalActivity"
-          WHERE "resourceId" = '00000000-0000-0000-0000-000000000000'
-            AND "activityType" IN ('SignIn', 'ServicePrincipalSignIn')`
-      );
-      for (const row of act.rows) {
-        principalActivity.set(String(row.principalId), row);
-      }
-    } catch (err) {
-      console.warn('PrincipalActivity not available (pre-017 DB?):', err.message);
-    }
-
-    // Build manager → direct reports index for hierarchy analysis. Only used
-    // when the Entra crawler has populated managerId — if the column is empty
-    // across the board, hierarchy signals gracefully degrade to 0.
-    const directReports = new Map(); // managerId -> Set<reportPid>
-    for (const p of principals.rows) {
-      if (p.managerId) {
-        const mid = String(p.managerId);
-        if (!directReports.has(mid)) directReports.set(mid, new Set());
-        directReports.get(mid).add(String(p.id));
-      }
-    }
-    const hierarchyAvailable = directReports.size > 0;
-    // ── Load resources ──
-    await updateRun({ step: 'Loading resources', pct: 8 });
-    const resources = await db.query(
-      `SELECT id, "displayName", description, "resourceType", mail, "externalId",
-              "extendedAttributes"
-         FROM "Resources"`
-    );
-
-    // ── Load assignment-derived structural data ──
-    // One round-trip per signal; the data is small compared to the scoring loop.
-    await updateRun({ step: 'Loading memberships', pct: 12 });
-
-    // Member counts per resource (Direct memberships for total headcount; the
-    // governed flag is orthogonal — every row is an effective membership).
-    const memberCountRows = await db.query(
-      `SELECT "resourceId"::text AS rid, COUNT(*)::int AS cnt
-         FROM "ResourceAssignments"
-        WHERE "assignmentType" = 'Direct'
-        GROUP BY "resourceId"`
-    );
-    const memberCountMap = new Map(memberCountRows.rows.map(r => [r.rid, r.cnt]));
-
-    // Owner counts per resource
-    const ownerCountRows = await db.query(
-      `SELECT "resourceId"::text AS rid, COUNT(*)::int AS cnt
-         FROM "ResourceAssignments"
-        WHERE "assignmentType" = 'Owner'
-        GROUP BY "resourceId"`
-    );
-    const ownerCountMap = new Map(ownerCountRows.rows.map(r => [r.rid, r.cnt]));
-
-    // Build bidirectional index: principal → list of resource ids (memberships)
-    //                           resource  → list of principal ids (members)
-    // We only follow Direct memberships for propagation — Owner is a different
-    // relationship (admin control, not "has access to") and would double-count
-    // privileged users.
-    const assignmentRows = await db.query(
-      `SELECT "principalId"::text AS pid, "resourceId"::text AS rid
-         FROM "ResourceAssignments"
-        WHERE "assignmentType" = 'Direct'`
-    );
-    const principalMemberships = new Map(); // pid -> Set<rid>
-    const resourceMembers      = new Map(); // rid -> Set<pid>
-    for (const a of assignmentRows.rows) {
-      if (!principalMemberships.has(a.pid)) principalMemberships.set(a.pid, new Set());
-      principalMemberships.get(a.pid).add(a.rid);
-      if (!resourceMembers.has(a.rid)) resourceMembers.set(a.rid, new Set());
-      resourceMembers.get(a.rid).add(a.pid);
-    }
-
-    // Ownerships: principal → list of resource ids they own
-    const ownerRows = await db.query(
-      `SELECT "principalId"::text AS pid, "resourceId"::text AS rid
-         FROM "ResourceAssignments"
-        WHERE "assignmentType" = 'Owner'`
-    );
-    const principalOwnerships = new Map();
-    for (const a of ownerRows.rows) {
-      if (!principalOwnerships.has(a.pid)) principalOwnerships.set(a.pid, new Set());
-      principalOwnerships.get(a.pid).add(a.rid);
-    }
-
-    const totalEntities = principals.rows.length + resources.rows.length;
-    await updateRun({ totalEntities, scoredEntities: 0, step: 'Scoring resources (direct)', pct: 15 });
-
-    // ── Pass 1: Score resources (groups, business roles, etc.) ──
-    // Done first because user membership analysis below needs group directScores.
-    const resourceState = new Map(); // rid -> { directScore, membershipScore, structuralScore, propagatedScore, matches, reasons, isNonProd }
-    let counter = 0;
-    for (const r of resources.rows) {
-      const extFields = flattenExtended(r.extendedAttributes).map((v, i) => [`ext[${i}]`, v]);
-
-      // ── Layer 1: direct classifier match ──
-      let { directScore, matches } = scoreOne(
-        [
-          ['displayName', r.displayName],
-          ['description', r.description],
-          ['mail',        r.mail],
-          ['externalId',  r.externalId],
-          ...extFields,
-        ],
-        groupClassifiers
-      );
-
-      // Non-production discount (v4 lines 495-500). Applied to directScore only.
-      const nonProd = isNonProduction(r.displayName);
-      const directReasons = [];
-      if (matches.length > 0) {
-        const top = matches.reduce((a, b) => (b.score > a.score ? b : a));
-        directReasons.push(`Matched '${top.label || top.id}' on ${top.matchedField} [+${top.score}]`);
-      }
-      if (nonProd && directScore > 0) {
-        const before = directScore;
-        directScore = Math.max(5, Math.round(directScore * 0.25));
-        directReasons.push(`Non-production environment detected — direct score ${before} → ${directScore} (×0.25)`);
-      }
-
-      // ── Layer 2: membership analysis (groups) ──
-      // v4 lines 609-630
-      let membershipScore = 0;
-      const membershipReasons = [];
-      const memCount = memberCountMap.get(String(r.id)) || 0;
-      const ownCount = ownerCountMap.get(String(r.id)) || 0;
-
-      if (memCount > 0 && memCount <= 5) {
-        membershipScore += 5;
-        membershipReasons.push(`Small group with ${memCount} member(s) — concentrated access risk [+5]`);
-      }
-      if (memCount > 0 && ownCount === 0) {
-        membershipScore += 5;
-        membershipReasons.push(`No owner assigned while having ${memCount} member(s) — ungoverned group [+5]`);
-      }
-      membershipScore = Math.min(CAP_MEMBERSHIP, membershipScore);
-
-      // ── Layer 3: structural hygiene (groups) ──
-      // v4 lines 730-756
-      let structuralScore = 0;
-      const structuralReasons = [];
-      const ext = r.extendedAttributes || {};
-
-      if (!r.description || String(r.description).trim() === '') {
-        structuralScore += 3;
-        structuralReasons.push('No description set — poor documentation hygiene [+3]');
-      }
-      const mailEnabled = ext.mailEnabled === true || ext.mailEnabled === 'true';
-      const securityEnabled = ext.securityEnabled === true || ext.securityEnabled === 'true';
-      if (mailEnabled && securityEnabled) {
-        structuralScore += 3;
-        structuralReasons.push('Mail-enabled security group — dual-purpose increases attack surface [+3]');
-      }
-      const roleAssignable = ext.isAssignableToRole === true || ext.isAssignableToRole === 'true';
-      if (roleAssignable) {
-        structuralScore += 15;
-        structuralReasons.push('Role-assignable group — can be assigned Entra ID directory roles [+15]');
-      }
-      if (ext.membershipRuleProcessingState === 'On') {
-        structuralScore += 3;
-        structuralReasons.push('Dynamic membership rule active — membership changes automatically [+3]');
-      }
-      structuralScore = Math.min(CAP_STRUCTURAL, structuralScore);
-
-      resourceState.set(String(r.id), {
-        row: r,
-        directScore,
-        membershipScore,
-        structuralScore,
-        propagatedScore: 0, // filled in by pass 3
-        matches,
-        isNonProd: nonProd,
-        directReasons,
-        membershipReasons,
-        structuralReasons,
-        propagatedReasons: [],
-        memCount,
-        ownCount,
-      });
-
-      counter++;
-      if (counter % 500 === 0) {
-        await updateRun({ scoredEntities: counter, pct: 15 + Math.floor((counter / totalEntities) * 25) });
-      }
-    }
-
-    // ── Pass 2: Score principals ──
-    await updateRun({ step: 'Scoring principals (direct + structural)', pct: 45 });
-    const principalState = new Map(); // pid -> { ... same shape ... }
-    counter = 0;
-    for (const p of principals.rows) {
-      const isAgent = ['ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent'].includes(p.principalType);
-      const activeCls = isAgent && agentClassifiers.length > 0 ? agentClassifiers : userClassifiers;
-      const extFields = flattenExtended(p.extendedAttributes).map((v, i) => [`ext[${i}]`, v]);
-
-      // ── Layer 1: direct classifier match ──
-      const { directScore, matches } = scoreOne(
-        [
-          ['displayName', p.displayName],
-          ['email',       p.email],
-          ['jobTitle',    p.jobTitle],
-          ['department',  p.department],
-          ['companyName', p.companyName],
-          ['givenName',   p.givenName],
-          ['surname',     p.surname],
-          ['employeeId',  p.employeeId],
-          ['externalId',  p.externalId],
-          ...extFields,
-        ],
-        activeCls
-      );
-      const directReasons = [];
-      if (matches.length > 0) {
-        const top = matches.reduce((a, b) => (b.score > a.score ? b : a));
-        directReasons.push(`Matched '${top.label || top.id}' on ${top.matchedField} [+${top.score}]`);
-      }
-
-      // ── Layer 2 (partial): ownerships + hierarchy. High-risk-group-
-      // membership signals need group scores, so we finish user membership
-      // in pass 3. Hierarchy signals are only meaningful when Entra sync has
-      // populated Principals.managerId; they gracefully degrade to 0 when it
-      // hasn't (see hierarchyAvailable flag above). v4 lines 684-710.
-      let membershipScore = 0;
-      const membershipReasons = [];
-      const ownCount = (principalOwnerships.get(String(p.id)) || new Set()).size;
-      if (ownCount > 3) {
-        membershipScore += 5;
-        membershipReasons.push(`Owner of ${ownCount} groups — high administrative responsibility [+5]`);
-      }
-
-      // Span of control — number of direct reports
-      if (hierarchyAvailable) {
-        const directCount = (directReports.get(String(p.id)) || new Set()).size;
-        if (directCount >= 5) {
-          // v4 formula: min(15, 3 + floor((directCount - 5) / 3) * 3)
-          const points = Math.min(15, 3 + Math.floor((directCount - 5) / 3) * 3);
-          membershipScore += points;
-          membershipReasons.push(`${directCount} direct reports — wide span of control [+${points}]`);
-        }
-      }
-
-      // ── Layer 3: structural hygiene (users) ──
-      // v4 lines 764-786
-      let structuralScore = 0;
-      const structuralReasons = [];
-      const pext = p.extendedAttributes || {};
-      const memSet = principalMemberships.get(String(p.id)) || new Set();
-      const memCount = memSet.size;
-
-      if (p.accountEnabled === false && memCount > 0) {
-        structuralScore += 5;
-        structuralReasons.push(`Account is disabled but still has ${memCount} group membership(s) [+5]`);
-      }
-      const userType = pext.userType || pext.UserType;
-      if (userType === 'Guest') {
-        structuralScore += 5;
-        structuralReasons.push('External guest account — higher risk for data exfiltration [+5]');
-      }
-      // Stale sign-in. Primary source is PrincipalActivity (populated by
-      // the Entra crawler from /users.signInActivity and
-      // /reports/servicePrincipalSignInActivities). Falls back to the old
-      // extendedAttributes.signInActivity path for tenants that haven't
-      // re-crawled since the switch to the new table landed.
-      const actRow = principalActivity.get(String(p.id));
-      const lastSignIn =
-        (actRow && (actRow.lastSignInDateTime || actRow.lastSuccessfulSignInDateTime)) ||
-        pext.lastSignInDateTime ||
-        (pext.signInActivity && pext.signInActivity.lastSignInDateTime);
-      if (lastSignIn) {
-        const days = Math.floor((Date.now() - new Date(lastSignIn).getTime()) / 86400000);
-        if (days > 90) {
-          structuralScore += 10;
-          structuralReasons.push(`Last sign-in ${days} days ago — stale account with active permissions [+10]`);
-        }
-      }
-      structuralScore = Math.min(CAP_STRUCTURAL, structuralScore);
-
-      principalState.set(String(p.id), {
-        row: p,
-        isAgent,
-        directScore,
-        membershipScore,
-        structuralScore,
-        propagatedScore: 0,
-        matches,
-        directReasons,
-        membershipReasons,
-        structuralReasons,
-        propagatedReasons: [],
-        memCount,
-        ownCount,
-      });
-
-      counter++;
-      if (counter % 500 === 0) {
-        await updateRun({ scoredEntities: resources.rows.length + counter, pct: 45 + Math.floor((counter / totalEntities) * 15) });
-      }
-    }
-
-    // ── Pass 3: User membership analysis (needs resource direct scores) ──
-    // v4 lines 650-710. Includes: broad access footprint, member-of-high-risk
-    // group, org subtree size (hierarchy), and manager-of-high-risk-reports.
-    await updateRun({ step: 'Scoring principals (membership)', pct: 62 });
-
-    // Build subtree size map once if hierarchy is available. Walks the
-    // directReports graph iteratively (BFS) to avoid PowerShell v4's recursion.
-    const subtreeCount = new Map();
-    if (hierarchyAvailable) {
-      for (const [pid] of principalState) {
-        if (!directReports.has(pid)) { subtreeCount.set(pid, 0); continue; }
-        const seen = new Set();
-        const queue = [...directReports.get(pid)];
-        while (queue.length > 0) {
-          const next = queue.shift();
-          if (seen.has(next)) continue;
-          seen.add(next);
-          const reports = directReports.get(next);
-          if (reports) for (const r of reports) queue.push(r);
-        }
-        subtreeCount.set(pid, seen.size);
-      }
-    }
-
-    for (const [pid, state] of principalState) {
-      const memSet = principalMemberships.get(pid) || new Set();
-      const totalGroups = memSet.size + state.ownCount;
-
-      // Broad access footprint: in >15 groups → +3 per 3 above, capped at 15
-      if (totalGroups > 15) {
-        const points = Math.min(15, Math.floor((totalGroups - 15) / 3) * 3);
-        if (points > 0) {
-          state.membershipScore += points;
-          state.membershipReasons.push(`Member of ${totalGroups} groups (above threshold of 15) — broad access footprint [+${points}]`);
-        }
-      }
-
-      // Member of any high-risk group (direct score ≥ 70): +15, once only
-      let highRiskMembership = null;
-      let highRiskGroupScore = 0;
-      for (const rid of memSet) {
-        const rs = resourceState.get(rid);
-        if (rs && rs.directScore >= 70 && rs.directScore > highRiskGroupScore) {
-          highRiskGroupScore = rs.directScore;
-          highRiskMembership = rs;
-        }
-      }
-      if (highRiskMembership) {
-        state.membershipScore += 15;
-        state.membershipReasons.push(
-          `Member of high-risk group '${highRiskMembership.row.displayName}' ` +
-          `(direct score ${highRiskMembership.directScore}) — elevated privilege exposure [+15]`
-        );
-      }
-
-      // Hierarchy signals (only if managerId is populated in the tenant)
-      if (hierarchyAvailable) {
-        // Large org subtree: v4 ≥100→+15, ≥50→+12, ≥25→+10, ≥10→+5
-        const subtree = subtreeCount.get(pid) || 0;
-        if (subtree >= 10) {
-          const subtreePoints = subtree >= 100 ? 15 : subtree >= 50 ? 12 : subtree >= 25 ? 10 : 5;
-          state.membershipScore += subtreePoints;
-          state.membershipReasons.push(`${subtree} total reports in org subtree — large blast radius [+${subtreePoints}]`);
-        }
-
-        // Manager of high-risk direct reports: +5 per high-risk report, cap 15
-        const reports = directReports.get(pid) || new Set();
-        let highRiskReports = 0;
-        for (const reportPid of reports) {
-          const rs = principalState.get(reportPid);
-          if (rs && rs.directScore >= 70) highRiskReports++;
-        }
-        if (highRiskReports > 0) {
-          const mgrPoints = Math.min(15, highRiskReports * 5);
-          state.membershipScore += mgrPoints;
-          state.membershipReasons.push(`Manager of ${highRiskReports} high-risk direct report(s) — inherited responsibility [+${mgrPoints}]`);
-        }
-      }
-
-      state.membershipScore = Math.min(CAP_MEMBERSHIP, state.membershipScore);
-    }
-
-    // ── Pass 4: Cross-entity propagation (one pass) ──
-    // v4 lines 814-872. Compute pre-propagation scores, then propagate max
-    // group score to users (*0.30) and max user score to groups (*0.25).
-    await updateRun({ step: 'Propagating risk across memberships', pct: 75 });
-
-    const preProp = (s) => Math.round(
-      W_DIRECT * s.directScore + W_MEMBERSHIP * s.membershipScore + W_STRUCTURAL * s.structuralScore
-    );
-    const resourcePre = new Map();
-    for (const [rid, rs] of resourceState) resourcePre.set(rid, preProp(rs));
-    const principalPre = new Map();
-    for (const [pid, ps] of principalState) principalPre.set(pid, preProp(ps));
-
-    // Group → User: user inherits 30% of their riskiest group's pre-prop score
-    for (const [pid, state] of principalState) {
-      const memSet = principalMemberships.get(pid) || new Set();
-      let maxGroup = 0;
-      let maxGroupName = null;
-      for (const rid of memSet) {
-        const pre = resourcePre.get(rid) || 0;
-        if (pre > maxGroup) {
-          maxGroup = pre;
-          maxGroupName = resourceState.get(rid)?.row?.displayName;
-        }
-      }
-      if (maxGroup > 0) {
-        const prop = Math.round(maxGroup * PROP_GROUP_TO_USER);
-        state.propagatedScore = prop;
-        if (prop > 0) {
-          state.propagatedReasons.push(
-            `Inherits ${Math.round(PROP_GROUP_TO_USER * 100)}% of riskiest group ` +
-            `'${maxGroupName}' (score ${maxGroup}) = ${prop} [+${prop}]`
-          );
-        }
-      }
-    }
-
-    // User → Group: group inherits 25% of its riskiest member's pre-prop score
-    for (const [rid, state] of resourceState) {
-      const memberSet = resourceMembers.get(rid) || new Set();
-      let maxUser = 0;
-      let maxUserName = null;
-      for (const pid of memberSet) {
-        const pre = principalPre.get(pid) || 0;
-        if (pre > maxUser) {
-          maxUser = pre;
-          maxUserName = principalState.get(pid)?.row?.displayName;
-        }
-      }
-      if (maxUser > 0) {
-        const prop = Math.round(maxUser * PROP_USER_TO_GROUP);
-        state.propagatedScore = prop;
-        if (prop > 0) {
-          state.propagatedReasons.push(
-            `Inherits ${Math.round(PROP_USER_TO_GROUP * 100)}% of riskiest member ` +
-            `'${maxUserName}' (score ${maxUser}) = ${prop} [+${prop}]`
-          );
-        }
-      }
-    }
-
-    // ── Pass 5: Final score assembly ──
-    await updateRun({ step: 'Finalising scores', pct: 88 });
-
-    const finalScore = (s) => Math.min(
-      100,
-      Math.round(
-        W_DIRECT * s.directScore +
-        W_MEMBERSHIP * s.membershipScore +
-        W_STRUCTURAL * s.structuralScore +
-        W_PROPAGATED * s.propagatedScore
-      )
-    );
-
-    const makeRow = (entityType, id, s) => {
-      const final = finalScore(s);
-      return {
-        entityId: id,
-        entityType,
-        riskScore: final,
-        riskTier: tierFor(final),
-        riskDirectScore: s.directScore,
-        riskMembershipScore: s.membershipScore,
-        riskStructuralScore: s.structuralScore,
-        riskPropagatedScore: s.propagatedScore,
-        riskClassifierMatches: s.matches,
-        riskExplanation: {
-          direct:     { score: s.directScore,     reasons: s.directReasons },
-          membership: { score: s.membershipScore, reasons: s.membershipReasons },
-          structural: { score: s.structuralScore, reasons: s.structuralReasons },
-          propagated: { score: s.propagatedScore, reasons: s.propagatedReasons },
-        },
-      };
-    };
-
-    const allScores = [];
-    for (const [rid, s] of resourceState)  allScores.push(makeRow('Resource',  rid, s));
-    for (const [pid, s] of principalState) allScores.push(makeRow('Principal', pid, s));
-
-    // ── Persist into RiskScores ──
-    await updateRun({ step: 'Writing RiskScores', pct: 92, scoredEntities: totalEntities });
-
-    // Wipe and bulk-insert. Postgres ON CONFLICT keeps it idempotent across reruns.
-    await db.tx(async (client) => {
-      await client.query(`DELETE FROM "RiskScores"`);
-      // Batch insert in chunks of 1000
-      const CHUNK = 1000;
-      for (let i = 0; i < allScores.length; i += CHUNK) {
-        const chunk = allScores.slice(i, i + CHUNK);
-        const values = [];
-        const params = [];
-        let pi = 1;
-        for (const s of chunk) {
-          values.push(`($${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, $${pi++}, now())`);
-          params.push(
-            s.entityId,
-            s.entityType,
-            s.riskScore,
-            s.riskTier,
-            s.riskDirectScore,
-            s.riskMembershipScore,
-            s.riskStructuralScore,
-            s.riskPropagatedScore,
-            JSON.stringify(s.riskExplanation),
-            JSON.stringify(s.riskClassifierMatches),
-          );
-        }
-        await client.query(
-          `INSERT INTO "RiskScores"
-             ("entityId","entityType","riskScore","riskTier","riskDirectScore","riskMembershipScore",
-              "riskStructuralScore","riskPropagatedScore","riskExplanation","riskClassifierMatches","riskScoredAt")
-           VALUES ${values.join(',')}
-           ON CONFLICT ("entityId","entityType") DO UPDATE SET
-             "riskScore" = EXCLUDED."riskScore",
-             "riskTier" = EXCLUDED."riskTier",
-             "riskDirectScore" = EXCLUDED."riskDirectScore",
-             "riskMembershipScore" = EXCLUDED."riskMembershipScore",
-             "riskStructuralScore" = EXCLUDED."riskStructuralScore",
-             "riskPropagatedScore" = EXCLUDED."riskPropagatedScore",
-             "riskExplanation" = EXCLUDED."riskExplanation",
-             "riskClassifierMatches" = EXCLUDED."riskClassifierMatches",
-             "riskScoredAt" = now()`,
-          params
-        );
-      }
-    });
-
-    // ── Clustering moved out (Phase 7 of context redesign) ──────────────
-    // The legacy GraphResourceClusters tables have been dropped. Name-stem
-    // clustering now lives in the "resource-cluster" context-algorithm
-    // plugin — run it from the UI (Contexts → + New → Run plugin) to
-    // produce the same groupings as a generated context tree.
-
-    await updateRun({
-      status: 'completed',
-      step: 'Complete',
-      pct: 100,
-      scoredEntities: totalEntities,
-      completedAt: new Date(),
-    });
-    return { ok: true, scored: totalEntities };
+    const data = await loadScoringData(classifierId, updateRun);
+    const resourceState = await scoreAllResources(data, updateRun);
+    const principalState = await scoreAllPrincipals(data, updateRun);
+    await analyzeMembership(principalState, resourceState, data, updateRun);
+    await propagateRisk(resourceState, principalState, data, updateRun);
+    await assembleAndPersist(resourceState, principalState, data.totalEntities, updateRun);
+    return { ok: true, scored: data.totalEntities };
   } catch (err) {
     console.error('Scoring run failed:', err.message);
     await updateRun({ status: 'failed', errorMessage: err.message, completedAt: new Date() });
