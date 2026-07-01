@@ -205,6 +205,7 @@ $DefaultTypeMappings = @{
 # Dot-sourced into this script's own scope so they read script-scope vars
 # (e.g. $TypeMappings, $ResourceCategoryMapping, $Script:phases) at call time.
 . (Join-Path $PSScriptRoot 'OmadaCrawler.Functions.ps1')
+. (Join-Path $PSScriptRoot 'OmadaCrawler.Transform.ps1')
 
 $TypeMappings = Merge-TypeMappings -Defaults $DefaultTypeMappings -Overrides $Cfg.typeMappings
 $IdentityTypesForIdentityTable = @($TypeMappings['identityTypesForIdentityTable'])
@@ -359,49 +360,16 @@ if ($SyncContexts) {
             Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
 
             if ($EntitySet -eq 'Orgunit') {
-                # Orgunit has a parent hierarchy — topological sort required
+                # Orgunit has a parent hierarchy — topological sort required.
+                # Per-record shaping + the sort live in OmadaCrawler.Transform.ps1.
                 $RawRecords = @($Items | ForEach-Object {
-                    $CtxType   = Map-ContextTypeToAtlas -OmadaType (Get-OmadaRefValue -Ref $_.OUTYPE -Fallback $ContextType)
-                    $ParentUid = Get-OmadaRefUid -Ref $_.PARENTOU
-                    [PSCustomObject]@{
-                        id              = [string]$_.UId
-                        externalId      = [string]$_.UId
-                        displayName     = if ($_.NAME) { $_.NAME } else { $_.DisplayName }
-                        contextType     = $CtxType
-                        variant         = 'synced'
-                        targetType      = 'Identity'
-                        parentContextId = if ($ParentUid) { $ParentUid } else { $Null }
-                    }
+                    ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $_ -DefaultContextType $ContextType
                 } | Where-Object { $_.externalId -and $_.displayName })
-
-                # Topological sort — parents before children
-                $Records   = [System.Collections.Generic.List[object]]::new()
-                $Remaining = [System.Collections.Generic.List[object]]::new($RawRecords)
-                $Inserted  = [System.Collections.Generic.HashSet[string]]::new()
-                $Pass = 0; $MaxPasses = $RawRecords.Count + 1
-                while ($Remaining.Count -gt 0 -and $Pass -lt $MaxPasses) {
-                    $Pass++
-                    $NextRem = [System.Collections.Generic.List[object]]::new()
-                    foreach ($Rec in $Remaining) {
-                        $ParentId = $Rec.parentContextId
-                        if (-not $ParentId -or $Inserted.Contains($ParentId)) {
-                            $Records.Add($Rec); $Inserted.Add($Rec.id) | Out-Null
-                        } else { $NextRem.Add($Rec) }
-                    }
-                    $Remaining = $NextRem
-                }
-                foreach ($Rec in $Remaining) { $Records.Add($Rec) }
+                $Records = Sort-OmadaContextsTopologically -Records $RawRecords
             } else {
                 # Flat context type — no hierarchy
                 $Records = @($Items | ForEach-Object {
-                    [PSCustomObject]@{
-                        id          = [string]$_.UId
-                        externalId  = [string]$_.UId
-                        displayName = if ($_.NAME) { $_.NAME } else { $_.DisplayName }
-                        contextType = $ContextType
-                        variant     = 'synced'
-                        targetType  = 'Identity'
-                    }
+                    ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
                 } | Where-Object { $_.externalId -and $_.displayName })
             }
 
@@ -449,74 +417,20 @@ if ($SyncIdentities) {
         foreach ($Id in $AllIdentities) {
             $Key = [string]$Id.IDENTITYID
             if ($Key) {
-                $IdType = if ($Id.IDENTITYTYPE) { [string]$Id.IDENTITYTYPE.Value } else { 'Employee' }
+                $IdType = Get-OmadaIdentityType -Identity $Id
                 $IdentityLookup[$Key] = @{ uid = [string]$Id.UId; identityType = $IdType }
             }
         }
 
         # Person-type identities go to the Identities table
         $PersonIdentities = @($AllIdentities | Where-Object {
-            $IdType = if ($_.IDENTITYTYPE) { [string]$_.IDENTITYTYPE.Value } else { 'Employee' }
-            $IdentityTypesForIdentityTable -contains $IdType
+            $IdentityTypesForIdentityTable -contains (Get-OmadaIdentityType -Identity $_)
         })
 
+        # Per-identity record shaping lives in ConvertTo-OmadaIdentityRecord
+        # (OmadaCrawler.Transform.ps1) so it can be unit-tested without a live API.
         $IdentRecords = @($PersonIdentities | ForEach-Object {
-            $IdType = if ($_.IDENTITYTYPE)     { [string]$_.IDENTITYTYPE.Value }     else { 'Employee' }
-            $IdCat  = if ($_.IDENTITYCATEGORY) { [string]$_.IDENTITYCATEGORY.Value } else { '' }
-            $FName  = if ($_.FIRSTNAME)        { [string]$_.FIRSTNAME } else { '' }
-            $LName  = if ($_.LASTNAME)         { [string]$_.LASTNAME  } else { '' }
-            $Name   = "$FName $LName".Trim()
-            if (-not $Name) { $Name = $_.DisplayName }
-            [PSCustomObject]@{
-                id                 = [string]$_.UId  # Omada UId is a valid UUID
-                externalId         = [string]$_.UId
-                displayName        = $Name
-                givenName          = $FName
-                surname            = $LName
-                email              = $_.EMAIL
-                employeeId         = $_.EMPLOYEEID
-                jobTitle           = $_.JOBTITLE
-                companyName        = Get-OmadaRefValue -Ref $_.COMPANY -Fallback ''
-                city               = if ($_.CITY)    { [string]$_.CITY    } else { '' }
-                country            = Get-OmadaRefValue -Ref $_.COUNTRY -Fallback ''
-                extendedAttributes = @{
-                    # Identity type/category/status
-                    identityType     = $IdType
-                    identityCategory = $IdCat
-                    identityStatus   = if ($_.IDENTITYSTATUS)   { [string]$_.IDENTITYSTATUS.Value }   else { '' }
-                    identityId       = if ($_.IDENTITYID)        { [string]$_.IDENTITYID }             else { '' }
-                    oisId            = if ($_.OISID)             { [string]$_.OISID }                  else { '' }
-                    # Contact / location
-                    email2           = if ($_.EMAIL2)            { [string]$_.EMAIL2 }                 else { '' }
-                    city             = if ($_.CITY)              { [string]$_.CITY }                   else { '' }
-                    zipCode          = if ($_.ZIPCODE)           { [string]$_.ZIPCODE }                else { '' }
-                    # Validity
-                    validFrom        = $_.VALIDFROM
-                    validTo          = $_.VALIDTO
-                    # Org references (UIds for use as context IDs)
-                    ouRefId          = Get-OmadaRefUid -Ref $_.OUREF
-                    countryId        = Get-OmadaRefUid -Ref $_.COUNTRY
-                    locationId       = Get-OmadaRefUid -Ref $_.LOCATION
-                    buildingId       = Get-OmadaRefUid -Ref $_.BUILDING
-                    businessUnitId   = Get-OmadaRefUid -Ref $_.BUSINESSUNIT
-                    costCenterId     = Get-OmadaRefUid -Ref $_.COSTCENTER
-                    divisionId       = Get-OmadaRefUid -Ref $_.DIVISION
-                    subAreaId        = Get-OmadaRefUid -Ref $_.SUBAREA
-                    jobTitleRefId    = Get-OmadaRefUid -Ref $_.JOBTITLE_REF
-                    # Org display names (human-readable counterparts)
-                    company          = Get-OmadaRefValue -Ref $_.COMPANY       -Fallback ''
-                    ouRefName        = Get-OmadaRefValue -Ref $_.OUREF         -Fallback ''
-                    countryName      = Get-OmadaRefValue -Ref $_.COUNTRY       -Fallback ''
-                    jobTitleRef      = Get-OmadaRefValue -Ref $_.JOBTITLE_REF  -Fallback ''
-                    # Risk
-                    riskScore        = if ($_.RISKSCORE)         { [string]$_.RISKSCORE }              else { '' }
-                    riskLevel        = Get-OmadaRefValue -Ref $_.RISKLEVEL     -Fallback ''
-                    # People references
-                    manager          = ($_.MANAGER        | ForEach-Object { $_.DisplayName }) -join '; '
-                    identityOwner    = Get-OmadaRefValue -Ref $_.IDENTITYOWNER  -Fallback ''
-                    explicitOwners   = ($_.EXPLICITOWNER   | ForEach-Object { $_.DisplayName }) -join '; '
-                }
-            }
+            ConvertTo-OmadaIdentityRecord -Identity $_
         } | Where-Object { $_.externalId -and $_.displayName })
 
         Write-Step "Ingesting $($IdentRecords.Count) identity records..."
@@ -554,28 +468,10 @@ if ($SyncAccounts) {
         Write-Host "  $($AllAccounts.Count) account records from Omada" -ForegroundColor Gray
 
         Write-Step "Building $($AllAccounts.Count) account records..."
+        # Per-account record shaping lives in ConvertTo-OmadaAccountRecord
+        # (OmadaCrawler.Transform.ps1).
         $AccountRecords = @($AllAccounts | Where-Object { -not $_.Inactive } | ForEach-Object {
-            $ExtId = [string]$_.UId
-            $Name  = "$($_.FIRSTNAME) $($_.LASTNAME)".Trim()
-            if (-not $Name) { $Name = $_.DisplayName }
-
-            # Resolve principalType from the linked Identity's IDENTITYTYPE
-            $PrincipalType = 'User'
-            $IdentId = if ($_.IDENTITYREF) { [string]$_.IDENTITYREF.IDENTITYID } else { $Null }
-            if ($IdentId -and $IdentityLookup.ContainsKey($IdentId)) {
-                $PrincipalType = Map-IdentityTypeToAtlas -OmadaType $IdentityLookup[$IdentId].identityType
-            }
-
-            [PSCustomObject]@{
-                id                 = $ExtId  # Omada UId is a valid UUID
-                externalId         = $ExtId
-                displayName        = $Name
-                email              = $_.EMAIL
-                principalType      = $PrincipalType
-                accountEnabled     = $True
-                jobTitle           = $_.JOBTITLE
-                extendedAttributes = @{ userName = $_.UserName }
-            }
+            ConvertTo-OmadaAccountRecord -Account $_ -IdentityLookup $IdentityLookup
         } | Where-Object { $_.externalId -and $_.displayName })
 
         foreach ($PType in @('User', 'ExternalUser', 'ServicePrincipal')) {
@@ -627,20 +523,12 @@ if ($SyncIdentities -and $AllIdentities -and $SyncAccounts -and $AllAccounts) {
     $T = [datetime]::UtcNow
     Write-Host "`nIdentity Members:" -ForegroundColor Cyan
     try {
+        # Per-account link shaping lives in ConvertTo-OmadaIdentityMemberRecord
+        # (OmadaCrawler.Transform.ps1); it returns $null for accounts to skip.
         $MemberRecords = [System.Collections.Generic.List[object]]::new()
         foreach ($Acc in $AllAccounts) {
-            if ($Acc.Inactive) { continue }
-            $IdentId = if ($Acc.IDENTITYREF) { [string]$Acc.IDENTITYREF.IDENTITYID } else { $Null }
-            if (-not $IdentId -or -not $IdentityLookup.ContainsKey($IdentId)) { continue }
-            # Only link accounts whose identity type is stored in the Identities table.
-            # Non-person identities (Machine, etc.) are not in Identities → skip to avoid FK errors.
-            $IdentEntry = $IdentityLookup[$IdentId]
-            if ($IdentityTypesForIdentityTable -notcontains $IdentEntry.identityType) { continue }
-            $MemberRecords.Add([PSCustomObject]@{
-                identityId  = $IdentEntry.uid                 # direct UUID FK to Identities.id
-                principalId = [string]$Acc.UId                # direct UUID FK to Principals.id
-                accountType = 'Primary'
-            })
+            $Member = ConvertTo-OmadaIdentityMemberRecord -Account $Acc -IdentityLookup $IdentityLookup -IdentityTypesForIdentityTable $IdentityTypesForIdentityTable
+            if ($Member) { $MemberRecords.Add($Member) }
         }
 
         Write-Step "Ingesting $($MemberRecords.Count) identity-member links..."
@@ -689,12 +577,7 @@ if ($SyncContextMembers) {
             # empty, causing FK violations if the Contexts table is empty (e.g. cloud with no Orgunit entity set).
             if ($SyncedContextIds.Count -eq 0 -or -not $SyncedContextIds.Contains($ContextUid)) { continue }
             if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
-            $CtxMemberRecords.Add([PSCustomObject]@{
-                contextId  = $ContextUid
-                memberId   = $IdentUid   # Identity.UId → matches Identities table
-                memberType = 'Identity'
-                addedBy    = 'sync'
-            })
+            $CtxMemberRecords.Add((New-OmadaContextMemberRecord -ContextId $ContextUid -MemberId $IdentUid))
         }
 
         # ── Source 2: Direct context reference fields on Identity (OUREF, COUNTRY, etc.) ──
@@ -711,12 +594,7 @@ if ($SyncContextMembers) {
                 foreach ($Field in $FieldsToCheck.Keys) {
                     $ContextUid = Get-OmadaRefUid -Ref $Ident.$Field
                     if (-not $ContextUid -or -not $SyncedContextIds.Contains($ContextUid)) { continue }
-                    $CtxMemberRecords.Add([PSCustomObject]@{
-                        contextId  = $ContextUid
-                        memberId   = $IdentUid
-                        memberType = 'Identity'
-                        addedBy    = 'sync'
-                    })
+                    $CtxMemberRecords.Add((New-OmadaContextMemberRecord -ContextId $ContextUid -MemberId $IdentUid))
                 }
             }
         }
@@ -733,12 +611,7 @@ if ($SyncContextMembers) {
                     if (-not $IdentUid -or -not $ContextUid) { continue }
                     if (-not $SyncedContextIds.Contains($ContextUid)) { continue }
                     if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
-                    $CtxMemberRecords.Add([PSCustomObject]@{
-                        contextId  = $ContextUid
-                        memberId   = $IdentUid
-                        memberType = 'Identity'
-                        addedBy    = 'sync'
-                    })
+                    $CtxMemberRecords.Add((New-OmadaContextMemberRecord -ContextId $ContextUid -MemberId $IdentUid))
                 }
                 Write-Host "  Employment-based context links added from $($EmpItems.Count) employment records" -ForegroundColor Gray
             } catch {
@@ -796,54 +669,13 @@ if ($SyncResources) {
 
         Write-Step "Building resource records from $($AllResources.Count) Omada resources..."
         # Group resources by connected system (SYSTEMREF) for correct scoped-delete
+        # Per-resource record shaping lives in ConvertTo-OmadaResourceRecord
+        # (OmadaCrawler.Transform.ps1); the system grouping stays here.
         $BySysUId = @{}
         foreach ($Item in $AllResources) {
-            $OmadaCat    = if ($Item.ROLECATEGORY)    { [string]$Item.ROLECATEGORY.Value }   else { '' }
-            $AtlasType   = Map-ResourceCategory -Category $OmadaCat
-
-            $SysUId      = Get-OmadaRefUid  -Ref $Item.SYSTEMREF
-            $SysName     = Get-OmadaRefValue -Ref $Item.SYSTEMREF   -Fallback ''
-            $RoleType    = Get-OmadaRefValue -Ref $Item.ROLETYPEREF  -Fallback ''
-            $FolderName  = Get-OmadaRefValue -Ref $Item.ROLEFOLDER   -Fallback ''
-            $Status      = if ($Item.RESOURCESTATUS) { [string]$Item.RESOURCESTATUS.Value } else { 'Active' }
-            $Enabled     = $Status -notin @('Inactive', 'Disabled', 'Deleted')
-            $ExtId       = [string]$Item.UId
-            $DispName    = if ($Item.NAME) { $Item.NAME } else { $Item.DisplayName }
-            if (-not $ExtId -or -not $DispName) { continue }
-
-            # USERGROUPREF — look up name from pre-fetched map
-            $UgUId   = Get-OmadaRefUid -Ref $Item.USERGROUPREF
-            $UgName  = if ($UgUId -and $UserGroupMap.ContainsKey($UgUId)) { $UserGroupMap[$UgUId] } else { '' }
-
-            # Owner references (EXPLICITOWNER, MANUALOWNER) — take first if collection
-            $ExplicitOwner = ''
-            if ($Item.EXPLICITOWNER -and $Item.EXPLICITOWNER.Count -gt 0) {
-                $ExplicitOwner = ($Item.EXPLICITOWNER | ForEach-Object { $_.DisplayName }) -join '; '
-            }
-            $ManualOwner = ''
-            if ($Item.MANUALOWNER -and $Item.MANUALOWNER.Count -gt 0) {
-                $ManualOwner = ($Item.MANUALOWNER | ForEach-Object { $_.DisplayName }) -join '; '
-            }
-
-            $Rec = [PSCustomObject]@{
-                id                 = $ExtId
-                externalId         = $ExtId
-                displayName        = $DispName
-                resourceType       = $AtlasType
-                governanceResource = ($AtlasType -eq 'BusinessRole')
-                description        = $Item.DESCRIPTION
-                enabled            = $Enabled
-                extendedAttributes = @{
-                    resourceCategory  = $OmadaCat
-                    resourceType      = $RoleType          # ROLETYPEREF.DisplayName
-                    roleFolder        = $FolderName        # ROLEFOLDER.DisplayName
-                    skipProvisioning  = if ($Null -ne $Item.SKIPPROVISIONING) { [bool]$Item.SKIPPROVISIONING } else { $False }
-                    userGroupName     = $UgName            # USERGROUPREF → Usergroup.DisplayName
-                    explicitOwner     = $ExplicitOwner     # EXPLICITOWNER collection
-                    manualOwner       = $ManualOwner        # MANUALOWNER collection
-                    omadaSystem       = $SysName
-                }
-            }
+            $Rec = ConvertTo-OmadaResourceRecord -Resource $Item -UserGroupMap $UserGroupMap
+            if (-not $Rec) { continue }
+            $SysUId = Get-OmadaRefUid -Ref $Item.SYSTEMREF
             $Key = if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
             if (-not $BySysUId.ContainsKey($Key)) { $BySysUId[$Key] = [System.Collections.Generic.List[object]]::new() }
             $BySysUId[$Key].Add($Rec)
@@ -885,19 +717,12 @@ if ($SyncEntitlements) {
             Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $T) -Records @{ relationships = 0 }
         } else {
             Write-Step "Extracting entitlements (CHILDROLES) from $($AllResources.Count) resources..."
+            # CHILDROLES → Contains relationship extraction lives in
+            # ConvertTo-OmadaEntitlementRelationships (OmadaCrawler.Transform.ps1).
             $RelRecords = [System.Collections.Generic.List[object]]::new()
             foreach ($Item in $AllResources) {
-                if (-not $Item.CHILDROLES) { continue }
-                $ParentUid = [string]$Item.UId
-                foreach ($Child in $Item.CHILDROLES) {
-                    $ChildUid = Get-OmadaRefUid -Ref $Child
-                    if ($ChildUid) {
-                        $RelRecords.Add([PSCustomObject]@{
-                            parentResourceId = $ParentUid   # direct UUID FK to Resources.id
-                            childResourceId  = $ChildUid    # direct UUID FK to Resources.id
-                            relationshipType = 'Contains'
-                        })
-                    }
+                foreach ($Rel in (ConvertTo-OmadaEntitlementRelationships -Resource $Item)) {
+                    $RelRecords.Add($Rel)
                 }
             }
 
@@ -953,13 +778,7 @@ if ($SyncAssignments) {
             if (-not $RaBySys.ContainsKey($SysKey)) { $RaBySys[$SysKey] = [System.Collections.Generic.List[object]]::new() }
 
             foreach ($UserUid in $UserUids) {
-                $RaBySys[$SysKey].Add([PSCustomObject]@{
-                    resourceId         = $ResourceUid
-                    principalId        = $UserUid
-                    assignmentType     = 'Direct'
-                    governed           = $true
-                    extendedAttributes = @{ validFrom = $Item.VALIDFROM; validTo = $Item.VALIDTO }
-                })
+                $RaBySys[$SysKey].Add((New-OmadaRoleAssignmentRecord -ResourceUid $ResourceUid -PrincipalId $UserUid -RoleAssignment $Item))
             }
         }
 
@@ -1017,23 +836,10 @@ if ($SyncAssignments) {
                 if (-not $AccountKey) { continue }
                 $PrincipalUid = $AccountKey
 
-                $Fn    = if ($Item.Attributes.'FIRSTNAME') { ($Item.Attributes.'FIRSTNAME' -join ' ').Trim() } else { '' }
-                $Ln    = if ($Item.Attributes.'LASTNAME')  { ($Item.Attributes.'LASTNAME'  -join ' ').Trim() } else { '' }
-                $Email = if ($Item.Attributes.'EMAIL')     { ($Item.Attributes.'EMAIL'     | Select-Object -First 1) } else { $Null }
-                $DName = "$Fn $Ln".Trim(); if (-not $DName) { $DName = $AccountName }
-
                 if (-not $CaPrincipalsBySys.ContainsKey($SysKey)) {
                     $CaPrincipalsBySys[$SysKey] = [System.Collections.Generic.List[object]]::new()
                 }
-                $CaPrincipalsBySys[$SysKey].Add([PSCustomObject]@{
-                    id             = $AccountKey
-                    externalId     = $AccountName
-                    displayName    = $DName
-                    email          = $Email
-                    principalType  = 'User'
-                    accountEnabled = ($Item.Status -eq $True)
-                    extendedAttributes = @{ accountType = $ResType }
-                })
+                $CaPrincipalsBySys[$SysKey].Add((ConvertTo-OmadaCraPrincipalRecord -CalculatedAssignment $Item -AccountKey $AccountKey -AccountName $AccountName -ResType $ResType))
 
                 # IdentityMember: link this account to its Identity (person-type only — FK guard)
                 if ($IdentityUidInIdentitiesTable.Contains($IdentityUid)) {
@@ -1047,30 +853,10 @@ if ($SyncAssignments) {
 
             if (-not $PrincipalUid) { continue }
 
-            # extendedAttributes: status, reasons, validFrom, validTo, accountType
-            $Reasons = if ($Item.Reasons) {
-                @($Item.Reasons | ForEach-Object { $_.Description }) -join '; '
-            } else { '' }
-            $ExtAttr = @{
-                validFrom   = $Item.ValidFrom
-                validTo     = $Item.ValidTo
-                status      = if ($Item.Status -eq $True) { 'Enabled' } else { 'Disabled' }
-                reasons     = $Reasons
-                accountType = $ResType
-                accountName = $AccountName
-            }
-
             # CRA rows are effective provisioning configured in Omada's governance
-            # structure → real Direct memberships, flagged governed=true. IsManaged
-            # is preserved in extendedAttributes for reference.
-            $ExtAttr.isManaged = [bool]$Item.IsManaged
-            $Rec = [PSCustomObject]@{
-                resourceId         = $ResourceUid
-                principalId        = $PrincipalUid
-                assignmentType     = 'Direct'
-                governed           = $true
-                extendedAttributes = $ExtAttr
-            }
+            # structure → real Direct memberships, flagged governed=true. Record
+            # shaping lives in ConvertTo-OmadaCraAssignmentRecord.
+            $Rec = ConvertTo-OmadaCraAssignmentRecord -CalculatedAssignment $Item -ResourceUid $ResourceUid -PrincipalId $PrincipalUid -ResType $ResType -AccountName $AccountName
             if (-not $CaAssignmentsBySys.ContainsKey($SysKey)) { $CaAssignmentsBySys[$SysKey] = [System.Collections.Generic.List[object]]::new() }
             $CaAssignmentsBySys[$SysKey].Add($Rec)
         }  # end foreach $Item in $CaPage
