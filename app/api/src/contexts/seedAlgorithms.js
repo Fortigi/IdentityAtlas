@@ -3,9 +3,10 @@
 //
 // For each plugin in REGISTERED_PLUGINS, insert-or-update a row with the
 // same `name`. This keeps the UI picker in sync with the in-tree plugins
-// without manual DB edits. Rows in ContextAlgorithms that no longer have a
-// matching plugin are left alone (they may still be referenced by existing
-// ContextAlgorithmRuns or Contexts.sourceAlgorithmId).
+// without manual DB edits. Rows in ContextAlgorithms whose plugin was removed
+// from the registry are DISABLED (never deleted — that would break existing
+// ContextAlgorithmRuns / Contexts.sourceAlgorithmId references), so a removed
+// or merged plugin drops out of the picker instead of lingering as broken.
 
 import { randomUUID } from 'crypto';
 import * as db from '../db/connection.js';
@@ -34,5 +35,14 @@ export async function seedContextAlgorithms() {
       `, [randomUUID(), p.name, p.displayName, p.description || null, p.targetType, p.parametersSchema || null]);
     }
   }
+
+  // Disable any algorithm whose plugin is no longer registered (removed or merged
+  // into another). Disable, don't delete — Contexts/runs may still reference it.
+  const activeNames = REGISTERED_PLUGINS.map(p => p.name);
+  await db.query(
+    `UPDATE "ContextAlgorithms" SET enabled = FALSE WHERE enabled = TRUE AND name <> ALL($1)`,
+    [activeNames],
+  );
+
   console.log(`Context-algorithm registry: ${REGISTERED_PLUGINS.length} plugin(s) seeded`);
 }
