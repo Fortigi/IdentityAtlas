@@ -146,3 +146,184 @@ function Sync-MidpointRefreshViews {
         Write-Host "  Warning: refresh-views failed: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
+
+# Load the archetype catalog (oid -> friendly labels) once, best-effort. Only
+# called when a mapping row actually keys on an archetype.
+function Get-MidpointArchetypeLabels {
+    [CmdletBinding()]
+    param([int]$PageSize = 100)
+    $labels = @{}
+    try {
+        $archs = @(Invoke-MidpointSearch -Type 'archetypes' -PageSize $PageSize)
+        foreach ($a in $archs) {
+            $l = [System.Collections.Generic.List[string]]::new()
+            foreach ($v in @((Get-MidpointString $a.name ''), (Get-MidpointString $a.displayName ''), (Get-MidpointString $a.identifier ''))) {
+                if ($v -and -not $l.Contains($v)) { $l.Add($v) }
+            }
+            if ($a.oid) { $labels[[string]$a.oid] = @($l) }
+        }
+        Write-Host "  loaded $($archs.Count) archetypes for role classification" -ForegroundColor DarkGray
+    } catch {
+        Write-Host "  (archetype catalog unavailable — falling back to subtype/default: $($_.Exception.Message))" -ForegroundColor Yellow
+    }
+    return $labels
+}
+
+# Bucket a resource record by its mapped resourceType and remember the mapping
+# (governance assignments reconcile-bucket by resourceType). Mutates the passed
+# ordered map + oid->type hashtable.
+function Add-MidpointResourceByType {
+    [CmdletBinding()]
+    param($ResByType, $ResourceOidToType, [string]$Type, $Rec)
+    if (-not $ResByType.Contains($Type)) { $ResByType[$Type] = [System.Collections.Generic.List[object]]::new() }
+    $ResByType[$Type].Add($Rec)
+    $ResourceOidToType[[string]$Rec.id] = $Type
+}
+
+# Classify + shape each role into its resourceType bucket (archetype -> subtype ->
+# catch-all -> BusinessRole). Mutates $ResByType/$ResourceOidToType/$SyncedResourceIds.
+function Add-MidpointRoleResources {
+    [CmdletBinding()]
+    param($Roles, $ArchetypeMapping, [hashtable]$ArchetypeLabels = @{}, $ResByType, $ResourceOidToType, $SyncedResourceIds)
+    Write-Host "  $(@($Roles).Count) roles from midPoint" -ForegroundColor Gray
+    foreach ($r in $Roles) {
+        $oid  = [string]$r.oid
+        $disp = (Get-MidpointString $r.displayName (Get-MidpointString $r.name $oid))
+        if (-not $oid -or -not $disp) { continue }
+        $subs      = Get-MidpointStringList $r.subtype; if ($subs.Count -eq 0) { $subs = Get-MidpointStringList $r.roleType }
+        $archNames = Get-MidpointArchetypeNames -Obj $r -LabelsByOid $ArchetypeLabels
+        $rt        = Resolve-MappedResourceType -Rows $ArchetypeMapping -ArchetypeNames $archNames -Subtypes $subs -Default 'BusinessRole'
+        Add-MidpointResourceByType -ResByType $ResByType -ResourceOidToType $ResourceOidToType -Type $rt `
+            -Rec (ConvertTo-MidpointRoleResourceRecord -Role $r -ResourceType $rt -ArchetypeNames $archNames)
+        [void]$SyncedResourceIds.Add($oid)
+    }
+}
+
+# Services are always resourceType 'Service' (archetypeMapping is a role classifier
+# and must not bleed into services). Mutates the same accumulators.
+function Add-MidpointServiceResources {
+    [CmdletBinding()]
+    param($Services, $ResByType, $ResourceOidToType, $SyncedResourceIds)
+    Write-Host "  $(@($Services).Count) services from midPoint" -ForegroundColor Gray
+    foreach ($s in $Services) {
+        $oid  = [string]$s.oid
+        $disp = (Get-MidpointString $s.displayName (Get-MidpointString $s.name $oid))
+        if (-not $oid -or -not $disp) { continue }
+        Add-MidpointResourceByType -ResByType $ResByType -ResourceOidToType $ResourceOidToType -Type 'Service' `
+            -Rec (ConvertTo-MidpointServiceResourceRecord -Service $s)
+        [void]$SyncedResourceIds.Add($oid)
+    }
+}
+
+# ─── Phase: Roles + Services → Resources ─────────────────────────
+# Roles/Services classified into a resourceType via archetypeMapping and ingested
+# per-type (each bucket its own reconcile scope). RETURNS @{ allRoles;
+# syncedResourceIds; resourceOidToType; archetypeLabels }.
+function Sync-MidpointResources {
+    [CmdletBinding()]
+    param(
+        [int]$MidpointSystemId,
+        $ArchetypeMapping,
+        [bool]$SyncRoles = $true,
+        [bool]$SyncServices = $true,
+        [int]$PageSize = 100
+    )
+    Write-Host "`nResources (Roles + Services):" -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing roles and services' -Pct 30
+    $AllRoles = $null
+    $SyncedResourceIds = [System.Collections.Generic.HashSet[string]]::new()
+    $ResourceOidToType = @{}
+    $ArchetypeLabels   = @{}
+    $resByType = [ordered]@{}
+
+    # Load the archetype catalog once, only when a mapping row keys on an archetype.
+    if (@($ArchetypeMapping | Where-Object { $_.archetype }).Count -gt 0) {
+        $ArchetypeLabels = Get-MidpointArchetypeLabels -PageSize $PageSize
+    }
+
+    if ($SyncRoles) {
+        try {
+            $AllRoles = @(Invoke-MidpointSearch -Type 'roles' -PageSize $PageSize)
+            Add-MidpointRoleResources -Roles $AllRoles -ArchetypeMapping $ArchetypeMapping -ArchetypeLabels $ArchetypeLabels `
+                -ResByType $resByType -ResourceOidToType $ResourceOidToType -SyncedResourceIds $SyncedResourceIds
+        } catch { Add-PhaseError 'Roles' $_.Exception.Message }
+    }
+    if ($SyncServices) {
+        try {
+            $services = @(Invoke-MidpointSearch -Type 'services' -PageSize $PageSize)
+            Add-MidpointServiceResources -Services $services -ResByType $resByType `
+                -ResourceOidToType $ResourceOidToType -SyncedResourceIds $SyncedResourceIds
+        } catch { Add-PhaseError 'Services' $_.Exception.Message }
+    }
+
+    foreach ($t in @($resByType.Keys)) {
+        try {
+            $recs = @($resByType[$t])
+            $R = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $MidpointSystemId -Scope @{ resourceType = $t } -Records $recs
+            Write-Host "  Resources($t): +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($recs.Count))" -ForegroundColor Green
+        } catch { Add-PhaseError "Resources($t)" $_.Exception.Message }
+    }
+
+    return @{ allRoles = $AllRoles; syncedResourceIds = $SyncedResourceIds; resourceOidToType = $ResourceOidToType; archetypeLabels = $ArchetypeLabels }
+}
+
+# ─── Phase: Users → Identities + Principals + IdentityMembers ────
+# UserType → Identities + one focus Principal per user (bucketed by principalType)
+# + IdentityMembers. Captures user.linkRef (shadow OIDs) for the Shadows phase.
+# RETURNS @{ allUsers; userOidToName; shadowOidToUserOid }.
+function Sync-MidpointUsers {
+    [CmdletBinding()]
+    param(
+        [int]$MidpointSystemId,
+        [hashtable]$OrgOidToName = @{},
+        $IdentityTypeMapping,
+        [int]$PageSize = 100
+    )
+    Write-Host "`nUsers (Identities + Principals):" -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing users' -Pct 45
+    $AllUsers = $null
+    $UserOidToName = @{}
+    $ShadowOidToUserOid = @{}
+    try {
+        $AllUsers = @(Measure-MidpointFetch 'users (read)' { Invoke-MidpointSearch -Type 'users' -PageSize $PageSize })
+        Write-Host "  $($AllUsers.Count) users from midPoint" -ForegroundColor Gray
+
+        $identRecs   = [System.Collections.Generic.List[object]]::new()
+        $princByType = [ordered]@{}
+        $memberRecs  = [System.Collections.Generic.List[object]]::new()
+
+        foreach ($u in $AllUsers) {
+            $oid  = [string]$u.oid
+            $name = (Get-MidpointString $u.fullName (Get-MidpointString $u.name $oid))
+            $UserOidToName[$oid] = $name
+            $department = (Resolve-MidpointDepartment -User $u -OrgMap $OrgOidToName)
+            $uTypes = Get-MidpointStringList $u.subtype; if ($uTypes.Count -eq 0) { $uTypes = Get-MidpointStringList $u.employeeType }
+            $pt = Resolve-MappedValue -Values $uTypes -Rows $IdentityTypeMapping -KeyName 'userType' -ValName 'principalType' -Default 'User'
+            $identRecs.Add((ConvertTo-MidpointIdentityRecord -User $u -DisplayName $name -Department $department))
+            if (-not $princByType.Contains($pt)) { $princByType[$pt] = [System.Collections.Generic.List[object]]::new() }
+            $princByType[$pt].Add((ConvertTo-MidpointFocusPrincipalRecord -User $u -DisplayName $name -Department $department -PrincipalType $pt))
+            $memberRecs.Add((New-MidpointIdentityMemberRecord -Oid $oid))
+
+            # Capture linkRef (shadow OIDs) for the Shadows phase.
+            $links = $u.linkRef
+            if ($links) {
+                foreach ($lr in @($links)) {
+                    $shadowOid = Get-MidpointRefOid $lr $null
+                    if ($shadowOid) { $ShadowOidToUserOid[$shadowOid] = $oid }
+                }
+            }
+        }
+
+        $R1 = Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $MidpointSystemId -Records @($identRecs)
+        Write-Host "  Identities: +$($R1.inserted) ~$($R1.updated) -$($R1.deleted)" -ForegroundColor Green
+        foreach ($pt in @($princByType.Keys)) {
+            $precs = @($princByType[$pt])
+            $R2 = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $MidpointSystemId -Scope @{ principalType = $pt } -Records $precs
+            Write-Host "  Principals($pt): +$($R2.inserted) ~$($R2.updated) -$($R2.deleted) (from $($precs.Count))" -ForegroundColor Green
+        }
+        $R3 = Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $MidpointSystemId -Records @($memberRecs)
+        Write-Host "  IdentityMembers: +$($R3.inserted) ~$($R3.updated) -$($R3.deleted)" -ForegroundColor Green
+    } catch { Add-PhaseError 'Users' $_.Exception.Message }
+
+    return @{ allUsers = $AllUsers; userOidToName = $UserOidToName; shadowOidToUserOid = $ShadowOidToUserOid }
+}

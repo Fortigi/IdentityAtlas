@@ -131,3 +131,80 @@ Describe 'Sync-MidpointRefreshViews' {
         { Sync-MidpointRefreshViews -ApiBaseUrl 'https://x/api' -ApiKey 'k' } | Should -Not -Throw
     }
 }
+
+# ─── Get-MidpointArchetypeLabels ────────────────────────────────────────────────
+Describe 'Get-MidpointArchetypeLabels' {
+    BeforeEach { Reset-PhaseTestState }
+
+    It 'builds an oid -> labels map from the archetype catalog' {
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'archetypes' } -MockWith {
+            @([pscustomobject]@{ oid = 'arch-1'; name = 'application-role'; displayName = 'Application Role' })
+        }
+        $labels = Get-MidpointArchetypeLabels
+        @($labels['arch-1']) | Should -Contain 'application-role'
+        @($labels['arch-1']) | Should -Contain 'Application Role'
+    }
+
+    It 'returns an empty map (soft-fail) when the catalog fetch throws' {
+        Mock Invoke-MidpointSearch -MockWith { throw 'midPoint 500' }
+        (Get-MidpointArchetypeLabels).Count | Should -Be 0
+    }
+}
+
+# ─── Sync-MidpointResources ─────────────────────────────────────────────────────
+Describe 'Sync-MidpointResources' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'buckets roles + services by resourceType and returns the synced-id state' {
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'roles' } -MockWith {
+            @([pscustomobject]@{ oid = 'role-1'; name = 'admin'; displayName = 'Administrator' })
+        }
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'services' } -MockWith {
+            @([pscustomobject]@{ oid = 'svc-1'; name = 'email'; displayName = 'Email' })
+        }
+        $mapping = ConvertTo-MapRows $null @('archetype', 'subtype', 'resourceType')
+        $r = Sync-MidpointResources -MidpointSystemId 10 -ArchetypeMapping $mapping
+
+        (Get-Sent { $_.Scope.resourceType -eq 'BusinessRole' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.resourceType -eq 'Service' })[0].Records.Count | Should -Be 1
+        @($r.allRoles).Count | Should -Be 1
+        $r.syncedResourceIds.Contains('role-1') | Should -BeTrue
+        $r.syncedResourceIds.Contains('svc-1') | Should -BeTrue
+        $r.resourceOidToType['role-1'] | Should -Be 'BusinessRole'
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a Roles phase error when the roles fetch throws (services still run)' {
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'roles' } -MockWith { throw 'roles 500' }
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'services' } -MockWith { @() }
+        Sync-MidpointResources -MidpointSystemId 10 -ArchetypeMapping (ConvertTo-MapRows $null @('archetype','subtype','resourceType'))
+        $script:phaseErrors | Where-Object { $_ -like 'Roles:*' } | Should -Not -BeNullOrEmpty
+    }
+}
+
+# ─── Sync-MidpointUsers ─────────────────────────────────────────────────────────
+Describe 'Sync-MidpointUsers' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'ingests identities/principals/members and returns the user + shadow-owner maps' {
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'users' } -MockWith {
+            @([pscustomobject]@{ oid = 'u-1'; name = 'alice'; fullName = 'Alice Smith'; linkRef = @(@{ oid = 'sh-1' }) })
+        }
+        $mapping = ConvertTo-MapRows $null @('userType', 'principalType')
+        $r = Sync-MidpointUsers -MidpointSystemId 10 -OrgOidToName @{} -IdentityTypeMapping $mapping
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/identities' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Endpoint -eq 'ingest/principals' -and $_.Scope.principalType -eq 'User' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Endpoint -eq 'ingest/identity-members' })[0].Records.Count | Should -Be 1
+        @($r.allUsers).Count | Should -Be 1
+        $r.userOidToName['u-1'] | Should -Be 'Alice Smith'
+        $r.shadowOidToUserOid['sh-1'] | Should -Be 'u-1'
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a Users phase error when the users fetch throws' {
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'users' } -MockWith { throw 'users 500' }
+        Sync-MidpointUsers -MidpointSystemId 10 -OrgOidToName @{} -IdentityTypeMapping (ConvertTo-MapRows $null @('userType','principalType'))
+        $script:phaseErrors[0] | Should -BeLike 'Users:*'
+    }
+}
