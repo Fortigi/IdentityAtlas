@@ -1,0 +1,273 @@
+worker-1  | Identity Atlas Worker Container (v5)
+worker-1  | ====================================
+worker-1  |   API URL: http://web:3001/api
+worker-1  |   Time:    2026-07-02 12:38:02 UTC
+worker-1  | 
+worker-1  |   Module loaded successfully
+worker-1  |   Discovering API key from /data/uploads/.builtin-worker-key...
+worker-1  |   API key: discovered (prefix: fgc_85eb)
+worker-1  |   Loaded 0 scheduled job(s) from crontab
+worker-1  | 
+worker-1  | [12:38:08] Job 1 (demo): starting...
+worker-1  | Demo dataset generated: /app/test/demo-dataset/demo-company.json
+worker-1  |   Systems:              3
+worker-1  |   Principals:           28
+worker-1  |   Resources:            14
+worker-1  |   Assignments:          73
+worker-1  |   Relationships:        9
+worker-1  |   Identities:           23
+worker-1  |   Identity Members:     24
+worker-1  |   Contexts:             8
+worker-1  |   Governance Catalogs:  2
+worker-1  |   Assignment Policies:  3
+worker-1  |   Certifications:       2
+worker-1  | 
+worker-1  | === Ingesting Fortigi Demo Corp ===
+worker-1  | Dataset: /app/test/demo-dataset/demo-company.json
+worker-1  | API:     http://web:3001/api
+worker-1  | 
+worker-1  | [1/11] Systems (3)...
+worker-1  |   ingest/systems: 3 inserted, 0 updated, 0 deleted
+worker-1  | 
+worker-1  | [32;1mtable      : [0mSystems
+worker-1  | [32;1minserted   : [0m3
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m3
+worker-1  | [32;1mdurationMs : [0m23
+worker-1  | [32;1msystemIds  : [0m{1, 2, 3}
+worker-1  | 
+worker-1  | [2/11] Contexts (8)...
+worker-1  |   ingest/contexts: 8 inserted, 0 updated, 3 deleted
+worker-1  | [32;1mtable      : [0mContexts
+worker-1  | [32;1minserted   : [0m8
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m3
+worker-1  | [32;1mrecords    : [0m8
+worker-1  | [32;1mdurationMs : [0m17
+worker-1  | 
+worker-1  | [3/11] Principals (28)...
+worker-1  |   ingest/principals: 28 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mPrincipals
+worker-1  | [32;1minserted   : [0m28
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m28
+worker-1  | [32;1mdurationMs : [0m16
+worker-1  | 
+worker-1  | [4/11] Resources (14)...
+worker-1  |   ingest/resources: 14 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mResources
+worker-1  | [32;1minserted   : [0m14
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m14
+worker-1  | [32;1mdurationMs : [0m15
+worker-1  | 
+worker-1  | [5/11] Resource Assignments (73)...
+worker-1  |   ingest/resource-assignments: 73 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mResourceAssignments
+worker-1  | [32;1minserted   : [0m73
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m73
+worker-1  | [32;1mdurationMs : [0m17
+worker-1  | 
+worker-1  | [6/11] Resource Relationships (9)...
+worker-1  |   ingest/resource-relationships: 9 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mResourceRelationships
+worker-1  | [32;1minserted   : [0m9
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m9
+worker-1  | [32;1mdurationMs : [0m12
+worker-1  | 
+worker-1  | [7/11] Identities (23)...
+worker-1  |   ingest/identities: 23 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mIdentities
+worker-1  | [32;1minserted   : [0m23
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m23
+worker-1  | [32;1mdurationMs : [0m13
+worker-1  | 
+worker-1  | [8/11] Identity Members (24)...
+worker-1  |   ingest/identity-members: 24 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mIdentityMembers
+worker-1  | [32;1minserted   : [0m24
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m24
+worker-1  | [32;1mdurationMs : [0m14
+worker-1  | 
+worker-1  | [9/11] Governance Catalogs (2)...
+worker-1  |   ingest/governance/catalogs: 2 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mGovernanceCatalogs
+worker-1  | [32;1minserted   : [0m2
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m2
+worker-1  | [32;1mdurationMs : [0m12
+worker-1  | 
+worker-1  | [10/11] Assignment Policies (3)...
+worker-1  |   ingest/governance/policies: 3 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mAssignmentPolicies
+worker-1  | [32;1minserted   : [0m3
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m3
+worker-1  | [32;1mdurationMs : [0m13
+worker-1  | 
+worker-1  | [11/11] Certification Decisions (2)...
+worker-1  |   ingest/governance/certifications: 2 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mCertificationDecisions
+worker-1  | [32;1minserted   : [0m2
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m2
+worker-1  | [32;1mdurationMs : [0m16
+worker-1  | 
+worker-1  | 
+worker-1  | Refreshing views...
+worker-1  | [32;1mmessage : [0mMaterialized views refreshed
+worker-1  | 
+worker-1  |   Views refreshed
+worker-1  | 
+worker-1  | Seeding default matrix filter...
+worker-1  |   Default matrix filter set: 'Fortigi Demo Corp — All'
+worker-1  | 
+worker-1  | === Ingest Complete ===
+worker-1  | [32;1mmessage : [0mMaterialized views refreshed
+worker-1  | 
+worker-1  |   Demo data loaded successfully
+worker-1  |   Job result: {"status":"Demo Dataset completed successfully"}
+worker-1  | [12:38:09] Job 1 (demo): completed
+worker-1  | [12:38:39] Job 1 (demo): starting...
+worker-1  | 
+worker-1  | === Ingesting Fortigi Demo Corp ===
+worker-1  | Dataset: /app/test/demo-dataset/demo-company.json
+worker-1  | API:     http://web:3001/api
+worker-1  | 
+worker-1  | [1/11] Systems (3)...
+worker-1  |   ingest/systems: 3 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mSystems
+worker-1  | [32;1minserted   : [0m3
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m3
+worker-1  | [32;1mdurationMs : [0m22
+worker-1  | [32;1msystemIds  : [0m{1, 2, 3}
+worker-1  | 
+worker-1  | [2/11] Contexts (8)...
+worker-1  |   ingest/contexts: 8 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mContexts
+worker-1  | [32;1minserted   : [0m8
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m8
+worker-1  | [32;1mdurationMs : [0m21
+worker-1  | 
+worker-1  | [3/11] Principals (28)...
+worker-1  |   ingest/principals: 28 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mPrincipals
+worker-1  | [32;1minserted   : [0m28
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m28
+worker-1  | [32;1mdurationMs : [0m13
+worker-1  | 
+worker-1  | [4/11] Resources (14)...
+worker-1  |   ingest/resources: 14 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mResources
+worker-1  | [32;1minserted   : [0m14
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m14
+worker-1  | [32;1mdurationMs : [0m11
+worker-1  | 
+worker-1  | [5/11] Resource Assignments (73)...
+worker-1  |   ingest/resource-assignments: 73 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mResourceAssignments
+worker-1  | [32;1minserted   : [0m73
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m73
+worker-1  | [32;1mdurationMs : [0m16
+worker-1  | 
+worker-1  | [6/11] Resource Relationships (9)...
+worker-1  |   ingest/resource-relationships: 9 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mResourceRelationships
+worker-1  | [32;1minserted   : [0m9
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m9
+worker-1  | [32;1mdurationMs : [0m9
+worker-1  | 
+worker-1  | [7/11] Identities (23)...
+worker-1  |   ingest/identities: 23 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mIdentities
+worker-1  | [32;1minserted   : [0m23
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m23
+worker-1  | [32;1mdurationMs : [0m10
+worker-1  | 
+worker-1  | [8/11] Identity Members (24)...
+worker-1  |   ingest/identity-members: 24 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mIdentityMembers
+worker-1  | [32;1minserted   : [0m24
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m24
+worker-1  | [32;1mdurationMs : [0m12
+worker-1  | 
+worker-1  | [9/11] Governance Catalogs (2)...
+worker-1  |   ingest/governance/catalogs: 2 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mGovernanceCatalogs
+worker-1  | [32;1minserted   : [0m2
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m2
+worker-1  | [32;1mdurationMs : [0m9
+worker-1  | 
+worker-1  | [10/11] Assignment Policies (3)...
+worker-1  |   ingest/governance/policies: 3 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mAssignmentPolicies
+worker-1  | [32;1minserted   : [0m3
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m3
+worker-1  | [32;1mdurationMs : [0m13
+worker-1  | 
+worker-1  | [11/11] Certification Decisions (2)...
+worker-1  |   ingest/governance/certifications: 2 inserted, 0 updated, 0 deleted
+worker-1  | [32;1mtable      : [0mCertificationDecisions
+worker-1  | [32;1minserted   : [0m2
+worker-1  | [32;1mupdated    : [0m0
+worker-1  | [32;1mdeleted    : [0m0
+worker-1  | [32;1mrecords    : [0m2
+worker-1  | [32;1mdurationMs : [0m9
+worker-1  | 
+worker-1  | 
+worker-1  | Refreshing views...
+worker-1  | [32;1mmessage : [0mMaterialized views refreshed
+worker-1  | 
+worker-1  |   Views refreshed
+worker-1  | 
+worker-1  | Seeding default matrix filter...
+worker-1  |   Default matrix filter set: 'Fortigi Demo Corp — All'
+worker-1  | 
+worker-1  | === Ingest Complete ===
+worker-1  | [32;1mmessage : [0mMaterialized views refreshed
+worker-1  | 
+worker-1  |   Demo data loaded successfully
+worker-1  |   Job result: {"status":"Demo Dataset completed successfully"}
+worker-1  | [12:38:39] Job 1 (demo): completed
+worker-1  | [12:39:09] Job 2 (omada): starting...
+worker-1  | 
+worker-1  | === Omada Crawler ===
+worker-1  | Base URL:    http://host.docker.internal:34379/odata/dataobjects
+worker-1  | API version: v14
+worker-1  | Auth method: 
+worker-1  | Sync mode:   full (Omada has no delta API)
+worker-1  | [12:39:09] Job 2 (omada): FAILED — Cannot validate argument on parameter 'AuthMethod'. The argument "" does not belong to the set "FormCookie,OAuth2CC,OAuth2ROPC,ApiToken,CookieString,BasicAuth" specified by the ValidateSet attribute. Supply an argument that is in the set and then try the command again.

@@ -77,6 +77,7 @@ if ($objects) {
 # be unit-tested; dot-sourcing here is equivalent to defining them inline below.
 . (Join-Path $PSScriptRoot 'MidpointCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'MidpointCrawler.Transform.ps1')
+. (Join-Path $PSScriptRoot 'MidpointCrawler.Phases.ps1')
 
 # The dispatcher dot-sources Invoke-MidpointApi.ps1 (sibling library) before this
 # entry point runs. For standalone invocation, load it here if absent.
@@ -149,89 +150,17 @@ $EntitlementByDn         = @{}                                                  
 # ─── Phase: Systems ──────────────────────────────────────────────────────────
 # midPoint itself + each ResourceType become Identity Atlas Systems.
 if ($Sync.systems) {
-    Write-Host "`nSystems:" -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Registering systems' -Pct 5
-    try {
-        $hostLabel = ([System.Uri]$RestRoot).Authority
-        $sysRecords = [System.Collections.Generic.List[object]]::new()
-        $sysRecords.Add([PSCustomObject]@{ systemType = 'Midpoint'; displayName = "midPoint ($hostLabel)"; tenantId = $RestRoot; enabled = $true; syncEnabled = $true })
-
-        $resources = @(Invoke-MidpointSearch -Type 'resources' -PageSize $PageSize)
-        Write-Host "  $($resources.Count) connected resources in midPoint" -ForegroundColor Gray
-
-        # STREAM shadows (do NOT retain — memory stays bounded regardless of volume) to learn
-        # which resources actually hold account/entitlement shadows. Resources whose shadows are
-        # all generic (e.g. context/data-only connectors) are NOT registered as systems — that
-        # avoids empty, confusing systems in the UI. The Shadows phase re-streams independently.
-        $resWithData = [System.Collections.Generic.HashSet[string]]::new()
-        $swShRead = [System.Diagnostics.Stopwatch]::StartNew()
-        $nShadowsScan = Invoke-MidpointSearchStream -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association' -OnPage {
-            param($page)
-            foreach ($s in $page) {
-                if (($s.kind -eq 'account') -or ($s.kind -eq 'entitlement')) {
-                    $ro = Get-MidpointRefOid $s.resourceRef $null
-                    if ($ro) { [void]$resWithData.Add($ro) }
-                }
-            }
-        }
-        $swShRead.Stop()
-        $Script:fetchStats['shadows (system scan)'] = @{ seconds = $swShRead.Elapsed.TotalSeconds; count = $nShadowsScan }
-        Write-Host "  scanned $nShadowsScan shadows ($($resWithData.Count) resources hold accounts/entitlements)" -ForegroundColor Gray
-
-        foreach ($r in $resources) {
-            $roid  = [string]$r.oid
-            $rName = (Get-MidpointString $r.name "Resource $roid")
-            $ResourceOidToName[$roid] = $rName
-            if (-not $resWithData.Contains($roid)) {
-                Write-Host "  Skipping system registration for '$rName' (no account/entitlement shadows)" -ForegroundColor DarkGray
-                continue
-            }
-            $sysRecords.Add([PSCustomObject]@{
-                systemType = 'Midpoint'
-                displayName = $rName
-                tenantId   = $roid
-                enabled    = $true; syncEnabled = $false
-            })
-        }
-
-        Write-Step "Registering $($sysRecords.Count) systems..."
-        # Systems is cross-system (no per-system scope) → delta, never deletes other sources.
-        Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{ syncMode = 'delta'; records = ConvertTo-JsonArray $sysRecords } | Out-Null
-
-        # Build tenantId(OID) → system.id map
-        $atlasSystems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
-        foreach ($s in $atlasSystems) {
-            if ($s.systemType -ne 'Midpoint' -or -not $s.tenantId) { continue }
-            if ($s.tenantId -eq $RestRoot) { $MidpointSystemId = [int]$s.id }
-            else { $ResourceSystemId[[string]$s.tenantId] = [int]$s.id }
-        }
-        if ($MidpointSystemId -eq 0) { throw "Could not resolve midPoint system id after registration" }
-        Write-Host "  midPoint system id: $MidpointSystemId; resource systems: $($ResourceSystemId.Count)" -ForegroundColor Green
-    } catch { Add-PhaseError 'Systems' $_.Exception.Message; throw }
+    $sys = Sync-MidpointSystems -RestRoot $RestRoot -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -PageSize $PageSize
+    $MidpointSystemId  = $sys.midpointSystemId
+    $ResourceSystemId  = $sys.resourceSystemId
+    $ResourceOidToName = $sys.resourceOidToName
 }
 
 # ─── Phase: Orgs → Contexts ──────────────────────────────────────────────────
 if ($Sync.orgs) {
-    Write-Host "`nOrgs (Contexts):" -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Syncing orgs' -Pct 15
-    try {
-        $orgs = @(Invoke-MidpointSearch -Type 'orgs' -PageSize $PageSize)
-        Write-Host "  $($orgs.Count) orgs from midPoint" -ForegroundColor Gray
-        # Per-org record shaping + the parent-before-child topo-sort live in
-        # MidpointCrawler.Transform.ps1.
-        $raw = @($orgs | ForEach-Object {
-            ConvertTo-MidpointOrgContextRecord -Org $_ -OrgContextMapping $OrgContextMapping -SystemId $MidpointSystemId
-        } | Where-Object { $_.id -and $_.displayName })
-        $records = Sort-MidpointContextsTopologically -Records $raw
-
-        # Scope the reconcile by variant + scopeSystemId only (NOT contextType): with org→contextType
-        # remapping a single sync can emit several context types, and this crawler owns every synced
-        # context for its own scopeSystemId — so one system-scoped delete cleanly covers them all.
-        $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $MidpointSystemId `
-            -Scope @{ variant = 'synced'; scopeSystemId = $MidpointSystemId } -Records @($records)
-        $records | ForEach-Object { [void]$SyncedOrgIds.Add($_.id); $OrgOidToName[$_.id] = $_.displayName }
-        Write-Host "  Contexts: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-    } catch { Add-PhaseError 'Orgs' $_.Exception.Message }
+    $orgResult = Sync-MidpointOrgs -MidpointSystemId $MidpointSystemId -OrgContextMapping $OrgContextMapping -PageSize $PageSize
+    $SyncedOrgIds = $orgResult.syncedOrgIds
+    $OrgOidToName = $orgResult.orgOidToName
 }
 
 # ─── Phase: Roles + Services → Resources ─────────────────────────────────────
@@ -667,15 +596,7 @@ if ($Sync.reviews) {
 # ─── Refresh matrix views ────────────────────────────────────────────────────
 # The matrix and several derived UI pages read from materialized views that are
 # stale until refreshed; do it here so the new data is visible immediately.
-Write-Host "`nRefreshing matrix views:" -ForegroundColor Cyan
-Update-CrawlerProgress -Step 'Refreshing views' -Pct 95
-try {
-    Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/refresh-views" -Method Post `
-        -Headers @{ Authorization = "Bearer $ApiKey"; 'Content-Type' = 'application/json' } -TimeoutSec 180 | Out-Null
-    Write-Host "  Views refreshed." -ForegroundColor Green
-} catch {
-    Write-Host "  Warning: refresh-views failed: $($_.Exception.Message)" -ForegroundColor Yellow
-}
+Sync-MidpointRefreshViews -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey
 
 # ─── Performance summary (load-test instrumentation) ─────────────────────────
 $Script:swMaster.Stop()
