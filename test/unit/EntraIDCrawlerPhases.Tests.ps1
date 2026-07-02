@@ -52,6 +52,10 @@ BeforeAll {
     # refresh branch runs without the Graph SDK loaded.
     function Update-FGAccessTokenIfExpired { param([string]$DebugFlag) }
 
+    # Graph auth stub for the run-init phase + tenant id for system registration.
+    function Get-FGAccessToken { param($ConfigFile) }
+    $Global:TenantId = 'tenant-123'
+
     # The Graph SDK functions the phases call. Defined as stubs so Pester can Mock
     # them; every test overrides with -ParameterFilter on the URI.
     function Invoke-FGGetRequest { param([string]$URI, [int]$MaxRetries, [int]$TimeoutSec) }
@@ -993,5 +997,138 @@ Describe 'Sync-EntraPrincipals' {
 
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'Principals:*'
+    }
+}
+
+# ─── Resolve-EntraSyncConfig (pure) ─────────────────────────────────────────────
+Describe 'Resolve-EntraSyncConfig' {
+
+    It 'applies the documented defaults for an empty config' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{}
+        $c.SyncMode | Should -Be 'delta'
+        $c.SyncPrincipals | Should -BeTrue
+        $c.SyncServicePrincipals | Should -BeFalse
+        $c.SyncResources | Should -BeTrue
+        $c.SyncGovernance | Should -BeTrue
+        $c.SyncPim | Should -BeFalse
+        $c.RefreshViews | Should -BeTrue
+        $c.SignInLogsDays | Should -Be 7
+        @($c.CustomUserAttributes).Count | Should -Be 0
+        $c.IdentityFilter.Count | Should -Be 0
+    }
+
+    It 'honours _syncMode=full and ignores an invalid value' {
+        (Resolve-EntraSyncConfig -RawConfig @{ _syncMode = 'full' }).SyncMode | Should -Be 'full'
+        (Resolve-EntraSyncConfig -RawConfig @{ _syncMode = 'bogus' }).SyncMode | Should -Be 'delta'
+    }
+
+    It 'applies selectedObjects overrides' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ selectedObjects = @{ servicePrincipals = $true; pim = $true; identity = $false } }
+        $c.SyncServicePrincipals | Should -BeTrue
+        $c.SyncPim | Should -BeTrue
+        $c.SyncPrincipals | Should -BeFalse
+    }
+
+    It 'lets usersGroupsMembers drive the three user/group toggles (after identity)' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ selectedObjects = @{ identity = $true; usersGroupsMembers = $false } }
+        $c.SyncPrincipals | Should -BeFalse
+        $c.SyncResources | Should -BeFalse
+        $c.SyncAssignments | Should -BeFalse
+    }
+
+    It 'applies direct backward-compat toggles and signInLogsDays' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ syncGovernance = $false; syncSignInLogs = $true; signInLogsDays = 14 }
+        $c.SyncGovernance | Should -BeFalse
+        $c.SyncSignInLogs | Should -BeTrue
+        $c.SignInLogsDays | Should -Be 14
+    }
+
+    It 'merges customUserAttributes + identityAttributes uniquely' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ customUserAttributes = @('a','b'); identityAttributes = @('b','c') }
+        @($c.CustomUserAttributes) | Should -Be @('a','b','c')
+    }
+
+    It 'adopts an identity filter only when it has an attribute' {
+        (Resolve-EntraSyncConfig -RawConfig @{ identityFilter = @{ attribute = 'dept'; condition = 'equals'; value = 'x' } }).IdentityFilter.attribute | Should -Be 'dept'
+        (Resolve-EntraSyncConfig -RawConfig @{ identityFilter = @{ condition = 'equals' } }).IdentityFilter.Count | Should -Be 0
+    }
+}
+
+# ─── Initialize-EntraCrawlerRun ─────────────────────────────────────────────────
+Describe 'Initialize-EntraCrawlerRun' {
+
+    It 'returns the systemId from ingest/systems' {
+        Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
+        Mock Get-FGAccessToken -MockWith { }
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{ systemIds = @(42) } }
+
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Should -Be 42
+    }
+
+    It 'falls back to systemId 1 when none is returned' {
+        Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
+        Mock Get-FGAccessToken -MockWith { }
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{ systemIds = @() } }
+
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -ConfigFile 'c.json' | Should -Be 1
+    }
+}
+
+# ─── Sync-EntraRefreshViews ─────────────────────────────────────────────────────
+Describe 'Sync-EntraRefreshViews' {
+    BeforeEach { Reset-PhaseTestState }
+
+    It 'calls the refresh-views endpoint and records the phase timing' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        $timings = [ordered]@{}
+        Sync-EntraRefreshViews -Timings $timings
+        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/refresh-views' }
+        $timings.Contains('RefreshViews') | Should -BeTrue
+    }
+
+    It 'soft-fails when the refresh endpoint throws' {
+        Mock Invoke-IngestAPI -MockWith { throw 'view refresh 500' }
+        { Sync-EntraRefreshViews -Timings ([ordered]@{}) } | Should -Not -Throw
+    }
+}
+
+# ─── Write-EntraSyncLog ─────────────────────────────────────────────────────────
+Describe 'Write-EntraSyncLog' {
+    BeforeEach { Reset-PhaseTestState }
+
+    It 'writes a sync-log entry and posts phases when a job id is present' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        Mock Invoke-RestMethod -MockWith { @{} }
+        $script:phases.Add(@{ name = 'Principals'; status = 'ok'; durationMs = 5 })
+
+        Write-EntraSyncLog -SyncStart (Get-Date) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
+
+        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Endpoint -eq 'ingest/sync-log' }
+        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
+    }
+
+    It 'skips the phases post when there is no job id' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        Mock Invoke-RestMethod -MockWith { @{} }
+
+        Write-EntraSyncLog -SyncStart (Get-Date) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
+
+        Should -Invoke Invoke-RestMethod -Times 0
+    }
+}
+
+# ─── Complete-EntraDeltaModeFlip ────────────────────────────────────────────────
+Describe 'Complete-EntraDeltaModeFlip' {
+
+    It 'flips to delta after a full run scheduled by a config' {
+        Mock Invoke-RestMethod -MockWith { @{} }
+        Complete-EntraDeltaModeFlip -SyncMode 'full' -RawConfig @{ _scheduledByConfigId = 9 } -ApiBaseUrl 'http://x/api' -ApiKey 'k'
+        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/configs/9/mark-delta-mode' }
+    }
+
+    It 'does nothing on a delta run' {
+        Mock Invoke-RestMethod -MockWith { @{} }
+        Complete-EntraDeltaModeFlip -SyncMode 'delta' -RawConfig @{ _scheduledByConfigId = 9 } -ApiBaseUrl 'http://x/api' -ApiKey 'k'
+        Should -Invoke Invoke-RestMethod -Times 0
     }
 }

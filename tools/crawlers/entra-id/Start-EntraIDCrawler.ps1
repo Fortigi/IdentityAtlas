@@ -92,61 +92,6 @@ try {
 }
 $ConfigFile = $_graphConfigFile  # used by Get-FGAccessToken and Graph SDK helpers
 
-# Sync toggles — defaults, then apply selectedObjects overrides from config
-$SyncPrincipals        = $true
-$SyncServicePrincipals = $false
-$SyncResources         = $true
-$SyncAssignments       = $true
-$SyncGovernance        = $true
-$SyncPim               = $false
-$SyncSignInLogs        = $false
-$SyncOAuth2Grants      = $false
-$SyncAppRoles          = $false
-$SyncDirectoryRoles    = $false
-$RefreshViews          = $true
-$SignInLogsDays        = 7
-$CustomUserAttributes  = @()
-$CustomGroupAttributes = @()
-$AINamePatterns        = @()
-$IdentityFilter        = @{}
-
-$SyncMode = if ($RawConfig['_syncMode'] -in @('full','delta')) { $RawConfig['_syncMode'] } else { 'delta' }
-
-$objects = $RawConfig['selectedObjects']
-if ($objects) {
-    if ($objects.ContainsKey('identity'))           { $SyncPrincipals        = [bool]$objects['identity'] }
-    if ($objects.ContainsKey('usersGroupsMembers')) {
-        $SyncPrincipals  = [bool]$objects['usersGroupsMembers']
-        $SyncResources   = [bool]$objects['usersGroupsMembers']
-        $SyncAssignments = [bool]$objects['usersGroupsMembers']
-    }
-    if ($objects.ContainsKey('servicePrincipals'))  { $SyncServicePrincipals = [bool]$objects['servicePrincipals'] }
-    if ($objects.ContainsKey('identityGovernance')) { $SyncGovernance        = [bool]$objects['identityGovernance'] }
-    if ($objects.ContainsKey('pim'))                { $SyncPim               = [bool]$objects['pim'] }
-    if ($objects.ContainsKey('signInLogs'))         { $SyncSignInLogs        = [bool]$objects['signInLogs'] }
-    if ($objects.ContainsKey('oauth2Grants'))       { $SyncOAuth2Grants      = [bool]$objects['oauth2Grants'] }
-    if ($objects.ContainsKey('appsAppRoles'))       { $SyncAppRoles          = [bool]$objects['appsAppRoles'] }
-    if ($objects.ContainsKey('directoryRoles'))     { $SyncDirectoryRoles    = [bool]$objects['directoryRoles'] }
-}
-# Direct config toggles (backward compat with older job configs)
-if ($RawConfig.ContainsKey('syncPrincipals'))        { $SyncPrincipals        = [bool]$RawConfig['syncPrincipals'] }
-if ($RawConfig.ContainsKey('syncServicePrincipals'))  { $SyncServicePrincipals = [bool]$RawConfig['syncServicePrincipals'] }
-if ($RawConfig.ContainsKey('syncResources'))          { $SyncResources         = [bool]$RawConfig['syncResources'] }
-if ($RawConfig.ContainsKey('syncAssignments'))        { $SyncAssignments       = [bool]$RawConfig['syncAssignments'] }
-if ($RawConfig.ContainsKey('syncGovernance'))         { $SyncGovernance        = [bool]$RawConfig['syncGovernance'] }
-if ($RawConfig.ContainsKey('syncSignInLogs'))         { $SyncSignInLogs        = [bool]$RawConfig['syncSignInLogs'] }
-if ($RawConfig.ContainsKey('signInLogsDays'))         { $SignInLogsDays        = [int]$RawConfig['signInLogsDays'] }
-if ($RawConfig.ContainsKey('syncOAuth2Grants'))       { $SyncOAuth2Grants      = [bool]$RawConfig['syncOAuth2Grants'] }
-if ($RawConfig.ContainsKey('syncAppRoles'))           { $SyncAppRoles          = [bool]$RawConfig['syncAppRoles'] }
-if ($RawConfig.ContainsKey('syncDirectoryRoles'))     { $SyncDirectoryRoles    = [bool]$RawConfig['syncDirectoryRoles'] }
-if ($RawConfig['customUserAttributes'])  { $CustomUserAttributes  = @($RawConfig['customUserAttributes']) }
-if ($RawConfig['identityAttributes'])    { $CustomUserAttributes  += @($RawConfig['identityAttributes']); $CustomUserAttributes = $CustomUserAttributes | Select-Object -Unique }
-if ($RawConfig['customGroupAttributes']) { $CustomGroupAttributes = @($RawConfig['customGroupAttributes']) }
-if ($RawConfig['aiNamePatterns'])        { $AINamePatterns        = @($RawConfig['aiNamePatterns']) }
-if ($RawConfig['identityFilter'] -and $RawConfig['identityFilter']['attribute']) {
-    $IdentityFilter = $RawConfig['identityFilter']
-}
-
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
@@ -154,6 +99,26 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Phases.ps1')
+
+# Resolve all sync toggles + attribute lists from the job config.
+$cfg = Resolve-EntraSyncConfig -RawConfig $RawConfig
+$SyncMode              = $cfg.SyncMode
+$SyncPrincipals        = $cfg.SyncPrincipals
+$SyncServicePrincipals = $cfg.SyncServicePrincipals
+$SyncResources         = $cfg.SyncResources
+$SyncAssignments       = $cfg.SyncAssignments
+$SyncGovernance        = $cfg.SyncGovernance
+$SyncPim               = $cfg.SyncPim
+$SyncSignInLogs        = $cfg.SyncSignInLogs
+$SyncOAuth2Grants      = $cfg.SyncOAuth2Grants
+$SyncAppRoles          = $cfg.SyncAppRoles
+$SyncDirectoryRoles    = $cfg.SyncDirectoryRoles
+$RefreshViews          = $cfg.RefreshViews
+$SignInLogsDays        = $cfg.SignInLogsDays
+$CustomUserAttributes  = $cfg.CustomUserAttributes
+$CustomGroupAttributes = $cfg.CustomGroupAttributes
+$AINamePatterns        = $cfg.AINamePatterns
+$IdentityFilter        = $cfg.IdentityFilter
 
 # ─── Main ─────────────────────────────────────────────────────────
 
@@ -172,50 +137,7 @@ $script:phaseErrors = [System.Collections.Generic.List[string]]::new()
 #   name, status ('ok' | 'failed'), durationMs, error?, records?
 $script:phases = [System.Collections.Generic.List[object]]::new()
 
-Write-Host "`n=== FortigiGraph EntraID Crawler ===" -ForegroundColor Cyan
-Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting EntraID sync via Ingest API" -ForegroundColor Cyan
-
-# Verify API connectivity
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Verifying API connectivity..." -ForegroundColor Cyan
-try {
-    $headers = @{ 'Authorization' = "Bearer $ApiKey" }
-    $whoami = Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/whoami" -Headers $headers
-    Write-Host "  Connected as: $($whoami.displayName)" -ForegroundColor Green
-}
-catch {
-    Write-Host "  FAILED to connect to API: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
-}
-
-# Get Graph access token
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Authenticating to Microsoft Graph..." -ForegroundColor Cyan
-Get-FGAccessToken -ConfigFile $ConfigFile
-
-# Register/get system
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Registering system..." -ForegroundColor Cyan
-$systemResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
-    syncMode = 'delta'
-    records  = @(@{
-        systemType   = 'EntraID'
-        displayName  = "Entra ID ($Global:TenantId)"
-        tenantId     = $Global:TenantId
-        enabled      = $true
-        syncEnabled  = $true
-    })
-}
-
-# Read the actual system ID from the API response. The ingest/systems endpoint
-# returns systemIds[] in the response after looking up the merged record(s).
-$systemId = $null
-if ($systemResult.systemIds -and $systemResult.systemIds.Count -gt 0) {
-    $systemId = [int]$systemResult.systemIds[0]
-}
-if (-not $systemId) {
-    Write-Host "  WARNING: ingest/systems did not return a systemId — falling back to 1" -ForegroundColor Yellow
-    $systemId = 1
-}
-
-Write-Host "  System ID: $systemId" -ForegroundColor Green
+$systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -ConfigFile $ConfigFile
 
 $syncStart = Get-Date
 
@@ -363,106 +285,23 @@ if ($SyncDirectoryRoles) {
 
 # ─── Refresh Views ───────────────────────────────────────────────
 if ($RefreshViews) {
-    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
-    Update-CrawlerProgress -Step 'Refreshing materialized views' -Pct 76 -Detail 'Rebuilding SQL views...'
-    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Refreshing materialized views..." -ForegroundColor Cyan
-    try {
-        Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{}
-        Write-Host "  Views refreshed" -ForegroundColor Green
-    }
-    catch {
-        Write-Host "  View refresh failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
-    }
-    $__phaseSW.Stop(); $phaseTimings['RefreshViews'] = $__phaseSW.Elapsed
-    Write-Phase -Name 'RefreshViews' -Duration $__phaseSW.Elapsed
+    Sync-EntraRefreshViews -Timings $phaseTimings
 }
 
 # ─── Summary ─────────────────────────────────────────────────────
-$elapsed = (Get-Date) - $syncStart
-Write-Host "`n=== Sync Complete ===" -ForegroundColor Green
-Write-Host "Duration: $([Math]::Round($elapsed.TotalSeconds)) seconds" -ForegroundColor Gray
+Write-EntraPhaseSummary -PhaseTimings $phaseTimings -SyncStart $syncStart
+Write-EntraSyncLog -SyncStart $syncStart -JobId $JobId -ApiKey $ApiKey -ApiBaseUrl $ApiBaseUrl
 
-# Per-phase breakdown. The point of the table is to tell an operator
-# WHERE the time went so a "this sync takes too long" complaint can be
-# investigated without re-running with profiling hacks. Unaccounted time
-# (setup, context build invoked by the dispatcher, etc.) is the line
-# at the bottom.
-if ($phaseTimings.Count -gt 0) {
-    Write-Host "`nPer-phase breakdown:" -ForegroundColor Cyan
-    $phaseTotal = [TimeSpan]::Zero
-    foreach ($kv in $phaseTimings.GetEnumerator()) {
-        $secs = [Math]::Round($kv.Value.TotalSeconds, 1)
-        $pct  = if ($elapsed.TotalSeconds -gt 0) { [Math]::Round(100 * $kv.Value.TotalSeconds / $elapsed.TotalSeconds, 1) } else { 0 }
-        Write-Host ("  {0,-22} {1,8}s  ({2,5}%)" -f $kv.Key, $secs, $pct) -ForegroundColor Gray
-        $phaseTotal += $kv.Value
-    }
-    $other = $elapsed - $phaseTotal
-    if ($other.TotalSeconds -gt 1) {
-        $otherSecs = [Math]::Round($other.TotalSeconds, 1)
-        $otherPct  = [Math]::Round(100 * $other.TotalSeconds / $elapsed.TotalSeconds, 1)
-        Write-Host ("  {0,-22} {1,8}s  ({2,5}%)" -f 'Other (setup/etc)', $otherSecs, $otherPct) -ForegroundColor DarkGray
-    }
-}
-
-# Write a single sync log entry covering the full crawler runtime so the
-# Sync Log page reflects the actual end-to-end duration (not just the per-batch
-# bulk insert timings written by individual ingest endpoints).
-$finalStatus = if ($script:phaseErrors.Count -gt 0) { 'Warning' } else { 'Success' }
-$finalError  = if ($script:phaseErrors.Count -gt 0) { ($script:phaseErrors -join ' | ') } else { $null }
-
-# Post the structured per-phase array so the Jobs UI can render a Details
-# drawer instead of parsing the single-line errorMessage. Best-effort — if
-# this fails we still fall through to the legacy sync-log write.
-if ($JobId -and $JobId -gt 0 -and $script:phases.Count -gt 0) {
-    try {
-        $headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
-        $payload = @{ phases = $script:phases } | ConvertTo-Json -Depth 10 -Compress
-        Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/jobs/$JobId/phases" -Method Post `
-            -Headers $headers -Body $payload -TimeoutSec 10 | Out-Null
-        Write-Host "  Posted $($script:phases.Count) phase record(s) to job API" -ForegroundColor DarkGray
-    } catch {
-        Write-Host "  (phases write failed: $($_.Exception.Message))" -ForegroundColor DarkGray
-    }
-}
-try {
-    Invoke-IngestAPI -Endpoint 'ingest/sync-log' -Body @{
-        syncType     = 'EntraID-FullCrawl'
-        tableName    = $null
-        startTime    = $syncStart.ToString('o')
-        endTime      = (Get-Date).ToString('o')
-        recordCount  = 0
-        status       = $finalStatus
-        errorMessage = $finalError
-    } | Out-Null
-} catch {
-    Write-Host "  (sync log write failed: $($_.Exception.Message))" -ForegroundColor DarkGray
-}
-
-# If any main-phase failures occurred, throw so the worker scheduler marks
-# the job `failed` with a summary message. All successful phases have
-# already been ingested and are visible in the UI — this is strictly
-# about making the silent-failure case loud. See the $script:phaseErrors
-# comment at the top of the script for the motivation.
+# If any main-phase failures occurred, throw so the worker scheduler marks the
+# job `failed` with a summary. Successful phases already ingested — this just
+# makes the silent-failure case loud (see the $script:phaseErrors comment above).
 if ($script:phaseErrors.Count -gt 0) {
     $summary = "Crawl completed with $($script:phaseErrors.Count) phase failure(s):`n  - " + ($script:phaseErrors -join "`n  - ")
     Write-Host "`n$summary" -ForegroundColor Red
     throw $summary
 }
 
-# After a successful full sync, flip the config back to delta so the next
-# scheduled run uses the fast path. Non-fatal — worst case the next run
-# is also full, which is slow but correct.
-if ($SyncMode -eq 'full' -and $RawConfig['_scheduledByConfigId']) {
-    try {
-        $cid = [int]$RawConfig['_scheduledByConfigId']
-        $headers = @{ 'Authorization' = "Bearer $ApiKey" }
-        Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/configs/$cid/mark-delta-mode" `
-            -Method Post -Headers $headers -TimeoutSec 10 | Out-Null
-        Write-Host "  Reset nextRunMode to 'delta' on config $cid" -ForegroundColor Gray
-    } catch {
-        Write-Host "  (mark-delta-mode failed: $($_.Exception.Message))" -ForegroundColor DarkGray
-    }
-}
+Complete-EntraDeltaModeFlip -SyncMode $SyncMode -RawConfig $RawConfig -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey
 
 # Clean up the temporary Graph credentials file (contains client secret)
 Remove-Item $_graphConfigFile -Force -ErrorAction SilentlyContinue

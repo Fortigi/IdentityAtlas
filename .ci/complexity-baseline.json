@@ -194,9 +194,6 @@
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1": [
       18
     ],
-    "tools/crawlers/entra-id/Start-EntraIDCrawler.ps1": [
-      60
-    ],
     "tools/crawlers/midpoint/Start-MidpointCrawler.ps1": [
       165
     ],
