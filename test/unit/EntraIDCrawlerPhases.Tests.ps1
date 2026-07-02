@@ -36,6 +36,9 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
     # ConvertTo-*/New-* pure record shapers the phases call.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
+    # Get-FGServicePrincipalType (pure SDK classifier) — used by
+    # ConvertTo-EntraServicePrincipalRecord inside the ServicePrincipals phase.
+    . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Phases.ps1')
 
@@ -503,5 +506,108 @@ Describe 'Sync-EntraPim' {
 
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'PIM:*'
+    }
+}
+
+# ─── Send-EntraServicePrincipalBatches ──────────────────────────────────────────
+Describe 'Send-EntraServicePrincipalBatches' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'buckets by principalType and rides delta tombstones on the first non-empty bucket only' {
+        $sps = @(
+            [pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true }
+            [pscustomobject]@{ id = 'mi1'; appId = 'a2'; displayName = 'Managed'; servicePrincipalType = 'ManagedIdentity'; accountEnabled = $true }
+        )
+        Send-EntraServicePrincipalBatches -SystemId 3 -Sps $sps -RemovedSpIds @('gone1') -SpDeltaHit $true
+
+        $spCall = Get-Sent { $_.Scope.principalType -eq 'ServicePrincipal' }
+        $miCall = Get-Sent { $_.Scope.principalType -eq 'ManagedIdentity' }
+        $spCall[0].Records.Count | Should -Be 1
+        $miCall[0].Records.Count | Should -Be 1
+        # syncMode is 'delta' in a delta-hit run.
+        $spCall[0].SyncMode | Should -Be 'delta'
+        # Only ONE bucket carries the deleted ids (id-scoped delete runs once).
+        @($script:sent | Where-Object { $_.Records }).Count | Should -BeGreaterThan 0
+        Should -Invoke Send-IngestBatch -Times 1 -ParameterFilter { @($DeletedIds).Count -gt 0 }
+    }
+
+    It 'uses full syncMode and sends no deletes on a non-delta run' {
+        $sps = @([pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true })
+        Send-EntraServicePrincipalBatches -SystemId 1 -Sps $sps -RemovedSpIds @() -SpDeltaHit $false
+
+        (Get-Sent { $_.Scope.principalType -eq 'ServicePrincipal' })[0].SyncMode | Should -Be 'full'
+        Should -Invoke Send-IngestBatch -Times 0 -ParameterFilter { @($DeletedIds).Count -gt 0 }
+    }
+}
+
+# ─── Sync-EntraServicePrincipals (integration over the sub-helpers) ─────────────
+Describe 'Sync-EntraServicePrincipals' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Send-IngestBatch -MockWith $script:SendMock
+        # Delta-token persistence boundary (would hit Invoke-RestMethod) — stub out.
+        Mock Get-FGDeltaToken -MockWith { $null }
+        Mock Remove-FGDeltaToken -MockWith { }
+        Mock Set-FGDeltaToken -MockWith { }
+        Mock Invoke-FGGetDeltaRequest -MockWith { @{ value = @(); deltaToken = 'primed-tok' } }
+    }
+
+    It 'full mode: fetches, classifies, uploads, primes the delta token and returns the SPs' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?\$select' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true }
+                [pscustomobject]@{ id = 'mi1'; appId = 'a2'; displayName = 'Managed'; servicePrincipalType = 'ManagedIdentity'; accountEnabled = $true }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipalSignInActivities' } -MockWith { @() }
+
+        $timings = [ordered]@{}
+        $returned = Sync-EntraServicePrincipals -SystemId 5 -SyncMode 'full' -AINamePatterns @() -AggregateResourceId '00000000-0000-0000-0000-000000000000' -Timings $timings
+
+        (Get-Sent { $_.Scope.principalType -eq 'ServicePrincipal' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.principalType -eq 'ManagedIdentity' })[0].Records.Count | Should -Be 1
+        # Returns ONLY the SPs (not the ingest results).
+        @($returned).Count | Should -Be 2
+        @($returned).id | Should -Contain 'sp1'
+        Should -Invoke Set-FGDeltaToken -Times 1 -ParameterFilter { $Token -eq 'primed-tok' }
+        $timings.Contains('ServicePrincipals') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'uploads SP sign-in activity joined by appId' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?\$select' } -MockWith {
+            @([pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipalSignInActivities' } -MockWith {
+            @([pscustomobject]@{ appId = 'a1'; lastSignInActivity = [pscustomobject]@{ lastSignInDateTime = '2026-06-01T00:00:00Z' } })
+        }
+
+        Sync-EntraServicePrincipals -SystemId 1 -SyncMode 'full' -AggregateResourceId '00000000-0000-0000-0000-000000000000' -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' }).Count | Should -BeGreaterThan 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'soft-fails SP activity (WARN) without failing the whole phase' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?\$select' } -MockWith {
+            @([pscustomobject]@{ id = 'sp1'; appId = 'a1'; displayName = 'App One'; servicePrincipalType = 'Application'; accountEnabled = $true })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipalSignInActivities' } -MockWith { throw 'HTTP 403' }
+
+        Sync-EntraServicePrincipals -SystemId 1 -SyncMode 'full' -AggregateResourceId 'x' -Timings ([ordered]@{})
+
+        # SP records still landed; the activity 403 is swallowed, not a phase error.
+        (Get-Sent { $_.Scope.principalType -eq 'ServicePrincipal' }).Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure and returns empty when the SP fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?\$select' } -MockWith { throw 'Graph 500' }
+
+        $returned = Sync-EntraServicePrincipals -SystemId 1 -SyncMode 'full' -AggregateResourceId 'x' -Timings ([ordered]@{})
+
+        @($returned).Count | Should -Be 0
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'ServicePrincipals:*'
     }
 }

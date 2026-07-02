@@ -772,3 +772,219 @@ function Sync-EntraPim {
     $__pimErrMsg = if ($__pimErr) { $__pimErr.Substring('PIM:'.Length).Trim() } else { $null }
     Write-Phase -Name 'PIM' -Duration $__phaseSW.Elapsed -ErrorMsg $__pimErrMsg
 }
+
+# ─── Service Principals: fetch (delta vs full) ───────────────────
+# Delta/full fetch of service principals — same delta-token pattern as Users.
+# Returns @{ sps; removedSpIds; newSpsToken; spDeltaHit }. Verbatim from the
+# inline fetch block; all Graph I/O for the discovery half of the phase.
+function Get-EntraServicePrincipalData {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        [string]$SyncMode = 'delta'
+    )
+    # `tags` and `servicePrincipalType` drive classification; `appId`,
+    # `appOwnerOrganizationId`, and `notes` go into extendedAttributes for
+    # downstream visibility. `accountEnabled` lives in its dedicated column.
+    $spSelectAttrs = @(
+        'id','appId','displayName','servicePrincipalType','accountEnabled',
+        'tags','appOwnerOrganizationId','createdDateTime','notes',
+        'servicePrincipalNames','homepage','publisherName'
+    )
+    $spSelect = $spSelectAttrs -join ','
+
+    $spsEndpoint   = 'servicePrincipals/delta'
+    $spsToken      = $null
+    $newSpsToken   = $null
+    $spDeltaHit    = $false
+    $removedSpIds  = @()
+    $sps           = $null
+
+    if ($SyncMode -eq 'full') {
+        Remove-FGDeltaToken -SystemId $SystemId -Endpoint $spsEndpoint
+    } elseif ($SyncMode -eq 'delta') {
+        $spsToken = Get-FGDeltaToken -SystemId $SystemId -Endpoint $spsEndpoint
+    }
+
+    if ($spsToken) {
+        Write-Host "  Delta mode: fetching only changed SPs..." -ForegroundColor Gray
+        try {
+            $deltaUri = "https://graph.microsoft.com/beta/servicePrincipals/delta?`$deltatoken=$([uri]::EscapeDataString($spsToken))"
+            $resp = Invoke-FGGetDeltaRequest -URI $deltaUri
+            $sps = @($resp.value | Where-Object { -not $_.'@removed' })
+            $removedSpIds = @($resp.value | Where-Object { $_.'@removed' } | ForEach-Object { $_.id })
+            $newSpsToken = $resp.deltaToken
+            $spDeltaHit = $true
+            Write-Host "  Delta: $($sps.Count) changed + $($removedSpIds.Count) removed" -ForegroundColor Gray
+        } catch [System.InvalidOperationException] {
+            Write-Host "  SP delta token rejected — falling back to full" -ForegroundColor Yellow
+            Remove-FGDeltaToken -SystemId $SystemId -Endpoint $spsEndpoint
+            $spsToken = $null
+            $sps = $null
+        } catch {
+            Write-Host "  SP delta fetch failed: $($_.Exception.Message) — falling back to full" -ForegroundColor Yellow
+            $spsToken = $null
+            $sps = $null
+        }
+    }
+
+    if (-not $spDeltaHit) {
+        $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=$spSelect&`$top=999"
+        try {
+            Write-Host "  Priming SP delta token (walks full /servicePrincipals/delta once)..." -ForegroundColor DarkGray
+            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/delta?`$select=id"
+            $newSpsToken = $primeResp.deltaToken
+            if ($newSpsToken) { Write-Host "  Primed SP delta token for next run" -ForegroundColor DarkGray }
+        } catch {
+            Write-Host "  (SP delta token priming skipped: $($_.Exception.Message))" -ForegroundColor DarkGray
+        }
+    }
+
+    return @{
+        sps          = $sps
+        removedSpIds = $removedSpIds
+        newSpsToken  = $newSpsToken
+        spDeltaHit   = $spDeltaHit
+    }
+}
+
+# ─── Service Principals: classify + upload ───────────────────────
+# Bucket the fetched SPs by principalType (via ConvertTo-EntraServicePrincipalRecord)
+# and submit one scoped full-sync per type. In delta mode the @removed tombstones
+# ride on the first bucket's call (the id-scoped delete is principalType-agnostic).
+# Verbatim from the inline bucket/upload block.
+function Send-EntraServicePrincipalBatches {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        $Sps,
+        [array]$RemovedSpIds = @(),
+        [bool]$SpDeltaHit = $false,
+        [string[]]$AINamePatterns = @()
+    )
+    # Bucket records by principalType so we can submit one scoped full-sync
+    # per type. An empty bucket is skipped entirely to avoid an unintended
+    # delete-everything-of-that-type against the DB.
+    $buckets = @{
+        ServicePrincipal = New-Object System.Collections.ArrayList
+        ManagedIdentity  = New-Object System.Collections.ArrayList
+        AIAgent          = New-Object System.Collections.ArrayList
+    }
+
+    foreach ($sp in $Sps) {
+        $rec = ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp -AINamePatterns $AINamePatterns
+        [void]$buckets[$rec.principalType].Add($rec)
+    }
+
+    Write-Host ("  Classified: {0} ServicePrincipal / {1} ManagedIdentity / {2} AIAgent" -f `
+        $buckets.ServicePrincipal.Count, $buckets.ManagedIdentity.Count, $buckets.AIAgent.Count) -ForegroundColor Gray
+
+    # In delta mode, use syncMode='delta' (no scoped delete of unchanged
+    # records) and attach the @removed tombstones to the FIRST bucket's
+    # call — the /ingest/principals delete is id-scoped and doesn't care
+    # which principalType bucket the record originally lived in, so it
+    # only needs to run once per phase.
+    $spIngestMode = if ($SpDeltaHit) { 'delta' } else { 'full' }
+    $firstBucket = $true
+    foreach ($pt in @('ServicePrincipal','ManagedIdentity','AIAgent')) {
+        $bucket = $buckets[$pt]
+        if ($bucket.Count -eq 0 -and (-not $firstBucket -or $RemovedSpIds.Count -eq 0)) { continue }
+        Update-CrawlerProgress -Detail "Uploading $($bucket.Count) $pt records..."
+        $deletes = @()
+        if ($firstBucket -and $SpDeltaHit -and $RemovedSpIds.Count -gt 0) {
+            $deletes = $RemovedSpIds
+            $firstBucket = $false
+        } elseif ($firstBucket) {
+            $firstBucket = $false
+        }
+        Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode $spIngestMode `
+            -Scope @{ principalType = $pt } -Records @($bucket) -DeletedIds $deletes
+    }
+}
+
+# ─── Service Principals: sign-in activity (aggregate per SP) ──────
+# Graph's per-appId last-activity report joined by appId to the SPs we synced,
+# so each PrincipalActivity row is keyed on the SP object id. Soft-fails (WARN)
+# if the report endpoint 403s. Verbatim from the inline activity sub-block.
+function Sync-EntraSpActivity {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        $Sps,
+        [string]$AggregateResourceId
+    )
+    try {
+        Update-CrawlerProgress -Step 'Fetching SP sign-in activity report' -Pct 20 -Detail '/reports/servicePrincipalSignInActivities'
+        $spActivityRows = Invoke-FGGetRequest -URI 'https://graph.microsoft.com/beta/reports/servicePrincipalSignInActivities?$top=999'
+
+        # Build appId → activity map. Graph returns one row per appId with
+        # four timestamp "flavours"; we promote the primary last/nonInteractive
+        # to first-class columns and stash the two client-variant timestamps
+        # in extendedAttributes so downstream queries can still reach them.
+        $activityByAppId = @{}
+        foreach ($a in $spActivityRows) {
+            if (-not $a.appId) { continue }
+            $activityByAppId[$a.appId] = $a
+        }
+
+        $spActivityRecords = @($Sps | ForEach-Object {
+            ConvertTo-EntraSpActivityRecord -ServicePrincipal $_ -Activity $activityByAppId[$_.appId] -AggregateResourceId $AggregateResourceId
+        } | Where-Object { $_ })
+
+        if ($spActivityRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($spActivityRecords.Count) SP sign-in activity records..."
+            Send-IngestBatch -Endpoint 'ingest/principal-activity' -SystemId $SystemId -SyncMode 'delta' `
+                -Records $spActivityRecords
+        } else {
+            Write-Host '  No SP sign-in activity to upload (report empty or no matches)' -ForegroundColor Gray
+        }
+    } catch {
+        # The report endpoint needs AuditLog.Read.All, which should already
+        # be granted, but tenants that haven't consented yet will 403 here.
+        # Fail soft — SP data itself still lands, activity just stays stale.
+        Write-Host "  WARN: SP sign-in activity sync failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+# ─── Sync Service Principals ─────────────────────────────────────
+# Service principals are Entra ID's non-human identities — enterprise-app SPs,
+# managed identities, AI agents (Copilot Studio / Azure OpenAI), etc. They own
+# a large fraction of role assignments in Azure and M365, so we want them in the
+# `Principals` table alongside human users. RETURNS the fetched SPs so the
+# SignInLogs phase can reuse them without a second Graph pass.
+function Sync-EntraServicePrincipals {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        [string]$SyncMode = 'delta',
+        [string[]]$AINamePatterns = @(),
+        [string]$AggregateResourceId,
+        $Timings
+    )
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing service principals..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing service principals' -Pct 18 -Detail 'Fetching from Microsoft Graph...'
+    $sps = @()
+    try {
+        $data = Get-EntraServicePrincipalData -SystemId $SystemId -SyncMode $SyncMode
+        $sps = $data.sps
+
+        Update-CrawlerProgress -Detail "Classifying $(@($sps).Count) service principals..."
+        # Out-Null so this phase function returns ONLY $sps, not ingest results.
+        Send-EntraServicePrincipalBatches -SystemId $SystemId -Sps $sps `
+            -RemovedSpIds $data.removedSpIds -SpDeltaHit $data.spDeltaHit -AINamePatterns $AINamePatterns | Out-Null
+
+        if ($data.newSpsToken) {
+            Set-FGDeltaToken -SystemId $SystemId -Endpoint 'servicePrincipals/delta' -Token $data.newSpsToken -RecordsLastSeen @($sps).Count
+        }
+
+        Sync-EntraSpActivity -SystemId $SystemId -Sps $sps -AggregateResourceId $AggregateResourceId | Out-Null
+    } catch {
+        $script:phaseErrors.Add("ServicePrincipals: $($_.Exception.Message)")
+        Write-Host "  ServicePrincipals phase failed: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    $__spErrMsg = $script:phaseErrors | Where-Object { $_.StartsWith('ServicePrincipals: ') } | Select-Object -Last 1
+    $__phaseSW.Stop(); if ($Timings) { $Timings['ServicePrincipals'] = $__phaseSW.Elapsed }
+    Write-Phase -Name 'ServicePrincipals' -Duration $__phaseSW.Elapsed -ErrorMsg $__spErrMsg
+    return $sps
+}

@@ -1,2 +1,2 @@
-- Internal: extracted the Entra ID crawler's OAuth2 grants, app-role, directory-role, group-resource, group-assignment, and PIM-eligibility sync phases out of the monolithic entry point into unit-tested `Sync-Entra*` functions (no functional change to what gets synced).
+- Internal: extracted the Entra ID crawler's OAuth2 grants, app-role, directory-role, group-resource, group-assignment, PIM-eligibility, and service-principal sync phases out of the monolithic entry point into unit-tested `Sync-Entra*` functions (no functional change to what gets synced).
 - Fixed: PIM eligible group memberships were silently skipped on tenants where exactly one non-dynamic group survived filtering.
