@@ -209,6 +209,27 @@ Describe 'Send-IngestBatch' {
         $script:sessions[-1] | Should -Be 'end'
         $r.inserted | Should -Be 3
     }
+
+    It 'sends records and deletes together in one body when both fit under BatchSize' {
+        Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 1 } }
+        $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 1 -Records @([pscustomobject]@{ id = 'a' }) -DeletedIds @('d1')
+        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.ContainsKey('deletedIds') -and $Body.records }
+        $r.inserted | Should -Be 1
+        $r.deleted  | Should -Be 1
+    }
+
+    It 'sends deletes as a separate call before the chunked session when both exceed BatchSize' {
+        $script:sawDeleteOnly = $false
+        Mock Invoke-IngestAPI {
+            if ($Body.ContainsKey('deletedIds') -and -not $Body.ContainsKey('syncSession')) { $script:sawDeleteOnly = $true; return @{ deleted = 2 } }
+            @{ inserted = 1; updated = 0; deleted = 0; syncId = 's' }
+        }
+        $records = 1..7 | ForEach-Object { [pscustomobject]@{ id = "r$_" } }
+        $r = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 1 -Records $records -DeletedIds @('d1', 'd2') -BatchSize 3
+        $script:sawDeleteOnly | Should -BeTrue     # deletes went as their own call
+        $r.deleted            | Should -Be 2        # folded into the total
+        Should -Invoke Invoke-IngestAPI -Times 4    # 1 delete call + 3 record chunks
+    }
 }
 
 # ─── Invoke-FGGetDeltaRequest ───────────────────────────────────────────────────
@@ -261,6 +282,26 @@ Describe 'Invoke-FGGetDeltaRequest' {
         }
         { Invoke-FGGetDeltaRequest -URI 'https://graph/users/delta' -MaxRetries 0 } |
             Should -Throw -ExceptionType ([System.InvalidOperationException])
+    }
+
+    It 'retries a transient error (HTTP 503) with backoff, then succeeds' {
+        Mock Start-Sleep { }
+        $script:calls = 0
+        Mock Invoke-RestMethod {
+            $script:calls++
+            if ($script:calls -eq 1) {
+                $resp = [pscustomobject]@{ StatusCode = 503 }
+                $ex = [System.Exception]::new('ServiceNotAvailable')
+                $ex | Add-Member -NotePropertyName Response -NotePropertyValue $resp -Force
+                throw $ex
+            }
+            @{ value = @([pscustomobject]@{ id = 'u1' }); '@odata.deltaLink' = 'https://g?$deltatoken=OK' }
+        }
+        $res = Invoke-FGGetDeltaRequest -URI 'https://graph/users/delta' -MaxRetries 2
+        $res.deltaToken | Should -Be 'OK'
+        $res.value.Count | Should -Be 1
+        Should -Invoke Invoke-RestMethod -Times 2
+        Should -Invoke Start-Sleep -Times 1
     }
 }
 
@@ -560,5 +601,20 @@ Describe 'Format-FGDelegatedPermissionName' {
     It 'omits the via-suffix when the client name is null' {
         Format-FGDelegatedPermissionName -Scope 'User.Read' -TargetName 'Microsoft Graph' -ClientName $null |
             Should -Be 'User.Read on Microsoft Graph'
+    }
+}
+
+# ─── Get-FGGraphErrorDetail ─────────────────────────────────────────────────────
+Describe 'Get-FGGraphErrorDetail' {
+    It 'returns the plain exception message when there are no ErrorDetails' {
+        $err = [System.Management.Automation.ErrorRecord]::new([System.Exception]::new('plain boom'), 'id', 'NotSpecified', $null)
+        Get-FGGraphErrorDetail $err | Should -Be 'plain boom'
+    }
+    It 'appends the Graph error body from ErrorDetails.Message, truncated to 300 chars' {
+        $err = [System.Management.Automation.ErrorRecord]::new([System.Exception]::new('HTTP 400'), 'id', 'NotSpecified', $null)
+        $err.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('x' * 400)
+        $detail = Get-FGGraphErrorDetail $err
+        $detail | Should -BeLike 'HTTP 400 | *...'
+        $detail.Length | Should -BeLessThan 320
     }
 }

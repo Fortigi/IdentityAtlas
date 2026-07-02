@@ -460,70 +460,52 @@ function ConvertTo-EntraOAuth2ScopeGraph {
     $assignments      = [System.Collections.Generic.List[object]]::new()
 
     foreach ($g in $UserGrants) {
-        $clientId = $g.clientId
-        $targetId = $g.resourceId
-        $userId   = $g.principalId
-        if (-not $clientId -or -not $targetId -or -not $userId) { continue }
-
-        $clientInfo = $SpInfo[$clientId]
-        $targetInfo = $SpInfo[$targetId]
-        $clientName = if ($clientInfo) { $clientInfo.displayName } else { $clientId }
-        $targetName = if ($targetInfo) { $targetInfo.displayName } else { $targetId }
-
-        $scopeTokens = @()
-        if ($g.scope) {
-            $scopeTokens = @($g.scope -split '\s+' | Where-Object { $_ -ne '' })
-        }
-        if ($scopeTokens.Count -eq 0) { continue }
-
-        foreach ($scope in $scopeTokens) {
-            $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
-            if (-not $scopeResourceMap.ContainsKey($scopeResId)) {
-                $scopeResourceMap[$scopeResId] = @{
-                    id           = $scopeResId
-                    displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
-                    resourceType = 'DelegatedPermission'
-                    enabled      = $true
-                    extendedAttributes = @{
-                        clientSpId           = $clientId
-                        clientDisplayName    = $clientName
-                        targetApiSpId        = $targetId
-                        targetApiDisplayName = $targetName
-                        scope                = $scope
-                    }
-                }
-            }
-            $relKey = "$clientId|$scopeResId"
-            if (-not $relMap.ContainsKey($relKey)) {
-                $relMap[$relKey] = @{
-                    parentResourceId = $clientId
-                    childResourceId  = $scopeResId
-                    relationshipType = 'DelegatesScope'
-                    roleName         = $scope
-                    roleOriginSystem = 'OAuth2'
-                }
-            }
-            $assignments.Add(@{
-                resourceId     = $scopeResId
-                principalId    = $userId
-                principalType  = 'User'
-                assignmentType = 'Direct'
-                resourceType   = 'DelegatedPermission'
-                extendedAttributes = @{
-                    grantId              = $g.id
-                    clientSpId           = $clientId
-                    clientDisplayName    = $clientName
-                    targetApiSpId        = $targetId
-                    targetApiDisplayName = $targetName
-                    scope                = $scope
-                }
-            })
-        }
+        Add-EntraOAuth2GrantToScopeGraph -Grant $g -SpInfo $SpInfo `
+            -ScopeResourceMap $scopeResourceMap -RelMap $relMap -Assignments $assignments
     }
     return @{
         resources     = @($scopeResourceMap.Values)
         relationships = @($relMap.Values)
         assignments   = @($assignments)
+    }
+}
+
+# Fold one per-user OAuth2 grant into the scope graph: one DelegatedPermission
+# Resource + DelegatesScope relationship per (client, api, scope) and one Direct
+# assignment (user → scope resource) per scope. Maps/list are mutated in place.
+function Add-EntraOAuth2GrantToScopeGraph {
+    [CmdletBinding()]
+    param($Grant, [hashtable]$SpInfo, [hashtable]$ScopeResourceMap, [hashtable]$RelMap, $Assignments)
+    $clientId = $Grant.clientId; $targetId = $Grant.resourceId; $userId = $Grant.principalId
+    if (-not $clientId -or -not $targetId -or -not $userId) { return }
+
+    $clientName = if ($SpInfo[$clientId]) { $SpInfo[$clientId].displayName } else { $clientId }
+    $targetName = if ($SpInfo[$targetId]) { $SpInfo[$targetId].displayName } else { $targetId }
+    $scopeTokens = if ($Grant.scope) { @($Grant.scope -split '\s+' | Where-Object { $_ -ne '' }) } else { @() }
+
+    foreach ($scope in $scopeTokens) {
+        $scopeResId = New-OAuth2ScopeResourceId -ClientSpId $clientId -TargetApiSpId $targetId -Scope $scope
+        if (-not $ScopeResourceMap.ContainsKey($scopeResId)) {
+            $ScopeResourceMap[$scopeResId] = @{
+                id           = $scopeResId
+                displayName  = (Format-FGDelegatedPermissionName -Scope $scope -TargetName $targetName -ClientName $clientName)
+                resourceType = 'DelegatedPermission'
+                enabled      = $true
+                extendedAttributes = @{ clientSpId = $clientId; clientDisplayName = $clientName; targetApiSpId = $targetId; targetApiDisplayName = $targetName; scope = $scope }
+            }
+        }
+        $relKey = "$clientId|$scopeResId"
+        if (-not $RelMap.ContainsKey($relKey)) {
+            $RelMap[$relKey] = @{ parentResourceId = $clientId; childResourceId = $scopeResId; relationshipType = 'DelegatesScope'; roleName = $scope; roleOriginSystem = 'OAuth2' }
+        }
+        $Assignments.Add(@{
+            resourceId     = $scopeResId
+            principalId    = $userId
+            principalType  = 'User'
+            assignmentType = 'Direct'
+            resourceType   = 'DelegatedPermission'
+            extendedAttributes = @{ grantId = $Grant.id; clientSpId = $clientId; clientDisplayName = $clientName; targetApiSpId = $targetId; targetApiDisplayName = $targetName; scope = $scope }
+        })
     }
 }
 
@@ -751,27 +733,39 @@ function ConvertTo-EntraDirectoryRoleEligibility {
 function Resolve-EntraAccessReviewApId {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Definition)
-    $def = $Definition
-    $queryStrings = @()
-    if ($def.scope         -and $def.scope.query)         { $queryStrings += $def.scope.query }
-    if ($def.resourceScope -and $def.resourceScope.query) { $queryStrings += $def.resourceScope.query }
-    if ($def.scopes) {
-        foreach ($s in $def.scopes) {
-            if ($s.query) { $queryStrings += $s.query }
-        }
-    }
+    $queryStrings = Get-EntraReviewQueryStrings -Definition $Definition
     if ($queryStrings.Count -eq 0) {
         return @{ apId = $null; reason = 'noscope'; queryStrings = @() }
     }
-    $apId = $null
-    foreach ($q in $queryStrings) {
-        if ($q -match "accessPackages/([0-9a-fA-F-]{36})")         { $apId = $Matches[1]; break }
-        elseif ($q -match "accessPackage/id eq '([0-9a-fA-F-]{36})'") { $apId = $Matches[1]; break }
-    }
+    $apId = Find-EntraAccessPackageId -QueryStrings $queryStrings
     if (-not $apId) {
         return @{ apId = $null; reason = 'nomatch'; queryStrings = $queryStrings }
     }
     return @{ apId = $apId; reason = 'ok'; queryStrings = $queryStrings }
+}
+
+# Every OData filter query string on a review definition (scope / resourceScope / scopes[]).
+function Get-EntraReviewQueryStrings {
+    [CmdletBinding()]
+    param($Definition)
+    $q = @()
+    if ($Definition.scope         -and $Definition.scope.query)         { $q += $Definition.scope.query }
+    if ($Definition.resourceScope -and $Definition.resourceScope.query) { $q += $Definition.resourceScope.query }
+    foreach ($s in @($Definition.scopes)) {
+        if ($s.query) { $q += $s.query }
+    }
+    return $q
+}
+
+# The first access-package GUID matched in any query string (path-style or `id eq`), or $null.
+function Find-EntraAccessPackageId {
+    [CmdletBinding()]
+    param([string[]]$QueryStrings)
+    foreach ($q in $QueryStrings) {
+        if ($q -match "accessPackages/([0-9a-fA-F-]{36})")           { return $Matches[1] }
+        if ($q -match "accessPackage/id eq '([0-9a-fA-F-]{36})'")    { return $Matches[1] }
+    }
+    return $null
 }
 
 # Shape one filtered user into an Identities ingest record, carrying the

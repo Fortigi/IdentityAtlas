@@ -222,6 +222,34 @@ Describe 'Sync-EntraOAuth2Grants' {
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'OAuth2Grants:*'
     }
+
+    It 'falls back to the raw id when a service-principal lookup fails (still ingests the grant)' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @([pscustomobject]@{ id = 'g1'; consentType = 'Principal'; principalId = 'u1'; clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/' } -MockWith { throw 'SP deleted' }
+
+        Sync-EntraOAuth2Grants -SystemId 3 -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'dedupes grant assignments that collide on (resource, principal)' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'oauth2PermissionGrants' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'g1'; consentType = 'Principal'; principalId = 'u1'; clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read' }
+                [pscustomobject]@{ id = 'g3'; consentType = 'Principal'; principalId = 'u1'; clientId = 'cli'; resourceId = 'api'; scope = 'Mail.Read Calendar.Read' }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/' } -MockWith { [pscustomobject]@{ id = 'x'; displayName = 'X'; appId = 'ax'; publisherName = 'p' } }
+
+        Sync-EntraOAuth2Grants -SystemId 3 -Timings ([ordered]@{})
+
+        # Raw: Mail.Read(u1) from both grants + Calendar.Read(u1) = 3; deduped to 2 unique.
+        $assigns = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'DelegatedPermission' }
+        $assigns[0].Records.Count | Should -Be 2
+    }
 }
 
 # ─── Add-EntraAppRoleAssignment ─────────────────────────────────────────────────
@@ -371,6 +399,26 @@ Describe 'Sync-EntraAppRoles' {
 
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'AppRoles:*'
+    }
+
+    It 'skips a single app whose appRoleAssignedTo fetch fails, without failing the phase' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'spBad'; displayName = 'Bad'; appId = 'aB'; appRoleAssignmentRequired = $true; appRoles = @() }
+                [pscustomobject]@{ id = 'spGood'; displayName = 'Good'; appId = 'aG'; appRoleAssignmentRequired = $true
+                    appRoles = @([pscustomobject]@{ id = 'role-a'; displayName = 'Admin'; value = 'admin' }) }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/spBad/appRoleAssignedTo' } -MockWith { throw 'Graph 500' }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals/spGood/appRoleAssignedTo' } -MockWith {
+            @([pscustomobject]@{ id = 'aa1'; appRoleId = 'role-a'; principalId = 'u1'; principalType = 'User'; createdDateTime = '2026-01-01T00:00:00Z' })
+        }
+
+        Sync-EntraAppRoles -SystemId 5 -Timings ([ordered]@{})
+
+        # Only the good app emitted an Application resource; the bad one was skipped, not fatal.
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
     }
 }
 
@@ -819,6 +867,21 @@ Describe 'Governance phases' {
         $script:phaseErrors.Count | Should -Be 0
     }
 
+    It 'Sync-EntraGovernanceResourceScopes skips an access package whose detail fetch fails' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/apGood' } -MockWith {
+            [pscustomobject]@{ accessPackageResourceRoleScopes = @(
+                [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{ originId = 'grp1' }; accessPackageResourceRole = [pscustomobject]@{ displayName = 'Member'; originSystem = 'AadGroup' } }
+            ) }
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/apBad' } -MockWith { throw 'AP fetch 504' }
+        $aps = @([pscustomobject]@{ id = 'apBad'; displayName = 'Bad AP' }, [pscustomobject]@{ id = 'apGood'; displayName = 'Good AP' })
+        Sync-EntraGovernanceResourceScopes -SystemId 1 -AccessPackages $aps
+
+        # The good AP still produced its relationship; the failing AP was skipped, not fatal.
+        (Get-Sent { $_.Scope.relationshipType -eq 'Contains' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
     It 'Sync-EntraGovernanceAssignments streams + dedups active AP assignments' {
         Mock Invoke-FGGetRequestStream -ParameterFilter { $URI -match 'accessPackageAssignments' } -MockWith {
             @(
@@ -1158,6 +1221,12 @@ Describe 'Resolve-EntraSyncConfig' {
     It 'adopts an identity filter only when it has an attribute' {
         (Resolve-EntraSyncConfig -RawConfig @{ identityFilter = @{ attribute = 'dept'; condition = 'equals'; value = 'x' } }).IdentityFilter.attribute | Should -Be 'dept'
         (Resolve-EntraSyncConfig -RawConfig @{ identityFilter = @{ condition = 'equals' } }).IdentityFilter.Count | Should -Be 0
+    }
+
+    It 'reads customGroupAttributes and aiNamePatterns' {
+        $c = Resolve-EntraSyncConfig -RawConfig @{ customGroupAttributes = @('extensionAttribute1'); aiNamePatterns = @('bot*', '*copilot*') }
+        @($c.CustomGroupAttributes) | Should -Be @('extensionAttribute1')
+        @($c.AINamePatterns) | Should -Be @('bot*', '*copilot*')
     }
 }
 

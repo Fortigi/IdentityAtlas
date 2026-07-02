@@ -73,76 +73,8 @@ function Sync-EntraOAuth2Grants {
             Write-Host "  Nothing to ingest" -ForegroundColor Yellow
         }
         else {
-            # Collect unique SP IDs referenced as either client or target API so
-            # we can attach human-readable displayNames to the Resource rows.
-            # We fetch each SP individually — Graph's `$filter id in (...)` on
-            # servicePrincipals has a 15-item cap and a tight total URL length
-            # limit; one-at-a-time is slower but robust across all tenant sizes.
-            $spIds = [System.Collections.Generic.HashSet[string]]::new()
-            foreach ($g in $userGrants) {
-                if ($g.clientId)   { [void]$spIds.Add($g.clientId) }
-                if ($g.resourceId) { [void]$spIds.Add($g.resourceId) }
-            }
-            Update-CrawlerProgress -Detail "Resolving $($spIds.Count) service principals..."
-
-            $spInfo = @{}
-            foreach ($id in $spIds) {
-                try {
-                    $sp = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/$id`?`$select=id,displayName,appId,publisherName"
-                    if ($sp) {
-                        $spInfo[$id] = @{
-                            displayName    = $sp.displayName
-                            appId          = $sp.appId
-                            publisherName  = $sp.publisherName
-                        }
-                    }
-                } catch {
-                    # SP deleted / inaccessible — fall back to the raw id so
-                    # the grant is still ingestible.
-                    $spInfo[$id] = @{ displayName = $id; appId = $null; publisherName = $null }
-                }
-            }
-
-            # ── Emit client-app Resources (one per distinct client SP) ────
-            $clientIds = [System.Collections.Generic.HashSet[string]]::new()
-            foreach ($g in $userGrants) { [void]$clientIds.Add($g.clientId) }
-            $clientRecords = @($clientIds | ForEach-Object {
-                ConvertTo-EntraOAuth2ClientResource -ClientId $_ -SpInfo $spInfo[$_]
-            })
-            Update-CrawlerProgress -Detail "Uploading $($clientRecords.Count) client apps..."
-            Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ resourceType = 'Application' } -Records $clientRecords
-
-            # ── Build unique scope resources and relationships ────────────
-            # One Resource per (clientSpId, targetApiSpId, scope). The scope
-            # string is space-separated — split it so analysts can filter on
-            # individual scopes like "Mail.Read".
-            $scopeGraph = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $userGrants -SpInfo $spInfo
-
-            $scopeRecords = @($scopeGraph.resources)
-            Update-CrawlerProgress -Detail "Uploading $($scopeRecords.Count) scope resources..."
-            Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ resourceType = 'DelegatedPermission' } -Records $scopeRecords
-
-            $relRecords = @($scopeGraph.relationships)
-            Update-CrawlerProgress -Detail "Uploading $($relRecords.Count) scope relationships..."
-            Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ relationshipType = 'DelegatesScope' } -Records $relRecords
-
-            # Dedupe assignments on PK (resourceId, principalId, assignmentType).
-            # Graph never returns duplicate per-user grants for the same (client,
-            # api) pair, but we split one multi-scope grant into N rows so two
-            # different grants referencing the same user/scope via different
-            # (client, api) combos could collide at the PK. Unlikely in practice
-            # — but a HashSet is cheap insurance.
-            $seen = @{}
-            $assignRecords = @($scopeGraph.assignments | Where-Object {
-                $k = "$($_.resourceId)|$($_.principalId)"
-                if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
-            })
-            Update-CrawlerProgress -Detail "Uploading $($assignRecords.Count) OAuth2 grant assignments..."
-            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'Direct'; resourceType = 'DelegatedPermission' } -Records $assignRecords
+            $spInfo = Get-EntraOAuth2SpInfo -UserGrants $userGrants
+            Send-EntraOAuth2GrantRecords -UserGrants $userGrants -SpInfo $spInfo -SystemId $SystemId
         }
     }
     catch {
@@ -154,6 +86,64 @@ function Sync-EntraOAuth2Grants {
     $__oauthErr = $script:phaseErrors | Where-Object { $_.StartsWith('OAuth2Grants:') } | Select-Object -Last 1
     $__oauthErrMsg = if ($__oauthErr) { $__oauthErr.Substring('OAuth2Grants:'.Length).Trim() } else { $null }
     Write-Phase -Name 'OAuth2Grants' -Duration $__phaseSW.Elapsed -ErrorMsg $__oauthErrMsg
+}
+
+# Resolve every client/target SP referenced by the user grants to its displayName /
+# appId / publisherName. Fetched one at a time (Graph's `$filter id in (...)` on
+# servicePrincipals caps at 15 + a tight URL limit); a deleted/inaccessible SP falls
+# back to its raw id so the grant stays ingestible. Returns spId -> info hashtable.
+function Get-EntraOAuth2SpInfo {
+    [CmdletBinding()]
+    param($UserGrants)
+    $spIds = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($g in $UserGrants) {
+        if ($g.clientId)   { [void]$spIds.Add($g.clientId) }
+        if ($g.resourceId) { [void]$spIds.Add($g.resourceId) }
+    }
+    Update-CrawlerProgress -Detail "Resolving $($spIds.Count) service principals..."
+    $spInfo = @{}
+    foreach ($id in $spIds) {
+        try {
+            $sp = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/$id`?`$select=id,displayName,appId,publisherName"
+            if ($sp) { $spInfo[$id] = @{ displayName = $sp.displayName; appId = $sp.appId; publisherName = $sp.publisherName } }
+        } catch {
+            $spInfo[$id] = @{ displayName = $id; appId = $null; publisherName = $null }
+        }
+    }
+    return $spInfo
+}
+
+# Emit the OAuth2 grant graph: client-app Resources, per-(client,api,scope)
+# DelegatedPermission Resources + DelegatesScope relationships, and the deduped
+# grant assignments. Shaping lives in ConvertTo-EntraOAuth2ClientResource /
+# ConvertTo-EntraOAuth2ScopeGraph.
+function Send-EntraOAuth2GrantRecords {
+    [CmdletBinding()]
+    param($UserGrants, [hashtable]$SpInfo, [int]$SystemId)
+    $clientIds = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($g in $UserGrants) { [void]$clientIds.Add($g.clientId) }
+    $clientRecords = @($clientIds | ForEach-Object { ConvertTo-EntraOAuth2ClientResource -ClientId $_ -SpInfo $SpInfo[$_] })
+    Update-CrawlerProgress -Detail "Uploading $($clientRecords.Count) client apps..."
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' -Scope @{ resourceType = 'Application' } -Records $clientRecords
+
+    $scopeGraph = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $UserGrants -SpInfo $SpInfo
+    $scopeRecords = @($scopeGraph.resources)
+    Update-CrawlerProgress -Detail "Uploading $($scopeRecords.Count) scope resources..."
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' -Scope @{ resourceType = 'DelegatedPermission' } -Records $scopeRecords
+
+    $relRecords = @($scopeGraph.relationships)
+    Update-CrawlerProgress -Detail "Uploading $($relRecords.Count) scope relationships..."
+    Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode 'full' -Scope @{ relationshipType = 'DelegatesScope' } -Records $relRecords
+
+    # Dedupe assignments on PK (resourceId, principalId) — one multi-scope grant is
+    # split into N rows, so different (client, api) combos could collide.
+    $seen = @{}
+    $assignRecords = @($scopeGraph.assignments | Where-Object {
+        $k = "$($_.resourceId)|$($_.principalId)"
+        if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
+    })
+    Update-CrawlerProgress -Detail "Uploading $($assignRecords.Count) OAuth2 grant assignments..."
+    Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' -Scope @{ assignmentType = 'Direct'; resourceType = 'DelegatedPermission' } -Records $assignRecords
 }
 
 # ─── Sync App Role Assignments ───────────────────────────────────
@@ -311,53 +301,17 @@ function Get-EntraAppRoleAssignmentData {
         if (($spProcessed % 25) -eq 0) {
             Update-CrawlerProgress -Detail "Inspecting app $spProcessed of $($candidateSps.Count)..."
         }
-
-        # Build a role catalog. Always include the "default access" role — for
-        # SPs configured with appRoleAssignmentRequired=true but no custom
-        # roles, assignments fall back to the zero-GUID role id.
-        $rolesByGuid = Get-EntraAppRoleCatalog -ServicePrincipal $sp -DefaultRoleId $DefaultRoleId
-
-        # Fetch assignments. SPs without any assignments still emit Application
-        # + AppRole Resources so the catalog is browseable.
-        $assignments = @()
-        try {
-            $assignments = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/$($sp.id)/appRoleAssignedTo?`$top=999")
-        } catch {
-            Write-Host "    /appRoleAssignedTo failed for $($sp.displayName): $($_.Exception.Message)" -ForegroundColor DarkYellow
-            continue
-        }
-
-        if ($assignments.Count -eq 0) { continue }
-
-        # Emit Application Resource (idempotent — OAuth2 phase may already have
-        # written this same record, but the ingest endpoint upserts).
-        if (-not $appResourceMap.ContainsKey($sp.id)) {
-            $appResourceMap[$sp.id] = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $sp
-        }
-
-        foreach ($a in $assignments) {
-            Add-EntraAppRoleAssignment -Assignment $a -ServicePrincipal $sp `
-                -RolesByGuid $rolesByGuid -DefaultRoleId $DefaultRoleId `
-                -AppRoleMap $appRoleMap -RelMap $relMap `
-                -DirectAssns $directAssns -GroupAssns $groupAssns
-        }
+        Add-EntraSpAppRoleData -Sp $sp -DefaultRoleId $DefaultRoleId `
+            -AppResourceMap $appResourceMap -AppRoleMap $appRoleMap -RelMap $relMap `
+            -DirectAssns $directAssns -GroupAssns $groupAssns
     }
 
     $indirectAssns = Expand-EntraAppRoleGroupAssignments -GroupAssns $groupAssns
 
-    # Dedupe on PK (resourceId, principalId, assignmentType). Within a single
-    # sync the same (user, role) can arrive twice if the user belongs to two
-    # groups both assigned the same role.
-    $seenDirect = @{}
-    $directRecords = @($directAssns | Where-Object {
-        $k = "$($_.resourceId)|$($_.principalId)"
-        if ($seenDirect.ContainsKey($k)) { $false } else { $seenDirect[$k] = $true; $true }
-    })
-    $seenIndirect = @{}
-    $indirectRecords = @($indirectAssns | Where-Object {
-        $k = "$($_.resourceId)|$($_.principalId)"
-        if ($seenIndirect.ContainsKey($k)) { $false } else { $seenIndirect[$k] = $true; $true }
-    })
+    # Dedupe on PK (resourceId, principalId, assignmentType). Within one sync the same
+    # (user, role) arrives twice if the user is in two groups assigned the same role.
+    $directRecords   = Select-FGDistinct -Items $directAssns   -Key { "$($_.resourceId)|$($_.principalId)" }
+    $indirectRecords = Select-FGDistinct -Items $indirectAssns -Key { "$($_.resourceId)|$($_.principalId)" }
 
     return @{
         appRecords      = @($appResourceMap.Values)
@@ -365,6 +319,33 @@ function Get-EntraAppRoleAssignmentData {
         relRecords      = @($relMap.Values)
         directRecords   = $directRecords
         indirectRecords = $indirectRecords
+    }
+}
+
+# Fold one enterprise app's role catalog + assignments into the cross-SP accumulators
+# (all mutated in place). SPs with no assignments are skipped entirely (no empty
+# Application/AppRole rows); a failed /appRoleAssignedTo fetch is logged and skipped.
+function Add-EntraSpAppRoleData {
+    [CmdletBinding()]
+    param($Sp, [string]$DefaultRoleId, [hashtable]$AppResourceMap, [hashtable]$AppRoleMap, [hashtable]$RelMap, $DirectAssns, [hashtable]$GroupAssns)
+    # Always include the "default access" role — SPs with appRoleAssignmentRequired=true
+    # but no custom roles fall back to the zero-GUID role id.
+    $rolesByGuid = Get-EntraAppRoleCatalog -ServicePrincipal $Sp -DefaultRoleId $DefaultRoleId
+    $assignments = @()
+    try {
+        $assignments = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/$($Sp.id)/appRoleAssignedTo?`$top=999")
+    } catch {
+        Write-Host "    /appRoleAssignedTo failed for $($Sp.displayName): $($_.Exception.Message)" -ForegroundColor DarkYellow
+        return
+    }
+    if ($assignments.Count -eq 0) { return }
+    # Emit the Application Resource (idempotent — the OAuth2 phase may have written it; the endpoint upserts).
+    if (-not $AppResourceMap.ContainsKey($Sp.id)) {
+        $AppResourceMap[$Sp.id] = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $Sp
+    }
+    foreach ($a in $assignments) {
+        Add-EntraAppRoleAssignment -Assignment $a -ServicePrincipal $Sp -RolesByGuid $rolesByGuid -DefaultRoleId $DefaultRoleId `
+            -AppRoleMap $AppRoleMap -RelMap $RelMap -DirectAssns $DirectAssns -GroupAssns $GroupAssns
     }
 }
 
@@ -475,74 +456,34 @@ function Sync-EntraDirectoryRoles {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing directory roles..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing directory roles' -Pct 75 -Detail 'Fetching role definitions from Microsoft Graph...'
 
-    # Map a Graph directory-object @odata.type to our principalType vocabulary.
     try {
-        # 1. Role catalog. /roleDefinitions returns the full set of built-in
-        #    roles plus any custom roles. id == templateId for built-ins.
+        # 1. Role catalog. /roleDefinitions returns built-in roles + any custom roles.
         $roleDefs = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleDefinitions")
         Write-Host "  Fetched $($roleDefs.Count) role definitions" -ForegroundColor Gray
-
         $roleRecords = @($roleDefs | ForEach-Object { ConvertTo-EntraRoleResourceRecord -RoleDefinition $_ })
 
         # 2. Active assignments (permanent + currently-activated PIM). $expand=principal
-        #    gives us the principal's @odata.type so we can set principalType
-        #    without a second lookup per assignment.
-        $activeList = [System.Collections.Generic.List[object]]::new()
-        try {
-            $roleAssignments = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleAssignments?`$expand=principal")
-            foreach ($ra in $roleAssignments) {
-                $activeRec = ConvertTo-EntraDirectoryRoleAssignment -RoleAssignment $ra
-                if ($activeRec) { $activeList.Add($activeRec) }
-            }
-        } catch {
-            Write-Host "    /roleAssignments failed: $($_.Exception.Message)" -ForegroundColor DarkYellow
-        }
+        #    carries the principal @odata.type so we set principalType without a lookup.
+        $activeList = Get-EntraShapedGraphRecords -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleAssignments?`$expand=principal" `
+            -Shaper { param($x) ConvertTo-EntraDirectoryRoleAssignment -RoleAssignment $x } -FailMessage "    /roleAssignments failed:"
+        # 3. PIM-eligible assignments. Tenants without PIM (no Entra ID P2) 400/403 here — non-fatal.
+        $eligibleList = Get-EntraShapedGraphRecords -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleEligibilityScheduleInstances?`$expand=principal" `
+            -Shaper { param($x) ConvertTo-EntraDirectoryRoleEligibility -Eligibility $x } -FailMessage "    /roleEligibilityScheduleInstances failed (PIM may be unavailable):"
 
-        # 3. PIM-eligible assignments (eligible but not active). Tenants without
-        #    PIM (no Entra ID P2) return 400/403 here — non-fatal.
-        $eligibleList = [System.Collections.Generic.List[object]]::new()
-        try {
-            $eligibility = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/roleManagement/directory/roleEligibilityScheduleInstances?`$expand=principal")
-            foreach ($e in $eligibility) {
-                $eligibleRec = ConvertTo-EntraDirectoryRoleEligibility -Eligibility $e
-                if ($eligibleRec) { $eligibleList.Add($eligibleRec) }
-            }
-        } catch {
-            Write-Host "    /roleEligibilityScheduleInstances failed (PIM may be unavailable): $($_.Exception.Message)" -ForegroundColor DarkYellow
-        }
-
-        # Dedupe on the assignment PK (resourceId, principalId, assignmentType).
-        # The same principal can hold one role at multiple directory scopes; the
-        # PK has no scope component, so collapse to the first (tenant-wide is the
-        # dominant case — per-scope modelling is a follow-up).
-        $seenActive = @{}
-        $activeRecords = @($activeList | Where-Object {
-            $k = "$($_.resourceId)|$($_.principalId)"
-            if ($seenActive.ContainsKey($k)) { $false } else { $seenActive[$k] = $true; $true }
-        })
-        $seenEligible = @{}
-        $eligibleRecords = @($eligibleList | Where-Object {
-            $k = "$($_.resourceId)|$($_.principalId)"
-            if ($seenEligible.ContainsKey($k)) { $false } else { $seenEligible[$k] = $true; $true }
-        })
+        # Dedupe on the assignment PK (resourceId, principalId, assignmentType). The
+        # same principal can hold one role at multiple scopes; the PK has no scope
+        # component, so collapse to the first (tenant-wide is the dominant case).
+        $activeRecords   = Select-FGDistinct -Items $activeList   -Key { "$($_.resourceId)|$($_.principalId)" }
+        $eligibleRecords = Select-FGDistinct -Items $eligibleList -Key { "$($_.resourceId)|$($_.principalId)" }
 
         Write-Host "  Roles: $($roleRecords.Count) · Active: $($activeRecords.Count) · Eligible: $($eligibleRecords.Count)" -ForegroundColor Gray
 
-        if ($roleRecords.Count -gt 0) {
-            Update-CrawlerProgress -Detail "Uploading $($roleRecords.Count) directory roles..."
-            Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ resourceType = 'EntraRole' } -Records $roleRecords
-        }
-        if ($activeRecords.Count -gt 0) {
-            Update-CrawlerProgress -Detail "Uploading $($activeRecords.Count) active role assignments..."
-            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraRole' } -Records $activeRecords
-        }
-        if ($eligibleRecords.Count -gt 0) {
-            Update-CrawlerProgress -Detail "Uploading $($eligibleRecords.Count) eligible role assignments..."
-            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ assignmentType = 'Eligible'; resourceType = 'EntraRole' } -Records $eligibleRecords
-        }
+        Send-EntraRecordsIfAny -Records $roleRecords -Endpoint 'ingest/resources' -SystemId $SystemId `
+            -Scope @{ resourceType = 'EntraRole' } -Detail "Uploading $($roleRecords.Count) directory roles..."
+        Send-EntraRecordsIfAny -Records $activeRecords -Endpoint 'ingest/resource-assignments' -SystemId $SystemId `
+            -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraRole' } -Detail "Uploading $($activeRecords.Count) active role assignments..."
+        Send-EntraRecordsIfAny -Records $eligibleRecords -Endpoint 'ingest/resource-assignments' -SystemId $SystemId `
+            -Scope @{ assignmentType = 'Eligible'; resourceType = 'EntraRole' } -Detail "Uploading $($eligibleRecords.Count) eligible role assignments..."
     }
     catch {
         Write-Host "  Directory role sync failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -553,6 +494,34 @@ function Sync-EntraDirectoryRoles {
     $__dirRoleErr = $script:phaseErrors | Where-Object { $_.StartsWith('DirectoryRoles:') } | Select-Object -Last 1
     $__dirRoleErrMsg = if ($__dirRoleErr) { $__dirRoleErr.Substring('DirectoryRoles:'.Length).Trim() } else { $null }
     Write-Phase -Name 'DirectoryRoles' -Duration $__phaseSW.Elapsed -ErrorMsg $__dirRoleErrMsg
+}
+
+# Fetch a Graph collection and shape each item via $Shaper (returns $null to skip);
+# a failed fetch is logged with $FailMessage and yields an empty list (non-fatal).
+function Get-EntraShapedGraphRecords {
+    [CmdletBinding()]
+    param([string]$URI, [scriptblock]$Shaper, [string]$FailMessage)
+    $list = [System.Collections.Generic.List[object]]::new()
+    try {
+        $items = @(Invoke-FGGetRequest -URI $URI)
+        foreach ($it in $items) {
+            $rec = $Shaper.Invoke($it)[0]
+            if ($rec) { $list.Add($rec) }
+        }
+    } catch {
+        Write-Host "$FailMessage $($_.Exception.Message)" -ForegroundColor DarkYellow
+    }
+    return $list
+}
+
+# Send a scoped full-sync batch only when there are records — an empty batch would
+# trigger a delete-everything reconcile of that scope. Emits the progress detail first.
+function Send-EntraRecordsIfAny {
+    [CmdletBinding()]
+    param([array]$Records, [string]$Endpoint, [int]$SystemId, [hashtable]$Scope, [string]$Detail)
+    if (-not $Records -or $Records.Count -eq 0) { return }
+    Update-CrawlerProgress -Detail $Detail
+    Send-IngestBatch -Endpoint $Endpoint -SystemId $SystemId -SyncMode 'full' -Scope $Scope -Records $Records
 }
 
 # ─── Sync Resources (Groups) ─────────────────────────────────────
@@ -1151,29 +1120,14 @@ function Sync-EntraGovernanceResourceScopes {
     $__scopeSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access package resource scopes)..." -ForegroundColor Cyan
     try {
-        $relRecords = @()
+        $relRecords = [System.Collections.Generic.List[object]]::new()
         foreach ($ap in $AccessPackages) {
-            try {
-                # Tight retry/timeout budget — this fires once per AP (~500)
-                # and we already skip on failure; a slow/wedged AP must not
-                # stall the whole loop for minutes.
-                $apDetail = Invoke-FGGetRequest -MaxRetries 1 -TimeoutSec 30 -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages/$($ap.id)?`$expand=accessPackageResourceRoleScopes(`$expand=accessPackageResourceRole,accessPackageResourceScope)"
-                foreach ($rrs in @($apDetail.accessPackageResourceRoleScopes)) {
-                    $rel = ConvertTo-EntraAccessPackageScopeRelationship -RoleScope $rrs -AccessPackageId $ap.id
-                    if ($rel) { $relRecords += $rel }
-                }
-            } catch {
-                Write-Host "  Skipping AP $($ap.displayName): $($_.Exception.Message)" -ForegroundColor Yellow
-            }
+            $relRecords.AddRange([object[]]@(Get-EntraApScopeRelationships -Ap $ap))
         }
+        # Dedupe (parent + child) — Graph can return duplicates if an AP has multiple roles on the same group.
+        $relRecords = Select-FGDistinct -Items $relRecords -Key { "$($_.parentResourceId)|$($_.childResourceId)" }
 
         if ($relRecords.Count -gt 0) {
-            # Dedupe (parent + child) — Graph can return duplicates if AP has multiple roles on same group
-            $seen = @{}
-            $relRecords = @($relRecords | Where-Object {
-                $k = "$($_.parentResourceId)|$($_.childResourceId)"
-                if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
-            })
             Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode 'full' `
                 -Scope @{ relationshipType = 'Contains' } -Records $relRecords
         } else {
@@ -1188,6 +1142,25 @@ function Sync-EntraGovernanceResourceScopes {
     $__scopeErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/ResourceScopes:') } | Select-Object -Last 1
     $__scopeErrMsg = if ($__scopeErr) { $__scopeErr.Substring('Governance/ResourceScopes:'.Length).Trim() } else { $null }
     Write-Phase -Name 'Governance/ResourceScopes' -Duration $__scopeSW.Elapsed -ErrorMsg $__scopeErrMsg
+}
+
+# One access package's Contains relationships (AP → resource-role scope). Tight
+# retry/timeout budget (fires once per ~500 APs); a slow/wedged AP is skipped, not
+# allowed to stall the loop. Returns a list of relationship records.
+function Get-EntraApScopeRelationships {
+    [CmdletBinding()]
+    param($Ap)
+    $rels = [System.Collections.Generic.List[object]]::new()
+    try {
+        $apDetail = Invoke-FGGetRequest -MaxRetries 1 -TimeoutSec 30 -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages/$($Ap.id)?`$expand=accessPackageResourceRoleScopes(`$expand=accessPackageResourceRole,accessPackageResourceScope)"
+        foreach ($rrs in @($apDetail.accessPackageResourceRoleScopes)) {
+            $rel = ConvertTo-EntraAccessPackageScopeRelationship -RoleScope $rrs -AccessPackageId $Ap.id
+            if ($rel) { $rels.Add($rel) }
+        }
+    } catch {
+        Write-Host "  Skipping AP $($Ap.displayName): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    return $rels
 }
 
 # ─── Governance sub-phase: access-package assignments ─────────────
@@ -1279,27 +1252,28 @@ function Get-EntraAccessReviewCertRecords {
     try {
         $instances = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances?`$top=100")
         foreach ($inst in $instances) {
-            try {
-                # Graph caps this collection at 100 per page and rejects larger
-                # $top with 400 — rely on @odata.nextLink paging instead.
-                $decisions = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances/$($inst.id)/decisions")
-                foreach ($d in $decisions) {
-                    $out.Add((ConvertTo-EntraCertificationDecisionRecord -Decision $d -Definition $Definition -Instance $inst -ApId $ApId))
-                }
-            } catch {
-                # PS7 drains the response stream before the exception bubbles —
-                # the actual Graph error JSON is in ErrorDetails.Message.
-                $body = $null
-                if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
-                    $body = $_.ErrorDetails.Message
-                    if ($body.Length -gt 300) { $body = $body.Substring(0, 300) + '...' }
-                }
-                $detail = if ($body) { "$($_.Exception.Message) | $body" } else { $_.Exception.Message }
-                Write-Host "    Skipping instance $($inst.id): $detail" -ForegroundColor Yellow
-            }
+            $out.AddRange([object[]]@(Get-EntraReviewInstanceDecisions -Definition $Definition -Instance $inst -ApId $ApId))
         }
     } catch {
         Write-Host "  Skipping review definition $($Definition.id): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    return $out
+}
+
+# All CertificationDecisions records for one access-review instance. Graph caps the
+# decisions collection at 100/page (larger $top 400s — rely on @odata.nextLink). A
+# per-instance failure is logged (with the real Graph error body) and skipped.
+function Get-EntraReviewInstanceDecisions {
+    [CmdletBinding()]
+    param($Definition, $Instance, [string]$ApId)
+    $out = [System.Collections.Generic.List[object]]::new()
+    try {
+        $decisions = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances/$($Instance.id)/decisions")
+        foreach ($d in $decisions) {
+            $out.Add((ConvertTo-EntraCertificationDecisionRecord -Decision $d -Definition $Definition -Instance $Instance -ApId $ApId))
+        }
+    } catch {
+        Write-Host "    Skipping instance $($Instance.id): $(Get-FGGraphErrorDetail $_)" -ForegroundColor Yellow
     }
     return $out
 }
@@ -1321,38 +1295,20 @@ function Sync-EntraGovernanceReviews {
         $reviewDefs = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions?`$top=100"
         Write-Host "  Found $($reviewDefs.Count) review definitions; filtering to access-package scoped..." -ForegroundColor Gray
         $certRecords = @()
-        $skippedNoScope   = 0
-        $skippedNoApMatch = 0
-        $sampleLogged     = 0
-        $defIndex         = 0
-        $defTotal         = $reviewDefs.Count
+        $st = @{ noScope = 0; noApMatch = 0; sampleLogged = 0 }
+        $defIndex = 0
+        $defTotal = $reviewDefs.Count
         foreach ($def in $reviewDefs) {
             $defIndex++
-            # Keep the UI's step/detail line fresh — this phase can walk hundreds
-            # of definitions x many instances and previously looked frozen.
+            # Keep the UI's step/detail line fresh — this phase can walk hundreds of
+            # definitions x many instances and previously looked frozen.
             if (($defIndex % 25) -eq 1) {
                 Update-CrawlerProgress -Detail "Access reviews: $defIndex of $defTotal definitions..."
             }
-            $resolved = Resolve-EntraAccessReviewApId -Definition $def
-            if (-not $resolved.apId) {
-                if ($resolved.reason -eq 'noscope') {
-                    $skippedNoScope++
-                    if ($sampleLogged -lt 2) {
-                        Write-Host "    (sample skip, no scope/resourceScope.query on def $($def.id): $($def | ConvertTo-Json -Depth 3 -Compress))" -ForegroundColor DarkGray
-                        $sampleLogged++
-                    }
-                } else {
-                    $skippedNoApMatch++
-                    if ($sampleLogged -lt 2) {
-                        Write-Host "    (sample skip, no AP id in queries: $($resolved.queryStrings -join ' | '))" -ForegroundColor DarkGray
-                        $sampleLogged++
-                    }
-                }
-                continue
-            }
-            $certRecords += Get-EntraAccessReviewCertRecords -Definition $def -ApId $resolved.apId
+            $apId = Get-EntraReviewDefApId -Def $def -State $st
+            if ($apId) { $certRecords += Get-EntraAccessReviewCertRecords -Definition $def -ApId $apId }
         }
-        Write-Host "  Review definitions: $($reviewDefs.Count) total; skipped $skippedNoScope (no scope) + $skippedNoApMatch (no access-package id) = $($skippedNoScope + $skippedNoApMatch) skipped; kept $($reviewDefs.Count - $skippedNoScope - $skippedNoApMatch)" -ForegroundColor Gray
+        Write-Host "  Review definitions: $($reviewDefs.Count) total; skipped $($st.noScope) (no scope) + $($st.noApMatch) (no access-package id) = $($st.noScope + $st.noApMatch) skipped; kept $($reviewDefs.Count - $st.noScope - $st.noApMatch)" -ForegroundColor Gray
         if ($certRecords.Count -gt 0) {
             Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $SystemId -SyncMode 'full' -Records $certRecords
         } else {
@@ -1368,6 +1324,30 @@ function Sync-EntraGovernanceReviews {
     $__arvErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/AccessReviews:') } | Select-Object -Last 1
     $__arvErrMsg = if ($__arvErr) { $__arvErr.Substring('Governance/AccessReviews:'.Length).Trim() } else { $null }
     Write-Phase -Name 'Governance/AccessReviews' -Duration $__arvSW.Elapsed -ErrorMsg $__arvErrMsg
+}
+
+# Resolve one review definition's access-package id, or $null if it isn't AP-scoped.
+# Bumps the skip counters in $State (@{ noScope; noApMatch; sampleLogged }) and logs
+# up to 2 sample skips so a tenant that keeps skipping everything is diagnosable.
+function Get-EntraReviewDefApId {
+    [CmdletBinding()]
+    param($Def, [hashtable]$State)
+    $resolved = Resolve-EntraAccessReviewApId -Definition $Def
+    if ($resolved.apId) { return $resolved.apId }
+    if ($resolved.reason -eq 'noscope') {
+        $State.noScope++
+        if ($State.sampleLogged -lt 2) {
+            Write-Host "    (sample skip, no scope/resourceScope.query on def $($Def.id): $($Def | ConvertTo-Json -Depth 3 -Compress))" -ForegroundColor DarkGray
+            $State.sampleLogged++
+        }
+    } else {
+        $State.noApMatch++
+        if ($State.sampleLogged -lt 2) {
+            Write-Host "    (sample skip, no AP id in queries: $($resolved.queryStrings -join ' | '))" -ForegroundColor DarkGray
+            $State.sampleLogged++
+        }
+    }
+    return $null
 }
 
 # ─── Sync Governance ─────────────────────────────────────────────
@@ -1666,54 +1646,52 @@ function Resolve-EntraSyncConfig {
     # selectedObjects.<key> -> toggle
     $objects = $RawConfig['selectedObjects']
     if ($objects) {
-        $objMap = [ordered]@{
-            identity           = 'SyncPrincipals'
-            servicePrincipals  = 'SyncServicePrincipals'
-            identityGovernance = 'SyncGovernance'
-            pim                = 'SyncPim'
-            signInLogs         = 'SyncSignInLogs'
-            oauth2Grants       = 'SyncOAuth2Grants'
-            appsAppRoles       = 'SyncAppRoles'
-            directoryRoles     = 'SyncDirectoryRoles'
-        }
-        foreach ($k in $objMap.Keys) {
-            if ($objects.ContainsKey($k)) { $cfg[$objMap[$k]] = [bool]$objects[$k] }
-        }
-        # usersGroupsMembers drives three toggles at once (applied after
-        # `identity` so it wins on SyncPrincipals, as in the original).
+        Set-EntraTogglesFrom -Cfg $cfg -Source $objects -Map ([ordered]@{
+            identity = 'SyncPrincipals'; servicePrincipals = 'SyncServicePrincipals'
+            identityGovernance = 'SyncGovernance'; pim = 'SyncPim'; signInLogs = 'SyncSignInLogs'
+            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; directoryRoles = 'SyncDirectoryRoles'
+        })
+        # usersGroupsMembers drives three toggles at once (applied after `identity` so it wins on SyncPrincipals).
         if ($objects.ContainsKey('usersGroupsMembers')) {
             $v = [bool]$objects['usersGroupsMembers']
-            $cfg.SyncPrincipals = $v
-            $cfg.SyncResources = $v
-            $cfg.SyncAssignments = $v
+            $cfg.SyncPrincipals = $v; $cfg.SyncResources = $v; $cfg.SyncAssignments = $v
         }
     }
 
-    # Direct config toggles (backward compat with older job configs)
-    $boolMap = [ordered]@{
-        syncPrincipals        = 'SyncPrincipals'
-        syncServicePrincipals = 'SyncServicePrincipals'
-        syncResources         = 'SyncResources'
-        syncAssignments       = 'SyncAssignments'
-        syncGovernance        = 'SyncGovernance'
-        syncSignInLogs        = 'SyncSignInLogs'
-        syncOAuth2Grants      = 'SyncOAuth2Grants'
-        syncAppRoles          = 'SyncAppRoles'
-        syncDirectoryRoles    = 'SyncDirectoryRoles'
-    }
-    foreach ($k in $boolMap.Keys) {
-        if ($RawConfig.ContainsKey($k)) { $cfg[$boolMap[$k]] = [bool]$RawConfig[$k] }
-    }
-    if ($RawConfig.ContainsKey('signInLogsDays')) { $cfg.SignInLogsDays = [int]$RawConfig['signInLogsDays'] }
-
-    if ($RawConfig['customUserAttributes'])  { $cfg.CustomUserAttributes  = @($RawConfig['customUserAttributes']) }
-    if ($RawConfig['identityAttributes'])    { $cfg.CustomUserAttributes += @($RawConfig['identityAttributes']); $cfg.CustomUserAttributes = $cfg.CustomUserAttributes | Select-Object -Unique }
-    if ($RawConfig['customGroupAttributes']) { $cfg.CustomGroupAttributes = @($RawConfig['customGroupAttributes']) }
-    if ($RawConfig['aiNamePatterns'])        { $cfg.AINamePatterns        = @($RawConfig['aiNamePatterns']) }
-    if ($RawConfig['identityFilter'] -and $RawConfig['identityFilter']['attribute']) {
-        $cfg.IdentityFilter = $RawConfig['identityFilter']
-    }
+    # Direct config toggles (backward compat with older job configs).
+    Set-EntraTogglesFrom -Cfg $cfg -Source $RawConfig -Map ([ordered]@{
+        syncPrincipals = 'SyncPrincipals'; syncServicePrincipals = 'SyncServicePrincipals'
+        syncResources = 'SyncResources'; syncAssignments = 'SyncAssignments'; syncGovernance = 'SyncGovernance'
+        syncSignInLogs = 'SyncSignInLogs'; syncOAuth2Grants = 'SyncOAuth2Grants'
+        syncAppRoles = 'SyncAppRoles'; syncDirectoryRoles = 'SyncDirectoryRoles'
+    })
+    Set-EntraConfigExtras -Cfg $cfg -RawConfig $RawConfig
     return $cfg
+}
+
+# Apply a { sourceKey -> Cfg key } boolean toggle map from $Source (selectedObjects or
+# the raw config) onto $Cfg. Only keys actually present in $Source override the default.
+function Set-EntraTogglesFrom {
+    [CmdletBinding()]
+    param([hashtable]$Cfg, $Source, $Map)
+    foreach ($k in $Map.Keys) {
+        if ($Source.ContainsKey($k)) { $Cfg[$Map[$k]] = [bool]$Source[$k] }
+    }
+}
+
+# Apply the non-boolean config extras (day windows, attribute lists, identity filter)
+# onto $Cfg. identityAttributes are merged into CustomUserAttributes (deduped).
+function Set-EntraConfigExtras {
+    [CmdletBinding()]
+    param([hashtable]$Cfg, [hashtable]$RawConfig)
+    if ($RawConfig.ContainsKey('signInLogsDays')) { $Cfg.SignInLogsDays = [int]$RawConfig['signInLogsDays'] }
+    if ($RawConfig['customUserAttributes'])  { $Cfg.CustomUserAttributes  = @($RawConfig['customUserAttributes']) }
+    if ($RawConfig['identityAttributes'])    { $Cfg.CustomUserAttributes += @($RawConfig['identityAttributes']); $Cfg.CustomUserAttributes = $Cfg.CustomUserAttributes | Select-Object -Unique }
+    if ($RawConfig['customGroupAttributes']) { $Cfg.CustomGroupAttributes = @($RawConfig['customGroupAttributes']) }
+    if ($RawConfig['aiNamePatterns'])        { $Cfg.AINamePatterns        = @($RawConfig['aiNamePatterns']) }
+    if ($RawConfig['identityFilter'] -and $RawConfig['identityFilter']['attribute']) {
+        $Cfg.IdentityFilter = $RawConfig['identityFilter']
+    }
 }
 
 # ─── Run initialization ──────────────────────────────────────────
