@@ -478,7 +478,10 @@ Describe 'midPoint file structure' {
         (Get-Content $p -Raw) | Should -Match 'Connect-MidpointAPI'
     }
     It 'shadow search uses options=raw' {
-        (Get-Content (Join-Path $script:midpointDir 'Start-MidpointCrawler.ps1') -Raw) | Should -Match "Options 'raw'"
+        # The shadow streaming moved into the Sync-Midpoint* phases
+        # (MidpointCrawler.Phases.ps1); read it too so the assertion tracks the code.
+        ((Get-Content (Join-Path $script:midpointDir 'Start-MidpointCrawler.ps1') -Raw) +
+         (Get-Content (Join-Path $script:midpointDir 'MidpointCrawler.Phases.ps1') -Raw)) | Should -Match "Options 'raw'"
     }
     It 'dev/ folder contains load seeder and README' {
         Join-Path $script:midpointDir 'dev' 'Seed-MidpointLoadData.ps1' | Should -Exist

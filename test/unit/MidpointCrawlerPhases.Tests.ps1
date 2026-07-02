@@ -31,6 +31,10 @@ BeforeAll {
     $script:ApiBaseUrl = 'https://example.test/api'
     $script:JobId      = 0   # Update-CrawlerProgress no-ops when JobId <= 0
 
+    # Get-MidpointShadowLabel (MidpointCrawler.Functions.ps1) reads cross-phase
+    # script state; stub it so the account-shadow transform stays hermetic.
+    function Get-MidpointShadowLabel { param($Shadow, $ShadowOid, $ResourceOid) "label:$ShadowOid" }
+
     function Reset-PhaseTestState {
         $script:phaseErrors = [System.Collections.Generic.List[string]]::new()
         $script:fetchStats  = [ordered]@{}
@@ -206,5 +210,92 @@ Describe 'Sync-MidpointUsers' {
         Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'users' } -MockWith { throw 'users 500' }
         Sync-MidpointUsers -MidpointSystemId 10 -OrgOidToName @{} -IdentityTypeMapping (ConvertTo-MapRows $null @('userType','principalType'))
         $script:phaseErrors[0] | Should -BeLike 'Users:*'
+    }
+}
+
+# ─── Get-MidpointShadowEntitlementOids (pure) ───────────────────────────────────
+Describe 'Get-MidpointShadowEntitlementOids' {
+    It 'collects entitlement OIDs from both association[] and referenceAttributes' {
+        $shadow = [pscustomobject]@{
+            association = @([pscustomobject]@{ shadowRef = @{ oid = 'ent-a' } })
+            referenceAttributes = [pscustomobject]@{ group = @([pscustomobject]@{ oid = 'ent-b' }) }
+        }
+        $oids = Get-MidpointShadowEntitlementOids -Shadow $shadow
+        @($oids) | Should -Contain 'ent-a'
+        @($oids) | Should -Contain 'ent-b'
+    }
+    It 'returns empty for a shadow with no entitlement refs' {
+        @(Get-MidpointShadowEntitlementOids -Shadow ([pscustomobject]@{})).Count | Should -Be 0
+    }
+}
+
+# ─── Add-MidpointShadowPage (pass A, pure-ish) ──────────────────────────────────
+Describe 'Add-MidpointShadowPage' {
+    It 'buckets accounts/entitlements, indexes by DN, and skips un-synced/generic' {
+        $resSys   = @{ 'res-1' = 11 }
+        $ownerMap = @{ 'acc-sh' = 'u-1' }
+        $acct = @{}; $ent = @{}; $members = [System.Collections.Generic.List[object]]::new()
+        $skipped = @{ generic = 0; other = 0 }
+        $syncedRes = [System.Collections.Generic.HashSet[string]]::new()
+        $byDn = @{}
+        $page = @(
+            [pscustomobject]@{ kind = 'account'; oid = 'acc-sh'; resourceRef = @{ oid = 'res-1' }; name = 'CN=alice' }
+            [pscustomobject]@{ kind = 'entitlement'; oid = 'ent-sh'; resourceRef = @{ oid = 'res-1' }; name = 'CN=Admins' }
+            [pscustomobject]@{ kind = 'generic'; oid = 'gen'; resourceRef = @{ oid = 'res-1' } }
+            [pscustomobject]@{ kind = 'account'; oid = 'x'; resourceRef = @{ oid = 'res-unsynced' } }
+        )
+        Add-MidpointShadowPage -Page $page -ResourceSystemId $resSys -ShadowOidToUserOid $ownerMap `
+            -AcctBySystem $acct -EntBySystem $ent -ShadowMembers $members -Skipped $skipped `
+            -SyncedResourceIds $syncedRes -EntitlementByDn $byDn
+
+        $acct[11].Count | Should -Be 1              # only the synced account
+        $ent[11].Count | Should -Be 1
+        $members.Count | Should -Be 1               # acc-sh owner is known
+        $syncedRes.Contains('ent-sh') | Should -BeTrue
+        $skipped.generic | Should -Be 1
+        ($byDn.Values) | Should -Contain 'ent-sh'
+    }
+}
+
+# ─── Sync-MidpointShadows (integration) ─────────────────────────────────────────
+Describe 'Sync-MidpointShadows' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Send-IngestBatch -MockWith $script:SendMock
+        # Stream helpers (pass B) — stub so no real ingest is attempted.
+        Mock New-IngestStream -MockWith { [pscustomobject]@{ Records = 0; Inserted = 0; Updated = 0; Deleted = 0 } }
+        Mock Add-IngestStreamRecord -MockWith { }
+        Mock Complete-IngestStream -MockWith { }
+    }
+
+    It 'runs both passes: ingests entitlements/accounts/members and returns the DN index' {
+        Mock Invoke-MidpointSearchStream -MockWith {
+            if ($OnPage) {
+                & $OnPage @(
+                    [pscustomobject]@{ kind = 'entitlement'; oid = 'ent-sh'; resourceRef = @{ oid = 'res-1' }; name = 'CN=Admins' }
+                    [pscustomobject]@{ kind = 'account'; oid = 'acc-sh'; resourceRef = @{ oid = 'res-1' }; name = 'CN=alice'
+                                       association = @([pscustomobject]@{ shadowRef = @{ oid = 'ent-sh' } }) }
+                )
+            }
+            return 2
+        }
+        $syncedRes = [System.Collections.Generic.HashSet[string]]::new()
+        $r = Sync-MidpointShadows -MidpointSystemId 10 -ResourceSystemId @{ 'res-1' = 11 } `
+            -ShadowOidToUserOid @{ 'acc-sh' = 'u-1' } -SyncedResourceIds $syncedRes
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/resources' -and $_.Scope.resourceType -eq 'Entitlement' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Endpoint -eq 'ingest/principals' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Endpoint -eq 'ingest/identity-members' }).Count | Should -BeGreaterThan 0
+        ($r.entitlementByDn.Values) | Should -Contain 'ent-sh'
+        # Pass B emitted an entitlement assignment via the stream.
+        Should -Invoke Add-IngestStreamRecord -Times 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase error when the shadow stream throws' {
+        Mock Invoke-MidpointSearchStream -MockWith { throw 'shadows 500' }
+        Sync-MidpointShadows -MidpointSystemId 10 -ResourceSystemId @{} -ShadowOidToUserOid @{} `
+            -SyncedResourceIds ([System.Collections.Generic.HashSet[string]]::new())
+        $script:phaseErrors[0] | Should -BeLike 'Shadows:*'
     }
 }

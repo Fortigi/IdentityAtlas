@@ -327,3 +327,169 @@ function Sync-MidpointUsers {
 
     return @{ allUsers = $AllUsers; userOidToName = $UserOidToName; shadowOidToUserOid = $ShadowOidToUserOid }
 }
+
+# Shadows pass A: fold one page of shadows into the account/entitlement/member
+# accumulators. Accounts -> per-system principal records (+ identity-member link
+# when the owning user is known); entitlements -> per-system resource records
+# (indexed by DN in $EntitlementByDn for the Role-nesting phase); generic/other
+# skipped. Mutates the passed accumulators.
+function Add-MidpointShadowPage {
+    [CmdletBinding()]
+    param(
+        $Page, [hashtable]$ResourceSystemId, [hashtable]$ShadowOidToUserOid,
+        [hashtable]$AcctBySystem, [hashtable]$EntBySystem, $ShadowMembers,
+        [hashtable]$Skipped, $SyncedResourceIds, [hashtable]$EntitlementByDn
+    )
+    foreach ($s in $Page) {
+        $resOid = Get-MidpointRefOid $s.resourceRef $null
+        if (-not $resOid -or -not $ResourceSystemId.ContainsKey($resOid)) { continue }   # skip shadows on un-synced resources
+        $sysId     = $ResourceSystemId[$resOid]
+        $shadowOid = [string]$s.oid
+        $kind      = if ($s.kind) { [string]$s.kind } else { '' }
+
+        if ($kind -eq 'account') {
+            if (-not $AcctBySystem.ContainsKey($sysId)) { $AcctBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
+            $AcctBySystem[$sysId].Add((ConvertTo-MidpointAccountShadowRecord -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid -Kind $kind))
+            if ($ShadowOidToUserOid.ContainsKey($shadowOid)) {
+                $ShadowMembers.Add([PSCustomObject]@{ identityId = $ShadowOidToUserOid[$shadowOid]; principalId = $shadowOid; accountType = 'Account'; isPrimary = $false })
+            }
+        }
+        elseif ($kind -eq 'entitlement') {
+            if (-not $EntBySystem.ContainsKey($sysId)) { $EntBySystem[$sysId] = [System.Collections.Generic.List[object]]::new() }
+            $EntBySystem[$sysId].Add((ConvertTo-MidpointEntitlementResourceRecord -Shadow $s -ShadowOid $shadowOid -ResourceOid $resOid))
+            [void]$SyncedResourceIds.Add($shadowOid)
+            # Index by DN so construction/associationTargetSearch inducements resolve later.
+            $dnNameKey = ConvertTo-MidpointDnKey (Get-MidpointString $s.name '')
+            if ($dnNameKey) { $EntitlementByDn[$dnNameKey] = $shadowOid }
+            $riDnKey = ConvertTo-MidpointDnKey ([string](Get-MidpointAttrValue -Shadow $s -Keys @('dn')))
+            if ($riDnKey) { $EntitlementByDn[$riDnKey] = $shadowOid }
+        }
+        else { if ($kind -eq 'generic') { $Skipped.generic++ } else { $Skipped.other++ } }
+    }
+}
+
+# Collect the entitlement shadow OIDs an account shadow points at — both the
+# legacy `association[]` form (shadowRef / identifier) and the midPoint 4.9
+# `referenceAttributes.<name>[]` form. Pure; returns a flat list of OIDs.
+function Get-MidpointShadowEntitlementOids {
+    [CmdletBinding()]
+    param($Shadow)
+    $out = [System.Collections.Generic.List[string]]::new()
+    if ($Shadow.association) {
+        foreach ($assoc in @($Shadow.association)) {
+            $entOid = Get-MidpointRefOid $assoc.shadowRef $null
+            if (-not $entOid) { $entOid = Get-MidpointRefOid $assoc.identifier $null }
+            if ($entOid) { $out.Add($entOid) }
+        }
+    }
+    if ($Shadow.referenceAttributes) {
+        foreach ($refProp in $Shadow.referenceAttributes.PSObject.Properties) {
+            if ($refProp.Name -eq '@ns' -or $null -eq $refProp.Value) { continue }
+            foreach ($ref in @($refProp.Value)) {
+                $o = Get-MidpointRefOid $ref $null
+                if ($o) { $out.Add($o) }
+            }
+        }
+    }
+    return @($out)
+}
+
+# Shadows pass B: fold one page of account shadows into per-system entitlement-
+# assignment streams. Each account -> entitlement ref becomes a Direct assignment
+# on the owner focus principal, deduped on (entitlementOid|ownerOid). Mutates the
+# passed stream map.
+function Add-MidpointEntitlementAssignmentPage {
+    [CmdletBinding()]
+    param($Page, [hashtable]$ResourceSystemId, [hashtable]$ShadowOidToUserOid, [hashtable]$EntAssignStreams, $EntAssignSeen)
+    foreach ($s in $Page) {
+        if ($s.kind -ne 'account') { continue }
+        $resOid = Get-MidpointRefOid $s.resourceRef $null
+        if (-not $resOid -or -not $ResourceSystemId.ContainsKey($resOid)) { continue }
+        $sysId     = $ResourceSystemId[$resOid]
+        $shadowOid = [string]$s.oid
+        $ownerOid  = if ($ShadowOidToUserOid.ContainsKey($shadowOid)) { $ShadowOidToUserOid[$shadowOid] } else { $shadowOid }
+        foreach ($entOid in (Get-MidpointShadowEntitlementOids -Shadow $s)) {
+            if (-not $EntAssignSeen.Add("$entOid|$ownerOid")) { continue }
+            if (-not $EntAssignStreams.ContainsKey($sysId)) {
+                $EntAssignStreams[$sysId] = New-IngestStream -Endpoint 'ingest/resource-assignments' -SystemId $sysId -Scope @{ assignmentType = 'Direct'; resourceType = 'Entitlement' }
+            }
+            Add-IngestStreamRecord -Stream $EntAssignStreams[$sysId] -Record (New-MidpointEntitlementAssignmentRecord -EntitlementOid $entOid -OwnerOid $ownerOid -ViaAccount $shadowOid)
+        }
+    }
+}
+
+# ─── Phase: Shadows → Accounts / Entitlements ────────────────────
+# Two streaming passes (memory bounded regardless of volume):
+#   Pass A — accounts -> Principals, entitlements -> Resources, account links.
+#            Entitlements MUST land before assignments (resource FK).
+#   Pass B — account -> entitlement memberships -> Direct ResourceAssignments,
+#            streamed per system. RETURNS @{ entitlementByDn } for Role nesting.
+# Consumes (and augments) $SyncedResourceIds with the entitlement OIDs.
+function Sync-MidpointShadows {
+    [CmdletBinding()]
+    param(
+        [int]$MidpointSystemId,
+        [hashtable]$ResourceSystemId = @{},
+        [hashtable]$ShadowOidToUserOid = @{},
+        $SyncedResourceIds,
+        [int]$PageSize = 100
+    )
+    Write-Host "`nShadows (accounts + entitlements):" -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing shadows' -Pct 60
+    $EntitlementByDn = @{}
+    try {
+        $acctBySystem  = @{}
+        $entBySystem   = @{}
+        $shadowMembers = [System.Collections.Generic.List[object]]::new()
+        $skipped = @{ generic = 0; other = 0 }
+
+        $swPassA = [System.Diagnostics.Stopwatch]::StartNew()
+        $nPassA = Invoke-MidpointSearchStream -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association' -OnPage {
+            param($page)
+            Add-MidpointShadowPage -Page $page -ResourceSystemId $ResourceSystemId -ShadowOidToUserOid $ShadowOidToUserOid `
+                -AcctBySystem $acctBySystem -EntBySystem $entBySystem -ShadowMembers $shadowMembers -Skipped $skipped `
+                -SyncedResourceIds $SyncedResourceIds -EntitlementByDn $EntitlementByDn
+        }
+        $swPassA.Stop(); $Script:fetchStats['shadows (pass A)'] = @{ seconds = $swPassA.Elapsed.TotalSeconds; count = $nPassA }
+
+        # Entitlements first (assignments in pass B satisfy the resource FK), then accounts, then members.
+        $totalEnt = 0
+        foreach ($sysId in $entBySystem.Keys) {
+            $recs = @($entBySystem[$sysId]); $totalEnt += $recs.Count
+            $R = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $sysId -Scope @{ resourceType = 'Entitlement' } -Records $recs
+            Write-Host "  Entitlements (resources, system $sysId): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+        }
+        $totalAcct = 0
+        foreach ($sysId in $acctBySystem.Keys) {
+            $recs = @($acctBySystem[$sysId]); $totalAcct += $recs.Count
+            $R = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $sysId -Scope @{ principalType = 'User' } -Records $recs
+            Write-Host "  Accounts (principals, system $sysId): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+        }
+        if ($shadowMembers.Count -gt 0) {
+            $R = Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $MidpointSystemId -Records @($shadowMembers)
+            Write-Host "  IdentityMembers (account links): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+        }
+
+        # PASS B — person -> entitlement assignments, streamed per system.
+        $entAssignStreams = @{}
+        $entAssignSeen    = [System.Collections.Generic.HashSet[string]]::new()
+        $swPassB = [System.Diagnostics.Stopwatch]::StartNew()
+        $nPassB = Invoke-MidpointSearchStream -Type 'shadows' -PageSize $PageSize -Options 'raw' -Include 'association' -OnPage {
+            param($page)
+            Add-MidpointEntitlementAssignmentPage -Page $page -ResourceSystemId $ResourceSystemId `
+                -ShadowOidToUserOid $ShadowOidToUserOid -EntAssignStreams $entAssignStreams -EntAssignSeen $entAssignSeen
+        }
+        $swPassB.Stop(); $Script:fetchStats['shadows (pass B)'] = @{ seconds = $swPassB.Elapsed.TotalSeconds; count = $nPassB }
+
+        $totalEntAssign = 0
+        foreach ($sysId in $entAssignStreams.Keys) {
+            $st = $entAssignStreams[$sysId]
+            Complete-IngestStream -Stream $st
+            $totalEntAssign += $st.Records
+            Write-Host "  Entitlement assignments (system $sysId): +$($st.Inserted) ~$($st.Updated) -$($st.Deleted) (streamed $($st.Records))" -ForegroundColor Green
+        }
+        Write-Host "  Accounts: $totalAcct | Entitlements: $totalEnt | Entitlement-memberships: $totalEntAssign | skipped generic/other: $($skipped.generic)/$($skipped.other)" -ForegroundColor Gray
+    } catch { Add-PhaseError 'Shadows' $_.Exception.Message }
+
+    return @{ entitlementByDn = $EntitlementByDn }
+}
