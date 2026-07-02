@@ -9,6 +9,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:contract": "vitest run --config vitest.contract.config.js",
+    "test:mutation": "stryker run",
+    "test:mutation:incremental": "stryker run --incremental",
     "test:watch": "vitest",
     "lint": "eslint src/",
     "postinstall": "patch-package || true",
@@ -17,6 +19,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
     "@testcontainers/postgresql": "^12.0.4",
     "@vitest/coverage-v8": "^4.1.9",
     "esbuild": "^0.28.0",

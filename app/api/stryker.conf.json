@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the API. Runs the FAST unit vitest suite (vitest.config.js) — NOT the Postgres contract suite — so a mutant only re-runs the handful of unit tests that cover it (coverageAnalysis: perTest). Scope grows via the `mutate` list: only pure/DB-free modules whose logic is covered by src/**/*.test.js belong here; route/SQL modules are exercised by the contract suite and are out of scope. See MUTATION-TESTING.md.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.mutation.config.js" },
+  "coverageAnalysis": "perTest",
+  "reporters": ["html", "clear-text", "progress", "json"],
+  "htmlReporter": { "fileName": "reports/mutation/mutation.html" },
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "mutate": [
+    "src/ingest/validation.js"
+  ],
+  "thresholds": { "high": 85, "low": 70, "break": null },
+  "concurrency": 4,
+  "timeoutMS": 20000,
+  "tempDirName": ".stryker-tmp"
+}
