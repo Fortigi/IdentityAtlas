@@ -283,3 +283,56 @@ function Sync-CsvCertifications {
     Send-GroupedBySystem -Endpoint 'ingest/governance/certifications' -Records $records -BatchSize 3000
     $records = $null; [System.GC]::Collect()
 }
+
+# ─── Setup: resolve the job config into crawler settings ─────────
+function Resolve-CsvConfig {
+    [CmdletBinding()]
+    param([string]$ConfigPath)
+    $raw = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
+    return @{
+        csvFolder  = if ($raw['csvFolder'])  { $raw['csvFolder'] }  else { '/data/csv' }
+        systemName = if ($raw['systemName']) { $raw['systemName'] } else { 'CSV Import' }
+        systemType = if ($raw['systemType']) { $raw['systemType'] } else { 'CSV' }
+        delimiter  = if ($raw['delimiter'])  { $raw['delimiter'] }  else { ';' }
+    }
+}
+
+# ─── Setup: verify the key + register the fallback system ────────
+# All rows without a SystemName column are scoped to this fallback system.
+# Reads $ApiBaseUrl / $ApiKey / $SystemName / $SystemType from scope; returns its id.
+function Register-CsvFallbackSystem {
+    [CmdletBinding()]
+    param()
+    $headers = @{ 'Authorization' = "Bearer $ApiKey" }
+    $whoami = Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/whoami" -Headers $headers
+    Write-Host "Connected as: $($whoami.displayName)" -ForegroundColor Green
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Registering fallback system ($SystemName)..." -ForegroundColor Cyan
+    $sysResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
+        syncMode = 'delta'; records = @(@{ systemType = $SystemType; displayName = $SystemName; enabled = $true; syncEnabled = $true })
+    }
+    $id = if ($sysResult.systemIds) { [int]$sysResult.systemIds[0] } elseif ($sysResult.systemId) { [int]$sysResult.systemId } else { 2 }
+    Write-Host "  Fallback system: ID $id" -ForegroundColor Gray
+    return $id
+}
+
+# ─── Finalize: classify, refresh, and log the sync ──────────────
+# BusinessRole auto-classification + matrix view refresh (both non-critical) and
+# the sync-log entry. Context generation moved to context-algorithm plugin runs.
+function Complete-CsvRun {
+    [CmdletBinding()]
+    param([datetime]$SyncStart, [bool]$RefreshViews = $true)
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Auto-classifying BusinessRole assignments..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Classifying assignments' -Pct 85
+    try {
+        Invoke-IngestAPI -Endpoint 'ingest/classify-business-role-assignments' -Body @{} | Out-Null
+        Write-Host "  Done" -ForegroundColor Green
+    } catch { Write-Host "  (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }
+    if ($RefreshViews) {
+        Update-CrawlerProgress -Step 'Refreshing views' -Pct 88
+        try { Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null; Write-Host "  Views refreshed" -ForegroundColor Green } catch { }
+    }
+    $elapsed = (Get-Date) - $SyncStart
+    Write-Host "`n=== CSV Sync Complete ===" -ForegroundColor Green
+    Write-Host "Duration: $([Math]::Round($elapsed.TotalSeconds))s" -ForegroundColor Gray
+    try { Invoke-IngestAPI -Endpoint 'ingest/sync-log' -Body @{ syncType = 'CSV-FullCrawl'; startTime = $SyncStart.ToString('o'); endTime = (Get-Date).ToString('o'); status = 'Success' } | Out-Null } catch { }
+}

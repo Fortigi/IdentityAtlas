@@ -49,35 +49,26 @@ Param(
 $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
-$RawConfig  = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
-$CsvFolder  = if ($RawConfig['csvFolder'])  { $RawConfig['csvFolder'] }  else { '/data/csv' }
-$SystemName = if ($RawConfig['systemName']) { $RawConfig['systemName'] } else { 'CSV Import' }
-$SystemType = if ($RawConfig['systemType']) { $RawConfig['systemType'] } else { 'CSV' }
-$Delimiter  = if ($RawConfig['delimiter'])  { $RawConfig['delimiter'] }  else { ';' }
-$RefreshViews = $true
-
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Phases.ps1')
+
+# Resolve the job config into crawler settings the phases + helpers read from scope.
+$CsvCfg     = Resolve-CsvConfig -ConfigPath $ConfigPath
+$CsvFolder  = $CsvCfg.csvFolder
+$SystemName = $CsvCfg.systemName
+$SystemType = $CsvCfg.systemType
+$Delimiter  = $CsvCfg.delimiter
+$RefreshViews = $true
 
 # ─── Main ─────────────────────────────────────────────────────────
 
 Write-Host "`n=== Identity Atlas CSV Crawler ===" -ForegroundColor Cyan
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Folder: $CsvFolder" -ForegroundColor Gray
 
-$headers = @{ 'Authorization' = "Bearer $ApiKey" }
-$whoami = Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/whoami" -Headers $headers
-Write-Host "Connected as: $($whoami.displayName)" -ForegroundColor Green
-
-# ─── Fallback system ─────────────────────────────────────────────
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Registering fallback system ($SystemName)..." -ForegroundColor Cyan
-$sysResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
-    syncMode = 'delta'; records = @(@{ systemType = $SystemType; displayName = $SystemName; enabled = $true; syncEnabled = $true })
-}
-$fallbackSystemId = if ($sysResult.systemIds) { [int]$sysResult.systemIds[0] } elseif ($sysResult.systemId) { [int]$sysResult.systemId } else { 2 }
-Write-Host "  Fallback system: ID $fallbackSystemId" -ForegroundColor Gray
-
+# Verify the API key and register the fallback system; seed the SystemName → id map.
+$fallbackSystemId = Register-CsvFallbackSystem
 $systemLookup = @{ $SystemName = $fallbackSystemId }
 $syncStart = Get-Date
 Update-CrawlerProgress -Step 'Reading CSV files' -Pct 5
@@ -102,27 +93,5 @@ Sync-CsvIdentities
 Sync-CsvIdentityMembers
 Sync-CsvCertifications
 
-# ─── Post-import: auto-classify BusinessRole assignments ─────────
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Auto-classifying BusinessRole assignments..." -ForegroundColor Cyan
-Update-CrawlerProgress -Step 'Classifying assignments' -Pct 85
-try {
-    Invoke-IngestAPI -Endpoint 'ingest/classify-business-role-assignments' -Body @{} | Out-Null
-    Write-Host "  Done" -ForegroundColor Green
-} catch { Write-Host "  (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow }
-
-# ─── Refresh views ──────────────────────────────────────────────
-# v6: /ingest/refresh-contexts is gone. Context generation (from Principals'
-# department column, manager hierarchy, AD DNs, etc.) moved out of the crawler
-# into context-algorithm plugin runs. An operator triggers those from the
-# Contexts tab after the sync completes, or schedules them separately.
-if ($RefreshViews) {
-    Update-CrawlerProgress -Step 'Refreshing views' -Pct 88
-    try { Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null; Write-Host "  Views refreshed" -ForegroundColor Green } catch { }
-}
-
-# ─── Summary ─────────────────────────────────────────────────────
-$elapsed = (Get-Date) - $syncStart
-Write-Host "`n=== CSV Sync Complete ===" -ForegroundColor Green
-Write-Host "Duration: $([Math]::Round($elapsed.TotalSeconds))s" -ForegroundColor Gray
-
-try { Invoke-IngestAPI -Endpoint 'ingest/sync-log' -Body @{ syncType = 'CSV-FullCrawl'; startTime = $syncStart.ToString('o'); endTime = (Get-Date).ToString('o'); status = 'Success' } | Out-Null } catch { }
+# ─── Post-import: classify, refresh views, log the sync ──────────
+Complete-CsvRun -SyncStart $syncStart -RefreshViews $RefreshViews

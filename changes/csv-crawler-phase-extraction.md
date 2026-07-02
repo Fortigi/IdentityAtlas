@@ -2,3 +2,4 @@
 - Internal: extracted the CSV crawler's Resources and ResourceRelationships sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
 - Internal: extracted the CSV crawler's Users (principals) and Assignments sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
 - Internal: extracted the CSV crawler's Identities, IdentityMembers, and Certifications sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's config resolution, fallback-system registration, and post-import classify/refresh/log steps into unit-tested functions, reducing the entry point to pure orchestration below the complexity ceiling (no functional change).

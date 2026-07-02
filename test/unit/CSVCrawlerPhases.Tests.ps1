@@ -354,3 +354,81 @@ Describe 'Sync-CsvCertifications' {
         $sent[0].Records[0].decision | Should -Be 'Approve'
     }
 }
+
+Describe 'Resolve-CsvConfig' {
+    It 'applies defaults when the config is empty' {
+        $p = Join-Path $TestDrive 'cfg-empty.json'
+        '{}' | Set-Content -Path $p
+        $c = Resolve-CsvConfig -ConfigPath $p
+        $c.csvFolder  | Should -Be '/data/csv'
+        $c.systemName | Should -Be 'CSV Import'
+        $c.systemType | Should -Be 'CSV'
+        $c.delimiter  | Should -Be ';'
+    }
+
+    It 'reads overrides from the config file' {
+        $p = Join-Path $TestDrive 'cfg-full.json'
+        '{ "csvFolder": "/mnt/x", "systemName": "Omada Export", "systemType": "Omada", "delimiter": "," }' | Set-Content -Path $p
+        $c = Resolve-CsvConfig -ConfigPath $p
+        $c.csvFolder  | Should -Be '/mnt/x'
+        $c.systemName | Should -Be 'Omada Export'
+        $c.systemType | Should -Be 'Omada'
+        $c.delimiter  | Should -Be ','
+    }
+}
+
+Describe 'Register-CsvFallbackSystem' {
+    BeforeEach {
+        $script:ApiBaseUrl = 'https://x/api'
+        $script:ApiKey     = 'fgc_test'
+        $script:SystemName = 'CSV Import'
+        $script:SystemType = 'CSV'
+        Mock Invoke-RestMethod { @{ displayName = 'CSV Worker' } }
+    }
+
+    It 'verifies the key via whoami and returns the id from systemIds' {
+        Mock Invoke-IngestAPI { @{ systemIds = @(42) } }
+        Register-CsvFallbackSystem | Should -Be 42
+        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/crawlers/whoami' }
+    }
+
+    It 'falls back to a single systemId field' {
+        Mock Invoke-IngestAPI { @{ systemId = 7 } }
+        Register-CsvFallbackSystem | Should -Be 7
+    }
+
+    It 'defaults to id 2 when the API returns neither' {
+        Mock Invoke-IngestAPI { @{} }
+        Register-CsvFallbackSystem | Should -Be 2
+    }
+}
+
+Describe 'Complete-CsvRun' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        $script:calls = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-IngestAPI { $script:calls.Add($Endpoint); @{} }
+    }
+
+    It 'classifies, refreshes views, and writes a sync-log entry' {
+        Complete-CsvRun -SyncStart (Get-Date) -RefreshViews $true
+        $script:calls | Should -Contain 'ingest/classify-business-role-assignments'
+        $script:calls | Should -Contain 'ingest/refresh-views'
+        $script:calls | Should -Contain 'ingest/sync-log'
+    }
+
+    It 'skips the view refresh when -RefreshViews is $false' {
+        Complete-CsvRun -SyncStart (Get-Date) -RefreshViews $false
+        $script:calls | Should -Not -Contain 'ingest/refresh-views'
+        $script:calls | Should -Contain 'ingest/sync-log'
+    }
+
+    It 'does not throw when classification fails (non-critical)' {
+        Mock Invoke-IngestAPI {
+            if ($Endpoint -eq 'ingest/classify-business-role-assignments') { throw 'boom' }
+            @{}
+        }
+        { Complete-CsvRun -SyncStart (Get-Date) -RefreshViews $false } | Should -Not -Throw
+    }
+}
