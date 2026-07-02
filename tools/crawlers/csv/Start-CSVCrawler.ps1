@@ -89,66 +89,9 @@ Sync-CsvSystems
 Sync-CsvContexts
 Sync-CsvContextMembers
 
-# ─── 3. Resources.csv (required) ─────────────────────────────────
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 3: Resources..." -ForegroundColor Cyan
-Update-CrawlerProgress -Step 'Syncing resources' -Pct 20
-$fast = Read-CsvFast 'Resources.csv'
-if ($fast) {
-    $rows = $fast.rows; $colIdx = $fast.colIdx
-    if (-not $colIdx.ContainsKey('ExternalId') -or -not $colIdx.ContainsKey('DisplayName')) {
-        throw "Resources.csv missing required columns ExternalId / DisplayName"
-    }
-    $idxExt   = $colIdx['ExternalId']
-    $idxDN    = $colIdx['DisplayName']
-    $idxRT    = if ($colIdx.ContainsKey('ResourceType')) { $colIdx['ResourceType'] } else { -1 }
-    $idxDesc  = if ($colIdx.ContainsKey('Description'))  { $colIdx['Description'] }  else { -1 }
-    $idxEn    = if ($colIdx.ContainsKey('Enabled'))      { $colIdx['Enabled'] }      else { -1 }
-    $idxSys   = if ($colIdx.ContainsKey('SystemName'))   { $colIdx['SystemName'] }   else { -1 }
-
-    $records = [System.Collections.Generic.List[object]]::new($rows.Count)
-    for ($i = 0; $i -lt $rows.Count; $i++) {
-        $r = $rows[$i]
-        $ext = $r[$idxExt]; $dn = $r[$idxDN]
-        if (-not $ext -or -not $dn) { continue }
-        $type = if ($idxRT -ge 0) { $r[$idxRT] } else { $null }
-        if ($type -eq 'Business Role') { $type = 'BusinessRole' }
-        $on = $true
-        if ($idxEn -ge 0) { $ev = $r[$idxEn]; if ($ev -in @('false','False','0')) { $on = $false } }
-        $sid = $fallbackSystemId
-        if ($idxSys -ge 0) { $sn = $r[$idxSys]; if ($sn -and $systemLookup.ContainsKey($sn)) { $sid = $systemLookup[$sn] } }
-        [void]$records.Add(@{
-            _systemId = $sid; externalId = $ext; displayName = $dn; resourceType = $type; enabled = $on
-            description = if ($idxDesc -ge 0) { $r[$idxDesc] } else { $null }
-        })
-    }
-    $fast = $null; $rows = $null; [System.GC]::Collect()
-    Write-Host "  Built $($records.Count) resource records" -ForegroundColor Gray
-    Send-GroupedBySystem -Endpoint 'ingest/resources' -Records $records
-    $records = $null; [System.GC]::Collect()
-} else { Write-Host "  WARNING: Resources.csv not found (required)" -ForegroundColor Red }
-
-# ─── 4. ResourceRelationships.csv (optional) ─────────────────────
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 4: Resource relationships..." -ForegroundColor Cyan
-Update-CrawlerProgress -Step 'Syncing relationships' -Pct 32
-$rels = Read-CsvFile 'ResourceRelationships.csv'
-if ($rels) {
-    Assert-Columns 'ResourceRelationships.csv' $rels @('ParentExternalId','ChildExternalId')
-    $cols = $rels[0].PSObject.Properties.Name
-    $hRT = $cols -contains 'RelationshipType'; $hSys = $cols -contains 'SystemName'
-    $records = [System.Collections.Generic.List[object]]::new($rels.Count)
-    foreach ($r in $rels) {
-        if (-not $r.ParentExternalId -or -not $r.ChildExternalId) { continue }
-        $sid = if ($hSys -and $r.SystemName -and $systemLookup.ContainsKey($r.SystemName)) { $systemLookup[$r.SystemName] } else { $fallbackSystemId }
-        [void]$records.Add(@{
-            _systemId = $sid; parentExternalId = $r.ParentExternalId; childExternalId = $r.ChildExternalId
-            relationshipType = if ($hRT -and $r.RelationshipType) { $r.RelationshipType } else { 'Contains' }
-        })
-    }
-    $rels = $null; [System.GC]::Collect()
-    Write-Host "  Built $($records.Count) relationship records" -ForegroundColor Gray
-    Send-GroupedBySystem -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = 'Contains' } -Records $records
-    $records = $null; [System.GC]::Collect()
-}
+# ─── 3. Resources.csv (required) + 4. ResourceRelationships.csv ──
+Sync-CsvResources
+Sync-CsvRelationships
 
 # ─── 5. Users.csv (required) ─────────────────────────────────────
 Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 5: Users..." -ForegroundColor Cyan

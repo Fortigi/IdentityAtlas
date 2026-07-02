@@ -69,3 +69,38 @@ function ConvertTo-CsvContextMemberRecord {
         addedBy           = 'sync'
     }
 }
+
+# ─── Resources.csv (fast path) ───────────────────────────────────
+# $Row is a string[]; $Idx maps the logical columns to their position (or -1 when
+# the column is absent): Ext, DN, RT (ResourceType), Desc, En (Enabled).
+function ConvertTo-CsvResourceRecord {
+    [CmdletBinding()]
+    param([string[]]$Row, [hashtable]$Idx, [int]$SystemId)
+    $ext = $Row[$Idx.Ext]; $dn = $Row[$Idx.DN]
+    if (-not $ext -or -not $dn) { return $null }
+    $type = if ($Idx.RT -ge 0) { $Row[$Idx.RT] } else { $null }
+    if ($type -eq 'Business Role') { $type = 'BusinessRole' }
+    $on = $true
+    if ($Idx.En -ge 0 -and $Row[$Idx.En] -in @('false', 'False', '0')) { $on = $false }
+    return @{
+        _systemId    = $SystemId
+        externalId   = $ext
+        displayName  = $dn
+        resourceType = $type
+        enabled      = $on
+        description  = if ($Idx.Desc -ge 0) { $Row[$Idx.Desc] } else { $null }
+    }
+}
+
+# ─── ResourceRelationships.csv ───────────────────────────────────
+function ConvertTo-CsvRelationshipRecord {
+    [CmdletBinding()]
+    param($Row, [int]$SystemId, [System.Collections.Generic.HashSet[string]]$Cols)
+    if (-not $Row.ParentExternalId -or -not $Row.ChildExternalId) { return $null }
+    return @{
+        _systemId        = $SystemId
+        parentExternalId = $Row.ParentExternalId
+        childExternalId  = $Row.ChildExternalId
+        relationshipType = if ($Cols.Contains('RelationshipType') -and $Row.RelationshipType) { $Row.RelationshipType } else { 'Contains' }
+    }
+}

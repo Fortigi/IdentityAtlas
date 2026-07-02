@@ -139,3 +139,67 @@ Describe 'Sync-CsvContextMembers' {
         $sent[0].Records[0].addedBy | Should -Be 'sync'
     }
 }
+
+Describe 'Sync-CsvResources' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+    }
+
+    It 'warns and returns when Resources.csv is absent' {
+        Remove-Csv 'Resources.csv'
+        Sync-CsvResources
+        @($script:sent).Count | Should -Be 0
+    }
+
+    It 'throws when required columns are missing' {
+        Set-Csv 'Resources.csv' @('ExternalId;Foo', 'r1;x')
+        { Sync-CsvResources } | Should -Throw '*missing required columns*'
+    }
+
+    It 'builds resource records, resolving SystemName and normalising Business Role' {
+        $script:systemLookup = @{ 'Omada' = 9 }
+        Set-Csv 'Resources.csv' @(
+            'ExternalId;DisplayName;ResourceType;SystemName'
+            'r1;HR Role;Business Role;Omada'
+            'r2;Group;EntraGroup;'
+            ';Skip;EntraGroup;'
+        )
+        Sync-CsvResources
+        $sent = Get-Sent 'ingest/resources'
+        $sent.Count | Should -Be 1
+        $sent[0].Records.Count | Should -Be 2
+        ($sent[0].Records | Where-Object { $_.externalId -eq 'r1' }).resourceType | Should -Be 'BusinessRole'
+        ($sent[0].Records | Where-Object { $_.externalId -eq 'r1' })._systemId | Should -Be 9
+        ($sent[0].Records | Where-Object { $_.externalId -eq 'r2' })._systemId | Should -Be 2
+    }
+}
+
+Describe 'Sync-CsvRelationships' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+    }
+
+    It 'does nothing when the file is absent' {
+        Remove-Csv 'ResourceRelationships.csv'
+        Sync-CsvRelationships
+        @($script:sent).Count | Should -Be 0
+    }
+
+    It 'sends Contains-scoped relationships and skips rows missing an endpoint' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId'
+            'p1;c1'
+            'p2;'
+        )
+        Sync-CsvRelationships
+        $sent = Get-Sent 'ingest/resource-relationships'
+        $sent.Count | Should -Be 1
+        $sent[0].Scope.relationshipType | Should -Be 'Contains'
+        $sent[0].Records.Count | Should -Be 1
+        $sent[0].Records[0].relationshipType | Should -Be 'Contains'
+    }
+}

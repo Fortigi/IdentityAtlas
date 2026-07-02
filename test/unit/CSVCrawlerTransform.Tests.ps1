@@ -105,3 +105,60 @@ Describe 'ConvertTo-CsvContextMemberRecord' {
         $rec.addedBy           | Should -Be 'sync'
     }
 }
+
+Describe 'ConvertTo-CsvResourceRecord' {
+    # column layout: ExternalId=0, DisplayName=1, ResourceType=2, Enabled=3, Description=4
+    BeforeAll {
+        $script:fullIdx = @{ Ext = 0; DN = 1; RT = 2; En = 3; Desc = 4 }
+        $script:minIdx  = @{ Ext = 0; DN = 1; RT = -1; En = -1; Desc = -1 }
+    }
+
+    It 'returns $null when ExternalId or DisplayName is blank' {
+        ConvertTo-CsvResourceRecord -Row @('', 'Name', 'EntraGroup', 'true', 'd') -Idx $script:fullIdx -SystemId 2 | Should -BeNullOrEmpty
+        ConvertTo-CsvResourceRecord -Row @('r1', '', 'EntraGroup', 'true', 'd') -Idx $script:fullIdx -SystemId 2 | Should -BeNullOrEmpty
+    }
+
+    It 'defaults resourceType=$null, enabled=$true, description=$null when columns absent' {
+        $rec = ConvertTo-CsvResourceRecord -Row @('r1', 'Group One') -Idx $script:minIdx -SystemId 4
+        $rec._systemId    | Should -Be 4
+        $rec.externalId   | Should -Be 'r1'
+        $rec.displayName  | Should -Be 'Group One'
+        $rec.resourceType | Should -BeNullOrEmpty
+        $rec.enabled      | Should -BeTrue
+        $rec.description  | Should -BeNullOrEmpty
+    }
+
+    It "normalises 'Business Role' to 'BusinessRole'" {
+        $rec = ConvertTo-CsvResourceRecord -Row @('r1', 'HR Role', 'Business Role', 'true', 'desc') -Idx $script:fullIdx -SystemId 2
+        $rec.resourceType | Should -Be 'BusinessRole'
+        $rec.description  | Should -Be 'desc'
+    }
+
+    It 'treats Enabled in {false,False,0} as disabled and everything else as enabled' {
+        (ConvertTo-CsvResourceRecord -Row @('r1', 'N', 'T', 'false', 'd') -Idx $script:fullIdx -SystemId 2).enabled | Should -BeFalse
+        (ConvertTo-CsvResourceRecord -Row @('r1', 'N', 'T', '0', 'd') -Idx $script:fullIdx -SystemId 2).enabled | Should -BeFalse
+        (ConvertTo-CsvResourceRecord -Row @('r1', 'N', 'T', 'true', 'd') -Idx $script:fullIdx -SystemId 2).enabled | Should -BeTrue
+    }
+}
+
+Describe 'ConvertTo-CsvRelationshipRecord' {
+    It 'returns $null when Parent or Child is missing' {
+        $cols = New-ColSet @('ParentExternalId', 'ChildExternalId')
+        ConvertTo-CsvRelationshipRecord -Row ([PSCustomObject]@{ ParentExternalId = ''; ChildExternalId = 'c' }) -SystemId 2 -Cols $cols | Should -BeNullOrEmpty
+    }
+
+    It 'defaults relationshipType to Contains when the column is absent' {
+        $cols = New-ColSet @('ParentExternalId', 'ChildExternalId')
+        $rec = ConvertTo-CsvRelationshipRecord -Row ([PSCustomObject]@{ ParentExternalId = 'p'; ChildExternalId = 'c' }) -SystemId 5 -Cols $cols
+        $rec._systemId        | Should -Be 5
+        $rec.parentExternalId | Should -Be 'p'
+        $rec.childExternalId  | Should -Be 'c'
+        $rec.relationshipType | Should -Be 'Contains'
+    }
+
+    It 'reads an explicit RelationshipType when present' {
+        $cols = New-ColSet @('ParentExternalId', 'ChildExternalId', 'RelationshipType')
+        $row = [PSCustomObject]@{ ParentExternalId = 'p'; ChildExternalId = 'c'; RelationshipType = 'GrantsAccessTo' }
+        (ConvertTo-CsvRelationshipRecord -Row $row -SystemId 2 -Cols $cols).relationshipType | Should -Be 'GrantsAccessTo'
+    }
+}
