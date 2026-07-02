@@ -43,6 +43,11 @@ BeforeAll {
     $script:ApiKey     = 'fgc_testkey'
     $script:ApiBaseUrl = 'https://example.test/api'
     $script:JobId      = 0   # Update-CrawlerProgress no-ops when JobId <= 0
+    $Global:AccessToken = 'test-token'   # PIM passes this as the (Mandatory) -Token
+
+    # Token-refresh helper the PIM phase probes via Get-Command; stub so the
+    # refresh branch runs without the Graph SDK loaded.
+    function Update-FGAccessTokenIfExpired { param([string]$DebugFlag) }
 
     # The Graph SDK function the phases call. Defined as a stub so Pester can Mock
     # it; every test overrides it with -ParameterFilter on the URI.
@@ -446,5 +451,57 @@ Describe 'Sync-EntraAssignments' {
 
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'Assignments:*'
+    }
+}
+
+# ─── Sync-EntraPim ──────────────────────────────────────────────────────────────
+Describe 'Sync-EntraPim' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'uploads deduped Eligible EntraGroup assignments and skips dynamic groups' {
+        # Invoke-FGGroupPimBatchParallel is the parallel-runspace boundary — mock
+        # it to return raw eligibility rows (as the real one emits per group).
+        Mock Invoke-FGGroupPimBatchParallel -MockWith {
+            @(
+                [pscustomobject]@{ resourceId = 'g1'; principalId = 'u1'; principalType = 'User'; assignmentType = 'Eligible'; state = 'Provisioned'; expirationDateTime = $null }
+                # Duplicate (g1,u1) — must collapse.
+                [pscustomobject]@{ resourceId = 'g1'; principalId = 'u1'; principalType = 'User'; assignmentType = 'Eligible'; state = 'Provisioned'; expirationDateTime = $null }
+                [pscustomobject]@{ resourceId = 'g2'; principalId = 'u2'; principalType = 'User'; assignmentType = 'Eligible'; state = 'Provisioned'; expirationDateTime = $null }
+            )
+        }
+        $groups = @(
+            [pscustomobject]@{ id = 'g1'; displayName = 'Group One'; groupTypes = @() }
+            [pscustomobject]@{ id = 'g2'; displayName = 'Group Two'; groupTypes = @() }
+            [pscustomobject]@{ id = 'gDyn'; displayName = 'Dynamic'; groupTypes = @('DynamicMembership') }
+        )
+
+        $timings = [ordered]@{}
+        Sync-EntraPim -SystemId 9 -Groups $groups -Timings $timings
+
+        $sent = Get-Sent { $_.Scope.assignmentType -eq 'Eligible' -and $_.Scope.resourceType -eq 'EntraGroup' }
+        $sent[0].Records.Count | Should -Be 2   # (g1,u1) deduped + (g2,u2)
+        $sent[0].Records[0].resourceType | Should -Be 'EntraGroup'
+        # The dynamic group must be filtered out before the parallel fetch.
+        Should -Invoke Invoke-FGGroupPimBatchParallel -Times 1 -ParameterFilter { @($Batch).id -notcontains 'gDyn' }
+        $timings.Contains('PIM') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'sends nothing when no group has eligibilities' {
+        Mock Invoke-FGGroupPimBatchParallel -MockWith { @() }
+
+        Sync-EntraPim -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1'; groupTypes = @() }) -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Scope.assignmentType -eq 'Eligible' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the parallel fetch throws' {
+        Mock Invoke-FGGroupPimBatchParallel -MockWith { throw 'runspace boom' }
+
+        Sync-EntraPim -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1'; groupTypes = @() }) -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'PIM:*'
     }
 }

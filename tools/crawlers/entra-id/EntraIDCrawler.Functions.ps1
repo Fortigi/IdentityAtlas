@@ -427,6 +427,45 @@ function Get-FGGroupChildrenParallel {
     return @{ records = $allRecords; errorCount = $totalErrors }
 }
 
+# Query PIM group-eligibility schedules for a batch of groups in parallel
+# runspaces, emitting one raw eligibility row per (group, principal). Pulled out
+# of the inline ForEach-Object -Parallel block in the PIM phase so the phase's
+# batching / fold / dedup logic is unit-testable by mocking this (the -Parallel
+# body itself can't be mocked or coverage-instrumented). Per-group errors are
+# normal (most groups aren't PIM-enabled) and silently dropped.
+function Invoke-FGGroupPimBatchParallel {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [array]$Batch,
+        [Parameter(Mandatory)] [string]$Token,
+        [int]$ThrottleLimit = 16
+    )
+
+    $Batch | ForEach-Object -Parallel {
+        $g = $_
+        $token = $using:Token
+        $headers = @{ Authorization = "Bearer $token" }
+        $uri = "https://graph.microsoft.com/beta/identityGovernance/privilegedAccess/group/eligibilitySchedules?`$filter=groupId eq '$($g.id)'"
+        try {
+            $resp = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get -TimeoutSec 30 -ErrorAction Stop
+            if ($resp.value -and $resp.value.Count -gt 0) {
+                foreach ($e in $resp.value) {
+                    [pscustomobject]@{
+                        resourceId         = $e.groupId
+                        principalId        = $e.principalId
+                        principalType      = 'User'
+                        assignmentType     = 'Eligible'
+                        state              = $e.status
+                        expirationDateTime = $e.scheduleInfo.expiration.endDateTime
+                    }
+                }
+            }
+        } catch {
+            # Most groups are not PIM-enabled — silently skip
+        }
+    } -ThrottleLimit $ThrottleLimit
+}
+
 function Write-Phase {
     [CmdletBinding()]
     param(

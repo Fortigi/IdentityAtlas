@@ -689,3 +689,86 @@ function Sync-EntraAssignments {
     $__phaseSW.Stop(); if ($Timings) { $Timings['Assignments'] = $__phaseSW.Elapsed }
     Write-Phase -Name 'Assignments' -Duration $__phaseSW.Elapsed -ErrorMsg $__assignErrMsg
 }
+
+# ─── Sync PIM (Eligible group memberships) ───────────────────────
+# Privileged Identity Management gives users "Eligible" (not active) membership
+# in groups. The Graph endpoint requires a `$filter=groupId eq '<id>'` — there
+# is no supported "list all" variant (an earlier attempt to drop the filter
+# returned 400). On a 9k-group tenant this phase is ~25 min; optimisation is
+# a separate problem (Graph $batch or a different endpoint). For now we
+# accept the duration in exchange for correctness. Consumes the $Groups produced
+# by Sync-EntraResources. The per-batch parallel Graph fetch lives in
+# Invoke-FGGroupPimBatchParallel (EntraIDCrawler.Functions.ps1).
+function Sync-EntraPim {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        [AllowEmptyCollection()] [array]$Groups = @(),
+        $Timings
+    )
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing PIM eligible memberships..." -ForegroundColor Cyan
+    try {
+        # Filter out dynamic groups (cannot be PIM-enabled). Wrap in @() so a
+        # single surviving group stays an array — a bare scalar makes the
+        # $candidateGroups[$i..$end] batch slice below yield an empty range,
+        # which previously skipped PIM entirely on single-candidate-group tenants.
+        $candidateGroups = @($Groups | Where-Object { $_.groupTypes -notcontains 'DynamicMembership' })
+        $pimTotal = $candidateGroups.Count
+        Write-Host "  Checking $pimTotal groups for PIM eligibility..." -ForegroundColor Gray
+        Update-CrawlerProgress -Step 'Syncing PIM eligibilities' -Pct 61 -Detail "0 of $pimTotal groups"
+
+        # Per-group eligibility check. Parallel runspaces (16 in flight) keep
+        # this from being trivially serial. Most groups return zero rows (Graph
+        # returns 4xx for some group types) — per-group errors are normal and
+        # silently dropped.
+        $pimRecordsList = [System.Collections.Generic.List[object]]::new()
+        $pimGroupCount  = 0
+        $pimBatchSize   = 200
+        $pimChecked     = 0
+
+        for ($i = 0; $i -lt $pimTotal; $i += $pimBatchSize) {
+            if (Get-Command Update-FGAccessTokenIfExpired -ErrorAction SilentlyContinue) {
+                Update-FGAccessTokenIfExpired -DebugFlag 'T' | Out-Null
+            }
+            $token = $Global:AccessToken
+            $end = [Math]::Min($i + $pimBatchSize - 1, $pimTotal - 1)
+            $batch = $candidateGroups[$i..$end]
+
+            $batchOutput = Invoke-FGGroupPimBatchParallel -Batch @($batch) -Token $token -ThrottleLimit 16
+
+            # Group output by source group to compute pimGroupCount accurately
+            $groupSet = @{}
+            foreach ($r in $batchOutput) {
+                $pimRecordsList.Add((ConvertTo-EntraPimRecord -EligibilityRow $r))
+                $groupSet[$r.resourceId] = $true
+            }
+            $pimGroupCount += $groupSet.Count
+
+            $pimChecked = [Math]::Min($i + $pimBatchSize, $pimTotal)
+            $subPct = 61 + [int](([double]$pimChecked / $pimTotal) * 4)
+            Update-CrawlerProgress -Pct $subPct -Detail "$pimChecked of $pimTotal groups · $pimGroupCount with eligibilities"
+        }
+
+        $pimRecords = @($pimRecordsList)
+        Write-Host "  Found $pimGroupCount PIM-enabled group(s) with $($pimRecords.Count) eligible memberships" -ForegroundColor Gray
+
+        if ($pimRecords.Count -gt 0) {
+            # Dedup by (resourceId, principalId)
+            $seen = @{}
+            $pimRecords = @($pimRecords | Where-Object {
+                $k = "$($_.resourceId)|$($_.principalId)"
+                if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
+            })
+            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
+                -Scope @{ assignmentType = 'Eligible'; resourceType = 'EntraGroup' } -Records $pimRecords
+        }
+    } catch {
+        Write-Host "  PIM sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("PIM: $($_.Exception.Message)")
+    }
+    $__phaseSW.Stop(); if ($Timings) { $Timings['PIM'] = $__phaseSW.Elapsed }
+    $__pimErr = $script:phaseErrors | Where-Object { $_.StartsWith('PIM:') } | Select-Object -Last 1
+    $__pimErrMsg = if ($__pimErr) { $__pimErr.Substring('PIM:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'PIM' -Duration $__phaseSW.Elapsed -ErrorMsg $__pimErrMsg
+}
