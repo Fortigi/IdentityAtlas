@@ -680,3 +680,153 @@ Describe 'Sync-EntraSignInLogs' {
         $script:phaseErrors[0] | Should -BeLike 'SignInLogs:*'
     }
 }
+
+# ─── Resolve-EntraAccessReviewApId (pure) ───────────────────────────────────────
+Describe 'Resolve-EntraAccessReviewApId' {
+    $uuid = '11111111-1111-1111-1111-111111111111'
+
+    It 'returns noscope when the definition has no query' {
+        $r = Resolve-EntraAccessReviewApId -Definition ([pscustomobject]@{ id = 'rd1' })
+        $r.reason | Should -Be 'noscope'
+        $r.apId | Should -BeNullOrEmpty
+    }
+
+    It 'matches a path-style accessPackages/<uuid> in resourceScope.query' {
+        $def = [pscustomobject]@{ id = 'rd1'; resourceScope = [pscustomobject]@{ query = "/identityGovernance/.../accessPackages/$uuid/resourceRoleScopes" } }
+        (Resolve-EntraAccessReviewApId -Definition $def).apId | Should -Be $uuid
+    }
+
+    It "matches a filter-style accessPackage/id eq '<uuid>' in scope.query" {
+        $def = [pscustomobject]@{ id = 'rd1'; scope = [pscustomobject]@{ query = "accessPackage/id eq '$uuid'" } }
+        (Resolve-EntraAccessReviewApId -Definition $def).apId | Should -Be $uuid
+    }
+
+    It 'returns nomatch when a query exists but carries no access-package id' {
+        $def = [pscustomobject]@{ id = 'rd1'; scope = [pscustomobject]@{ query = '/users' } }
+        $r = Resolve-EntraAccessReviewApId -Definition $def
+        $r.reason | Should -Be 'nomatch'
+        $r.queryStrings | Should -Contain '/users'
+    }
+}
+
+# ─── Governance sub-phases ──────────────────────────────────────────────────────
+Describe 'Governance phases' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'Sync-EntraGovernanceCatalogs uploads catalogs + BusinessRole resources and returns the access packages' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackageCatalogs' } -MockWith {
+            @([pscustomobject]@{ id = 'c1'; displayName = 'Cat'; isPublished = $true })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'entitlementManagement/accessPackages\?' } -MockWith {
+            @([pscustomobject]@{ id = 'ap1'; displayName = 'AP1'; catalogId = 'c1' })
+        }
+
+        $aps = Sync-EntraGovernanceCatalogs -SystemId 2
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/catalogs' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.resourceType -eq 'BusinessRole' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 1
+        # Returns only the access packages, not the ingest results.
+        @($aps).Count | Should -Be 1
+        @($aps).id | Should -Contain 'ap1'
+    }
+
+    It 'Sync-EntraGovernanceResourceScopes uploads deduped Contains relationships' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/ap1' } -MockWith {
+            [pscustomobject]@{ accessPackageResourceRoleScopes = @(
+                [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{ originId = 'grp1' }; accessPackageResourceRole = [pscustomobject]@{ displayName = 'Member'; originSystem = 'AadGroup' } }
+                # Duplicate (ap1 -> grp1) — must collapse.
+                [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{ originId = 'grp1' }; accessPackageResourceRole = [pscustomobject]@{ displayName = 'Owner'; originSystem = 'AadGroup' } }
+            ) }
+        }
+        $aps = @([pscustomobject]@{ id = 'ap1'; displayName = 'AP1' })
+        Sync-EntraGovernanceResourceScopes -SystemId 1 -AccessPackages $aps
+
+        (Get-Sent { $_.Scope.relationshipType -eq 'Contains' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Sync-EntraGovernanceAssignments streams + dedups active AP assignments' {
+        Mock Invoke-FGGetRequestStream -ParameterFilter { $URI -match 'accessPackageAssignments' } -MockWith {
+            @(
+                [pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' }; target = [pscustomobject]@{ objectId = 'u1' }; assignmentState = 'Delivered' }
+                [pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' }; target = [pscustomobject]@{ objectId = 'u1' }; assignmentState = 'Delivered' }   # dup
+                [pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' }; target = [pscustomobject]@{ objectId = 'u2' }; assignmentState = 'Expired' }     # skipped
+            )
+        }
+        Sync-EntraGovernanceAssignments -SystemId 1
+
+        (Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'BusinessRole' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Sync-EntraGovernancePolicies uploads assignment policies' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'assignmentPolicies' } -MockWith {
+            @([pscustomobject]@{ id = 'pol1'; accessPackage = [pscustomobject]@{ id = 'ap1' }; displayName = 'P' })
+        }
+        Sync-EntraGovernancePolicies -SystemId 1
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/policies' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Get-EntraAccessReviewCertRecords builds decision records and skips failed instances' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'definitions/rd1/instances\?' } -MockWith {
+            @([pscustomobject]@{ id = 'inst1'; status = 'Applied' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst1/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'dec1'; principal = [pscustomobject]@{ id = 'u1'; displayName = 'U' }; decision = 'Approve' })
+        }
+        $def = [pscustomobject]@{ id = 'rd1' }
+        $recs = Get-EntraAccessReviewCertRecords -Definition $def -ApId 'ap1'
+
+        @($recs).Count | Should -Be 1
+        @($recs)[0].resourceId | Should -Be 'ap1'
+        @($recs)[0].principalId | Should -Be 'u1'
+    }
+
+    It 'Sync-EntraGovernanceReviews uploads certification decisions for AP-scoped reviews' {
+        $uuid = '11111111-1111-1111-1111-111111111111'
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'rd1'; resourceScope = [pscustomobject]@{ query = "/accessPackages/$uuid/x" } }
+                [pscustomobject]@{ id = 'rd2' }   # no scope -> skipped
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'definitions/rd1/instances\?' } -MockWith { @([pscustomobject]@{ id = 'inst1'; status = 'Applied' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'instances/inst1/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'dec1'; principal = [pscustomobject]@{ id = 'u1' }; decision = 'Approve' })
+        }
+        Sync-EntraGovernanceReviews -SystemId 1
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/certifications' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Sync-EntraGovernance runs all sub-phases and records the phase timing' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackageCatalogs' } -MockWith { @() }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'entitlementManagement/accessPackages\?' } -MockWith { @() }
+        Mock Invoke-FGGetRequestStream -MockWith { @() }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'assignmentPolicies' } -MockWith { @() }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith { @() }
+
+        $timings = [ordered]@{}
+        Sync-EntraGovernance -SystemId 1 -Timings $timings
+
+        $timings.Contains('Governance') | Should -BeTrue
+        # Sub-phases report individually; no top-level 'Governance' Write-Phase.
+        @($script:phases.name) | Should -Not -Contain 'Governance'
+        @($script:phases.name) | Should -Contain 'Governance/ResourceScopes'
+        @($script:phases.name) | Should -Contain 'Governance/AccessReviews'
+    }
+
+    It 'Sync-EntraGovernance swallows a missing-Entitlement-Management tenant (outer catch)' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackageCatalogs' } -MockWith { throw 'HTTP 400 not enabled' }
+
+        $timings = [ordered]@{}
+        Sync-EntraGovernance -SystemId 1 -Timings $timings
+
+        # Outer catch is silent (no phase error), still records the timing.
+        $script:phaseErrors.Count | Should -Be 0
+        $timings.Contains('Governance') | Should -BeTrue
+    }
+}

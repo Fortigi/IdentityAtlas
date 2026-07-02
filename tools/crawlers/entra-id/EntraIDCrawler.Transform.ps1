@@ -741,3 +741,65 @@ function ConvertTo-EntraDirectoryRoleEligibility {
         }
     }
 }
+
+# Resolve the access-package id an access-review definition targets, tolerating
+# both the old `scope.query` and newer `resourceScope.query` / `scopes[].query`
+# shapes, and both the path-style (.../accessPackages/<uuid>/...) and filter-style
+# ("accessPackage/id eq '<uuid>'") query forms. Returns
+# @{ apId; reason; queryStrings } where reason is 'ok' | 'noscope' | 'nomatch'.
+# Verbatim from the inline access-review scope-matching block.
+function Resolve-EntraAccessReviewApId {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Definition)
+    $def = $Definition
+    $queryStrings = @()
+    if ($def.scope         -and $def.scope.query)         { $queryStrings += $def.scope.query }
+    if ($def.resourceScope -and $def.resourceScope.query) { $queryStrings += $def.resourceScope.query }
+    if ($def.scopes) {
+        foreach ($s in $def.scopes) {
+            if ($s.query) { $queryStrings += $s.query }
+        }
+    }
+    if ($queryStrings.Count -eq 0) {
+        return @{ apId = $null; reason = 'noscope'; queryStrings = @() }
+    }
+    $apId = $null
+    foreach ($q in $queryStrings) {
+        if ($q -match "accessPackages/([0-9a-fA-F-]{36})")         { $apId = $Matches[1]; break }
+        elseif ($q -match "accessPackage/id eq '([0-9a-fA-F-]{36})'") { $apId = $Matches[1]; break }
+    }
+    if (-not $apId) {
+        return @{ apId = $null; reason = 'nomatch'; queryStrings = $queryStrings }
+    }
+    return @{ apId = $apId; reason = 'ok'; queryStrings = $queryStrings }
+}
+
+# Shape one access-review decision into a CertificationDecisions ingest record.
+# Verbatim from the inline `$certRecords += @{ ... }` block.
+function ConvertTo-EntraCertificationDecisionRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Decision,
+        [Parameter(Mandatory)] $Definition,
+        [Parameter(Mandatory)] $Instance,
+        [string]$ApId
+    )
+    $d = $Decision
+    return @{
+        id                          = $d.id
+        resourceId                  = $ApId
+        principalId                 = if ($d.principal) { $d.principal.id } else { $null }
+        principalDisplayName        = if ($d.principal) { $d.principal.displayName } else { $null }
+        decision                    = $d.decision
+        recommendation              = $d.recommendation
+        justification               = $d.justification
+        reviewedBy                  = if ($d.reviewedBy) { $d.reviewedBy.id } else { $null }
+        reviewedByDisplayName       = if ($d.reviewedBy) { $d.reviewedBy.displayName } else { $null }
+        reviewedDateTime            = $d.reviewedDateTime
+        reviewDefinitionId          = $Definition.id
+        reviewInstanceId            = $Instance.id
+        reviewInstanceStatus        = $Instance.status
+        reviewInstanceStartDateTime = $Instance.startDateTime
+        reviewInstanceEndDateTime   = $Instance.endDateTime
+    }
+}

@@ -1112,3 +1112,288 @@ function Sync-EntraSignInLogs {
     $__signInErrMsg = if ($__signInErr) { $__signInErr.Substring('SignInLogs:'.Length).Trim() } else { $null }
     Write-Phase -Name 'SignInLogs' -Duration $__phaseSW.Elapsed -ErrorMsg $__signInErrMsg
 }
+
+# ─── Governance: catalogs + access packages ──────────────────────
+# Fetch entitlement-management catalogs and access packages, upload catalogs and
+# the access-package-as-BusinessRole resources, and RETURN the raw access
+# packages so the resource-scopes sub-phase can expand each one. Out-Nulls its
+# ingest calls so it returns only the access packages.
+function Sync-EntraGovernanceCatalogs {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [int]$SystemId)
+
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (catalogs)..." -ForegroundColor Cyan
+    $catalogs = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageCatalogs?`$top=999"
+
+    $catRecords = @($catalogs | ForEach-Object { ConvertTo-EntraGovernanceCatalogRecord -Catalog $_ })
+    Send-IngestBatch -Endpoint 'ingest/governance/catalogs' -SystemId $SystemId -SyncMode 'full' -Records $catRecords | Out-Null
+
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access packages -> business roles)..." -ForegroundColor Cyan
+    $accessPackages = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages?`$top=999"
+
+    $apRecords = @($accessPackages | ForEach-Object { ConvertTo-EntraAccessPackageRecord -AccessPackage $_ })
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' `
+        -Scope @{ resourceType = 'BusinessRole' } -Records $apRecords | Out-Null
+
+    return $accessPackages
+}
+
+# ─── Governance sub-phase: access-package resource role scopes ────
+# Each access package's resourceRoleScopes describe the groups it Contains — the
+# matrix's user->group AP coloring joins through these. One detail call per AP
+# (tight retry budget), deduped by (parent, child). Own timing/error wrapper.
+function Sync-EntraGovernanceResourceScopes {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        $AccessPackages
+    )
+    $__scopeSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access package resource scopes)..." -ForegroundColor Cyan
+    try {
+        $relRecords = @()
+        foreach ($ap in $AccessPackages) {
+            try {
+                # Tight retry/timeout budget — this fires once per AP (~500)
+                # and we already skip on failure; a slow/wedged AP must not
+                # stall the whole loop for minutes.
+                $apDetail = Invoke-FGGetRequest -MaxRetries 1 -TimeoutSec 30 -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages/$($ap.id)?`$expand=accessPackageResourceRoleScopes(`$expand=accessPackageResourceRole,accessPackageResourceScope)"
+                foreach ($rrs in @($apDetail.accessPackageResourceRoleScopes)) {
+                    $rel = ConvertTo-EntraAccessPackageScopeRelationship -RoleScope $rrs -AccessPackageId $ap.id
+                    if ($rel) { $relRecords += $rel }
+                }
+            } catch {
+                Write-Host "  Skipping AP $($ap.displayName): $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+
+        if ($relRecords.Count -gt 0) {
+            # Dedupe (parent + child) — Graph can return duplicates if AP has multiple roles on same group
+            $seen = @{}
+            $relRecords = @($relRecords | Where-Object {
+                $k = "$($_.parentResourceId)|$($_.childResourceId)"
+                if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true }
+            })
+            Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode 'full' `
+                -Scope @{ relationshipType = 'Contains' } -Records $relRecords
+        } else {
+            Write-Host "  No access package resource scopes found" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "  Resource scope sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("Governance/ResourceScopes: $($_.Exception.Message)")
+    }
+    $__scopeSW.Stop()
+    $__scopeErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/ResourceScopes:') } | Select-Object -Last 1
+    $__scopeErrMsg = if ($__scopeErr) { $__scopeErr.Substring('Governance/ResourceScopes:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'Governance/ResourceScopes' -Duration $__scopeSW.Elapsed -ErrorMsg $__scopeErrMsg
+}
+
+# ─── Governance sub-phase: access-package assignments ─────────────
+# Each assignment is a Direct membership on the access-package resource
+# (governed=true). Streamed + deduped on (apId, principalId) to bound memory.
+function Sync-EntraGovernanceAssignments {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [int]$SystemId)
+
+    $__apaSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access package assignments)..." -ForegroundColor Cyan
+    try {
+        # $top=500 survives where 999 produced 504s; stream pages and dedup on
+        # the fly so we hold one (apId, principalId) entry per pair, not the full
+        # expanded assignment list (which OOM-killed the worker).
+        $assignRecords = [System.Collections.Generic.List[hashtable]]::new()
+        $seenKeys = @{}
+        Invoke-FGGetRequestStream -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=500" | ForEach-Object {
+            $apaRec = ConvertTo-EntraAccessPackageAssignmentRecord -Assignment $_
+            if (-not $apaRec) { return }
+            $key = "$($apaRec.resourceId)|$($apaRec.principalId)"
+            if ($seenKeys.ContainsKey($key)) { return }
+            $seenKeys[$key] = $true
+            $assignRecords.Add($apaRec)
+        }
+        $assignRecords = @($assignRecords)
+
+        if ($assignRecords.Count -gt 0) {
+            Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
+                -Scope @{ assignmentType = 'Direct'; resourceType = 'BusinessRole' } -Records $assignRecords
+        } else {
+            Write-Host "  No active access package assignments found" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "  Access Package assignments sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("Governance/APAssignments: $($_.Exception.Message)")
+    }
+    $__apaSW.Stop()
+    $__apaErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/APAssignments:') } | Select-Object -Last 1
+    $__apaErrMsg = if ($__apaErr) { $__apaErr.Substring('Governance/APAssignments:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'Governance/APAssignments' -Duration $__apaSW.Elapsed -ErrorMsg $__apaErrMsg
+}
+
+# ─── Governance sub-phase: assignment policies ────────────────────
+# Drives the Business Roles page "Type"/review badges. The ONE governance
+# endpoint called via /v1.0 (the /beta segment was removed); accessPackage is
+# expanded to recover accessPackageId.
+function Sync-EntraGovernancePolicies {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [int]$SystemId)
+
+    $__polSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (assignment policies)..." -ForegroundColor Cyan
+    try {
+        $policies = Invoke-FGGetRequest -URI "https://graph.microsoft.com/v1.0/identityGovernance/entitlementManagement/assignmentPolicies?`$expand=accessPackage"
+        $polRecords = @()
+        foreach ($pol in $policies) {
+            $polRec = ConvertTo-EntraAssignmentPolicyRecord -Policy $pol
+            if ($polRec) { $polRecords += $polRec }
+        }
+        if ($polRecords.Count -gt 0) {
+            Send-IngestBatch -Endpoint 'ingest/governance/policies' -SystemId $SystemId -SyncMode 'full' -Records $polRecords
+        } else {
+            Write-Host "  No assignment policies found" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "  Assignment policy sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("Governance/AssignmentPolicies: $($_.Exception.Message)")
+    }
+    $__polSW.Stop()
+    $__polErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/AssignmentPolicies:') } | Select-Object -Last 1
+    $__polErrMsg = if ($__polErr) { $__polErr.Substring('Governance/AssignmentPolicies:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'Governance/AssignmentPolicies' -Duration $__polSW.Elapsed -ErrorMsg $__polErrMsg
+}
+
+# Fetch every decision under an access-review definition's instances and shape
+# them into CertificationDecisions records. All Graph I/O for one definition;
+# per-instance failures are logged and skipped. Pulled out of the review loop so
+# Sync-EntraGovernanceReviews stays under the complexity threshold.
+function Get-EntraAccessReviewCertRecords {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Definition,
+        [string]$ApId
+    )
+    $out = [System.Collections.Generic.List[object]]::new()
+    try {
+        $instances = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances?`$top=100")
+        foreach ($inst in $instances) {
+            try {
+                # Graph caps this collection at 100 per page and rejects larger
+                # $top with 400 — rely on @odata.nextLink paging instead.
+                $decisions = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances/$($inst.id)/decisions")
+                foreach ($d in $decisions) {
+                    $out.Add((ConvertTo-EntraCertificationDecisionRecord -Decision $d -Definition $Definition -Instance $inst -ApId $ApId))
+                }
+            } catch {
+                # PS7 drains the response stream before the exception bubbles —
+                # the actual Graph error JSON is in ErrorDetails.Message.
+                $body = $null
+                if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                    $body = $_.ErrorDetails.Message
+                    if ($body.Length -gt 300) { $body = $body.Substring(0, 300) + '...' }
+                }
+                $detail = if ($body) { "$($_.Exception.Message) | $body" } else { $_.Exception.Message }
+                Write-Host "    Skipping instance $($inst.id): $detail" -ForegroundColor Yellow
+            }
+        }
+    } catch {
+        Write-Host "  Skipping review definition $($Definition.id): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    return $out
+}
+
+# ─── Governance sub-phase: access reviews -> certifications ───────
+# Walk access-review definitions scoped to an access package, pull their
+# instance decisions, and upload CertificationDecisions. Best-effort: a tenant
+# may not use access reviews at all. apId resolution + record shaping are pure
+# (Resolve-EntraAccessReviewApId / ConvertTo-EntraCertificationDecisionRecord);
+# per-definition decision fetching lives in Get-EntraAccessReviewCertRecords.
+function Sync-EntraGovernanceReviews {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [int]$SystemId)
+
+    $__arvSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access review decisions)..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing access review decisions' -Pct 74 -Detail 'Fetching review definitions from Graph...'
+    try {
+        $reviewDefs = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions?`$top=100"
+        Write-Host "  Found $($reviewDefs.Count) review definitions; filtering to access-package scoped..." -ForegroundColor Gray
+        $certRecords = @()
+        $skippedNoScope   = 0
+        $skippedNoApMatch = 0
+        $sampleLogged     = 0
+        $defIndex         = 0
+        $defTotal         = $reviewDefs.Count
+        foreach ($def in $reviewDefs) {
+            $defIndex++
+            # Keep the UI's step/detail line fresh — this phase can walk hundreds
+            # of definitions x many instances and previously looked frozen.
+            if (($defIndex % 25) -eq 1) {
+                Update-CrawlerProgress -Detail "Access reviews: $defIndex of $defTotal definitions..."
+            }
+            $resolved = Resolve-EntraAccessReviewApId -Definition $def
+            if (-not $resolved.apId) {
+                if ($resolved.reason -eq 'noscope') {
+                    $skippedNoScope++
+                    if ($sampleLogged -lt 2) {
+                        Write-Host "    (sample skip, no scope/resourceScope.query on def $($def.id): $($def | ConvertTo-Json -Depth 3 -Compress))" -ForegroundColor DarkGray
+                        $sampleLogged++
+                    }
+                } else {
+                    $skippedNoApMatch++
+                    if ($sampleLogged -lt 2) {
+                        Write-Host "    (sample skip, no AP id in queries: $($resolved.queryStrings -join ' | '))" -ForegroundColor DarkGray
+                        $sampleLogged++
+                    }
+                }
+                continue
+            }
+            $certRecords += Get-EntraAccessReviewCertRecords -Definition $def -ApId $resolved.apId
+        }
+        Write-Host "  Review definitions: $($reviewDefs.Count) total; skipped $skippedNoScope (no scope) + $skippedNoApMatch (no access-package id) = $($skippedNoScope + $skippedNoApMatch) skipped; kept $($reviewDefs.Count - $skippedNoScope - $skippedNoApMatch)" -ForegroundColor Gray
+        if ($certRecords.Count -gt 0) {
+            Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $SystemId -SyncMode 'full' -Records $certRecords
+        } else {
+            Write-Host "  No access review decisions found" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "  Access review sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("Governance/AccessReviews: $($_.Exception.Message)")
+        Write-Host "  This tenant may not use access reviews on access packages." -ForegroundColor Yellow
+    }
+    $__arvSW.Stop()
+    $__arvErr = $script:phaseErrors | Where-Object { $_.StartsWith('Governance/AccessReviews:') } | Select-Object -Last 1
+    $__arvErrMsg = if ($__arvErr) { $__arvErr.Substring('Governance/AccessReviews:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'Governance/AccessReviews' -Duration $__arvSW.Elapsed -ErrorMsg $__arvErrMsg
+}
+
+# ─── Sync Governance ─────────────────────────────────────────────
+# Orchestrates the five governance sub-phases (each of which owns its own
+# timing/error/Write-Phase wrapper). The outer catch covers the common
+# "tenant has no Entitlement Management" case where the very first catalog/AP
+# fetch 400s. No top-level 'Governance' Write-Phase — the sub-phases report
+# individually so the UI breakdown shows them directly.
+function Sync-EntraGovernance {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        $Timings
+    )
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
+    Update-CrawlerProgress -Step 'Syncing governance' -Pct 66 -Detail 'Catalogs, access packages, policies, reviews...'
+    try {
+        $accessPackages = Sync-EntraGovernanceCatalogs -SystemId $SystemId
+        Sync-EntraGovernanceResourceScopes -SystemId $SystemId -AccessPackages $accessPackages
+        Sync-EntraGovernanceAssignments -SystemId $SystemId
+        Sync-EntraGovernancePolicies -SystemId $SystemId
+        Sync-EntraGovernanceReviews -SystemId $SystemId
+    }
+    catch {
+        Write-Host "  Governance sync skipped: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  This tenant may not have Entitlement Management (Access Packages) enabled." -ForegroundColor Yellow
+    }
+    $__phaseSW.Stop(); if ($Timings) { $Timings['Governance'] = $__phaseSW.Elapsed }
+}
