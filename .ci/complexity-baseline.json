@@ -203,9 +203,6 @@
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       31
     ],
-    "tools/crawlers/omada/Start-OmadaCrawler.ps1": [
-      62
-    ],
     "tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
       17
     ],

@@ -43,6 +43,9 @@ BeforeAll {
     function Invoke-ODataPagedRequest { param([string]$Path, [hashtable]$QueryParams, [int]$PageSize, [int]$MaxRetries) }
     function Invoke-ODataGetRequest   { param([string]$Path, [hashtable]$QueryParams, [int]$MaxRetries, [string]$OverrideBaseUrl) }
     function Test-EntitySetAvailable  { param([string]$Name) $true }
+    # OData session helpers the setup functions call.
+    function Connect-ODataAPI    { param() }
+    function Get-ODataEntitySets { }
 
     function Reset-PhaseTestState {
         $script:phases      = [System.Collections.Generic.List[object]]::new()
@@ -504,5 +507,95 @@ Describe 'Sync-OmadaAssignments' {
         Sync-OmadaAssignments -SystemId 1 -OmadaSystemMap @{} -OmadaIdentitySystemUId 'x' -BuiltinBaseUrl 'http://x/builtin' `
             -IdentityUidInIdentitiesTable (New-StrSet 'y')
         $script:phaseErrors[0] | Should -BeLike 'Assignments:*'
+    }
+}
+
+# ─── Config resolution (pure) ───────────────────────────────────────────────────
+Describe 'Omada config resolution' {
+
+    It 'Resolve-OmadaSyncToggles applies defaults + selectedObjects overrides' {
+        $c = Resolve-OmadaSyncToggles -RawConfig @{ selectedObjects = @{ assignments = $false; resources = $false } }
+        $c.SyncContexts | Should -BeTrue
+        $c.SyncAssignments | Should -BeFalse
+        $c.SyncResources | Should -BeFalse
+        $c.SyncMode | Should -Be 'full'
+    }
+
+    It 'Resolve-OmadaContextObjectTypes defaults to Orgunit and builds the identityField map' {
+        $r = Resolve-OmadaContextObjectTypes -Cfg ([pscustomobject]@{})
+        @($r.contextObjectTypes)[0].entitySet | Should -Be 'Orgunit'
+        $r.contextEntitySetToIdentityField['Orgunit'] | Should -Be 'OUREF'
+    }
+
+    It 'Resolve-OmadaResourceCategoryMapping defaults include the catch-all' {
+        $m = Resolve-OmadaResourceCategoryMapping -Cfg ([pscustomobject]@{})
+        @($m | Where-Object { $_.category -eq '' }).resourceType | Should -Be 'Resource'
+    }
+
+    It 'Resolve-OmadaConfig normalises a root base URL and derives the builtin URL' {
+        $cfg = Resolve-OmadaConfig -RawConfig @{} -Cfg ([pscustomobject]@{ baseUrl = 'https://tenant.omada.cloud/' }) -DefaultTypeMappings @{ identityTypesForIdentityTable = @('Employee') }
+        $cfg.baseUrl | Should -Be 'https://tenant.omada.cloud/odata/dataobjects'
+        $cfg.builtinBaseUrl | Should -Be 'https://tenant.omada.cloud/odata/builtin'
+        $cfg.pageSize | Should -Be 100
+        $cfg.SyncContexts | Should -BeTrue
+    }
+
+    It 'Resolve-OmadaConfig preserves an explicit /odata/dataobjects path' {
+        (Resolve-OmadaConfig -RawConfig @{} -Cfg ([pscustomobject]@{ baseUrl = 'http://srv:8080/odata/dataobjects' }) -DefaultTypeMappings @{}).baseUrl |
+            Should -Be 'http://srv:8080/odata/dataobjects'
+    }
+}
+
+# ─── Setup helpers ──────────────────────────────────────────────────────────────
+Describe 'Omada setup helpers' {
+    BeforeEach { Reset-PhaseTestState }
+
+    It 'Connect-OmadaSession passes only the provided auth fields to Connect-ODataAPI' {
+        Mock Connect-ODataAPI -MockWith { }
+        Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'ApiToken'; apiToken = 'tok' }) -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
+        Should -Invoke Connect-ODataAPI -Times 1
+    }
+
+    It 'Get-OmadaAvailableEntitySets returns the discovered sets' {
+        Mock Get-ODataEntitySets -MockWith { @('Identity','User','Resource') }
+        @(Get-OmadaAvailableEntitySets) | Should -Contain 'User'
+    }
+
+    It 'Register-OmadaSystems resolves the main IGA system id from the atlas map' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
+            @([pscustomobject]@{ DisplayName = 'Omada Identity'; UId = 'main-uid' })
+        }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(1) } }
+        Mock Invoke-RestMethod -MockWith { @([pscustomobject]@{ systemType = 'Omada'; tenantId = 'main-uid'; id = 7 }) }
+
+        $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
+        $reg.systemId | Should -Be 7
+        $reg.omadaIdentitySystemUId | Should -Be 'main-uid'
+        $reg.omadaSystemMap['main-uid'] | Should -Be 7
+    }
+
+    It 'Register-OmadaSystems falls back to single-system registration on error' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith { throw 'OData down' }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(99) } }
+
+        (Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5).systemId | Should -Be 99
+    }
+}
+
+# ─── Write-OmadaSummary ─────────────────────────────────────────────────────────
+Describe 'Write-OmadaSummary' {
+    BeforeEach { Reset-PhaseTestState }
+
+    It 'throws when there were phase errors' {
+        $script:phaseErrors.Add('Contexts: boom')
+        { Write-OmadaSummary -StartTime ([datetime]::UtcNow) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } |
+            Should -Throw -ExpectedMessage '*1 phase error*'
+    }
+
+    It 'does not throw on a clean run and posts phases when a job id is present' {
+        Mock Invoke-RestMethod -MockWith { @{} }
+        $script:phases.Add(@{ name = 'Contexts'; status = 'ok'; durationMs = 5 })
+        { Write-OmadaSummary -StartTime ([datetime]::UtcNow) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
+        Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
     }
 }

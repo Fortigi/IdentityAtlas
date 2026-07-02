@@ -796,3 +796,240 @@ function Sync-OmadaAssignments {
         Write-Phase -Name 'Assignments' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
     }
 }
+
+# ─── Config: sync toggles ────────────────────────────────────────
+# Defaults, then selectedObjects overrides (data-driven over the old
+# if-ContainsKey chain — each key maps to a distinct toggle). Returns a hashtable.
+function Resolve-OmadaSyncToggles {
+    [CmdletBinding()]
+    param([hashtable]$RawConfig = @{})
+    $cfg = @{
+        SyncContexts = $true; SyncIdentities = $true; SyncAccounts = $true; SyncContextMembers = $true
+        SyncResources = $true; SyncEntitlements = $true; SyncAssignments = $true; SyncCRAs = $true; RefreshViews = $true
+    }
+    $cfg.SyncMode = if ($RawConfig['_syncMode'] -in @('full','delta')) { $RawConfig['_syncMode'] } else { 'full' }
+    $objects = $RawConfig['selectedObjects']
+    if ($objects) {
+        $map = [ordered]@{
+            contexts       = 'SyncContexts';       identities   = 'SyncIdentities';   accounts     = 'SyncAccounts'
+            contextMembers = 'SyncContextMembers'; resources    = 'SyncResources';     entitlements = 'SyncEntitlements'
+            assignments    = 'SyncAssignments';    cras         = 'SyncCRAs'
+        }
+        foreach ($k in $map.Keys) {
+            if ($objects.ContainsKey($k)) { $cfg[$map[$k]] = [bool]$objects[$k] }
+        }
+    }
+    return $cfg
+}
+
+# ─── Config: context object types ────────────────────────────────
+# Resolve the configured contextObjectTypes (default: Orgunit) and the
+# entitySet -> identityField map. Returns @{ contextObjectTypes;
+# contextEntitySetToIdentityField }.
+function Resolve-OmadaContextObjectTypes {
+    [CmdletBinding()]
+    param($Cfg)
+    $types = if ($Cfg.contextObjectTypes) {
+        @($Cfg.contextObjectTypes | ForEach-Object {
+            @{ entitySet     = [string]$_.entitySet
+               contextType   = if ($_.contextType)   { [string]$_.contextType }   else { [string]$_.entitySet }
+               identityField = if ($_.identityField) { [string]$_.identityField } else { $Null } }
+        })
+    } else {
+        @(@{ entitySet = 'Orgunit'; contextType = 'OrgUnit'; identityField = 'OUREF' })
+    }
+    $map = @{}
+    foreach ($Cot in $types) {
+        if ($Cot.identityField) { $map[$Cot.entitySet] = $Cot.identityField }
+    }
+    return @{ contextObjectTypes = $types; contextEntitySetToIdentityField = $map }
+}
+
+# ─── Config: resource-category mapping ───────────────────────────
+# Maps Omada ROLECATEGORY -> Identity Atlas resourceType (config-overridable).
+function Resolve-OmadaResourceCategoryMapping {
+    [CmdletBinding()]
+    param($Cfg)
+    if ($Cfg.resourceCategoryMapping) {
+        return @($Cfg.resourceCategoryMapping | ForEach-Object {
+            @{ category     = if ($_.category)     { [string]$_.category }     else { '' }
+               resourceType = if ($_.resourceType) { [string]$_.resourceType } else { 'Resource' } }
+        })
+    }
+    return @(
+        @{ category = 'Role';       resourceType = 'BusinessRole' }
+        @{ category = 'Permission'; resourceType = 'Resource' }
+        @{ category = '';           resourceType = 'Resource' }   # default/catch-all
+    )
+}
+
+# ─── Config: resolve the whole job config ────────────────────────
+# Normalises the base URL, resolves toggles + context types + category mapping +
+# type mappings, and returns one settings hashtable the entry point unpacks.
+function Resolve-OmadaConfig {
+    [CmdletBinding()]
+    param([hashtable]$RawConfig = @{}, $Cfg, [hashtable]$DefaultTypeMappings = @{})
+    $toggles = Resolve-OmadaSyncToggles -RawConfig $RawConfig
+
+    # Normalise base URL via System.Uri. Accepts root or explicit /odata/dataobjects.
+    $rawUri  = [System.Uri]::new(($Cfg.baseUrl.Trim().TrimEnd('/')))
+    $hostUri = $rawUri.Scheme + '://' + $rawUri.Authority
+    $path    = $rawUri.AbsolutePath.TrimEnd('/')
+    if ($path -notmatch '(?i)/odata/dataobjects$') { $path = '/odata/dataobjects' }
+
+    $ctx          = Resolve-OmadaContextObjectTypes -Cfg $Cfg
+    $typeMappings = Merge-TypeMappings -Defaults $DefaultTypeMappings -Overrides $Cfg.typeMappings
+
+    return $toggles + @{
+        baseUrl               = $hostUri + $path
+        builtinBaseUrl        = $hostUri + ($path -replace '(?i)/dataobjects$', '/builtin')
+        apiVersion            = if ($Cfg.apiVersion) { $Cfg.apiVersion } else { 'v14' }
+        pageSize              = if ($Cfg.pageSize)   { [int]$Cfg.pageSize } else { 100 }
+        maxRetries            = if ($null -ne $Cfg.maxRetries) { [int]$Cfg.maxRetries } else { 5 }
+        sessionTimeoutMinutes = if ($Cfg.sessionTimeoutMinutes) { [int]$Cfg.sessionTimeoutMinutes } else { 30 }
+        contextObjectTypes             = $ctx.contextObjectTypes
+        contextEntitySetToIdentityField = $ctx.contextEntitySetToIdentityField
+        resourceCategoryMapping        = Resolve-OmadaResourceCategoryMapping -Cfg $Cfg
+        typeMappings                   = $typeMappings
+        identityTypesForIdentityTable  = @($typeMappings['identityTypesForIdentityTable'])
+        wellKnownIdentityContextFields = @{
+            OUREF = 'Orgunit'; COUNTRY = 'Country'; BUILDING = 'Building'; BUSINESSUNIT = 'Businessunit'
+            COSTCENTER = 'Costcenter'; DIVISION = 'Division'; JOBTITLE_REF = 'Jobtitle'; LOCATION = 'Location'; SUBAREA = 'Subarea'
+        }
+    }
+}
+
+# ─── Setup: authenticate ─────────────────────────────────────────
+function Connect-OmadaSession {
+    [CmdletBinding()]
+    param($Cfg, [string]$BaseUrl, [string]$ApiVersion, [int]$SessionTimeoutMinutes)
+    $AuthParams = @{
+        BaseUrl               = $BaseUrl
+        AuthMethod            = $Cfg.authMethod
+        ApiVersion            = $ApiVersion
+        SessionTimeoutMinutes = $SessionTimeoutMinutes
+    }
+    if ($Cfg.username)      { $AuthParams['Username']      = $Cfg.username }
+    if ($Cfg.password)      { $AuthParams['Password']      = $Cfg.password }
+    if ($Cfg.clientId)      { $AuthParams['ClientId']      = $Cfg.clientId }
+    if ($Cfg.clientSecret)  { $AuthParams['ClientSecret']  = $Cfg.clientSecret }
+    if ($Cfg.tokenEndpoint) { $AuthParams['TokenEndpoint'] = $Cfg.tokenEndpoint }
+    if ($Cfg.apiToken)      { $AuthParams['ApiToken']      = $Cfg.apiToken }
+    if ($Cfg.cookieString)  { $AuthParams['CookieString']  = $Cfg.cookieString }
+    Connect-ODataAPI @AuthParams
+}
+
+# ─── Setup: discover available entity sets ───────────────────────
+# Diagnostic + non-blocking — an empty result means "metadata unavailable, let
+# every phase attempt to run" (Test-EntitySetAvailable treats empty as all-available).
+function Get-OmadaAvailableEntitySets {
+    [CmdletBinding()]
+    param()
+    $sets = @(Get-ODataEntitySets)
+    if ($sets.Count -gt 0) {
+        Write-Host "  Entity sets: $($sets -join ', ')" -ForegroundColor Gray
+    } else {
+        Write-Host "  Entity set check skipped (metadata unavailable — all phases will attempt to run)" -ForegroundColor Yellow
+    }
+    return $sets
+}
+
+# ─── Setup: register Omada connected systems ─────────────────────
+# Registers every Omada connected system as its own Identity Atlas System and
+# resolves the main IGA system id. Falls back to a single-system registration on
+# failure. Returns @{ systemId; omadaSystemMap; allOmadaSystems; omadaIdentitySystemUId }.
+function Register-OmadaSystems {
+    [CmdletBinding()]
+    param([string]$ApiBaseUrl, [string]$ApiKey, [string]$BaseUrl, [int]$MaxRetries = 5)
+    $AllOmadaSystems = $Null
+    $OmadaSystemMap  = @{}
+    $SystemId        = 0
+    $OmadaIdentitySystemUId = $Null
+    try {
+        Write-Step 'Fetching connected systems from Omada...'
+        $AllOmadaSystems = Invoke-ODataPagedRequest -Path '/System' `
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize 100 -MaxRetries $MaxRetries
+        Write-Host "  $($AllOmadaSystems.Count) connected systems in Omada" -ForegroundColor Gray
+
+        $SysRecords = @($AllOmadaSystems | ForEach-Object {
+            [PSCustomObject]@{ systemType = 'Omada'; displayName = $_.DisplayName; tenantId = [string]$_.UId; enabled = $True; syncEnabled = $True }
+        })
+
+        Write-Step "Registering $($SysRecords.Count) systems in Identity Atlas..."
+        Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{ syncMode = 'full'; records = ConvertTo-JsonArray $SysRecords } | Out-Null
+
+        $AtlasSystems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
+        foreach ($S in $AtlasSystems) {
+            if ($S.systemType -eq 'Omada' -and $S.tenantId) { $OmadaSystemMap[$S.tenantId] = [int]$S.id }
+        }
+        Write-Host "  System map: $($OmadaSystemMap.Count) entries" -ForegroundColor Gray
+
+        # Omada Identity is the main IGA system — used for Contexts/Identities and to
+        # distinguish Omada-internal accounts from connected-system accounts (Assignments).
+        $MainSysEntry = $AllOmadaSystems | Where-Object { $_.DisplayName -eq 'Omada Identity' } | Select-Object -First 1
+        $MainSysUId   = if ($MainSysEntry) { [string]$MainSysEntry.UId } else { $Null }
+        $OmadaIdentitySystemUId = $MainSysUId
+        if ($MainSysUId -and $OmadaSystemMap.ContainsKey($MainSysUId)) {
+            $SystemId = $OmadaSystemMap[$MainSysUId]
+        } elseif ($OmadaSystemMap.Count -gt 0) {
+            $SystemId = ($OmadaSystemMap.Values | Select-Object -First 1)
+        }
+        Write-Host "  Main Omada IGA system ID: $SystemId (UId: $MainSysUId)" -ForegroundColor Gray
+    } catch {
+        Write-Host "  Warning: could not register Omada systems — $($_.Exception.Message)" -ForegroundColor Yellow
+        $FbResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
+            syncMode = 'full'
+            records  = @(@{ systemType = 'Omada'; displayName = "Omada ($BaseUrl)"; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
+        }
+        $SystemId = [int]($FbResult.systemIds[0])
+        Write-Host "  Fallback system ID: $SystemId" -ForegroundColor Gray
+    }
+    return @{ systemId = $SystemId; omadaSystemMap = $OmadaSystemMap; allOmadaSystems = $AllOmadaSystems; omadaIdentitySystemUId = $OmadaIdentitySystemUId }
+}
+
+# ─── Summary ─────────────────────────────────────────────────────
+# Prints the per-phase table, posts phase results to the jobs API, and throws if
+# any phase failed (so the worker marks the job failed). Reads $Script:phases /
+# $Script:phaseErrors from the caller's scope.
+function Write-OmadaSummary {
+    [CmdletBinding()]
+    param([datetime]$StartTime, [int]$JobId, [string]$ApiKey, [string]$ApiBaseUrl)
+    $Elapsed = [datetime]::UtcNow - $StartTime
+    Write-Host "`n=== Omada Crawler Summary ===" -ForegroundColor Cyan
+    Write-Host ("Total time: {0:mm}m {0:ss}s" -f $Elapsed) -ForegroundColor Gray
+    Write-Host ""
+    Write-Host ("{0,-20} {1,-10} {2}" -f 'Phase', 'Status', 'Duration') -ForegroundColor Gray
+    Write-Host ("{0,-20} {1,-10} {2}" -f ('─'*20), ('─'*10), ('─'*10)) -ForegroundColor Gray
+    foreach ($P in $Script:phases) {
+        $Status = if ($P.status -eq 'ok') { 'ok' } else { 'FAILED' }
+        $Color  = if ($P.status -eq 'ok') { 'Green' } else { 'Red' }
+        Write-Host ("{0,-20} {1,-10} {2}ms" -f $P.name, $Status, $P.durationMs) -ForegroundColor $Color
+    }
+
+    # Post per-phase results to the jobs API for the UI phase breakout.
+    if ($JobId -gt 0) {
+        try {
+            $PhasePayload = @{
+                phases = @($Script:phases | ForEach-Object {
+                    $P = @{ name = $_.name; status = $_.status; durationMs = $_.durationMs }
+                    if ($_.error)   { $P.error   = $_.error }
+                    if ($_.records) { $P.records = $_.records }
+                    $P
+                })
+            }
+            Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/jobs/$JobId/phases" -Method Post -TimeoutSec 15 `
+                -Headers @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' } `
+                -Body ($PhasePayload | ConvertTo-Json -Depth 5 -Compress) | Out-Null
+        } catch {
+            Write-Host "  Warning: could not post phase results — $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+
+    if ($Script:phaseErrors.Count -gt 0) {
+        Write-Host "`nPhase errors:" -ForegroundColor Red
+        foreach ($E in $Script:phaseErrors) { Write-Host "  $E" -ForegroundColor Red }
+        throw "Omada sync completed with $($Script:phaseErrors.Count) phase error(s). See above for details."
+    }
+
+    Write-Host "`nOmada sync completed successfully." -ForegroundColor Green
+}
