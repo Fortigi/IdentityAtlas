@@ -76,6 +76,14 @@ Describe 'Resolve-AzureRMConfig' {
     }
 }
 
+Describe 'Connect-AzureRMSession' {
+    It 'authenticates with the tenant/client/secret from config' {
+        Mock Connect-AzureRM { }
+        Connect-AzureRMSession -Config (New-TestConfig -Over @{ tenantId = 't9'; clientId = 'c9'; clientSecret = 's9' })
+        Should -Invoke Connect-AzureRM -Times 1 -ParameterFilter { $TenantId -eq 't9' -and $ClientId -eq 'c9' -and $ClientSecret -eq 's9' }
+    }
+}
+
 Describe 'Register-AzureRMSystem' {
     It 'returns the id from systemIds' {
         Mock Invoke-IngestAPI { @{ systemIds = @(42) } }
@@ -114,13 +122,34 @@ Describe 'Sync-AzureRMScopes' {
         $ctx.SubIds | Should -Be @('sub-2')
     }
 
-    It 'includes resource-level nodes when configured' {
+    It 'includes resource-level nodes (with lifted tag attributes) when configured' {
         Mock Invoke-ARMList { @([pscustomobject]@{ subscriptionId = 'sub-1'; displayName = 'One' }) }
         Mock Get-ARGResourceGroups { @([pscustomobject]@{ subscriptionId = 'sub-1'; id = '/subscriptions/sub-1/resourceGroups/rg1'; name = 'rg1' }) }
-        Mock Get-ARGResources { @([pscustomobject]@{ subscriptionId = 'sub-1'; resourceGroup = 'rg1'; id = '/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Storage/storageAccounts/sa1'; name = 'sa1' }) }
+        Mock Get-ARGResources { @([pscustomobject]@{ subscriptionId = 'sub-1'; resourceGroup = 'rg1'; id = '/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Storage/storageAccounts/sa1'; name = 'sa1'; location = 'westeurope'; tags = [pscustomobject]@{ Prio = 'High' } }) }
         $ctx = New-TestCtx -ConfigOver @{ includeResourceLevel = $true }
         Sync-AzureRMScopes -Ctx $ctx
-        @($ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureResource' }).Count | Should -Be 1
+        $res = $ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureResource' }
+        @($res).Count | Should -Be 1
+        $res.extendedAttributes.azureLocation | Should -Be 'westeurope'   # ExtraExt merged
+        $res.extendedAttributes.'tag.Prio'    | Should -Be 'High'
+    }
+
+    It 'walks the management-group tree and links MGs down to already-discovered subscriptions' {
+        Mock Invoke-ARMList { @([pscustomobject]@{ subscriptionId = 'sub-1'; displayName = 'One' }) }
+        Mock Get-ARGResourceGroups { @() }
+        Mock Get-ARGResources { @() }
+        Mock Invoke-ARMGet {
+            @{ id = '/providers/Microsoft.Management/managementGroups/mg1'; name = 'mg1'; type = 'Microsoft.Management/managementGroups'
+               properties = @{ displayName = 'Root MG'; children = @(
+                   @{ id = '/providers/Microsoft.Management/managementGroups/mg2'; name = 'mg2'; type = 'Microsoft.Management/managementGroups'; properties = @{ displayName = 'Child MG'; children = @() } }
+                   @{ id = '/subscriptions/sub-1'; name = 'sub-1'; type = '/subscriptions'; properties = @{} }
+               ) } }
+        }
+        $ctx = New-TestCtx -ConfigOver @{ managementGroupId = 'mg1' }
+        Sync-AzureRMScopes -Ctx $ctx
+        @($ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureManagementGroup' }).Count | Should -Be 2
+        $edge = $ctx.ContainsEdges | Where-Object { $_.parentResourceId -eq (Get-ScopeNodeId -ArmScopePath '/providers/Microsoft.Management/managementGroups/mg1') -and $_.childResourceId -eq (Get-ScopeNodeId -ArmScopePath '/subscriptions/sub-1') }
+        @($edge).Count | Should -Be 1
     }
 }
 
@@ -147,6 +176,30 @@ Describe 'Sync-AzureRMRoleDefinitions' {
         Sync-AzureRMRoleDefinitions -Ctx $ctx
         $ctx.RoleDefs.ContainsKey('g1') | Should -BeFalse
     }
+
+    It 'queries by management group when one is configured' {
+        Mock Get-ARGRoleDefinitions -ParameterFilter { $ManagementGroups } -MockWith {
+            @([pscustomobject]@{ name = 'g1'; properties = [pscustomobject]@{ roleName = 'Reader'; type = 'BuiltInRole'; permissions = @() } })
+        }
+        $ctx = New-TestCtx -ConfigOver @{ managementGroupId = 'mg1' }
+        Sync-AzureRMRoleDefinitions -Ctx $ctx
+        $ctx.RoleDefs['g1'].name | Should -Be 'Reader'
+        Should -Invoke Get-ARGRoleDefinitions -Times 1 -ParameterFilter { $ManagementGroups -contains 'mg1' }
+    }
+}
+
+Describe 'Get-AzureMgDisplayName' {
+    It 'returns the ARM display name and caches it (one ARM call for two lookups)' {
+        Mock Invoke-ARMGet { @{ properties = @{ displayName = 'Platform' } } }
+        $ctx = New-TestCtx
+        (Get-AzureMgDisplayName -Ctx $ctx -MgId 'mg1') | Should -Be 'Platform'
+        (Get-AzureMgDisplayName -Ctx $ctx -MgId 'mg1') | Should -Be 'Platform'   # served from cache
+        Should -Invoke Invoke-ARMGet -Times 1
+    }
+    It 'falls back to the raw id when the ARM lookup throws' {
+        Mock Invoke-ARMGet { throw 'nope' }
+        (Get-AzureMgDisplayName -Ctx (New-TestCtx) -MgId 'mg-x') | Should -Be 'mg-x'
+    }
 }
 
 Describe 'Ensure-AzureAssignmentScope' {
@@ -170,6 +223,15 @@ Describe 'Ensure-AzureAssignmentScope' {
         @($ctx.ScopeResources | Where-Object { $_.resourceType -eq 'AzureManagementGroup' }).Count | Should -Be 1
         $edge = $ctx.ContainsEdges | Where-Object { $_.parentResourceId -eq (Get-ScopeNodeId -ArmScopePath $mg) -and $_.childResourceId -eq (Get-ScopeNodeId -ArmScopePath '/subscriptions/sub-1') }
         @($edge).Count | Should -Be 1
+    }
+
+    It 'shapes the tenant root (/) as an AzureScope named Tenant Root' {
+        $ctx = New-TestCtx
+        Ensure-AzureAssignmentScope -Ctx $ctx -ScopePath '/' -OwningSubPath '/subscriptions/sub-1' | Out-Null
+        $root = $ctx.ScopeResources | Where-Object { $_.externalId -eq '/' }
+        @($root).Count | Should -Be 1
+        $root.displayName  | Should -Be 'Tenant Root'
+        $root.resourceType | Should -Be 'AzureScope'
     }
 }
 
@@ -213,10 +275,15 @@ Describe 'Sync-AzureRMAssignments' {
         $ctx.Subs = @([pscustomobject]@{ subscriptionId = 'sub-1' })
         $ctx.SubIds = @('sub-1')
         $ctx.ScopePaths.Add('/subscriptions/sub-1')
+        # A discovered scope node (with a type label) so the capability display name uses
+        # the labelled "<role> @ <label>: <name>" form.
+        [void]$ctx.KnownPaths.Add('/subscriptions/sub-1')
+        $ctx.ScopeResources.Add(@{ id = (Get-ScopeNodeId -ArmScopePath '/subscriptions/sub-1'); displayName = 'Sub One'; extendedAttributes = @{ scopeTypeLabel = 'Sub' } })
         $ctx.RoleDefs['g1'] = @{ name = 'Owner'; isCustom = $false; plane = 'control' }
         Sync-AzureRMAssignments -Ctx $ctx
         $ctx.Grants.Count | Should -Be 1   # duplicate assignment name deduped
         $ctx.RoleResources.Count | Should -Be 1
+        $ctx.RoleResources[0].displayName | Should -Be 'Owner @ Sub: Sub One'
         $ctx.PrincipalStubs['User'].Count | Should -Be 1
     }
 
