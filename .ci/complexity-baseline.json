@@ -12,9 +12,6 @@
     "app/api/src/contexts/plugins/resource-type-tree.js": [
       32
     ],
-    "app/api/src/contexts/plugins/risky-app-consent.js": [
-      29
-    ],
     "app/api/src/contexts/plugins/runner.js": [
       27
     ],
@@ -198,16 +195,16 @@
       18
     ],
     "tools/crawlers/entra-id/Start-EntraIDCrawler.ps1": [
-      251
+      197
     ],
     "tools/crawlers/midpoint/Start-MidpointCrawler.ps1": [
-      181
+      165
     ],
     "tools/crawlers/odata/Invoke-ODataGetRequest.ps1": [
       31
     ],
     "tools/crawlers/omada/Start-OmadaCrawler.ps1": [
-      235
+      184
     ],
     "tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
       17

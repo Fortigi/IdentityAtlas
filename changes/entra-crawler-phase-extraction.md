@@ -1,0 +1,1 @@
+- Internal: extracted the Entra ID crawler's OAuth2 grants, app-role, and directory-role sync phases out of the monolithic entry point into unit-tested `Sync-Entra*` functions (no functional change to what gets synced).
