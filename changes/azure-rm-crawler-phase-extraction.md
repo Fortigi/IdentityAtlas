@@ -1,0 +1,1 @@
+- Internal: began decomposing the Azure RM crawler's monolithic entry point — added a shared state object plus unit-tested phase functions (`Sync-AzureRM*`, scope/assignment helpers) and pure `New-Azure*Record` / `Get-AzureRolePlane` record-shapers. No functional change to what gets synced.
