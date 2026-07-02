@@ -345,6 +345,28 @@ Describe 'ContextMembers source collectors' {
         Mock Test-EntitySetAvailable -MockWith { $false }
         @(Get-OmadaContextMembersFromEmployment -SyncedContextIds (New-StrSet 'x') -IdentityUidInIdentitiesTable (New-StrSet 'y')).Count | Should -Be 0
     }
+
+    It 'Get-OmadaContextMembersFromEmployment builds links from Employment, filtering unsynced/out-of-table' {
+        Mock Test-EntitySetAvailable -MockWith { $true }
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Employment' } -MockWith {
+            @(
+                [pscustomobject]@{ IDENTITYREF = @{ UId = 'id1' }; OUREF = @{ UId = 'ctx1' } }   # kept
+                [pscustomobject]@{ IDENTITYREF = @{ UId = 'idX' }; OUREF = @{ UId = 'ctx1' } }   # identity not in table
+                [pscustomobject]@{ IDENTITYREF = @{ UId = 'id1' }; OUREF = @{ UId = 'ctxX' } }   # context not synced
+                [pscustomobject]@{ IDENTITYREF = @{ UId = 'id1' } }                               # no OUREF -> skip
+            )
+        }
+        $r = Get-OmadaContextMembersFromEmployment -SyncedContextIds (New-StrSet 'ctx1') -IdentityUidInIdentitiesTable (New-StrSet 'id1')
+        @($r).Count | Should -Be 1
+        @($r)[0].contextId | Should -Be 'ctx1'
+        @($r)[0].memberId  | Should -Be 'id1'
+    }
+
+    It 'Get-OmadaContextMembersFromEmployment swallows an OData failure and returns empty' {
+        Mock Test-EntitySetAvailable -MockWith { $true }
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Employment' } -MockWith { throw 'OData down' }
+        @(Get-OmadaContextMembersFromEmployment -SyncedContextIds (New-StrSet 'ctx1') -IdentityUidInIdentitiesTable (New-StrSet 'id1')).Count | Should -Be 0
+    }
 }
 
 # ─── Sync-OmadaContextMembers (integration) ─────────────────────────────────────
@@ -392,6 +414,13 @@ Describe 'Get-OmadaRoleAssignmentsBySystem' {
     It 'skips assignments for identities with no active user accounts' {
         $items = @([pscustomobject]@{ IDENTITYREF = @{ UId = 'ident1' }; ROLEREF = @{ UId = 'role1' }; ROLEASSNSTATUS = @{ Value = 'Active' } })
         (Get-OmadaRoleAssignmentsBySystem -RaItems $items -IdentityUidToUserUids @{} -OmadaSystemMap @{}).Keys.Count | Should -Be 0
+    }
+
+    It 'defaults a missing status to Active and buckets by a mapped connected system' {
+        $items = @([pscustomobject]@{ IDENTITYREF = @{ UId = 'ident1' }; ROLEREF = @{ UId = 'role1' }; SYSTEMREF = @{ UId = 'sys-9' } })   # no ROLEASSNSTATUS
+        $ra = Get-OmadaRoleAssignmentsBySystem -RaItems $items -IdentityUidToUserUids @{ 'ident1' = @('user1') } -OmadaSystemMap @{ 'sys-9' = 42 }
+        $ra.ContainsKey('sys-9') | Should -BeTrue
+        $ra['sys-9'].Count | Should -Be 1
     }
 }
 
@@ -532,6 +561,31 @@ Describe 'Omada config resolution' {
         @($m | Where-Object { $_.category -eq '' }).resourceType | Should -Be 'Resource'
     }
 
+    It 'Resolve-OmadaSyncToggles honours _syncMode = delta' {
+        (Resolve-OmadaSyncToggles -RawConfig @{ _syncMode = 'delta' }).SyncMode | Should -Be 'delta'
+    }
+
+    It 'Resolve-OmadaContextObjectTypes reads custom types, falling back contextType→entitySet and identityField→null' {
+        $r = Resolve-OmadaContextObjectTypes -Cfg ([pscustomobject]@{ contextObjectTypes = @(
+            [pscustomobject]@{ entitySet = 'Costcenter'; contextType = 'CostCenter'; identityField = 'COSTCENTER' }
+            [pscustomobject]@{ entitySet = 'Building' }   # contextType + identityField fall back
+        ) })
+        $types = @($r.contextObjectTypes)
+        ($types | Where-Object { $_.entitySet -eq 'Building' }).contextType   | Should -Be 'Building'
+        ($types | Where-Object { $_.entitySet -eq 'Building' }).identityField | Should -BeNullOrEmpty
+        $r.contextEntitySetToIdentityField['Costcenter']      | Should -Be 'COSTCENTER'
+        $r.contextEntitySetToIdentityField.ContainsKey('Building') | Should -BeFalse
+    }
+
+    It 'Resolve-OmadaResourceCategoryMapping reads a custom category mapping' {
+        $m = @(Resolve-OmadaResourceCategoryMapping -Cfg ([pscustomobject]@{ resourceCategoryMapping = @(
+            [pscustomobject]@{ category = 'App'; resourceType = 'Application' }
+            [pscustomobject]@{ }   # category/resourceType fall back to '' / 'Resource'
+        ) }))
+        ($m | Where-Object { $_.category -eq 'App' }).resourceType | Should -Be 'Application'
+        ($m | Where-Object { $_.category -eq '' }).resourceType     | Should -Be 'Resource'
+    }
+
     It 'Resolve-OmadaConfig normalises a root base URL and derives the builtin URL' {
         $cfg = Resolve-OmadaConfig -RawConfig @{} -Cfg ([pscustomobject]@{ baseUrl = 'https://tenant.omada.cloud/' }) -DefaultTypeMappings @{ identityTypesForIdentityTable = @('Employee') }
         $cfg.baseUrl | Should -Be 'https://tenant.omada.cloud/odata/dataobjects'
@@ -553,6 +607,13 @@ Describe 'Omada setup helpers' {
     It 'Connect-OmadaSession passes only the provided auth fields to Connect-ODataAPI' {
         Mock Connect-ODataAPI -MockWith { }
         Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'ApiToken'; apiToken = 'tok' }) -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
+        Should -Invoke Connect-ODataAPI -Times 1
+    }
+
+    It 'Connect-OmadaSession forwards username/password + OAuth client + cookie fields' {
+        Mock Connect-ODataAPI -MockWith { }
+        Connect-OmadaSession -Cfg ([pscustomobject]@{ authMethod = 'OAuth2'; username = 'u'; password = 'p'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t'; cookieString = 'ck' }) `
+            -BaseUrl 'http://x' -ApiVersion 'v14' -SessionTimeoutMinutes 30
         Should -Invoke Connect-ODataAPI -Times 1
     }
 
@@ -580,6 +641,17 @@ Describe 'Omada setup helpers' {
 
         (Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5).systemId | Should -Be 99
     }
+
+    It 'Register-OmadaSystems falls back to the first mapped system when no "Omada Identity" system exists' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/System' } -MockWith {
+            @([pscustomobject]@{ DisplayName = 'Some Connected System'; UId = 'sys-a' })
+        }
+        Mock Invoke-IngestAPI -MockWith { @{ systemIds = @(1) } }
+        Mock Invoke-RestMethod -MockWith { @([pscustomobject]@{ systemType = 'Omada'; tenantId = 'sys-a'; id = 5 }) }
+        $reg = Register-OmadaSystems -ApiBaseUrl 'http://x/api' -ApiKey 'k' -BaseUrl 'http://omada' -MaxRetries 5
+        $reg.systemId | Should -Be 5
+        $reg.omadaIdentitySystemUId | Should -BeNullOrEmpty
+    }
 }
 
 # ─── Write-OmadaSummary ─────────────────────────────────────────────────────────
@@ -597,5 +669,12 @@ Describe 'Write-OmadaSummary' {
         $script:phases.Add(@{ name = 'Contexts'; status = 'ok'; durationMs = 5 })
         { Write-OmadaSummary -StartTime ([datetime]::UtcNow) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
         Should -Invoke Invoke-RestMethod -Times 1 -ParameterFilter { $Uri -match '/jobs/7/phases' }
+    }
+
+    It 'renders a FAILED row (with error + records in the payload) and swallows a POST failure' {
+        Mock Invoke-RestMethod -MockWith { throw 'jobs api 500' }
+        $script:phases.Add(@{ name = 'Accounts'; status = 'error'; durationMs = 3; error = 'boom'; records = @{ accounts = 0 } })
+        { Write-OmadaSummary -StartTime ([datetime]::UtcNow) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
+        Should -Invoke Invoke-RestMethod -Times 1
     }
 }
