@@ -739,114 +739,16 @@ if ($SyncSignInLogs) {
 }
 
 # ─── Sync Resources (Groups) ─────────────────────────────────────
+# $groups is fetched here and reused by the Assignments and PIM phases below, so
+# it's initialized up front and only (re)assigned when the Resources phase runs.
+$groups = @()
 if ($SyncResources) {
-    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
-    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing resources (groups)..." -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Syncing groups' -Pct 20 -Detail 'Fetching groups from Microsoft Graph...'
-    try {
-    $coreGroupAttrs = @('id','displayName','description','mail','visibility','createdDateTime','groupTypes','securityEnabled','mailEnabled')
-    $allGroupAttrs = $coreGroupAttrs + $CustomGroupAttributes | Select-Object -Unique
-    $groupSelect = $allGroupAttrs -join ','
-    $groups = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/groups?`$select=$groupSelect&`$top=999"
-
-    $records = @($groups | ForEach-Object {
-        ConvertTo-EntraGroupResourceRecord -Group $_ -CustomGroupAttributes $CustomGroupAttributes
-    })
-
-    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
-        -Scope @{ resourceType = 'EntraGroup' } -Records $records
-    } catch {
-        $script:phaseErrors.Add("Resources: $($_.Exception.Message)")
-        Write-Host "  Resources phase failed: $($_.Exception.Message)" -ForegroundColor Red
-    }
-    $__resourcesErrMsg = $script:phaseErrors | Where-Object { $_.StartsWith('Resources: ') } | Select-Object -Last 1
-    $__phaseSW.Stop(); $phaseTimings['Resources'] = $__phaseSW.Elapsed
-    Write-Phase -Name 'Resources' -Duration $__phaseSW.Elapsed -ErrorMsg $__resourcesErrMsg
+    $groups = Sync-EntraResources -SystemId $systemId -CustomGroupAttributes $CustomGroupAttributes -Timings $phaseTimings
 }
 
-# ─── Sync Assignments (Group Members) ────────────────────────────
+# ─── Sync Assignments (Group Members + Owners) ───────────────────
 if ($SyncAssignments) {
-    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
-    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing assignments (group memberships)..." -ForegroundColor Cyan
-    $totalGroups = $groups.Count
-    Update-CrawlerProgress -Step 'Syncing group memberships' -Pct 25 -Detail "0 of $totalGroups groups"
-    try {
-
-    # Parallel fetch — see Get-FGGroupChildrenParallel for design notes.
-    $memberResult = Get-FGGroupChildrenParallel `
-        -Groups $groups -ChildPath 'members' -ThrottleLimit 16 `
-        -ProgressStep 'Syncing group memberships' -ProgressStartPct 25 -ProgressEndPct 50 `
-        -RecordBuilder {
-            param($o)
-            @{
-                resourceId     = $o.resourceId
-                principalId    = $o.principalId
-                assignmentType = 'Direct'
-                resourceType   = 'EntraGroup'
-                principalType  = if ($o.childType -eq '#microsoft.graph.group') { 'Group' } else { 'User' }
-            }
-        }
-    $allMembers = $memberResult.records
-    if ($memberResult.errorCount -gt 0) {
-        Write-Host "  WARNING: $($memberResult.errorCount) groups failed after retries (skipped)" -ForegroundColor Yellow
-    }
-
-    Update-CrawlerProgress -Detail "Uploading $($allMembers.Count) memberships to ingest API..."
-    Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-        -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraGroup' } -Records $allMembers
-
-    # Group Owners — modelled as a Direct assignment to a synthetic
-    # "Owner @ <group>" resource (resourceType='GroupOwnership'), linked to the
-    # group by a HasOwnership relationship — mirroring how an AppRole hangs off
-    # its Application. The ownership resource id is deterministic over the group
-    # id (same scheme as New-AppRoleResourceId and migration 046), so re-syncs
-    # upsert the same rows.
-    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing assignments (group owners)..." -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Syncing group owners' -Pct 51 -Detail "0 of $totalGroups groups"
-
-    $ownerResult = Get-FGGroupChildrenParallel `
-        -Groups $groups -ChildPath 'owners' -ThrottleLimit 16 `
-        -ProgressStep 'Syncing group owners' -ProgressStartPct 51 -ProgressEndPct 60 `
-        -RecordBuilder {
-            param($o)
-            @{
-                groupId     = $o.resourceId
-                principalId = $o.principalId
-            }
-        }
-    $rawOwners = $ownerResult.records
-    if ($ownerResult.errorCount -gt 0) {
-        Write-Host "  WARNING: $($ownerResult.errorCount) groups failed during owner fetch (skipped)" -ForegroundColor Yellow
-    }
-
-    # Build ownership resources (one per owned group), HasOwnership relationships,
-    # and the owner assignments (Direct to the ownership resource). Shaping lives
-    # in ConvertTo-EntraGroupOwnership (EntraIDCrawler.Transform.ps1).
-    $groupNameById = @{}
-    foreach ($g in $groups) { $groupNameById[$g.id] = $g.displayName }
-
-    $ownership = ConvertTo-EntraGroupOwnership -RawOwners $rawOwners -GroupNameById $groupNameById
-    $ownershipResources = $ownership.resources
-    $ownershipRels      = $ownership.relationships
-    $ownerRecords       = $ownership.assignments
-
-    # Send unconditionally (even when empty) so a full-sync reconcile clears
-    # ownership resources/relationships/assignments for groups that lost owners.
-    Update-CrawlerProgress -Detail "Uploading $($ownershipResources.Count) ownership resources..."
-    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $systemId -SyncMode 'full' `
-        -Scope @{ resourceType = 'GroupOwnership' } -Records $ownershipResources
-    Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $systemId -SyncMode 'full' `
-        -Scope @{ relationshipType = 'HasOwnership' } -Records $ownershipRels
-    Update-CrawlerProgress -Detail "Uploading $($ownerRecords.Count) owner assignments..."
-    Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-        -Scope @{ assignmentType = 'Direct'; resourceType = 'GroupOwnership' } -Records $ownerRecords
-    } catch {
-        $script:phaseErrors.Add("Assignments: $($_.Exception.Message)")
-        Write-Host "  Assignments phase failed: $($_.Exception.Message)" -ForegroundColor Red
-    }
-    $__assignErrMsg = $script:phaseErrors | Where-Object { $_.StartsWith('Assignments: ') } | Select-Object -Last 1
-    $__phaseSW.Stop(); $phaseTimings['Assignments'] = $__phaseSW.Elapsed
-    Write-Phase -Name 'Assignments' -Duration $__phaseSW.Elapsed -ErrorMsg $__assignErrMsg
+    Sync-EntraAssignments -SystemId $systemId -Groups $groups -Timings $phaseTimings
 }
 
 # ─── Sync PIM (Eligible group memberships) ───────────────────────

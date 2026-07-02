@@ -48,6 +48,14 @@ BeforeAll {
     # it; every test overrides it with -ParameterFilter on the URI.
     function Invoke-FGGetRequest { param([string]$URI, [int]$MaxRetries, [int]$TimeoutSec) }
 
+    # Add-FGEntraCalculatedAttributes is a Graph SDK helper (own tests) that
+    # ConvertTo-EntraGroupResourceRecord calls. Stub it so the group shaper stays
+    # hermetic — same stub the Transform suite uses.
+    function Add-FGEntraCalculatedAttributes {
+        param($Object, $Ext, $Type)
+        if ($Object.onPremisesDistinguishedName) { $Ext['_calc'] = $Type }
+    }
+
     # Reset the shared per-phase accumulators (Pester forbids a root-level
     # BeforeEach, so each Describe calls this from its own BeforeEach).
     function Reset-PhaseTestState {
@@ -350,5 +358,93 @@ Describe 'Sync-EntraAppRoles' {
 
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'AppRoles:*'
+    }
+}
+
+# ─── Sync-EntraResources ────────────────────────────────────────────────────────
+Describe 'Sync-EntraResources' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'uploads EntraGroup resources and returns the raw groups (only the groups)' {
+        $fixtureGroups = @(
+            [pscustomobject]@{ id = 'g1'; displayName = 'Group One'; securityEnabled = $true }
+            [pscustomobject]@{ id = 'g2'; displayName = 'Group Two'; securityEnabled = $true }
+        )
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/groups\?' } -MockWith { $fixtureGroups }
+
+        $timings = [ordered]@{}
+        $returned = Sync-EntraResources -SystemId 2 -CustomGroupAttributes @() -Timings $timings
+
+        (Get-Sent { $_.Scope.resourceType -eq 'EntraGroup' })[0].Records.Count | Should -Be 2
+        # The function must return ONLY the groups — not the Send-IngestBatch result.
+        @($returned).Count | Should -Be 2
+        @($returned).id | Should -Contain 'g1'
+        @($returned).id | Should -Contain 'g2'
+        $timings.Contains('Resources') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure and returns empty when the group fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/groups\?' } -MockWith { throw 'Graph 500' }
+
+        $returned = Sync-EntraResources -SystemId 1 -Timings ([ordered]@{})
+
+        @($returned).Count | Should -Be 0
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'Resources:*'
+    }
+}
+
+# ─── Sync-EntraAssignments ──────────────────────────────────────────────────────
+Describe 'Sync-EntraAssignments' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'uploads memberships plus ownership resources, relationships and owner assignments' {
+        # Get-FGGroupChildrenParallel is the parallel-fetch boundary — mock it per
+        # child path so the phase's orchestration (not the runspaces) is exercised.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith {
+            @{ records = @(
+                @{ resourceId = 'g1'; principalId = 'u1'; assignmentType = 'Direct'; resourceType = 'EntraGroup'; principalType = 'User' }
+                @{ resourceId = 'g1'; principalId = 'u2'; assignmentType = 'Direct'; resourceType = 'EntraGroup'; principalType = 'User' }
+              ); errorCount = 0 }
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith {
+            @{ records = @(@{ groupId = 'g1'; principalId = 'o1' }); errorCount = 0 }
+        }
+
+        $groups = @([pscustomobject]@{ id = 'g1'; displayName = 'Group One' })
+        $timings = [ordered]@{}
+        Sync-EntraAssignments -SystemId 4 -Groups $groups -Timings $timings
+
+        (Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'EntraGroup' })[0].Records.Count | Should -Be 2
+        (Get-Sent { $_.Scope.resourceType -eq 'GroupOwnership' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Scope.relationshipType -eq 'HasOwnership' })[0].Records.Count | Should -Be 1
+        $ownerAssns = Get-Sent { $_.Scope.assignmentType -eq 'Direct' -and $_.Scope.resourceType -eq 'GroupOwnership' }
+        $ownerAssns[0].Records.Count | Should -Be 1
+        $ownerAssns[0].Records[0].principalId | Should -Be 'o1'
+        $timings.Contains('Assignments') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'sends ownership batches even when there are no owners (full-sync reconcile)' {
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith { @{ records = @(); errorCount = 0 } }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith { @{ records = @(); errorCount = 0 } }
+
+        Sync-EntraAssignments -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1' }) -Timings ([ordered]@{})
+
+        # Ownership resource/relationship/assignment batches are still sent (empty)
+        # so the reconcile clears rows for groups that lost owners.
+        (Get-Sent { $_.Scope.resourceType -eq 'GroupOwnership' -and $_.Endpoint -eq 'ingest/resources' }).Count | Should -Be 1
+        (Get-Sent { $_.Scope.relationshipType -eq 'HasOwnership' }).Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the member fetch throws' {
+        Mock Get-FGGroupChildrenParallel -MockWith { throw 'runspace boom' }
+
+        Sync-EntraAssignments -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1' }) -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'Assignments:*'
     }
 }
