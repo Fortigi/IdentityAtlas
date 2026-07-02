@@ -460,6 +460,27 @@ Describe 'Sync-EntraAssignments' {
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'Assignments:*'
     }
+
+    It 'runs the member/owner record-builders and warns on groups that failed after retries' {
+        # Invoke the passed -RecordBuilder so the shaping scriptblocks are exercised,
+        # and report a non-zero errorCount to hit the WARNING branches.
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith {
+            $rec = & $RecordBuilder ([pscustomobject]@{ resourceId = 'g1'; principalId = 'grp2'; childType = '#microsoft.graph.group' })
+            @{ records = @($rec); errorCount = 1 }
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith {
+            $rec = & $RecordBuilder ([pscustomobject]@{ resourceId = 'g1'; principalId = 'o1' })
+            @{ records = @($rec); errorCount = 2 }
+        }
+
+        Sync-EntraAssignments -SystemId 4 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1' }) -Timings ([ordered]@{})
+
+        # The member builder classifies a nested group child as principalType 'Group'.
+        (Get-Sent { $_.Scope.resourceType -eq 'EntraGroup' -and $_.Scope.assignmentType -eq 'Direct' })[0].Records[0].principalType | Should -Be 'Group'
+        # The owner builder produced a raw owner row that became one owner assignment.
+        (Get-Sent { $_.Scope.resourceType -eq 'GroupOwnership' -and $_.Endpoint -eq 'ingest/resource-assignments' })[0].Records[0].principalId | Should -Be 'o1'
+        $script:phaseErrors.Count | Should -Be 0
+    }
 }
 
 # ─── Sync-EntraPim ──────────────────────────────────────────────────────────────
@@ -614,6 +635,55 @@ Describe 'Sync-EntraServicePrincipals' {
         @($returned).Count | Should -Be 0
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'ServicePrincipals:*'
+    }
+}
+
+# ─── Get-EntraServicePrincipalData (delta paths) ────────────────────────────────
+Describe 'Get-EntraServicePrincipalData' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Remove-FGDeltaToken -MockWith { }
+    }
+
+    It 'delta mode with a stored token fetches only changed SPs and collects @removed tombstones' {
+        Mock Get-FGDeltaToken -MockWith { 'stored-tok' }
+        Mock Invoke-FGGetDeltaRequest -MockWith {
+            @{ value = @(
+                [pscustomobject]@{ id = 'sp1'; displayName = 'Changed' }
+                [pscustomobject]@{ id = 'sp2'; '@removed' = [pscustomobject]@{ reason = 'deleted' } }
+            ); deltaToken = 'next-tok' }
+        }
+        $r = Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'delta'
+        $r.spDeltaHit       | Should -BeTrue
+        @($r.sps).Count     | Should -Be 1
+        @($r.removedSpIds)  | Should -Be @('sp2')
+        $r.newSpsToken      | Should -Be 'next-tok'
+    }
+
+    It 'falls back to a full fetch when the delta token is rejected (InvalidOperationException)' {
+        Mock Get-FGDeltaToken -MockWith { 'bad-tok' }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'deltatoken=' } -MockWith { throw [System.InvalidOperationException]::new('token rejected') }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'select=id' } -MockWith { @{ deltaToken = 'primed' } }
+        Mock Invoke-FGGetRequest -MockWith { @([pscustomobject]@{ id = 'sp1'; displayName = 'Full' }) }
+        $r = Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'delta'
+        $r.spDeltaHit   | Should -BeFalse
+        @($r.sps).Count | Should -Be 1
+        Should -Invoke Remove-FGDeltaToken -Times 1
+    }
+
+    It 'falls back to a full fetch on a generic delta failure' {
+        Mock Get-FGDeltaToken -MockWith { 'tok' }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'deltatoken=' } -MockWith { throw 'network glitch' }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'select=id' } -MockWith { @{ deltaToken = 'primed' } }
+        Mock Invoke-FGGetRequest -MockWith { @([pscustomobject]@{ id = 'sp1' }) }
+        (Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'delta').spDeltaHit | Should -BeFalse
+    }
+
+    It 'swallows a delta-token priming failure on the full path' {
+        Mock Get-FGDeltaToken -MockWith { $null }
+        Mock Invoke-FGGetRequest -MockWith { @([pscustomobject]@{ id = 'sp1' }) }
+        Mock Invoke-FGGetDeltaRequest -MockWith { throw 'prime failed' }
+        { Get-EntraServicePrincipalData -SystemId 5 -SyncMode 'full' } | Should -Not -Throw
     }
 }
 
@@ -832,6 +902,43 @@ Describe 'Governance phases' {
         # Outer catch is silent (no phase error), still records the timing.
         $script:phaseErrors.Count | Should -Be 0
         $timings.Contains('Governance') | Should -BeTrue
+    }
+}
+
+# ─── Sync-EntraGovernanceReviews + Get-EntraAccessReviewCertRecords ─────────────
+Describe 'Sync-EntraGovernanceReviews' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'walks AP-scoped review definitions and uploads certification decisions' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith { @([pscustomobject]@{ id = 'rd1' }) }
+        Mock Resolve-EntraAccessReviewApId -MockWith { @{ apId = 'ap-1' } }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/instances\?' } -MockWith { @([pscustomobject]@{ id = 'inst1' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/decisions' } -MockWith {
+            @([pscustomobject]@{ id = 'dec1'; decision = 'Approve'; principal = [pscustomobject]@{ id = 'u1'; displayName = 'Alice' } })
+        }
+        Sync-EntraGovernanceReviews -SystemId 3
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/certifications' }).Count | Should -BeGreaterThan 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'skips definitions with no access-package id and uploads nothing' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith { @([pscustomobject]@{ id = 'rd1' }) }
+        Mock Resolve-EntraAccessReviewApId -MockWith { @{ apId = $null; reason = 'nomatch'; queryStrings = @('someQuery') } }
+        Sync-EntraGovernanceReviews -SystemId 3
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/certifications' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the definitions fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith { throw 'Graph 400' }
+        Sync-EntraGovernanceReviews -SystemId 3
+        $script:phaseErrors[0] | Should -BeLike 'Governance/AccessReviews:*'
+    }
+
+    It 'Get-EntraAccessReviewCertRecords skips an instance whose decisions call fails' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/instances\?' } -MockWith { @([pscustomobject]@{ id = 'inst1' }) }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/decisions' } -MockWith { throw 'HTTP 400 bad decisions' }
+        @(Get-EntraAccessReviewCertRecords -Definition ([pscustomobject]@{ id = 'rd1' }) -ApId 'ap-1').Count | Should -Be 0
     }
 }
 
@@ -1092,6 +1199,19 @@ Describe 'Sync-EntraRefreshViews' {
     }
 }
 
+# ─── Write-EntraPhaseSummary ────────────────────────────────────────────────────
+Describe 'Write-EntraPhaseSummary' {
+
+    It 'prints a per-phase breakdown including an "Other" row for unaccounted time' {
+        $timings = [ordered]@{ Principals = [TimeSpan]::FromSeconds(2); Resources = [TimeSpan]::FromSeconds(3) }
+        { Write-EntraPhaseSummary -PhaseTimings $timings -SyncStart (Get-Date).AddSeconds(-10) } | Should -Not -Throw
+    }
+
+    It 'handles an empty timing set without a breakdown' {
+        { Write-EntraPhaseSummary -PhaseTimings ([ordered]@{}) -SyncStart (Get-Date).AddSeconds(-5) } | Should -Not -Throw
+    }
+}
+
 # ─── Write-EntraSyncLog ─────────────────────────────────────────────────────────
 Describe 'Write-EntraSyncLog' {
     BeforeEach { Reset-PhaseTestState }
@@ -1115,6 +1235,25 @@ Describe 'Write-EntraSyncLog' {
 
         Should -Invoke Invoke-RestMethod -Times 0
     }
+
+    It 'records status=Warning with the joined errors when phases failed' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        $script:phaseErrors.Add('Principals: boom')
+        Write-EntraSyncLog -SyncStart (Get-Date) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api'
+        Should -Invoke Invoke-IngestAPI -Times 1 -ParameterFilter { $Body.status -eq 'Warning' -and $Body.errorMessage -match 'boom' }
+    }
+
+    It 'soft-fails when the phases POST throws' {
+        Mock Invoke-IngestAPI -MockWith { @{} }
+        Mock Invoke-RestMethod -MockWith { throw 'jobs api 500' }
+        $script:phases.Add(@{ name = 'Principals'; status = 'ok'; durationMs = 5 })
+        { Write-EntraSyncLog -SyncStart (Get-Date) -JobId 7 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
+    }
+
+    It 'soft-fails when the sync-log write throws' {
+        Mock Invoke-IngestAPI -MockWith { throw 'ingest 500' }
+        { Write-EntraSyncLog -SyncStart (Get-Date) -JobId 0 -ApiKey 'k' -ApiBaseUrl 'http://x/api' } | Should -Not -Throw
+    }
 }
 
 # ─── Complete-EntraDeltaModeFlip ────────────────────────────────────────────────
@@ -1130,5 +1269,16 @@ Describe 'Complete-EntraDeltaModeFlip' {
         Mock Invoke-RestMethod -MockWith { @{} }
         Complete-EntraDeltaModeFlip -SyncMode 'delta' -RawConfig @{ _scheduledByConfigId = 9 } -ApiBaseUrl 'http://x/api' -ApiKey 'k'
         Should -Invoke Invoke-RestMethod -Times 0
+    }
+
+    It 'does nothing on a full run that was not scheduled by a config' {
+        Mock Invoke-RestMethod -MockWith { @{} }
+        Complete-EntraDeltaModeFlip -SyncMode 'full' -RawConfig @{} -ApiBaseUrl 'http://x/api' -ApiKey 'k'
+        Should -Invoke Invoke-RestMethod -Times 0
+    }
+
+    It 'soft-fails when the mark-delta-mode call throws' {
+        Mock Invoke-RestMethod -MockWith { throw 'mark 500' }
+        { Complete-EntraDeltaModeFlip -SyncMode 'full' -RawConfig @{ _scheduledByConfigId = 9 } -ApiBaseUrl 'http://x/api' -ApiKey 'k' } | Should -Not -Throw
     }
 }
