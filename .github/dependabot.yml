@@ -11,6 +11,15 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "ci"
+    groups:
+      # codeql-action's init/autobuild/analyze steps are separate action paths
+      # but MUST run at the same version — a mismatch fails the Analyze job with
+      # "Loaded a configuration file for version X, but running version Y".
+      # Group them so Dependabot bumps all three in a single PR instead of one
+      # PR per sub-action (which is never internally consistent).
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
 
   # Worker container (PowerShell)
   - package-ecosystem: "docker"
