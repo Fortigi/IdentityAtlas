@@ -30,3 +30,7 @@ app/api/bundled-scripts/
 app/api/src/app-bundle.mjs
 app/api/dist-node-launcher/
 app/desktop/node_modules/
+
+# Python bytecode cache (complexity tooling)
+__pycache__/
+*.pyc
