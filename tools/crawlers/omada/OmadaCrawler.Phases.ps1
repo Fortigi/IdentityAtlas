@@ -386,3 +386,166 @@ function Sync-OmadaAccounts {
         identityUidToUserUids = $Lookups.identityUidToUserUids
     }
 }
+
+# ─── Phase: IdentityMembers ───────────────────────────────────────
+# Links User accounts to their Identity (Identity.UId ← User.IDENTITYREF.IDENTITYID).
+# Per-account link shaping (and the person-type FK guard) lives in
+# ConvertTo-OmadaIdentityMemberRecord, which returns $null for accounts to skip.
+function Sync-OmadaIdentityMembers {
+    [CmdletBinding()]
+    param(
+        [int]$SystemId,
+        $AllAccounts,
+        [hashtable]$IdentityLookup = @{},
+        $IdentityTypesForIdentityTable
+    )
+    $T = [datetime]::UtcNow
+    Write-Host "`nIdentity Members:" -ForegroundColor Cyan
+    try {
+        $MemberRecords = [System.Collections.Generic.List[object]]::new()
+        foreach ($Acc in $AllAccounts) {
+            $Member = ConvertTo-OmadaIdentityMemberRecord -Account $Acc -IdentityLookup $IdentityLookup -IdentityTypesForIdentityTable $IdentityTypesForIdentityTable
+            if ($Member) { $MemberRecords.Add($Member) }
+        }
+
+        Write-Step "Ingesting $($MemberRecords.Count) identity-member links..."
+        $R = Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $SystemId -SyncMode 'full' -Records @($MemberRecords)
+        Write-Host "  IdentityMembers: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+        Write-Phase -Name 'IdentityMembers' -Duration ([datetime]::UtcNow - $T) -Records @{ members = $MemberRecords.Count }
+    } catch {
+        $Msg = $_.Exception.Message
+        Write-Host "  IdentityMembers phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("IdentityMembers: $Msg")
+        Write-Phase -Name 'IdentityMembers' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
+    }
+}
+
+# ContextMembers source 1: Omada's explicit Contextassignment entity
+# (CA_IDENTITY → CA_CONTEXT). Only emits for synced contexts + in-table identities.
+function Get-OmadaContextMembersFromAssignments {
+    [CmdletBinding()]
+    param($Items, $SyncedContextIds, $IdentityUidInIdentitiesTable)
+    $out = [System.Collections.Generic.List[object]]::new()
+    foreach ($Item in $Items) {
+        $IdentUid   = if ($Item.CA_IDENTITY) { [string]$Item.CA_IDENTITY.UId } else { $Null }
+        $ContextUid = if ($Item.CA_CONTEXT)  { [string]$Item.CA_CONTEXT.UId  } else { $Null }
+        if (-not $IdentUid -or -not $ContextUid) { continue }
+        # Skip when no contexts were synced (empty set) OR this id wasn't synced —
+        # otherwise an empty Contexts table would cause FK violations.
+        if ($SyncedContextIds.Count -eq 0 -or -not $SyncedContextIds.Contains($ContextUid)) { continue }
+        if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
+        $out.Add((New-OmadaContextMemberRecord -ContextId $ContextUid -MemberId $IdentUid))
+    }
+    return @($out)
+}
+
+# ContextMembers source 2: direct context reference fields on Identity
+# (OUREF, COUNTRY, etc. — configured identityFields + well-known fallbacks).
+function Get-OmadaContextMembersFromIdentityFields {
+    [CmdletBinding()]
+    param($AllIdentities, $ContextObjectTypes, [hashtable]$WellKnownIdentityContextFields = @{}, $SyncedContextIds, $IdentityUidInIdentitiesTable)
+    $out = [System.Collections.Generic.List[object]]::new()
+    $FieldsToCheck = @{}
+    foreach ($Cot in $ContextObjectTypes) {
+        if ($Cot.identityField) { $FieldsToCheck[$Cot.identityField] = $True }
+    }
+    foreach ($Field in $WellKnownIdentityContextFields.Keys) { $FieldsToCheck[$Field] = $True }
+
+    foreach ($Ident in $AllIdentities) {
+        $IdentUid = [string]$Ident.UId
+        if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
+        foreach ($Field in $FieldsToCheck.Keys) {
+            $ContextUid = Get-OmadaRefUid -Ref $Ident.$Field
+            if (-not $ContextUid -or -not $SyncedContextIds.Contains($ContextUid)) { continue }
+            $out.Add((New-OmadaContextMemberRecord -ContextId $ContextUid -MemberId $IdentUid))
+        }
+    }
+    return @($out)
+}
+
+# ContextMembers source 3: the Employment entity (IDENTITYREF → OUREF). Optional;
+# best-effort (soft-fails if the entity set is unavailable or the fetch errors).
+function Get-OmadaContextMembersFromEmployment {
+    [CmdletBinding()]
+    param($SyncedContextIds, $IdentityUidInIdentitiesTable, [int]$PageSize = 100, [int]$MaxRetries = 5)
+    $out = [System.Collections.Generic.List[object]]::new()
+    if (-not (Test-EntitySetAvailable 'Employment')) { return @($out) }
+    try {
+        Write-Step 'Fetching employment records from Omada...'
+        $EmpItems = Invoke-ODataPagedRequest -Path '/Employment' `
+            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxRetries
+        foreach ($Emp in $EmpItems) {
+            $IdentUid   = Get-OmadaRefUid -Ref $Emp.IDENTITYREF
+            $ContextUid = Get-OmadaRefUid -Ref $Emp.OUREF
+            if (-not $IdentUid -or -not $ContextUid) { continue }
+            if (-not $SyncedContextIds.Contains($ContextUid)) { continue }
+            if (-not $IdentityUidInIdentitiesTable.Contains($IdentUid)) { continue }
+            $out.Add((New-OmadaContextMemberRecord -ContextId $ContextUid -MemberId $IdentUid))
+        }
+        Write-Host "  Employment-based context links added from $($EmpItems.Count) employment records" -ForegroundColor Gray
+    } catch {
+        Write-Host "  Warning: Employment-based context members skipped — $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    return @($out)
+}
+
+# ─── Phase: Context Members ──────────────────────────────────────
+# OData entity: Contextassignment (+ two supplementary sources). Maps Identity →
+# OrgUnit/Context. Each identity assignment is emitted once per (contextId,
+# memberId) after deduping across all three sources.
+function Sync-OmadaContextMembers {
+    [CmdletBinding()]
+    param(
+        [int]$SystemId,
+        $SyncedContextIds,
+        $IdentityUidInIdentitiesTable,
+        $AllIdentities,
+        $ContextObjectTypes,
+        [hashtable]$WellKnownIdentityContextFields = @{},
+        [int]$PageSize = 100,
+        [int]$MaxRetries = 5
+    )
+    $T = [datetime]::UtcNow
+    Write-Host "`nContext Members:" -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing context members' -Pct 45
+    try {
+        if (-not (Test-EntitySetAvailable 'Contextassignment')) {
+            throw "Contextassignment entity set not found in OData metadata"
+        }
+        Write-Step 'Fetching context assignments from Omada...'
+        $Items = Invoke-ODataPagedRequest -Path '/Contextassignment' `
+            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxRetries
+        Write-Host "  $($Items.Count) context assignment records from Omada" -ForegroundColor Gray
+
+        $CtxMemberRecords = [System.Collections.Generic.List[object]]::new()
+        foreach ($Rec in (Get-OmadaContextMembersFromAssignments -Items $Items `
+                -SyncedContextIds $SyncedContextIds -IdentityUidInIdentitiesTable $IdentityUidInIdentitiesTable)) {
+            $CtxMemberRecords.Add($Rec)
+        }
+        if ($AllIdentities) {
+            foreach ($Rec in (Get-OmadaContextMembersFromIdentityFields -AllIdentities $AllIdentities `
+                    -ContextObjectTypes $ContextObjectTypes -WellKnownIdentityContextFields $WellKnownIdentityContextFields `
+                    -SyncedContextIds $SyncedContextIds -IdentityUidInIdentitiesTable $IdentityUidInIdentitiesTable)) {
+                $CtxMemberRecords.Add($Rec)
+            }
+        }
+        foreach ($Rec in (Get-OmadaContextMembersFromEmployment -SyncedContextIds $SyncedContextIds `
+                -IdentityUidInIdentitiesTable $IdentityUidInIdentitiesTable -PageSize $PageSize -MaxRetries $MaxRetries)) {
+            $CtxMemberRecords.Add($Rec)
+        }
+
+        # Deduplicate before ingest (multiple sources can produce the same pair).
+        $Seen    = [System.Collections.Generic.HashSet[string]]::new()
+        $Deduped = @($CtxMemberRecords | Where-Object { $Seen.Add("$($_.contextId)|$($_.memberId)") })
+
+        Write-Step "Ingesting $($Deduped.Count) context-member links..."
+        $R = Send-IngestBatch -Endpoint 'ingest/context-members' -SystemId $SystemId -SyncMode 'full' -Records $Deduped
+        Write-Host "  ContextMembers: +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($Deduped.Count) deduped records)" -ForegroundColor Green
+        Write-Phase -Name 'ContextMembers' -Duration ([datetime]::UtcNow - $T) -Records @{ members = $Deduped.Count }
+    } catch {
+        $Msg = $_.Exception.Message
+        Write-Host "  ContextMembers phase failed: $Msg" -ForegroundColor Red
+        $Script:phaseErrors.Add("ContextMembers: $Msg")
+        Write-Phase -Name 'ContextMembers' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
+    }
+}

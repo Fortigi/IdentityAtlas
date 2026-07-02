@@ -63,6 +63,13 @@ BeforeAll {
         param([scriptblock]$Where)
         @($script:sent | Where-Object $Where)
     }
+    # Build a HashSet[string] from values (context-member phases take real sets).
+    function New-StrSet {
+        param([string[]]$Values)
+        $s = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($v in $Values) { $s.Add($v) | Out-Null }
+        $s
+    }
 }
 
 # ─── Get-OmadaUserGroupMap ──────────────────────────────────────────────────────
@@ -272,5 +279,94 @@ Describe 'Sync-OmadaAccounts' {
         Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith { throw 'OData 500' }
         Sync-OmadaAccounts -SystemId 1 -IdentityLookup @{}
         $script:phaseErrors[0] | Should -BeLike 'Accounts:*'
+    }
+}
+
+# ─── Sync-OmadaIdentityMembers ──────────────────────────────────────────────────
+Describe 'Sync-OmadaIdentityMembers' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'ingests identity-member links for person-type accounts, skipping others' {
+        $lookup = @{ 'ID-1' = @{ uid = 'id-1'; identityType = 'Employee' }; 'ID-2' = @{ uid = 'id-2'; identityType = 'Contractor' } }
+        $accounts = @(
+            [pscustomobject]@{ UId = 'acc-1'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }   # Employee -> kept
+            [pscustomobject]@{ UId = 'acc-2'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-2' } }   # Contractor -> not in-table types
+            [pscustomobject]@{ UId = 'acc-3' }                                                            # no identity ref -> skip
+        )
+        Sync-OmadaIdentityMembers -SystemId 1 -AllAccounts $accounts -IdentityLookup $lookup -IdentityTypesForIdentityTable @('Employee')
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/identity-members' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the ingest throws' {
+        Mock Send-IngestBatch -MockWith { throw 'ingest 500' }
+        Sync-OmadaIdentityMembers -SystemId 1 -AllAccounts @([pscustomobject]@{ UId = 'a'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }) `
+            -IdentityLookup @{ 'ID-1' = @{ uid = 'id-1'; identityType = 'Employee' } } -IdentityTypesForIdentityTable @('Employee')
+        $script:phaseErrors[0] | Should -BeLike 'IdentityMembers:*'
+    }
+}
+
+# ─── ContextMembers source collectors (pure) ────────────────────────────────────
+Describe 'ContextMembers source collectors' {
+
+    It 'Get-OmadaContextMembersFromAssignments keeps only synced contexts + in-table identities' {
+        $synced  = New-StrSet 'ctx1'
+        $intable = New-StrSet 'id1'
+        $items = @(
+            [pscustomobject]@{ CA_IDENTITY = @{ UId = 'id1' }; CA_CONTEXT = @{ UId = 'ctx1' } }   # kept
+            [pscustomobject]@{ CA_IDENTITY = @{ UId = 'id1' }; CA_CONTEXT = @{ UId = 'ctxX' } }   # ctx not synced
+            [pscustomobject]@{ CA_IDENTITY = @{ UId = 'idX' }; CA_CONTEXT = @{ UId = 'ctx1' } }   # ident not in table
+        )
+        $r = Get-OmadaContextMembersFromAssignments -Items $items -SyncedContextIds $synced -IdentityUidInIdentitiesTable $intable
+        @($r).Count | Should -Be 1
+        @($r)[0].contextId | Should -Be 'ctx1'
+        @($r)[0].memberId  | Should -Be 'id1'
+    }
+
+    It 'Get-OmadaContextMembersFromIdentityFields resolves configured + well-known ref fields' {
+        $synced  = New-StrSet 'ou-9'
+        $intable = New-StrSet 'id1'
+        $identities = @(
+            [pscustomobject]@{ UId = 'id1'; OUREF = [pscustomobject]@{ UId = 'ou-9' } }
+            [pscustomobject]@{ UId = 'idX'; OUREF = [pscustomobject]@{ UId = 'ou-9' } }   # not in table -> skip
+        )
+        $r = Get-OmadaContextMembersFromIdentityFields -AllIdentities $identities `
+            -ContextObjectTypes @(@{ entitySet = 'Orgunit'; identityField = 'OUREF' }) `
+            -WellKnownIdentityContextFields @{} -SyncedContextIds $synced -IdentityUidInIdentitiesTable $intable
+        @($r).Count | Should -Be 1
+        @($r)[0].memberId | Should -Be 'id1'
+    }
+
+    It 'Get-OmadaContextMembersFromEmployment returns empty when Employment is unavailable' {
+        Mock Test-EntitySetAvailable -MockWith { $false }
+        @(Get-OmadaContextMembersFromEmployment -SyncedContextIds (New-StrSet 'x') -IdentityUidInIdentitiesTable (New-StrSet 'y')).Count | Should -Be 0
+    }
+}
+
+# ─── Sync-OmadaContextMembers (integration) ─────────────────────────────────────
+Describe 'Sync-OmadaContextMembers' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'combines + dedups sources and ingests context-member links' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Contextassignment' } -MockWith {
+            @([pscustomobject]@{ CA_IDENTITY = @{ UId = 'id1' }; CA_CONTEXT = @{ UId = 'ctx1' } })
+        }
+        Mock Test-EntitySetAvailable -ParameterFilter { $Name -eq 'Employment' } -MockWith { $false }
+        # Identity fields produce the SAME (ctx1,id1) pair — must dedup to one.
+        $identities = @([pscustomobject]@{ UId = 'id1'; OUREF = [pscustomobject]@{ UId = 'ctx1' } })
+        Sync-OmadaContextMembers -SystemId 2 -SyncedContextIds (New-StrSet 'ctx1') `
+            -IdentityUidInIdentitiesTable (New-StrSet 'id1') -AllIdentities $identities `
+            -ContextObjectTypes @(@{ entitySet = 'Orgunit'; identityField = 'OUREF' }) -WellKnownIdentityContextFields @{}
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/context-members' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when Contextassignment is unavailable' {
+        Mock Test-EntitySetAvailable -ParameterFilter { $Name -eq 'Contextassignment' } -MockWith { $false }
+        Sync-OmadaContextMembers -SystemId 1 -SyncedContextIds (New-StrSet 'x') `
+            -IdentityUidInIdentitiesTable (New-StrSet 'y') -AllIdentities @() -ContextObjectTypes @() -WellKnownIdentityContextFields @{}
+        $script:phaseErrors[0] | Should -BeLike 'ContextMembers:*'
     }
 }
