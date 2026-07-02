@@ -1,9 +1,11 @@
-# ─── Cyclomatic-complexity ratchet ───────────────────────────────────────────
+# ─── Complexity ratchet (cyclomatic + cognitive) ─────────────────────────────
 # Enforces that no unit (function, or a PowerShell script/module body) gets MORE
-# complex than its grandfathered baseline (.ci/complexity-baseline.json), and that
-# new/touched units stay under the per-language threshold. The baseline only ever
-# ratchets down, squeezing the codebase toward "every unit <= 15" over time.
-# See tools/complexity/ratchet.py for the mechanism. Nothing red-builds on adoption.
+# complex than its grandfathered baseline, and that new/touched units stay under the
+# per-language threshold. Two independent metrics, each with its own baseline:
+#   cyclomatic → .ci/complexity-baseline.json   (PS/Py 15, JS 20)
+#   cognitive  → .ci/cognitive-baseline.json    (PS/Py 15; JS not yet gated)
+# Both baselines only ever ratchet down, squeezing the codebase toward "every unit
+# <= 15" over time. See tools/complexity/ratchet.py. Nothing red-builds on adoption.
 # ─────────────────────────────────────────────────────────────────────────────
 name: Complexity ratchet
 
@@ -49,5 +51,15 @@ jobs:
           npm ci --prefix app/api
           npm ci --prefix app/ui
 
-      - name: Run complexity ratchet
+      # Validate the measurers themselves before they gate anything. The PowerShell
+      # measurer's Pester tests run in the "Unit Tests: Pester" job.
+      - name: Test the complexity tooling (Python measurer + gate logic)
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/complexity/test_ratchet.py -q
+
+      - name: Run cyclomatic-complexity ratchet
         run: python3 tools/complexity/ratchet.py
+
+      - name: Run cognitive-complexity ratchet
+        run: python3 tools/complexity/ratchet.py --metric cognitive
