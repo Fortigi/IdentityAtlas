@@ -1,3 +1,4 @@
 - Internal: extracted the midPoint crawler's system-registration, org-context, and view-refresh sync phases out of the monolithic entry point into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
 - Internal: extracted the midPoint crawler's role/service-resource and user (identities + principals) sync phases into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
 - Internal: extracted the midPoint crawler's two-pass streaming shadow phase (accounts + entitlements + entitlement memberships) into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).
+- Internal: extracted the midPoint crawler's org-membership, assignment (direct + inherited), role-nesting, and certification-review sync phases into unit-tested `Sync-Midpoint*` functions (no functional change to what gets synced).

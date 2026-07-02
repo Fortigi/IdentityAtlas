@@ -493,3 +493,193 @@ function Sync-MidpointShadows {
 
     return @{ entitlementByDn = $EntitlementByDn }
 }
+
+# ─── Phase: Org membership → ContextMembers ──────────────────────
+# user.parentOrgRef[] → ContextMembers (only for synced orgs, deduped).
+function Sync-MidpointOrgMembership {
+    [CmdletBinding()]
+    param([int]$MidpointSystemId, $AllUsers, $SyncedOrgIds)
+    Write-Host "`nContext Members (org membership):" -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing org membership' -Pct 72
+    try {
+        $seen = [System.Collections.Generic.HashSet[string]]::new()
+        $cm   = [System.Collections.Generic.List[object]]::new()
+        foreach ($u in $AllUsers) {
+            $uoid = [string]$u.oid
+            $refs = $u.parentOrgRef
+            if (-not $refs) { continue }
+            foreach ($ref in @($refs)) {
+                $orgOid = Get-MidpointRefOid $ref $null
+                if (-not $orgOid -or -not $SyncedOrgIds.Contains($orgOid)) { continue }
+                if (-not $seen.Add("$orgOid|$uoid")) { continue }
+                $cm.Add([PSCustomObject]@{ contextId = $orgOid; memberId = $uoid; memberType = 'Identity'; addedBy = 'sync' })
+            }
+        }
+        $R = Send-IngestBatch -Endpoint 'ingest/context-members' -SystemId $MidpointSystemId -Records @($cm)
+        Write-Host "  ContextMembers: +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($cm.Count) links)" -ForegroundColor Green
+    } catch { Add-PhaseError 'ContextMembers' $_.Exception.Message }
+}
+
+# Assignments pass 1: user.assignment[] targetRef → the DIRECTLY assigned
+# roles/services (grant='direct'). Mutates $Ra/$Seen.
+function Add-MidpointDirectAssignments {
+    [CmdletBinding()]
+    param($AllUsers, $SyncedResourceIds, [hashtable]$ResourceOidToType, $Ra, $Seen)
+    foreach ($u in $AllUsers) {
+        $uoid = [string]$u.oid
+        $assignments = $u.assignment
+        if (-not $assignments) { continue }
+        foreach ($a in @($assignments)) {
+            $tr = $a.targetRef
+            if (-not $tr) { continue }
+            $targetType = Get-MidpointRefType $tr ''
+            $targetOid  = Get-MidpointRefOid $tr $null
+            if (-not $targetOid) { continue }
+            if ($targetType -notin @('RoleType', 'ServiceType')) { continue }   # Org -> context; Archetype -> skip
+            if (-not $SyncedResourceIds.Contains($targetOid)) { continue }
+            if (-not $Seen.Add("$targetOid|$uoid")) { continue }
+            $Ra.Add((New-MidpointGovernanceAssignmentRecord -ResourceId $targetOid -PrincipalId $uoid -ResourceType $ResourceOidToType[$targetOid] -Grant 'direct'))
+        }
+    }
+}
+
+# Assignments pass 2: user.roleMembershipRef[] → midPoint's fully-computed
+# membership (grant='inherited'). Default-relation refs only; pass-1 direct OIDs
+# win ties (already in $Seen). Mutates $Ra/$Seen.
+function Add-MidpointInheritedAssignments {
+    [CmdletBinding()]
+    param($AllUsers, $SyncedResourceIds, [hashtable]$ResourceOidToType, $Ra, $Seen)
+    foreach ($u in $AllUsers) {
+        $uoid = [string]$u.oid
+        $memberships = $u.roleMembershipRef
+        if (-not $memberships) { continue }
+        foreach ($m in @($memberships)) {
+            $targetType = Get-MidpointRefType $m ''
+            $targetOid  = Get-MidpointRefOid $m $null
+            if (-not $targetOid) { continue }
+            if ($targetType -notin @('RoleType', 'ServiceType')) { continue }
+            if (-not (Test-MidpointDefaultRelation (Get-MidpointRefRelation $m ''))) { continue }   # skip manager/owner/approver/meta
+            if (-not $SyncedResourceIds.Contains($targetOid)) { continue }
+            if (-not $Seen.Add("$targetOid|$uoid")) { continue }   # already emitted as direct -> keep that
+            $Ra.Add((New-MidpointGovernanceAssignmentRecord -ResourceId $targetOid -PrincipalId $uoid -ResourceType $ResourceOidToType[$targetOid] -Grant 'inherited'))
+        }
+    }
+}
+
+# ─── Phase: Assignments → ResourceAssignments (Direct memberships) ─
+# Two passes so birthright/nested/org-inherited memberships are captured, not
+# just directly-assigned. Governance memberships are real Direct assignments on
+# the role/service (governed=true), bucketed by resourceType for a safe reconcile.
+function Sync-MidpointAssignments {
+    [CmdletBinding()]
+    param([int]$MidpointSystemId, $AllUsers, $SyncedResourceIds, [hashtable]$ResourceOidToType = @{})
+    Write-Host "`nAssignments (role/service memberships):" -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing assignments' -Pct 82
+    try {
+        $seen = [System.Collections.Generic.HashSet[string]]::new()
+        $ra   = [System.Collections.Generic.List[object]]::new()
+        Add-MidpointDirectAssignments   -AllUsers $AllUsers -SyncedResourceIds $SyncedResourceIds -ResourceOidToType $ResourceOidToType -Ra $ra -Seen $seen
+        Add-MidpointInheritedAssignments -AllUsers $AllUsers -SyncedResourceIds $SyncedResourceIds -ResourceOidToType $ResourceOidToType -Ra $ra -Seen $seen
+        foreach ($grp in ($ra | Group-Object resourceType)) {
+            $R = Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $MidpointSystemId -Scope @{ assignmentType = 'Direct'; resourceType = $grp.Name } -Records @($grp.Group)
+            Write-Host "  ResourceAssignments ($($grp.Name)): +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($grp.Count) links)" -ForegroundColor Green
+        }
+    } catch { Add-PhaseError 'Assignments' $_.Exception.Message }
+}
+
+# Contains edges for one role's inducements: (1) targetRef -> another Role/Service;
+# (2) construction -> the entitlement(s) it grants (literal shadowRef or an
+# associationTargetSearch DN resolved via $EntitlementByDn). Mutates $Seen and the
+# $Stats counters (@{ targetRef; construction; unresolved }); returns the edges.
+function Get-MidpointRoleNestingEdges {
+    [CmdletBinding()]
+    param($Role, $SyncedResourceIds, [hashtable]$EntitlementByDn = @{}, $Seen, [hashtable]$Stats)
+    $edges = [System.Collections.Generic.List[object]]::new()
+    $parentOid = [string]$Role.oid
+    foreach ($ind in @($Role.inducement)) {
+        $tr = $ind.targetRef
+        if ($tr) {
+            $tt = Get-MidpointRefType $tr ''
+            $childOid = Get-MidpointRefOid $tr $null
+            if (-not $childOid -or $tt -notin @('RoleType', 'ServiceType')) { continue }
+            if (-not $SyncedResourceIds.Contains($childOid)) { continue }
+            if (-not $Seen.Add("$parentOid|$childOid")) { continue }
+            $edges.Add((New-MidpointContainsRelationship -ParentResourceId $parentOid -ChildResourceId $childOid))
+            $Stats.targetRef++
+            continue
+        }
+        $con = $ind.construction
+        if (-not $con) { continue }
+        foreach ($t in (Get-MidpointConstructionTargets -Construction $con)) {
+            $entOid = if ($t.shadowOid) { $t.shadowOid }
+                      elseif ($t.searchKey -and $EntitlementByDn.ContainsKey($t.searchKey)) { $EntitlementByDn[$t.searchKey] }
+                      else { '' }
+            if (-not $entOid) { $Stats.unresolved++; continue }
+            if (-not $SyncedResourceIds.Contains($entOid)) { $Stats.unresolved++; continue }
+            if (-not $Seen.Add("$parentOid|$entOid")) { continue }
+            $edges.Add((New-MidpointContainsRelationship -ParentResourceId $parentOid -ChildResourceId $entOid))
+            $Stats.construction++
+        }
+    }
+    return @($edges)
+}
+
+# ─── Phase: Role nesting → ResourceRelationships (Contains) ───────
+# RoleType.inducement[] → Contains edges (needs the Shadows phase for construction
+# targets to resolve via $EntitlementByDn).
+function Sync-MidpointRoleNesting {
+    [CmdletBinding()]
+    param([int]$MidpointSystemId, $AllRoles, $SyncedResourceIds, [hashtable]$EntitlementByDn = @{})
+    Write-Host "`nRole nesting (Contains):" -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing role nesting' -Pct 90
+    try {
+        $seen  = [System.Collections.Generic.HashSet[string]]::new()
+        $rr    = [System.Collections.Generic.List[object]]::new()
+        $stats = @{ targetRef = 0; construction = 0; unresolved = 0 }
+        foreach ($r in $AllRoles) {
+            foreach ($edge in (Get-MidpointRoleNestingEdges -Role $r -SyncedResourceIds $SyncedResourceIds -EntitlementByDn $EntitlementByDn -Seen $seen -Stats $stats)) {
+                $rr.Add($edge)
+            }
+        }
+        $R = Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $MidpointSystemId -Scope @{ relationshipType = 'Contains' } -Records @($rr)
+        Write-Host "  ResourceRelationships (Contains): +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($rr.Count) links — $($stats.targetRef) role/service, $($stats.construction) construction; $($stats.unresolved) unresolved)" -ForegroundColor Green
+    } catch { Add-PhaseError 'RoleNesting' $_.Exception.Message }
+}
+
+# ─── Phase: Reviews → CertificationDecisions ─────────────────────
+# midPoint access-certification campaign cases → CertificationDecisions (needs
+# ?include=case). Only role/service reviews on synced resources are kept.
+function Sync-MidpointReviews {
+    [CmdletBinding()]
+    param([int]$MidpointSystemId, $SyncedResourceIds, [hashtable]$UserOidToName = @{}, [int]$PageSize = 100)
+    Write-Host "`nReviews (certification decisions):" -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing reviews' -Pct 92
+    try {
+        $campaigns = @(Invoke-MidpointSearch -Type 'accessCertificationCampaigns' -PageSize $PageSize -Include 'case')
+        Write-Host "  $($campaigns.Count) certification campaigns from midPoint" -ForegroundColor Gray
+        $seen = [System.Collections.Generic.HashSet[string]]::new()
+        $cd   = [System.Collections.Generic.List[object]]::new()
+        foreach ($camp in $campaigns) {
+            $campOid   = [string]$camp.oid
+            $campName  = (Get-MidpointString $camp.name $campOid)
+            $campState = (Get-MidpointString $camp.state '')
+            $cases = $camp.case; $cases = if ($cases -is [System.Array]) { $cases } elseif ($cases) { @($cases) } else { @() }
+            foreach ($case in $cases) {
+                $principalOid = Get-MidpointRefOid $case.objectRef $null
+                $targetOid    = Get-MidpointRefOid $case.targetRef $null
+                $targetType   = Get-MidpointRefType $case.targetRef ''
+                if (-not $principalOid -or -not $targetOid) { continue }
+                if ($targetType -notin @('RoleType', 'ServiceType')) { continue }   # org reviews aren't resource reviews
+                if (-not $SyncedResourceIds.Contains($targetOid)) { continue }
+                $caseId = [string]$case.'@id'
+                $key = "$campOid|$caseId"
+                if (-not $seen.Add($key)) { continue }
+                $cd.Add((ConvertTo-MidpointCertificationDecision -Case $case -CaseKey $key -CaseId $caseId `
+                    -PrincipalOid $principalOid -TargetOid $targetOid `
+                    -CampaignName $campName -CampaignOid $campOid -CampaignState $campState -UserOidToName $UserOidToName))
+            }
+        }
+        $R = Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $MidpointSystemId -Records @($cd)
+        Write-Host "  CertificationDecisions: +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($cd.Count) decisions)" -ForegroundColor Green
+    } catch { Add-PhaseError 'Reviews' $_.Exception.Message }
+}

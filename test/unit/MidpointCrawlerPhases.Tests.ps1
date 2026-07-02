@@ -49,6 +49,12 @@ BeforeAll {
         param([scriptblock]$Where)
         @($script:sent | Where-Object $Where)
     }
+    function New-StrSet {
+        param([string[]]$Values)
+        $s = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($v in $Values) { $s.Add($v) | Out-Null }
+        $s
+    }
 }
 
 # ─── Sync-MidpointSystems ───────────────────────────────────────────────────────
@@ -297,5 +303,108 @@ Describe 'Sync-MidpointShadows' {
         Sync-MidpointShadows -MidpointSystemId 10 -ResourceSystemId @{} -ShadowOidToUserOid @{} `
             -SyncedResourceIds ([System.Collections.Generic.HashSet[string]]::new())
         $script:phaseErrors[0] | Should -BeLike 'Shadows:*'
+    }
+}
+
+# ─── Sync-MidpointOrgMembership ─────────────────────────────────────────────────
+Describe 'Sync-MidpointOrgMembership' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'emits context members for synced orgs only, deduped' {
+        $users = @(
+            [pscustomobject]@{ oid = 'u-1'; parentOrgRef = @([pscustomobject]@{ oid = 'org-1' }, [pscustomobject]@{ oid = 'org-unsynced' }) }
+            [pscustomobject]@{ oid = 'u-2'; parentOrgRef = @([pscustomobject]@{ oid = 'org-1' }) }
+        )
+        $synced = New-StrSet 'org-1'
+        Sync-MidpointOrgMembership -MidpointSystemId 10 -AllUsers $users -SyncedOrgIds $synced
+
+        $sent = (Get-Sent { $_.Endpoint -eq 'ingest/context-members' })[0]
+        $sent.Records.Count | Should -Be 2   # (org-1,u-1) + (org-1,u-2); org-unsynced skipped
+        $script:phaseErrors.Count | Should -Be 0
+    }
+}
+
+# ─── Assignment passes (pure) + Sync-MidpointAssignments ────────────────────────
+Describe 'Sync-MidpointAssignments' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'emits direct + inherited assignments, direct winning ties, bucketed by resourceType' {
+        $users = @([pscustomobject]@{
+            oid = 'u-1'
+            assignment       = @([pscustomobject]@{ targetRef = [pscustomobject]@{ oid = 'role-1'; type = 'c:RoleType' } })
+            roleMembershipRef = @(
+                [pscustomobject]@{ oid = 'role-1'; type = 'c:RoleType'; relation = 'org:default' }   # dup of direct -> skipped
+                [pscustomobject]@{ oid = 'role-2'; type = 'c:RoleType'; relation = 'org:default' }    # inherited
+            )
+        })
+        $synced = New-StrSet @('role-1','role-2')
+        $types  = @{ 'role-1' = 'BusinessRole'; 'role-2' = 'BusinessRole' }
+        Sync-MidpointAssignments -MidpointSystemId 10 -AllUsers $users -SyncedResourceIds $synced -ResourceOidToType $types
+
+        $sent = (Get-Sent { $_.Scope.resourceType -eq 'BusinessRole' -and $_.Scope.assignmentType -eq 'Direct' })[0]
+        $sent.Records.Count | Should -Be 2   # role-1 (direct) + role-2 (inherited); role-1 not double-counted
+        (@($sent.Records | Where-Object { $_.resourceId -eq 'role-1' }).extendedAttributes.grant) | Should -Be 'direct'
+        (@($sent.Records | Where-Object { $_.resourceId -eq 'role-2' }).extendedAttributes.grant) | Should -Be 'inherited'
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase error when the ingest throws' {
+        Mock Send-IngestBatch -MockWith { throw 'ingest 500' }
+        $users = @([pscustomobject]@{ oid = 'u'; assignment = @([pscustomobject]@{ targetRef = [pscustomobject]@{ oid = 'r'; type = 'c:RoleType' } }) })
+        Sync-MidpointAssignments -MidpointSystemId 10 -AllUsers $users -SyncedResourceIds (New-StrSet 'r') -ResourceOidToType @{ 'r' = 'BusinessRole' }
+        $script:phaseErrors[0] | Should -BeLike 'Assignments:*'
+    }
+}
+
+# ─── Get-MidpointRoleNestingEdges (pure) + Sync-MidpointRoleNesting ──────────────
+Describe 'Role nesting' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'Get-MidpointRoleNestingEdges emits targetRef + construction Contains edges' {
+        $role = [pscustomobject]@{
+            oid = 'parent'
+            inducement = @(
+                [pscustomobject]@{ targetRef = [pscustomobject]@{ oid = 'child'; type = 'c:RoleType' } }
+                [pscustomobject]@{ construction = [pscustomobject]@{ association = [pscustomobject]@{ shadowRef = [pscustomobject]@{ oid = 'ent-1' } } } }
+            )
+        }
+        $stats = @{ targetRef = 0; construction = 0; unresolved = 0 }
+        $edges = Get-MidpointRoleNestingEdges -Role $role -SyncedResourceIds (New-StrSet @('child','ent-1')) `
+            -EntitlementByDn @{} -Seen ([System.Collections.Generic.HashSet[string]]::new()) -Stats $stats
+        @($edges).Count | Should -Be 2
+        $stats.targetRef | Should -Be 1
+        $stats.construction | Should -Be 1
+    }
+
+    It 'Sync-MidpointRoleNesting ingests the Contains relationships' {
+        $roles = @([pscustomobject]@{ oid = 'parent'; inducement = @([pscustomobject]@{ targetRef = [pscustomobject]@{ oid = 'child'; type = 'c:RoleType' } }) })
+        Sync-MidpointRoleNesting -MidpointSystemId 10 -AllRoles $roles -SyncedResourceIds (New-StrSet @('child')) -EntitlementByDn @{}
+        (Get-Sent { $_.Scope.relationshipType -eq 'Contains' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+}
+
+# ─── Sync-MidpointReviews ───────────────────────────────────────────────────────
+Describe 'Sync-MidpointReviews' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'maps role/service campaign cases on synced resources to certification decisions' {
+        Mock Invoke-MidpointSearch -ParameterFilter { $Type -eq 'accessCertificationCampaigns' } -MockWith {
+            @([pscustomobject]@{ oid = 'camp-1'; name = 'Q1 review'; state = 'closed'
+                case = @(
+                    [pscustomobject]@{ '@id' = '1'; objectRef = @{ oid = 'u-1' }; targetRef = [pscustomobject]@{ oid = 'role-1'; type = 'c:RoleType' }; outcome = 'accept' }
+                    [pscustomobject]@{ '@id' = '2'; objectRef = @{ oid = 'u-1' }; targetRef = [pscustomobject]@{ oid = 'org-x'; type = 'c:OrgType' }; outcome = 'accept' }   # org -> skipped
+                ) })
+        }
+        Sync-MidpointReviews -MidpointSystemId 10 -SyncedResourceIds (New-StrSet 'role-1') -UserOidToName @{ 'u-1' = 'Alice' }
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/governance/certifications' })[0].Records.Count | Should -Be 1
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase error when the campaign fetch throws' {
+        Mock Invoke-MidpointSearch -MockWith { throw 'campaigns 500' }
+        Sync-MidpointReviews -MidpointSystemId 10 -SyncedResourceIds (New-StrSet 'x') -UserOidToName @{}
+        $script:phaseErrors[0] | Should -BeLike 'Reviews:*'
     }
 }
