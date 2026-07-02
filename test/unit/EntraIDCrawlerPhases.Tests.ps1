@@ -683,7 +683,7 @@ Describe 'Sync-EntraSignInLogs' {
 
 # ─── Resolve-EntraAccessReviewApId (pure) ───────────────────────────────────────
 Describe 'Resolve-EntraAccessReviewApId' {
-    $uuid = '11111111-1111-1111-1111-111111111111'
+    BeforeAll { $uuid = '11111111-1111-1111-1111-111111111111' }
 
     It 'returns noscope when the definition has no query' {
         $r = Resolve-EntraAccessReviewApId -Definition ([pscustomobject]@{ id = 'rd1' })
@@ -828,5 +828,170 @@ Describe 'Governance phases' {
         # Outer catch is silent (no phase error), still records the timing.
         $script:phaseErrors.Count | Should -Be 0
         $timings.Contains('Governance') | Should -BeTrue
+    }
+}
+
+# ─── Get-EntraUserSelect (pure) ─────────────────────────────────────────────────
+Describe 'Get-EntraUserSelect' {
+
+    It 'includes the core attributes and a plain custom attribute' {
+        $sel = Get-EntraUserSelect -CustomUserAttributes @('costCenter')
+        $sel | Should -Match 'signInActivity'
+        $sel | Should -Match 'costCenter'
+        $sel | Should -Not -Match 'onPremisesExtensionAttributes'
+    }
+
+    It 'adds onPremisesExtensionAttributes when a custom attribute is extensionAttributeN' {
+        (Get-EntraUserSelect -CustomUserAttributes @('extensionAttribute5')) | Should -Match 'onPremisesExtensionAttributes'
+    }
+
+    It 'adds onPremisesExtensionAttributes when the identity filter targets an extensionAttributeN' {
+        (Get-EntraUserSelect -IdentityFilter @{ attribute = 'extensionAttribute3' }) | Should -Match 'onPremisesExtensionAttributes'
+    }
+}
+
+# ─── Select-EntraIdentityUsers (pure filter) ────────────────────────────────────
+Describe 'Select-EntraIdentityUsers' {
+    BeforeAll {
+        $users = @(
+            [pscustomobject]@{ id = 'u1'; department = 'Sales'; employeeId = '100' }
+            [pscustomobject]@{ id = 'u2'; department = 'Eng';   employeeId = $null }
+            [pscustomobject]@{ id = 'u3'; department = 'Sales'; employeeId = '300' }
+        )
+    }
+
+    It "matches 'equals'" {
+        $m = Select-EntraIdentityUsers -Users $users -IdentityFilter @{ attribute = 'department'; condition = 'equals'; value = 'Sales' }
+        @($m).id | Should -Be @('u1','u3')
+    }
+
+    It "matches 'isNotNull'" {
+        $m = Select-EntraIdentityUsers -Users $users -IdentityFilter @{ attribute = 'employeeId'; condition = 'isNotNull' }
+        @($m).id | Should -Be @('u1','u3')
+    }
+
+    It "matches 'inValues'" {
+        $m = Select-EntraIdentityUsers -Users $users -IdentityFilter @{ attribute = 'department'; condition = 'inValues'; values = @('Eng') }
+        @($m).id | Should -Be @('u2')
+    }
+}
+
+# ─── ConvertTo-EntraIdentityRecord (pure) ───────────────────────────────────────
+Describe 'ConvertTo-EntraIdentityRecord' {
+
+    It 'maps core fields and falls back to UPN for email' {
+        $u = [pscustomobject]@{ id = 'u1'; displayName = 'Alice'; mail = $null; userPrincipalName = 'alice@x'; department = 'Sales' }
+        $rec = ConvertTo-EntraIdentityRecord -User $u
+        $rec.id | Should -Be 'u1'
+        $rec.email | Should -Be 'alice@x'
+        $rec.ContainsKey('extendedAttributes') | Should -BeFalse
+    }
+
+    It 'carries non-empty custom attributes into extendedAttributes' {
+        $u = [pscustomobject]@{ id = 'u1'; displayName = 'Alice'; mail = 'a@x'; costCenter = 'CC1'; empty = '' }
+        $rec = ConvertTo-EntraIdentityRecord -User $u -CustomUserAttributes @('costCenter','empty')
+        $rec.extendedAttributes['costCenter'] | Should -Be 'CC1'
+        $rec.extendedAttributes.ContainsKey('empty') | Should -BeFalse
+    }
+}
+
+# ─── Get-EntraUserData ──────────────────────────────────────────────────────────
+Describe 'Get-EntraUserData' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Get-FGDeltaToken -MockWith { $null }
+        Mock Remove-FGDeltaToken -MockWith { }
+        Mock Set-FGDeltaToken -MockWith { }
+    }
+
+    It 'full mode fetches with manager expand and primes a fresh delta token' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
+            @([pscustomobject]@{ id = 'u1'; displayName = 'Alice' })
+        }
+        Mock Invoke-FGGetDeltaRequest -MockWith { @{ value = @(); deltaToken = 'primed' } }
+
+        $data = Get-EntraUserData -SystemId 1 -SyncMode 'full' -UserSelect 'id,displayName'
+        $data.deltaHit | Should -BeFalse
+        @($data.users).Count | Should -Be 1
+        $data.newUsersToken | Should -Be 'primed'
+    }
+
+    It 'delta mode returns changed users and @removed tombstones' {
+        Mock Get-FGDeltaToken -MockWith { 'stored-token' }
+        Mock Invoke-FGGetDeltaRequest -MockWith {
+            @{ value = @(
+                [pscustomobject]@{ id = 'u1'; displayName = 'Alice' }
+                [pscustomobject]@{ id = 'gone'; '@removed' = [pscustomobject]@{ reason = 'deleted' } }
+              ); deltaToken = 'next-token' }
+        }
+
+        $data = Get-EntraUserData -SystemId 1 -SyncMode 'delta' -UserSelect 'id'
+        $data.deltaHit | Should -BeTrue
+        @($data.users).id | Should -Be @('u1')
+        @($data.removedUserIds) | Should -Contain 'gone'
+    }
+
+    It 'falls back to full when the stored delta token is rejected' {
+        Mock Get-FGDeltaToken -MockWith { 'bad-token' }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'deltatoken=' } -MockWith { throw [System.InvalidOperationException]::new('token rejected') }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith { @([pscustomobject]@{ id = 'u1' }) }
+        Mock Invoke-FGGetDeltaRequest -ParameterFilter { $URI -match 'select=id' } -MockWith { @{ value = @(); deltaToken = 'primed' } }
+
+        $data = Get-EntraUserData -SystemId 1 -SyncMode 'delta' -UserSelect 'id'
+        $data.deltaHit | Should -BeFalse
+        @($data.users).Count | Should -Be 1
+        Should -Invoke Remove-FGDeltaToken -Times 1
+    }
+}
+
+# ─── Sync-EntraPrincipals (integration) ─────────────────────────────────────────
+Describe 'Sync-EntraPrincipals' {
+    BeforeEach {
+        Reset-PhaseTestState
+        Mock Send-IngestBatch -MockWith $script:SendMock
+        Mock Get-FGDeltaToken -MockWith { $null }
+        Mock Remove-FGDeltaToken -MockWith { }
+        Mock Set-FGDeltaToken -MockWith { }
+        Mock Invoke-FGGetDeltaRequest -MockWith { @{ value = @(); deltaToken = 'primed' } }
+    }
+
+    It 'full mode uploads User principals with tombstones and primes the token' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'u1'; displayName = 'Alice'; userPrincipalName = 'a@x'; accountEnabled = $true }
+                [pscustomobject]@{ id = 'u2'; displayName = 'Bob';   userPrincipalName = 'b@x'; accountEnabled = $true }
+            )
+        }
+        $timings = [ordered]@{}
+        Sync-EntraPrincipals -SystemId 5 -SyncMode 'full' -Timings $timings
+
+        $p = Get-Sent { $_.Scope.principalType -eq 'User' }
+        $p[0].Records.Count | Should -Be 2
+        $p[0].SyncMode | Should -Be 'full'
+        Should -Invoke Set-FGDeltaToken -Times 1 -ParameterFilter { $Token -eq 'primed' }
+        $timings.Contains('Principals') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'runs the identity sub-sync when an identity filter is configured' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'u1'; displayName = 'Alice'; userPrincipalName = 'a@x'; department = 'Sales'; accountEnabled = $true }
+                [pscustomobject]@{ id = 'u2'; displayName = 'Bob';   userPrincipalName = 'b@x'; department = 'Eng';   accountEnabled = $true }
+            )
+        }
+        Sync-EntraPrincipals -SystemId 1 -SyncMode 'full' -IdentityFilter @{ attribute = 'department'; condition = 'equals'; value = 'Sales' } -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/identities' })[0].Records.Count | Should -Be 1
+        (Get-Sent { $_.Endpoint -eq 'ingest/identity-members' })[0].Records.Count | Should -Be 1
+    }
+
+    It 'records a phase failure when the user fetch throws' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match '/users\?\$select' } -MockWith { throw 'Graph 500' }
+
+        Sync-EntraPrincipals -SystemId 1 -SyncMode 'full' -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'Principals:*'
     }
 }

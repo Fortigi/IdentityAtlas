@@ -1397,3 +1397,236 @@ function Sync-EntraGovernance {
     }
     $__phaseSW.Stop(); if ($Timings) { $Timings['Governance'] = $__phaseSW.Elapsed }
 }
+
+# ─── Principals: build the $select ───────────────────────────────
+# Core user attributes + custom, adding onPremisesExtensionAttributes when any
+# custom attribute or the identity filter references an extensionAttributeN.
+# Verbatim from the inline $select build; no I/O.
+function Get-EntraUserSelect {
+    [CmdletBinding()]
+    param(
+        [string[]]$CustomUserAttributes = @(),
+        [hashtable]$IdentityFilter = @{}
+    )
+    # signInActivity and userType feed the risk engine's stale/guest signals;
+    # manager is expanded inline elsewhere; onPremisesDistinguishedName lets
+    # Add-FGEntraCalculatedAttributes derive _OuPath for on-prem-synced users.
+    $coreUserAttrs = @(
+        'id','displayName','mail','userPrincipalName','accountEnabled',
+        'givenName','surname','department','jobTitle','companyName','employeeId',
+        'createdDateTime','userType','signInActivity','externalUserState',
+        'onPremisesDistinguishedName'
+    )
+
+    $extraSelectAttrs = @()
+    $hasExtensionAttrs = $false
+    foreach ($attr in $CustomUserAttributes) {
+        if ($attr -match '^extensionAttribute\d+$') {
+            $hasExtensionAttrs = $true
+        } else {
+            $extraSelectAttrs += $attr
+        }
+    }
+    if ($IdentityFilter['attribute'] -match '^extensionAttribute\d+$') {
+        $hasExtensionAttrs = $true
+    }
+    if ($hasExtensionAttrs) {
+        $extraSelectAttrs += 'onPremisesExtensionAttributes'
+    }
+    $allUserAttrs = $coreUserAttrs + $extraSelectAttrs | Select-Object -Unique
+    return ($allUserAttrs -join ',')
+}
+
+# ─── Principals: fetch (delta vs full) ───────────────────────────
+# Delta/full fetch of users. `/users/delta` can't $expand=manager, so full runs
+# fetch with manager expand AND prime a delta token for the next run; delta runs
+# use the stored token and fall back to full on 400/410. Returns
+# @{ users; removedUserIds; newUsersToken; deltaHit }. Verbatim from the inline
+# fetch block.
+function Get-EntraUserData {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        [string]$SyncMode = 'delta',
+        [string]$UserSelect
+    )
+    $usersEndpoint  = 'users/delta'
+    $usersToken     = $null
+    $newUsersToken  = $null
+    $deltaHit       = $false
+    $removedUserIds = @()
+    $users          = $null
+
+    if ($SyncMode -eq 'full') {
+        # Explicit full: wipe any stored token so stale context can't survive.
+        Remove-FGDeltaToken -SystemId $SystemId -Endpoint $usersEndpoint
+    } elseif ($SyncMode -eq 'delta') {
+        $usersToken = Get-FGDeltaToken -SystemId $SystemId -Endpoint $usersEndpoint
+    }
+
+    if ($usersToken) {
+        Write-Host "  Delta mode: fetching only changes since last run..." -ForegroundColor Gray
+        try {
+            $deltaUri = "https://graph.microsoft.com/beta/users/delta?`$deltatoken=$([uri]::EscapeDataString($usersToken))"
+            $resp = Invoke-FGGetDeltaRequest -URI $deltaUri
+            $users = @($resp.value | Where-Object { -not $_.'@removed' })
+            $removedUserIds = @($resp.value | Where-Object { $_.'@removed' } | ForEach-Object { $_.id })
+            $newUsersToken = $resp.deltaToken
+            $deltaHit = $true
+            Write-Host "  Delta: $($users.Count) changed + $($removedUserIds.Count) removed" -ForegroundColor Gray
+        } catch [System.InvalidOperationException] {
+            Write-Host "  Delta token rejected by Graph — clearing and falling back to full fetch" -ForegroundColor Yellow
+            Remove-FGDeltaToken -SystemId $SystemId -Endpoint $usersEndpoint
+            $usersToken = $null
+            $users = $null
+        } catch {
+            Write-Host "  Delta fetch failed: $($_.Exception.Message) — falling back to full" -ForegroundColor Yellow
+            $usersToken = $null
+            $users = $null
+        }
+    }
+
+    if (-not $deltaHit) {
+        # Full path: authoritative fetch with manager expand, then prime a delta
+        # token (Graph only hands it out after walking the whole collection).
+        $users = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/users?`$select=$UserSelect&`$expand=manager(`$select=id)&`$top=999"
+        try {
+            Write-Host "  Priming delta token (walks full /users/delta once)..." -ForegroundColor DarkGray
+            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/users/delta?`$select=id"
+            $newUsersToken = $primeResp.deltaToken
+            if ($newUsersToken) {
+                Write-Host "  Primed delta token for next run" -ForegroundColor DarkGray
+            } else {
+                Write-Host "  (priming call succeeded but no deltaLink returned — Graph may have paginated further)" -ForegroundColor DarkGray
+            }
+        } catch {
+            Write-Host "  (delta token priming skipped: $($_.Exception.Message))" -ForegroundColor DarkGray
+        }
+    }
+
+    return @{
+        users          = $users
+        removedUserIds = $removedUserIds
+        newUsersToken  = $newUsersToken
+        deltaHit       = $deltaHit
+    }
+}
+
+# Filter the fetched users down to the identity subset per the configured
+# IdentityFilter (attribute/condition/value(s)), coercing the configured value to
+# the attribute's runtime type. Verbatim from the inline Where-Object predicate.
+# Get-UserAttrValue / ConvertTo-FilterValue live in EntraIDCrawler.Functions.ps1.
+function Select-EntraIdentityUsers {
+    [CmdletBinding()]
+    param(
+        $Users,
+        [Parameter(Mandatory)] [hashtable]$IdentityFilter
+    )
+    $attr        = $IdentityFilter['attribute']
+    $condition   = $IdentityFilter['condition']
+    $filterValue = $IdentityFilter['value']
+    $filterValues = $IdentityFilter['values']
+
+    return @($Users | Where-Object {
+        $val = Get-UserAttrValue -User $_ -AttrName $attr
+        $coercedValue = ConvertTo-FilterValue -Value $filterValue -Sample $val
+        $coercedValues = if ($filterValues) { $filterValues | ForEach-Object { ConvertTo-FilterValue -Value $_ -Sample $val } } else { @() }
+        switch ($condition) {
+            'isNotNull'  { $null -ne $val -and $val -ne '' }
+            'equals'     { $val -eq $coercedValue }
+            'notEquals'  { $val -ne $coercedValue }
+            'inValues'   { $coercedValues -contains $val }
+            default      { $false }
+        }
+    })
+}
+
+# ─── Principals sub-phase: identity sync (filtered users) ────────
+# Upload the filtered users as Identities plus the identity<->principal links.
+# Uses the same ingest mode as Principals so delta runs upsert only.
+function Sync-EntraIdentities {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        $Users,
+        [Parameter(Mandatory)] [hashtable]$IdentityFilter,
+        [string[]]$CustomUserAttributes = @(),
+        [string]$IngestMode = 'full'
+    )
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing identities (filtered from users)..." -ForegroundColor Cyan
+    $identityUsers = Select-EntraIdentityUsers -Users $Users -IdentityFilter $IdentityFilter
+
+    $attr = $IdentityFilter['attribute']
+    $condition = $IdentityFilter['condition']
+    $filterValue = $IdentityFilter['value']
+    $filterValues = $IdentityFilter['values']
+    Write-Host "  Matched $($identityUsers.Count) of $(@($Users).Count) users as identities (filter: $attr $condition $filterValue$($filterValues -join ','))" -ForegroundColor Cyan
+
+    if ($identityUsers.Count -gt 0) {
+        $idRecords = @($identityUsers | ForEach-Object { ConvertTo-EntraIdentityRecord -User $_ -CustomUserAttributes $CustomUserAttributes })
+        # In delta mode we only have changed users, so full-mode scoped-delete
+        # would wipe unchanged identities — use the caller's ingest mode.
+        Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $SystemId -SyncMode $IngestMode -Records $idRecords
+
+        $idMembers = @($identityUsers | ForEach-Object { @{ identityId = $_.id; principalId = $_.id } })
+        Send-IngestBatch -Endpoint 'ingest/identity-members' -SystemId $SystemId -SyncMode $IngestMode -Records $idMembers
+    }
+}
+
+# ─── Sync Principals (users) ─────────────────────────────────────
+# Fetch users (delta/full), upload them as User principals with @removed
+# tombstones, upload per-user aggregate sign-in activity, prime the delta token,
+# and run the optional filtered identity sub-sync.
+function Sync-EntraPrincipals {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        [string]$SyncMode = 'delta',
+        [string[]]$CustomUserAttributes = @(),
+        [hashtable]$IdentityFilter = @{},
+        $Timings
+    )
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing principals (users)..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing users' -Pct 12 -Detail 'Fetching from Microsoft Graph...'
+    try {
+        $userSelect = Get-EntraUserSelect -CustomUserAttributes $CustomUserAttributes -IdentityFilter $IdentityFilter
+        $data = Get-EntraUserData -SystemId $SystemId -SyncMode $SyncMode -UserSelect $userSelect
+        $users = $data.users
+
+        Update-CrawlerProgress -Detail "Building $(@($users).Count) user records..."
+        $records = @($users | ForEach-Object {
+            ConvertTo-EntraPrincipalRecord -User $_ -CustomUserAttributes $CustomUserAttributes
+        })
+
+        Update-CrawlerProgress -Detail "Uploading $($records.Count) users to ingest API..."
+        # Delta-hit runs forward @removed tombstones and use syncMode='delta' so
+        # the ingest engine doesn't scoped-delete users we didn't see this run.
+        $ingestMode = if ($data.deltaHit) { 'delta' } else { 'full' }
+        Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode $ingestMode `
+            -Scope @{ principalType = 'User' } -Records $records -DeletedIds $data.removedUserIds
+
+        if ($data.newUsersToken) {
+            Set-FGDeltaToken -SystemId $SystemId -Endpoint 'users/delta' -Token $data.newUsersToken -RecordsLastSeen $records.Count
+        }
+
+        # Per-user aggregate sign-in activity (the four signInActivity timestamps
+        # from the same /users call), keyed on the AGG_RESOURCE_ID sentinel.
+        $activityRecords = @($users | ForEach-Object { ConvertTo-EntraSignInActivityRecord -User $_ } | Where-Object { $_ })
+        if ($activityRecords.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($activityRecords.Count) user sign-in activity records..."
+            Send-IngestBatch -Endpoint 'ingest/principal-activity' -SystemId $SystemId -SyncMode 'delta' -Records $activityRecords
+        }
+
+        if ($IdentityFilter.Count -gt 0 -and $IdentityFilter['attribute']) {
+            Sync-EntraIdentities -SystemId $SystemId -Users $users -IdentityFilter $IdentityFilter `
+                -CustomUserAttributes $CustomUserAttributes -IngestMode $ingestMode
+        }
+    } catch {
+        $script:phaseErrors.Add("Principals: $($_.Exception.Message)")
+        Write-Host "  Principals phase failed: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    $__principalsErrMsg = $script:phaseErrors | Where-Object { $_.StartsWith('Principals: ') } | Select-Object -Last 1
+    $__phaseSW.Stop(); if ($Timings) { $Timings['Principals'] = $__phaseSW.Elapsed }
+    Write-Phase -Name 'Principals' -Duration $__phaseSW.Elapsed -ErrorMsg $__principalsErrMsg
+}

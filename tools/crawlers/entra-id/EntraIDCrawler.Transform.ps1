@@ -774,6 +774,38 @@ function Resolve-EntraAccessReviewApId {
     return @{ apId = $apId; reason = 'ok'; queryStrings = $queryStrings }
 }
 
+# Shape one filtered user into an Identities ingest record, carrying the
+# configured custom attributes into extendedAttributes. Verbatim from the inline
+# `$idRec = @{ ... }` block in the identity sub-sync. Get-UserAttrValue lives in
+# EntraIDCrawler.Functions.ps1.
+function ConvertTo-EntraIdentityRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $User,
+        [string[]]$CustomUserAttributes = @()
+    )
+    $u = $User
+    $idRec = @{
+        id          = $u.id
+        displayName = $u.displayName
+        email       = $u.mail ?? $u.userPrincipalName
+        department  = $u.department
+        jobTitle    = $u.jobTitle
+        companyName = $u.companyName
+        employeeId  = $u.employeeId
+    }
+    # Identities also get custom attributes in extendedAttributes
+    if ($CustomUserAttributes.Count -gt 0) {
+        $ext = @{}
+        foreach ($a in $CustomUserAttributes) {
+            $v = Get-UserAttrValue -User $u -AttrName $a
+            if ($null -ne $v -and $v -ne '') { $ext[$a] = $v }
+        }
+        if ($ext.Count -gt 0) { $idRec['extendedAttributes'] = $ext }
+    }
+    return $idRec
+}
+
 # Shape one access-review decision into a CertificationDecisions ingest record.
 # Verbatim from the inline `$certRecords += @{ ... }` block.
 function ConvertTo-EntraCertificationDecisionRecord {
