@@ -206,3 +206,80 @@ function Sync-CsvAssignments {
     Send-GroupedBySystem -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Records $records
     $records = $null; [System.GC]::Collect()
 }
+
+# ─── Step 7: Identities.csv (optional) ───────────────────────────
+function Sync-CsvIdentities {
+    [CmdletBinding()]
+    param()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 7: Identities..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing identities' -Pct 65
+    $identities = Read-CsvFile 'Identities.csv'
+    if (-not $identities) { return }
+    Assert-Columns 'Identities.csv' $identities @('ExternalId', 'DisplayName')
+    $cols = [System.Collections.Generic.HashSet[string]]::new([string[]]$identities[0].PSObject.Properties.Name)
+    $hSys = $cols.Contains('SystemName')
+    $records = [System.Collections.Generic.List[object]]::new($identities.Count)
+    foreach ($r in $identities) {
+        $sid = if ($hSys -and $r.SystemName -and $systemLookup.ContainsKey($r.SystemName)) { $systemLookup[$r.SystemName] } else { $fallbackSystemId }
+        $rec = ConvertTo-CsvIdentityRecord -Row $r -SystemId $sid -Cols $cols
+        if ($rec) { [void]$records.Add($rec) }
+    }
+    Send-GroupedBySystem -Endpoint 'ingest/identities' -Records $records
+    [System.GC]::Collect()
+}
+
+# ─── Step 8: IdentityMembers.csv (optional) ──────────────────────
+function Sync-CsvIdentityMembers {
+    [CmdletBinding()]
+    param()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 8: Identity members..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing identity members' -Pct 72
+    $idMembers = Read-CsvFile 'IdentityMembers.csv'
+    if (-not $idMembers) { return }
+    Assert-Columns 'IdentityMembers.csv' $idMembers @('IdentityExternalId', 'UserExternalId')
+    $cols = [System.Collections.Generic.HashSet[string]]::new([string[]]$idMembers[0].PSObject.Properties.Name)
+    $hSys = $cols.Contains('SystemName')
+    $records = [System.Collections.Generic.List[object]]::new($idMembers.Count)
+    foreach ($r in $idMembers) {
+        $sid = if ($hSys -and $r.SystemName -and $systemLookup.ContainsKey($r.SystemName)) { $systemLookup[$r.SystemName] } else { $fallbackSystemId }
+        $rec = ConvertTo-CsvIdentityMemberRecord -Row $r -SystemId $sid -Cols $cols
+        if ($rec) { [void]$records.Add($rec) }
+    }
+    Send-GroupedBySystem -Endpoint 'ingest/identity-members' -Records $records
+    [System.GC]::Collect()
+}
+
+# ─── Step 9: Certifications.csv (optional, fast path) ────────────
+function Sync-CsvCertifications {
+    [CmdletBinding()]
+    param()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 9: Certifications..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing certifications' -Pct 78
+    $fast = Read-CsvFast 'Certifications.csv'
+    if (-not $fast) { return }
+    $rows = $fast.rows; $colIdx = $fast.colIdx
+    if (-not $colIdx.ContainsKey('ExternalId')) {
+        throw "Certifications.csv missing required column ExternalId"
+    }
+    $idx = @{
+        Ext = $colIdx['ExternalId']
+        Res = if ($colIdx.ContainsKey('ResourceExternalId'))  { $colIdx['ResourceExternalId'] }  else { -1 }
+        UDN = if ($colIdx.ContainsKey('UserDisplayName'))      { $colIdx['UserDisplayName'] }      else { -1 }
+        Dec = if ($colIdx.ContainsKey('Decision'))             { $colIdx['Decision'] }             else { -1 }
+        RDN = if ($colIdx.ContainsKey('ReviewerDisplayName'))  { $colIdx['ReviewerDisplayName'] }  else { -1 }
+        RDT = if ($colIdx.ContainsKey('ReviewedDateTime'))     { $colIdx['ReviewedDateTime'] }     else { -1 }
+    }
+    $idxSys = if ($colIdx.ContainsKey('SystemName')) { $colIdx['SystemName'] } else { -1 }
+    $records = [System.Collections.Generic.List[object]]::new($rows.Count)
+    for ($i = 0; $i -lt $rows.Count; $i++) {
+        $r = $rows[$i]
+        $sid = $fallbackSystemId
+        if ($idxSys -ge 0) { $sn = $r[$idxSys]; if ($sn -and $systemLookup.ContainsKey($sn)) { $sid = $systemLookup[$sn] } }
+        $rec = ConvertTo-CsvCertificationRecord -Row $r -Idx $idx -SystemId $sid
+        if ($rec) { [void]$records.Add($rec) }
+    }
+    $fast = $null; $rows = $null; [System.GC]::Collect()
+    Write-Host "  Built $($records.Count) certification records" -ForegroundColor Gray
+    Send-GroupedBySystem -Endpoint 'ingest/governance/certifications' -Records $records -BatchSize 3000
+    $records = $null; [System.GC]::Collect()
+}

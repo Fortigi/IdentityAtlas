@@ -226,3 +226,65 @@ Describe 'ConvertTo-CsvAssignmentRecord' {
         (ConvertTo-CsvAssignmentRecord -Row @('r1', 'u1', '') -Idx $script:aIdxFull -SystemId 2).assignmentType | Should -Be 'Direct'
     }
 }
+
+Describe 'ConvertTo-CsvIdentityRecord' {
+    It 'returns $null when ExternalId or DisplayName is blank' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName')
+        ConvertTo-CsvIdentityRecord -Row ([PSCustomObject]@{ ExternalId = ''; DisplayName = 'A' }) -SystemId 2 -Cols $cols | Should -BeNullOrEmpty
+    }
+
+    It 'maps optional email/employeeId/department/jobTitle when present, null otherwise' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName', 'Email', 'EmployeeId')
+        $row = [PSCustomObject]@{ ExternalId = 'i1'; DisplayName = 'Alice'; Email = 'a@x'; EmployeeId = 'E7' }
+        $rec = ConvertTo-CsvIdentityRecord -Row $row -SystemId 5 -Cols $cols
+        $rec._systemId  | Should -Be 5
+        $rec.email      | Should -Be 'a@x'
+        $rec.employeeId | Should -Be 'E7'
+        $rec.department | Should -BeNullOrEmpty
+        $rec.jobTitle   | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'ConvertTo-CsvIdentityMemberRecord' {
+    It 'returns $null when IdentityExternalId or UserExternalId is missing' {
+        $cols = New-ColSet @('IdentityExternalId', 'UserExternalId')
+        ConvertTo-CsvIdentityMemberRecord -Row ([PSCustomObject]@{ IdentityExternalId = 'i'; UserExternalId = '' }) -SystemId 2 -Cols $cols | Should -BeNullOrEmpty
+    }
+
+    It 'maps the member and reads AccountType when present' {
+        $cols = New-ColSet @('IdentityExternalId', 'UserExternalId', 'AccountType')
+        $row = [PSCustomObject]@{ IdentityExternalId = 'i1'; UserExternalId = 'u1'; AccountType = 'Primary' }
+        $rec = ConvertTo-CsvIdentityMemberRecord -Row $row -SystemId 3 -Cols $cols
+        $rec.identityExternalId  | Should -Be 'i1'
+        $rec.principalExternalId | Should -Be 'u1'
+        $rec.accountType         | Should -Be 'Primary'
+    }
+}
+
+Describe 'ConvertTo-CsvCertificationRecord' {
+    BeforeAll {
+        $script:cIdxFull = @{ Ext = 0; Res = 1; UDN = 2; Dec = 3; RDN = 4; RDT = 5 }
+        $script:cIdxMin  = @{ Ext = 0; Res = -1; UDN = -1; Dec = -1; RDN = -1; RDT = -1 }
+    }
+
+    It 'returns $null when ExternalId is blank' {
+        ConvertTo-CsvCertificationRecord -Row @('', 'r', 'u', 'Approve', 'rev', 'd') -Idx $script:cIdxFull -SystemId 2 | Should -BeNullOrEmpty
+    }
+
+    It 'maps only the ExternalId when optional columns are absent' {
+        $rec = ConvertTo-CsvCertificationRecord -Row @('cert1') -Idx $script:cIdxMin -SystemId 6
+        $rec._systemId            | Should -Be 6
+        $rec.externalId           | Should -Be 'cert1'
+        $rec.resourceExternalId   | Should -BeNullOrEmpty
+        $rec.decision             | Should -BeNullOrEmpty
+    }
+
+    It 'maps all optional decision fields when present' {
+        $rec = ConvertTo-CsvCertificationRecord -Row @('cert1', 'r1', 'Alice', 'Approve', 'Bob', '2026-01-01') -Idx $script:cIdxFull -SystemId 2
+        $rec.resourceExternalId    | Should -Be 'r1'
+        $rec.principalDisplayName  | Should -Be 'Alice'
+        $rec.decision              | Should -Be 'Approve'
+        $rec.reviewedByDisplayName | Should -Be 'Bob'
+        $rec.reviewedDateTime      | Should -Be '2026-01-01'
+    }
+}

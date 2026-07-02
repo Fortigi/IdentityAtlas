@@ -268,3 +268,89 @@ Describe 'Sync-CsvAssignments' {
         ($sent[0].Records | Where-Object { $_.resourceExternalId -eq 'r2' }).assignmentType | Should -Be 'Direct'
     }
 }
+
+Describe 'Sync-CsvIdentities' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+    }
+
+    It 'does nothing when Identities.csv is absent' {
+        Remove-Csv 'Identities.csv'
+        Sync-CsvIdentities
+        @($script:sent).Count | Should -Be 0
+    }
+
+    It 'sends identities, skipping rows without an id/name' {
+        Set-Csv 'Identities.csv' @(
+            'ExternalId;DisplayName;Email'
+            'i1;Alice;a@x'
+            ';Skip;'
+        )
+        Sync-CsvIdentities
+        $sent = Get-Sent 'ingest/identities'
+        $sent.Count | Should -Be 1
+        $sent[0].Records.Count | Should -Be 1
+        $sent[0].Records[0].email | Should -Be 'a@x'
+    }
+}
+
+Describe 'Sync-CsvIdentityMembers' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+    }
+
+    It 'does nothing when IdentityMembers.csv is absent' {
+        Remove-Csv 'IdentityMembers.csv'
+        Sync-CsvIdentityMembers
+        @($script:sent).Count | Should -Be 0
+    }
+
+    It 'maps members and skips rows missing an id' {
+        Set-Csv 'IdentityMembers.csv' @(
+            'IdentityExternalId;UserExternalId;AccountType'
+            'i1;u1;Primary'
+            'i2;;Primary'
+        )
+        Sync-CsvIdentityMembers
+        $sent = Get-Sent 'ingest/identity-members'
+        $sent.Count | Should -Be 1
+        $sent[0].Records.Count | Should -Be 1
+        $sent[0].Records[0].accountType | Should -Be 'Primary'
+    }
+}
+
+Describe 'Sync-CsvCertifications' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+    }
+
+    It 'does nothing when Certifications.csv is absent' {
+        Remove-Csv 'Certifications.csv'
+        Sync-CsvCertifications
+        @($script:sent).Count | Should -Be 0
+    }
+
+    It 'throws when ExternalId column is missing' {
+        Set-Csv 'Certifications.csv' @('Foo;Bar', 'a;b')
+        { Sync-CsvCertifications } | Should -Throw '*missing required column ExternalId*'
+    }
+
+    It 'sends certification decisions with a 3000 batch size and maps optional fields' {
+        Set-Csv 'Certifications.csv' @(
+            'ExternalId;Decision'
+            'cert1;Approve'
+            ';SkipMe'
+        )
+        Sync-CsvCertifications
+        $sent = Get-Sent 'ingest/governance/certifications'
+        $sent.Count | Should -Be 1
+        $sent[0].Records.Count | Should -Be 1
+        $sent[0].Records[0].decision | Should -Be 'Approve'
+    }
+}

@@ -143,3 +143,51 @@ function ConvertTo-CsvAssignmentRecord {
         assignmentType      = $aType
     }
 }
+
+# ─── Identities.csv ──────────────────────────────────────────────
+function ConvertTo-CsvIdentityRecord {
+    [CmdletBinding()]
+    param($Row, [int]$SystemId, [System.Collections.Generic.HashSet[string]]$Cols)
+    if (-not $Row.ExternalId -or -not $Row.DisplayName) { return $null }
+    return @{
+        _systemId   = $SystemId
+        externalId  = $Row.ExternalId
+        displayName = $Row.DisplayName
+        email       = if ($Cols.Contains('Email')) { $Row.Email } else { $null }
+        employeeId  = if ($Cols.Contains('EmployeeId')) { $Row.EmployeeId } else { $null }
+        department  = if ($Cols.Contains('Department')) { $Row.Department } else { $null }
+        jobTitle    = if ($Cols.Contains('JobTitle')) { $Row.JobTitle } else { $null }
+    }
+}
+
+# ─── IdentityMembers.csv ─────────────────────────────────────────
+function ConvertTo-CsvIdentityMemberRecord {
+    [CmdletBinding()]
+    param($Row, [int]$SystemId, [System.Collections.Generic.HashSet[string]]$Cols)
+    if (-not $Row.IdentityExternalId -or -not $Row.UserExternalId) { return $null }
+    return @{
+        _systemId           = $SystemId
+        identityExternalId  = $Row.IdentityExternalId
+        principalExternalId = $Row.UserExternalId
+        accountType         = if ($Cols.Contains('AccountType')) { $Row.AccountType } else { $null }
+    }
+}
+
+# ─── Certifications.csv (fast path) ──────────────────────────────
+# $Idx: Ext (ExternalId), and optional Res, UDN (UserDisplayName), Dec (Decision),
+# RDN (ReviewerDisplayName), RDT (ReviewedDateTime) — -1 when absent.
+function ConvertTo-CsvCertificationRecord {
+    [CmdletBinding()]
+    param([string[]]$Row, [hashtable]$Idx, [int]$SystemId)
+    $ext = $Row[$Idx.Ext]
+    if (-not $ext) { return $null }
+    return @{
+        _systemId             = $SystemId
+        externalId            = $ext
+        resourceExternalId    = if ($Idx.Res -ge 0) { $Row[$Idx.Res] } else { $null }
+        principalDisplayName  = if ($Idx.UDN -ge 0) { $Row[$Idx.UDN] } else { $null }
+        decision              = if ($Idx.Dec -ge 0) { $Row[$Idx.Dec] } else { $null }
+        reviewedByDisplayName = if ($Idx.RDN -ge 0) { $Row[$Idx.RDN] } else { $null }
+        reviewedDateTime      = if ($Idx.RDT -ge 0) { $Row[$Idx.RDT] } else { $null }
+    }
+}

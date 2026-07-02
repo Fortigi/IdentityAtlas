@@ -97,98 +97,10 @@ Sync-CsvRelationships
 Sync-CsvUsers
 Sync-CsvAssignments
 
-# ─── 7. Identities.csv (optional) ────────────────────────────────
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 7: Identities..." -ForegroundColor Cyan
-Update-CrawlerProgress -Step 'Syncing identities' -Pct 65
-$identities = Read-CsvFile 'Identities.csv'
-if ($identities) {
-    Assert-Columns 'Identities.csv' $identities @('ExternalId','DisplayName')
-    $cols = $identities[0].PSObject.Properties.Name
-    $hE = $cols -contains 'Email'; $hEmp = $cols -contains 'EmployeeId'
-    $hDep = $cols -contains 'Department'; $hJT = $cols -contains 'JobTitle'; $hSys = $cols -contains 'SystemName'
-    $records = [System.Collections.Generic.List[object]]::new($identities.Count)
-    foreach ($r in $identities) {
-        if (-not $r.ExternalId -or -not $r.DisplayName) { continue }
-        $sid = if ($hSys -and $r.SystemName -and $systemLookup.ContainsKey($r.SystemName)) { $systemLookup[$r.SystemName] } else { $fallbackSystemId }
-        [void]$records.Add(@{
-            _systemId = $sid; externalId = $r.ExternalId; displayName = $r.DisplayName
-            email = if ($hE) { $r.Email } else { $null }
-            employeeId = if ($hEmp) { $r.EmployeeId } else { $null }
-            department = if ($hDep) { $r.Department } else { $null }
-            jobTitle = if ($hJT) { $r.JobTitle } else { $null }
-        })
-    }
-    $identities = $null; [System.GC]::Collect()
-    Send-GroupedBySystem -Endpoint 'ingest/identities' -Records $records
-    $records = $null; [System.GC]::Collect()
-}
-
-# ─── 8. IdentityMembers.csv (optional) ───────────────────────────
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 8: Identity members..." -ForegroundColor Cyan
-Update-CrawlerProgress -Step 'Syncing identity members' -Pct 72
-$idMembers = Read-CsvFile 'IdentityMembers.csv'
-if ($idMembers) {
-    Assert-Columns 'IdentityMembers.csv' $idMembers @('IdentityExternalId','UserExternalId')
-    $cols = $idMembers[0].PSObject.Properties.Name
-    $hAT = $cols -contains 'AccountType'; $hSys = $cols -contains 'SystemName'
-    $records = [System.Collections.Generic.List[object]]::new($idMembers.Count)
-    foreach ($r in $idMembers) {
-        if (-not $r.IdentityExternalId -or -not $r.UserExternalId) { continue }
-        $sid = if ($hSys -and $r.SystemName -and $systemLookup.ContainsKey($r.SystemName)) { $systemLookup[$r.SystemName] } else { $fallbackSystemId }
-        [void]$records.Add(@{
-            _systemId = $sid; identityExternalId = $r.IdentityExternalId; principalExternalId = $r.UserExternalId
-            accountType = if ($hAT) { $r.AccountType } else { $null }
-        })
-    }
-    $idMembers = $null; [System.GC]::Collect()
-    Send-GroupedBySystem -Endpoint 'ingest/identity-members' -Records $records
-    $records = $null; [System.GC]::Collect()
-}
-
-# ─── 9. Certifications.csv (optional) ────────────────────────────
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 9: Certifications..." -ForegroundColor Cyan
-Update-CrawlerProgress -Step 'Syncing certifications' -Pct 78
-$fast = Read-CsvFast 'Certifications.csv'
-if ($fast) {
-    $rows = $fast.rows; $colIdx = $fast.colIdx
-    if (-not $colIdx.ContainsKey('ExternalId')) {
-        throw "Certifications.csv missing required column ExternalId"
-    }
-    $idxExt  = $colIdx['ExternalId']
-    $idxRes  = if ($colIdx.ContainsKey('ResourceExternalId'))  { $colIdx['ResourceExternalId'] }  else { -1 }
-    $idxUDN  = if ($colIdx.ContainsKey('UserDisplayName'))      { $colIdx['UserDisplayName'] }      else { -1 }
-    $idxDec  = if ($colIdx.ContainsKey('Decision'))             { $colIdx['Decision'] }             else { -1 }
-    $idxRDN  = if ($colIdx.ContainsKey('ReviewerDisplayName'))  { $colIdx['ReviewerDisplayName'] }  else { -1 }
-    $idxRDT  = if ($colIdx.ContainsKey('ReviewedDateTime'))     { $colIdx['ReviewedDateTime'] }     else { -1 }
-    $idxSys  = if ($colIdx.ContainsKey('SystemName'))           { $colIdx['SystemName'] }           else { -1 }
-
-    $records = [System.Collections.Generic.List[object]]::new($rows.Count)
-    for ($i = 0; $i -lt $rows.Count; $i++) {
-        $r = $rows[$i]
-        $ext = $r[$idxExt]
-        if (-not $ext) { continue }
-        $sid = $fallbackSystemId
-        if ($idxSys -ge 0) {
-            $sn = $r[$idxSys]
-            if ($sn -and $systemLookup.ContainsKey($sn)) { $sid = $systemLookup[$sn] }
-        }
-        [void]$records.Add(@{
-            _systemId = $sid; externalId = $ext
-            resourceExternalId    = if ($idxRes -ge 0) { $r[$idxRes] } else { $null }
-            principalDisplayName  = if ($idxUDN -ge 0) { $r[$idxUDN] } else { $null }
-            decision              = if ($idxDec -ge 0) { $r[$idxDec] } else { $null }
-            reviewedByDisplayName = if ($idxRDN -ge 0) { $r[$idxRDN] } else { $null }
-            reviewedDateTime      = if ($idxRDT -ge 0) { $r[$idxRDT] } else { $null }
-        })
-    }
-    $fast = $null; $rows = $null; [System.GC]::Collect()
-    Write-Host "  Built $($records.Count) certification records" -ForegroundColor Gray
-    # Smaller batches to avoid oversized INSERT statements. Dedup is cheap
-    # (Dictionary-based) and protects against the "ON CONFLICT cannot affect
-    # row twice" postgres error on duplicate externalIds in a single batch.
-    Send-GroupedBySystem -Endpoint 'ingest/governance/certifications' -Records $records -BatchSize 3000
-    $records = $null; [System.GC]::Collect()
-}
+# ─── 7. Identities + 8. IdentityMembers + 9. Certifications ──────
+Sync-CsvIdentities
+Sync-CsvIdentityMembers
+Sync-CsvCertifications
 
 # ─── Post-import: auto-classify BusinessRole assignments ─────────
 Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Auto-classifying BusinessRole assignments..." -ForegroundColor Cyan
