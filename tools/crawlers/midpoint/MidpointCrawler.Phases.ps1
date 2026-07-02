@@ -630,6 +630,9 @@ function Get-MidpointRoleNestingEdges {
 function Sync-MidpointRoleNesting {
     [CmdletBinding()]
     param([int]$MidpointSystemId, $AllRoles, $SyncedResourceIds, [hashtable]$EntitlementByDn = @{})
+    # Nothing to nest and — critically — nothing to reconcile against: skip the send
+    # entirely so a full-sync empty batch can't delete existing Contains edges.
+    if (-not $AllRoles) { return }
     Write-Host "`nRole nesting (Contains):" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing role nesting' -Pct 90
     try {
@@ -682,4 +685,97 @@ function Sync-MidpointReviews {
         $R = Send-IngestBatch -Endpoint 'ingest/governance/certifications' -SystemId $MidpointSystemId -Records @($cd)
         Write-Host "  CertificationDecisions: +$($R.inserted) ~$($R.updated) -$($R.deleted) (from $($cd.Count) decisions)" -ForegroundColor Green
     } catch { Add-PhaseError 'Reviews' $_.Exception.Message }
+}
+
+# ─── Config resolution ───────────────────────────────────────────
+# Load the job config and derive the phase toggles + type mappings. Returns
+# @{ cfg; rawConfig; sync; syncMode; pageSize; crossSystemEntities;
+# archetypeMapping; orgContextMapping; identityTypeMapping }. Defaults reproduce
+# the historical hardcoded behaviour (role->BusinessRole, org->OrgUnit, user->User).
+function Resolve-MidpointConfig {
+    [CmdletBinding()]
+    param([string]$ConfigPath)
+    if (-not (Test-Path $ConfigPath)) { throw "Config file not found: $ConfigPath" }
+    $cfgObj = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+    $raw    = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
+
+    $sync = @{ systems = $true; orgs = $true; roles = $true; services = $true
+               users = $true; shadows = $true; orgMembership = $true
+               assignments = $true; roleNesting = $true; reviews = $true }
+    if ($null -ne $cfgObj.syncShadows) { $sync.shadows = [bool]$cfgObj.syncShadows }
+    $objects = $raw['selectedObjects']
+    if ($objects) {
+        foreach ($k in @($sync.Keys)) {
+            if ($objects.ContainsKey($k)) { $sync[$k] = [bool]$objects[$k] }
+        }
+    }
+
+    return @{
+        cfg                 = $cfgObj
+        rawConfig           = $raw
+        sync                = $sync
+        syncMode            = if ($raw['_syncMode'] -in @('full', 'delta')) { $raw['_syncMode'] } else { 'full' }
+        pageSize            = if ($cfgObj.pageSize) { [int]$cfgObj.pageSize } else { 100 }
+        # Cross-system tables have no per-system delete scope -> always upsert-only (delta).
+        crossSystemEntities = @('systems', 'identities', 'identity-members', 'context-members', 'governance/certifications')
+        archetypeMapping    = ConvertTo-MapRows $cfgObj.archetypeMapping                  @('archetype', 'subtype', 'resourceType')
+        orgContextMapping   = ConvertTo-MapRows $cfgObj.typeMappings.orgContextTypeMapping @('orgSubtype', 'contextType')
+        identityTypeMapping = ConvertTo-MapRows $cfgObj.typeMappings.identityTypeMapping   @('userType', 'principalType')
+    }
+}
+
+# ─── Setup: authenticate ─────────────────────────────────────────
+function Connect-MidpointSession {
+    [CmdletBinding()]
+    param($Cfg)
+    $AuthParams = @{ BaseUrl = $Cfg.baseUrl; AuthMethod = $Cfg.authMethod }
+    if ($Cfg.username)      { $AuthParams['Username']      = $Cfg.username }
+    if ($Cfg.password)      { $AuthParams['Password']      = $Cfg.password }
+    if ($Cfg.apiToken)      { $AuthParams['ApiToken']      = $Cfg.apiToken }
+    if ($Cfg.clientId)      { $AuthParams['ClientId']      = $Cfg.clientId }
+    if ($Cfg.clientSecret)  { $AuthParams['ClientSecret']  = $Cfg.clientSecret }
+    if ($Cfg.tokenEndpoint) { $AuthParams['TokenEndpoint'] = $Cfg.tokenEndpoint }
+    Connect-MidpointAPI @AuthParams
+}
+
+# ─── Performance summary (load-test instrumentation) ─────────────
+# Stops the master stopwatch and prints per-read + per-ingest-endpoint timings.
+function Write-MidpointPerfSummary {
+    [CmdletBinding()]
+    param()
+    $Script:swMaster.Stop()
+    Write-Host "`n── Performance ──" -ForegroundColor Cyan
+    Write-Host ("  Total wall-clock: {0:N1}s" -f $Script:swMaster.Elapsed.TotalSeconds) -ForegroundColor Gray
+    if ($Script:fetchStats.Count -gt 0) {
+        Write-Host "  midPoint reads:" -ForegroundColor Gray
+        foreach ($k in $Script:fetchStats.Keys) {
+            $f = $Script:fetchStats[$k]
+            Write-Host ("    {0,-18} {1,8:N1}s  ({2} objects)" -f $k, $f.seconds, $f.count) -ForegroundColor DarkGray
+        }
+    }
+    if ($Script:ingestStats.Count -gt 0) {
+        Write-Host "  Ingest API (endpoint: time / calls / records → rec/s):" -ForegroundColor Gray
+        $ingTotal = 0.0
+        foreach ($k in $Script:ingestStats.Keys) {
+            $s = $Script:ingestStats[$k]; $ingTotal += $s.seconds
+            $rps = if ($s.seconds -gt 0) { [math]::Round($s.records / $s.seconds) } else { 0 }
+            Write-Host ("    {0,-26} {1,7:N1}s / {2,3} / {3,7} → {4} rec/s" -f $k, $s.seconds, $s.calls, $s.records, $rps) -ForegroundColor DarkGray
+        }
+        Write-Host ("    {0,-26} {1,7:N1}s total" -f 'ingest TOTAL', $ingTotal) -ForegroundColor DarkGray
+    }
+}
+
+# ─── Finalization ────────────────────────────────────────────────
+# Mark complete and throw if any phase failed (so the worker marks the job
+# failed). Reads $Script:phaseErrors from the caller's scope.
+function Complete-MidpointRun {
+    [CmdletBinding()]
+    param()
+    Update-CrawlerProgress -Step 'Complete' -Pct 100
+    if ($Script:phaseErrors.Count -gt 0) {
+        Write-Host "`nmidPoint crawler completed with $($Script:phaseErrors.Count) phase error(s):" -ForegroundColor Yellow
+        $Script:phaseErrors | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
+        throw "midPoint crawler completed with errors: $($Script:phaseErrors -join '; ')"
+    }
+    Write-Host "`nmidPoint crawler completed successfully." -ForegroundColor Green
 }

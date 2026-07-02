@@ -382,6 +382,12 @@ Describe 'Role nesting' {
         (Get-Sent { $_.Scope.relationshipType -eq 'Contains' })[0].Records.Count | Should -Be 1
         $script:phaseErrors.Count | Should -Be 0
     }
+
+    It 'Sync-MidpointRoleNesting sends nothing when there are no roles (no reconcile → no deletes)' {
+        Sync-MidpointRoleNesting -MidpointSystemId 10 -AllRoles $null -SyncedResourceIds (New-StrSet @()) -EntitlementByDn @{}
+        @(Get-Sent { $_.Scope.relationshipType -eq 'Contains' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
 }
 
 # ─── Sync-MidpointReviews ───────────────────────────────────────────────────────
@@ -406,5 +412,100 @@ Describe 'Sync-MidpointReviews' {
         Mock Invoke-MidpointSearch -MockWith { throw 'campaigns 500' }
         Sync-MidpointReviews -MidpointSystemId 10 -SyncedResourceIds (New-StrSet 'x') -UserOidToName @{}
         $script:phaseErrors[0] | Should -BeLike 'Reviews:*'
+    }
+}
+
+# ─── Resolve-MidpointConfig ─────────────────────────────────────────────────────
+Describe 'Resolve-MidpointConfig' {
+    It 'defaults every phase toggle on and fills sensible defaults' {
+        $p = Join-Path $TestDrive 'cfg-defaults.json'
+        '{ "baseUrl": "https://mp.example.com", "authMethod": "BasicAuth" }' | Set-Content -Path $p
+        $r = Resolve-MidpointConfig -ConfigPath $p
+        $r.cfg.baseUrl | Should -Be 'https://mp.example.com'
+        $r.syncMode    | Should -Be 'full'
+        $r.pageSize    | Should -Be 100
+        foreach ($k in @('systems','orgs','roles','services','users','shadows','orgMembership','assignments','roleNesting','reviews')) {
+            $r.sync[$k] | Should -BeTrue
+        }
+        $r.crossSystemEntities | Should -Contain 'context-members'
+    }
+
+    It 'honours selectedObjects toggles, syncShadows, _syncMode and pageSize' {
+        $p = Join-Path $TestDrive 'cfg-toggles.json'
+        @'
+{
+  "baseUrl": "https://mp.example.com",
+  "authMethod": "ApiToken",
+  "pageSize": 250,
+  "syncShadows": false,
+  "_syncMode": "delta",
+  "selectedObjects": { "reviews": false, "roles": false }
+}
+'@ | Set-Content -Path $p
+        $r = Resolve-MidpointConfig -ConfigPath $p
+        $r.pageSize        | Should -Be 250
+        $r.syncMode        | Should -Be 'delta'
+        $r.sync.shadows    | Should -BeFalse
+        $r.sync.reviews    | Should -BeFalse
+        $r.sync.roles      | Should -BeFalse
+        $r.sync.users      | Should -BeTrue
+    }
+
+    It 'falls back to full sync mode for an unknown _syncMode value' {
+        $p = Join-Path $TestDrive 'cfg-badmode.json'
+        '{ "baseUrl": "u", "authMethod": "BasicAuth", "_syncMode": "bogus" }' | Set-Content -Path $p
+        (Resolve-MidpointConfig -ConfigPath $p).syncMode | Should -Be 'full'
+    }
+
+    It 'throws when the config file does not exist' {
+        { Resolve-MidpointConfig -ConfigPath (Join-Path $TestDrive 'missing.json') } | Should -Throw '*not found*'
+    }
+}
+
+# ─── Connect-MidpointSession ────────────────────────────────────────────────────
+Describe 'Connect-MidpointSession' {
+    It 'passes only the credential fields that are present to Connect-MidpointAPI' {
+        Mock Connect-MidpointAPI -MockWith { }
+        $cfg = [pscustomobject]@{ baseUrl = 'https://mp'; authMethod = 'BasicAuth'; username = 'admin'; password = 'pw' }
+        Connect-MidpointSession -Cfg $cfg
+        Should -Invoke Connect-MidpointAPI -Times 1 -ParameterFilter {
+            $BaseUrl -eq 'https://mp' -and $AuthMethod -eq 'BasicAuth' -and $Username -eq 'admin' -and $Password -eq 'pw'
+        }
+    }
+
+    It 'forwards OAuth2 client-credential fields when configured' {
+        Mock Connect-MidpointAPI -MockWith { }
+        $cfg = [pscustomobject]@{ baseUrl = 'https://mp'; authMethod = 'OAuth2CC'; clientId = 'cid'; clientSecret = 'sec'; tokenEndpoint = 'https://t' }
+        Connect-MidpointSession -Cfg $cfg
+        Should -Invoke Connect-MidpointAPI -Times 1 -ParameterFilter {
+            $ClientId -eq 'cid' -and $ClientSecret -eq 'sec' -and $TokenEndpoint -eq 'https://t'
+        }
+    }
+}
+
+# ─── Write-MidpointPerfSummary ──────────────────────────────────────────────────
+Describe 'Write-MidpointPerfSummary' {
+    It 'stops the master stopwatch and prints read + ingest timings without error' {
+        $script:swMaster    = [System.Diagnostics.Stopwatch]::StartNew()
+        $script:fetchStats  = [ordered]@{ users = @{ seconds = 1.2; count = 3 } }
+        $script:ingestStats = [ordered]@{ 'ingest/users' = @{ seconds = 0.5; calls = 2; records = 10 } }
+        { Write-MidpointPerfSummary } | Should -Not -Throw
+        $script:swMaster.IsRunning | Should -BeFalse
+    }
+}
+
+# ─── Complete-MidpointRun ───────────────────────────────────────────────────────
+Describe 'Complete-MidpointRun' {
+    BeforeEach { Reset-PhaseTestState; Mock Update-CrawlerProgress -MockWith { } }
+
+    It 'marks progress complete and does not throw when there are no phase errors' {
+        { Complete-MidpointRun } | Should -Not -Throw
+        Should -Invoke Update-CrawlerProgress -Times 1 -ParameterFilter { $Step -eq 'Complete' -and $Pct -eq 100 }
+    }
+
+    It 'throws a summary error when phases recorded failures' {
+        $script:phaseErrors.Add('Users: boom')
+        $script:phaseErrors.Add('Shadows: kaboom')
+        { Complete-MidpointRun } | Should -Throw '*completed with errors: Users: boom; Shadows: kaboom*'
     }
 }
