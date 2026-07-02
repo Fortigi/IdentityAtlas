@@ -113,27 +113,27 @@ $DefaultTypeMappings = @{
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 
 # Resolve all config (toggles, URLs, context types, mappings) into script vars.
-$cfg = Resolve-OmadaConfig -RawConfig $RawConfig -Cfg $Cfg -DefaultTypeMappings $DefaultTypeMappings
-$SyncMode              = $cfg.SyncMode
-$SyncContexts          = $cfg.SyncContexts
-$SyncIdentities        = $cfg.SyncIdentities
-$SyncAccounts          = $cfg.SyncAccounts
-$SyncContextMembers    = $cfg.SyncContextMembers
-$SyncResources         = $cfg.SyncResources
-$SyncEntitlements      = $cfg.SyncEntitlements
-$SyncAssignments       = $cfg.SyncAssignments
-$RefreshViews          = $cfg.RefreshViews
-$BaseUrl               = $cfg.baseUrl
-$BuiltinBaseUrl        = $cfg.builtinBaseUrl
-$ApiVersion            = $cfg.apiVersion
-$PageSize              = $cfg.pageSize
-$MaxODataRetries       = $cfg.maxRetries
-$SessionTimeoutMinutes = $cfg.sessionTimeoutMinutes
-$ContextObjectTypes    = $cfg.contextObjectTypes
-$WellKnownIdentityContextFields = $cfg.wellKnownIdentityContextFields
-$ResourceCategoryMapping        = $cfg.resourceCategoryMapping
-$TypeMappings                   = $cfg.typeMappings
-$IdentityTypesForIdentityTable  = $cfg.identityTypesForIdentityTable
+$Resolved = Resolve-OmadaConfig -RawConfig $RawConfig -Cfg $Cfg -DefaultTypeMappings $DefaultTypeMappings
+$SyncMode              = $Resolved.SyncMode
+$SyncContexts          = $Resolved.SyncContexts
+$SyncIdentities        = $Resolved.SyncIdentities
+$SyncAccounts          = $Resolved.SyncAccounts
+$SyncContextMembers    = $Resolved.SyncContextMembers
+$SyncResources         = $Resolved.SyncResources
+$SyncEntitlements      = $Resolved.SyncEntitlements
+$SyncAssignments       = $Resolved.SyncAssignments
+$RefreshViews          = $Resolved.RefreshViews
+$BaseUrl               = $Resolved.baseUrl
+$BuiltinBaseUrl        = $Resolved.builtinBaseUrl
+$ApiVersion            = $Resolved.apiVersion
+$PageSize              = $Resolved.pageSize
+$MaxODataRetries       = $Resolved.maxRetries
+$SessionTimeoutMinutes = $Resolved.sessionTimeoutMinutes
+$ContextObjectTypes    = $Resolved.contextObjectTypes
+$WellKnownIdentityContextFields = $Resolved.wellKnownIdentityContextFields
+$ResourceCategoryMapping        = $Resolved.resourceCategoryMapping
+$TypeMappings                   = $Resolved.typeMappings
+$IdentityTypesForIdentityTable  = $Resolved.identityTypesForIdentityTable
 
 # ─── Phase tracking ───────────────────────────────────────────────
 $Script:phases      = [System.Collections.Generic.List[object]]::new()
