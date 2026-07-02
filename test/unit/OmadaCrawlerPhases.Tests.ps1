@@ -370,3 +370,139 @@ Describe 'Sync-OmadaContextMembers' {
         $script:phaseErrors[0] | Should -BeLike 'ContextMembers:*'
     }
 }
+
+# ─── Get-OmadaRoleAssignmentsBySystem (pure) ────────────────────────────────────
+Describe 'Get-OmadaRoleAssignmentsBySystem' {
+
+    It 'fans an active role assignment out to every user account of the identity' {
+        $items = @(
+            [pscustomobject]@{ IDENTITYREF = @{ UId = 'ident1' }; ROLEREF = @{ UId = 'role1' }; ROLEASSNSTATUS = @{ Value = 'Active' } }
+            [pscustomobject]@{ IDENTITYREF = @{ UId = 'ident1' }; ROLEREF = @{ UId = 'role2' }; ROLEASSNSTATUS = @{ Value = 'Closed' } }  # skipped
+        )
+        $fanout = @{ 'ident1' = @('user1', 'user2') }
+        $ra = Get-OmadaRoleAssignmentsBySystem -RaItems $items -IdentityUidToUserUids $fanout -OmadaSystemMap @{}
+
+        $ra['__main__'].Count | Should -Be 2   # role1 × (user1, user2); role2 closed
+        @($ra['__main__'].principalId | Sort-Object -Unique) | Should -Be @('user1','user2')
+    }
+
+    It 'skips assignments for identities with no active user accounts' {
+        $items = @([pscustomobject]@{ IDENTITYREF = @{ UId = 'ident1' }; ROLEREF = @{ UId = 'role1' }; ROLEASSNSTATUS = @{ Value = 'Active' } })
+        (Get-OmadaRoleAssignmentsBySystem -RaItems $items -IdentityUidToUserUids @{} -OmadaSystemMap @{}).Keys.Count | Should -Be 0
+    }
+}
+
+# ─── ConvertFrom-OmadaCraItem (pure) ────────────────────────────────────────────
+Describe 'ConvertFrom-OmadaCraItem' {
+
+    It 'derives a Principal + identity-member + assignment for a connected system' {
+        $item = [pscustomobject]@{ System = @{ UId = 'conn' }; Resource = @{ UId = 'res1' }; Identity = @{ UId = 'id1' }
+                                   AccountKey = 'acc-k1'; AccountName = 'alice'; ResourceType = @{ DisplayName = 'Account' } }
+        $r = ConvertFrom-OmadaCraItem -Item $item -OmadaSystemMap @{ 'conn' = 9 } -SystemId 1 `
+            -OmadaIdentitySystemUId 'omada-sys' -UserNameToUid @{} -IdentityUidInIdentitiesTable (New-StrSet 'id1')
+
+        $r.sysKey | Should -Be 'conn'
+        $r.principal | Should -Not -BeNullOrEmpty
+        $r.identityMember.identityId | Should -Be 'id1'
+        $r.assignment | Should -Not -BeNullOrEmpty
+    }
+
+    It 'reuses the existing Omada User Principal (no derived principal) for the Omada system' {
+        $item = [pscustomobject]@{ System = @{ UId = 'omada-sys' }; Resource = @{ UId = 'res1' }; Identity = @{ UId = 'id1' }
+                                   AccountName = 'alice'; ResourceType = @{ DisplayName = 'Role' } }
+        $r = ConvertFrom-OmadaCraItem -Item $item -OmadaSystemMap @{} -SystemId 1 `
+            -OmadaIdentitySystemUId 'omada-sys' -UserNameToUid @{ 'alice' = 'user-uid-1' } -IdentityUidInIdentitiesTable (New-StrSet 'id1')
+
+        $r.principal | Should -BeNullOrEmpty
+        $r.assignment.principalId | Should -Be 'user-uid-1'
+    }
+
+    It 'skips a row with no resource/identity, or an unresolvable Omada account' {
+        $noRes = [pscustomobject]@{ System = @{ UId = 'omada-sys' }; Identity = @{ UId = 'id1' } }
+        ConvertFrom-OmadaCraItem -Item $noRes -OmadaIdentitySystemUId 'omada-sys' -IdentityUidInIdentitiesTable (New-StrSet 'id1') | Should -BeNullOrEmpty
+
+        $unres = [pscustomobject]@{ System = @{ UId = 'omada-sys' }; Resource = @{ UId = 'r' }; Identity = @{ UId = 'id1' }; AccountName = 'ghost' }
+        ConvertFrom-OmadaCraItem -Item $unres -OmadaIdentitySystemUId 'omada-sys' -UserNameToUid @{} -IdentityUidInIdentitiesTable (New-StrSet 'id1') | Should -BeNullOrEmpty
+    }
+}
+
+# ─── Get-OmadaCraData (streamed) ────────────────────────────────────────────────
+Describe 'Get-OmadaCraData' {
+
+    It 'streams pages and folds rows into per-system accumulators' {
+        Mock Invoke-ODataGetRequest -MockWith { @() }   # default: empty (ends paging)
+        Mock Invoke-ODataGetRequest -ParameterFilter { $QueryParams['$skip'] -eq 0 } -MockWith {
+            @([pscustomobject]@{ System = @{ UId = 'conn' }; Resource = @{ UId = 'res1' }; Identity = @{ UId = 'id1' }
+                                 AccountKey = 'acc-k1'; AccountName = 'alice'; ResourceType = @{ DisplayName = 'Account' } })
+        }
+        $data = Get-OmadaCraData -OmadaSystemMap @{ 'conn' = 9 } -SystemId 1 -OmadaIdentitySystemUId 'omada-sys' `
+            -UserNameToUid @{} -IdentityUidInIdentitiesTable (New-StrSet 'id1') -BuiltinBaseUrl 'http://x/builtin'
+
+        $data.totalCount | Should -Be 1
+        $data.principalsBySys['conn'].Count | Should -Be 1
+        $data.identityMembers.Count | Should -Be 1
+        $data.assignmentsBySys['conn'].Count | Should -Be 1
+    }
+}
+
+# ─── Send-OmadaCraDerived / Send-OmadaGovernanceAssignments ─────────────────────
+Describe 'Assignment ingest helpers' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'Send-OmadaCraDerived sends deduped principals + identity-members as delta' {
+        $craData = @{
+            totalCount = 3
+            principalsBySys = @{ 'conn' = ([System.Collections.Generic.List[object]]@(
+                [pscustomobject]@{ id = 'p1' }, [pscustomobject]@{ id = 'p1' }, [pscustomobject]@{ id = 'p2' })) }
+            identityMembers = ([System.Collections.Generic.List[object]]@([pscustomobject]@{ identityId = 'i1'; principalId = 'p1' }))
+        }
+        Send-OmadaCraDerived -CraData $craData -OmadaSystemMap @{ 'conn' = 9 } -SystemId 1
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/principals' })[0].Records.Count | Should -Be 2   # p1 deduped
+        (Get-Sent { $_.Endpoint -eq 'ingest/principals' })[0].SyncMode | Should -Be 'delta'
+        (Get-Sent { $_.Endpoint -eq 'ingest/identity-members' }).Count | Should -Be 1
+    }
+
+    It 'Send-OmadaGovernanceAssignments combines role + CRA per system, deduped, full-sync governed' {
+        $ra = @{ '__main__' = ([System.Collections.Generic.List[object]]@([pscustomobject]@{ principalId = 'u1'; resourceId = 'r1' })) }
+        $cra = @{ '__main__' = ([System.Collections.Generic.List[object]]@(
+            [pscustomobject]@{ principalId = 'u1'; resourceId = 'r1' },   # dup of the role one
+            [pscustomobject]@{ principalId = 'u2'; resourceId = 'r2' })) }
+        Send-OmadaGovernanceAssignments -RaBySys $ra -AssignmentsBySys $cra -OmadaSystemMap @{} -SystemId 5
+
+        $sent = Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' }
+        $sent[0].Records.Count | Should -Be 2   # (u1,r1) deduped + (u2,r2)
+        $sent[0].Scope.governed | Should -BeTrue
+        $sent[0].SyncMode | Should -Be 'full'
+    }
+}
+
+# ─── Sync-OmadaAssignments (integration; regression for the $CaAssignmentsBysD fix) ──
+Describe 'Sync-OmadaAssignments' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'runs both sources and records the phase without erroring' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Resourceassignment' } -MockWith {
+            @([pscustomobject]@{ IDENTITYREF = @{ UId = 'ident1' }; ROLEREF = @{ UId = 'role1' }; ROLEASSNSTATUS = @{ Value = 'Active' } })
+        }
+        Mock Invoke-ODataGetRequest -MockWith { @() }
+        Mock Invoke-ODataGetRequest -ParameterFilter { $QueryParams['$skip'] -eq 0 } -MockWith {
+            @([pscustomobject]@{ System = @{ UId = 'conn' }; Resource = @{ UId = 'res1' }; Identity = @{ UId = 'id1' }
+                                 AccountKey = 'acc-k1'; AccountName = 'a'; ResourceType = @{ DisplayName = 'Account' } })
+        }
+        Sync-OmadaAssignments -SystemId 1 -OmadaSystemMap @{ 'conn' = 9 } -OmadaIdentitySystemUId 'omada-sys' `
+            -UserNameToUid @{} -IdentityUidToUserUids @{ 'ident1' = @('user1') } -IdentityUidInIdentitiesTable (New-StrSet 'id1') `
+            -BuiltinBaseUrl 'http://x/builtin'
+
+        ($script:phases | Where-Object { $_.name -eq 'Assignments' }).status | Should -Be 'ok'
+        (Get-Sent { $_.Endpoint -eq 'ingest/resource-assignments' }).Count | Should -BeGreaterThan 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the role-assignment fetch throws' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Resourceassignment' } -MockWith { throw 'OData 500' }
+        Sync-OmadaAssignments -SystemId 1 -OmadaSystemMap @{} -OmadaIdentitySystemUId 'x' -BuiltinBaseUrl 'http://x/builtin' `
+            -IdentityUidInIdentitiesTable (New-StrSet 'y')
+        $script:phaseErrors[0] | Should -BeLike 'Assignments:*'
+    }
+}

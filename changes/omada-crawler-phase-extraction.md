@@ -1,1 +1,2 @@
 - Internal: extracted the Omada crawler's resource, entitlement, and view-refresh sync phases out of the monolithic entry point into unit-tested `Sync-Omada*` functions (no functional change to what gets synced).
+- Fixed: the Omada crawler's assignment phase referenced an undefined variable when computing its per-phase record summary, so the CRA-assignment count could be dropped from the sync-log breakdown.
