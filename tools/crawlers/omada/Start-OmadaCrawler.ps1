@@ -341,58 +341,8 @@ $UserGroupMap                 = @{}    # Usergroup.UId → DisplayName — for U
 # Each type is fetched from its own entity set and registered as Identity Atlas Contexts.
 # Orgunit uses topological sort (PARENTOU hierarchy); other types are flat.
 if ($SyncContexts) {
-    $T = [datetime]::UtcNow
-    Write-Host "`nContexts:" -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Syncing contexts' -Pct 10
-    $TotalContextsInserted = 0; $TotalContextsUpdated = 0
-    $ContextPhaseErrors    = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($Cot in $ContextObjectTypes) {
-        $EntitySet   = $Cot.entitySet
-        $ContextType = $Cot.contextType
-        try {
-            if (-not (Test-EntitySetAvailable $EntitySet)) {
-                Write-Host "  Skipping $EntitySet — entity set not in OData metadata" -ForegroundColor Yellow
-                continue
-            }
-            Write-Step "Fetching $EntitySet entities from Omada..."
-            $Items = Invoke-ODataPagedRequest -Path "/$EntitySet" `
-                -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
-            Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
-
-            if ($EntitySet -eq 'Orgunit') {
-                # Orgunit has a parent hierarchy — topological sort required.
-                # Per-record shaping + the sort live in OmadaCrawler.Transform.ps1.
-                $RawRecords = @($Items | ForEach-Object {
-                    ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $_ -DefaultContextType $ContextType
-                } | Where-Object { $_.externalId -and $_.displayName })
-                $Records = Sort-OmadaContextsTopologically -Records $RawRecords
-            } else {
-                # Flat context type — no hierarchy
-                $Records = @($Items | ForEach-Object {
-                    ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
-                } | Where-Object { $_.externalId -and $_.displayName })
-            }
-
-            Write-Step "Ingesting $($Records.Count) $ContextType contexts..."
-            $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ variant = 'synced'; contextType = $ContextType } -Records @($Records)
-            Write-Host "  Contexts ($EntitySet): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-            foreach ($Rec in $Records) { $SyncedContextIds.Add($Rec.id) | Out-Null }
-            $TotalContextsInserted += ($R.inserted ?? 0); $TotalContextsUpdated += ($R.updated ?? 0)
-        } catch {
-            $EMsg = $_.Exception.Message
-            Write-Host "  Contexts ($EntitySet) failed: $EMsg" -ForegroundColor Yellow
-            $ContextPhaseErrors.Add($EntitySet + ': ' + $EMsg)
-        }
-    }
-
-    if ($ContextPhaseErrors.Count -eq $ContextObjectTypes.Count) {
-        $Script:phaseErrors.Add("Contexts: all context types failed")
-        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $T) -ErrorMsg "All context types failed"
-    } else {
-        Write-Phase -Name 'Contexts' -Duration ([datetime]::UtcNow - $T) -Records @{ contexts = $SyncedContextIds.Count }
-    }
+    $SyncedContextIds = Sync-OmadaContexts -SystemId $SystemId -ContextObjectTypes $ContextObjectTypes `
+        -PageSize $PageSize -MaxRetries $MaxODataRetries
 }
 
 # ─── Phase: Identities ───────────────────────────────────────────
@@ -400,55 +350,11 @@ if ($SyncContexts) {
 # Type discriminator: IDENTITYTYPE (OIS.SetValue) — .Value gives the type label
 # Builds $IdentityLookup (IDENTITYID→uid+identityType) used by Accounts and IdentityMembers phases
 if ($SyncIdentities) {
-    $T = [datetime]::UtcNow
-    Write-Host "`nIdentities:" -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Syncing identities' -Pct 20
-    try {
-        if (-not (Test-EntitySetAvailable 'Identity')) {
-            throw "Identity entity set not found in OData metadata"
-        }
-        Write-Step 'Fetching identities from Omada...'
-        $AllIdentities = Invoke-ODataPagedRequest -Path '/Identity' `
-            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
-        Write-Host "  $($AllIdentities.Count) identity records from Omada" -ForegroundColor Gray
-
-        # Build lookup: Identity.IDENTITYID (string) → { uid, identityType }
-        # IDENTITYID is Omada's internal string key (not EMPLOYEEID which is the HR number)
-        $IdentityLookup = @{}
-        foreach ($Id in $AllIdentities) {
-            $Key = [string]$Id.IDENTITYID
-            if ($Key) {
-                $IdType = Get-OmadaIdentityType -Identity $Id
-                $IdentityLookup[$Key] = @{ uid = [string]$Id.UId; identityType = $IdType }
-            }
-        }
-
-        # Person-type identities go to the Identities table
-        $PersonIdentities = @($AllIdentities | Where-Object {
-            $IdentityTypesForIdentityTable -contains (Get-OmadaIdentityType -Identity $_)
-        })
-
-        # Per-identity record shaping lives in ConvertTo-OmadaIdentityRecord
-        # (OmadaCrawler.Transform.ps1) so it can be unit-tested without a live API.
-        $IdentRecords = @($PersonIdentities | ForEach-Object {
-            ConvertTo-OmadaIdentityRecord -Identity $_
-        } | Where-Object { $_.externalId -and $_.displayName })
-
-        Write-Step "Ingesting $($IdentRecords.Count) identity records..."
-        $R = Send-IngestBatch -Endpoint 'ingest/identities' -SystemId $SystemId -SyncMode 'full' -Records $IdentRecords
-        Write-Host "  Identities: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-
-        # Build set of Identity UIds stored in Identities table so CA processing can
-        # guard IdentityMembers against FK violations on non-person identity types.
-        foreach ($Rec in $IdentRecords) { $IdentityUidInIdentitiesTable.Add($Rec.id) | Out-Null }
-
-        Write-Phase -Name 'Identities' -Duration ([datetime]::UtcNow - $T) -Records @{ identities = $IdentRecords.Count }
-    } catch {
-        $Msg = $_.Exception.Message
-        Write-Host "  Identities phase failed: $Msg" -ForegroundColor Red
-        $Script:phaseErrors.Add("Identities: $Msg")
-        Write-Phase -Name 'Identities' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
-    }
+    $IdResult = Sync-OmadaIdentities -SystemId $SystemId -IdentityTypesForIdentityTable $IdentityTypesForIdentityTable `
+        -PageSize $PageSize -MaxRetries $MaxODataRetries
+    $AllIdentities                = $IdResult.allIdentities
+    $IdentityLookup               = $IdResult.identityLookup
+    $IdentityUidInIdentitiesTable = $IdResult.identityUidInIdentitiesTable
 }
 
 # ─── Phase: Accounts / Principals ────────────────────────────────
@@ -456,65 +362,11 @@ if ($SyncIdentities) {
 # principalType resolved from linked Identity's IDENTITYTYPE via $IdentityLookup
 # Join key: User.IDENTITYREF.IDENTITYID (string) = Identity.IDENTITYID (string)
 if ($SyncAccounts) {
-    $T = [datetime]::UtcNow
-    Write-Host "`nAccounts (Principals):" -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Syncing accounts' -Pct 30
-    try {
-        if (-not (Test-EntitySetAvailable 'User')) {
-            throw "User entity set not found in OData metadata"
-        }
-        Write-Step 'Fetching user accounts from Omada...'
-        $AllAccounts = Invoke-ODataPagedRequest -Path '/User' `
-            -QueryParams @{ '$Filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
-        Write-Host "  $($AllAccounts.Count) account records from Omada" -ForegroundColor Gray
-
-        Write-Step "Building $($AllAccounts.Count) account records..."
-        # Per-account record shaping lives in ConvertTo-OmadaAccountRecord
-        # (OmadaCrawler.Transform.ps1).
-        $AccountRecords = @($AllAccounts | Where-Object { -not $_.Inactive } | ForEach-Object {
-            ConvertTo-OmadaAccountRecord -Account $_ -IdentityLookup $IdentityLookup
-        } | Where-Object { $_.externalId -and $_.displayName })
-
-        foreach ($PType in @('User', 'ExternalUser', 'ServicePrincipal')) {
-            $Subset = @($AccountRecords | Where-Object { $_.principalType -eq $PType })
-            if ($Subset.Count -eq 0) { continue }
-            $R = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ principalType = $PType } -Records $Subset
-            Write-Host "  Principals ($PType): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-        }
-        $OtherTypes = @($AccountRecords | Where-Object { $_.principalType -notin @('User','ExternalUser','ServicePrincipal') })
-        if ($OtherTypes.Count -gt 0) {
-            $Grouped = $OtherTypes | Group-Object principalType
-            foreach ($G in $Grouped) {
-                $R = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode 'full' `
-                    -Scope @{ principalType = $G.Name } -Records @($G.Group)
-                Write-Host "  Principals ($($G.Name)): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-            }
-        }
-
-        # Build shared lookups used by ContextMembers and Assignments phases:
-        #   $UserNameToUid:         UserName → User.UId (CalculatedAssignment.AccountName lookup)
-        #   $IdentityUidToUserUids: Identity.UId → [User.UIds] (Contextassignment fan-out to all accounts)
-        foreach ($Acc in $AllAccounts) {
-            if ($Acc.Inactive) { continue }
-            if ($Acc.UserName) { $UserNameToUid[[string]$Acc.UserName] = [string]$Acc.UId }
-            $IdentIdStr = if ($Acc.IDENTITYREF) { [string]$Acc.IDENTITYREF.IDENTITYID } else { $Null }
-            if ($IdentIdStr -and $IdentityLookup.ContainsKey($IdentIdStr)) {
-                $IdentUid = $IdentityLookup[$IdentIdStr].uid
-                if (-not $IdentityUidToUserUids.ContainsKey($IdentUid)) {
-                    $IdentityUidToUserUids[$IdentUid] = [System.Collections.Generic.List[string]]::new()
-                }
-                $IdentityUidToUserUids[$IdentUid].Add([string]$Acc.UId)
-            }
-        }
-
-        Write-Phase -Name 'Accounts' -Duration ([datetime]::UtcNow - $T) -Records @{ accounts = $AccountRecords.Count }
-    } catch {
-        $Msg = $_.Exception.Message
-        Write-Host "  Accounts phase failed: $Msg" -ForegroundColor Red
-        $Script:phaseErrors.Add("Accounts: $Msg")
-        Write-Phase -Name 'Accounts' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
-    }
+    $AccResult = Sync-OmadaAccounts -SystemId $SystemId -IdentityLookup $IdentityLookup `
+        -PageSize $PageSize -MaxRetries $MaxODataRetries
+    $AllAccounts           = $AccResult.allAccounts
+    $UserNameToUid         = $AccResult.userNameToUid
+    $IdentityUidToUserUids = $AccResult.identityUidToUserUids
 }
 
 # ─── Phase: IdentityMembers ───────────────────────────────────────

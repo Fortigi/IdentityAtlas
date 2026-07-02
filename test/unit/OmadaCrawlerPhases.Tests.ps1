@@ -171,3 +171,106 @@ Describe 'Sync-OmadaRefreshViews' {
         { Sync-OmadaRefreshViews } | Should -Not -Throw
     }
 }
+
+# ─── Sync-OmadaContexts ─────────────────────────────────────────────────────────
+Describe 'Sync-OmadaContexts' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'ingests orgunit contexts and returns the synced context id set' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Orgunit' } -MockWith {
+            @(
+                [pscustomobject]@{ UId = 'ou-root'; NAME = 'Root' }
+                [pscustomobject]@{ UId = 'ou-1'; NAME = 'Sales'; PARENTOU = [pscustomobject]@{ UId = 'ou-root' } }
+            )
+        }
+        $cot = @(@{ entitySet = 'Orgunit'; contextType = 'OrgUnit' })
+        $synced = Sync-OmadaContexts -SystemId 1 -ContextObjectTypes $cot
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/contexts' })[0].Records.Count | Should -Be 2
+        $synced.Contains('ou-1') | Should -BeTrue
+        $synced.Count | Should -Be 2
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when every context type fails' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Orgunit' } -MockWith { throw 'OData 500' }
+        Sync-OmadaContexts -SystemId 1 -ContextObjectTypes @(@{ entitySet = 'Orgunit'; contextType = 'OrgUnit' })
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'Contexts:*'
+    }
+}
+
+# ─── Sync-OmadaIdentities ───────────────────────────────────────────────────────
+Describe 'Sync-OmadaIdentities' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'ingests person-type identities and returns the lookup + in-table set' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/Identity' } -MockWith {
+            @(
+                [pscustomobject]@{ UId = 'id-1'; IDENTITYID = 'ID-1'; FIRSTNAME = 'Alice'; LASTNAME = 'Smith'; IDENTITYTYPE = [pscustomobject]@{ Value = 'Employee' } }
+                [pscustomobject]@{ UId = 'id-2'; IDENTITYID = 'ID-2'; FIRSTNAME = 'Bob'; LASTNAME = 'Ng'; IDENTITYTYPE = [pscustomobject]@{ Value = 'Contractor' } }
+            )
+        }
+        $r = Sync-OmadaIdentities -SystemId 1 -IdentityTypesForIdentityTable @('Employee')
+
+        # Only the Employee lands in the Identities table.
+        (Get-Sent { $_.Endpoint -eq 'ingest/identities' })[0].Records.Count | Should -Be 1
+        $r.identityLookup['ID-1'].uid | Should -Be 'id-1'
+        $r.identityLookup.Count | Should -Be 2
+        $r.identityUidInIdentitiesTable.Contains('id-1') | Should -BeTrue
+        $r.identityUidInIdentitiesTable.Contains('id-2') | Should -BeFalse
+        @($r.allIdentities).Count | Should -Be 2
+    }
+
+    It 'records a phase failure when the Identity entity set is unavailable' {
+        Mock Test-EntitySetAvailable -MockWith { $false }
+        $r = Sync-OmadaIdentities -SystemId 1 -IdentityTypesForIdentityTable @('Employee')
+        $script:phaseErrors[0] | Should -BeLike 'Identities:*'
+        $r.identityLookup.Count | Should -Be 0
+    }
+}
+
+# ─── Get-OmadaAccountLookups (pure) ─────────────────────────────────────────────
+Describe 'Get-OmadaAccountLookups' {
+
+    It 'builds userName->uid and identityUid->[userUids], skipping inactive accounts' {
+        $lookup = @{ 'ID-1' = @{ uid = 'id-1'; identityType = 'Employee' } }
+        $accounts = @(
+            [pscustomobject]@{ UId = 'acc-1'; UserName = 'alice'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }
+            [pscustomobject]@{ UId = 'acc-2'; UserName = 'alice2'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }
+            [pscustomobject]@{ UId = 'acc-3'; UserName = 'ghost'; Inactive = $true }
+        )
+        $r = Get-OmadaAccountLookups -AllAccounts $accounts -IdentityLookup $lookup
+
+        $r.userNameToUid['alice'] | Should -Be 'acc-1'
+        $r.userNameToUid.ContainsKey('ghost') | Should -BeFalse
+        @($r.identityUidToUserUids['id-1']) | Should -Be @('acc-1','acc-2')
+    }
+}
+
+# ─── Sync-OmadaAccounts ─────────────────────────────────────────────────────────
+Describe 'Sync-OmadaAccounts' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'ingests accounts bucketed by principalType and returns account lookups' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith {
+            @(
+                [pscustomobject]@{ UId = 'acc-1'; UserName = 'alice'; FIRSTNAME = 'Alice'; LASTNAME = 'Smith'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } }
+            )
+        }
+        $lookup = @{ 'ID-1' = @{ uid = 'id-1'; identityType = 'Employee' } }
+        $r = Sync-OmadaAccounts -SystemId 4 -IdentityLookup $lookup
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/principals' -and $_.Scope.principalType -eq 'User' })[0].Records.Count | Should -Be 1
+        @($r.allAccounts).Count | Should -Be 1
+        $r.userNameToUid['alice'] | Should -Be 'acc-1'
+        @($r.identityUidToUserUids['id-1']) | Should -Be @('acc-1')
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when the account fetch throws' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith { throw 'OData 500' }
+        Sync-OmadaAccounts -SystemId 1 -IdentityLookup @{}
+        $script:phaseErrors[0] | Should -BeLike 'Accounts:*'
+    }
+}
