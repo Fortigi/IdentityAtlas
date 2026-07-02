@@ -52,9 +52,10 @@ BeforeAll {
     # refresh branch runs without the Graph SDK loaded.
     function Update-FGAccessTokenIfExpired { param([string]$DebugFlag) }
 
-    # The Graph SDK function the phases call. Defined as a stub so Pester can Mock
-    # it; every test overrides it with -ParameterFilter on the URI.
+    # The Graph SDK functions the phases call. Defined as stubs so Pester can Mock
+    # them; every test overrides with -ParameterFilter on the URI.
     function Invoke-FGGetRequest { param([string]$URI, [int]$MaxRetries, [int]$TimeoutSec) }
+    function Invoke-FGGetRequestStream { param([string]$URI) }
 
     # Add-FGEntraCalculatedAttributes is a Graph SDK helper (own tests) that
     # ConvertTo-EntraGroupResourceRecord calls. Stub it so the group shaper stays
@@ -609,5 +610,73 @@ Describe 'Sync-EntraServicePrincipals' {
         @($returned).Count | Should -Be 0
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'ServicePrincipals:*'
+    }
+}
+
+# ─── Get-EntraSpAppIdIndex ──────────────────────────────────────────────────────
+Describe 'Get-EntraSpAppIdIndex' {
+
+    It 'builds the appId -> spId map from provided SPs without a Graph call' {
+        Mock Invoke-FGGetRequest -MockWith { throw 'should not be called' }
+        $sps = @(
+            [pscustomobject]@{ id = 'sp1'; appId = 'a1' }
+            [pscustomobject]@{ id = 'sp2'; appId = 'a2' }
+            [pscustomobject]@{ id = 'sp3'; appId = $null }   # no appId -> skipped
+        )
+        $idx = Get-EntraSpAppIdIndex -Sps $sps
+        $idx['a1'] | Should -Be 'sp1'
+        $idx['a2'] | Should -Be 'sp2'
+        $idx.Count | Should -Be 2
+    }
+
+    It 'falls back to a Graph fetch when no SPs are supplied' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals' } -MockWith {
+            @([pscustomobject]@{ id = 'spX'; appId = 'aX' })
+        }
+        $idx = Get-EntraSpAppIdIndex -Sps @()
+        $idx['aX'] | Should -Be 'spX'
+        Should -Invoke Invoke-FGGetRequest -Times 1
+    }
+}
+
+# ─── Sync-EntraSignInLogs ───────────────────────────────────────────────────────
+Describe 'Sync-EntraSignInLogs' {
+    BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
+
+    It 'aggregates streamed events into per-(user, app) activity rows' {
+        Mock Invoke-FGGetRequestStream -MockWith {
+            @(
+                [pscustomobject]@{ userId = 'u1'; appId = 'a1'; createdDateTime = '2026-06-01T10:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+                [pscustomobject]@{ userId = 'u1'; appId = 'a1'; createdDateTime = '2026-06-02T10:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+                [pscustomobject]@{ userId = 'u2'; appId = 'a1'; createdDateTime = '2026-06-02T11:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } }
+            )
+        }
+        $sps = @([pscustomobject]@{ id = 'sp1'; appId = 'a1' })
+        $timings = [ordered]@{}
+        Sync-EntraSignInLogs -SystemId 6 -Sps $sps -SignInLogsDays 1 -Timings $timings
+
+        $act = Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' }
+        $act[0].Records.Count | Should -Be 2   # (u1,sp1) collapsed from 2 events + (u2,sp1)
+        ($act[0].Records | Where-Object { $_.principalId -eq 'u1' }).signInCount | Should -Be 2
+        $timings.Contains('SignInLogs') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'skips events whose appId is not in the index (no activity uploaded)' {
+        Mock Invoke-FGGetRequestStream -MockWith {
+            @([pscustomobject]@{ userId = 'u1'; appId = 'unknown'; createdDateTime = '2026-06-01T10:00:00Z'; status = [pscustomobject]@{ errorCode = 0 } })
+        }
+        Sync-EntraSignInLogs -SystemId 1 -Sps @([pscustomobject]@{ id = 'sp1'; appId = 'a1' }) -SignInLogsDays 1 -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Endpoint -eq 'ingest/principal-activity' }).Count | Should -Be 0
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'records a phase failure when every day slice fails' {
+        Mock Invoke-FGGetRequestStream -MockWith { throw 'Graph 400 skiptoken expired' }
+        Sync-EntraSignInLogs -SystemId 1 -Sps @([pscustomobject]@{ id = 'sp1'; appId = 'a1' }) -SignInLogsDays 2 -Timings ([ordered]@{})
+
+        $script:phaseErrors | Should -HaveCount 1
+        $script:phaseErrors[0] | Should -BeLike 'SignInLogs:*'
     }
 }

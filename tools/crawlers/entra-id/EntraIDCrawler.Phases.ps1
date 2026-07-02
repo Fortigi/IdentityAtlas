@@ -988,3 +988,127 @@ function Sync-EntraServicePrincipals {
     Write-Phase -Name 'ServicePrincipals' -Duration $__phaseSW.Elapsed -ErrorMsg $__spErrMsg
     return $sps
 }
+
+# ─── Sign-in Logs: appId -> SP id index ──────────────────────────
+# Reuses the $Sps from the ServicePrincipals phase when present; otherwise
+# fetches a stripped id/appId list on demand so the SignInLogs phase works
+# whether or not the SP sync ran this run. Verbatim from the inline index build.
+function Get-EntraSpAppIdIndex {
+    [CmdletBinding()]
+    param($Sps)
+    $appIdToSpId = @{}
+    if ($Sps -and $Sps.Count -gt 0) {
+        foreach ($sp in $Sps) { if ($sp.appId) { $appIdToSpId[$sp.appId] = $sp.id } }
+    } else {
+        $spIndex = Invoke-FGGetRequest -URI 'https://graph.microsoft.com/beta/servicePrincipals?$select=id,appId&$top=999'
+        foreach ($sp in $spIndex) { if ($sp.appId) { $appIdToSpId[$sp.appId] = $sp.id } }
+    }
+    return $appIdToSpId
+}
+
+# ─── Sync Sign-in Logs (per-(user, app) activity) ────────────────
+# Aggregates /auditLogs/signIns events from the last $SignInLogsDays days into
+# per-(user, app) last-activity rows (granularity B). Each event is O(1) work;
+# the sum is kept in a hashtable keyed by "$userId|$appSpId" so peak memory is
+# bounded by the number of DISTINCT pairs, not event count. Consumes the $Sps
+# from the ServicePrincipals phase (via Get-EntraSpAppIdIndex).
+function Sync-EntraSignInLogs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [int]$SystemId,
+        $Sps,
+        [int]$SignInLogsDays = 7,
+        $Timings
+    )
+    $__phaseSW = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing sign-in logs (last $SignInLogsDays days)..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing sign-in logs' -Pct 22 -Detail 'Building appId index...'
+
+    try {
+        $appIdToSpId = Get-EntraSpAppIdIndex -Sps $Sps
+        Write-Host "  Indexed $($appIdToSpId.Count) app ids" -ForegroundColor Gray
+
+        # Day-sliced fetch. Fetching the full window as a single request has
+        # repeatedly failed mid-pagination with a 400 once Graph's skiptoken
+        # expires on a slow client. Slicing into 1-day windows means a single
+        # bad slice costs one day, not the whole phase.
+        #
+        # Memory: feed events into the aggregate AS THEY ARRIVE via
+        # Invoke-FGGetRequestStream's pipeline output — peak memory is bounded by
+        # one Graph page (~1k events) + the aggregate hashtable, not the full
+        # multi-hundred-thousand-event slice that used to OOM-kill the worker.
+        $agg = @{}
+        $skipped = 0
+        $totalEvents = 0
+        $sliceFailures = @()
+
+        # Per-event aggregation lives in Add-EntraSignInEventToAggregate
+        # (EntraIDCrawler.Transform.ps1): it folds one event into $agg (by
+        # reference) and returns $false when skipped. The skip counter stays in
+        # $script: scope so it survives the streaming ForEach-Object below (a
+        # plain local wouldn't propagate out of the pipeline block).
+        $script:_signin_skipped = 0
+
+        $nowUtc = (Get-Date).ToUniversalTime()
+        for ($d = 0; $d -lt $SignInLogsDays; $d++) {
+            $sliceEnd   = $nowUtc.AddDays(-$d).ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $sliceStart = $nowUtc.AddDays(-($d + 1)).ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $sliceFilter = [uri]::EscapeDataString("createdDateTime ge $sliceStart and createdDateTime lt $sliceEnd")
+            $sliceUri = "https://graph.microsoft.com/beta/auditLogs/signIns?`$filter=$sliceFilter&`$top=999"
+            Update-CrawlerProgress -Detail "Fetching day slice $($d + 1)/${SignInLogsDays}: $sliceStart..$sliceEnd"
+            $sliceCount = 0
+            try {
+                # IMPORTANT: pipe directly into ForEach-Object so each Graph
+                # page can be GC'd as soon as it's aggregated. Assigning the
+                # result to a variable first would buffer the whole slice
+                # and defeat the streaming.
+                Invoke-FGGetRequestStream -URI $sliceUri | ForEach-Object {
+                    if (-not (Add-EntraSignInEventToAggregate -SignInEvent $_ -Aggregate $agg -AppIdToSpId $appIdToSpId)) {
+                        $script:_signin_skipped++
+                    }
+                    $sliceCount++
+                }
+                $totalEvents += $sliceCount
+                Write-Host "  Slice $($d + 1)/$SignInLogsDays ($sliceStart..$sliceEnd): $sliceCount events" -ForegroundColor Gray
+            } catch {
+                # One bad slice (typically an expired skiptoken 400 deep in
+                # pagination) doesn't abort the whole phase — we record it
+                # and keep going. If *every* slice fails, the outer handler
+                # still flags the phase as failed.
+                $msg = $_.Exception.Message
+                Write-Host "  Slice $($d + 1)/$SignInLogsDays failed: $msg" -ForegroundColor Yellow
+                $sliceFailures += "day $($d + 1): $msg"
+            }
+        }
+        Write-Host "  Pulled $totalEvents events across $SignInLogsDays slices ($(@($sliceFailures).Count) slice failure(s))" -ForegroundColor Gray
+        if ($sliceFailures.Count -gt 0 -and $sliceFailures.Count -eq $SignInLogsDays) {
+            throw "All $SignInLogsDays sign-in log slices failed: $($sliceFailures -join '; ')"
+        }
+        if ($sliceFailures.Count -gt 0) {
+            $script:phaseErrors.Add("SignInLogs: $($sliceFailures.Count) of $SignInLogsDays day slice(s) failed: $($sliceFailures -join '; ')")
+        }
+
+        $skipped = $script:_signin_skipped
+        if ($skipped -gt 0) {
+            Write-Host "  Skipped $skipped events (missing userId/appId, or app not synced yet)" -ForegroundColor Gray
+        }
+
+        $records = @($agg.Values)
+        Write-Host "  Aggregated to $($records.Count) (user, app) pairs" -ForegroundColor Cyan
+        if ($records.Count -gt 0) {
+            Update-CrawlerProgress -Detail "Uploading $($records.Count) per-app activity rows..."
+            Send-IngestBatch -Endpoint 'ingest/principal-activity' -SystemId $SystemId -SyncMode 'delta' `
+                -Records $records
+        }
+    } catch {
+        # 403 if the tenant hasn't consented AuditLog.Read.All, 429 if the
+        # report is rate-limited. Fail soft — user/SP aggregate activity
+        # from the cheaper endpoints still landed.
+        Write-Host "  ERROR: Sign-in log sync failed: $($_.Exception.Message)" -ForegroundColor Red
+        $script:phaseErrors.Add("SignInLogs: $($_.Exception.Message)")
+    }
+    $__phaseSW.Stop(); if ($Timings) { $Timings['SignInLogs'] = $__phaseSW.Elapsed }
+    $__signInErr = $script:phaseErrors | Where-Object { $_.StartsWith('SignInLogs:') } | Select-Object -Last 1
+    $__signInErrMsg = if ($__signInErr) { $__signInErr.Substring('SignInLogs:'.Length).Trim() } else { $null }
+    Write-Phase -Name 'SignInLogs' -Duration $__phaseSW.Elapsed -ErrorMsg $__signInErrMsg
+}
