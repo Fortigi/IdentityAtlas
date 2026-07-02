@@ -162,3 +162,67 @@ Describe 'ConvertTo-CsvRelationshipRecord' {
         (ConvertTo-CsvRelationshipRecord -Row $row -SystemId 2 -Cols $cols).relationshipType | Should -Be 'GrantsAccessTo'
     }
 }
+
+Describe 'ConvertTo-CsvUserRecord' {
+    It 'returns $null when ExternalId or DisplayName is blank' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName')
+        ConvertTo-CsvUserRecord -Row ([PSCustomObject]@{ ExternalId = ''; DisplayName = 'A' }) -SystemId 2 -Cols $cols | Should -BeNullOrEmpty
+    }
+
+    It 'defaults principalType=User, accountEnabled=$true, optional fields null' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName')
+        $rec = ConvertTo-CsvUserRecord -Row ([PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'Alice' }) -SystemId 7 -Cols $cols
+        $rec._systemId      | Should -Be 7
+        $rec.principalType  | Should -Be 'User'
+        $rec.accountEnabled | Should -BeTrue
+        $rec.email          | Should -BeNullOrEmpty
+        $rec.jobTitle       | Should -BeNullOrEmpty
+    }
+
+    It 'accepts a valid principalType and reads email/jobTitle/department' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName', 'PrincipalType', 'Email', 'JobTitle', 'Department', 'Enabled')
+        $row = [PSCustomObject]@{ ExternalId = 'sp1'; DisplayName = 'Svc'; PrincipalType = 'ServicePrincipal'; Email = 's@x'; JobTitle = 'Bot'; Department = 'IT'; Enabled = 'true' }
+        $rec = ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols
+        $rec.principalType | Should -Be 'ServicePrincipal'
+        $rec.email         | Should -Be 's@x'
+        $rec.jobTitle      | Should -Be 'Bot'
+        $rec.department    | Should -Be 'IT'
+    }
+
+    It 'rejects an invalid principalType, falling back to User' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName', 'PrincipalType')
+        $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; PrincipalType = 'Wizard' }
+        (ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols).principalType | Should -Be 'User'
+    }
+
+    It 'treats Enabled in {false,False,0} as disabled' {
+        $cols = New-ColSet @('ExternalId', 'DisplayName', 'Enabled')
+        $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; Enabled = 'False' }
+        (ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols).accountEnabled | Should -BeFalse
+    }
+}
+
+Describe 'ConvertTo-CsvAssignmentRecord' {
+    BeforeAll {
+        $script:aIdxFull = @{ Res = 0; User = 1; Type = 2 }
+        $script:aIdxMin  = @{ Res = 0; User = 1; Type = -1 }
+    }
+
+    It 'returns $null when resource or user id is blank' {
+        ConvertTo-CsvAssignmentRecord -Row @('', 'u1', 'Direct') -Idx $script:aIdxFull -SystemId 2 | Should -BeNullOrEmpty
+        ConvertTo-CsvAssignmentRecord -Row @('r1', '', 'Direct') -Idx $script:aIdxFull -SystemId 2 | Should -BeNullOrEmpty
+    }
+
+    It 'defaults assignmentType=Direct when the column is absent' {
+        $rec = ConvertTo-CsvAssignmentRecord -Row @('r1', 'u1') -Idx $script:aIdxMin -SystemId 3
+        $rec._systemId           | Should -Be 3
+        $rec.resourceExternalId  | Should -Be 'r1'
+        $rec.principalExternalId | Should -Be 'u1'
+        $rec.assignmentType      | Should -Be 'Direct'
+    }
+
+    It 'reads an explicit AssignmentType but falls back to Direct when blank' {
+        (ConvertTo-CsvAssignmentRecord -Row @('r1', 'u1', 'Eligible') -Idx $script:aIdxFull -SystemId 2).assignmentType | Should -Be 'Eligible'
+        (ConvertTo-CsvAssignmentRecord -Row @('r1', 'u1', '') -Idx $script:aIdxFull -SystemId 2).assignmentType | Should -Be 'Direct'
+    }
+}

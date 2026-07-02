@@ -104,3 +104,42 @@ function ConvertTo-CsvRelationshipRecord {
         relationshipType = if ($Cols.Contains('RelationshipType') -and $Row.RelationshipType) { $Row.RelationshipType } else { 'Contains' }
     }
 }
+
+# ─── Users.csv ───────────────────────────────────────────────────
+# principalType is validated against the canonical set (falls back to 'User').
+function ConvertTo-CsvUserRecord {
+    [CmdletBinding()]
+    param($Row, [int]$SystemId, [System.Collections.Generic.HashSet[string]]$Cols)
+    if (-not $Row.ExternalId -or -not $Row.DisplayName) { return $null }
+    $validTypes = @('User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox')
+    $pType = if ($Cols.Contains('PrincipalType') -and $Row.PrincipalType -in $validTypes) { $Row.PrincipalType } else { 'User' }
+    $on = $true
+    if ($Cols.Contains('Enabled') -and $Row.Enabled -in @('false', 'False', '0')) { $on = $false }
+    return @{
+        _systemId      = $SystemId
+        externalId     = $Row.ExternalId
+        displayName    = $Row.DisplayName
+        principalType  = $pType
+        accountEnabled = $on
+        email          = if ($Cols.Contains('Email')) { $Row.Email } else { $null }
+        jobTitle       = if ($Cols.Contains('JobTitle')) { $Row.JobTitle } else { $null }
+        department     = if ($Cols.Contains('Department')) { $Row.Department } else { $null }
+    }
+}
+
+# ─── Assignments.csv (fast path) ─────────────────────────────────
+# $Idx: Res (ResourceExternalId), User (UserExternalId), Type (AssignmentType, -1 if absent).
+function ConvertTo-CsvAssignmentRecord {
+    [CmdletBinding()]
+    param([string[]]$Row, [hashtable]$Idx, [int]$SystemId)
+    $resId = $Row[$Idx.Res]; $usrId = $Row[$Idx.User]
+    if (-not $resId -or -not $usrId) { return $null }
+    $aType = 'Direct'
+    if ($Idx.Type -ge 0) { $v = $Row[$Idx.Type]; if ($v) { $aType = $v } }
+    return @{
+        _systemId           = $SystemId
+        resourceExternalId  = $resId
+        principalExternalId = $usrId
+        assignmentType      = $aType
+    }
+}

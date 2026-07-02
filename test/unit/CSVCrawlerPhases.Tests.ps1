@@ -203,3 +203,68 @@ Describe 'Sync-CsvRelationships' {
         $sent[0].Records[0].relationshipType | Should -Be 'Contains'
     }
 }
+
+Describe 'Sync-CsvUsers' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+    }
+
+    It 'warns and returns when Users.csv is absent' {
+        Remove-Csv 'Users.csv'
+        Sync-CsvUsers
+        @($script:sent).Count | Should -Be 0
+    }
+
+    It 'sends User-scoped principals, resolving SystemName' {
+        $script:systemLookup = @{ 'Omada' = 9 }
+        Set-Csv 'Users.csv' @(
+            'ExternalId;DisplayName;SystemName'
+            'u1;Alice;Omada'
+            'u2;Bob;'
+            ';Skip;'
+        )
+        Sync-CsvUsers
+        $sent = Get-Sent 'ingest/principals'
+        $sent.Count | Should -Be 1
+        $sent[0].Scope.principalType | Should -Be 'User'
+        $sent[0].Records.Count | Should -Be 2
+        ($sent[0].Records | Where-Object { $_.externalId -eq 'u1' })._systemId | Should -Be 9
+    }
+}
+
+Describe 'Sync-CsvAssignments' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+    }
+
+    It 'warns and returns when Assignments.csv is absent' {
+        Remove-Csv 'Assignments.csv'
+        Sync-CsvAssignments
+        @($script:sent).Count | Should -Be 0
+    }
+
+    It 'throws when required columns are missing' {
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;Foo', 'r1;x')
+        { Sync-CsvAssignments } | Should -Throw '*missing required columns*'
+    }
+
+    It 'sends Direct-scoped assignments, honouring an explicit AssignmentType' {
+        Set-Csv 'Assignments.csv' @(
+            'ResourceExternalId;UserExternalId;AssignmentType'
+            'r1;u1;Eligible'
+            'r2;u2;'
+            ';u3;Direct'
+        )
+        Sync-CsvAssignments
+        $sent = Get-Sent 'ingest/resource-assignments'
+        $sent.Count | Should -Be 1
+        $sent[0].Scope.assignmentType | Should -Be 'Direct'
+        $sent[0].Records.Count | Should -Be 2
+        ($sent[0].Records | Where-Object { $_.resourceExternalId -eq 'r1' }).assignmentType | Should -Be 'Eligible'
+        ($sent[0].Records | Where-Object { $_.resourceExternalId -eq 'r2' }).assignmentType | Should -Be 'Direct'
+    }
+}

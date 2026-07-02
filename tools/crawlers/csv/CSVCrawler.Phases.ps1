@@ -150,3 +150,59 @@ function Sync-CsvRelationships {
     Send-GroupedBySystem -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = 'Contains' } -Records $records
     [System.GC]::Collect()
 }
+
+# ─── Step 5: Users.csv (required) ────────────────────────────────
+function Sync-CsvUsers {
+    [CmdletBinding()]
+    param()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 5: Users..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing users' -Pct 42
+    $users = Read-CsvFile 'Users.csv'
+    if (-not $users) { Write-Host "  WARNING: Users.csv not found (required)" -ForegroundColor Red; return }
+    Assert-Columns 'Users.csv' $users @('ExternalId', 'DisplayName')
+    $cols = [System.Collections.Generic.HashSet[string]]::new([string[]]$users[0].PSObject.Properties.Name)
+    $hSys = $cols.Contains('SystemName')
+    $records = [System.Collections.Generic.List[object]]::new($users.Count)
+    foreach ($r in $users) {
+        $sid = if ($hSys -and $r.SystemName -and $systemLookup.ContainsKey($r.SystemName)) { $systemLookup[$r.SystemName] } else { $fallbackSystemId }
+        $rec = ConvertTo-CsvUserRecord -Row $r -SystemId $sid -Cols $cols
+        if ($rec) { [void]$records.Add($rec) }
+    }
+    Write-Host "  Built $($records.Count) principal records" -ForegroundColor Gray
+    Send-GroupedBySystem -Endpoint 'ingest/principals' -Scope @{ principalType = 'User' } -Records $records
+    [System.GC]::Collect()
+}
+
+# ─── Step 6: Assignments.csv (required, fast path) ───────────────
+# The hot path — streaming reader; the canonical schema trusts the caller to have
+# deduped upstream, but Send-GroupedBySystem still dedups defensively.
+function Sync-CsvAssignments {
+    [CmdletBinding()]
+    param()
+    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 6: Assignments..." -ForegroundColor Cyan
+    Update-CrawlerProgress -Step 'Syncing assignments' -Pct 55
+    $fast = Read-CsvFast 'Assignments.csv'
+    if (-not $fast) { Write-Host "  WARNING: Assignments.csv not found (required)" -ForegroundColor Red; return }
+    $rows = $fast.rows; $colIdx = $fast.colIdx
+    if (-not $colIdx.ContainsKey('ResourceExternalId') -or -not $colIdx.ContainsKey('UserExternalId')) {
+        throw "Assignments.csv missing required columns ResourceExternalId / UserExternalId"
+    }
+    $idx = @{
+        Res  = $colIdx['ResourceExternalId']
+        User = $colIdx['UserExternalId']
+        Type = if ($colIdx.ContainsKey('AssignmentType')) { $colIdx['AssignmentType'] } else { -1 }
+    }
+    $idxSys = if ($colIdx.ContainsKey('SystemName')) { $colIdx['SystemName'] } else { -1 }
+    $records = [System.Collections.Generic.List[object]]::new($rows.Count)
+    for ($i = 0; $i -lt $rows.Count; $i++) {
+        $r = $rows[$i]
+        $sid = $fallbackSystemId
+        if ($idxSys -ge 0) { $sn = $r[$idxSys]; if ($sn -and $systemLookup.ContainsKey($sn)) { $sid = $systemLookup[$sn] } }
+        $rec = ConvertTo-CsvAssignmentRecord -Row $r -Idx $idx -SystemId $sid
+        if ($rec) { [void]$records.Add($rec) }
+    }
+    $fast = $null; $rows = $null; [System.GC]::Collect()
+    Write-Host "  Built $($records.Count) assignment records" -ForegroundColor Gray
+    Send-GroupedBySystem -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Records $records
+    $records = $null; [System.GC]::Collect()
+}

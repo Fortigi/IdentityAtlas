@@ -93,77 +93,9 @@ Sync-CsvContextMembers
 Sync-CsvResources
 Sync-CsvRelationships
 
-# ─── 5. Users.csv (required) ─────────────────────────────────────
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 5: Users..." -ForegroundColor Cyan
-Update-CrawlerProgress -Step 'Syncing users' -Pct 42
-$users = Read-CsvFile 'Users.csv'
-if ($users) {
-    Assert-Columns 'Users.csv' $users @('ExternalId','DisplayName')
-    $validTypes = @('User','ServicePrincipal','ManagedIdentity','WorkloadIdentity','AIAgent','ExternalUser','SharedMailbox')
-    $cols = $users[0].PSObject.Properties.Name
-    $hPT = $cols -contains 'PrincipalType'; $hEn = $cols -contains 'Enabled'
-    $hE = $cols -contains 'Email'; $hJT = $cols -contains 'JobTitle'; $hDep = $cols -contains 'Department'
-    $hSys = $cols -contains 'SystemName'
-    $records = [System.Collections.Generic.List[object]]::new($users.Count)
-    foreach ($r in $users) {
-        if (-not $r.ExternalId -or -not $r.DisplayName) { continue }
-        $pType = if ($hPT -and $r.PrincipalType -in $validTypes) { $r.PrincipalType } else { 'User' }
-        $on = $true; if ($hEn -and $r.Enabled -in @('false','False','0')) { $on = $false }
-        $sid = if ($hSys -and $r.SystemName -and $systemLookup.ContainsKey($r.SystemName)) { $systemLookup[$r.SystemName] } else { $fallbackSystemId }
-        [void]$records.Add(@{
-            _systemId = $sid; externalId = $r.ExternalId; displayName = $r.DisplayName; principalType = $pType; accountEnabled = $on
-            email = if ($hE) { $r.Email } else { $null }
-            jobTitle = if ($hJT) { $r.JobTitle } else { $null }
-            department = if ($hDep) { $r.Department } else { $null }
-        })
-    }
-    $users = $null; [System.GC]::Collect()
-    Write-Host "  Built $($records.Count) principal records" -ForegroundColor Gray
-    Send-GroupedBySystem -Endpoint 'ingest/principals' -Scope @{ principalType = 'User' } -Records $records
-    $records = $null; [System.GC]::Collect()
-} else { Write-Host "  WARNING: Users.csv not found (required)" -ForegroundColor Red }
-
-# ─── 6. Assignments.csv (required) ───────────────────────────────
-# The hot path of the crawler. We use the streaming CSV reader and skip
-# dedup entirely — the canonical schema trusts the caller to dedupe upstream.
-Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 6: Assignments..." -ForegroundColor Cyan
-Update-CrawlerProgress -Step 'Syncing assignments' -Pct 55
-$fast = Read-CsvFast 'Assignments.csv'
-if ($fast) {
-    $rows = $fast.rows; $colIdx = $fast.colIdx
-    if (-not $colIdx.ContainsKey('ResourceExternalId') -or -not $colIdx.ContainsKey('UserExternalId')) {
-        throw "Assignments.csv missing required columns ResourceExternalId / UserExternalId"
-    }
-    $idxRes  = $colIdx['ResourceExternalId']
-    $idxUser = $colIdx['UserExternalId']
-    $idxType = if ($colIdx.ContainsKey('AssignmentType')) { $colIdx['AssignmentType'] } else { -1 }
-    $idxSys  = if ($colIdx.ContainsKey('SystemName'))     { $colIdx['SystemName'] }     else { -1 }
-
-    $records = [System.Collections.Generic.List[object]]::new($rows.Count)
-    for ($i = 0; $i -lt $rows.Count; $i++) {
-        $r = $rows[$i]
-        $resId = $r[$idxRes]; $usrId = $r[$idxUser]
-        if (-not $resId -or -not $usrId) { continue }
-        $sid = $fallbackSystemId
-        if ($idxSys -ge 0) {
-            $sn = $r[$idxSys]
-            if ($sn -and $systemLookup.ContainsKey($sn)) { $sid = $systemLookup[$sn] }
-        }
-        $aType = 'Direct'
-        if ($idxType -ge 0) {
-            $v = $r[$idxType]
-            if ($v) { $aType = $v }
-        }
-        [void]$records.Add(@{ _systemId = $sid; resourceExternalId = $resId; principalExternalId = $usrId; assignmentType = $aType })
-    }
-    $fast = $null; $rows = $null; [System.GC]::Collect()
-    Write-Host "  Built $($records.Count) assignment records" -ForegroundColor Gray
-    # Keep dedup enabled — even a handful of duplicate (resource, user) pairs
-    # blow up the server-side upsert ("ON CONFLICT DO UPDATE command cannot
-    # affect row a second time"). The Dictionary-based dedup is fast enough.
-    Send-GroupedBySystem -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Records $records
-    $records = $null; [System.GC]::Collect()
-} else { Write-Host "  WARNING: Assignments.csv not found (required)" -ForegroundColor Red }
+# ─── 5. Users.csv (required) + 6. Assignments.csv (required) ─────
+Sync-CsvUsers
+Sync-CsvAssignments
 
 # ─── 7. Identities.csv (optional) ────────────────────────────────
 Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 7: Identities..." -ForegroundColor Cyan
