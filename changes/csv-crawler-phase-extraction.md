@@ -1,0 +1,1 @@
+- Internal: extracted the CSV crawler's Systems, Contexts, and ContextMembers sync phases out of the monolithic entry point into unit-tested `Sync-Csv*` functions and pure `ConvertTo-Csv*Record` record-shapers (no functional change to what gets imported).
