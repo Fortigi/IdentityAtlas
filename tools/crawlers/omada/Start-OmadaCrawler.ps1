@@ -206,6 +206,7 @@ $DefaultTypeMappings = @{
 # (e.g. $TypeMappings, $ResourceCategoryMapping, $Script:phases) at call time.
 . (Join-Path $PSScriptRoot 'OmadaCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'OmadaCrawler.Transform.ps1')
+. (Join-Path $PSScriptRoot 'OmadaCrawler.Phases.ps1')
 
 $TypeMappings = Merge-TypeMappings -Defaults $DefaultTypeMappings -Overrides $Cfg.typeMappings
 $IdentityTypesForIdentityTable = @($TypeMappings['identityTypesForIdentityTable'])
@@ -642,102 +643,15 @@ if ($SyncContextMembers) {
 #   ROLETYPEREF, USERGROUPREF (looked up from Usergroup entity set)
 # $AllResources retained for Entitlements phase (CHILDROLES extraction)
 if ($SyncResources) {
-    $T = [datetime]::UtcNow
-    Write-Host "`nResources:" -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Syncing resources' -Pct 50
-    try {
-        if (-not (Test-EntitySetAvailable 'Resource')) {
-            throw "Resource entity set not found in OData metadata"
-        }
-
-        # Pre-fetch Usergroups for USERGROUPREF name lookup
-        if ($UserGroupMap.Count -eq 0 -and (Test-EntitySetAvailable 'Usergroup')) {
-            try {
-                $Ugs = Invoke-ODataPagedRequest -Path '/Usergroup' `
-                    -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
-                foreach ($Ug in $Ugs) { $UserGroupMap[[string]$Ug.UId] = $Ug.DisplayName }
-                Write-Host "  Loaded $($UserGroupMap.Count) usergroups for USERGROUPREF lookup" -ForegroundColor Gray
-            } catch {
-                Write-Host "  Warning: Usergroup fetch failed — USERGROUPREF names unavailable" -ForegroundColor Yellow
-            }
-        }
-
-        Write-Step 'Fetching resources from Omada (this may take a few minutes)...'
-        $AllResources = Invoke-ODataPagedRequest -Path '/Resource' `
-            -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxODataRetries
-        Write-Host "  $($AllResources.Count) resource records from Omada" -ForegroundColor Gray
-
-        Write-Step "Building resource records from $($AllResources.Count) Omada resources..."
-        # Group resources by connected system (SYSTEMREF) for correct scoped-delete
-        # Per-resource record shaping lives in ConvertTo-OmadaResourceRecord
-        # (OmadaCrawler.Transform.ps1); the system grouping stays here.
-        $BySysUId = @{}
-        foreach ($Item in $AllResources) {
-            $Rec = ConvertTo-OmadaResourceRecord -Resource $Item -UserGroupMap $UserGroupMap
-            if (-not $Rec) { continue }
-            $SysUId = Get-OmadaRefUid -Ref $Item.SYSTEMREF
-            $Key = if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
-            if (-not $BySysUId.ContainsKey($Key)) { $BySysUId[$Key] = [System.Collections.Generic.List[object]]::new() }
-            $BySysUId[$Key].Add($Rec)
-        }
-
-        Write-Step "Ingesting resources across $($BySysUId.Keys.Count) system(s)..."
-        $TotalInserted = 0; $TotalUpdated = 0; $TotalDeleted = 0
-        foreach ($Key in $BySysUId.Keys) {
-            $SysId    = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
-            $SysLabel = if ($Key -eq '__main__') { 'Omada' } else {
-                ($AllOmadaSystems | Where-Object { $_.UId -eq $Key } | Select-Object -First 1).DisplayName
-            }
-            $Recs = @($BySysUId[$Key])
-            $R = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SysId -SyncMode 'full' `
-                -Scope @{} -Records $Recs
-            Write-Host "  Resources ($SysLabel, $($Recs.Count) records): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-            $TotalInserted += ($R.inserted ?? 0); $TotalUpdated += ($R.updated ?? 0); $TotalDeleted += ($R.deleted ?? 0)
-        }
-        Write-Host "  Resources total: +$TotalInserted ~$TotalUpdated -$TotalDeleted" -ForegroundColor Green
-        Write-Phase -Name 'Resources' -Duration ([datetime]::UtcNow - $T) -Records @{ resources = $AllResources.Count }
-    } catch {
-        $Msg = $_.Exception.Message
-        Write-Host "  Resources phase failed: $Msg" -ForegroundColor Red
-        $Script:phaseErrors.Add("Resources: $Msg")
-        Write-Phase -Name 'Resources' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
-    }
+    $AllResources = Sync-OmadaResources -SystemId $SystemId -OmadaSystemMap $OmadaSystemMap `
+        -AllOmadaSystems $AllOmadaSystems -PageSize $PageSize -MaxRetries $MaxODataRetries
 }
 
 # ─── Phase: Entitlements (Resource Relationships) ─────────────────
 # Omada stores child role nesting in Resource.CHILDROLES (Collection(OIS.ReferenceValue)).
 # No separate PermissionNesting endpoint — relationships are extracted from $AllResources.
 if ($SyncEntitlements) {
-    $T = [datetime]::UtcNow
-    Write-Host "`nEntitlements (Resource Relationships):" -ForegroundColor Cyan
-    Update-CrawlerProgress -Step 'Syncing entitlements' -Pct 65
-    try {
-        if (-not $AllResources) {
-            Write-Host "  Skipping entitlements — resources were not synced" -ForegroundColor Yellow
-            Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $T) -Records @{ relationships = 0 }
-        } else {
-            Write-Step "Extracting entitlements (CHILDROLES) from $($AllResources.Count) resources..."
-            # CHILDROLES → Contains relationship extraction lives in
-            # ConvertTo-OmadaEntitlementRelationships (OmadaCrawler.Transform.ps1).
-            $RelRecords = [System.Collections.Generic.List[object]]::new()
-            foreach ($Item in $AllResources) {
-                foreach ($Rel in (ConvertTo-OmadaEntitlementRelationships -Resource $Item)) {
-                    $RelRecords.Add($Rel)
-                }
-            }
-
-            Write-Step "Ingesting $($RelRecords.Count) resource relationships (Contains)..."
-            $R = Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ relationshipType = 'Contains' } -Records @($RelRecords)
-            Write-Host "  Entitlements: +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-            Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $T) -Records @{ relationships = $RelRecords.Count }
-        }
-    } catch {
-        $Msg = $_.Exception.Message
-        Write-Host "  Entitlements phase failed: $Msg" -ForegroundColor Red
-        $Script:phaseErrors.Add("Entitlements: $Msg")
-        Write-Phase -Name 'Entitlements' -Duration ([datetime]::UtcNow - $T) -ErrorMsg $Msg
-    }
+    Sync-OmadaEntitlements -SystemId $SystemId -AllResources $AllResources
 }
 
 # ─── Phase: Assignments ───────────────────────────────────────────
@@ -922,13 +836,7 @@ if ($SyncAssignments) {
 
 # ─── Refresh views ────────────────────────────────────────────────
 if ($RefreshViews) {
-    Update-CrawlerProgress -Step 'Refreshing views' -Pct 95
-    try {
-        Invoke-IngestAPI -Endpoint 'ingest/refresh-views' -Body @{} | Out-Null
-        Write-Host "`nViews refreshed." -ForegroundColor Gray
-    } catch {
-        Write-Host "  Warning: view refresh failed — $($_.Exception.Message)" -ForegroundColor Yellow
-    }
+    Sync-OmadaRefreshViews
 }
 
 Update-CrawlerProgress -Step 'Complete' -Pct 100
