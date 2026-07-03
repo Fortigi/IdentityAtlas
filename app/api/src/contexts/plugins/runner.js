@@ -74,6 +74,8 @@ export async function enqueueRun(pluginName, params, triggeredBy, opts = {}) {
 export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh', { awaitCompletion = false } = {}) {
   const trees = (await db.query(`
     SELECT a.name AS algo,
+           c."sourceAlgorithmId" AS "algorithmId",
+           c."scopeSystemId" AS "scopeSystemId",
            c."sourceInstanceKey" AS ikey,
            (array_agg(r.parameters ORDER BY c."createdAt" DESC))[1] AS params
       FROM "Contexts" c
@@ -88,7 +90,23 @@ export async function refreshGeneratedContexts(triggeredBy = 'crawl-refresh', { 
     if (!t.params) continue;                       // no recoverable parameters
     if (t.params.autoRefresh === false) continue;  // opted out
     try {
-      await enqueueRun(t.algo, { ...t.params, instanceKey: t.ikey || undefined }, triggeredBy, { awaitCompletion });
+      // Legacy trees (created before migration 034) have a NULL instance key.
+      // Passing `undefined` to enqueueRun would make it mint a fresh random key
+      // every crawl — reconcile then matches nothing and inserts a brand-new
+      // duplicate tree each run (the "explode" bug). Backfill a stable key onto
+      // the existing tree first (same as the manual /sync path), so the refresh
+      // reconciles onto it in place instead of spawning a copy.
+      let ikey = t.ikey;
+      if (!ikey) {
+        ikey = randomUUID();
+        await db.query(`
+          UPDATE "Contexts" SET "sourceInstanceKey" = $1
+           WHERE "sourceAlgorithmId" = $2
+             AND ($3::int IS NULL OR "scopeSystemId" = $3)
+             AND "sourceInstanceKey" IS NULL
+        `, [ikey, t.algorithmId, t.scopeSystemId]);
+      }
+      await enqueueRun(t.algo, { ...t.params, instanceKey: ikey }, triggeredBy, { awaitCompletion });
       started++;
     } catch (err) {
       console.error(`[context-refresh] ${t.algo} (${t.ikey || 'no-key'}) failed:`, err.message);
