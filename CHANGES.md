@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed context plugins (e.g. Active Directory OU Tree) spawning a brand-new duplicate tree on every crawl instead of updating the existing one in place. Legacy trees created before per-tree instance keys were introduced now refresh onto themselves, so member counts and analyst edits are preserved and the tree list no longer explodes.
+
+## Changes in this PR
+
 - Fixed the **Next** button on the Users, Resources (Groups) and Identities list pages throwing an error when paging past the first page. The page count is only sent on the first page for export efficiency, and the UI was mishandling its absence on later pages — it now keeps the known total so pagination works across every page.
 
 ## Changes in this PR
