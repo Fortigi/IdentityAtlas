@@ -57,7 +57,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | vitest | ^4.1.9 | Unit testing framework | MIT |
 | supertest | ^7.2.2 | HTTP integration testing | MIT |
-| eslint | ^10.5.0 | JavaScript linter | MIT |
+| eslint | ^10.6.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.0 | Bundler for desktop launcher build | MIT |
 | patch-package | ^8.0.1 | Patch third-party packages | MIT |
@@ -72,20 +72,20 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.2.7 | UI framework | MIT |
 | react-dom | ^19.2.7 | React DOM renderer | MIT |
-| vite | ^8.1.0 | Build tool and dev server | MIT |
+| vite | ^8.1.3 | Build tool and dev server | MIT |
 
 ### Styling
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | tailwindcss | ^4.3.0 | Utility-first CSS framework | MIT |
-| @tailwindcss/vite | ^4.3.1 | Vite plugin for Tailwind | MIT |
+| @tailwindcss/vite | ^4.3.2 | Vite plugin for Tailwind | MIT |
 
 ### Authentication & Authorization
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.15.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.16.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -108,7 +108,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | @vitejs/plugin-react | ^6.0.3 | Vite React plugin | MIT |
-| eslint | ^10.5.0 | JavaScript linter | MIT |
+| eslint | ^10.6.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.3 | React refresh linting | MIT |
 | globals | ^17.7.0 | Global variable definitions | MIT |
