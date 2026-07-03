@@ -1,0 +1,1 @@
+- Fixed the **Next** button on the Users, Resources (Groups) and Identities list pages throwing an error when paging past the first page. The page count is only sent on the first page for export efficiency, and the UI was mishandling its absence on later pages — it now keeps the known total so pagination works across every page.

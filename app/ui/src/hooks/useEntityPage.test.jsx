@@ -99,6 +99,48 @@ describe('useEntityPage', () => {
     });
   });
 
+  it('keeps the known total when a later page returns total:null (no Next-button crash)', async () => {
+    // The list endpoints only send `total` on page 1; later pages return
+    // total:null to skip a redundant COUNT. The hook must not clobber the known
+    // total — otherwise the pager/header hit `null.toLocaleString()` on Next.
+    const af = makeAuthFetch((url) => {
+      const s = String(url);
+      if (s.includes(COLUMNS)) return [];
+      if (s.includes('/api/tags')) return [];
+      if (s.includes(LIST)) {
+        const offset = new URLSearchParams(s.split('?')[1] || '').get('offset');
+        return offset === '0'
+          ? { data: [{ id: '1', displayName: 'Bob' }], total: 250 }
+          : { data: [{ id: '2', displayName: 'Al' }], total: null };
+      }
+      return undefined;
+    });
+    const { wrapper } = makeWrapper({ auth: { authFetch: af } });
+    const { result } = renderHook(
+      () =>
+        useEntityPage({
+          authFetch: af,
+          entityType: 'user',
+          listEndpoint: LIST,
+          columnsEndpoint: COLUMNS,
+          tagFilterKey: '__userTag',
+        }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.total).toBe(250);
+
+    act(() => result.current.setPage(1));
+    await waitFor(() => expect(lastListUrl(af)).toContain('offset=100'));
+    await waitFor(() =>
+      expect(result.current.items).toEqual([{ id: '2', displayName: 'Al' }])
+    );
+
+    // total survives the page change — stays a number, never becomes null.
+    expect(result.current.total).toBe(250);
+    expect(result.current.totalPages).toBe(3);
+  });
+
   it('includeDeleted adds the query flag', async () => {
     const { af, result } = setup();
     await waitFor(() => expect(result.current.loading).toBe(false));
