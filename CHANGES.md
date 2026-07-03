@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Internal: added a cognitive-complexity ratchet to CI (alongside the existing cyclomatic one) that gates PowerShell and Python code on how deeply nested / hard-to-follow it is, not just how many branches it has — flagging readability debt the cyclomatic gate misses.
+- Internal: PowerShell complexity is now measured by the published PSComplexity module (a faithful, reference-validated SonarSource cognitive metric) feeding both ratchets, instead of a bundled measurer — `measure_ps.ps1` is now a thin selector over it.
+- Internal: added PowerShell mutation testing via the published PSMutant module (report-only) over the decomposed crawler transforms — the metric that proves the tests would catch a bug, not just execute the line.
+
+## Changes in this PR
+
 - Fixed context plugins (e.g. Active Directory OU Tree) spawning a brand-new duplicate tree on every crawl instead of updating the existing one in place. Legacy trees created before per-tree instance keys were introduced now refresh onto themselves, so member counts and analyst edits are preserved and the tree list no longer explodes.
 
 ## Changes in this PR
