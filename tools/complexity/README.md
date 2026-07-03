@@ -79,8 +79,11 @@ installed (`npm ci`). PowerShell and Python need no setup.
 
 ## Measurers
 
-- PowerShell — `measure_ps.ps1` (PowerShell AST); emits both `cc` and `cog` per unit.
-  Run `measure_ps.ps1 -Path <file|dir>` to measure just that path (used by the tests).
+- PowerShell — the published [**PSComplexity**](https://github.com/Fortigi/PSComplexity)
+  module (a faithful, reference-validated SonarSource cognitive metric plus cyclomatic).
+  `measure_ps.ps1` is a thin selector/formatter: it picks the production PS files and maps
+  `Measure-PSComplexity`'s output to the ratchet's `{cc, cog}` contract. Run
+  `measure_ps.ps1 -Path <file|dir>` to measure just that path.
 - Python — `ratchet.py` itself (`ast`); both metrics in one parse.
 - JS / TS — ESLint's built-in [`complexity`](https://eslint.org/docs/latest/rules/complexity)
   rule (cyclomatic only).

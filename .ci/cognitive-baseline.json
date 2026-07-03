@@ -6,6 +6,73 @@
     "py": 15
   },
   "files": {
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/setup/docker/Invoke-CrawlerJob.ps1": [
+      115
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/setup/docker/scheduler.ps1": [
+      38
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/test/nightly/Test-RiskScoring.ps1": [
+      73
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/test/nightly/Test-RiskScoringLLM.ps1": [
+      95
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/crawlers/csv/Start-CSVCrawler.ps1": [
+      303,
+      24,
+      22,
+      18
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/crawlers/entra-id/Start-EntraIDCrawler.ps1": [
+      782,
+      49,
+      34,
+      31,
+      26
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Get-FGAccessToken.ps1": [
+      18
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Get-FGAttributeMapping.ps1": [
+      38
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
+      27
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
+      84
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Get-FGUser.ps1": [
+      21
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Invoke-FGGetRequest.ps1": [
+      94
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Invoke-FGGetRequestStream.ps1": [
+      53
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Invoke-FGGetRequestToFile.ps1": [
+      91
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Update-FGConfig.ps1": [
+      44
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1": [
+      29
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/helpers/Confirm-FGGroup.ps1": [
+      21
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/helpers/Confirm-FGGroupMember.ps1": [
+      43
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/helpers/Confirm-FGNotGroupMember.ps1": [
+      25
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/helpers/Get-FGServicePrincipalType.ps1": [
+      26
+    ],
     "setup/docker/Invoke-CrawlerJob.ps1": [
       46
     ],
@@ -30,7 +97,7 @@
     ],
     "tools/crawlers/azure-rm/Start-AzureRMCrawler.ps1": [
       226,
-      41
+      42
     ],
     "tools/crawlers/csv/CSVCrawler.Functions.ps1": [
       24,

@@ -5,7 +5,8 @@
 #   cyclomatic → .ci/complexity-baseline.json   (PS/Py 15, JS 20)
 #   cognitive  → .ci/cognitive-baseline.json    (PS/Py 15; JS not yet gated)
 # Both baselines only ever ratchet down, squeezing the codebase toward "every unit
-# <= 15" over time. See tools/complexity/ratchet.py. Nothing red-builds on adoption.
+# <= 15" over time. PowerShell complexity is measured by the published PSComplexity
+# module; see tools/complexity/ratchet.py. Nothing red-builds on adoption.
 # ─────────────────────────────────────────────────────────────────────────────
 name: Complexity ratchet
 
@@ -51,9 +52,14 @@ jobs:
           npm ci --prefix app/api
           npm ci --prefix app/ui
 
-      # Validate the measurers themselves before they gate anything. The PowerShell
-      # measurer's Pester tests run in the "Unit Tests: Pester" job.
-      - name: Test the complexity tooling (Python measurer + gate logic)
+      # The PowerShell measurer is the published PSComplexity module (reference-tested
+      # upstream); measure_ps.ps1 is a thin selector/formatter over it.
+      - name: Install PSComplexity (PowerShell complexity measurer)
+        shell: pwsh
+        run: Install-Module PSComplexity -RequiredVersion 0.1.0 -Force -Scope CurrentUser
+
+      # Validate the ratchet gate logic (Python) before it gates anything.
+      - name: Test the ratchet gate logic
         run: |
           python3 -m pip install --quiet pytest
           python3 -m pytest tools/complexity/test_ratchet.py -q

@@ -1,0 +1,56 @@
+# ─── PowerShell mutation testing ─────────────────────────────────────────────
+# Uses the published PSMutant module to mutation-test the decomposed crawler
+# transforms (the pure ConvertTo-* record-shapers) against their Pester suites --
+# the metric that proves the tests would CATCH a bug, not just execute the line.
+#
+# REPORT-ONLY for now (.ci/psmutant.config.json has thresholds.break = null): it
+# prints the score and uploads the report, but does not fail the build. Set a floor
+# once the scores are understood. Mutation is heavier than unit tests, so it runs
+# weekly, on demand, and on PRs that touch the mutated transforms (not every PR).
+# ─────────────────────────────────────────────────────────────────────────────
+name: PowerShell mutation testing
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # Weekly, Monday 03:00 UTC
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/crawlers/**/*.Transform.ps1'
+      - 'test/unit/*CrawlerTransform.Tests.ps1'
+      - '.ci/psmutant.config.json'
+      - '.github/workflows/ps-mutation.yml'
+
+concurrency:
+  group: ps-mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    name: Mutation testing (PSMutant)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned Pester + PSMutant
+        shell: pwsh
+        run: |
+          Install-Module Pester -RequiredVersion 5.8.0 -Force -Scope CurrentUser
+          Install-Module PSMutant -RequiredVersion 0.1.0 -Force -Scope CurrentUser
+
+      - name: Run mutation testing (report-only)
+        shell: pwsh
+        run: |
+          Import-Module PSMutant -Force
+          $r = Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot . -Quiet
+          Write-Host "Mutation score: $($r.Score)% ($($r.Killed) killed / $($r.Total))"
+          if ($r.ExitCode -ne 0) { throw "Mutation score $($r.Score)% is below the break threshold" }
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ps-mutation-report
+          path: reports/ps-mutation.json
+          if-no-files-found: ignore

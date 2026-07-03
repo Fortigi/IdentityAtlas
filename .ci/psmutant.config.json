@@ -1,0 +1,18 @@
+{
+  "_comment": "PSMutant mutation-testing config for IdentityAtlas's decomposed PowerShell crawler transforms (the pure ConvertTo-* record-shapers). Report-only to start (break=null) — set a floor once the scores are understood. Run: Install-Module PSMutant; Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .",
+  "sandboxSubtrees": ["tools", "test", "setup"],
+  "mutate": [
+    "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1",
+    "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1",
+    "tools/crawlers/omada/OmadaCrawler.Transform.ps1"
+  ],
+  "tests": {
+    "tools/crawlers/entra-id/EntraIDCrawler.Transform.ps1": ["test/unit/EntraIDCrawlerTransform.Tests.ps1"],
+    "tools/crawlers/midpoint/MidpointCrawler.Transform.ps1": ["test/unit/MidpointCrawlerTransform.Tests.ps1"],
+    "tools/crawlers/omada/OmadaCrawler.Transform.ps1": ["test/unit/OmadaCrawlerTransform.Tests.ps1"]
+  },
+  "coveredLinesOnly": true,
+  "operators": ["BinaryOperator", "BooleanLiteral", "NumberLiteral", "NegationRemoval"],
+  "thresholds": { "high": 80, "low": 60, "break": null },
+  "reportPath": "reports/ps-mutation.json"
+}

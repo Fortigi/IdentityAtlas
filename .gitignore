@@ -34,3 +34,6 @@ app/desktop/node_modules/
 # Python bytecode cache (complexity tooling)
 __pycache__/
 *.pyc
+
+# PowerShell mutation testing reports (PSMutant)
+reports/
