@@ -1,0 +1,5219 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Universal authorization intelligence — sync, analyze, and govern permissions from any identity system">
+      
+      
+      
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/effective-access-engine/">
+      
+      
+        <link rel="prev" href="../account-linking/">
+      
+      
+        <link rel="next" href="../../admin/auto-updates/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Effective Access Engine - Identity Atlas</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#effective-access-engine-design-specification" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Identity Atlas" class="md-header__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Identity Atlas
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Effective Access Engine
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../quickstart/" class="md-tabs__link">
+          
+  
+  
+  Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../risk-scoring/overview/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../marketing/" class="md-tabs__link">
+          
+  
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Identity Atlas" class="md-nav__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Identity Atlas
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/governance-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/risk-scoring-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Sources
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data Sources
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/entra-id/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entra ID
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/azure-rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Resource Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint Configuration Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/omada/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada IGA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../omada-crawler-datamodel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada Data Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/building-a-crawler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Crawler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Using Identity Atlas
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Role Mining UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Export (Power Query)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Template Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Risk Scoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resource-cluster-algorithm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Cluster Algorithm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../branching-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release & Branching Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../soft-delete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soft-Delete & Tombstones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Account Linking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-tldr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. TL;DR
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Motivation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Motivation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-model-is-already-half-proven" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The model is already half-proven
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-goals-non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Goals / non-goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Terminology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-architecture-overview-one-graph-two-edge-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Architecture overview — one graph, two edge types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-the-crawler-contract-what-is-stored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The crawler contract — what is stored
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. The crawler contract — what is stored">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema-impact-decided-151" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema impact (decided — §15.1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-traversal-lazy-bounded-inheritance-aware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Traversal — lazy, bounded, inheritance-aware
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-resolution-monotonic-and-path-aware-deny" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Resolution — monotonic and path-aware deny
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Resolution — monotonic and path-aware deny">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#built-in-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Built-in policies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capability-granularity-decided-157" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capability granularity (decided — §15.7)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-badges-eligibility-and-the-effect-axis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Badges, eligibility, and the effect axis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-explainability-first-class-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Explainability — first-class output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-synthesized-resources-deterministic-id-collapse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Synthesized resources &amp; deterministic-id collapse
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-api-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. API surface
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-performance-matrix-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Performance &amp; matrix integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. Performance &amp; matrix integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#131-lazy-bounded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.1 Lazy + bounded
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#132-caching-decided-152" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.2 Caching (decided — §15.2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#133-caps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.3 Caps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#134-export-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.4 Export path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#135-the-base-grid-and-deny-decided-153" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.5 The base grid and deny (decided — §15.3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#136-indexing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.6 Indexing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-edge-cases-enumerated-with-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Edge cases — enumerated, with decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-decisions-rationale-resolved-open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. Decisions &amp; rationale (resolved open questions)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-phased-delivery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. Phased delivery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#17-migration-backward-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        17. Migration &amp; backward compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#18-testing-requirements-must-ship-with-the-feature-not-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        18. Testing requirements (must ship with the feature — not optional)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#19-observability-requirements-ship-with-the-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        19. Observability requirements (ship with the feature)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#20-documentation-requirements-ship-with-the-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        20. Documentation requirements (ship with the feature)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#21-first-consumers-how-they-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        21. First consumers (how they map)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#22-reviewer-sign-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        22. Reviewer sign-off
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gstack-review-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GSTACK REVIEW REPORT
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/auto-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatic Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling & Load Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Dataset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix & Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Marketing & Press Kit
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Marketing & Press Kit
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/product-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Brief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/key-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Key Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/proof-points/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Proof Points
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/competitive-landscape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Where Identity Atlas Fits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/boilerplate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boilerplate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ci-scope-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Scope Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Experience
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Experience
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ux/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Security
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assessment & Remediation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-tldr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. TL;DR
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Motivation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Motivation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-model-is-already-half-proven" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The model is already half-proven
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-goals-non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Goals / non-goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Terminology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-architecture-overview-one-graph-two-edge-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Architecture overview — one graph, two edge types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-the-crawler-contract-what-is-stored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The crawler contract — what is stored
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. The crawler contract — what is stored">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema-impact-decided-151" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema impact (decided — §15.1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-traversal-lazy-bounded-inheritance-aware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Traversal — lazy, bounded, inheritance-aware
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-resolution-monotonic-and-path-aware-deny" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Resolution — monotonic and path-aware deny
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Resolution — monotonic and path-aware deny">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#built-in-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Built-in policies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capability-granularity-decided-157" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capability granularity (decided — §15.7)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-badges-eligibility-and-the-effect-axis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Badges, eligibility, and the effect axis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-explainability-first-class-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Explainability — first-class output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-synthesized-resources-deterministic-id-collapse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Synthesized resources &amp; deterministic-id collapse
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-api-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. API surface
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-performance-matrix-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Performance &amp; matrix integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. Performance &amp; matrix integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#131-lazy-bounded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.1 Lazy + bounded
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#132-caching-decided-152" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.2 Caching (decided — §15.2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#133-caps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.3 Caps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#134-export-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.4 Export path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#135-the-base-grid-and-deny-decided-153" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.5 The base grid and deny (decided — §15.3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#136-indexing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.6 Indexing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-edge-cases-enumerated-with-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Edge cases — enumerated, with decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-decisions-rationale-resolved-open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. Decisions &amp; rationale (resolved open questions)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-phased-delivery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. Phased delivery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#17-migration-backward-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        17. Migration &amp; backward compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#18-testing-requirements-must-ship-with-the-feature-not-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        18. Testing requirements (must ship with the feature — not optional)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#19-observability-requirements-ship-with-the-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        19. Observability requirements (ship with the feature)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#20-documentation-requirements-ship-with-the-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        20. Documentation requirements (ship with the feature)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#21-first-consumers-how-they-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        21. First consumers (how they map)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#22-reviewer-sign-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        22. Reviewer sign-off
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gstack-review-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GSTACK REVIEW REPORT
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../../risk-scoring/overview/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Concepts
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../docker-setup/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Architecture
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="effective-access-engine-design-specification">Effective-Access Engine — Design Specification<a class="headerlink" href="#effective-access-engine-design-specification" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Status:</strong> <strong>P1 + P2 implemented</strong> (the PR that introduces this engine). The design below is
+the reviewed spec of record; per-phase implementation status is in <a href="#16-phased-delivery">§16 Phasing</a>.
+P3 (deny-aware resolution) and P4 (export) are designed here but not yet built.
+<strong>What's live today:</strong> the capability-id helper, migrations 038/039, the <code>syncVersion</code> cache key,
+the <code>AdditiveAllow</code> policy, the engine (<code>holders</code> + containment down-expansion), and the read
+endpoints <code>GET /api/effective-access/resolve</code>, <code>/api/resource/:id/effective-access</code>,
+<code>/api/principal/:id/effective-access</code> (documented in <code>app/api/src/openapi.yaml</code>).
+<strong>Owner:</strong> <em>TBD</em> · <strong>Reviewers:</strong> <em>TBD</em></p>
+</blockquote>
+<hr />
+<h2 id="1-tldr">1. TL;DR<a class="headerlink" href="#1-tldr" title="Permanent link">&para;</a></h2>
+<p>Crawlers store where access is <strong>declared</strong>. In any system with a containment hierarchy
+and inherited permissions, a declared grant <em>reaches</em> far beyond its declaration point — a
+role at an Azure subscription reaches every resource group and resource beneath it; an ACL
+on a folder reaches every descendant file. None of that reach is stored.</p>
+<p>A matrix that reads only declared assignments therefore <strong>systematically under-reports
+effective access</strong> — the single most important thing a role-mining / audit tool must show.</p>
+<p>The <strong>effective-access engine</strong> is a <strong>core product feature</strong> (not a crawler feature) that
+converts <em>declared grants + a containment hierarchy</em> into <em>effective access at a node</em>,
+<strong>computed lazily on demand</strong>, bounded by what is being viewed. It supports both monotonic
+(grant-only) and non-monotonic (<strong>deny</strong>-bearing, path-aware) permission models through a
+<strong>pluggable per-source resolution policy</strong>. It is the shared substrate every "system with
+nested permissions" plugs into.</p>
+<p>It is built <strong>before</strong> the Azure RM crawler, because the crawler depends on it and the deny
+semantics cannot be retrofitted cleanly.</p>
+<hr />
+<h2 id="2-motivation">2. Motivation<a class="headerlink" href="#2-motivation" title="Permanent link">&para;</a></h2>
+<p>Today the matrix data source — the materialized view <code>vw_ResourceUserPermissionAssignments</code>
+(current definition: migration <code>026_matrix_view_dedup_after_case_collapse.sql</code>) — is a flat
+<code>SELECT FROM "ResourceAssignments"</code>. It does <strong>not</strong> join <code>ResourceRelationships</code>. So a
+<code>Contains</code> edge sitting in the table is inert: storing "RG is a child of Subscription" does
+not make anyone with a subscription-level role appear on the RG.</p>
+<p>This was deliberate. Migration <code>013_matrix_matviews_and_indexes.sql</code> <em>removed</em> recursive
+transitive expansion from the matview because it was the dominant performance cost, and
+replaced it with <strong>lazy click-time expansion</strong> (<code>GET /api/group/:id/nested-groups</code>). There
+is, today, <strong>no generic "walk <code>Contains</code> → render inherited access" consumer</strong> anywhere.</p>
+<p>Two ways exist to close the declared-vs-effective gap:</p>
+<ol>
+<li><strong>Materialize</strong> every effective tuple (crawler or matview writes them all). Correct, but a
+   single high-level grant × a deep tree = a combinatorial explosion of rows, recomputed
+   every sync.</li>
+<li><strong>Compute on demand</strong> — store only declared grants + the hierarchy edges, and derive
+   "effective access at node N" by traversal <em>when someone actually looks at N</em>.</li>
+</ol>
+<p>This engine is option 2, generalized.</p>
+<h3 id="the-model-is-already-half-proven">The model is already half-proven<a class="headerlink" href="#the-model-is-already-half-proven" title="Permanent link">&para;</a></h3>
+<p>The capability-in-resource pattern this engine assumes <strong>already ships</strong>:</p>
+<ul>
+<li><strong>App roles</strong> — <code>tools/crawlers/entra-id/Start-EntraIDCrawler.ps1</code> already emits one
+  resource per app role (<code>displayName = "&lt;role&gt; on &lt;app&gt;"</code>, <code>resourceType='AppRole'</code>),
+  linked to the application via <code>relationshipType='HasAppRole'</code>, assigned via
+  <code>assignmentType='AppRole'</code> / <code>AppRoleViaGroup</code>.</li>
+<li><strong>OAuth2 delegated permissions</strong> — same shape (<code>resourceType='DelegatedPermission'</code>).</li>
+</ul>
+<p>So the engine does not invent a new model; it generalizes an existing one to arbitrary depth
+and adds principled deny.</p>
+<hr />
+<h2 id="3-goals-non-goals">3. Goals / non-goals<a class="headerlink" href="#3-goals-non-goals" title="Permanent link">&para;</a></h2>
+<p><strong>Goals</strong></p>
+<ul>
+<li>Compute effective access (<strong>allow and deny</strong>) for a focus node or a principal, on demand.</li>
+<li>One engine serving all sources via a pluggable per-source <strong>resolution policy</strong>.</li>
+<li>First-class <strong>explainability</strong> — return the access path that produced each result.</li>
+<li>Bounded, predictable performance; <strong>no silent truncation</strong>.</li>
+<li>Preserve existing nested-group behavior, migrated onto the engine with <strong>no observable
+  change</strong> (golden-test gated).</li>
+</ul>
+<p><strong>Non-goals</strong></p>
+<ul>
+<li>Not a full-tenant effective-access flattener for the interactive matrix (that is a separate
+  async <strong>export</strong> path, §13.4). <strong>Consequence:</strong> the base matrix continues to show only
+  <em>declared</em> grants for unvisited nodes. Inherited access becomes visible when the user expands
+  a container — not pre-populated for every row. This is intentional and must be communicated
+  in the UI.</li>
+<li>Not a crawler — it consumes crawler output.</li>
+<li>Not responsible for data collection (crawlers do that) or for the declared-grant base grid
+  (the matview keeps that).</li>
+</ul>
+<hr />
+<h2 id="4-terminology">4. Terminology<a class="headerlink" href="#4-terminology" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Node</strong></td>
+<td>A resource: a <em>container</em> (scope / folder / site / group / app) or a <em>capability-resource</em> (<code>Capability @ Target</code>).</td>
+</tr>
+<tr>
+<td><strong>Containment edge</strong></td>
+<td><code>ResourceRelationships</code> row, <code>relationshipType='Contains'</code>, parent→child, carrying <code>propagates</code> (bool).</td>
+</tr>
+<tr>
+<td><strong>Capability</strong></td>
+<td>The grantable unit (RBAC role, permission level, ACE right). Has a stable, opaque <code>capabilityId</code>.</td>
+</tr>
+<tr>
+<td><strong>Grant / ACE</strong></td>
+<td>A declared assignment: principal → capability-resource, with <code>effect</code> and <code>propagationScope</code>.</td>
+</tr>
+<tr>
+<td><strong>Effect</strong></td>
+<td><code>allow</code> | <code>deny</code> | <code>eligible</code> | <code>notset</code>.</td>
+</tr>
+<tr>
+<td><strong>PropagationScope</strong></td>
+<td><code>self</code> | <code>descendants</code> | <code>selfAndDescendants</code> — how far a grant reaches from its declared node.</td>
+</tr>
+<tr>
+<td><strong>ResolutionPolicy</strong></td>
+<td>Per-source pure function: ordered ACE list → effective effect + decisive ACE.</td>
+</tr>
+<tr>
+<td><strong>EffectivePath</strong></td>
+<td>The provenance chain explaining a result (for audit / "why?").</td>
+</tr>
+<tr>
+<td><strong>Badge</strong></td>
+<td>Reachability shown in the matrix: <code>Direct</code> / <code>Indirect</code> / <code>Eligible</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-architecture-overview-one-graph-two-edge-types">5. Architecture overview — one graph, two edge types<a class="headerlink" href="#5-architecture-overview-one-graph-two-edge-types" title="Permanent link">&para;</a></h2>
+<p>A principal's effective access = <strong>reachability</strong> across two edge types, evaluated through
+the source's resolution policy:</p>
+<ul>
+<li><strong>Assignment edges</strong> — principal → resource (a declared grant). A resource can itself be a
+  principal (a group holding a role), so these chain.</li>
+<li><strong>Containment edges</strong> — resource → resource (<code>Contains</code>, parent→child) — the propagation
+  channel. Carries the capability <strong>constant</strong> down the tree.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Principal --assigned--&gt; EntraID Group          (group member, stored)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>          --assigned--&gt; Contributor @ Sub      (Indirect, group is a principal here)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>          --contains--&gt; Contributor @ RG       (Indirect, scope inheritance)
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>          --contains--&gt; Contributor @ VM       (Indirect, scope inheritance)
+</code></pre></div>
+<p>First hop = <strong>Direct</strong>, everything transitive = <strong>Indirect</strong>. The whole problem reduces to
+bounded graph reachability + a per-source decision function. <strong>Note:</strong> <code>Direct</code>/<code>Indirect</code>
+badges (§9) are determined at the <em>capability-resource</em> level — a group-membership edge is
+not itself a badge; it affects whether the capability grant is direct or indirect.</p>
+<p><strong>How the two traversals interleave:</strong> <code>holders(P)</code> (principal-side expansion) and the
+ancestor window (containment traversal) are <strong>independent passes that share the same graph</strong>:</p>
+<ol>
+<li><code>holders(P)</code> expands principal → groups via <code>ResourceAssignments</code> (where the group is the
+   <em>resource</em> being assigned to, and P is the <em>principal</em>). This is a standard group-membership
+   walk — no <code>Contains</code> edges involved.</li>
+<li>The ancestor window walks <em>upward</em> via <code>Contains</code> edges in reverse (index on
+   <code>childResourceId</code>), collecting candidate nodes.</li>
+<li>The gather step cross-joins: "does any holder of P have a grant at any node in the ancestor
+   window?" Both expansions cross system boundaries freely because the graph is system-agnostic
+   — an Entra group can be a principal on an ARM scope via a <code>ResourceAssignment</code>, and the
+   traversal follows that edge regardless of which crawler emitted it.</li>
+</ol>
+<hr />
+<h2 id="6-the-crawler-contract-what-is-stored">6. The crawler contract — what is stored<a class="headerlink" href="#6-the-crawler-contract-what-is-stored" title="Permanent link">&para;</a></h2>
+<p>The engine operates over the existing tables. To feed it, a crawler emits:</p>
+<ol>
+<li><strong>Container nodes</strong> — <code>Resources</code> rows (scopes, folders, sites, groups…).</li>
+<li><strong>Capability-resources</strong> — <code>Resources</code> rows for <code>Capability @ Target</code>, <strong>only where a grant
+   is declared</strong> (sparse). <code>id = SHA256-UUID(targetNodeId + '|' + capabilityId)</code>
+   (deterministic, see §11). <code>extendedAttributes</code>: <code>capabilityId</code>, <code>capabilityName</code>,
+   <code>targetNodeId</code>.</li>
+<li><strong>Containment edges</strong> — <code>Contains</code> relationships, parent→child, with <code>propagates</code> (bool,
+   default <code>true</code>). A crawler sets <code>propagates = false</code> on the edge to a child that <strong>breaks
+   inheritance</strong> (NTFS block-inheritance / SharePoint break-inheritance).</li>
+<li><strong>Declared grants</strong> — <code>ResourceAssignments</code> (principal → capability-resource) carrying:</li>
+<li><code>effect</code> — default <code>allow</code>; <code>deny</code> / <code>eligible</code> where the source supports it.</li>
+<li><code>propagationScope</code> — default <code>selfAndDescendants</code>; NTFS/DevOps can emit <code>self</code> or
+     <code>descendants</code>.</li>
+<li><strong>Group memberships</strong> — so principal-side expansion works (already emitted today).</li>
+</ol>
+<p>The crawler-contract additions are small and additive (<code>propagates</code>, <code>effect</code>,
+<code>propagationScope</code>). Monotonic sources (Azure RM v1) take all defaults and behave as today.</p>
+<h3 id="schema-impact-decided-151">Schema impact (decided — §15.1)<a class="headerlink" href="#schema-impact-decided-151" title="Permanent link">&para;</a></h3>
+<p><code>effect</code> and <code>propagationScope</code> become <strong>first-class columns</strong> on <code>ResourceAssignments</code>
+(indexed, hot-path), added by a migration with safe defaults and a backfill so all existing
+rows resolve unchanged. They are <strong>not</strong> stored in <code>extendedAttributes</code> (cannot be cleanly
+indexed; read on every resolve).</p>
+<blockquote>
+<p><strong><code>relationshipType</code> / <code>effect</code> and the enum gate:</strong> <code>Contains</code> is already in
+<code>RELATIONSHIP_TYPES</code> (validation.js). <code>propagates</code> is stored in <code>extendedAttributes</code> on the
+relationship (decided — §15.8: JSONB is acceptable for a bounded ancestor window; a
+first-class column adds value only when P3 deny-bearing sources are in scope). <code>effect</code> is a
+new first-class column with its own allowed-value set. <code>resourceType</code> / <code>contextType</code> are
+free-form, so new capability/scope types need no validation change.</p>
+</blockquote>
+<hr />
+<h2 id="7-traversal-lazy-bounded-inheritance-aware">7. Traversal — lazy, bounded, inheritance-aware<a class="headerlink" href="#7-traversal-lazy-bounded-inheritance-aware" title="Permanent link">&para;</a></h2>
+<p>For a query <code>(principal P | principalSet, capability C | all, focusNode N)</code>:</p>
+<ol>
+<li><strong>holders(P)</strong> — P plus all groups P transitively belongs to (visited-set for cycles).
+   Bounded by <code>maxHoldersPerExpansion</code> (default 500); exceeding emits <code>truncated:
+   { holders: N }</code> — never silent, same principle as the ancestor cap.</li>
+<li><strong>Ancestor window</strong> — ascend from N following <code>Contains</code> edges <em>upward</em>. <strong>Stop the moment
+   you would cross an edge with <code>propagates = false</code></strong> — the nearest inheritance-break boundary
+   is N's effective root. Collect <code>M₀ = N … M_k = root-or-break</code>.</li>
+</ol>
+<p><strong>DAG case:</strong> if N has multiple parent edges and some have <code>propagates = false</code> while others
+   have <code>propagates = true</code>, follow <strong>all unblocked paths</strong> independently. The inheritance
+   break is on the specific edge, not on the node globally. Grants reachable via any unblocked
+   path are collected; ancestors only reachable via blocked paths are excluded.
+   <strong>Admission rule:</strong> an ancestor node is admitted to the window the first time <em>any</em>
+   unblocked path reaches it; the visited-set then prevents processing it a second time. If the
+   first path to reach an ancestor happens to be blocked and a second path is unblocked, the
+   node is still admitted — admission requires at least one unblocked path.
+3. <strong>Gather ACEs</strong> — all grants of C where target ∈ ancestor window, principal ∈ holders(P),
+   and <code>propagationScope</code> reaches N (<code>self</code> only at <code>M₀</code>; <code>descendants</code> / <code>selfAndDescendants</code>
+   at strict ancestors). Each ACE retains <code>{ effect, distance, explicit (M == N),
+   viaGroupId|null, nodePath }</code>. <strong>Distance and node path are always retained</strong> — deny
+   precedence needs them. <code>notset</code> ACEs are included in the gathered list and passed to the
+   policy; policies that do not use three-state may discard them internally.
+4. <strong>Resolve</strong> — hand the ordered ACE list to the source's <code>ResolutionPolicy</code> →
+   <code>{ effective, decisiveAce, contributing }</code>.
+5. <strong>Bound</strong> — <code>maxDepth</code> and <code>maxNodesPerExpansion</code> caps (defaults §13.3). Exceeding emits an
+   explicit <code>truncated: { more: N }</code> marker — <strong>never silent</strong>.</p>
+<p><strong>Down-expansion</strong> (the matrix chevron on a container) is the same machinery run for each
+child in the focus subtree, <strong>one level per click</strong> — "multiple smaller fetches."</p>
+<hr />
+<h2 id="8-resolution-monotonic-and-path-aware-deny">8. Resolution — monotonic <em>and</em> path-aware deny<a class="headerlink" href="#8-resolution-monotonic-and-path-aware-deny" title="Permanent link">&para;</a></h2>
+<p>The engine <strong>gathers</strong>; the per-source <code>ResolutionPolicy</code> <strong>decides</strong>. This is the seam that
+makes deny first-class without leaking source-specific rules into the traversal.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>resolve(aces: Ace[], ctx) -&gt; {
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  effective: &#39;allow&#39; | &#39;deny&#39; | &#39;none&#39;,
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  decisiveAce: Ace,        // for explainability
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  contributing: Ace[]      // everything that mattered
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>}
+</code></pre></div>
+<p>A policy is <strong>pure and deterministic</strong> and is unit-tested against its vendor's documented
+truth table (§17). A new source means a new (or reused) policy — <strong>never</strong> new traversal code.</p>
+<h3 id="built-in-policies">Built-in policies<a class="headerlink" href="#built-in-policies" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Rule</th>
+<th>Sources</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AdditiveAllow</code></td>
+<td>any <code>allow</code> → allow; <code>deny</code> ignored (monotonic)</td>
+<td>Azure RM v1, SharePoint permission levels (additive only — SharePoint's "Deny All" permission level is NOT covered; a SharePoint crawler that needs deny semantics must use <code>DenyOverrides</code> or a dedicated policy)</td>
+</tr>
+<tr>
+<td><code>DenyOverrides</code></td>
+<td>any <code>deny</code> → deny; else any <code>allow</code> → allow</td>
+<td>Azure DevOps (deny-wins)</td>
+</tr>
+<tr>
+<td><code>NtfsCanonical</code></td>
+<td>explicit deny ≻ explicit allow ≻ inherited deny ≻ inherited allow; among inherited, <strong>closer node wins</strong></td>
+<td>NTFS / file systems</td>
+</tr>
+<tr>
+<td><code>ClosestWins</code></td>
+<td>most-specific node decides; deny ≻ allow within a node; <code>notset</code> passes through</td>
+<td>generic three-state</td>
+</tr>
+</tbody>
+</table>
+<h3 id="capability-granularity-decided-157">Capability granularity (decided — §15.7)<a class="headerlink" href="#capability-granularity-decided-157" title="Permanent link">&para;</a></h3>
+<p>Resolution compares ACEs of the <strong>same <code>capabilityId</code> only</strong>. The engine treats capabilities
+as <strong>opaque atoms</strong> and does <strong>not</strong> model subsumption (e.g. it does not know NTFS <code>Modify</code> ⊇
+<code>Write</code>). A source that needs right-level deny semantics must emit capabilities at a
+granularity where allow and deny are directly comparable — atomic rights
+(<code>Read</code>/<code>Write</code>/<code>Execute</code>/<code>Delete</code>) or a level model the source guarantees is comparable.</p>
+<p>This keeps the engine minimal and pushes the (source-specific) granularity choice into the
+crawler, where the source's own semantics live. The engine design does <strong>not</strong> foreclose
+correct filesystem deny — it requires the filesystem crawler to choose a comparable
+granularity.</p>
+<hr />
+<h2 id="9-badges-eligibility-and-the-effect-axis">9. Badges, eligibility, and the effect axis<a class="headerlink" href="#9-badges-eligibility-and-the-effect-axis" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Badge</strong> is reachability <em>at the focus node</em>: <code>Direct</code> iff the decisive ACE is a grant
+  declared <em>at N</em> held <em>directly</em> (no group hop); otherwise <code>Indirect</code>. For <code>deny</code> results,
+  badge reflects the same Direct/Indirect logic applied to the decisive deny ACE — a
+  <code>deny</code> with <code>badge=Direct</code> means the deny is explicit at N with no group hop.</li>
+<li><strong>Eligibility</strong> (<code>effect = 'eligible'</code>) is <em>potential</em> access (PIM-style): carried like allow
+  for display, rendered <code>E</code>, but <strong>excluded</strong> from "current effective access" answers.
+  When a principal has both <code>eligible</code> and <code>deny</code> ACEs for the same capability at the same
+  effective node: <code>deny</code> wins — the engine returns <code>{ effective: 'deny' }</code> and the <code>E</code> badge
+  is not shown (a deny forecloses even potential access).</li>
+<li><strong><code>effect</code> vs legacy <code>assignmentType</code> (decided — §15.6):</strong> <code>effect</code> is a <strong>new orthogonal
+  axis</strong>. The engine computes reachability by traversal and <strong>never reads <code>assignmentType</code> for
+  reachability</strong>. Legacy <code>assignmentType</code> values are sorted out by the harmonization work, not
+  here. For safety the engine treats a <strong>missing <code>effect</code> as <code>allow</code></strong>, so all existing data
+  resolves unchanged on day one.</li>
+</ul>
+<hr />
+<h2 id="10-explainability-first-class-output">10. Explainability — first-class output<a class="headerlink" href="#10-explainability-first-class-output" title="Permanent link">&para;</a></h2>
+<p>Every effective result returns its <strong>EffectivePath(s)</strong>. Example:</p>
+<blockquote>
+<p><em>alice has </em><em>effective deny</em><em> on <code>/Finance/2026/budget.xlsx</code> for <code>Modify</code> because: she's in
+<code>Finance-RW</code> → <code>Modify allow @ /Finance</code> (inherited), </em><em>overridden by</em><em> an explicit
+<code>Modify deny @ /Finance/2026</code> on <code>Everyone</code>.</em></p>
+</blockquote>
+<p>This is <strong>required</strong>, not optional — it is the audit value of the product. The response carries
+<code>decisiveAce</code>, the <code>contributing</code> chain, and the node path. The UI renders "why?" from it.</p>
+<hr />
+<h2 id="11-synthesized-resources-deterministic-id-collapse">11. Synthesized resources &amp; deterministic-id collapse<a class="headerlink" href="#11-synthesized-resources-deterministic-id-collapse" title="Permanent link">&para;</a></h2>
+<p>Inherited capability-resources with <strong>no declared grant</strong> (e.g. <code>Contributor @ VM</code> inherited
+from the subscription) are <strong>synthesized at expand time and never stored</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;SHA256-UUID of &#39;vmNodeId|roleDefId&#39;&gt;&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;displayName&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Contributor @ VM-01&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;capabilityId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;roleDefId&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;targetNodeId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;vmNodeId&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;virtual&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>Virtual rows are synthesized as <strong>output</strong> of the gather/resolve step — they represent
+inherited access paths where no stored grant exists at the target node. They are never
+written to the database and are not queried in the gather SQL; the gather step queries only
+stored <code>ResourceAssignments</code>. Virtual rows are merged in application memory into the result
+set and carry the same deterministic id as any stored row for the same <code>(capability, node)</code>.</p>
+<p>Because the id is deterministic <strong>and the crawler uses the same algorithm for stored
+capability-resources</strong>, a synthesized inherited row and a stored directly-declared row for the
+same <code>(capability, node)</code> carry the <strong>same id</strong> and merge into one matrix row showing both
+Direct and Indirect holders — with <strong>no dedup logic</strong>.</p>
+<p><strong>ID algorithm — SHA256-UUID:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>input  = UTF-8 bytes of (targetNodeId + &#39;|&#39; + capabilityId), no null terminator
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>hash   = SHA256(input)                          // 32 bytes
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>id     = lowercase hex of hash[0..15], formatted as UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+</code></pre></div>
+No RFC 4122 version or variant bits are set — this is a deterministic opaque identifier used
+only as a database primary key. Implementation: Node.js <code>crypto.createHash('sha256')</code>
+(built-in, Node ≥ 18); PowerShell <code>[System.Security.Cryptography.SHA256]::Create()</code> (built-in,
+.NET). No third-party package required in either runtime.</p>
+<blockquote>
+<p><strong>The input format is a one-way door.</strong> Changing <code>targetNodeId + '|' + capabilityId</code>
+(including the separator) would require re-crawling all sources to regenerate stored
+capability-resource rows with new IDs, and purging all cached synthesized rows. If a crawler
+discovers its <code>capabilityId</code> values are unstable across versions, that is a crawler
+data-quality problem — fix it in the crawler, not by changing the input format.</p>
+</blockquote>
+<p><strong>Cross-language conformance:</strong> The engine (Node.js) and crawlers (PowerShell) must produce
+identical ids from the same inputs. Define the algorithm once in
+<code>app/api/src/lib/capabilityId.js</code> (engine side, exported) and
+<code>tools/crawlers/shared/Get-CapabilityId.ps1</code> (crawler side, dot-sourced). A cross-language
+conformance test (<code>test/unit/CapabilityId.Tests.ps1</code>) asserts that both implementations
+return identical ids for a fixed set of <code>(targetNodeId, capabilityId)</code> pairs. This test
+must run in CI and is a hard gate — a mismatch would cause synthesized rows to never
+collapse with stored rows.</p>
+<blockquote>
+<p><strong>Pipe-free constraint:</strong> Both <code>targetNodeId</code> and <code>capabilityId</code> <strong>must be pipe-free
+strings</strong>. UUIDs satisfy this inherently. Non-UUID <code>capabilityId</code> values (e.g. NTFS atomic
+rights <code>Read</code>/<code>Write</code>/<code>Execute</code>/<code>Delete</code>) are also pipe-free and safe. A future crawler
+emitting a compound capabilityId containing <code>|</code> would produce an ambiguous input format —
+crawlers must validate and reject any such value before calling <code>Get-CapabilityId.ps1</code>.
+The conformance test catches regressions on its fixed fixture set but cannot detect novel
+capabilityId formats; this constraint must be enforced in the crawler-author guide.</p>
+</blockquote>
+<hr />
+<h2 id="12-api-surface">12. API surface<a class="headerlink" href="#12-api-surface" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /api/resource/:id/effective-access</code></td>
+<td>Expand a focus container/capability: synthesized inherited rows + resolved holders. Params: <code>direction=down\|up</code>, <code>depth</code>, <code>principalId?</code>, <code>capabilityId?</code>, <code>includeDeny</code>. <strong>Supersedes</strong> <code>/group/:id/nested-groups</code> and the proposed <code>/scope/:id/effective</code>.</td>
+</tr>
+<tr>
+<td><code>GET /api/principal/:id/effective-access?node=:n</code></td>
+<td>For one principal: effective access at/under a node, with paths. Detail pages.</td>
+</tr>
+<tr>
+<td><code>POST /api/effective-access/resolve</code></td>
+<td>Batch resolve <code>(principals × nodes × capabilities)</code> for the <strong>export</strong> path (§13.4) — paginated/streamed, cache-bypassing.</td>
+</tr>
+</tbody>
+</table>
+<p><code>/group/:id/nested-groups</code> is retained as a <strong>thin shim</strong> over the engine during migration,
+golden-tested to be byte-identical, then removed. <strong>Removal gate:</strong> (a) golden snapshot tests
+pass for 30 days in production with zero diffs, AND (b) log analysis confirms no callers
+outside the engine itself. Shims without removal gates tend to live forever.</p>
+<p><strong>Shim phasing:</strong> The shim is written in P1 (at migration time). In P1, the engine emits no
+virtual rows, so the de-virtualization step is a no-op. In P2, the shim is updated to
+actively drop <code>virtual=true</code> rows from the engine output. <strong>The 30-day removal gate clock
+starts after the P2 shim update is deployed</strong> — not at P1 shim creation.</p>
+<p><strong>Shim shape contract:</strong> The existing endpoint returns <code>{ groups: [], memberships: [] }</code> — two
+arrays of resources and flat membership rows. The engine returns structured rows with
+<code>{ capabilityResourceId, principalId, badge, decisivePath, effect, … }</code>. The shim must
+map engine output back to the legacy shape: de-virtualize synthesized rows (drop rows where
+<code>virtual=true</code>), rename <code>principalId</code> → <code>memberId</code>, and strip <code>effect</code>/<code>badge</code>/<code>decisivePath</code>.
+<strong>Golden snapshots must be generated from the ORIGINAL endpoint BEFORE the shim is written</strong>
+— snapshots generated from the shim itself would validate the shim against itself and miss
+any divergence.</p>
+<p><strong>Error contract:</strong> If <code>:id</code> does not exist as a known resource, the endpoint returns <code>404</code>.
+If <code>:n</code> (node param on the principal endpoint) does not exist, the endpoint returns <code>404</code>.
+Empty results (resource exists but no effective access) return <code>200</code> with an empty array.
+When a traversal cap is hit before any matching grant is encountered, the endpoint returns
+<code>200</code> with an empty rows array and a non-null <code>truncated</code> object — a <code>200</code> with
+<code>truncated.more &gt; 0</code> and empty rows is a valid pagination signal, not an error.</p>
+<p><strong>Response row:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;capabilityResourceId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;virtual&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;nodeId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;principalId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;allow&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;badge&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Indirect&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;viaGroupId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;decisivePath&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;truncated&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>Auth: reuse the existing matrix/permissions authorization middleware — this endpoint exposes
+the same sensitivity class as the matrix.</p>
+<hr />
+<h2 id="13-performance-matrix-integration">13. Performance &amp; matrix integration<a class="headerlink" href="#13-performance-matrix-integration" title="Permanent link">&para;</a></h2>
+<h3 id="131-lazy-bounded">13.1 Lazy + bounded<a class="headerlink" href="#131-lazy-bounded" title="Permanent link">&para;</a></h3>
+<p>Interactive paths only ever expand a focus neighborhood. The live matrix never triggers
+full-tenant computation.</p>
+<h3 id="132-caching-decided-152">13.2 Caching (decided — §15.2)<a class="headerlink" href="#132-caching-decided-152" title="Permanent link">&para;</a></h3>
+<p>In-memory LRU <strong>per web process</strong> using the <code>lru-cache</code> npm package (add to
+<code>app/api/package.json</code>). Size limit: <code>maxSize: 100_000_000</code> bytes with
+<code>sizeCalculation: (v) =&gt; JSON.stringify(v).length</code>. Configurable via
+<code>EFFECTIVE_ACCESS_CACHE_MAX_BYTES</code> env var.</p>
+<p><strong>Cache key</strong> — explicit colon-delimited string (no pipe characters to avoid NS_CAP separator
+ambiguity in debug output):
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>`${focusNode}:${direction}:${depth ?? &#39;&#39;}:${principalId ?? &#39;&#39;}:${capabilityId ?? &#39;&#39;}:${includeDeny ? &#39;1&#39; : &#39;0&#39;}:${dataVersion}`
+</code></pre></div></p>
+<p><strong><code>dataVersion</code></strong> is a <strong>separate sync version counter</strong> — <strong>not</strong> <code>MAX(GraphSyncLog.id)</code>.
+The counter lives in the existing <code>WorkerConfig</code> table as a single row:
+<code>WorkerConfig('syncVersion', '0')</code>, incremented atomically at sync completion. Using the sync
+log max-id would advance the cache key as soon as a sync begins, causing requests during the
+sync window to cache partially-updated data. The <code>WorkerConfig</code> counter advances only after
+all sync writes are durable. <strong>Who increments it:</strong> the <strong>API</strong>, not the crawler. Crawlers
+have no database connection — per the architecture, all persistence flows through the Node.js
+API. The crawler already signals end-of-sync by calling <code>POST /api/ingest/refresh-views</code> (and
+<code>POST /api/ingest/sync-log</code>) <em>after</em> all ingest batches are committed; the API increments the
+counter inside that handler (<code>UPDATE "WorkerConfig" SET "configValue" = ("configValue"::int +
+1) WHERE "configKey" = 'syncVersion'</code>). This advances the version only after all sync writes
+are durable — preserving the correctness rationale above — while keeping the bump API-mediated
+rather than issued as raw SQL from the worker.
+<code>dataVersion = 0</code> (no syncs completed yet on a fresh install) causes requests to run uncached,
+which is correct.</p>
+<p>(Single <code>web</code> container today; revisit Redis only on horizontal scale-out.)</p>
+<blockquote>
+<p><strong>Post-sync cache miss:</strong> when a sync completes, all cached entries become stale
+simultaneously. On a heavily-used instance, the first wave of requests after a sync will
+all miss and trigger parallel traversals. With the current single-container, bounded-user
+deployment this is acceptable. Document and revisit at horizontal scale-out.</p>
+</blockquote>
+<h3 id="133-caps">13.3 Caps<a class="headerlink" href="#133-caps" title="Permanent link">&para;</a></h3>
+<p>Defaults <code>maxDepth = 50</code>, <code>maxNodesPerExpansion = 1000</code>, <code>maxHoldersPerExpansion = 500</code>,
+all configurable. Exceeding any cap emits a <code>truncated</code> marker — <strong>never silently dropped</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;truncated&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nt">&quot;more&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span><span class="w">           </span><span class="c1">// ancestor/descendant nodes cut off (null if not truncated)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="nt">&quot;holders&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">15</span><span class="w">         </span><span class="c1">// holder principals cut off (null if not truncated)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>All results are returned sorted by <code>(nodeId, principalId, capabilityId) ASC</code> for stable
+pagination — the same query with the same data always returns rows in the same order.
+When a result set is truncated, the returned subset is additionally surfaced sorted
+alphabetically by <code>displayName</code> so the most relevant subset is visible. The caller can
+filter/search to narrow results below the cap.</p>
+<h3 id="134-export-path">13.4 Export path<a class="headerlink" href="#134-export-path" title="Permanent link">&para;</a></h3>
+<p><code>POST /api/effective-access/resolve</code> streams in batches with backpressure for "give me
+everything," explicitly separate from interactive expansion.</p>
+<h3 id="135-the-base-grid-and-deny-decided-153">13.5 The base grid and deny (decided — §15.3)<a class="headerlink" href="#135-the-base-grid-and-deny-decided-153" title="Permanent link">&para;</a></h3>
+<p>The matview keeps showing <strong>declared</strong> grants (fast; unchanged for monotonic sources). For
+deny-bearing systems, declared <code>allow</code> ≠ effective. <strong>Decision:</strong> the matview gains a per-row
+<code>contested</code> flag, set from a cheap <strong>deny-presence index</strong> when a <code>(principal, capability,
+node)</code> has <em>any</em> reachable deny — without running full resolution at refresh. The UI marks
+contested cells and the engine resolves the true effect (with path) on demand. <strong>Monotonic
+systems never set <code>contested</code>, so they pay nothing.</strong> The base grid never <em>lies</em> about access.</p>
+<p><strong>Schema timing:</strong> The <code>contested</code> column is added to the matview in the <strong>P2 migration</strong>
+as <code>BOOLEAN DEFAULT FALSE NOT NULL</code>. The deny-presence index logic that populates it is
+added in P3. This avoids a breaking schema change at P3 time (which may be months later)
+and allows the UI to treat <code>contested=false</code> as "safe to show" from day one — without the
+column being absent and requiring conditional rendering. <strong>P3 readiness gate:</strong> no deny-bearing
+crawler may be enabled until the <code>contested</code> population logic is deployed and verified.</p>
+<h3 id="136-indexing">13.6 Indexing<a class="headerlink" href="#136-indexing" title="Permanent link">&para;</a></h3>
+<p>Index <code>Contains(parentResourceId)</code> and <code>(childResourceId)</code>; index <code>ResourceAssignments</code> by
+<code>(resourceId, effect)</code>; index <code>ResourceAssignments(principalId)</code> — verify this index exists
+from prior migrations (group-membership queries already need it); add if absent. A partial
+deny-presence index backs the <code>contested</code> flag (added in P3 alongside the population logic).</p>
+<p><code>capabilityId</code> is stored in <code>extendedAttributes</code> on capability-resource rows but is read in
+the resolution inner loop. Add a <strong>generated stored column</strong> and index:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="ss">&quot;Resources&quot;</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="ss">&quot;capabilityId&quot;</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">GENERATED</span><span class="w"> </span><span class="n">ALWAYS</span><span class="w"> </span><span class="k">AS</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="p">((</span><span class="ss">&quot;extendedAttributes&quot;</span><span class="o">-&gt;&gt;</span><span class="s1">&#39;capabilityId&#39;</span><span class="p">))</span><span class="w"> </span><span class="n">STORED</span><span class="p">;</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">&quot;ix_Resources_capabilityId&quot;</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">&quot;Resources&quot;</span><span class="p">(</span><span class="ss">&quot;capabilityId&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="k">WHERE</span><span class="w"> </span><span class="ss">&quot;capabilityId&quot;</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+</code></pre></div>
+This matches the reasoning in §15.1 (hot-path columns must be indexable).</p>
+<hr />
+<h2 id="14-edge-cases-enumerated-with-decisions">14. Edge cases — enumerated, with decisions<a class="headerlink" href="#14-edge-cases-enumerated-with-decisions" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Group-membership cycle (A∈B∈A)</td>
+<td>visited-set; each principal counted once.</td>
+</tr>
+<tr>
+<td>Containment cycle</td>
+<td>shouldn't occur; defend with visited-set + data-quality warning.</td>
+</tr>
+<tr>
+<td>Multi-parent node (DAG)</td>
+<td>resolved by the policy; default <code>DenyOverrides</code> for conflicts in deny systems, <code>AdditiveAllow</code> union otherwise (§15.4).</td>
+</tr>
+<tr>
+<td>Inheritance break mid-path</td>
+<td>ascent stops at the break boundary (§7.2).</td>
+</tr>
+<tr>
+<td>DAG with mixed <code>propagates</code> (some edges blocked, some not)</td>
+<td>follow all unblocked paths; block is per-edge, not per-node. Visited-set prevents revisiting ancestors reached via multiple paths.</td>
+</tr>
+<tr>
+<td><code>self</code>-scoped ACE</td>
+<td>applies only at its node, never to children.</td>
+</tr>
+<tr>
+<td><code>descendants</code>-scoped ACE declared AT N (focus node is the grant target)</td>
+<td>does NOT apply at N — only at N's children. Engine correctly returns <code>none</code> at N from this ACE. This is correct semantics; crawlers that mean "self and descendants" must emit <code>selfAndDescendants</code>.</td>
+</tr>
+<tr>
+<td><code>notset</code> three-state</td>
+<td>passes through to parent; contributes nothing itself.</td>
+</tr>
+<tr>
+<td>Orphan capability-resource (parent unsynced)</td>
+<td>treat as its own root; resolve what's present; flag data-quality.</td>
+</tr>
+<tr>
+<td>Dangling edge (node deleted between syncs)</td>
+<td>skip the edge; tolerate.</td>
+</tr>
+<tr>
+<td>Thin-stub principal (no name)</td>
+<td>expand by id; display falls back to GUID.</td>
+</tr>
+<tr>
+<td>Same <code>(capability, node)</code> via two paths</td>
+<td>one cell; strongest badge (<code>Direct</code> &gt; <code>Indirect</code>); <strong>all</strong> paths retained for explainability.</td>
+</tr>
+<tr>
+<td>Inherited <code>Contributor</code> + child's own <code>Reader</code></td>
+<td>distinct capabilities → distinct rows.</td>
+</tr>
+<tr>
+<td><code>eligible</code> + <code>deny</code> ACEs for same capability at same effective node</td>
+<td><code>deny</code> wins — engine returns <code>{ effective: 'deny' }</code>; <code>E</code> badge not shown (deny forecloses even potential access).</td>
+</tr>
+<tr>
+<td>Eligibility under a deny (general)</td>
+<td>eligible ACEs excluded from effective-access computation; shown <code>E</code> separately when no deny is present.</td>
+</tr>
+<tr>
+<td>Cross-system inheritance (ARM scope → Entra group → members)</td>
+<td>the graph is system-agnostic; traversal crosses systems freely.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="15-decisions-rationale-resolved-open-questions">15. Decisions &amp; rationale (resolved open questions)<a class="headerlink" href="#15-decisions-rationale-resolved-open-questions" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Question</th>
+<th>Decision</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>15.1</td>
+<td><code>effect</code> / <code>propagationScope</code> storage</td>
+<td><strong>First-class columns + migration</strong></td>
+<td>Read in the innermost resolution loop; must be indexable; JSONB can't be cleanly indexed and pays extraction on every resolve.</td>
+</tr>
+<tr>
+<td>15.2</td>
+<td>Cache strategy</td>
+<td><strong>In-memory LRU (<code>lru-cache</code>), <code>dataVersion</code>-keyed; <code>dataVersion</code> = <code>WorkerConfig('syncVersion')</code> counter incremented by the API in the end-of-sync handler (<code>/ingest/refresh-views</code>), not by the crawler</strong></td>
+<td>Using <code>MAX(GraphSyncLog.id)</code> advances the cache key as soon as a sync begins, causing requests to cache partially-updated data for the duration of the sync. Crawlers have no DB connection (all persistence is API-mediated), so the API bumps the counter when the crawler calls the end-of-sync endpoint — after all writes are durable. <code>WorkerConfig</code> already exists (migration 001); reusing it adds no new schema object. Redis only on scale-out.</td>
+</tr>
+<tr>
+<td>15.3</td>
+<td>Deny vs base grid</td>
+<td><strong><code>contested</code> flag + resolve-on-demand</strong></td>
+<td>Keeps the matview a fast declared projection; monotonic sources pay nothing; the grid never lies.</td>
+</tr>
+<tr>
+<td>15.4</td>
+<td>DAG conflict default</td>
+<td><strong>Policy-owned</strong>; deny-wins for deny policies, union for additive</td>
+<td>Conflict semantics belong to the source's policy, not the traversal.</td>
+</tr>
+<tr>
+<td>15.5</td>
+<td>Synthesized-resource detail pages</td>
+<td><strong>Matrix-only in v1</strong></td>
+<td>Virtual rows carry a path but no drill-through; detail pages operate on stored resources. Revisit on demand.</td>
+</tr>
+<tr>
+<td>15.6</td>
+<td><code>effect</code> vs <code>assignmentType</code></td>
+<td><strong><code>effect</code> is a new orthogonal axis</strong>; engine ignores <code>assignmentType</code> for reachability; missing <code>effect</code> = <code>allow</code></td>
+<td>Reachability is computed; legacy <code>assignmentType</code> is harmonized elsewhere; back-compat preserved.</td>
+</tr>
+<tr>
+<td>15.7</td>
+<td>Capability granularity under deny</td>
+<td><strong>Compare same <code>capabilityId</code> only; no subsumption lattice</strong></td>
+<td>Minimal engine; sources needing right-level deny emit comparable granularity. Doesn't foreclose correct filesystem deny.</td>
+</tr>
+<tr>
+<td>15.8</td>
+<td><code>propagates</code> storage on <code>ResourceRelationships</code></td>
+<td><strong><code>extendedAttributes</code> (JSONB) — not a first-class column</strong></td>
+<td>Interactive traversal reads a bounded ancestor window (≤ ~20 hops for the deepest expected hierarchy); JSONB extraction on that set is negligible. The main benefit of a first-class column would be a partial index for inheritance-break lookups — but that optimization is only material for deny-bearing filesystem crawlers. P3 is deferred (see §16), so the index is not needed now. <strong>Concrete promotion trigger:</strong> add a first-class column (+ partial index) when any hierarchy in production exceeds 500 nodes with &gt;10% of edges having <code>propagates=false</code>, or when a deny-bearing source is scoped — whichever comes first.</td>
+</tr>
+<tr>
+<td>15.9</td>
+<td><code>capabilityId</code> indexing</td>
+<td><strong>Generated stored column + index on <code>Resources</code></strong></td>
+<td><code>capabilityId</code> is in <code>extendedAttributes</code> but read in the resolution inner loop. Same reasoning as §15.1 — hot-path fields must be indexable. Generated column avoids schema drift between the JSONB blob and the query path.</td>
+</tr>
+<tr>
+<td>15.10</td>
+<td><code>contested</code> column schema timing</td>
+<td><strong>Added in P2 migration as <code>DEFAULT FALSE</code>; populated in P3</strong></td>
+<td>Adding the column in P2 avoids a breaking schema change when P3 lands, allows the UI to render <code>contested=false</code> as "safe" from day one, and makes the P3 scope smaller (logic change only, no schema change). P3 readiness gate: deny-bearing crawlers blocked until population logic is deployed.</td>
+</tr>
+<tr>
+<td>15.11</td>
+<td><code>holders(P)</code> cap</td>
+<td><strong><code>maxHoldersPerExpansion = 500</code> (configurable); exceeds emits <code>truncated:{holders:N}</code></strong></td>
+<td>Mirrors the ancestor window cap. Without a bound, a principal in deep nested AD mega-groups could exhaust memory. Silent truncation would violate the "no silent truncation" invariant; the structured truncated response preserves caller observability.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="16-phased-delivery">16. Phased delivery<a class="headerlink" href="#16-phased-delivery" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Status</th>
+<th>Scope</th>
+<th>Unblocks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P1</strong></td>
+<td>✅ shipped</td>
+<td>Schema migration adding <code>effect</code> and <code>propagationScope</code> columns to <code>ResourceAssignments</code> (with backfill). Engine core + <code>AdditiveAllow</code>. <code>/group/:id/nested-groups</code> golden baseline captured.</td>
+<td>The framework; Entra Owner-harmonization.</td>
+</tr>
+<tr>
+<td><strong>P2</strong></td>
+<td>✅ shipped (core)</td>
+<td>Containment down-expansion: constant-capability carry, synthesized rows, deterministic-id collapse. Read endpoints.</td>
+<td><strong>Azure RM crawler.</strong></td>
+</tr>
+<tr>
+<td><strong>P3</strong></td>
+<td>⏳ deferred</td>
+<td>Deny-aware resolution + <code>DenyOverrides</code> / <code>NtfsCanonical</code> / <code>ClosestWins</code> + <code>contested</code> matview flag + path-aware explainability.</td>
+<td>Filesystem / SharePoint / DevOps crawlers.</td>
+</tr>
+<tr>
+<td><strong>P4</strong></td>
+<td>⏳ deferred</td>
+<td>Export path (<code>POST /resolve</code>, async/streamed).</td>
+<td>Full effective-access export.</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Shipped vs. deferred within P1/P2:</strong> the engine (holders + containment), <code>AdditiveAllow</code>,
+migrations 038/039, <code>syncVersion</code> cache keying, and the read endpoints are live. Two spec items
+were <strong>deliberately deferred as non-blocking:</strong> (a) rewriting the <code>/group/:id/nested-groups</code>
+endpoints <em>onto</em> the engine — they work and are golden-test protected, so the rewrite is a
+cleanup, not a dependency; and (b) the <code>contested</code> matview column — speculative until P3 deny
+lands, and a routine migration to add then.</p>
+</blockquote>
+<p>Dependency summary: ARM crawler → <strong>P1 + P2</strong>; Entra Owner-harmonization → <strong>P1</strong>; deny-bearing
+crawlers → <strong>P3</strong>.</p>
+<blockquote>
+<p><strong>P3 is deferred until a deny-bearing crawler is actually planned.</strong> No filesystem,
+SharePoint, or DevOps crawler is currently in scope. Specifying <code>DenyOverrides</code>,
+<code>NtfsCanonical</code>, the <code>contested</code> flag, and the full deny traversal before there is a
+consumer is YAGNI. When a deny-bearing source is scoped, revisit §8 and §13.5 and add P3
+to the active roadmap. The engine architecture (pluggable <code>ResolutionPolicy</code>, <code>effect</code>
+column) is designed to make P3 addable without touching the traversal core — that is the
+extent of the current investment in deny.</p>
+</blockquote>
+<hr />
+<h2 id="17-migration-backward-compatibility">17. Migration &amp; backward compatibility<a class="headerlink" href="#17-migration-backward-compatibility" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The <code>effect</code> / <code>propagationScope</code> migration backfills defaults; existing rows resolve as
+  today (missing <code>effect</code> = <code>allow</code>). <strong>Exception:</strong> rows with <code>assignmentType = 'Eligible'</code>
+  must be backfilled to <code>effect = 'eligible'</code>, not <code>allow</code> — otherwise the engine would
+  surface eligible-only access as granted access on day one. The migration SQL must be:
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">UPDATE</span><span class="w"> </span><span class="ss">&quot;ResourceAssignments&quot;</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="k">SET</span><span class="w"> </span><span class="ss">&quot;effect&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="ss">&quot;assignmentType&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;Eligible&#39;</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="s1">&#39;eligible&#39;</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="s1">&#39;allow&#39;</span><span class="w"> </span><span class="k">END</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">&quot;effect&quot;</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+</code></pre></div></li>
+<li><code>/group/:id/nested-groups</code> becomes a shim over the engine; <strong>golden tests assert identical
+  output</strong> before the old code is deleted.</li>
+<li>The matview keeps its declared-grant contract; <code>contested</code> is additive.</li>
+<li><code>NS_CAP</code> namespace constant is introduced once and frozen.</li>
+<li>Schema changes go through versioned migration files in
+  <code>app/api/src/db/migrations/</code> — never edit existing migrations.</li>
+</ul>
+<hr />
+<h2 id="18-testing-requirements-must-ship-with-the-feature-not-optional">18. Testing requirements <em>(must ship with the feature — not optional)</em><a class="headerlink" href="#18-testing-requirements-must-ship-with-the-feature-not-optional" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Test runner:</strong> engine unit tests and <code>ResolutionPolicy</code> truth tables use the <strong><code>node:test</code>
+  built-in</strong> (Node.js ≥ 18, no additional dev dependency). Pester continues for PowerShell
+  crawler conformance (<code>test/unit/CapabilityId.Tests.ps1</code> and future crawler unit tests).</li>
+<li><strong>Resolution truth tables.</strong> Each <code>ResolutionPolicy</code> unit-tested against its vendor's
+  documented precedence — especially <code>NtfsCanonical</code> against the canonical Windows
+  explicit/inherited/deny ordering, and <code>DenyOverrides</code> against DevOps deny-wins.</li>
+<li><strong>Graph fixtures (golden files).</strong> Deterministic fixtures for: deep tree, wide tree, broken
+  inheritance, <code>self</code>/<code>descendants</code> scopes, multi-parent DAG, membership cycle, thin stubs,
+  orphan/dangling edges — each with an asserted expected effective-access set. Mandatory
+  additional fixtures:</li>
+<li><strong>DAG mixed inheritance-break:</strong> N has parents M₁ (propagates=true) and M₃
+    (propagates=false). Grant at M₁'s ancestor. Expected: grant is effective at N via M₁
+    path; M₃'s ancestors are not consulted. Verifies "follow all unblocked paths" (§7).</li>
+<li><strong><code>descendants</code>-only at focus node:</strong> grant declared AT N with <code>propagationScope =
+    'descendants'</code>. Query: does P have access at N? Expected: <code>none</code>. Verifies that
+    <code>descendants</code> scope does not include the grant's own node.</li>
+<li><strong>Explainability assertions.</strong> Every fixture asserts the decisive path, not just the boolean.</li>
+<li><strong>Parity / regression.</strong> Golden snapshots of current <code>/nested-groups</code> output — captured from
+  the <strong>ORIGINAL endpoint before the shim is written</strong>; the engine must reproduce them exactly
+  (the P1 gate). The shim's shape transform (de-virtualize, rename principalId → memberId,
+  strip effect/badge/decisivePath) must be separately tested against a known-good fixture.</li>
+<li><strong>Performance tests.</strong> Deep (10k-nested) and wide (10k-children) trees and a root-level grant
+  fan-out: assert bounded latency, cache behavior, and correct <code>truncated</code> markers.</li>
+<li><strong>holders(P) truncation fixture.</strong> Principal transitively belongs to N &gt; <code>maxHoldersPerExpansion</code>
+  groups via nested chains. Expected: <code>truncated:{holders:N}</code> returned; subset is sorted
+  alphabetically by group <code>displayName</code>; result is deterministic across calls.</li>
+<li><strong>Cache staleness determinism test.</strong> Unit test (mocked DB): if the <code>dataVersion</code> read at
+  cache-key construction differs from the <code>dataVersion</code> read at result-population time (a sync
+  completed mid-traversal), the result is discarded and re-fetched — never cached under the
+  stale key. Separately, an integration smoke test: run a sync against a real test database,
+  verify no stale data is returned immediately after the version increments (without asserting
+  sub-millisecond timing properties).</li>
+<li><strong>Determinism.</strong> Same input → identical ids and stable row ordering.</li>
+<li><strong>Cross-source conformance suite</strong> that every new <code>ResolutionPolicy</code> must pass to be accepted.</li>
+</ul>
+<hr />
+<h2 id="19-observability-requirements-ship-with-the-feature">19. Observability requirements <em>(ship with the feature)</em><a class="headerlink" href="#19-observability-requirements-ship-with-the-feature" title="Permanent link">&para;</a></h2>
+<p>Every traversal request emits one structured log line at exit:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;effective-access-resolve&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;focusNode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;direction&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;down|up&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">&quot;traversalDepth&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;nodesVisited&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;holdersCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">&quot;cacheHit&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;truncated&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;durationMs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">18</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;dataVersion&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p><strong>Required metrics (from log aggregation):</strong>
+- Cache hit rate by endpoint (<code>GET /resource/:id/effective-access</code>, <code>GET /principal/:id/effective-access</code>)
+- Traversal depth histogram (p50, p99)
+- Truncation rate — percent of requests where <code>truncated = true</code>
+- p99 traversal latency per endpoint</p>
+<p><strong>Alerting:</strong>
+- Cache hit rate falls below 50% for 5 minutes → investigate <code>dataVersion</code> or LRU size
+- Traversal depth p99 exceeds 40 levels (80% of <code>maxDepth=50</code>) → investigate data model or raise cap
+- p99 traversal latency exceeds 500ms → investigate query plan or index coverage
+- Truncation rate exceeds 10% → containers too wide for default cap; surface to UI team</p>
+<h2 id="20-documentation-requirements-ship-with-the-feature">20. Documentation requirements <em>(ship with the feature)</em><a class="headerlink" href="#20-documentation-requirements-ship-with-the-feature" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Architecture doc</strong> — this file, kept current.</li>
+<li><strong>Crawler-author guide</strong> — additions to <code>docs/sync/custom-crawlers.md</code>: the engine contract
+  (<code>Contains</code> edges + <code>propagates</code>, <code>effect</code>, <code>propagationScope</code>, SHA256-UUID capability-resource id),
+  with a worked example per hierarchy type.</li>
+<li><strong>ResolutionPolicy authoring guide</strong> — how to add a source's precedence rules + the
+  conformance suite it must pass.</li>
+<li><strong>API reference</strong> — the three endpoints, params, response shape, <code>truncated</code> / <code>contested</code>
+  semantics.</li>
+<li><strong>Operator / UI doc</strong> — what <em>declared vs effective</em> means, the <code>contested</code> indicator, how to
+  read an access path; update <code>docs/architecture/matrix.md</code> to point at the engine as the
+  inheritance mechanism (superseding the bespoke nested-group note from migration 013).</li>
+<li><strong>Changelog fragment</strong> on each implementing branch, per repo rules (do <strong>not</strong> edit
+  <code>CHANGES.md</code> directly).</li>
+</ul>
+<hr />
+<h2 id="21-first-consumers-how-they-map">21. First consumers (how they map)<a class="headerlink" href="#21-first-consumers-how-they-map" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Azure RM crawler</strong> — emits the scope tree (<code>Contains</code>, <code>propagates = true</code>), sparse
+  <code>Role @ Scope</code> capability-resources, <code>Direct</code> <code>allow</code> grants (<code>selfAndDescendants</code>). Uses
+  <code>AdditiveAllow</code>. Inheritance is pure P2 down-expansion; nothing inherited is stored.</li>
+<li><strong>Entra Owner-harmonization</strong> — <code>Owner of &lt;Group&gt;</code> becomes a capability-resource; group
+  nesting runs through P1; the <code>O</code> badge is retired in favor of <code>Direct</code>/<code>Indirect</code>.</li>
+<li><strong>Filesystem (future)</strong> — folder tree with <code>propagates = false</code> on block-inheritance nodes,
+  <code>effect = deny</code> ACEs, <code>self</code> / <code>descendants</code> scopes, atomic-right capabilities; uses
+  <code>NtfsCanonical</code>. This is the reason deny is first-class from day one.</li>
+</ul>
+<hr />
+<h2 id="22-reviewer-sign-off">22. Reviewer sign-off<a class="headerlink" href="#22-reviewer-sign-off" title="Permanent link">&para;</a></h2>
+<p>Please confirm agreement (or record objections) on each:</p>
+<ul>
+<li>[ ] <strong>Model</strong> — capability-in-resource + two-edge reachability is the right core abstraction.</li>
+<li>[ ] <strong>Crawler contract</strong> (§6) — the additive fields (<code>propagates</code>, <code>effect</code>,
+      <code>propagationScope</code>) are acceptable.</li>
+<li>[ ] <strong>Schema</strong> (§15.1) — first-class columns + a backfilling migration.</li>
+<li>[ ] <strong>Deny on the base grid</strong> (§13.5) — the <code>contested</code> flag approach.</li>
+<li>[ ] <strong>Capability granularity</strong> (§15.7) — same-<code>capabilityId</code> comparison; sources emit
+      comparable granularity; no subsumption lattice.</li>
+<li>[ ] <strong>Phasing</strong> (§16) — P1 before the ARM crawler; deny in P3.</li>
+<li>[ ] <strong>Testing &amp; documentation</strong> (§18–20) — required to ship with the feature.</li>
+<li>[ ] <strong>Observability</strong> (§19) — structured log line + metrics + alerts required to ship.</li>
+<li>[ ] <strong><code>capabilityId</code> generated column</strong> (§13.6, §15.9) — added to migration scope.</li>
+<li>[ ] <strong>DAG inheritance-break semantics</strong> (§7) — follow all unblocked paths; confirm this matches any DAG-native source planned for the future.</li>
+<li>[ ] <strong><code>holders(P)</code> cap</strong> (§7, §13.3, §15.11) — <code>maxHoldersPerExpansion=500</code>, emits <code>truncated:{holders:N}</code>.</li>
+<li>[ ] <strong>Sync version counter</strong> (§13.2, §15.2) — <code>WorkerConfig('syncVersion')</code> counter incremented by the <strong>API</strong> in the end-of-sync handler (crawler calls it; no raw SQL from the worker); not <code>MAX(GraphSyncLog.id)</code>.</li>
+<li>[ ] <strong><code>contested</code> column timing</strong> (§13.5, §15.10) — added in P2 as <code>DEFAULT FALSE</code>; populated in P3; P3 readiness gate enforced.</li>
+<li>[ ] <strong>Shim shape contract</strong> (§12) — golden snapshots captured from original endpoint before shim is written; shape transform specified.</li>
+<li>[ ] <strong>Pipe-free constraint</strong> (§11) — <code>capabilityId</code> must be pipe-free; crawler-author guide to enforce.</li>
+</ul>
+<p>_Approved by: <strong><em>_</em></strong><strong><em>_</em></strong><strong><em>_</em>_  Date: </strong><strong><em>_</em></strong>__</p>
+<hr />
+<h2 id="gstack-review-report">GSTACK REVIEW REPORT<a class="headerlink" href="#gstack-review-report" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Review</th>
+<th>Trigger</th>
+<th>Why</th>
+<th>Runs</th>
+<th>Status</th>
+<th>Findings</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CEO Review</td>
+<td><code>/plan-ceo-review</code></td>
+<td>Scope &amp; strategy</td>
+<td>1</td>
+<td>CLEAN</td>
+<td>HOLD SCOPE; 5 doc gaps fixed, 1 TODO deferred</td>
+</tr>
+<tr>
+<td>Outside Voice (CEO)</td>
+<td>Claude subagent</td>
+<td>Independent 2nd opinion</td>
+<td>1</td>
+<td>ISSUES FOUND → ACTIONED</td>
+<td>9 findings, 5 actioned in-session, 4 deferred to later phases</td>
+</tr>
+<tr>
+<td>Eng Review</td>
+<td><code>/plan-eng-review</code></td>
+<td>Architecture &amp; tests (required)</td>
+<td>1</td>
+<td>CLEAN</td>
+<td>D1–D8 decisions + 14 OV findings; all actioned in-session</td>
+</tr>
+<tr>
+<td>Outside Voice (Eng)</td>
+<td>Claude subagent</td>
+<td>Independent 2nd opinion</td>
+<td>1</td>
+<td>ISSUES FOUND → ACTIONED</td>
+<td>14 findings; all resolved in-session (spec clarifications + algorithm decisions)</td>
+</tr>
+<tr>
+<td>Design Review</td>
+<td><code>/plan-design-review</code></td>
+<td>UI/UX gaps</td>
+<td>0</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>DX Review</td>
+<td><code>/plan-devex-review</code></td>
+<td>Developer experience gaps</td>
+<td>0</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>VERDICT:</strong> SPEC APPROVED — CEO review and Eng review complete. All decisions resolved. Ready for implementation.</p>
+<p><strong>Key decisions locked in Eng Review:</strong>
+- D1: SHA256-UUID for capability-resource ids (no third-party dep; native in Node.js + PowerShell)
+- D2: <code>WorkerConfig('syncVersion')</code> counter (reuses existing table; incremented by the API in the end-of-sync handler — crawler triggers it via <code>/ingest/refresh-views</code>, no raw SQL from the worker)
+- D3: <code>lru-cache</code> npm package for in-process LRU
+- D4: Explicit colon-delimited cache key string
+- D5: All results sorted <code>(nodeId, principalId, capabilityId) ASC</code>; truncated subsets also by <code>displayName</code>
+- D6: Migration backfill test mandatory (<code>Eligible</code> rows → <code>effect='eligible'</code>)
+- D7: <code>node:test</code> built-in for engine unit tests (Node ≥ 18, no new dep)
+- D8: <code>maxSize: 100MB</code> with <code>sizeCalculation: (v) =&gt; JSON.stringify(v).length</code></p>
+<p>NO UNRESOLVED DECISIONS</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Created by <a href="https://www.fortigi.nl">Maatschap Fortigi</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/wimvdheijkant/" target="_blank" rel="noopener" title="Wim van den Heijkant" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.fortigi.nl" target="_blank" rel="noopener" title="Fortigi" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M351.9 280H161c2.9 64.5 17.2 123.9 37.5 167.4 11.4 24.5 23.7 41.8 35.1 52.4 11.2 10.5 18.9 12.2 22.9 12.2s11.7-1.7 22.9-12.2c11.4-10.6 23.7-28 35.1-52.4 20.3-43.5 34.6-102.9 37.5-167.4zm-191-48h190.9c-2.8-64.5-17.1-123.9-37.4-167.4-11.4-24.4-23.7-41.8-35.1-52.4C268.1 1.7 260.4 0 256.4 0s-11.7 1.7-22.9 12.2c-11.4 10.6-23.7 28-35.1 52.4-20.3 43.5-34.6 102.9-37.5 167.4m-48 0c3.5-85.6 25.6-165.1 57.9-217.3C78.7 47.3 10.9 131.2 1.5 232zM1.5 280c9.4 100.8 77.2 184.7 169.3 217.3-32.3-52.2-54.4-131.7-57.9-217.3zm398.4 0c-3.5 85.6-25.6 165.1-57.9 217.3 92.1-32.7 159.9-116.5 169.3-217.3zm111.4-48C501.9 131.2 434.1 47.3 342 14.7c32.3 52.2 54.4 131.7 57.9 217.3z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
