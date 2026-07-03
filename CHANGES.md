@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the **Next** button on the Users, Resources (Groups) and Identities list pages throwing an error when paging past the first page. The page count is only sent on the first page for export efficiency, and the UI was mishandling its absence on later pages — it now keeps the known total so pagination works across every page.
+
+## Changes in this PR
+
 - Internal maintainability: decomposed the core `/matrix/data` query handler — previously a single ~680-line function — into a thin dispatcher plus one focused function per view mode (flat grid, roll-up, context roll-up, attribute fold, inherited-access folds). Cyclomatic complexity of the largest function drops from 150 to 18. No change to matrix behaviour, endpoints, or output.
 - Internal maintainability: decomposed the risk-scoring engine's `runScoring` routine — previously a single ~600-line function — into a thin orchestrator plus one function per pass (load, score resources, score principals, membership analysis, propagation, persistence), each now separately unit-tested. Cyclomatic complexity of the largest function drops from 115 to 20. No change to risk scores, tiers, or explanations.
 - Internal maintainability: decomposed the Recent-Changes timeline builder into one focused, unit-tested handler per event type (attribute change, assignment, containment relationship, identity-link). Cyclomatic complexity of the largest function drops from 60 to 6. No change to timeline output.
