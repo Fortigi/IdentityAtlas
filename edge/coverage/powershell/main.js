@@ -298,8 +298,10 @@ var assemblies = [
   {
     "name": "tools/crawlers/csv",
     "classes": [
-      { "name": "tools/crawlers/csv/CSVCrawler.Functions", "rp": "csv_Functions.html", "cl": 111, "ucl": 0, "cal": 111, "tl": 217, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/csv/Start-CSVCrawler", "rp": "csv_tools_crawlers_csv_Start_CSVCrawler.html", "cl": 0, "ucl": 275, "cal": 275, "tl": 423, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/csv/CSVCrawler.Functions", "rp": "csv_Functions.html", "cl": 113, "ucl": 0, "cal": 113, "tl": 243, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/csv/CSVCrawler.Phases", "rp": "csv_Phases.html", "cl": 200, "ucl": 0, "cal": 200, "tl": 338, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/csv/CSVCrawler.Transform", "rp": "csv_Transform.html", "cl": 95, "ucl": 0, "cal": 95, "tl": 192, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/csv/Start-CSVCrawler", "rp": "csv_tools_crawlers_csv_Start_CSVCrawler.html", "cl": 0, "ucl": 29, "cal": 29, "tl": 98, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
     "name": "tools/crawlers/custom-connector",
@@ -338,10 +340,11 @@ var assemblies = [
   {
     "name": "tools/crawlers/omada",
     "classes": [
-      { "name": "tools/crawlers/omada/Get-OmadaHelpers", "rp": "omada_tools_crawlers_omada_Get_OmadaHelpers.html", "cl": 15, "ucl": 0, "cal": 15, "tl": 48, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/omada/OmadaCrawler.Functions", "rp": "omada_Functions.html", "cl": 53, "ucl": 2, "cal": 55, "tl": 134, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/omada/OmadaCrawler.Transform", "rp": "omada_Transform.html", "cl": 191, "ucl": 1, "cal": 192, "tl": 378, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "tools/crawlers/omada/Start-OmadaCrawler", "rp": "omada_tools_crawlers_omada_Start_OmadaCrawler.html", "cl": 0, "ucl": 529, "cal": 529, "tl": 978, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/omada/Get-OmadaHelpers", "rp": "omada_tools_crawlers_omada_Get_OmadaHelpers.html", "cl": 18, "ucl": 0, "cal": 18, "tl": 70, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/omada/OmadaCrawler.Functions", "rp": "omada_Functions.html", "cl": 55, "ucl": 0, "cal": 55, "tl": 141, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/omada/OmadaCrawler.Phases", "rp": "omada_Phases.html", "cl": 507, "ucl": 14, "cal": 521, "tl": 1081, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/omada/OmadaCrawler.Transform", "rp": "omada_Transform.html", "cl": 188, "ucl": 0, "cal": 188, "tl": 372, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "tools/crawlers/omada/Start-OmadaCrawler", "rp": "omada_tools_crawlers_omada_Start_OmadaCrawler.html", "cl": 0, "ucl": 92, "cal": 92, "tl": 282, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
   {
     "name": "tools/powershell-sdk/graph",
