@@ -50,6 +50,21 @@ function Get-OmadaUserGroupMap {
 # OData entity: Resource. Groups records by connected system (SYSTEMREF) for
 # correct per-system scoped-delete. RETURNS the raw Resource objects so the
 # Entitlements phase can extract CHILDROLES relationships without a second fetch.
+# Send one system's resource records to the ingest API (full scoped sync) and echo the
+# counts. Resolves the target system id + display label from the accumulator key.
+# Extracted from Sync-OmadaResources's per-system loop.
+function Send-OmadaResourceBatch {
+    [CmdletBinding()]
+    param($Key, $Records, [int]$SystemId, [hashtable]$OmadaSystemMap = @{}, $AllOmadaSystems)
+    $SysId    = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
+    $SysLabel = if ($Key -eq '__main__') { 'Omada' } else {
+        ($AllOmadaSystems | Where-Object { $_.UId -eq $Key } | Select-Object -First 1).DisplayName
+    }
+    $R = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SysId -SyncMode 'full' -Scope @{} -Records $Records
+    Write-Host "  Resources ($SysLabel, $($Records.Count) records): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+    return $R
+}
+
 function Sync-OmadaResources {
     [CmdletBinding()]
     param(
@@ -83,8 +98,7 @@ function Sync-OmadaResources {
         foreach ($Item in $AllResources) {
             $Rec = ConvertTo-OmadaResourceRecord -Resource $Item -UserGroupMap $UserGroupMap
             if (-not $Rec) { continue }
-            $SysUId = Get-OmadaRefUid -Ref $Item.SYSTEMREF
-            $Key = if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
+            $Key = Resolve-OmadaSysKey -SysUId (Get-OmadaRefUid -Ref $Item.SYSTEMREF) -OmadaSystemMap $OmadaSystemMap
             if (-not $BySysUId.ContainsKey($Key)) { $BySysUId[$Key] = [System.Collections.Generic.List[object]]::new() }
             $BySysUId[$Key].Add($Rec)
         }
@@ -92,14 +106,8 @@ function Sync-OmadaResources {
         Write-Step "Ingesting resources across $($BySysUId.Keys.Count) system(s)..."
         $TotalInserted = 0; $TotalUpdated = 0; $TotalDeleted = 0
         foreach ($Key in $BySysUId.Keys) {
-            $SysId    = if ($Key -eq '__main__') { $SystemId } else { $OmadaSystemMap[$Key] }
-            $SysLabel = if ($Key -eq '__main__') { 'Omada' } else {
-                ($AllOmadaSystems | Where-Object { $_.UId -eq $Key } | Select-Object -First 1).DisplayName
-            }
-            $Recs = @($BySysUId[$Key])
-            $R = Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SysId -SyncMode 'full' `
-                -Scope @{} -Records $Recs
-            Write-Host "  Resources ($SysLabel, $($Recs.Count) records): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+            $R = Send-OmadaResourceBatch -Key $Key -Records @($BySysUId[$Key]) `
+                -SystemId $SystemId -OmadaSystemMap $OmadaSystemMap -AllOmadaSystems $AllOmadaSystems
             $TotalInserted += ($R.inserted ?? 0); $TotalUpdated += ($R.updated ?? 0); $TotalDeleted += ($R.deleted ?? 0)
         }
         Write-Host "  Resources total: +$TotalInserted ~$TotalUpdated -$TotalDeleted" -ForegroundColor Green
@@ -553,27 +561,43 @@ function Sync-OmadaContextMembers {
 # Assignments source 1: group Resourceassignment (role/permission) records by
 # connected system, fanning each identity assignment out to all its User accounts.
 # Only Active/Pending assignments count. Returns @{ sysKey -> List[record] }.
+# Resolve the per-system accumulator key: the system UId when it maps to a known
+# connected system, else the '__main__' catch-all. Shared by the role-assignment and
+# CRA folds.
+function Resolve-OmadaSysKey {
+    [CmdletBinding()]
+    param($SysUId, [hashtable]$OmadaSystemMap = @{})
+    if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
+}
+
+# Classify one role-assignment row into the records it contributes and its system key,
+# or $null to skip. Extracted from Get-OmadaRoleAssignmentsBySystem to keep both flat.
+function ConvertFrom-OmadaRoleAssignmentItem {
+    [CmdletBinding()]
+    param($Item, [hashtable]$IdentityUidToUserUids = @{}, [hashtable]$OmadaSystemMap = @{})
+    $Status = Get-OmadaEnumStr $Item.ROLEASSNSTATUS -Fallback 'Active'
+    if ($Status -notin @('Active', 'Pending')) { return $null }
+    $IdentUid    = if ($Item.IDENTITYREF) { [string]$Item.IDENTITYREF.UId } else { $Null }
+    $ResourceUid = Get-OmadaRefUid -Ref $Item.ROLEREF
+    if (-not $IdentUid -or -not $ResourceUid) { return $null }
+    $UserUids = if ($IdentityUidToUserUids.ContainsKey($IdentUid)) { $IdentityUidToUserUids[$IdentUid] } else { $Null }
+    if (-not $UserUids -or $UserUids.Count -eq 0) { return $null }
+    $SysKey  = Resolve-OmadaSysKey -SysUId (Get-OmadaRefUid -Ref $Item.SYSTEMREF) -OmadaSystemMap $OmadaSystemMap
+    $Records = foreach ($UserUid in $UserUids) {
+        New-OmadaRoleAssignmentRecord -ResourceUid $ResourceUid -PrincipalId $UserUid -RoleAssignment $Item
+    }
+    return @{ SysKey = $SysKey; Records = @($Records) }
+}
+
 function Get-OmadaRoleAssignmentsBySystem {
     [CmdletBinding()]
     param($RaItems, [hashtable]$IdentityUidToUserUids = @{}, [hashtable]$OmadaSystemMap = @{})
     $RaBySys = @{}
     foreach ($Item in $RaItems) {
-        $Status = if ($Item.ROLEASSNSTATUS) { [string]$Item.ROLEASSNSTATUS.Value } else { 'Active' }
-        if ($Status -notin @('Active', 'Pending')) { continue }
-
-        $IdentUid    = if ($Item.IDENTITYREF) { [string]$Item.IDENTITYREF.UId } else { $Null }
-        $ResourceUid = Get-OmadaRefUid -Ref $Item.ROLEREF
-        $SysUId      = Get-OmadaRefUid -Ref $Item.SYSTEMREF
-        if (-not $IdentUid -or -not $ResourceUid) { continue }
-
-        $UserUids = if ($IdentityUidToUserUids.ContainsKey($IdentUid)) { $IdentityUidToUserUids[$IdentUid] } else { $Null }
-        if (-not $UserUids -or $UserUids.Count -eq 0) { continue }
-
-        $SysKey = if ($SysUId -and $OmadaSystemMap.ContainsKey($SysUId)) { $SysUId } else { '__main__' }
-        if (-not $RaBySys.ContainsKey($SysKey)) { $RaBySys[$SysKey] = [System.Collections.Generic.List[object]]::new() }
-        foreach ($UserUid in $UserUids) {
-            $RaBySys[$SysKey].Add((New-OmadaRoleAssignmentRecord -ResourceUid $ResourceUid -PrincipalId $UserUid -RoleAssignment $Item))
-        }
+        $Ra = ConvertFrom-OmadaRoleAssignmentItem -Item $Item -IdentityUidToUserUids $IdentityUidToUserUids -OmadaSystemMap $OmadaSystemMap
+        if (-not $Ra) { continue }
+        if (-not $RaBySys.ContainsKey($Ra.SysKey)) { $RaBySys[$Ra.SysKey] = [System.Collections.Generic.List[object]]::new() }
+        foreach ($Rec in $Ra.Records) { $RaBySys[$Ra.SysKey].Add($Rec) }
     }
     return $RaBySys
 }
@@ -610,7 +634,7 @@ function ConvertFrom-OmadaCraItem {
     $F = Get-OmadaCraFields -Item $Item
     if (-not $F.resourceUid -or -not $F.identityUid) { return $null }
 
-    $SysKey = if ($F.sysUId -and $OmadaSystemMap.ContainsKey($F.sysUId)) { $F.sysUId } else { '__main__' }
+    $SysKey = Resolve-OmadaSysKey -SysUId $F.sysUId -OmadaSystemMap $OmadaSystemMap
     $IsOmadaSys = ($F.sysUId -and $F.sysUId -eq $OmadaIdentitySystemUId)
     $PrincipalUid = $Null
     $Principal = $Null
@@ -638,6 +662,23 @@ function ConvertFrom-OmadaCraItem {
     if (-not $PrincipalUid) { return $null }
     $Assignment = ConvertTo-OmadaCraAssignmentRecord -CalculatedAssignment $Item -ResourceUid $F.resourceUid -PrincipalId $PrincipalUid -ResType $F.resType -AccountName $F.accountName
     return @{ sysKey = $SysKey; principal = $Principal; identityMember = $IdentityMember; assignment = $Assignment }
+}
+
+# Fold one classified CRA result into the per-system principal / identity-member /
+# assignment accumulators (all reference types, mutated in place). Extracted from
+# Get-OmadaCraData's page loop to keep it flat.
+function Add-OmadaCraResultToAccumulators {
+    [CmdletBinding()]
+    param($Result, [hashtable]$PrincipalsBySys, $IdentityMembers, [hashtable]$AssignmentsBySys)
+    if ($Result.principal) {
+        if (-not $PrincipalsBySys.ContainsKey($Result.sysKey)) { $PrincipalsBySys[$Result.sysKey] = [System.Collections.Generic.List[object]]::new() }
+        $PrincipalsBySys[$Result.sysKey].Add($Result.principal)
+    }
+    if ($Result.identityMember) { $IdentityMembers.Add($Result.identityMember) }
+    if ($Result.assignment) {
+        if (-not $AssignmentsBySys.ContainsKey($Result.sysKey)) { $AssignmentsBySys[$Result.sysKey] = [System.Collections.Generic.List[object]]::new() }
+        $AssignmentsBySys[$Result.sysKey].Add($Result.assignment)
+    }
 }
 
 # Assignments source 2: stream /Builtin/CalculatedAssignments page-by-page (cloud
@@ -677,15 +718,8 @@ function Get-OmadaCraData {
                 -OmadaIdentitySystemUId $OmadaIdentitySystemUId -UserNameToUid $UserNameToUid `
                 -IdentityUidInIdentitiesTable $IdentityUidInIdentitiesTable
             if (-not $Res) { continue }
-            if ($Res.principal) {
-                if (-not $PrincipalsBySys.ContainsKey($Res.sysKey)) { $PrincipalsBySys[$Res.sysKey] = [System.Collections.Generic.List[object]]::new() }
-                $PrincipalsBySys[$Res.sysKey].Add($Res.principal)
-            }
-            if ($Res.identityMember) { $IdentityMembers.Add($Res.identityMember) }
-            if ($Res.assignment) {
-                if (-not $AssignmentsBySys.ContainsKey($Res.sysKey)) { $AssignmentsBySys[$Res.sysKey] = [System.Collections.Generic.List[object]]::new() }
-                $AssignmentsBySys[$Res.sysKey].Add($Res.assignment)
-            }
+            Add-OmadaCraResultToAccumulators -Result $Res -PrincipalsBySys $PrincipalsBySys `
+                -IdentityMembers $IdentityMembers -AssignmentsBySys $AssignmentsBySys
         }
     } while ($Page.Count -gt 0)
 
@@ -991,6 +1025,39 @@ function Register-OmadaSystems {
 # Prints the per-phase table, posts phase results to the jobs API, and throws if
 # any phase failed (so the worker marks the job failed). Reads $Script:phases /
 # $Script:phaseErrors from the caller's scope.
+# Print one phase's summary line (green ok / red FAILED).
+function Write-OmadaPhaseLine {
+    [CmdletBinding()]
+    param($Phase)
+    $Status = if ($Phase.status -eq 'ok') { 'ok' } else { 'FAILED' }
+    $Color  = if ($Phase.status -eq 'ok') { 'Green' } else { 'Red' }
+    Write-Host ("{0,-20} {1,-10} {2}ms" -f $Phase.name, $Status, $Phase.durationMs) -ForegroundColor $Color
+}
+
+# Post per-phase results to the jobs API for the UI phase breakout (best-effort;
+# a no-op when there is no job id). Extracted from Write-OmadaSummary.
+function Send-OmadaPhaseResults {
+    [CmdletBinding()]
+    param($Phases, [int]$JobId, [string]$ApiKey, [string]$ApiBaseUrl)
+    if ($JobId -le 0) { return }
+    try {
+        $PhasePayload = @{
+            phases = @($Phases | ForEach-Object {
+                    $P = @{ name = $_.name; status = $_.status; durationMs = $_.durationMs }
+                    if ($_.error)   { $P.error   = $_.error }
+                    if ($_.records) { $P.records = $_.records }
+                    $P
+                })
+        }
+        Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/jobs/$JobId/phases" -Method Post -TimeoutSec 15 `
+            -Headers @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' } `
+            -Body ($PhasePayload | ConvertTo-Json -Depth 5 -Compress) | Out-Null
+    }
+    catch {
+        Write-Host "  Warning: could not post phase results — $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
 function Write-OmadaSummary {
     [CmdletBinding()]
     param([datetime]$StartTime, [int]$JobId, [string]$ApiKey, [string]$ApiBaseUrl)
@@ -1000,30 +1067,9 @@ function Write-OmadaSummary {
     Write-Host ""
     Write-Host ("{0,-20} {1,-10} {2}" -f 'Phase', 'Status', 'Duration') -ForegroundColor Gray
     Write-Host ("{0,-20} {1,-10} {2}" -f ('─'*20), ('─'*10), ('─'*10)) -ForegroundColor Gray
-    foreach ($P in $Script:phases) {
-        $Status = if ($P.status -eq 'ok') { 'ok' } else { 'FAILED' }
-        $Color  = if ($P.status -eq 'ok') { 'Green' } else { 'Red' }
-        Write-Host ("{0,-20} {1,-10} {2}ms" -f $P.name, $Status, $P.durationMs) -ForegroundColor $Color
-    }
+    foreach ($P in $Script:phases) { Write-OmadaPhaseLine -Phase $P }
 
-    # Post per-phase results to the jobs API for the UI phase breakout.
-    if ($JobId -gt 0) {
-        try {
-            $PhasePayload = @{
-                phases = @($Script:phases | ForEach-Object {
-                    $P = @{ name = $_.name; status = $_.status; durationMs = $_.durationMs }
-                    if ($_.error)   { $P.error   = $_.error }
-                    if ($_.records) { $P.records = $_.records }
-                    $P
-                })
-            }
-            Invoke-RestMethod -Uri "$ApiBaseUrl/crawlers/jobs/$JobId/phases" -Method Post -TimeoutSec 15 `
-                -Headers @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' } `
-                -Body ($PhasePayload | ConvertTo-Json -Depth 5 -Compress) | Out-Null
-        } catch {
-            Write-Host "  Warning: could not post phase results — $($_.Exception.Message)" -ForegroundColor Yellow
-        }
-    }
+    Send-OmadaPhaseResults -Phases $Script:phases -JobId $JobId -ApiKey $ApiKey -ApiBaseUrl $ApiBaseUrl
 
     if ($Script:phaseErrors.Count -gt 0) {
         Write-Host "`nPhase errors:" -ForegroundColor Red

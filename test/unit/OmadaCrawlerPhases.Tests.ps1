@@ -678,3 +678,15 @@ Describe 'Write-OmadaSummary' {
         Should -Invoke Invoke-RestMethod -Times 1
     }
 }
+
+Describe 'Resolve-OmadaSysKey' {
+    It 'returns the system UId when it maps to a known connected system' {
+        Resolve-OmadaSysKey -SysUId 'sys1' -OmadaSystemMap @{ sys1 = 5 } | Should -Be 'sys1'
+    }
+    It 'falls back to __main__ for an unknown system UId' {
+        Resolve-OmadaSysKey -SysUId 'nope' -OmadaSystemMap @{ sys1 = 5 } | Should -Be '__main__'
+    }
+    It 'falls back to __main__ when the UId is null/empty' {
+        Resolve-OmadaSysKey -SysUId $null -OmadaSystemMap @{ sys1 = 5 } | Should -Be '__main__'
+    }
+}

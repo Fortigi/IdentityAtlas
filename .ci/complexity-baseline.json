@@ -6,11 +6,58 @@
     "js": 20
   },
   "files": {
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/setup/docker/Invoke-CrawlerJob.ps1": [
+      59
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/setup/docker/scheduler.ps1": [
+      23
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/test/nightly/Test-RiskScoring.ps1": [
+      41
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/test/nightly/Test-RiskScoringLLM.ps1": [
+      50
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/crawlers/csv/Start-CSVCrawler.ps1": [
+      125
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/crawlers/entra-id/Start-EntraIDCrawler.ps1": [
+      284,
+      19,
+      18
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Get-FGSecureConfigValue.ps1": [
+      17
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Get-FGServicePrincipalWithSync.ps1": [
+      34
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Invoke-FGGetRequest.ps1": [
+      38
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Invoke-FGGetRequestStream.ps1": [
+      20
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Invoke-FGGetRequestToFile.ps1": [
+      37
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/graph/Update-FGConfig.ps1": [
+      28
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/helpers/Add-FGEntraCalculatedAttributes.ps1": [
+      16
+    ],
+    ".claude/worktrees/agent-adf3cbd1dc93f2ffa/tools/powershell-sdk/helpers/Confirm-FGGroupMember.ps1": [
+      19
+    ],
     "app/api/src/contexts/plugins/manager-hierarchy.js": [
       36
     ],
     "app/api/src/contexts/plugins/resource-type-tree.js": [
       32
+    ],
+    "app/api/src/contexts/plugins/risky-app-consent.js": [
+      29
     ],
     "app/api/src/contexts/plugins/runner.js": [
       27

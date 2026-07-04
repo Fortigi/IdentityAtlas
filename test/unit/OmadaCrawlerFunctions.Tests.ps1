@@ -266,3 +266,37 @@ Describe 'Send-IngestBatch' {
         }
     }
 }
+
+Describe 'Get-OmadaStr / Get-OmadaEnumStr / Join-OmadaDisplayNames' {
+    It 'Get-OmadaStr coalesces a set scalar to string, else the fallback' {
+        Get-OmadaStr 'hello'            | Should -Be 'hello'
+        Get-OmadaStr $null             | Should -Be ''
+        Get-OmadaStr 0                 | Should -Be ''        # 0 is falsy -> fallback
+        Get-OmadaStr '' -Fallback 'x'  | Should -Be 'x'
+    }
+    It 'Get-OmadaEnumStr reads .Value of a set enum ref, else the fallback' {
+        Get-OmadaEnumStr ([pscustomobject]@{ Value = 'Active' })    | Should -Be 'Active'
+        Get-OmadaEnumStr $null                                      | Should -Be ''
+        Get-OmadaEnumStr $null -Fallback 'Active'                   | Should -Be 'Active'
+    }
+    It 'Join-OmadaDisplayNames joins DisplayName with "; ", empty for null/empty' {
+        Join-OmadaDisplayNames @([pscustomobject]@{ DisplayName = 'A' }, [pscustomobject]@{ DisplayName = 'B' }) | Should -Be 'A; B'
+        Join-OmadaDisplayNames $null | Should -Be ''
+        Join-OmadaDisplayNames @()   | Should -Be ''
+    }
+}
+
+Describe 'Merge-OmadaOverrideValue' {
+    It 'merges a PSCustomObject override onto the default hashtable' {
+        $r = Merge-OmadaOverrideValue -DefaultValue @{ a = 1; b = 2 } -Override ([pscustomobject]@{ b = 3; c = 4 })
+        $r.a | Should -Be 1
+        $r.b | Should -Be 3
+        $r.c | Should -Be 4
+    }
+    It 'replaces wholesale for an array override' {
+        (Merge-OmadaOverrideValue -DefaultValue @(1) -Override @(2, 3)) | Should -Be @(2, 3)
+    }
+    It 'replaces for a scalar override' {
+        Merge-OmadaOverrideValue -DefaultValue 'x' -Override 'y' | Should -Be 'y'
+    }
+}

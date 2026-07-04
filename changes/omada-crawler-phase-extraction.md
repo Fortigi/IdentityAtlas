@@ -1,3 +1,4 @@
 - Internal: extracted the Omada crawler's resource, entitlement, and view-refresh sync phases out of the monolithic entry point into unit-tested `Sync-Omada*` functions (no functional change to what gets synced).
 - Fixed: the Omada crawler's assignment phase referenced an undefined variable when computing its per-phase record summary, so the CRA-assignment count could be dropped from the sync-log breakdown.
 - Internal: extracted the Omada crawler's config resolution, connection/system-registration setup, and end-of-run summary out of the entry point into unit-tested helpers, so the entry point is now thin orchestration only.
+- Internal: flattened the Omada crawler's deepest transform and phase helpers (attribute mapping, CRA folding, role-assignment classification, resource ingest, run summary) so every unit now clears the cognitive-complexity gate, with direct tests for the new coalesce/merge/system-key helpers.
