@@ -794,6 +794,19 @@ if ($SyncAssignments) {
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
         -Scope @{ assignmentType = 'Direct'; resourceType = 'EntraGroup' } -Records $allMembers
 
+    # Nested-group indirect memberships — expand group-in-group nesting into
+    # per-user Indirect rows so the matrix shows inherited members. Derived from
+    # the direct-membership edges we just fetched (no extra Graph calls); the
+    # matrix reads a declared-only matview, so these must be materialized the same
+    # way AppRole-via-group Indirect rows are. Sent as its own scoped full-sync
+    # batch so its reconcile-delete partition is separate from Direct memberships.
+    $indirectMembers = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers $allMembers)
+    if ($indirectMembers.Count -gt 0) {
+        Update-CrawlerProgress -Detail "Uploading $($indirectMembers.Count) indirect (nested-group) memberships..."
+        Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
+            -Scope @{ assignmentType = 'Indirect'; resourceType = 'EntraGroup' } -Records $indirectMembers
+    }
+
     # Group Owners — modelled as a Direct assignment to a synthetic
     # "Owner @ <group>" resource (resourceType='GroupOwnership'), linked to the
     # group by a HasOwnership relationship — mirroring how an AppRole hangs off

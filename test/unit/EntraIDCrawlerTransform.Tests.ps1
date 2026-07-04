@@ -675,3 +675,94 @@ Describe 'ConvertTo-EntraDirectoryRoleEligibility' {
         ConvertTo-EntraDirectoryRoleEligibility -Eligibility ([pscustomobject]@{ principalId = 'u1' }) | Should -BeNullOrEmpty
     }
 }
+
+Describe 'ConvertTo-EntraNestedGroupIndirectAssignments' {
+
+    BeforeAll {
+        # Helper: one direct-membership edge in the shape the members phase builds.
+        # Defined in BeforeAll so it's available during the Pester v5 run phase.
+        function New-Edge {
+            param([string]$Group, [string]$Principal, [string]$Type)
+            @{ resourceId = $Group; principalId = $Principal; principalType = $Type }
+        }
+    }
+
+    It 'expands a single level of nesting into an Indirect row for the child group user' {
+        # G contains group A; A contains user u1.
+        $edges = @(
+            (New-Edge -Group 'G' -Principal 'A'  -Type 'Group'),
+            (New-Edge -Group 'A' -Principal 'u1' -Type 'User')
+        )
+        $out = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers $edges)
+        $gRows = @($out | Where-Object { $_.resourceId -eq 'G' })
+        $gRows.Count               | Should -Be 1
+        $gRows[0].principalId      | Should -Be 'u1'
+        $gRows[0].assignmentType   | Should -Be 'Indirect'
+        $gRows[0].resourceType     | Should -Be 'EntraGroup'
+        $gRows[0].principalType    | Should -Be 'User'
+    }
+
+    It 'expands multiple levels of nesting (G > A > B > user)' {
+        $edges = @(
+            (New-Edge -Group 'G' -Principal 'A'  -Type 'Group'),
+            (New-Edge -Group 'A' -Principal 'B'  -Type 'Group'),
+            (New-Edge -Group 'B' -Principal 'u2' -Type 'User')
+        )
+        $out = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers $edges)
+        # u2 is indirect on both G (two levels up) and A (one level up).
+        (@($out | Where-Object { $_.resourceId -eq 'G' -and $_.principalId -eq 'u2' })).Count | Should -Be 1
+        (@($out | Where-Object { $_.resourceId -eq 'A' -and $_.principalId -eq 'u2' })).Count | Should -Be 1
+    }
+
+    It 'does not emit an Indirect row for a user who is already a Direct member of the group' {
+        # u3 is both a direct member of G and a member of nested A. Direct wins.
+        $edges = @(
+            (New-Edge -Group 'G' -Principal 'A'  -Type 'Group'),
+            (New-Edge -Group 'G' -Principal 'u3' -Type 'User'),
+            (New-Edge -Group 'A' -Principal 'u3' -Type 'User'),
+            (New-Edge -Group 'A' -Principal 'u4' -Type 'User')
+        )
+        $out = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers $edges)
+        (@($out | Where-Object { $_.resourceId -eq 'G' -and $_.principalId -eq 'u3' })).Count | Should -Be 0
+        (@($out | Where-Object { $_.resourceId -eq 'G' -and $_.principalId -eq 'u4' })).Count | Should -Be 1
+    }
+
+    It 'is cycle-safe (A contains B, B contains A) and still collects users' {
+        $edges = @(
+            (New-Edge -Group 'A' -Principal 'B'  -Type 'Group'),
+            (New-Edge -Group 'B' -Principal 'A'  -Type 'Group'),
+            (New-Edge -Group 'A' -Principal 'u5' -Type 'User'),
+            (New-Edge -Group 'B' -Principal 'u6' -Type 'User')
+        )
+        $out = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers $edges)
+        # A reaches u6 via B; B reaches u5 via A. No infinite loop.
+        (@($out | Where-Object { $_.resourceId -eq 'A' -and $_.principalId -eq 'u6' })).Count | Should -Be 1
+        (@($out | Where-Object { $_.resourceId -eq 'B' -and $_.principalId -eq 'u5' })).Count | Should -Be 1
+    }
+
+    It 'dedupes a user reachable via two nested paths (diamond) into one row' {
+        # G contains A and B; both A and B contain u7.
+        $edges = @(
+            (New-Edge -Group 'G' -Principal 'A'  -Type 'Group'),
+            (New-Edge -Group 'G' -Principal 'B'  -Type 'Group'),
+            (New-Edge -Group 'A' -Principal 'u7' -Type 'User'),
+            (New-Edge -Group 'B' -Principal 'u7' -Type 'User')
+        )
+        $out = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers $edges)
+        (@($out | Where-Object { $_.resourceId -eq 'G' -and $_.principalId -eq 'u7' })).Count | Should -Be 1
+    }
+
+    It 'returns nothing when there is no group-in-group nesting' {
+        $edges = @(
+            (New-Edge -Group 'G' -Principal 'u1' -Type 'User'),
+            (New-Edge -Group 'G' -Principal 'u2' -Type 'User')
+        )
+        $out = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers $edges)
+        $out.Count | Should -Be 0
+    }
+
+    It 'returns nothing for an empty edge list' {
+        $out = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers @())
+        $out.Count | Should -Be 0
+    }
+}

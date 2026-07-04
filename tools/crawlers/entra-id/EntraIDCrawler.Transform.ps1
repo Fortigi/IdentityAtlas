@@ -741,3 +741,87 @@ function ConvertTo-EntraDirectoryRoleEligibility {
         }
     }
 }
+
+# Expands group-in-group nesting into per-user Indirect EntraGroup assignments so
+# the matrix shows inherited members. Derived entirely from the direct-membership
+# edges the Sync-Assignments phase already fetched (every group's /members) — no
+# extra Graph calls. Mirrors how AppRole-via-group materializes Indirect rows,
+# because the matrix reads a declared-only matview and never walks nesting itself.
+#
+# $DirectMembers is the flat edge list the members phase builds — one hashtable
+# per (group, direct child) with keys: resourceId (the group), principalId (the
+# child), principalType ('Group' for a nested group, else 'User').
+#
+# For every group that directly contains at least one nested group, we walk the
+# nesting downward (cycle-safe) to collect the transitive USER set, then emit an
+# Indirect row for each such user that is NOT already a Direct member of that
+# group (a direct membership is the stronger statement and is emitted elsewhere).
+function ConvertTo-EntraNestedGroupIndirectAssignments {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] $DirectMembers)
+
+    # Build adjacency once: group -> nested child groups, group -> direct users.
+    $childGroups = @{}   # groupId -> List[string] (nested group ids)
+    $directUsers = @{}   # groupId -> HashSet[string] (direct user principal ids)
+    foreach ($m in $DirectMembers) {
+        $gid      = [string]$m.resourceId
+        $memberId = [string]$m.principalId
+        if ($m.principalType -eq 'Group') {
+            if (-not $childGroups.ContainsKey($gid)) {
+                $childGroups[$gid] = [System.Collections.Generic.List[string]]::new()
+            }
+            $childGroups[$gid].Add($memberId)
+        }
+        else {
+            if (-not $directUsers.ContainsKey($gid)) {
+                $directUsers[$gid] = [System.Collections.Generic.HashSet[string]]::new()
+            }
+            [void]$directUsers[$gid].Add($memberId)
+        }
+    }
+
+    $out = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($rootId in $childGroups.Keys) {
+        # Depth-first walk of the nesting below $rootId, collecting reachable users.
+        # $visited guards against membership cycles (A∈B, B∈A) and diamonds.
+        $transitiveUsers = [System.Collections.Generic.HashSet[string]]::new()
+        $visited         = [System.Collections.Generic.HashSet[string]]::new()
+        $stack           = [System.Collections.Generic.Stack[string]]::new()
+        foreach ($cg in $childGroups[$rootId]) {
+            [void]$stack.Push($cg)
+        }
+        while ($stack.Count -gt 0) {
+            $g = $stack.Pop()
+            if (-not $visited.Add($g)) {
+                continue
+            }
+            if ($directUsers.ContainsKey($g)) {
+                foreach ($u in $directUsers[$g]) {
+                    [void]$transitiveUsers.Add($u)
+                }
+            }
+            if ($childGroups.ContainsKey($g)) {
+                foreach ($cg in $childGroups[$g]) {
+                    [void]$stack.Push($cg)
+                }
+            }
+        }
+
+        $rootDirect = if ($directUsers.ContainsKey($rootId)) { $directUsers[$rootId] } else { $null }
+        foreach ($u in $transitiveUsers) {
+            if ($rootDirect -and $rootDirect.Contains($u)) {
+                continue
+            }
+            $out.Add(@{
+                resourceId     = $rootId
+                principalId    = $u
+                assignmentType = 'Indirect'
+                resourceType   = 'EntraGroup'
+                principalType  = 'User'
+            })
+        }
+    }
+
+    return @($out)
+}
