@@ -742,6 +742,33 @@ function ConvertTo-EntraDirectoryRoleEligibility {
     }
 }
 
+# Builds the two adjacency maps the nested-group expansion walks, from the flat
+# direct-membership edge list: group -> its nested child groups, and group -> its
+# direct user members. Pure; no I/O. Extracted so the expansion below stays flat.
+function Get-EntraGroupAdjacency {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] $DirectMembers)
+    $childGroups = @{}   # groupId -> List[string] (nested group ids)
+    $directUsers = @{}   # groupId -> HashSet[string] (direct user principal ids)
+    foreach ($m in $DirectMembers) {
+        $gid      = [string]$m.resourceId
+        $memberId = [string]$m.principalId
+        if ($m.principalType -eq 'Group') {
+            if (-not $childGroups.ContainsKey($gid)) {
+                $childGroups[$gid] = [System.Collections.Generic.List[string]]::new()
+            }
+            $childGroups[$gid].Add($memberId)
+        }
+        else {
+            if (-not $directUsers.ContainsKey($gid)) {
+                $directUsers[$gid] = [System.Collections.Generic.HashSet[string]]::new()
+            }
+            [void]$directUsers[$gid].Add($memberId)
+        }
+    }
+    return @{ ChildGroups = $childGroups; DirectUsers = $directUsers }
+}
+
 # Collects every user reachable below a set of seed child groups by walking the
 # group-nesting graph downward. Cycle-safe ($visited) so a membership cycle
 # (A∈B, B∈A) or a diamond can't loop or double-count. Pure; no I/O. Extracted
@@ -796,27 +823,10 @@ function ConvertTo-EntraNestedGroupIndirectAssignments {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [AllowEmptyCollection()] $DirectMembers)
 
-    # Build adjacency once: group -> nested child groups, group -> direct users.
-    $childGroups = @{}   # groupId -> List[string] (nested group ids)
-    $directUsers = @{}   # groupId -> HashSet[string] (direct user principal ids)
-    foreach ($m in $DirectMembers) {
-        $gid      = [string]$m.resourceId
-        $memberId = [string]$m.principalId
-        if ($m.principalType -eq 'Group') {
-            if (-not $childGroups.ContainsKey($gid)) {
-                $childGroups[$gid] = [System.Collections.Generic.List[string]]::new()
-            }
-            $childGroups[$gid].Add($memberId)
-        }
-        else {
-            if (-not $directUsers.ContainsKey($gid)) {
-                $directUsers[$gid] = [System.Collections.Generic.HashSet[string]]::new()
-            }
-            [void]$directUsers[$gid].Add($memberId)
-        }
-    }
-
-    $out = [System.Collections.Generic.List[object]]::new()
+    $adj         = Get-EntraGroupAdjacency -DirectMembers $DirectMembers
+    $childGroups = $adj.ChildGroups
+    $directUsers = $adj.DirectUsers
+    $out         = [System.Collections.Generic.List[object]]::new()
 
     foreach ($rootId in $childGroups.Keys) {
         $transitiveUsers = Get-EntraNestedGroupUserSet -SeedGroups $childGroups[$rootId] `
