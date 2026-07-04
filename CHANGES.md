@@ -1,5 +1,14 @@
 ## Changes in this PR
 
+- Internal: extracted the CSV crawler's Systems, Contexts, and ContextMembers sync phases out of the monolithic entry point into unit-tested `Sync-Csv*` functions and pure `ConvertTo-Csv*Record` record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's Resources and ResourceRelationships sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's Users (principals) and Assignments sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's Identities, IdentityMembers, and Certifications sync phases into unit-tested `Sync-Csv*` functions and pure record-shapers (no functional change to what gets imported).
+- Internal: extracted the CSV crawler's config resolution, fallback-system registration, and post-import classify/refresh/log steps into unit-tested functions, reducing the entry point to pure orchestration below the complexity ceiling (no functional change).
+- Internal: flattened the CSV crawler's remaining deep helpers (fast-path reader, per-system dedup/send, and the resource/assignment/certification sync phases) so every unit clears the cognitive-complexity gate, with direct tests for the new column-index/dedup helpers and mutation-testing coverage of the CSV record-shapers.
+
+## Changes in this PR
+
 - Internal: extracted the Omada crawler's resource, entitlement, and view-refresh sync phases out of the monolithic entry point into unit-tested `Sync-Omada*` functions (no functional change to what gets synced).
 - Fixed: the Omada crawler's assignment phase referenced an undefined variable when computing its per-phase record summary, so the CRA-assignment count could be dropped from the sync-log breakdown.
 - Internal: extracted the Omada crawler's config resolution, connection/system-registration setup, and end-of-run summary out of the entry point into unit-tested helpers, so the entry point is now thin orchestration only.
