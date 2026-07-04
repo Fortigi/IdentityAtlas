@@ -742,6 +742,42 @@ function ConvertTo-EntraDirectoryRoleEligibility {
     }
 }
 
+# Collects every user reachable below a set of seed child groups by walking the
+# group-nesting graph downward. Cycle-safe ($visited) so a membership cycle
+# (A∈B, B∈A) or a diamond can't loop or double-count. Pure; no I/O. Extracted
+# from ConvertTo-EntraNestedGroupIndirectAssignments to keep each unit small.
+function Get-EntraNestedGroupUserSet {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $SeedGroups,   # child group ids directly under the root
+        [Parameter(Mandatory)] $ChildGroups,  # groupId -> List[string] (nested group ids)
+        [Parameter(Mandatory)] $DirectUsers   # groupId -> HashSet[string] (direct user ids)
+    )
+    $users   = [System.Collections.Generic.HashSet[string]]::new()
+    $visited = [System.Collections.Generic.HashSet[string]]::new()
+    $stack   = [System.Collections.Generic.Stack[string]]::new()
+    foreach ($cg in $SeedGroups) {
+        [void]$stack.Push($cg)
+    }
+    while ($stack.Count -gt 0) {
+        $g = $stack.Pop()
+        if (-not $visited.Add($g)) {
+            continue
+        }
+        if ($DirectUsers.ContainsKey($g)) {
+            foreach ($u in $DirectUsers[$g]) {
+                [void]$users.Add($u)
+            }
+        }
+        if ($ChildGroups.ContainsKey($g)) {
+            foreach ($cg in $ChildGroups[$g]) {
+                [void]$stack.Push($cg)
+            }
+        }
+    }
+    return $users
+}
+
 # Expands group-in-group nesting into per-user Indirect EntraGroup assignments so
 # the matrix shows inherited members. Derived entirely from the direct-membership
 # edges the Sync-Assignments phase already fetched (every group's /members) — no
@@ -783,31 +819,8 @@ function ConvertTo-EntraNestedGroupIndirectAssignments {
     $out = [System.Collections.Generic.List[object]]::new()
 
     foreach ($rootId in $childGroups.Keys) {
-        # Depth-first walk of the nesting below $rootId, collecting reachable users.
-        # $visited guards against membership cycles (A∈B, B∈A) and diamonds.
-        $transitiveUsers = [System.Collections.Generic.HashSet[string]]::new()
-        $visited         = [System.Collections.Generic.HashSet[string]]::new()
-        $stack           = [System.Collections.Generic.Stack[string]]::new()
-        foreach ($cg in $childGroups[$rootId]) {
-            [void]$stack.Push($cg)
-        }
-        while ($stack.Count -gt 0) {
-            $g = $stack.Pop()
-            if (-not $visited.Add($g)) {
-                continue
-            }
-            if ($directUsers.ContainsKey($g)) {
-                foreach ($u in $directUsers[$g]) {
-                    [void]$transitiveUsers.Add($u)
-                }
-            }
-            if ($childGroups.ContainsKey($g)) {
-                foreach ($cg in $childGroups[$g]) {
-                    [void]$stack.Push($cg)
-                }
-            }
-        }
-
+        $transitiveUsers = Get-EntraNestedGroupUserSet -SeedGroups $childGroups[$rootId] `
+            -ChildGroups $childGroups -DirectUsers $directUsers
         $rootDirect = if ($directUsers.ContainsKey($rootId)) { $directUsers[$rootId] } else { $null }
         foreach ($u in $transitiveUsers) {
             if ($rootDirect -and $rootDirect.Contains($u)) {

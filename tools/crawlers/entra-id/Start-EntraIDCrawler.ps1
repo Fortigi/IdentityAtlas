@@ -800,12 +800,12 @@ if ($SyncAssignments) {
     # matrix reads a declared-only matview, so these must be materialized the same
     # way AppRole-via-group Indirect rows are. Sent as its own scoped full-sync
     # batch so its reconcile-delete partition is separate from Direct memberships.
+    # Sent unconditionally (like the Direct batch above); Send-IngestBatch no-ops
+    # on an empty set, so a tenant with no nesting simply sends nothing.
     $indirectMembers = @(ConvertTo-EntraNestedGroupIndirectAssignments -DirectMembers $allMembers)
-    if ($indirectMembers.Count -gt 0) {
-        Update-CrawlerProgress -Detail "Uploading $($indirectMembers.Count) indirect (nested-group) memberships..."
-        Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
-            -Scope @{ assignmentType = 'Indirect'; resourceType = 'EntraGroup' } -Records $indirectMembers
-    }
+    Update-CrawlerProgress -Detail "Uploading $($indirectMembers.Count) indirect (nested-group) memberships..."
+    Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $systemId -SyncMode 'full' `
+        -Scope @{ assignmentType = 'Indirect'; resourceType = 'EntraGroup' } -Records $indirectMembers
 
     # Group Owners — modelled as a Direct assignment to a synthetic
     # "Owner @ <group>" resource (resourceType='GroupOwnership'), linked to the
