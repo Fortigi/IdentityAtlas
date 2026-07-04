@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Internal: extracted the Omada crawler's resource, entitlement, and view-refresh sync phases out of the monolithic entry point into unit-tested `Sync-Omada*` functions (no functional change to what gets synced).
+- Fixed: the Omada crawler's assignment phase referenced an undefined variable when computing its per-phase record summary, so the CRA-assignment count could be dropped from the sync-log breakdown.
+- Internal: extracted the Omada crawler's config resolution, connection/system-registration setup, and end-of-run summary out of the entry point into unit-tested helpers, so the entry point is now thin orchestration only.
+- Internal: flattened the Omada crawler's deepest transform and phase helpers (attribute mapping, CRA folding, role-assignment classification, resource ingest, run summary) so every unit now clears the cognitive-complexity gate, with direct tests for the new coalesce/merge/system-key helpers.
+
+## Changes in this PR
+
 - Internal: extracted the Entra ID crawler's user-principal, OAuth2 grants, app-role, directory-role, group-resource, group-assignment, PIM-eligibility, service-principal, sign-in-logs, and governance (catalogs, access packages, resource scopes, assignments, policies, access reviews) sync phases — including the filtered identity sub-sync — out of the monolithic entry point into unit-tested `Sync-Entra*` functions (no functional change to what gets synced).
 - Internal: extracted the Entra ID crawler's config resolution, run initialization, view-refresh, and end-of-run summary/finalization out of the entry point into unit-tested helpers, so the entry point is now thin orchestration only.
 - Fixed: PIM eligible group memberships were silently skipped on tenants where exactly one non-dynamic group survived filtering.
