@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Internal: extracted the Entra ID crawler's user-principal, OAuth2 grants, app-role, directory-role, group-resource, group-assignment, PIM-eligibility, service-principal, sign-in-logs, and governance (catalogs, access packages, resource scopes, assignments, policies, access reviews) sync phases — including the filtered identity sub-sync — out of the monolithic entry point into unit-tested `Sync-Entra*` functions (no functional change to what gets synced).
+- Internal: extracted the Entra ID crawler's config resolution, run initialization, view-refresh, and end-of-run summary/finalization out of the entry point into unit-tested helpers, so the entry point is now thin orchestration only.
+- Fixed: PIM eligible group memberships were silently skipped on tenants where exactly one non-dynamic group survived filtering.
+
+## Changes in this PR
+
 - The Matrix now shows indirect members of nested Entra groups. When a security group is a member of another group, the child group's users now appear as indirect (I) members of the parent group — matching how access via an app role in a group already displayed. Previously group-in-group nesting showed no indirect members at all.
 
 ## Changes in this PR
