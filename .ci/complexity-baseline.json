@@ -12,6 +12,9 @@
     "app/api/src/contexts/plugins/resource-type-tree.js": [
       32
     ],
+    "app/api/src/contexts/plugins/risky-app-consent.js": [
+      29
+    ],
     "app/api/src/contexts/plugins/runner.js": [
       27
     ],

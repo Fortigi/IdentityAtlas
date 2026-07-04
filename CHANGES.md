@@ -1,5 +1,23 @@
 ## Changes in this PR
 
+- The Matrix now shows indirect members of nested Entra groups. When a security group is a member of another group, the child group's users now appear as indirect (I) members of the parent group — matching how access via an app role in a group already displayed. Previously group-in-group nesting showed no indirect members at all.
+
+## Changes in this PR
+
+- Internal: added a cognitive-complexity ratchet to CI (alongside the existing cyclomatic one) that gates PowerShell and Python code on how deeply nested / hard-to-follow it is, not just how many branches it has — flagging readability debt the cyclomatic gate misses.
+- Internal: PowerShell complexity is now measured by the published PSComplexity module (a faithful, reference-validated SonarSource cognitive metric) feeding both ratchets, instead of a bundled measurer — `measure_ps.ps1` is now a thin selector over it.
+- Internal: added PowerShell mutation testing via the published PSMutant module (report-only) over the decomposed crawler transforms — the metric that proves the tests would catch a bug, not just execute the line.
+
+## Changes in this PR
+
+- Fixed context plugins (e.g. Active Directory OU Tree) spawning a brand-new duplicate tree on every crawl instead of updating the existing one in place. Legacy trees created before per-tree instance keys were introduced now refresh onto themselves, so member counts and analyst edits are preserved and the tree list no longer explodes.
+
+## Changes in this PR
+
+- Fixed the **Next** button on the Users, Resources (Groups) and Identities list pages throwing an error when paging past the first page. The page count is only sent on the first page for export efficiency, and the UI was mishandling its absence on later pages — it now keeps the known total so pagination works across every page.
+
+## Changes in this PR
+
 - Internal maintainability: decomposed the core `/matrix/data` query handler — previously a single ~680-line function — into a thin dispatcher plus one focused function per view mode (flat grid, roll-up, context roll-up, attribute fold, inherited-access folds). Cyclomatic complexity of the largest function drops from 150 to 18. No change to matrix behaviour, endpoints, or output.
 - Internal maintainability: decomposed the risk-scoring engine's `runScoring` routine — previously a single ~600-line function — into a thin orchestrator plus one function per pass (load, score resources, score principals, membership analysis, propagation, persistence), each now separately unit-tested. Cyclomatic complexity of the largest function drops from 115 to 20. No change to risk scores, tiers, or explanations.
 - Internal maintainability: decomposed the Recent-Changes timeline builder into one focused, unit-tested handler per event type (attribute change, assignment, containment relationship, identity-link). Cyclomatic complexity of the largest function drops from 60 to 6. No change to timeline output.

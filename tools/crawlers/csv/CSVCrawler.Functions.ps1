@@ -70,6 +70,30 @@ function Read-CsvFile {
 # path (Read-CsvFile / Import-Csv) — Resources.csv is the only file that
 # uses Read-CsvFast and the canonical schema doesn't put delimiters inside
 # Resource descriptions.
+# Read the data rows (everything after the header) with the perf-critical inline
+# split/dequote loop. Extracted from Read-CsvFast to keep the reader flat; called
+# exactly once per file, so this adds NO per-row/-cell function-call overhead to the
+# hot path — $Delim/$Quote arrive as locals, resolved in microseconds.
+function Read-CsvDataRows {
+    [CmdletBinding()]
+    param([System.IO.StreamReader]$Reader, [char[]]$Delim, [char]$Quote)
+    $rows = [System.Collections.Generic.List[object]]::new()
+    while ($true) {
+        $line = $Reader.ReadLine()
+        if ($null -eq $line) { break }
+        if ($line.Length -eq 0) { continue }
+        $cells = $line.Split($Delim)
+        for ($j = 0; $j -lt $cells.Length; $j++) {
+            $c = $cells[$j]
+            if ($c.Length -ge 2 -and $c[0] -eq $Quote -and $c[$c.Length - 1] -eq $Quote) {
+                $cells[$j] = $c.Substring(1, $c.Length - 2)
+            }
+        }
+        [void]$rows.Add($cells)
+    }
+    return , $rows   # comma: return the List intact, do not unroll it into the pipeline
+}
+
 function Read-CsvFast {
     [CmdletBinding()]
     param([string]$FileName)
@@ -82,7 +106,7 @@ function Read-CsvFast {
     [char[]]$delim = @([char]($Delimiter[0]))
     [char]$dq = '"'
     $reader = [System.IO.StreamReader]::new($path, [System.Text.Encoding]::UTF8)
-    $rows = [System.Collections.Generic.List[object]]::new()
+    $rows = $null
     $colIdx = @{}
     try {
         $headerLine = $reader.ReadLine()
@@ -96,19 +120,7 @@ function Read-CsvFast {
             }
             $colIdx[$h] = $i
         }
-        while ($true) {
-            $line = $reader.ReadLine()
-            if ($null -eq $line) { break }
-            if ($line.Length -eq 0) { continue }
-            $cells = $line.Split($delim)
-            for ($j = 0; $j -lt $cells.Length; $j++) {
-                $c = $cells[$j]
-                if ($c.Length -ge 2 -and $c[0] -eq $dq -and $c[$c.Length - 1] -eq $dq) {
-                    $cells[$j] = $c.Substring(1, $c.Length - 2)
-                }
-            }
-            [void]$rows.Add($cells)
-        }
+        $rows = Read-CsvDataRows -Reader $reader -Delim $delim -Quote $dq
     } finally { $reader.Dispose() }
     Write-Host "  $FileName`: $($rows.Count) rows (fast path)" -ForegroundColor Gray
     return @{ rows = $rows; colIdx = $colIdx }
@@ -134,6 +146,52 @@ function Resolve-SystemId {
     param($Row)
     if ($Row.PSObject.Properties.Name -contains 'SystemName' -and $Row.SystemName -and $systemLookup.ContainsKey($Row.SystemName)) { return $systemLookup[$Row.SystemName] }
     return $fallbackSystemId
+}
+
+# Helper: resolve a column index by name, or -1 when the column is absent. Collapses
+# the repeated `if ($colIdx.ContainsKey('X')) { $colIdx['X'] } else { -1 }` used when
+# the phases build their per-file column-index maps.
+function Get-CsvColIndex {
+    [CmdletBinding()]
+    param([hashtable]$ColIdx, [string]$Name)
+    if ($ColIdx.ContainsKey($Name)) { $ColIdx[$Name] } else { -1 }
+}
+
+# Helper: dedup one per-system batch on externalId (or a composite key for keyless
+# rows — relationship / identity-member / context-member shapes), using an ordinal
+# Dictionary (~10x faster than @{} for large sets). Returns the original batch
+# untouched when there were no duplicates. Extracted from Send-GroupedBySystem so its
+# per-system loop stays flat.
+function Get-CsvDedupedBatch {
+    [CmdletBinding()]
+    param($Batch)
+    $seen = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
+    $sb = [System.Text.StringBuilder]::new(128)
+    foreach ($r in $Batch) {
+        $k = $r['externalId']
+        if (-not $k) {
+            [void]$sb.Clear()
+            [void]$sb.Append([string]$r['resourceExternalId']).Append('|')
+            [void]$sb.Append([string]$r['principalExternalId']).Append('|')
+            [void]$sb.Append([string]$r['parentExternalId']).Append('|')
+            [void]$sb.Append([string]$r['childExternalId']).Append('|')
+            [void]$sb.Append([string]$r['identityExternalId']).Append('|')
+            [void]$sb.Append([string]$r['userExternalId']).Append('|')
+            # Context-member rows key on (contextExternalId, memberExternalId,
+            # memberType) — without these every membership row hashes to the
+            # same empty key and the whole batch collapses to one record.
+            [void]$sb.Append([string]$r['contextExternalId']).Append('|')
+            [void]$sb.Append([string]$r['memberExternalId']).Append('|')
+            [void]$sb.Append([string]$r['memberType'])
+            $k = $sb.ToString()
+        }
+        $seen[$k] = $r
+    }
+    if ($seen.Count -eq $Batch.Count) { return , $Batch }   # comma: keep the collection intact
+    $out = [System.Collections.Generic.List[object]]::new($seen.Count)
+    foreach ($v in $seen.Values) { [void]$out.Add($v) }
+    Write-Host "    Deduped: $($Batch.Count) → $($out.Count)" -ForegroundColor DarkGray
+    return , $out
 }
 
 # Helper: group records by systemId and send each system's batch to the API.
@@ -173,39 +231,7 @@ function Send-GroupedBySystem {
     $sysCount = $sysIds.Length
     foreach ($sid in $sysIds) {
         $batch = $grouped[$sid]
-        $origCount = $batch.Count
-        $toSend = $batch
-        if (-not $SkipDedup) {
-            # Fast ordinal string comparer; Dictionary is ~10x faster than @{} for large sets.
-            $seen = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
-            $sb = [System.Text.StringBuilder]::new(128)
-            foreach ($r in $batch) {
-                $k = $r['externalId']
-                if (-not $k) {
-                    [void]$sb.Clear()
-                    [void]$sb.Append([string]$r['resourceExternalId']).Append('|')
-                    [void]$sb.Append([string]$r['principalExternalId']).Append('|')
-                    [void]$sb.Append([string]$r['parentExternalId']).Append('|')
-                    [void]$sb.Append([string]$r['childExternalId']).Append('|')
-                    [void]$sb.Append([string]$r['identityExternalId']).Append('|')
-                    [void]$sb.Append([string]$r['userExternalId']).Append('|')
-                    # Context-member rows key on (contextExternalId, memberExternalId,
-                    # memberType) — without these every membership row hashes to the
-                    # same empty key and the whole batch collapses to one record.
-                    [void]$sb.Append([string]$r['contextExternalId']).Append('|')
-                    [void]$sb.Append([string]$r['memberExternalId']).Append('|')
-                    [void]$sb.Append([string]$r['memberType'])
-                    $k = $sb.ToString()
-                }
-                $seen[$k] = $r
-            }
-            if ($seen.Count -ne $origCount) {
-                $toSend = [System.Collections.Generic.List[object]]::new($seen.Count)
-                foreach ($v in $seen.Values) { [void]$toSend.Add($v) }
-                Write-Host "    Deduped: $origCount → $($toSend.Count)" -ForegroundColor DarkGray
-            }
-            $seen = $null
-        }
+        $toSend = if ($SkipDedup) { $batch } else { Get-CsvDedupedBatch -Batch $batch }
         if ($sysCount -gt 1) { Write-Host "    System $sid`: $($toSend.Count) records" -ForegroundColor DarkGray }
         Send-IngestBatch -Endpoint $Endpoint -SystemId $sid -SyncMode $SyncMode -Scope $Scope -Records $toSend -BatchSize $BatchSize
         $grouped[$sid] = $null  # release early — we already snapshotted the keys

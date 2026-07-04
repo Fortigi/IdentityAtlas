@@ -110,11 +110,11 @@ function Sync-CsvResources {
     $idx = @{
         Ext  = $colIdx['ExternalId']
         DN   = $colIdx['DisplayName']
-        RT   = if ($colIdx.ContainsKey('ResourceType')) { $colIdx['ResourceType'] } else { -1 }
-        Desc = if ($colIdx.ContainsKey('Description'))   { $colIdx['Description'] }   else { -1 }
-        En   = if ($colIdx.ContainsKey('Enabled'))       { $colIdx['Enabled'] }       else { -1 }
+        RT   = Get-CsvColIndex $colIdx 'ResourceType'
+        Desc = Get-CsvColIndex $colIdx 'Description'
+        En   = Get-CsvColIndex $colIdx 'Enabled'
     }
-    $idxSys = if ($colIdx.ContainsKey('SystemName')) { $colIdx['SystemName'] } else { -1 }
+    $idxSys = Get-CsvColIndex $colIdx 'SystemName'
     $records = [System.Collections.Generic.List[object]]::new($rows.Count)
     for ($i = 0; $i -lt $rows.Count; $i++) {
         $r = $rows[$i]
@@ -190,9 +190,9 @@ function Sync-CsvAssignments {
     $idx = @{
         Res  = $colIdx['ResourceExternalId']
         User = $colIdx['UserExternalId']
-        Type = if ($colIdx.ContainsKey('AssignmentType')) { $colIdx['AssignmentType'] } else { -1 }
+        Type = Get-CsvColIndex $colIdx 'AssignmentType'
     }
-    $idxSys = if ($colIdx.ContainsKey('SystemName')) { $colIdx['SystemName'] } else { -1 }
+    $idxSys = Get-CsvColIndex $colIdx 'SystemName'
     $records = [System.Collections.Generic.List[object]]::new($rows.Count)
     for ($i = 0; $i -lt $rows.Count; $i++) {
         $r = $rows[$i]
@@ -263,13 +263,13 @@ function Sync-CsvCertifications {
     }
     $idx = @{
         Ext = $colIdx['ExternalId']
-        Res = if ($colIdx.ContainsKey('ResourceExternalId'))  { $colIdx['ResourceExternalId'] }  else { -1 }
-        UDN = if ($colIdx.ContainsKey('UserDisplayName'))      { $colIdx['UserDisplayName'] }      else { -1 }
-        Dec = if ($colIdx.ContainsKey('Decision'))             { $colIdx['Decision'] }             else { -1 }
-        RDN = if ($colIdx.ContainsKey('ReviewerDisplayName'))  { $colIdx['ReviewerDisplayName'] }  else { -1 }
-        RDT = if ($colIdx.ContainsKey('ReviewedDateTime'))     { $colIdx['ReviewedDateTime'] }     else { -1 }
+        Res = Get-CsvColIndex $colIdx 'ResourceExternalId'
+        UDN = Get-CsvColIndex $colIdx 'UserDisplayName'
+        Dec = Get-CsvColIndex $colIdx 'Decision'
+        RDN = Get-CsvColIndex $colIdx 'ReviewerDisplayName'
+        RDT = Get-CsvColIndex $colIdx 'ReviewedDateTime'
     }
-    $idxSys = if ($colIdx.ContainsKey('SystemName')) { $colIdx['SystemName'] } else { -1 }
+    $idxSys = Get-CsvColIndex $colIdx 'SystemName'
     $records = [System.Collections.Generic.List[object]]::new($rows.Count)
     for ($i = 0; $i -lt $rows.Count; $i++) {
         $r = $rows[$i]

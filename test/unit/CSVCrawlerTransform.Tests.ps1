@@ -156,6 +156,12 @@ Describe 'ConvertTo-CsvRelationshipRecord' {
         $rec.relationshipType | Should -Be 'Contains'
     }
 
+    It 'defaults relationshipType to Contains when the column is present but empty' {
+        $cols = New-ColSet @('ParentExternalId', 'ChildExternalId', 'RelationshipType')
+        $row = [PSCustomObject]@{ ParentExternalId = 'p'; ChildExternalId = 'c'; RelationshipType = '' }
+        (ConvertTo-CsvRelationshipRecord -Row $row -SystemId 2 -Cols $cols).relationshipType | Should -Be 'Contains'
+    }
+
     It 'reads an explicit RelationshipType when present' {
         $cols = New-ColSet @('ParentExternalId', 'ChildExternalId', 'RelationshipType')
         $row = [PSCustomObject]@{ ParentExternalId = 'p'; ChildExternalId = 'c'; RelationshipType = 'GrantsAccessTo' }
@@ -187,6 +193,7 @@ Describe 'ConvertTo-CsvUserRecord' {
         $rec.email         | Should -Be 's@x'
         $rec.jobTitle      | Should -Be 'Bot'
         $rec.department    | Should -Be 'IT'
+        $rec.accountEnabled | Should -BeTrue   # Enabled='true' must stay enabled (guards the -and)
     }
 
     It 'rejects an invalid principalType, falling back to User' {
