@@ -829,3 +829,108 @@ function ConvertTo-EntraCertificationDecisionRecord {
         reviewInstanceEndDateTime   = $Instance.endDateTime
     }
 }
+
+# direct user members. Pure; no I/O. Extracted so the expansion below stays flat.
+function Get-EntraGroupAdjacency {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] $DirectMembers)
+    $childGroups = @{}   # groupId -> List[string] (nested group ids)
+    $directUsers = @{}   # groupId -> HashSet[string] (direct user principal ids)
+    foreach ($m in $DirectMembers) {
+        $gid      = [string]$m.resourceId
+        $memberId = [string]$m.principalId
+        if ($m.principalType -eq 'Group') {
+            if (-not $childGroups.ContainsKey($gid)) {
+                $childGroups[$gid] = [System.Collections.Generic.List[string]]::new()
+            }
+            $childGroups[$gid].Add($memberId)
+        }
+        else {
+            if (-not $directUsers.ContainsKey($gid)) {
+                $directUsers[$gid] = [System.Collections.Generic.HashSet[string]]::new()
+            }
+            [void]$directUsers[$gid].Add($memberId)
+        }
+    }
+    return @{ ChildGroups = $childGroups; DirectUsers = $directUsers }
+}
+
+# Collects every user reachable below a set of seed child groups by walking the
+# group-nesting graph downward. Cycle-safe ($visited) so a membership cycle
+# (A∈B, B∈A) or a diamond can't loop or double-count. Pure; no I/O. Extracted
+# from ConvertTo-EntraNestedGroupIndirectAssignments to keep each unit small.
+function Get-EntraNestedGroupUserSet {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $SeedGroups,   # child group ids directly under the root
+        [Parameter(Mandatory)] $ChildGroups,  # groupId -> List[string] (nested group ids)
+        [Parameter(Mandatory)] $DirectUsers   # groupId -> HashSet[string] (direct user ids)
+    )
+    $users   = [System.Collections.Generic.HashSet[string]]::new()
+    $visited = [System.Collections.Generic.HashSet[string]]::new()
+    $stack   = [System.Collections.Generic.Stack[string]]::new()
+    foreach ($cg in $SeedGroups) {
+        [void]$stack.Push($cg)
+    }
+    while ($stack.Count -gt 0) {
+        $g = $stack.Pop()
+        if (-not $visited.Add($g)) {
+            continue
+        }
+        if ($DirectUsers.ContainsKey($g)) {
+            foreach ($u in $DirectUsers[$g]) {
+                [void]$users.Add($u)
+            }
+        }
+        if ($ChildGroups.ContainsKey($g)) {
+            foreach ($cg in $ChildGroups[$g]) {
+                [void]$stack.Push($cg)
+            }
+        }
+    }
+    return $users
+}
+
+# Expands group-in-group nesting into per-user Indirect EntraGroup assignments so
+# the matrix shows inherited members. Derived entirely from the direct-membership
+# edges the Sync-Assignments phase already fetched (every group's /members) — no
+# extra Graph calls. Mirrors how AppRole-via-group materializes Indirect rows,
+# because the matrix reads a declared-only matview and never walks nesting itself.
+#
+# $DirectMembers is the flat edge list the members phase builds — one hashtable
+# per (group, direct child) with keys: resourceId (the group), principalId (the
+# child), principalType ('Group' for a nested group, else 'User').
+#
+# For every group that directly contains at least one nested group, we walk the
+# nesting downward (cycle-safe) to collect the transitive USER set, then emit an
+# Indirect row for each such user that is NOT already a Direct member of that
+# group (a direct membership is the stronger statement and is emitted elsewhere).
+function ConvertTo-EntraNestedGroupIndirectAssignments {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] $DirectMembers)
+
+    $adj         = Get-EntraGroupAdjacency -DirectMembers $DirectMembers
+    $childGroups = $adj.ChildGroups
+    $directUsers = $adj.DirectUsers
+    $out         = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($rootId in $childGroups.Keys) {
+        $transitiveUsers = Get-EntraNestedGroupUserSet -SeedGroups $childGroups[$rootId] `
+            -ChildGroups $childGroups -DirectUsers $directUsers
+        $rootDirect = if ($directUsers.ContainsKey($rootId)) { $directUsers[$rootId] } else { $null }
+        foreach ($u in $transitiveUsers) {
+            if ($rootDirect -and $rootDirect.Contains($u)) {
+                continue
+            }
+            $out.Add(@{
+                resourceId     = $rootId
+                principalId    = $u
+                assignmentType = 'Indirect'
+                resourceType   = 'EntraGroup'
+                principalType  = 'User'
+            })
+        }
+    }
+
+    return @($out)
+}
